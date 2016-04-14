@@ -1,0 +1,13 @@
+build
+_build
+dist
+*~
+\#*
+MANIFEST
+core
+vgcore*
+__pycache__
+*.so
+confluent?kafka.egg-info
+*.pyc
+.cache
