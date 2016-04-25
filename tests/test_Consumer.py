@@ -12,7 +12,11 @@ def test_basic_api():
     except TypeError as e:
         assert str(e) == "expected configuration dict"
 
-    kc = Consumer({'group.id':'test', 'socket.timeout.ms':'100'})
+    def dummy_commit_cb (consumer, err, partitions):
+        pass
+
+    kc = Consumer({'group.id':'test', 'socket.timeout.ms':'100',
+                   'on_commit': dummy_commit_cb})
 
     kc.subscribe(["test"])
     kc.unsubscribe()

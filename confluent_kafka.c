@@ -967,6 +967,34 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 
 
 /**
+ * @brief Set single special consumer config value.
+ *
+ * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
+ */
+static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
+				      rd_kafka_topic_conf_t *tconf,
+				      const char *name, PyObject *valobj) {
+
+	if (!strcasecmp(name, "on_commit")) {
+		if (!PyCallable_Check(valobj)) {
+			cfl_PyErr_Format(
+				RD_KAFKA_RESP_ERR__INVALID_ARG,
+				"%s requires a callable "
+				"object", name);
+			return -1;
+		}
+
+		self->on_commit = valobj;
+		Py_INCREF(self->on_commit);
+
+		return 1;
+	}
+
+	return 0;
+}
+
+
+/**
  * Common config setup for Kafka client handles.
  *
  * Returns a conf object on success or NULL on failure in which case
@@ -1004,6 +1032,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		const char *k;
 		const char *v;
 		char errstr[256];
+		int r;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
 			PyErr_SetString(PyExc_TypeError,
@@ -1028,24 +1057,22 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		}
 
 		/* Special handling for certain config keys. */
-		if (ktype == RD_KAFKA_PRODUCER) {
-			int r;
-
+		if (ktype == RD_KAFKA_PRODUCER)
 			r = producer_conf_set_special((Producer *)self0,
 						      conf, tconf, k, vo);
-			if (r == -1) {
-				/* Error */
-				Py_DECREF(ks);
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-				return NULL;
+		else
+			r = consumer_conf_set_special((Consumer *)self0,
+						      conf, tconf, k, vo);
+		if (r == -1) {
+			/* Error */
+			Py_DECREF(ks);
+			rd_kafka_topic_conf_destroy(tconf);
+			rd_kafka_conf_destroy(conf);
+			return NULL;
 
-			} else if (r == 1) {
-				/* Handled */
-				continue;
-			}
-
-			/* FALLTHRU */
+		} else if (r == 1) {
+			/* Handled */
+			continue;
 		}
 
 

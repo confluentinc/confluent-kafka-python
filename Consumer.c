@@ -37,6 +37,10 @@ static int Consumer_clear (Consumer *self) {
 		Py_DECREF(self->on_revoke);
 		self->on_revoke = NULL;
 	}
+	if (self->on_commit) {
+		Py_DECREF(self->on_commit);
+		self->on_commit = NULL;
+	}
 	return 0;
 }
 
@@ -543,6 +547,18 @@ PyTypeObject ConsumerType = {
 	"\n"
 	"  Create new Consumer instance using provided configuration dict.\n"
 	"\n"
+	" Special configuration properties:\n"
+	"   ``on_commit``: Optional callback will be called when a commit "
+	"request has succeeded or failed.\n"
+	"\n"
+	"\n"
+	".. py:function:: on_commit(consumer, err, partitions)\n"
+	"\n"
+	"  :param Consumer consumer: Consumer instance.\n"
+	"  :param KafkaError err: Commit error object, or None on success.\n"
+	"  :param list(TopicPartition) partitions: List of partitions with "
+	"their committed offsets or per-partition errors.\n"
+	"\n"
 	"\n", /*tp_doc*/
 	(traverseproc)Consumer_traverse, /* tp_traverse */
 	(inquiry)Consumer_clear, /* tp_clear */
@@ -622,6 +638,51 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 }
 
 
+static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
+				       rd_kafka_topic_partition_list_t *c_parts,
+				       void *opaque) {
+	Consumer *self = opaque;
+	PyObject *parts, *k_err, *args, *result;
+
+	if (!self->on_commit)
+		return;
+
+	PyEval_RestoreThread(self->thread_state);
+
+	/* Insantiate error object */
+	k_err = KafkaError_new_or_None(err, NULL);
+
+	/* Construct list of TopicPartition based on 'c_parts' */
+	parts = c_parts_to_py(c_parts);
+
+	args = Py_BuildValue("(OOO)", self, k_err, parts);
+
+	Py_DECREF(k_err);
+	Py_DECREF(parts);
+
+	if (!args) {
+		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+				 "Unable to build callback args");
+		self->thread_state = PyEval_SaveThread();
+		self->callback_crashed++;
+		return;
+	}
+
+	result = PyObject_CallObject(self->on_commit, args);
+
+	Py_DECREF(args);
+
+	if (result)
+		Py_DECREF(result);
+	else {
+		self->callback_crashed++;
+		rd_kafka_yield(rk);
+	}
+
+	self->thread_state = PyEval_SaveThread();
+}
+
+
 
 static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 				   PyObject *kwargs) {
@@ -640,6 +701,7 @@ static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 	}
 
 	rd_kafka_conf_set_rebalance_cb(conf, Consumer_rebalance_cb);
+	rd_kafka_conf_set_offset_commit_cb(conf, Consumer_offset_commit_cb);
 
 	self->rk = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
 				errstr, sizeof(errstr));

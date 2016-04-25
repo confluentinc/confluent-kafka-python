@@ -21,6 +21,7 @@ providing a dict of configuration properties to the instance constructor, e.g.::
 
   conf = {'bootstrap.servers': 'mybroker.com',
           'group.id': 'mygroup', 'session.timeout.ms': 6000,
+          'on_commit': my_commit_callback,
           'default.topic.config': {'auto.offset.reset': 'smallest'}}
   consumer = confluent_kafka.Consumer(**conf)
 
@@ -39,6 +40,9 @@ The Python bindings also provide some additional configuration properties:
   delivery result (success or failure).
   This property may also be set per-message by passing ``callback=somefunc``
   to the confluent_kafka.Producer.produce() function.
+
+* ``on_commit`` (**Consumer**): Callback used to indicate success or failure
+  of commit requests.
 
 
   
