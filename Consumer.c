@@ -606,6 +606,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 					 "Unable to build callback args");
 			self->thread_state = PyEval_SaveThread();
+			self->callback_crashed++;
 			return;
 		}
 
