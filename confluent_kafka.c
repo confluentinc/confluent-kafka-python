@@ -248,7 +248,7 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
 		va_end(ap);
 	}
 
-	KafkaError_init(self, err, fmt ? buf : NULL);
+	KafkaError_init(self, err, fmt ? buf : rd_kafka_err2str(err));
 
 	return (PyObject *)self;
 }
@@ -257,11 +257,10 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
  * @brief Internal factory to create KafkaError object.
  * @returns a new KafkaError object if \p err != 0, else a None object.
  */
-static PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err,
-					 const char *str) {
+ PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str) {
 	if (!err)
 		Py_RETURN_NONE;
-	return KafkaError_new0(err, str);
+	return KafkaError_new0(err, "%s", str);
 }
 
 
