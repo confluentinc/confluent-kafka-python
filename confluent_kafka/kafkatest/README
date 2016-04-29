@@ -1,0 +1,4 @@
+This directory contains clients implementing the official Kafka tests/kafkatest
+Verifiable client test semantics.
+
+FIXME: Instructions on how to use this.
