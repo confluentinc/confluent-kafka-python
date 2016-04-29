@@ -16,6 +16,7 @@ def test_basic_api():
         pass
 
     kc = Consumer({'group.id':'test', 'socket.timeout.ms':'100',
+                   'session.timeout.ms': 1000, # Avoid close() blocking too long
                    'on_commit': dummy_commit_cb})
 
     kc.subscribe(["test"])
@@ -45,7 +46,7 @@ def test_basic_api():
     try:
         kc.commit(async=False)
     except KafkaException as e:
-        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD)
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._NO_OFFSET)
 
     # Get current position, should all be invalid.
     kc.position(partitions)
