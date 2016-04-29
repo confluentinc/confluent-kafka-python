@@ -582,8 +582,8 @@ PyTypeObject ConsumerType = {
 
 
 static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
-				       rd_kafka_topic_partition_list_t *c_parts,
-				       void *opaque) {
+				   rd_kafka_topic_partition_list_t *c_parts,
+				   void *opaque) {
 	Consumer *self = opaque;
 
 	PyEval_RestoreThread(self->thread_state);
