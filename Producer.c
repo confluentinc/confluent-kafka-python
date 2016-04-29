@@ -250,7 +250,7 @@ static PyObject *Producer_produce (Producer *self, PyObject *args,
 			       "key",
 			       "partition",
 			       "callback",
-			       "delivery_callback", /* Alias */
+			       "on_delivery", /* Alias */
 			       "partitioner",
 			       NULL };
 
@@ -365,16 +365,16 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	  "  Produce message to topic.\n"
 	  "  This is an asynchronous operation, an application may use the "
-	  "``ondelivery`` argument to pass a function (or lambda) that "
-	  "will be called from :py:func:`poll()` when the message has been "
-	  "succesfully delivered or permanently fails delivery.\n"
+	  "``callback`` (alias ``on_delivery``) argument to pass a function "
+	  "(or lambda) that will be called from :py:func:`poll()` when the "
+	  "message has been succesfully delivered or permanently fails delivery.\n"
 	  "\n"
 	  "  :param str topic: Topic to produce message to\n"
 	  "  :param str value: Message payload\n"
 	  "  :param str key: Message key\n"
 	  "  :param int partition: Partition to produce to, elses uses the "
 	  "configured partitioner.\n"
-	  "  :param func ondelivery(err,msg): Delivery report callback to call "
+	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on succesful or "
 	  "failed delivery\n"
 	  "\n"
@@ -393,7 +393,7 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	  "  Callbacks:\n"
 	  "\n"
-	  "  - ``ondelivery`` callbacks from :py:func:`produce()`\n"
+	  "  - ``on_delivery`` callbacks from :py:func:`produce()`\n"
 	  "  - ...\n"
 	  "\n"
 	  "  :param float timeout: Maximum time to block waiting for events.\n"

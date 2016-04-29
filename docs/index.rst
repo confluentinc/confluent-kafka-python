@@ -35,11 +35,11 @@ The Python bindings also provide some additional configuration properties:
 * ``default.topic.config``: value is a dict of topic-level configuration
   properties that are applied to all used topics for the instance.
 
-* ``delivery_callback`` (**Producer**): value is a Python function reference
+* ``on_delivery`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
   delivery result (success or failure).
-  This property may also be set per-message by passing ``callback=somefunc``
-  to the confluent_kafka.Producer.produce() function.
+  This property may also be set per-message by passing ``callback=callable``
+  (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
 
 * ``on_commit`` (**Consumer**): Callback used to indicate success or failure
   of commit requests.

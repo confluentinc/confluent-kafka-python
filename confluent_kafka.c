@@ -885,7 +885,7 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 	PyObject *vs;
 	const char *val;
 
-	if (!strcasecmp(name, "delivery_callback")) {
+	if (!strcasecmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
