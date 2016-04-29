@@ -168,7 +168,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.KafkaError",      /*tp_name*/
+	"cimpl.KafkaError",      /*tp_name*/
 	sizeof(KafkaError),    /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)KafkaError_dealloc, /*tp_dealloc*/
@@ -416,7 +416,7 @@ static PySequenceMethods Message_seq_methods = {
 
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.Message",         /*tp_name*/
+	"cimpl.Message",         /*tp_name*/
 	sizeof(Message),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Message_dealloc, /*tp_dealloc*/
@@ -660,7 +660,7 @@ static long TopicPartition_hash (TopicPartition *self) {
 
 static PyTypeObject TopicPartitionType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.TopicPartition",         /*tp_name*/
+	"cimpl.TopicPartition",         /*tp_name*/
 	sizeof(TopicPartition),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)TopicPartition_dealloc, /*tp_dealloc*/
@@ -772,7 +772,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	if (!PyList_Check(plist)) {
 		PyErr_SetString(PyExc_TypeError,
-				"requires list of confluent_kafka.TopicPartition");
+				"requires list of TopicPartition");
 		return NULL;
 	}
 
@@ -1137,7 +1137,7 @@ static PyObject *version (PyObject *self, PyObject *args) {
 	return Py_BuildValue("si", "0.9.1", 0x00090100);
 }
 
-static PyMethodDef confluent_kafka_methods[] = {
+static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
 	 "\n"
@@ -1230,17 +1230,17 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 
 #ifdef PY3
-static struct PyModuleDef confluent_kafka_moduledef = {
+static struct PyModuleDef cimpl_moduledef = {
 	PyModuleDef_HEAD_INIT,
-	"confluent_kafka",                        /* m_name */
-	"Confluent's Apache Kafka Python client", /* m_doc */
+	"cimpl",                                  /* m_name */
+	"Confluent's Apache Kafka Python client (C implementation)", /* m_doc */
 	-1,                                       /* m_size */
-	confluent_kafka_methods,                  /* m_methods */
+	cimpl_methods,                            /* m_methods */
 };
 #endif
 
 
-static PyObject *_init_confluent_kafka (void) {
+static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
@@ -1255,10 +1255,10 @@ static PyObject *_init_confluent_kafka (void) {
 		return NULL;
 
 #ifdef PY3
-	m = PyModule_Create(&confluent_kafka_moduledef);
+	m = PyModule_Create(&cimpl_moduledef);
 #else
-	m = Py_InitModule3("confluent_kafka", confluent_kafka_methods,
-			   "Confluent's Apache Kafka Python client");
+	m = Py_InitModule3("cimpl", cimpl_methods,
+			   "Confluent's Apache Kafka Python client (C implementation)");
 #endif
 	if (!m)
 		return NULL;
@@ -1283,7 +1283,7 @@ static PyObject *_init_confluent_kafka (void) {
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
 	KafkaException = PyErr_NewExceptionWithDoc(
-		"confluent_kafka.KafkaException",
+		"cimpl.KafkaException",
 		"Kafka exception that wraps the :py:class:`KafkaError` "
 		"class.\n"
 		"\n"
@@ -1299,11 +1299,11 @@ static PyObject *_init_confluent_kafka (void) {
 
 
 #ifdef PY3
-PyMODINIT_FUNC PyInit_confluent_kafka (void) {
-	return _init_confluent_kafka();
+PyMODINIT_FUNC PyInit_cimpl (void) {
+	return _init_cimpl();
 }
 #else
-PyMODINIT_FUNC initconfluent_kafka (void) {
-	_init_confluent_kafka();
+PyMODINIT_FUNC initcimpl (void) {
+	_init_cimpl();
 }
 #endif

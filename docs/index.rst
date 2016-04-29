@@ -13,6 +13,49 @@ Indices and tables
    :synopsis: Confluent's Apache Kafka Python client.
    :members:
 
+********
+Consumer
+********
+
+.. autoclass:: confluent_kafka.Consumer
+   :members:
+
+********
+Producer
+********
+
+.. autoclass:: confluent_kafka.Producer
+   :members:
+
+*******
+Message
+*******
+
+.. autoclass:: confluent_kafka.Message
+   :members:
+
+**************
+TopicPartition
+**************
+
+.. autoclass:: confluent_kafka.TopicPartition
+   :members:
+
+**********
+KafkaError
+**********
+
+.. autoclass:: confluent_kafka.KafkaError
+   :members:
+
+**************
+KafkaException
+**************
+
+.. autoclass:: confluent_kafka.KafkaException
+   :members:
+
+
 
 Configuration
 =============
