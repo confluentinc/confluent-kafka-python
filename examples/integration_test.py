@@ -191,7 +191,7 @@ def verify_producer_performance(with_dr_cb=True):
           (t_delivery_spent - t_produce_spent))
 
 
-def print_commit_result (consumer, err, partitions):
+def print_commit_result (err, partitions):
     if err is not None:
         print('# Failed to commit offsets: %s: %s' % (err, partitions))
     else:

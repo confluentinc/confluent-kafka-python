@@ -105,7 +105,7 @@ class VerifiableConsumer (VerifiableClient):
         self.do_commit(immediate=True)
 
 
-    def on_commit (self, consumer, err, partitions):
+    def on_commit (self, err, partitions):
         """ Offsets Committed callback """
         if err is not None and err.code() == KafkaError._NO_OFFSET:
             self.dbg('on_commit(): no offsets to commit')

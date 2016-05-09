@@ -552,7 +552,7 @@ PyTypeObject ConsumerType = {
 	"request has succeeded or failed.\n"
 	"\n"
 	"\n"
-	".. py:function:: on_commit(consumer, err, partitions)\n"
+	".. py:function:: on_commit(err, partitions)\n"
 	"\n"
 	"  :param Consumer consumer: Consumer instance.\n"
 	"  :param KafkaError err: Commit error object, or None on success.\n"
@@ -656,7 +656,7 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 	/* Construct list of TopicPartition based on 'c_parts' */
 	parts = c_parts_to_py(c_parts);
 
-	args = Py_BuildValue("(OOO)", self, k_err, parts);
+	args = Py_BuildValue("(OO)", k_err, parts);
 
 	Py_DECREF(k_err);
 	Py_DECREF(parts);
