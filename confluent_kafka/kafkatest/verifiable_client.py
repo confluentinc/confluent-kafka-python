@@ -16,7 +16,7 @@
 import signal, socket, os, sys, time, json, re, datetime
 
 
-class VerifiableClient (object):
+class VerifiableClient(object):
     """
     Generic base class for a kafkatest verifiable client.
     Implements the common kafkatest protocol and semantics.
@@ -61,20 +61,20 @@ class VerifiableClient (object):
     @staticmethod
     def set_config (conf, args):
         """ Set client config properties using args dict. """
-        for n in args:
-            if args[n] is None:
+        for n,v in args.iteritems():
+            if v is None:
                 continue
             # Things to ignore
             if '.' not in n:
                 # App config, skip
                 continue
-            if n[:6] == 'topic.':
+            if n.startswith('topic.'):
                 # Set "topic.<...>" properties on default topic conf dict
-                conf['default.topic.config'][n[6:]] = args[n]
+                conf['default.topic.config'][n[6:]] = v
             elif n == 'partition.assignment.strategy':
                 # Convert Java class name to config value.
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
                 conf[n] = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
-                                 lambda x: x.group(1).lower(), args[n])
+                                 lambda x: x.group(1).lower(), v)
             else:
-                conf[n] = args[n]
+                conf[n] = v

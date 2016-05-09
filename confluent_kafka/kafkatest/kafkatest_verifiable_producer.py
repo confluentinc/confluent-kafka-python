@@ -19,7 +19,7 @@ import argparse, time
 from confluent_kafka import Producer, KafkaError, KafkaException
 from verifiable_client import VerifiableClient
 
-class VerifiableProducer (VerifiableClient):
+class VerifiableProducer(VerifiableClient):
     """
     confluent-kafka-python backed VerifiableProducer class for use with
     Kafka's kafkatests client tests.

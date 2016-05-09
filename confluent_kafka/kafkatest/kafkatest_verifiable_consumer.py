@@ -19,7 +19,7 @@ import argparse, sys
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from verifiable_client import VerifiableClient
 
-class VerifiableConsumer (VerifiableClient):
+class VerifiableConsumer(VerifiableClient):
     """
     confluent-kafka-python backed VerifiableConsumer class for use with
     Kafka's kafkatests client tests.
@@ -202,7 +202,7 @@ class VerifiableConsumer (VerifiableClient):
         self.do_commit(immediate=False)
 
 
-class AssignedPartition (object):
+class AssignedPartition(object):
     """ Local state container for assigned partition. """
     def __init__ (self, topic, partition):
         super(AssignedPartition, self).__init__()
