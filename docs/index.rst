@@ -86,6 +86,3 @@ The Python bindings also provide some additional configuration properties:
 
 * ``on_commit`` (**Consumer**): Callback used to indicate success or failure
   of commit requests.
-
-
-  
