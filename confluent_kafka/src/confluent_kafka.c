@@ -168,7 +168,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.KafkaError",      /*tp_name*/
+	"cimpl.KafkaError",      /*tp_name*/
 	sizeof(KafkaError),    /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)KafkaError_dealloc, /*tp_dealloc*/
@@ -248,7 +248,7 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
 		va_end(ap);
 	}
 
-	KafkaError_init(self, err, fmt ? buf : NULL);
+	KafkaError_init(self, err, fmt ? buf : rd_kafka_err2str(err));
 
 	return (PyObject *)self;
 }
@@ -257,11 +257,10 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
  * @brief Internal factory to create KafkaError object.
  * @returns a new KafkaError object if \p err != 0, else a None object.
  */
-static PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err,
-					 const char *str) {
+ PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str) {
 	if (!err)
 		Py_RETURN_NONE;
-	return KafkaError_new0(err, str);
+	return KafkaError_new0(err, "%s", str);
 }
 
 
@@ -417,7 +416,7 @@ static PySequenceMethods Message_seq_methods = {
 
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.Message",         /*tp_name*/
+	"cimpl.Message",         /*tp_name*/
 	sizeof(Message),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Message_dealloc, /*tp_dealloc*/
@@ -661,7 +660,7 @@ static long TopicPartition_hash (TopicPartition *self) {
 
 static PyTypeObject TopicPartitionType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"confluent_kafka.TopicPartition",         /*tp_name*/
+	"cimpl.TopicPartition",         /*tp_name*/
 	sizeof(TopicPartition),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)TopicPartition_dealloc, /*tp_dealloc*/
@@ -773,7 +772,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	if (!PyList_Check(plist)) {
 		PyErr_SetString(PyExc_TypeError,
-				"requires list of confluent_kafka.TopicPartition");
+				"requires list of TopicPartition");
 		return NULL;
 	}
 
@@ -886,7 +885,7 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 	PyObject *vs;
 	const char *val;
 
-	if (!strcasecmp(name, "delivery_callback")) {
+	if (!strcasecmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -967,6 +966,34 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 
 
 /**
+ * @brief Set single special consumer config value.
+ *
+ * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
+ */
+static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
+				      rd_kafka_topic_conf_t *tconf,
+				      const char *name, PyObject *valobj) {
+
+	if (!strcasecmp(name, "on_commit")) {
+		if (!PyCallable_Check(valobj)) {
+			cfl_PyErr_Format(
+				RD_KAFKA_RESP_ERR__INVALID_ARG,
+				"%s requires a callable "
+				"object", name);
+			return -1;
+		}
+
+		self->on_commit = valobj;
+		Py_INCREF(self->on_commit);
+
+		return 1;
+	}
+
+	return 0;
+}
+
+
+/**
  * Common config setup for Kafka client handles.
  *
  * Returns a conf object on success or NULL on failure in which case
@@ -1004,6 +1031,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		const char *k;
 		const char *v;
 		char errstr[256];
+		int r;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
 			PyErr_SetString(PyExc_TypeError,
@@ -1028,24 +1056,22 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		}
 
 		/* Special handling for certain config keys. */
-		if (ktype == RD_KAFKA_PRODUCER) {
-			int r;
-
+		if (ktype == RD_KAFKA_PRODUCER)
 			r = producer_conf_set_special((Producer *)self0,
 						      conf, tconf, k, vo);
-			if (r == -1) {
-				/* Error */
-				Py_DECREF(ks);
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-				return NULL;
+		else
+			r = consumer_conf_set_special((Consumer *)self0,
+						      conf, tconf, k, vo);
+		if (r == -1) {
+			/* Error */
+			Py_DECREF(ks);
+			rd_kafka_topic_conf_destroy(tconf);
+			rd_kafka_conf_destroy(conf);
+			return NULL;
 
-			} else if (r == 1) {
-				/* Handled */
-				continue;
-			}
-
-			/* FALLTHRU */
+		} else if (r == 1) {
+			/* Handled */
+			continue;
 		}
 
 
@@ -1111,7 +1137,7 @@ static PyObject *version (PyObject *self, PyObject *args) {
 	return Py_BuildValue("si", "0.9.1", 0x00090100);
 }
 
-static PyMethodDef confluent_kafka_methods[] = {
+static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
 	 "\n"
@@ -1204,17 +1230,17 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 
 #ifdef PY3
-static struct PyModuleDef confluent_kafka_moduledef = {
+static struct PyModuleDef cimpl_moduledef = {
 	PyModuleDef_HEAD_INIT,
-	"confluent_kafka",                        /* m_name */
-	"Confluent's Apache Kafka Python client", /* m_doc */
+	"cimpl",                                  /* m_name */
+	"Confluent's Apache Kafka Python client (C implementation)", /* m_doc */
 	-1,                                       /* m_size */
-	confluent_kafka_methods,                  /* m_methods */
+	cimpl_methods,                            /* m_methods */
 };
 #endif
 
 
-static PyObject *_init_confluent_kafka (void) {
+static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
@@ -1229,10 +1255,10 @@ static PyObject *_init_confluent_kafka (void) {
 		return NULL;
 
 #ifdef PY3
-	m = PyModule_Create(&confluent_kafka_moduledef);
+	m = PyModule_Create(&cimpl_moduledef);
 #else
-	m = Py_InitModule3("confluent_kafka", confluent_kafka_methods,
-			   "Confluent's Apache Kafka Python client");
+	m = Py_InitModule3("cimpl", cimpl_methods,
+			   "Confluent's Apache Kafka Python client (C implementation)");
 #endif
 	if (!m)
 		return NULL;
@@ -1257,7 +1283,7 @@ static PyObject *_init_confluent_kafka (void) {
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
 	KafkaException = PyErr_NewExceptionWithDoc(
-		"confluent_kafka.KafkaException",
+		"cimpl.KafkaException",
 		"Kafka exception that wraps the :py:class:`KafkaError` "
 		"class.\n"
 		"\n"
@@ -1273,11 +1299,11 @@ static PyObject *_init_confluent_kafka (void) {
 
 
 #ifdef PY3
-PyMODINIT_FUNC PyInit_confluent_kafka (void) {
-	return _init_confluent_kafka();
+PyMODINIT_FUNC PyInit_cimpl (void) {
+	return _init_cimpl();
 }
 #else
-PyMODINIT_FUNC initconfluent_kafka (void) {
-	_init_confluent_kafka();
+PyMODINIT_FUNC initcimpl (void) {
+	_init_cimpl();
 }
 #endif

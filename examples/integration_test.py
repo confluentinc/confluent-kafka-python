@@ -191,6 +191,13 @@ def verify_producer_performance(with_dr_cb=True):
           (t_delivery_spent - t_produce_spent))
 
 
+def print_commit_result (err, partitions):
+    if err is not None:
+        print('# Failed to commit offsets: %s: %s' % (err, partitions))
+    else:
+        print('# Committed offsets for: %s' % partitions)
+
+
 def verify_consumer():
     """ Verify basic Consumer functionality """
 
@@ -199,6 +206,7 @@ def verify_consumer():
             'group.id': 'test.py',
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
+            'on_commit': print_commit_result,
             'default.topic.config': {
                 'auto.offset.reset': 'earliest'
             }}
