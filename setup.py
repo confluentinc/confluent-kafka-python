@@ -18,4 +18,5 @@ setup(name='confluent-kafka',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
-      packages=find_packages())
+      packages=find_packages(),
+      data_files = [('', ['LICENSE'])])
