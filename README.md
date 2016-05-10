@@ -33,7 +33,7 @@ Run integration tests
 =====================
 **WARNING**: These tests require an active Kafka cluster and will make use of a topic named 'test'.
 
-    ./integration_test.py <kafka-broker>
+    examples/integration_test.py <kafka-broker>
 
 
 
