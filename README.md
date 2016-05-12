@@ -39,6 +39,7 @@ Run integration tests
 
 Generate documentation
 ======================
+Install sphinx and sphinx_rtd_theme packages and then:
 
     make docs
 
