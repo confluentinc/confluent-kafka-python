@@ -7,7 +7,7 @@ full Kafka protocol support at great performance and reliability.
 The Python bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9.
 
-See the [API documentation](http://docs.confluent.io/3.0.0/clients/confluent-kafka-python/index.html) for more info.
+See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
 
 
 Usage
