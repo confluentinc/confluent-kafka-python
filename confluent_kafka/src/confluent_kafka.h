@@ -41,12 +41,12 @@
  *
  ****************************************************************************/
 
-#ifdef PY3
+#ifdef PY3 /* Python 3 */
 /**
  * @brief Binary type, use as cfl_PyBin(_X(A,B)) where _X() is the type-less
- *        suffix of a PyBinary/Str_X() function
+ *        suffix of a PyBytes/Str_X() function
 */
-#define cfl_PyBin(X)    PyBinary ## X
+#define cfl_PyBin(X)    PyBytes ## X
 
 /**
  * @brief Unicode type, same usage as PyBin()
@@ -62,7 +62,8 @@
  * @returns Unicode Python string object
  */
 #define cfl_PyObject_Unistr(X)  PyObject_Str(X)
-#else
+
+#else /* Python 2 */
 
 /* See comments above */
 #define cfl_PyBin(X)    PyString ## X
