@@ -2,12 +2,14 @@ Confluent's Apache Kafka client for Python
 ==========================================
 
 Confluent's Kafka client for Python wraps the librdkafka C library, providing
-full Kafka protocol support at great performance and reliability.
+full Kafka protocol support with great performance and reliability.
 
 The Python bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
+
+**License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 
 Usage
