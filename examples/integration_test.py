@@ -35,8 +35,6 @@ except ImportError as e:
 bootstrap_servers = 'localhost'
 
 
-
-
     
 class MyTestDr(object):
     """ Producer: Delivery report callback """

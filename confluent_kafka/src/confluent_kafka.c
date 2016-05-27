@@ -989,6 +989,21 @@ static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
 		return 1;
 	}
 
+	if (!strcasecmp(name, "on_stats")) {
+		if (!PyCallable_Check(valobj)) {
+			cfl_PyErr_Format(
+				RD_KAFKA_RESP_ERR__INVALID_ARG,
+				"%s requires a callable "
+				"object", name);
+			return -1;
+		}
+
+		self->on_stats = valobj;
+		Py_INCREF(self->on_stats);
+
+		return 1;
+	}
+
 	return 0;
 }
 
