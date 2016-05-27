@@ -585,9 +585,9 @@ PyTypeObject ConsumerType = {
 
 static int Consumer_stats_cb (rd_kafka_t *rk, char *json,
 				   size_t json_len, void *opaque) {
-	Consumer *self = opaque;
-	PyObject *args, *result;
-	PyObject *jsonModuleString, *jsonModule, *jsonLoadsFunction, *statsAsString, *statsDict;
+    Consumer *self = opaque;
+    PyObject *args, *result;
+    PyObject *jsonModuleString, *jsonModule, *jsonLoadsFunction, *statsAsString, *statsDict;
 
     PyEval_RestoreThread(self->thread_state);
 
@@ -599,26 +599,26 @@ static int Consumer_stats_cb (rd_kafka_t *rk, char *json,
     statsDict = PyObject_CallObject(jsonLoadsFunction, statsAsString);
 
     // Cleanup python objects
-	Py_DECREF(statsAsString);
-	Py_DECREF(jsonModuleString);
-	Py_DECREF(jsonModule);
-	Py_DECREF(jsonLoadsFunction);
+    Py_DECREF(statsAsString);
+    Py_DECREF(jsonModuleString);
+    Py_DECREF(jsonModule);
+    Py_DECREF(jsonLoadsFunction);
 
     args = Py_BuildValue("(O)", statsDict);
-	Py_DECREF(statsDict);
+    Py_DECREF(statsDict);
 
-	if (self->on_stats) {
-		result = PyObject_CallObject(self->on_stats, args);
-		if (result)
-			Py_DECREF(result);
+    if (self->on_stats) {
+	    result = PyObject_CallObject(self->on_stats, args);
+	    if (result)
+		    Py_DECREF(result);
 		else {
-			self->callback_crashed++;
-			rd_kafka_yield(rk);
-		}
+		    self->callback_crashed++;
+		    rd_kafka_yield(rk);
+	    }
     }
-	Py_DECREF(args);
+    Py_DECREF(args);
 
-	self->thread_state = PyEval_SaveThread();
+    self->thread_state = PyEval_SaveThread();
     return 0;
 }
 
