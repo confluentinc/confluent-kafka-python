@@ -70,7 +70,9 @@ Build
 
     python setup.by build
 
+If librdkafka is installed in a non-standard location provide the include and library directories with:
 
+    CPLUS_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python setup.py ...
 
 
 Tests
