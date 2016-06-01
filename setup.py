@@ -5,9 +5,7 @@ from distutils.core import Extension
 
 
 module = Extension('confluent_kafka.cimpl',
-                    include_dirs = ['/usr/local/include'],
                     libraries= ['rdkafka'],
-                    library_dirs = ['/usr/local/lib'],
                     sources=['confluent_kafka/src/confluent_kafka.c',
                              'confluent_kafka/src/Producer.c',
                              'confluent_kafka/src/Consumer.c'])
