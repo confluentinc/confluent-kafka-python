@@ -17,31 +17,32 @@ Usage
 
 **Producer:**
 
-    from confluent_kafka import Producer
+```python
+from confluent_kafka import Producer
 
-    p = Producer({'bootstrap.servers': 'mybroker,mybroker2'})
-    for data in some_data_source:
-        p.produce('mytopic', data.encode('utf-8'))
-    p.flush()
+p = Producer({'bootstrap.servers': 'mybroker,mybroker2'})
+for data in some_data_source:
+    p.produce('mytopic', data.encode('utf-8'))
+p.flush()
+```
 
 
 **High-level Consumer:**
 
-    from confluent_kafka import Consumer
+```python
+from confluent_kafka import Consumer
 
-    c = Consumer({'bootstrap.servers': 'mybroker', 'group.id': 'mygroup',
-                  'default.topic.config': {'auto.offset.reset': 'smallest'}})
-    c.subscribe(['mytopic'])
-    while running:
-        msg = c.poll()
-        if not msg.error():
-            print('Received message: %s' % msg.value().decode('utf-8'))
-    c.close()
-
-
+c = Consumer({'bootstrap.servers': 'mybroker', 'group.id': 'mygroup',
+              'default.topic.config': {'auto.offset.reset': 'smallest'}})
+c.subscribe(['mytopic'])
+while running:
+    msg = c.poll()
+    if not msg.error():
+        print('Received message: %s' % msg.value().decode('utf-8'))
+c.close()
+```
 
 See [examples](examples) for more examples.
-
 
 
 Prerequisites
@@ -51,28 +52,27 @@ Prerequisites
  * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.1
 
 
-
 Install
 =======
 
 **Install from PyPi:**
 
-    pip install confluent-kafka
+    $ pip install confluent-kafka
 
 
 **Install from source / tarball:**
 
-    pip install .
+    $ pip install .
 
 
 Build
 =====
 
-    python setup.by build
+    $ python setup.by build
 
 If librdkafka is installed in a non-standard location provide the include and library directories with:
 
-    CPLUS_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python setup.py ...
+    $ CPLUS_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python setup.py ...
 
 
 Tests
@@ -81,14 +81,14 @@ Tests
 
 **Run unit-tests:**
 
-    py.test
+    $ py.test
 
-**NOTE**: Requires py.test, install by `pip install pytest`
+**NOTE**: Requires `py.test`, install by `pip install pytest`
 
 
 **Run integration tests:**
 
-    examples/integration_test.py <kafka-broker>
+    $ examples/integration_test.py <kafka-broker>
 
 **WARNING**: These tests require an active Kafka cluster and will make use of a topic named 'test'.
 
@@ -99,13 +99,10 @@ Generate documentation
 ======================
 Install sphinx and sphinx_rtd_theme packages and then:
 
-    make docs
+    $ make docs
 
 or:
 
-    python setup.by build_sphinx
+    $ python setup.by build_sphinx
 
-
-Documentation will be generated in `docs/_build/`
-
-
+Documentation will be generated in `docs/_build/`.
