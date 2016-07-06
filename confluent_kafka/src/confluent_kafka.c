@@ -801,6 +801,39 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 }
 
 
+/****************************************************************************
+ *
+ *
+ * Common callbacks
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+	Handle *h = opaque;
+	PyObject *eo, *result;
+
+	PyEval_RestoreThread(h->thread_state);
+	if (!h->error_cb) {
+		/* No callback defined */
+		goto done;
+	}
+
+	eo = KafkaError_new0(err, "%s", reason);
+	result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
+	Py_DECREF(eo);
+
+	if (result) {
+		Py_DECREF(result);
+	} else {
+		h->callback_crashed++;
+		rd_kafka_yield(h->rk);
+	}
+
+ done:
+	h->thread_state = PyEval_SaveThread();
+}
 
 
 /****************************************************************************
@@ -812,6 +845,28 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
  *
  *
  ****************************************************************************/
+
+
+
+/**
+ * Clear Python object references in Handle
+ */
+void Handle_clear (Handle *h) {
+	if (h->error_cb) {
+		Py_DECREF(h->error_cb);
+	}
+}
+
+/**
+ * GC traversal for Python object references
+ */
+int Handle_traverse (Handle *h, visitproc visit, void *arg) {
+	if (h->error_cb)
+		Py_VISIT(h->error_cb);
+
+	return 0;
+}
+
 
 
 /**
@@ -1053,6 +1108,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 			Py_DECREF(ks);
 			continue;
+
+		} else if (!strcmp(k, "error_cb")) {
+			if (h->error_cb)
+				Py_DECREF(h->error_cb);
+			h->error_cb = vo;
+			Py_INCREF(h->error_cb);
+			Py_DECREF(ks);
+			continue;
 		}
 
 		/* Special handling for certain config keys. */
@@ -1102,6 +1165,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		Py_DECREF(ks);
 	}
 
+	if (h->error_cb)
+		rd_kafka_conf_set_error_cb(conf, error_cb);
 	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);
 

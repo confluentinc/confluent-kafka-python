@@ -78,6 +78,9 @@ The Python bindings also provide some additional configuration properties:
 * ``default.topic.config``: value is a dict of topic-level configuration
   properties that are applied to all used topics for the instance.
 
+* ``error_cb``: Callback for generic/global error events. This callback is served by
+  poll().
+
 * ``on_delivery`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
   delivery result (success or failure).
