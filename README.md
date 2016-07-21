@@ -35,7 +35,7 @@ from confluent_kafka import Consumer
 c = Consumer({'bootstrap.servers': 'mybroker', 'group.id': 'mygroup',
               'default.topic.config': {'auto.offset.reset': 'smallest'}})
 c.subscribe(['mytopic'])
-while running:
+while True:
     msg = c.poll()
     if not msg.error():
         print('Received message: %s' % msg.value().decode('utf-8'))
