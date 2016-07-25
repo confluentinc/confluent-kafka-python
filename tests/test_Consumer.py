@@ -41,10 +41,10 @@ def test_basic_api():
 
     kc.unassign()
 
-    kc.commit(async=True)
+    kc.commit(asynchronous=True)
 
     try:
-        kc.commit(async=False)
+        kc.commit(asynchronous=False)
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._NO_OFFSET)
 

@@ -132,7 +132,7 @@ class VerifiableConsumer(VerifiableClient):
         self.send(d)
 
 
-    def do_commit (self, immediate=False, async=None):
+    def do_commit (self, immediate=False, asynchronous=None):
         """ Commit every 1000 messages or whenever there is a consume timeout
             or immediate. """
         if (self.use_auto_commit or
@@ -145,17 +145,17 @@ class VerifiableConsumer(VerifiableClient):
         if self.consumed_msgs_at_last_commit < self.consumed_msgs:
             self.send_records_consumed(immediate=True)
 
-        if async is None:
+        if asynchronous is None:
             async_mode = self.use_async_commit
         else:
-            async_mode = async
+            async_mode = asynchronous
 
         self.dbg('Committing %d messages (Async=%s)' %
                  (self.consumed_msgs - self.consumed_msgs_at_last_commit,
                   async_mode))
 
         try:
-            self.consumer.commit(async=async_mode)
+            self.consumer.commit(asynchronous=async_mode)
         except KafkaException as e:
             if e.args[0].code() == KafkaError._WAIT_COORD:
                 self.dbg('Ignoring commit failure, still waiting for coordinator')
@@ -279,7 +279,7 @@ if __name__ == '__main__':
     vc.dbg('Closing consumer')
     vc.send_records_consumed(immediate=True)
     if not vc.use_auto_commit:
-        vc.do_commit(immediate=True, async=False)
+        vc.do_commit(immediate=True, asynchronous=False)
 
     vc.consumer.close()
 
