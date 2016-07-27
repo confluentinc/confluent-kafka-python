@@ -68,7 +68,7 @@ Install
 Build
 =====
 
-    $ python setup.by build
+    $ python setup.py build
 
 If librdkafka is installed in a non-standard location provide the include and library directories with:
 
@@ -103,6 +103,6 @@ Install sphinx and sphinx_rtd_theme packages and then:
 
 or:
 
-    $ python setup.by build_sphinx
+    $ python setup.py build_sphinx
 
 Documentation will be generated in `docs/_build/`.
