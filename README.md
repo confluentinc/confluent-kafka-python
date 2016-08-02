@@ -12,7 +12,7 @@ Prerequisites
 Build
 =====
 
-    python setup.by build
+    python setup.py build
 
 
 
@@ -45,7 +45,7 @@ Install sphinx and sphinx_rtd_theme packages and then:
 
 or:
 
-    python setup.by build_sphinx
+    python setup.py build_sphinx
 
 
 Documentation will be generated in `docs/_build/`
