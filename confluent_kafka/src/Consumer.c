@@ -64,6 +64,8 @@ static int Consumer_traverse (Handle *self,
 		Py_VISIT(self->u.Consumer.on_assign);
 	if (self->u.Consumer.on_revoke)
 		Py_VISIT(self->u.Consumer.on_revoke);
+	if (self->u.Consumer.on_commit)
+		Py_VISIT(self->u.Consumer.on_commit);
 
 	Handle_traverse(self, visit, arg);
 
