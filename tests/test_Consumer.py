@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+import pytest
 
 from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException
 
@@ -60,3 +60,24 @@ def test_basic_api():
 
     kc.close()
 
+def test_stats_callback_consumer():
+
+    class TestCallbackException(Exception):
+        """
+        Custom test exception to throw from stats callback
+        """
+        pass
+
+    def stats_callback(stats_dict):
+        raise TestCallbackException()
+
+    kc = Consumer({'group.id':'test', 'socket.timeout.ms':'100',
+                   'session.timeout.ms': 1000, # Avoid close() blocking too long
+                   'on_stats': stats_callback, 'statistics.interval.ms': 100})
+
+    kc.subscribe(['test'])
+    kc.unsubscribe()
+    with pytest.raises(TestCallbackException):
+        msg = kc.poll(0.1)
+
+    kc.close()

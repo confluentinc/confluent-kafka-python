@@ -200,6 +200,7 @@ typedef struct {
 	PyObject *on_assign;     /* Rebalance: on_assign callback */
 	PyObject *on_revoke;     /* Rebalance: on_revoke callback */
 	PyObject *on_commit;     /* Commit callback */
+	PyObject *on_stats;     /* Stat callback */
 	int callback_crashed;
 	PyThreadState *thread_state;
 } Consumer;

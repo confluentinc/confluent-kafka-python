@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from confluent_kafka import Producer, KafkaError, KafkaException
 
 
@@ -30,5 +28,3 @@ def test_basic_api():
     p.poll(0.001)
 
     p.flush()
-
-
