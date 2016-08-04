@@ -339,12 +339,12 @@ static PyMethodDef Message_methods[] = {
 
 	{ "value", (PyCFunction)Message_value, METH_NOARGS,
 	  "  :returns: message value (payload) or None if not available.\n"
-	  "  :rtype: str or None\n"
+	  "  :rtype: str|bytes or None\n"
 	  "\n"
 	},
 	{ "key", (PyCFunction)Message_key, METH_NOARGS,
 	  "  :returns: message key or None if not available.\n"
-	  "  :rtype: str or None\n"
+	  "  :rtype: str|bytes or None\n"
 	  "\n"
 	},
 	{ "topic", (PyCFunction)Message_topic, METH_NOARGS,
@@ -486,10 +486,10 @@ PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
 		self->topic = cfl_PyUnistr(
 			_FromString(rd_kafka_topic_name(rkm->rkt)));
 	if (rkm->payload)
-		self->value = cfl_PyUnistr(_FromStringAndSize(rkm->payload,
-							       rkm->len));
+		self->value = cfl_PyBin(_FromStringAndSize(rkm->payload,
+							   rkm->len));
 	if (rkm->key)
-		self->key = cfl_PyUnistr(
+		self->key = cfl_PyBin(
 			_FromStringAndSize(rkm->key, rkm->key_len));
 
 	self->partition = rkm->partition;

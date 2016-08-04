@@ -5,14 +5,13 @@ from distutils.core import Extension
 
 
 module = Extension('confluent_kafka.cimpl',
-                    include_dirs = ['/usr/local/include'],
                     libraries= ['rdkafka'],
                     sources=['confluent_kafka/src/confluent_kafka.c',
                              'confluent_kafka/src/Producer.c',
                              'confluent_kafka/src/Consumer.c'])
 
 setup(name='confluent-kafka',
-      version='0.9.1.1',
+      version='0.9.1.2',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',
