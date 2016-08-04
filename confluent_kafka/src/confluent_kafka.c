@@ -801,6 +801,39 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 }
 
 
+/****************************************************************************
+ *
+ *
+ * Common callbacks
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
+	Handle *h = opaque;
+	PyObject *eo, *result;
+
+	PyEval_RestoreThread(h->thread_state);
+	if (!h->error_cb) {
+		/* No callback defined */
+		goto done;
+	}
+
+	eo = KafkaError_new0(err, "%s", reason);
+	result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
+	Py_DECREF(eo);
+
+	if (result) {
+		Py_DECREF(result);
+	} else {
+		h->callback_crashed++;
+		rd_kafka_yield(h->rk);
+	}
+
+ done:
+	h->thread_state = PyEval_SaveThread();
+}
 
 
 /****************************************************************************
@@ -812,6 +845,28 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
  *
  *
  ****************************************************************************/
+
+
+
+/**
+ * Clear Python object references in Handle
+ */
+void Handle_clear (Handle *h) {
+	if (h->error_cb) {
+		Py_DECREF(h->error_cb);
+	}
+}
+
+/**
+ * GC traversal for Python object references
+ */
+int Handle_traverse (Handle *h, visitproc visit, void *arg) {
+	if (h->error_cb)
+		Py_VISIT(h->error_cb);
+
+	return 0;
+}
+
 
 
 /**
@@ -879,7 +934,7 @@ static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
  *
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
-static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
+static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 	PyObject *vs;
@@ -894,8 +949,8 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 			return -1;
 		}
 
-		self->default_dr_cb = valobj;
-		Py_INCREF(self->default_dr_cb);
+		self->u.Producer.default_dr_cb = valobj;
+		Py_INCREF(self->u.Producer.default_dr_cb);
 
 		return 1;
 
@@ -947,11 +1002,11 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
 				return -1;
 			}
 
-			if (self->partitioner_cb)
-				Py_DECREF(self->partitioner_cb);
+			if (self->u.Producer.partitioner_cb)
+				Py_DECREF(self->u.Producer.partitioner_cb);
 
-			self->partitioner_cb = valobj;
-			Py_INCREF(self->partitioner_cb);
+			self->u.Producer.partitioner_cb = valobj;
+			Py_INCREF(self->u.Producer.partitioner_cb);
 
 			/* Use trampoline to call Python code. */
 			rd_kafka_topic_conf_set_partitioner_cb(tconf,
@@ -970,7 +1025,7 @@ static int producer_conf_set_special (Producer *self, rd_kafka_conf_t *conf,
  *
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
-static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
+static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
@@ -983,8 +1038,8 @@ static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
 			return -1;
 		}
 
-		self->on_commit = valobj;
-		Py_INCREF(self->on_commit);
+		self->u.Consumer.on_commit = valobj;
+		Py_INCREF(self->u.Consumer.on_commit);
 
 		return 1;
 	}
@@ -1000,7 +1055,7 @@ static int consumer_conf_set_special (Consumer *self, rd_kafka_conf_t *conf,
  * an exception has been raised.
  */
 rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
-				    void *self0,
+				    Handle *h,
 				    PyObject *args,
 				    PyObject *kwargs) {
 	rd_kafka_conf_t *conf;
@@ -1053,15 +1108,21 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 			Py_DECREF(ks);
 			continue;
+
+		} else if (!strcmp(k, "error_cb")) {
+			if (h->error_cb)
+				Py_DECREF(h->error_cb);
+			h->error_cb = vo;
+			Py_INCREF(h->error_cb);
+			Py_DECREF(ks);
+			continue;
 		}
 
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
-			r = producer_conf_set_special((Producer *)self0,
-						      conf, tconf, k, vo);
+			r = producer_conf_set_special(h, conf, tconf, k, vo);
 		else
-			r = consumer_conf_set_special((Consumer *)self0,
-						      conf, tconf, k, vo);
+			r = consumer_conf_set_special(h, conf, tconf, k, vo);
 		if (r == -1) {
 			/* Error */
 			Py_DECREF(ks);
@@ -1104,10 +1165,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		Py_DECREF(ks);
 	}
 
-	rd_kafka_topic_conf_set_opaque(tconf, self0);
+	if (h->error_cb)
+		rd_kafka_conf_set_error_cb(conf, error_cb);
+	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);
 
-	rd_kafka_conf_set_opaque(conf, self0);
+	rd_kafka_conf_set_opaque(conf, h);
 
 	return conf;
 }

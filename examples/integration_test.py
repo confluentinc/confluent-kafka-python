@@ -37,6 +37,8 @@ bootstrap_servers = 'localhost'
 
 
 
+def error_cb (err):
+    print('Error: %s' % err)
     
 class MyTestDr(object):
     """ Producer: Delivery report callback """
@@ -77,6 +79,7 @@ def verify_producer():
 
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
             'default.topic.config':{'produce.offset.report': True}}
 
     # Create producer
@@ -112,7 +115,8 @@ def verify_producer():
 
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
-    conf = {'bootstrap.servers': bootstrap_servers}
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb}
 
     p = confluent_kafka.Producer(**conf)
 
@@ -207,6 +211,7 @@ def verify_consumer():
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
             'on_commit': print_commit_result,
+            'error_cb': error_cb,
             'default.topic.config': {
                 'auto.offset.reset': 'earliest'
             }}
@@ -275,6 +280,7 @@ def verify_consumer_performance():
     conf = {'bootstrap.servers': bootstrap_servers,
             'group.id': uuid.uuid1(),
             'session.timeout.ms': 6000,
+            'error_cb': error_cb,
             'default.topic.config': {
                 'auto.offset.reset': 'earliest'
             }}

@@ -28,23 +28,26 @@
  ****************************************************************************/
 
 
-static int Consumer_clear (Consumer *self) {
-	if (self->on_assign) {
-		Py_DECREF(self->on_assign);
-		self->on_assign = NULL;
+static int Consumer_clear (Handle *self) {
+	if (self->u.Consumer.on_assign) {
+		Py_DECREF(self->u.Consumer.on_assign);
+		self->u.Consumer.on_assign = NULL;
 	}
-	if (self->on_revoke) {
-		Py_DECREF(self->on_revoke);
-		self->on_revoke = NULL;
+	if (self->u.Consumer.on_revoke) {
+		Py_DECREF(self->u.Consumer.on_revoke);
+		self->u.Consumer.on_revoke = NULL;
 	}
-	if (self->on_commit) {
-		Py_DECREF(self->on_commit);
-		self->on_commit = NULL;
+	if (self->u.Consumer.on_commit) {
+		Py_DECREF(self->u.Consumer.on_commit);
+		self->u.Consumer.on_commit = NULL;
 	}
+
+	Handle_clear(self);
+
 	return 0;
 }
 
-static void Consumer_dealloc (Consumer *self) {
+static void Consumer_dealloc (Handle *self) {
 	PyObject_GC_UnTrack(self);
 
 	Consumer_clear(self);
@@ -55,12 +58,17 @@ static void Consumer_dealloc (Consumer *self) {
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static int Consumer_traverse (Consumer *self,
-				  visitproc visit, void *arg) {
-	if (self->on_assign)
-		Py_VISIT(self->on_assign);
-	if (self->on_revoke)
-		Py_VISIT(self->on_revoke);
+static int Consumer_traverse (Handle *self,
+			      visitproc visit, void *arg) {
+	if (self->u.Consumer.on_assign)
+		Py_VISIT(self->u.Consumer.on_assign);
+	if (self->u.Consumer.on_revoke)
+		Py_VISIT(self->u.Consumer.on_revoke);
+	if (self->u.Consumer.on_commit)
+		Py_VISIT(self->u.Consumer.on_commit);
+
+	Handle_traverse(self, visit, arg);
+
 	return 0;
 }
 
@@ -69,7 +77,7 @@ static int Consumer_traverse (Consumer *self,
 
 
 
-static PyObject *Consumer_subscribe (Consumer *self, PyObject *args,
+static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 					 PyObject *kwargs) {
 
 	rd_kafka_topic_partition_list_t *topics;
@@ -130,29 +138,29 @@ static PyObject *Consumer_subscribe (Consumer *self, PyObject *args,
 	/*
 	 * Update rebalance callbacks
 	 */
-	if (self->on_assign) {
-		Py_DECREF(self->on_assign);
-		self->on_assign = NULL;
+	if (self->u.Consumer.on_assign) {
+		Py_DECREF(self->u.Consumer.on_assign);
+		self->u.Consumer.on_assign = NULL;
 	}
 	if (on_assign) {
-		self->on_assign = on_assign;
-		Py_INCREF(self->on_assign);
+		self->u.Consumer.on_assign = on_assign;
+		Py_INCREF(self->u.Consumer.on_assign);
 	}
 
-	if (self->on_revoke) {
-		Py_DECREF(self->on_revoke);
-		self->on_revoke = NULL;
+	if (self->u.Consumer.on_revoke) {
+		Py_DECREF(self->u.Consumer.on_revoke);
+		self->u.Consumer.on_revoke = NULL;
 	}
 	if (on_revoke) {
-		self->on_revoke = on_revoke;
-		Py_INCREF(self->on_revoke);
+		self->u.Consumer.on_revoke = on_revoke;
+		Py_INCREF(self->u.Consumer.on_revoke);
 	}
 
 	Py_RETURN_NONE;
 }
 
 
-static PyObject *Consumer_unsubscribe (Consumer *self,
+static PyObject *Consumer_unsubscribe (Handle *self,
 					   PyObject *ignore) {
 
 	rd_kafka_resp_err_t err;
@@ -169,7 +177,7 @@ static PyObject *Consumer_unsubscribe (Consumer *self,
 }
 
 
-static PyObject *Consumer_assign (Consumer *self, PyObject *tlist) {
+static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 
 	rd_kafka_topic_partition_list_t *c_parts;
 	rd_kafka_resp_err_t err;
@@ -177,7 +185,7 @@ static PyObject *Consumer_assign (Consumer *self, PyObject *tlist) {
 	if (!(c_parts = py_to_c_parts(tlist)))
 		return NULL;
 
-	self->rebalance_assigned++;
+	self->u.Consumer.rebalance_assigned++;
 
 	err = rd_kafka_assign(self->rk, c_parts);
 
@@ -194,11 +202,11 @@ static PyObject *Consumer_assign (Consumer *self, PyObject *tlist) {
 }
 
 
-static PyObject *Consumer_unassign (Consumer *self, PyObject *ignore) {
+static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
 	rd_kafka_resp_err_t err;
 
-	self->rebalance_assigned++;
+	self->u.Consumer.rebalance_assigned++;
 
 	err = rd_kafka_assign(self->rk, NULL);
 	if (err) {
@@ -213,7 +221,7 @@ static PyObject *Consumer_unassign (Consumer *self, PyObject *ignore) {
 
 
 
-static PyObject *Consumer_commit (Consumer *self, PyObject *args,
+static PyObject *Consumer_commit (Handle *self, PyObject *args,
 					PyObject *kwargs) {
 
 	rd_kafka_resp_err_t err;
@@ -281,7 +289,7 @@ static PyObject *Consumer_commit (Consumer *self, PyObject *args,
 
 
 
-static PyObject *Consumer_committed (Consumer *self, PyObject *args,
+static PyObject *Consumer_committed (Handle *self, PyObject *args,
 					 PyObject *kwargs) {
 
 	PyObject *plist;
@@ -317,7 +325,7 @@ static PyObject *Consumer_committed (Consumer *self, PyObject *args,
 }
 
 
-static PyObject *Consumer_position (Consumer *self, PyObject *args,
+static PyObject *Consumer_position (Handle *self, PyObject *args,
 					PyObject *kwargs) {
 
 	PyObject *plist;
@@ -352,7 +360,7 @@ static PyObject *Consumer_position (Consumer *self, PyObject *args,
 
 
 
-static PyObject *Consumer_poll (Consumer *self, PyObject *args,
+static PyObject *Consumer_poll (Handle *self, PyObject *args,
 				    PyObject *kwargs) {
 	double tmout = -1.0f;
 	static char *kws[] = { "timeout", NULL };
@@ -384,7 +392,7 @@ static PyObject *Consumer_poll (Consumer *self, PyObject *args,
 }
 
 
-static PyObject *Consumer_close (Consumer *self, PyObject *ignore) {
+static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 	self->thread_state = PyEval_SaveThread();
 	rd_kafka_consumer_close(self->rk);
 	PyEval_RestoreThread(self->thread_state);
@@ -523,7 +531,7 @@ static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 PyTypeObject ConsumerType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
 	"cimpl.Consumer",        /*tp_name*/
-	sizeof(Consumer),      /*tp_basicsize*/
+	sizeof(Handle),          /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Consumer_dealloc, /*tp_dealloc*/
 	0,                         /*tp_print*/
@@ -584,14 +592,16 @@ PyTypeObject ConsumerType = {
 static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				   rd_kafka_topic_partition_list_t *c_parts,
 				   void *opaque) {
-	Consumer *self = opaque;
+	Handle *self = opaque;
 
 	PyEval_RestoreThread(self->thread_state);
 
-	self->rebalance_assigned = 0;
+	self->u.Consumer.rebalance_assigned = 0;
 
-	if ((err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS && self->on_assign) ||
-	    (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS && self->on_revoke)) {
+	if ((err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS &&
+	     self->u.Consumer.on_assign) ||
+	    (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
+	     self->u.Consumer.on_revoke)) {
 		PyObject *parts;
 		PyObject *args, *result;
 
@@ -612,7 +622,8 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 		result = PyObject_CallObject(
 			err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS ?
-			self->on_assign : self->on_revoke, args);
+			self->u.Consumer.on_assign :
+			self->u.Consumer.on_revoke, args);
 
 		Py_DECREF(args);
 
@@ -628,7 +639,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 	 * to synchronize state, if the user did not do this from callback,
 	 * or there was no callback, or the callback failed, then we perform
 	 * that assign() call here instead. */
-	if (!self->rebalance_assigned) {
+	if (!self->u.Consumer.rebalance_assigned) {
 		if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
 			rd_kafka_assign(rk, c_parts);
 		else
@@ -642,10 +653,10 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				       rd_kafka_topic_partition_list_t *c_parts,
 				       void *opaque) {
-	Consumer *self = opaque;
+	Handle *self = opaque;
 	PyObject *parts, *k_err, *args, *result;
 
-	if (!self->on_commit)
+	if (!self->u.Consumer.on_commit)
 		return;
 
 	PyEval_RestoreThread(self->thread_state);
@@ -669,7 +680,7 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		return;
 	}
 
-	result = PyObject_CallObject(self->on_commit, args);
+	result = PyObject_CallObject(self->u.Consumer.on_commit, args);
 
 	Py_DECREF(args);
 
@@ -687,16 +698,16 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 				   PyObject *kwargs) {
-	Consumer *self;
+	Handle *self;
 	char errstr[256];
 	rd_kafka_conf_t *conf;
 
-	self = (Consumer *)ConsumerType.tp_alloc(&ConsumerType, 0);
+	self = (Handle *)ConsumerType.tp_alloc(&ConsumerType, 0);
 	if (!self)
 		return NULL;
 
 	if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
-					   args, kwargs))) {
+				       args, kwargs))) {
 		Py_DECREF(self);
 		return NULL;
 	}

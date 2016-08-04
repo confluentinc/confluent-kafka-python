@@ -13,7 +13,11 @@ def test_basic_api():
         assert str(e) == "expected configuration dict"
 
 
+    def error_cb (err):
+        print('error_cb', err)
+
     p = Producer({'socket.timeout.ms':10,
+                  'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
     p.produce('mytopic')
