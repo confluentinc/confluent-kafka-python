@@ -813,8 +813,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque) {
 	Handle *h = opaque;
 	PyObject *eo, *result;
+	CallState *cs;
 
-	PyEval_RestoreThread(h->thread_state);
+	cs = CallState_get(h);
 	if (!h->error_cb) {
 		/* No callback defined */
 		goto done;
@@ -827,12 +828,12 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result) {
 		Py_DECREF(result);
 	} else {
-		h->callback_crashed++;
+		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
 
  done:
-	h->thread_state = PyEval_SaveThread();
+	CallState_resume(cs);
 }
 
 
@@ -855,6 +856,8 @@ void Handle_clear (Handle *h) {
 	if (h->error_cb) {
 		Py_DECREF(h->error_cb);
 	}
+
+	PyThread_delete_key(h->tlskey);
 }
 
 /**
@@ -1172,10 +1175,65 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	rd_kafka_conf_set_opaque(conf, h);
 
+	h->tlskey = PyThread_create_key();
+
 	return conf;
 }
 
 
+
+
+/**
+ * @brief Initialiase a CallState and unlock the GIL prior to a
+ *        possibly blocking external call.
+ */
+void CallState_begin (Handle *h, CallState *cs) {
+	cs->thread_state = PyEval_SaveThread();
+	cs->crashed = 0;
+	PyThread_set_key_value(h->tlskey, cs);
+}
+
+/**
+ * @brief Relock the GIL after external call is done.
+ * @returns 0 if a Python signal was raised or a callback crashed, else 1.
+ */
+int CallState_end (Handle *h, CallState *cs) {
+	PyThread_delete_key_value(h->tlskey);
+
+	PyEval_RestoreThread(cs->thread_state);
+
+	if (PyErr_CheckSignals() == -1 || cs->crashed)
+		return 0;
+
+	return 1;
+}
+
+
+/**
+ * @brief Get the current thread's CallState and re-locks the GIL.
+ */
+CallState *CallState_get (Handle *h) {
+	CallState *cs = PyThread_get_key_value(h->tlskey);
+	assert(cs != NULL);
+	PyEval_RestoreThread(cs->thread_state);
+	cs->thread_state = NULL;
+	return cs;
+}
+
+/**
+ * @brief Un-locks the GIL to resume blocking external call.
+ */
+void CallState_resume (CallState *cs) {
+	assert(cs->thread_state == NULL);
+	cs->thread_state = PyEval_SaveThread();
+}
+
+/**
+ * @brief Indicate that call crashed.
+ */
+void CallState_crash (CallState *cs) {
+	cs->crashed++;
+}
 
 
 

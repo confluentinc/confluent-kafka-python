@@ -131,6 +131,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 			   void *opaque) {
 	struct Producer_msgstate *msgstate = rkm->_private;
 	Handle *self = opaque;
+	CallState *cs;
 	PyObject *args;
 	PyObject *result;
 	PyObject *msgobj;
@@ -138,7 +139,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (!msgstate)
 		return;
 
-	PyEval_RestoreThread(self->thread_state);
+	cs = CallState_get(self);
 
 	if (!msgstate->dr_cb) {
 		/* No callback defined */
@@ -156,7 +157,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 				 "Unable to build callback args");
-		self->callback_crashed++;
+		CallState_crash(cs);
 		goto done;
 	}
 
@@ -166,13 +167,13 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (result)
 		Py_DECREF(result);
 	else {
-		self->callback_crashed++;
+		CallState_crash(cs);
 		rd_kafka_yield(rk);
 	}
 
  done:
 	Producer_msgstate_destroy(msgstate);
-	self->thread_state = PyEval_SaveThread();
+	CallState_resume(cs);
 }
 
 
@@ -321,20 +322,15 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
  */
 static int Producer_poll0 (Handle *self, int tmout) {
 	int r;
+	CallState cs;
 
-	self->callback_crashed = 0;
-	self->thread_state = PyEval_SaveThread();
+	CallState_begin(self, &cs);
 
 	r = rd_kafka_poll(self->rk, tmout);
 
-	PyEval_RestoreThread(self->thread_state);
-	self->thread_state = NULL;
-
-	if (PyErr_CheckSignals() == -1)
+	if (!CallState_end(self, &cs)) {
 		return -1;
-
-	if (self->callback_crashed)
-		return -1;
+	}
 
 	return r;
 }
