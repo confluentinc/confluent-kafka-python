@@ -366,20 +366,17 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 	static char *kws[] = { "timeout", NULL };
 	rd_kafka_message_t *rkm;
 	PyObject *msgobj;
+	CallState cs;
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
 		return NULL;
 
-	self->callback_crashed = 0;
-	self->thread_state = PyEval_SaveThread();
+	CallState_begin(self, &cs);
 
 	rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
 				     (int)(tmout * 1000.0f) : -1);
 
-	PyEval_RestoreThread(self->thread_state);
-	self->thread_state = NULL;
-
-	if (self->callback_crashed)
+	if (!CallState_end(self, &cs))
 		return NULL;
 
 	if (!rkm)
@@ -393,9 +390,15 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
 
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
-	self->thread_state = PyEval_SaveThread();
+	CallState cs;
+
+	CallState_begin(self, &cs);
+
 	rd_kafka_consumer_close(self->rk);
-	PyEval_RestoreThread(self->thread_state);
+
+	if (!CallState_end(self, &cs))
+		return NULL;
+
 	Py_RETURN_NONE;
 }
 
@@ -593,8 +596,9 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				   rd_kafka_topic_partition_list_t *c_parts,
 				   void *opaque) {
 	Handle *self = opaque;
+	CallState *cs;
 
-	PyEval_RestoreThread(self->thread_state);
+	cs = CallState_get(self);
 
 	self->u.Consumer.rebalance_assigned = 0;
 
@@ -615,8 +619,8 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		if (!args) {
 			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 					 "Unable to build callback args");
-			self->thread_state = PyEval_SaveThread();
-			self->callback_crashed++;
+			CallState_crash(cs);
+			CallState_resume(cs);
 			return;
 		}
 
@@ -630,7 +634,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		if (result)
 			Py_DECREF(result);
 		else {
-			self->callback_crashed++;
+			CallState_crash(cs);
 			rd_kafka_yield(rk);
 		}
 	}
@@ -646,7 +650,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 			rd_kafka_assign(rk, NULL);
 	}
 
-	self->thread_state = PyEval_SaveThread();
+	CallState_resume(cs);
 }
 
 
@@ -655,11 +659,12 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				       void *opaque) {
 	Handle *self = opaque;
 	PyObject *parts, *k_err, *args, *result;
+	CallState *cs;
 
 	if (!self->u.Consumer.on_commit)
 		return;
 
-	PyEval_RestoreThread(self->thread_state);
+	cs = CallState_get(self);
 
 	/* Insantiate error object */
 	k_err = KafkaError_new_or_None(err, NULL);
@@ -675,8 +680,8 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 				 "Unable to build callback args");
-		self->thread_state = PyEval_SaveThread();
-		self->callback_crashed++;
+		CallState_crash(cs);
+		CallState_resume(cs);
 		return;
 	}
 
@@ -687,11 +692,11 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 	if (result)
 		Py_DECREF(result);
 	else {
-		self->callback_crashed++;
+		CallState_crash(cs);
 		rd_kafka_yield(rk);
 	}
 
-	self->thread_state = PyEval_SaveThread();
+	CallState_resume(cs);
 }
 
 
