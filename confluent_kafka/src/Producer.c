@@ -280,9 +280,9 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 		return NULL;
 	}
 
-	if (!dr_cb)
+	if (!dr_cb || dr_cb == Py_None)
 		dr_cb = self->u.Producer.default_dr_cb;
-	if (!partitioner_cb)
+	if (!partitioner_cb || partitioner_cb == Py_None)
 		partitioner_cb = self->u.Producer.partitioner_cb;
 
 	/* Create msgstate if necessary, may return NULL if no callbacks

@@ -1113,10 +1113,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			continue;
 
 		} else if (!strcmp(k, "error_cb")) {
-			if (h->error_cb)
+			if (h->error_cb) {
 				Py_DECREF(h->error_cb);
-			h->error_cb = vo;
-			Py_INCREF(h->error_cb);
+				h->error_cb = NULL;
+			}
+			if (vo != Py_None) {
+				h->error_cb = vo;
+				Py_INCREF(h->error_cb);
+			}
 			Py_DECREF(ks);
 			continue;
 		}
