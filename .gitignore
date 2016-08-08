@@ -11,3 +11,5 @@ __pycache__
 confluent?kafka.egg-info
 *.pyc
 .cache
+*.log
+confluent-kafka-0.*.*
