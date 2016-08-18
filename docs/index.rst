@@ -86,3 +86,17 @@ The Python bindings also provide some additional configuration properties:
 
 * ``on_commit`` (**Consumer**): Callback used to indicate success or failure
   of commit requests.
+
+Changelog
+=========
+
+Version 3.0.1
+^^^^^^^^^^^^^
+
+* `PR-3 <https://github.com/confluentinc/confluent-kafka-python/pull/3>`_ - Add /usr/local/lib to library_dirs in setup
+* `PR-4 <https://github.com/confluentinc/confluent-kafka-python/pull/4>`_ - Py3: use bytes for Message payload and key
+* `PR-5 <https://github.com/confluentinc/confluent-kafka-python/pull/5>`_ - Removed hard coded c extentions lib/include paths
+* `PR-9 <https://github.com/confluentinc/confluent-kafka-python/pull/9>`_ - Use consistent syntax highlighting (e.g. prefix commands with `$`)
+* `PR-17 <https://github.com/confluentinc/confluent-kafka-python/pull/17>`_ - Version bump to 0.9.1.2
+
+
