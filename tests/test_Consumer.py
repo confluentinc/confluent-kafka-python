@@ -47,6 +47,16 @@ def test_basic_api():
     assignment = kc.assignment()
     assert partitions == assignment
 
+    # Get cached watermarks, should all be invalid.
+    lo, hi = kc.get_watermark_offsets(partitions[0], cached=True)
+    assert lo == -1001 and hi == -1001
+
+    # Query broker for watermarks, should raise an exception.
+    try:
+        lo, hi = kc.get_watermark_offsets(partitions[0], timeout=0.5, cached=False)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE), str(e.args([0]))
+
     kc.unassign()
 
     kc.commit(async=True)

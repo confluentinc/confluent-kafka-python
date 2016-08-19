@@ -232,25 +232,25 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 }
 
 static PyObject *Consumer_assignment (Handle *self, PyObject *args,
-				      PyObject *kwargs) {
+                                      PyObject *kwargs) {
 
-	PyObject *plist;
-	rd_kafka_topic_partition_list_t *c_parts;
-	rd_kafka_resp_err_t err;
+        PyObject *plist;
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_resp_err_t err;
 
-	err = rd_kafka_assignment(self->rk, &c_parts);
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Failed to get assignment: %s",
-				 rd_kafka_err2str(err));
-		return NULL;
-	}
+        err = rd_kafka_assignment(self->rk, &c_parts);
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to get assignment: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
 
 
-	plist = c_parts_to_py(c_parts);
-	rd_kafka_topic_partition_list_destroy(c_parts);
+        plist = c_parts_to_py(c_parts);
+        rd_kafka_topic_partition_list_destroy(c_parts);
 
-	return plist;
+        return plist;
 }
 
 
@@ -392,33 +392,81 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 }
 
 
+static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
+                                                 PyObject *kwargs) {
+
+        TopicPartition *tp;
+        rd_kafka_resp_err_t err;
+        double tmout = -1.0f;
+        int cached = 0;
+        int64_t low = RD_KAFKA_OFFSET_INVALID, high = RD_KAFKA_OFFSET_INVALID;
+        static char *kws[] = { "partition", "timeout", "cached", NULL };
+        PyObject *rtup;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|db", kws,
+                                         (PyObject **)&tp, &tmout, &cached))
+                return NULL;
+
+
+        if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
+                PyErr_Format(PyExc_TypeError,
+                             "expected %s", TopicPartitionType.tp_name);
+                return NULL;
+        }
+
+        if (cached) {
+                err = rd_kafka_get_watermark_offsets(self->rk,
+                                                     tp->topic, tp->partition,
+                                                     &low, &high);
+        } else {
+                err = rd_kafka_query_watermark_offsets(self->rk,
+                                                       tp->topic, tp->partition,
+                                                       &low, &high,
+                                                       tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        }
+
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to get watermark offsets: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        rtup = PyTuple_New(2);
+        PyTuple_SetItem(rtup, 0, PyLong_FromLongLong(low));
+        PyTuple_SetItem(rtup, 1, PyLong_FromLongLong(high));
+
+        return rtup;
+}
+
+
 
 static PyObject *Consumer_poll (Handle *self, PyObject *args,
-				    PyObject *kwargs) {
-	double tmout = -1.0f;
-	static char *kws[] = { "timeout", NULL };
-	rd_kafka_message_t *rkm;
-	PyObject *msgobj;
-	CallState cs;
+                                    PyObject *kwargs) {
+        double tmout = -1.0f;
+        static char *kws[] = { "timeout", NULL };
+        rd_kafka_message_t *rkm;
+        PyObject *msgobj;
+        CallState cs;
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
-		return NULL;
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
+                return NULL;
 
-	CallState_begin(self, &cs);
+        CallState_begin(self, &cs);
 
-	rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
-				     (int)(tmout * 1000.0f) : -1);
+        rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
+                                     (int)(tmout * 1000.0f) : -1);
 
-	if (!CallState_end(self, &cs))
-		return NULL;
+        if (!CallState_end(self, &cs))
+                return NULL;
 
-	if (!rkm)
-		Py_RETURN_NONE;
+        if (!rkm)
+                Py_RETURN_NONE;
 
-	msgobj = Message_new0(rkm);
-	rd_kafka_message_destroy(rkm);
+        msgobj = Message_new0(rkm);
+        rd_kafka_message_destroy(rkm);
 
-	return msgobj;
+        return msgobj;
 }
 
 
@@ -511,17 +559,17 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: KafkaException\n"
           "\n"
         },
-	{ "assignment", (PyCFunction)Consumer_assignment,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: assignment()\n"
-	  "\n"
-	  "  Returns the current partition assignment.\n"
-	  "\n"
-	  "  :returns: List of assigned topic+partitions.\n"
-	  "  :rtype: list(TopicPartition)\n"
-	  "  :raises: KafkaException\n"
-	  "\n"
-	},
+        { "assignment", (PyCFunction)Consumer_assignment,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: assignment()\n"
+          "\n"
+          "  Returns the current partition assignment.\n"
+          "\n"
+          "  :returns: List of assigned topic+partitions.\n"
+          "  :rtype: list(TopicPartition)\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
 	  "\n"
@@ -566,6 +614,22 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :raises: KafkaException\n"
 	  "\n"
 	},
+        { "get_watermark_offsets", (PyCFunction)Consumer_get_watermark_offsets,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: get_watermark_offsets(partition, [timeout=None], [cached=False])\n"
+          "\n"
+          "  Retrieve low and high offsets for partition.\n"
+          "\n"
+          "  :param TopicPartition partition: Topic+partition to return offsets for."
+          "  :param float timeout: Request timeout (when cached=False).\n"
+          "  :param bool cached: Instead of querying the broker used cached information. "
+          "Cached values: The low offset is updated periodically (if statistics.interval.ms is set) while "
+          "the high offset is updated on each message fetched from the broker for this partition."
+          "  :returns: Tuple of (low,high) on success or None on timeout.\n"
+          "  :rtype: tuple(int,int)\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
 	  "\n"
 	  "  Close down and terminate the Kafka Consumer.\n"
