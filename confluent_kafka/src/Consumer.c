@@ -391,12 +391,18 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 	CallState cs;
+	int raise = 0;
 
 	CallState_begin(self, &cs);
 
 	rd_kafka_consumer_close(self->rk);
 
-	if (!CallState_end(self, &cs))
+	raise = !CallState_end(self, &cs);
+
+	rd_kafka_destroy(self->rk);
+	self->rk = NULL;
+
+	if (raise)
 		return NULL;
 
 	Py_RETURN_NONE;
