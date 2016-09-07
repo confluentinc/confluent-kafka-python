@@ -193,7 +193,7 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 
 	if (err) {
 		cfl_PyErr_Format(err,
-				 "Failed to set assignemnt: %s",
+				 "Failed to set assignment: %s",
 				 rd_kafka_err2str(err));
 		return NULL;
 	}
