@@ -219,7 +219,6 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 				 "Unable to build callback args");
-		printf("Failed to build args\n");
 		goto done;
 	}
 
@@ -228,7 +227,7 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 	Py_DECREF(args);
 
 	if (result) {
-		r = PyLong_AsLong(result);
+		r = (int32_t)PyLong_AsLong(result);
 		if (PyErr_Occurred())
 			printf("FIXME: partition_cb returned wrong type "
 			       "(expected long), how to propagate?\n");

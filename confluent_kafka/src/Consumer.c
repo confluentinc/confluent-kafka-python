@@ -108,7 +108,7 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 		return NULL;
 	}
 
-	topics = rd_kafka_topic_partition_list_new(PyList_Size(tlist));
+	topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
 	for (pos = 0 ; pos < PyList_Size(tlist) ; pos++) {
 		PyObject *o = PyList_GetItem(tlist, pos);
 		PyObject *uo;
