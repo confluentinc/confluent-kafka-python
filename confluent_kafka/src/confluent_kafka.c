@@ -326,6 +326,14 @@ static PyObject *Message_offset (Message *self, PyObject *ignore) {
 }
 
 
+static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
+	if (self->timestamp > 0)
+		return PyLong_FromLong(self->timestamp);
+	else
+		Py_RETURN_NONE;
+}
+
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -359,6 +367,11 @@ static PyMethodDef Message_methods[] = {
 	},
 	{ "offset", (PyCFunction)Message_offset, METH_NOARGS,
 	  "  :returns: message offset or None if not available.\n"
+	  "  :rtype: int or None\n"
+	  "\n"
+	},
+	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
+	  "  :returns: message timestamp or None if not available.\n"
 	  "  :rtype: int or None\n"
 	  "\n"
 	},
@@ -494,6 +507,12 @@ PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
+
+	rd_kafka_timestamp_type_t tstype;
+	self->timestamp = rd_kafka_message_timestamp(rkm, &tstype);
+	if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
+		// todo: make tstype available to python api
+	}
 
 	return (PyObject *)self;
 }
