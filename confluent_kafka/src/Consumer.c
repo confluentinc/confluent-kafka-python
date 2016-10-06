@@ -676,7 +676,10 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 	k_err = KafkaError_new_or_None(err, NULL);
 
 	/* Construct list of TopicPartition based on 'c_parts' */
-	parts = c_parts_to_py(c_parts);
+	if (c_parts)
+		parts = c_parts_to_py(c_parts);
+	else
+		parts = PyList_New(0);
 
 	args = Py_BuildValue("(OO)", k_err, parts);
 
