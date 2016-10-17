@@ -133,7 +133,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 	if (Py_TYPE(o2) == &KafkaErrorType)
 		code2 = ((KafkaError *)o2)->code;
 	else
-		code2 = PyLong_AsLong(o2);
+		code2 = (int)PyLong_AsLong(o2);
 
 	switch (op)
 	{
@@ -320,7 +320,7 @@ static PyObject *Message_partition (Message *self, PyObject *ignore) {
 
 static PyObject *Message_offset (Message *self, PyObject *ignore) {
 	if (self->offset >= 0)
-		return PyLong_FromLong(self->offset);
+		return PyLong_FromLongLong(self->offset);
 	else
 		Py_RETURN_NONE;
 }
@@ -776,7 +776,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 		return NULL;
 	}
 
-	c_parts = rd_kafka_topic_partition_list_new(PyList_Size(plist));
+	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
 	for (i = 0 ; i < PyList_Size(plist) ; i++) {
 		TopicPartition *tp = (TopicPartition *)
