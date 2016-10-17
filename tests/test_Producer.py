@@ -36,3 +36,24 @@ def test_basic_api():
     p.flush()
 
 
+
+def test_subclassing():
+    class SubProducer(Producer):
+        def __init__ (self, conf, topic):
+            super(SubProducer, self).__init__(conf)
+            self.topic = topic
+        def produce_hi (self):
+            super(SubProducer, self).produce(self.topic, value='hi')
+
+    sp = SubProducer(dict(), 'atopic')
+    assert type(sp) == SubProducer
+
+    # Invalid config should fail
+    try:
+        sp = SubProducer({'should.fail': False}, 'mytopic')
+    except KafkaException:
+        pass
+
+    sp = SubProducer({'log.thread.name': True}, 'mytopic')
+    sp.produce('someother', value='not hello')
+    sp.produce_hi()

@@ -109,3 +109,14 @@ def test_on_commit ():
                 assert e.args[0].code() == KafkaError._NO_OFFSET
 
     c.close()
+
+
+def test_subclassing():
+    class SubConsumer(Consumer):
+        def poll (self, somearg):
+            assert type(somearg) == str
+            super(SubConsumer, self).poll(timeout=0.0001)
+
+    sc = SubConsumer({"group.id":"test", "session.timeout.ms": "90"})
+    sc.poll("astring")
+    sc.close()

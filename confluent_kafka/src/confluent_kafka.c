@@ -183,10 +183,10 @@ static PyTypeObject KafkaErrorType = {
 	(hashfunc)KafkaError_hash, /*tp_hash */
 	0,                         /*tp_call*/
 	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
+	PyObject_GenericGetAttr,   /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
 	"Kafka error and event object\n"
 	"\n"
 	"  The KafkaError class serves multiple purposes:\n"
@@ -463,7 +463,8 @@ PyTypeObject MessageType = {
 	0,                         /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"The Message object represents either a single consumed or "
 	"produced message, or an event (:py:func:`error()` is not None).\n"
 	"\n"
@@ -562,6 +563,16 @@ static int TopicPartition_clear (TopicPartition *self) {
 	return 0;
 }
 
+static void TopicPartition_setup (TopicPartition *self, const char *topic,
+				  int partition, long long offset,
+				  rd_kafka_resp_err_t err) {
+	self->topic = strdup(topic);
+	self->partition = partition;
+	self->offset = offset;
+	self->error = KafkaError_new_or_None(err, NULL);
+}
+
+
 static void TopicPartition_dealloc (TopicPartition *self) {
 	PyObject_GC_UnTrack(self);
 
@@ -570,13 +581,9 @@ static void TopicPartition_dealloc (TopicPartition *self) {
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
-static PyObject *TopicPartition_new0 (const char *topic, int partition,
-				      long long offset,
-				      rd_kafka_resp_err_t err);
 
-
-static PyObject *TopicPartition_new (PyTypeObject *type, PyObject *args,
-				     PyObject *kwargs) {
+static int TopicPartition_init (PyObject *self, PyObject *args,
+				      PyObject *kwargs) {
 	const char *topic;
 	int partition = RD_KAFKA_PARTITION_UA;
 	long long offset = RD_KAFKA_OFFSET_INVALID;
@@ -587,9 +594,19 @@ static PyObject *TopicPartition_new (PyTypeObject *type, PyObject *args,
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iL", kws,
 					 &topic, &partition, &offset))
-		return NULL;
+		return -1;
 
-	return TopicPartition_new0(topic, partition, offset, 0);
+	TopicPartition_setup((TopicPartition *)self,
+			     topic, partition, offset, 0);
+
+	return 0;
+}
+
+
+static PyObject *TopicPartition_new (PyTypeObject *type, PyObject *args,
+				     PyObject *kwargs) {
+	PyObject *self = type->tp_alloc(type, 1);
+	return self;
 }
 
 
@@ -706,10 +723,11 @@ static PyTypeObject TopicPartitionType = {
 	(hashfunc)TopicPartition_hash, /*tp_hash */
 	0,                         /*tp_call*/
 	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
+	PyObject_GenericGetAttr,   /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"TopicPartition is a generic type to hold a single partition and "
 	"various information about it.\n"
 	"\n"
@@ -740,9 +758,9 @@ static PyTypeObject TopicPartitionType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
+	TopicPartition_init,       /* tp_init */
 	0,                         /* tp_alloc */
-	TopicPartition_new     /* tp_new */
+	TopicPartition_new         /* tp_new */
 };
 
 /**
@@ -753,15 +771,10 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 				      rd_kafka_resp_err_t err) {
 	TopicPartition *self;
 
-	self = (TopicPartition *)TopicPartitionType.tp_alloc(
-		&TopicPartitionType, 0);
-	if (!self)
-		return NULL;
+	self = (TopicPartition *)TopicPartitionType.tp_new(
+		&TopicPartitionType, NULL, NULL);
 
-	self->topic = strdup(topic);
-	self->partition = partition;
-	self->offset = offset;
-	self->error = KafkaError_new_or_None(err, NULL);
+	TopicPartition_setup(self, topic, partition, offset, err);
 
 	return (PyObject *)self;
 }
@@ -1289,6 +1302,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
  */
 void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
+	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
 	PyThread_set_key_value(h->tlskey, cs);
 }
@@ -1315,6 +1329,7 @@ int CallState_end (Handle *h, CallState *cs) {
 CallState *CallState_get (Handle *h) {
 	CallState *cs = PyThread_get_key_value(h->tlskey);
 	assert(cs != NULL);
+	assert(cs->thread_state != NULL);
 	PyEval_RestoreThread(cs->thread_state);
 	cs->thread_state = NULL;
 	return cs;
