@@ -164,7 +164,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 	Py_INCREF(result);
 	return result;
 }
-				       
+
 
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
@@ -560,7 +560,7 @@ static PyObject *TopicPartition_new (PyTypeObject *type, PyObject *args,
 
 	return TopicPartition_new0(topic, partition, offset, 0);
 }
-	
+
 
 
 static int TopicPartition_traverse (TopicPartition *self,
@@ -758,7 +758,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 	}
 
 	return parts;
-		
+
 }
 
 /**
@@ -1259,7 +1259,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.9.1", 0x00090100);
+	return Py_BuildValue("si", "0.9.2", 0x00090100);
 }
 
 static PyMethodDef cimpl_methods[] = {
