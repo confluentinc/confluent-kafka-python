@@ -836,6 +836,33 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	CallState_resume(cs);
 }
 
+static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque)
+{
+	Handle *h = opaque;
+	PyObject *eo=NULL, *result=NULL;
+	CallState *cs=NULL;
+
+	cs = CallState_get(h);
+	if (json_len== 0 || !h->stats_cb) {
+		/* Neither data nor call back defined. */
+		goto done;
+	}
+
+	eo = Py_BuildValue("s", json);
+	result = PyObject_CallFunctionObjArgs(h->stats_cb, eo, NULL);
+	Py_DECREF(eo);
+
+	if (result) {
+		Py_DECREF(result);
+	} else {
+		CallState_crash(cs);
+		rd_kafka_yield(h->rk);
+	}
+
+ done:
+	CallState_resume(cs);
+	return 0;
+}
 
 /****************************************************************************
  *
@@ -857,6 +884,10 @@ void Handle_clear (Handle *h) {
 		Py_DECREF(h->error_cb);
 	}
 
+	if (h->stats_cb) {
+		Py_DECREF(h->stats_cb);
+	}
+
 	PyThread_delete_key(h->tlskey);
 }
 
@@ -866,6 +897,9 @@ void Handle_clear (Handle *h) {
 int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	if (h->error_cb)
 		Py_VISIT(h->error_cb);
+
+	if (h->stats_cb)
+		Py_VISIT(h->stats_cb);
 
 	return 0;
 }
@@ -1123,6 +1157,17 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			}
 			Py_DECREF(ks);
 			continue;
+		} else if (!strcmp(k, "stats_cb")) {
+			if (h->stats_cb) {
+				Py_DECREF(h->stats_cb);
+				h->stats_cb = NULL;
+			}
+			if (vo != Py_None) {
+				h->stats_cb = vo;
+				Py_INCREF(h->stats_cb);
+			}
+			Py_DECREF(ks);
+			continue;
 		}
 
 		/* Special handling for certain config keys. */
@@ -1174,6 +1219,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	if (h->error_cb)
 		rd_kafka_conf_set_error_cb(conf, error_cb);
+
+	if (h->stats_cb) {
+		rd_kafka_conf_set_stats_cb(conf, stats_cb);
+	}
+
 	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);
 

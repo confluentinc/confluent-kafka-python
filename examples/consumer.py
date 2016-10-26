@@ -18,24 +18,55 @@
 #
 # Example high-level Kafka 0.9 balanced Consumer
 #
-
 from confluent_kafka import Consumer, KafkaException, KafkaError
 import sys
+import getopt
+import json
+from pprint import pformat
+
+def stats_cb(stats_json_str):
+    stats_json = json.loads(stats_json_str)
+    print('\nKAFKA Stats: {}\n'.format(pformat(stats_json)))
+
+def print_usage_and_exit(program_name):
+    sys.stderr.write('Usage: %s [options..] <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
+    options='''
+ Options:
+  -T <intvl>   Enable statistics from Kafka at specified interval (ms)   
+'''
+    sys.stderr.write(options)
+    sys.exit(1)
+
 
 if __name__ == '__main__':
-    if len(sys.argv) < 4:
-        sys.stderr.write('Usage: %s <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % sys.argv[0])
-        sys.exit(1)
+    optlist, argv = getopt.getopt(sys.argv[1:], 'T:')
+    if len(argv) < 3:
+        print_usage_and_exit(sys.argv[0])
 
-    broker = sys.argv[1]
-    group  = sys.argv[2]
-    topics = sys.argv[3:]
-
+    broker = argv[0]
+    group  = argv[1]
+    topics = argv[2:]
     # Consumer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
     conf = {'bootstrap.servers': broker, 'group.id': group, 'session.timeout.ms': 6000,
             'default.topic.config': {'auto.offset.reset': 'smallest'}}
 
+    # Check to see if -T option exists
+    for opt in optlist:
+        if opt[0] != '-T':
+            continue
+        try:
+            intval = int(opt[1])
+        except:
+            sys.stderr.write("Invalid option value for -T: %s\n" % opt[1])
+            sys.exit(1)
+
+        if intval <= 0:
+            sys.stderr.write("-T option value needs to be larger than zero: %s\n" % opt[1])
+            sys.exit(1)
+
+        conf['stats_cb'] = stats_cb
+        conf['statistics.interval.ms'] = int(opt[1])
 
     # Create Consumer instance
     c = Consumer(**conf)
