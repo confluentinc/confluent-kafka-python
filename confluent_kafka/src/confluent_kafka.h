@@ -220,6 +220,7 @@ typedef struct {
 	int32_t partition;
 	int64_t offset;
 	int64_t timestamp;
+	rd_kafka_timestamp_type_t tstype;
 } Message;
 
 extern PyTypeObject MessageType;

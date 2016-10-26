@@ -327,10 +327,15 @@ static PyObject *Message_offset (Message *self, PyObject *ignore) {
 
 
 static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
-	if (self->timestamp > 0)
+	if (self->tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE)
 		return PyLong_FromLong(self->timestamp);
 	else
 		Py_RETURN_NONE;
+}
+
+
+static PyObject *Message_tstype (Message *self, PyObject *ignore) {
+  return PyLong_FromLong(self->tstype);
 }
 
 
@@ -373,6 +378,11 @@ static PyMethodDef Message_methods[] = {
 	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
 	  "  :returns: message timestamp or None if not available.\n"
 	  "  :rtype: int or None\n"
+	  "\n"
+	},
+	{ "tstype", (PyCFunction)Message_tstype, METH_NOARGS,
+	  "  :returns: message timestamp type.\n"
+	  "  :rtype: int\n"
 	  "\n"
 	},
 	{ NULL }
@@ -508,11 +518,7 @@ PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
 
-	rd_kafka_timestamp_type_t tstype;
-	self->timestamp = rd_kafka_message_timestamp(rkm, &tstype);
-	if (tstype != RD_KAFKA_TIMESTAMP_NOT_AVAILABLE) {
-		// todo: make tstype available to python api
-	}
+	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
 	return (PyObject *)self;
 }
