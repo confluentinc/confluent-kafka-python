@@ -836,14 +836,13 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	CallState_resume(cs);
 }
 
-static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque)
-{
+static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	Handle *h = opaque;
-	PyObject *eo=NULL, *result=NULL;
-	CallState *cs=NULL;
+	PyObject *eo = NULL, *result = NULL;
+	CallState *cs = NULL;
 
 	cs = CallState_get(h);
-	if (json_len== 0 || !h->stats_cb) {
+	if (json_len == 0 || !h->stats_cb) {
 		/* Neither data nor call back defined. */
 		goto done;
 	}
@@ -880,13 +879,11 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque)
  * Clear Python object references in Handle
  */
 void Handle_clear (Handle *h) {
-	if (h->error_cb) {
+	if (h->error_cb) 
 		Py_DECREF(h->error_cb);
-	}
 
-	if (h->stats_cb) {
+	if (h->stats_cb) 
 		Py_DECREF(h->stats_cb);
-	}
 
 	PyThread_delete_key(h->tlskey);
 }
@@ -1220,9 +1217,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	if (h->error_cb)
 		rd_kafka_conf_set_error_cb(conf, error_cb);
 
-	if (h->stats_cb) {
+	if (h->stats_cb)
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
-	}
 
 	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);
