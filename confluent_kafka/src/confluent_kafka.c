@@ -749,7 +749,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	parts = PyList_New(c_parts->cnt);
 
-	for (i = 0 ; i < c_parts->cnt ; i++) {
+	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
 		PyList_SET_ITEM(parts, i,
 				TopicPartition_new0(
@@ -778,7 +778,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
-	for (i = 0 ; i < PyList_Size(plist) ; i++) {
+	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -825,9 +825,9 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
 	Py_DECREF(eo);
 
-	if (result) {
+	if (result)
 		Py_DECREF(result);
-	} else {
+	else {
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -842,8 +842,8 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	CallState *cs = NULL;
 
 	cs = CallState_get(h);
-	if (json_len == 0 || !h->stats_cb) {
-		/* Neither data nor call back defined. */
+	if (json_len == 0) {
+		/* No data returned*/
 		goto done;
 	}
 
@@ -851,9 +851,9 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	result = PyObject_CallFunctionObjArgs(h->stats_cb, eo, NULL);
 	Py_DECREF(eo);
 
-	if (result) {
+	if (result)
 		Py_DECREF(result);
-	} else {
+	else {
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1143,7 +1143,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			Py_DECREF(ks);
 			continue;
 
-		} else if (!strcmp(k, "error_cb")) {
+		} else if (!strcmp(k, "error_cb") && PyCallable_Check(vo)) {
 			if (h->error_cb) {
 				Py_DECREF(h->error_cb);
 				h->error_cb = NULL;
@@ -1154,7 +1154,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			}
 			Py_DECREF(ks);
 			continue;
-		} else if (!strcmp(k, "stats_cb")) {
+		} else if (!strcmp(k, "stats_cb") && PyCallable_Check(vo)) {
 			if (h->stats_cb) {
 				Py_DECREF(h->stats_cb);
 				h->stats_cb = NULL;

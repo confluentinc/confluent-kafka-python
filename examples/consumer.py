@@ -32,7 +32,7 @@ def print_usage_and_exit(program_name):
     sys.stderr.write('Usage: %s [options..] <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
     options='''
  Options:
-  -T <intvl>   Enable statistics from Kafka at specified interval (ms)   
+  -T <intvl>   Enable client statistics at specified interval (ms)
 '''
     sys.stderr.write(options)
     sys.exit(1)
