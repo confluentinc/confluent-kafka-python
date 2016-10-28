@@ -36,7 +36,8 @@ except ImportError as e:
 bootstrap_servers = 'localhost'
 
 
-
+# global variable to be set by stats_cb call back function
+good_stats_cb_result = False
 
 def error_cb (err):
     print('Error: %s' % err)
@@ -359,9 +360,13 @@ def verify_stats_cb():
     """ Verify stats_cb """
 
     def stats_cb(stats_json_str):
+        global good_stats_cb_result
         stats_json = json.loads(stats_json_str)
         if 'test' in stats_json['topics']:
-            print("# app_offset stats for topic test partition 0: %d" % stats_json['topics']['test']['partitions']['0']['app_offset'])
+            app_offset = stats_json['topics']['test']['partitions']['0']['app_offset']
+            if app_offset > 0:
+                print("# app_offset stats for topic test partition 0: %d" % app_offset)
+                good_stats_cb_result = True
 
     conf = {'bootstrap.servers': bootstrap_servers,
             'group.id': uuid.uuid1(),
@@ -388,7 +393,7 @@ def verify_stats_cb():
     else:
         bar = None
 
-    while True:
+    while not good_stats_cb_result:
         # Consume until EOF or error
 
         msg = c.poll(timeout=20.0)
