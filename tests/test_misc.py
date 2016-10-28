@@ -63,7 +63,7 @@ def test_stats_cb():
     kc = confluent_kafka.Consumer(**conf)
 
     kc.subscribe(["test"])
-    while  not seen_stats_cb:
+    while not seen_stats_cb:
         kc.poll(timeout=1)
     kc.close()
 
