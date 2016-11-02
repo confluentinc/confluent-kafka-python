@@ -81,7 +81,9 @@ The Python bindings also provide some additional configuration properties:
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served by
   poll().
 
-* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll() every ``statistics.interval.ms`` (needs to be configured separately). Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
+* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll()
+  every ``statistics.interval.ms`` (needs to be configured separately).
+  Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
 
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
