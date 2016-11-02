@@ -114,6 +114,7 @@ typedef struct {
 	PyObject_HEAD
 	rd_kafka_t *rk;
 	PyObject *error_cb;
+	PyObject *stats_cb;
 	int tlskey;  /* Thread-Local-Storage key */
 
 	union {

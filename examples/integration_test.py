@@ -24,6 +24,7 @@ import re
 import time
 import uuid
 import sys
+import json
 
 try:
     from progress.bar import Bar
@@ -35,10 +36,12 @@ except ImportError as e:
 bootstrap_servers = 'localhost'
 
 
-
+# global variable to be set by stats_cb call back function
+good_stats_cb_result = False
 
 def error_cb (err):
     print('Error: %s' % err)
+
     
 class MyTestDr(object):
     """ Producer: Delivery report callback """
@@ -353,6 +356,82 @@ def verify_consumer_performance():
     c.close()
 
 
+def verify_stats_cb():
+    """ Verify stats_cb """
+
+    def stats_cb(stats_json_str):
+        global good_stats_cb_result
+        stats_json = json.loads(stats_json_str)
+        if 'test' in stats_json['topics']:
+            app_offset = stats_json['topics']['test']['partitions']['0']['app_offset']
+            if app_offset > 0:
+                print("# app_offset stats for topic test partition 0: %d" % app_offset)
+                good_stats_cb_result = True
+
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': uuid.uuid1(),
+            'session.timeout.ms': 6000,
+            'error_cb': error_cb,
+            'stats_cb': stats_cb,
+            'statistics.interval.ms': 200,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    c = confluent_kafka.Consumer(**conf)
+    c.subscribe(["test"])
+
+    max_msgcnt = 1000000
+    bytecnt = 0
+    msgcnt = 0
+
+    print('Will now consume %d messages' % max_msgcnt)
+
+    if with_progress:
+        bar = Bar('Consuming', max=max_msgcnt,
+                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+    else:
+        bar = None
+
+    while not good_stats_cb_result:
+        # Consume until EOF or error
+
+        msg = c.poll(timeout=20.0)
+        if msg is None:
+            raise Exception('Stalled at %d/%d message, no new messages for 20s' %
+                            (msgcnt, max_msgcnt))
+
+        if msg.error():
+            if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                # Reached EOF for a partition, ignore.
+                continue
+            else:
+                raise confluent_kafka.KafkaException(msg.error())
+
+
+        bytecnt += len(msg)
+        msgcnt += 1
+
+        if bar is not None and (msgcnt % 10000) == 0:
+            bar.next(n=10000)
+
+        if msgcnt == 1:
+            t_first_msg = time.time()
+        if msgcnt >= max_msgcnt:
+            break
+
+    if bar is not None:
+        bar.finish()
+
+    if msgcnt > 0:
+        t_spent = time.time() - t_first_msg
+        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' % \
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
+
+    print('closing consumer')
+    c.close()
+
 
 if __name__ == '__main__':
 
@@ -376,6 +455,9 @@ if __name__ == '__main__':
 
     print('=' * 30, 'Verifying Consumer performance', '=' * 30)
     verify_consumer_performance()
+
+    print('=' * 30, 'Verifying stats_cb', '=' * 30)
+    verify_stats_cb()
 
     print('=' * 30, 'Done', '=' * 30)
 
