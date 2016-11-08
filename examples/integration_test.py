@@ -244,9 +244,10 @@ def verify_consumer():
                 break
 
         if False:
+            tstype, timestamp = msg.timestamp()
             print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
                   (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value(), msg.tstype(), repr(msg.timestamp())))
+                   msg.key(), msg.value(), tstype, timestamp))
 
         if (msg.offset() % 5) == 0:
             # Async commit
