@@ -38,6 +38,12 @@ bootstrap_servers = None
 # Topic to use
 topic = 'test'
 
+# API version requests are only implemented in Kafka broker >=0.10
+# but the client handles failed API version requests gracefully for older
+# versions as well, except for 0.9.0.x which will stall for about 10s
+# on each connect with this set to True.
+api_version_request = True
+
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
@@ -85,6 +91,7 @@ def verify_producer():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
+            'api.version.request': api_version_request,
             'default.topic.config':{'produce.offset.report': True}}
 
     # Create producer
@@ -121,6 +128,7 @@ def verify_producer():
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
+            'api.version.request': api_version_request,
             'error_cb': error_cb}
 
     p = confluent_kafka.Producer(**conf)
@@ -214,7 +222,7 @@ def verify_consumer():
             'group.id': 'test.py',
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
-            'api.version.request': True,
+            'api.version.request': api_version_request,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
             'default.topic.config': {
@@ -247,11 +255,10 @@ def verify_consumer():
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
 
-        if False:
-            tstype, timestamp = msg.timestamp()
-            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value(), tstype, timestamp))
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
 
         if (msg.offset() % 5) == 0:
             # Async commit
