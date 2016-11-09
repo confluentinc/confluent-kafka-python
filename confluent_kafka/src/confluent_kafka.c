@@ -326,6 +326,13 @@ static PyObject *Message_offset (Message *self, PyObject *ignore) {
 }
 
 
+static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
+	return Py_BuildValue("iL",
+			     self->tstype,
+			     self->timestamp);
+}
+
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -360,6 +367,28 @@ static PyMethodDef Message_methods[] = {
 	{ "offset", (PyCFunction)Message_offset, METH_NOARGS,
 	  "  :returns: message offset or None if not available.\n"
 	  "  :rtype: int or None\n"
+	  "\n"
+	},
+	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
+          "  Retrieve timestamp type and timestamp from message.\n"
+          "  The timestamp type is one of:\n"
+          "    * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
+          " - Timestamps not supported by broker\n"
+          "    * :py:const:`TIMESTAMP_CREATE_TIME` "
+          " - Message creation time (or source / producer time)\n"
+          "    * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
+          " - Broker receive time\n"
+          "\n"
+          "  The returned timestamp should be ignored if the timestamp type is "
+          ":py:const:`TIMESTAMP_NOT_AVAILABLE`.\n"
+          "\n"
+          "  The timestamp is the number of milliseconds since the epoch (UTC).\n"
+          "\n"
+          "  Timestamps require broker version 0.10.0.0 or later and \n"
+          "  ``{'api.version.request': True}`` configured on the client.\n"
+          "\n"
+	  "  :returns: tuple of message timestamp type, and timestamp.\n"
+	  "  :rtype: (int, int)\n"
 	  "\n"
 	},
 	{ NULL }
@@ -441,7 +470,7 @@ PyTypeObject MessageType = {
 	"An application must check with :py:func:`error()` to see if the "
 	"object is a proper message (error() returns None) or an "
 	"error/event.\n"
-	"\n"
+        "\n"
 	"This class is not user-instantiable.\n"
 	"\n"
 	".. py:function:: len()\n"
@@ -494,6 +523,8 @@ PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
+
+	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
 	return (PyObject *)self;
 }
@@ -1483,6 +1514,10 @@ static PyObject *_init_cimpl (void) {
 		NULL, NULL);
 	Py_INCREF(KafkaException);
 	PyModule_AddObject(m, "KafkaException", KafkaException);
+
+	PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE", RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
+	PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME", RD_KAFKA_TIMESTAMP_CREATE_TIME);
+	PyModule_AddIntConstant(m, "TIMESTAMP_LOG_APPEND_TIME", RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME);
 
 	return m;
 }

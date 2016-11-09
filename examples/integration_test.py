@@ -33,8 +33,16 @@ except ImportError as e:
     with_progress = False
 
 # Kafka bootstrap server(s)
-bootstrap_servers = 'localhost'
+bootstrap_servers = None
 
+# Topic to use
+topic = 'test'
+
+# API version requests are only implemented in Kafka broker >=0.10
+# but the client handles failed API version requests gracefully for older
+# versions as well, except for 0.9.0.x which will stall for about 10s
+# on each connect with this set to True.
+api_version_request = True
 
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
@@ -83,6 +91,7 @@ def verify_producer():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
+            'api.version.request': api_version_request,
             'default.topic.config':{'produce.offset.report': True}}
 
     # Create producer
@@ -90,22 +99,22 @@ def verify_producer():
     print('producer at %s' % p)
 
     # Produce some messages
-    p.produce('test', 'Hello Python!')
-    p.produce('test', key='Just a key')
-    p.produce('test', partition=1, value='Strictly for partition 1',
+    p.produce(topic, 'Hello Python!')
+    p.produce(topic, key='Just a key')
+    p.produce(topic, partition=1, value='Strictly for partition 1',
               key='mykey')
 
     # Produce more messages, now with delivery report callbacks in various forms.
     mydr = MyTestDr()
-    p.produce('test', value='This one has a dr callback',
+    p.produce(topic, value='This one has a dr callback',
               callback=mydr.delivery)
-    p.produce('test', value='This one has a lambda',
+    p.produce(topic, value='This one has a lambda',
               callback=lambda err, msg: MyTestDr._delivery(err, msg))
-    p.produce('test', value='This one has neither')
+    p.produce(topic, value='This one has neither')
 
     # Produce even more messages
     for i in range(0, 10):
-        p.produce('test', value='Message #%d' % i, key=str(i),
+        p.produce(topic, value='Message #%d' % i, key=str(i),
                   callback=mydr.delivery)
         p.poll(0)
 
@@ -119,11 +128,11 @@ def verify_producer():
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
+            'api.version.request': api_version_request,
             'error_cb': error_cb}
 
     p = confluent_kafka.Producer(**conf)
 
-    topic = 'test'
     msgcnt = 1000000
     msgsize = 100
     msg_pattern = 'test.py performance'
@@ -144,9 +153,9 @@ def verify_producer_performance(with_dr_cb=True):
     for i in range(0, msgcnt):
         try:
             if with_dr_cb:
-                p.produce('test', value=msg_payload, callback=dr.delivery)
+                p.produce(topic, value=msg_payload, callback=dr.delivery)
             else:
-                p.produce('test', value=msg_payload)
+                p.produce(topic, value=msg_payload)
         except BufferError as e:
             # Local queue is full (slow broker connection?)
             msgs_backpressure += 1
@@ -213,6 +222,7 @@ def verify_consumer():
             'group.id': 'test.py',
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
+            'api.version.request': api_version_request,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
             'default.topic.config': {
@@ -223,7 +233,7 @@ def verify_consumer():
     c = confluent_kafka.Consumer(**conf)
 
     # Subscribe to a list of topics
-    c.subscribe(["test"])
+    c.subscribe([topic])
 
     max_msgcnt = 100
     msgcnt = 0
@@ -245,10 +255,10 @@ def verify_consumer():
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
 
-        if False:
-            print('%s[%d]@%d: key=%s, value=%s' % \
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value()))
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
 
         if (msg.offset() % 5) == 0:
             # Async commit
@@ -268,7 +278,7 @@ def verify_consumer():
 
     # Start a new client and get the committed offsets
     c = confluent_kafka.Consumer(**conf)
-    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition("test", p), range(0,3))))
+    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0,3))))
     for tp in offsets:
         print(tp)
 
@@ -302,7 +312,7 @@ def verify_consumer_performance():
             print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
         consumer.unassign()
 
-    c.subscribe(["test"], on_assign=my_on_assign, on_revoke=my_on_revoke)
+    c.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
 
     max_msgcnt = 1000000
     bytecnt = 0
@@ -362,10 +372,11 @@ def verify_stats_cb():
     def stats_cb(stats_json_str):
         global good_stats_cb_result
         stats_json = json.loads(stats_json_str)
-        if 'test' in stats_json['topics']:
-            app_offset = stats_json['topics']['test']['partitions']['0']['app_offset']
+        if topic in stats_json['topics']:
+            app_offset = stats_json['topics'][topic]['partitions']['0']['app_offset']
             if app_offset > 0:
-                print("# app_offset stats for topic test partition 0: %d" % app_offset)
+                print("# app_offset stats for topic %s partition 0: %d" % \
+                      (topic, app_offset))
                 good_stats_cb_result = True
 
     conf = {'bootstrap.servers': bootstrap_servers,
@@ -379,7 +390,7 @@ def verify_stats_cb():
             }}
 
     c = confluent_kafka.Consumer(**conf)
-    c.subscribe(["test"])
+    c.subscribe([topic])
 
     max_msgcnt = 1000000
     bytecnt = 0
@@ -437,6 +448,11 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
+        if len(sys.argv) > 2:
+            topic = sys.argv[2]
+    else:
+        print('Usage: %s <broker> [<topic>]' % sys.argv[0])
+        sys.exit(1)
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())

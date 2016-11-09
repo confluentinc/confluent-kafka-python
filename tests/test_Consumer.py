@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException
+from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE
 
 
 def test_basic_api():
@@ -35,6 +35,9 @@ def test_basic_api():
         print('OK: consumer error: %s' % msg.error().str())
     else:
         print('OK: consumed message')
+
+    if msg is not None:
+        assert msg.timestamp() == (TIMESTAMP_NOT_AVAILABLE, -1)
 
     partitions = list(map(lambda p: TopicPartition("test", p), range(0,100,3)))
     kc.assign(partitions)
