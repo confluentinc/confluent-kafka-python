@@ -326,6 +326,13 @@ static PyObject *Message_offset (Message *self, PyObject *ignore) {
 }
 
 
+static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
+	return Py_BuildValue("iL",
+			     self->tstype,
+			     self->timestamp);
+}
+
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -360,6 +367,11 @@ static PyMethodDef Message_methods[] = {
 	{ "offset", (PyCFunction)Message_offset, METH_NOARGS,
 	  "  :returns: message offset or None if not available.\n"
 	  "  :rtype: int or None\n"
+	  "\n"
+	},
+	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
+	  "  :returns: tuple of message tstype, and timestamp.\n"
+	  "  :rtype: (int, int)\n"
 	  "\n"
 	},
 	{ NULL }
@@ -494,6 +506,8 @@ PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
+
+	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
 	return (PyObject *)self;
 }
@@ -1483,6 +1497,10 @@ static PyObject *_init_cimpl (void) {
 		NULL, NULL);
 	Py_INCREF(KafkaException);
 	PyModule_AddObject(m, "KafkaException", KafkaException);
+
+	PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE", RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
+	PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME", RD_KAFKA_TIMESTAMP_CREATE_TIME);
+	PyModule_AddIntConstant(m, "TIMESTAMP_LOG_APPEND_TIME", RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME);
 
 	return m;
 }

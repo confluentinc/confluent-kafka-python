@@ -213,6 +213,7 @@ def verify_consumer():
             'group.id': 'test.py',
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
+            'api.version.request': True,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
             'default.topic.config': {
@@ -246,9 +247,10 @@ def verify_consumer():
                 break
 
         if False:
-            print('%s[%d]@%d: key=%s, value=%s' % \
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
                   (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value()))
+                   msg.key(), msg.value(), tstype, timestamp))
 
         if (msg.offset() % 5) == 0:
             # Async commit
