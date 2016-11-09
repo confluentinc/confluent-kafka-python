@@ -115,7 +115,7 @@ Tests
 
 **Run integration tests:**
 
-    $ examples/integration_test.py <kafka-broker>
+    $ examples/integration_test.py <kafka-broker> [<test-topic>]
 
 **WARNING**: These tests require an active Kafka cluster and will make use of a topic named 'test'.
 
