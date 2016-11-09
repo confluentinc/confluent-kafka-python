@@ -13,3 +13,5 @@ confluent?kafka.egg-info
 .cache
 *.log
 confluent-kafka-0.*.*
+tmp-build
+.tox

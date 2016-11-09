@@ -1,0 +1,11 @@
+language: python
+python:
+  - "2.7"
+  - "3.4"
+before_install:
+  - bash tools/bootstrap-librdkafka.sh v0.9.2 tmp-build
+install:
+  - pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" .
+env:
+  - LD_LIBRARY_PATH=$PWD/tmp-build/lib
+script: py.test --ignore=tmp-build
