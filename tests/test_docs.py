@@ -21,9 +21,9 @@ def test_verify_docs():
             fails += 1
         elif not re.search(r':', d):
             print('Missing Doxygen tag for: %s (type %s)' % (n, type(o)))
-            if not isinstance(o, ModuleType):
+            # Ignore missing doc strings for the cimpl module itself and
+            # integer constants (which can't have a doc string)
+            if n != 'cimpl' and type(o) not in [int]:
                 fails += 1
 
     assert fails == 0
-
-    
