@@ -52,8 +52,20 @@ static void Consumer_dealloc (Handle *self) {
 
 	Consumer_clear(self);
 
-	if (self->rk)
-		rd_kafka_destroy(self->rk);
+	if (self->rk) {
+                CallState cs;
+
+                CallState_begin(self, &cs);
+
+                /* If application has not called c.close() then
+                 * rd_kafka_destroy() will, and that might trigger
+                 * callbacks to be called from consumer_close().
+                 * This should probably be fixed in librdkafka,
+                 * or the application. */
+                rd_kafka_destroy(self->rk);
+
+                CallState_end(self, &cs);
+        }
 
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
