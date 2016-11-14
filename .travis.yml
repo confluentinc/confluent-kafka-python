@@ -9,4 +9,4 @@ install:
   - pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" .
 env:
   - LD_LIBRARY_PATH=$PWD/tmp-build/lib
-script: py.test --timeout 20 -v --ignore=tmp-build
+script: py.test -v --timeout 20 --ignore=tmp-build
