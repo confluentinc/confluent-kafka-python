@@ -279,7 +279,6 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 
 	} else {
 		c_offsets = NULL;
-		err = rd_kafka_commit(self->rk, NULL, async);
 	}
 
 			

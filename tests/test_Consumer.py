@@ -63,3 +63,43 @@ def test_basic_api():
 
     kc.close()
 
+
+def test_on_commit ():
+    """ Verify that on_commit is only called once per commit() (issue #71) """
+    class CommitState (object):
+        def __init__(self, topic, partition):
+            self.topic = topic
+            self.partition = partition
+            self.once = True
+
+    def commit_cb (cs, err, ps):
+        print('on_commit: err %s, partitions %s' % (err, ps))
+        assert cs.once == True
+        assert err == KafkaError._NO_OFFSET
+        assert len(ps) == 1
+        p = ps[0]
+        assert p.topic == cs.topic
+        assert p.partition == cs.partition
+        cs.once = False
+
+    cs = CommitState('test', 2)
+
+    c = Consumer({'group.id': 'x',
+                  'enable.auto.commit': False, 'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100,
+                  'on_commit': lambda err,ps: commit_cb(cs, err, ps) })
+
+    c.assign([TopicPartition(cs.topic, cs.partition)])
+
+    for i in range(1, 3):
+        c.poll(0.1)
+
+        if cs.once:
+            # Try commit once
+            try:
+                c.commit(async=False)
+            except KafkaException as e:
+                print('commit failed with %s (expected)' % e)
+                assert e.args[0].code() == KafkaError._NO_OFFSET
+
+    c.close()
