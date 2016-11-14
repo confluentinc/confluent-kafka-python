@@ -108,9 +108,11 @@ Tests
 
 **Run unit-tests:**
 
-    $ py.test
+In order to run full test suite, simply execute:
 
-**NOTE**: Requires `py.test`, install by `pip install pytest`
+    $ tox
+
+**NOTE**: Requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
 
 
 **Run integration tests:**

@@ -1,7 +1,8 @@
 Unit tests
 ==========
 
-Run from top-level directory with:
+From top-level directory run:
 
-  py.test
+    $ tox
 
+**NOTE**: This requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
