@@ -239,8 +239,8 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	rd_kafka_resp_err_t err;
 	PyObject *msg = NULL, *offsets = NULL, *async_o = NULL;
 	rd_kafka_topic_partition_list_t *c_offsets;
-	int async = 1;
-	static char *kws[] = { "message", "offsets", "async",NULL };
+	int asynchronous = 1;
+	static char *kws[] = { "message", "offsets", "asynchronous",NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOO", kws,
 					 &msg, &offsets, &async_o))
@@ -253,7 +253,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	}
 
 	if (async_o)
-		async = PyObject_IsTrue(async_o);
+		asynchronous = PyObject_IsTrue(async_o);
 
 
 	if (offsets) {
@@ -279,11 +279,11 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 
 	} else {
 		c_offsets = NULL;
-		err = rd_kafka_commit(self->rk, NULL, async);
+		err = rd_kafka_commit(self->rk, NULL, asynchronous);
 	}
 
-			
-	err = rd_kafka_commit(self->rk, c_offsets, async);
+
+	err = rd_kafka_commit(self->rk, c_offsets, asynchronous);
 
 	if (c_offsets)
 		rd_kafka_topic_partition_list_destroy(c_offsets);
@@ -489,7 +489,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	},
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
+	  ".. py:function:: commit([message=None], [offsets=None], [asynchronous=True])\n"
 	  "\n"
 	  "  Commit a message or a list of offsets.\n"
 	  "\n"
@@ -498,11 +498,11 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  :param confluent_kafka.Message message: Commit message's offset+1.\n"
 	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
-	  "  :param bool async: Asynchronous commit, return immediately.\n"
+	  "  :param bool asynchronous: Asynchronous commit, return immediately.\n"
 	  "  :rtype: None\n"
 	  "  :raises: KafkaException\n"
 	  "\n"
-	},	  
+	},
 	{ "committed", (PyCFunction)Consumer_committed,
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: committed(partitions, [timeout=None])\n"
@@ -759,5 +759,3 @@ static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
 
 	return (PyObject *)self;
 }
-
-

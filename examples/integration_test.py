@@ -262,9 +262,9 @@ def verify_consumer():
 
         if (msg.offset() % 5) == 0:
             # Async commit
-            c.commit(msg, async=True)
+            c.commit(msg, asynchronous=True)
         elif (msg.offset() % 4) == 0:
-            c.commit(msg, async=False)
+            c.commit(msg, asynchronous=False)
 
         msgcnt += 1
         if msgcnt >= max_msgcnt:
