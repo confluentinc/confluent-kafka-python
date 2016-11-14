@@ -67,7 +67,7 @@ static void Consumer_dealloc (Handle *self) {
                 CallState_end(self, &cs);
         }
 
-	Py_TYPE(self)->tp_free((PyObject *)self);
+        Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 static int Consumer_traverse (Handle *self,
@@ -550,70 +550,6 @@ static PyMethodDef Consumer_methods[] = {
 };
 
 
-static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
-				   PyObject *kwargs);
-
-PyTypeObject ConsumerType = {
-	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Consumer",        /*tp_name*/
-	sizeof(Handle),          /*tp_basicsize*/
-	0,                         /*tp_itemsize*/
-	(destructor)Consumer_dealloc, /*tp_dealloc*/
-	0,                         /*tp_print*/
-	0,                         /*tp_getattr*/
-	0,                         /*tp_setattr*/
-	0,                         /*tp_compare*/
-	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	0,                         /*tp_as_sequence*/
-	0,                         /*tp_as_mapping*/
-	0,                         /*tp_hash */
-	0,                         /*tp_call*/
-	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
-	0,                         /*tp_setattro*/
-	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"High-level Kafka Consumer\n"
-	"\n"
-	".. py:function:: Consumer(**kwargs)\n"
-	"\n"
-	"  Create new Consumer instance using provided configuration dict.\n"
-	"\n"
-	" Special configuration properties:\n"
-	"   ``on_commit``: Optional callback will be called when a commit "
-	"request has succeeded or failed.\n"
-	"\n"
-	"\n"
-	".. py:function:: on_commit(err, partitions)\n"
-	"\n"
-	"  :param Consumer consumer: Consumer instance.\n"
-	"  :param KafkaError err: Commit error object, or None on success.\n"
-	"  :param list(TopicPartition) partitions: List of partitions with "
-	"their committed offsets or per-partition errors.\n"
-	"\n"
-	"\n", /*tp_doc*/
-	(traverseproc)Consumer_traverse, /* tp_traverse */
-	(inquiry)Consumer_clear, /* tp_clear */
-	0,		           /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	Consumer_methods,      /* tp_methods */
-	0,                         /* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0,                         /* tp_alloc */
-	Consumer_new           /* tp_new */
-};
-
-
-
 static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				   rd_kafka_topic_partition_list_t *c_parts,
 				   void *opaque) {
@@ -726,37 +662,100 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 
 
+static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
+        Handle *self = (Handle *)selfobj;
+        char errstr[256];
+        rd_kafka_conf_t *conf;
+
+        if (self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer already __init__:ialized");
+                return -1;
+        }
+
+        if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
+                                       args, kwargs)))
+                return -1; /* Exception raised by ..conf_setup() */
+
+        rd_kafka_conf_set_rebalance_cb(conf, Consumer_rebalance_cb);
+        rd_kafka_conf_set_offset_commit_cb(conf, Consumer_offset_commit_cb);
+
+        self->rk = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
+                                errstr, sizeof(errstr));
+        if (!self->rk) {
+                cfl_PyErr_Format(rd_kafka_last_error(),
+                                 "Failed to create consumer: %s", errstr);
+                rd_kafka_conf_destroy(conf);
+                return -1;
+        }
+
+        rd_kafka_poll_set_consumer(self->rk);
+
+        return 0;
+}
+
 static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
-				   PyObject *kwargs) {
-	Handle *self;
-	char errstr[256];
-	rd_kafka_conf_t *conf;
-
-	self = (Handle *)ConsumerType.tp_alloc(&ConsumerType, 0);
-	if (!self)
-		return NULL;
-
-	if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
-				       args, kwargs))) {
-		Py_DECREF(self);
-		return NULL;
-	}
-
-	rd_kafka_conf_set_rebalance_cb(conf, Consumer_rebalance_cb);
-	rd_kafka_conf_set_offset_commit_cb(conf, Consumer_offset_commit_cb);
-
-	self->rk = rd_kafka_new(RD_KAFKA_CONSUMER, conf,
-				errstr, sizeof(errstr));
-	if (!self->rk) {
-		cfl_PyErr_Format(rd_kafka_last_error(),
-				 "Failed to create consumer: %s", errstr);
-		Py_DECREF(self);
-		return NULL;
-	}
-
-	rd_kafka_poll_set_consumer(self->rk);
-
-	return (PyObject *)self;
+                               PyObject *kwargs) {
+        return type->tp_alloc(type, 0);
 }
 
 
+PyTypeObject ConsumerType = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.Consumer",        /*tp_name*/
+	sizeof(Handle),          /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)Consumer_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	0,                         /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+	"High-level Kafka Consumer\n"
+	"\n"
+	".. py:function:: Consumer(**kwargs)\n"
+	"\n"
+	"  Create new Consumer instance using provided configuration dict.\n"
+	"\n"
+	" Special configuration properties:\n"
+	"   ``on_commit``: Optional callback will be called when a commit "
+	"request has succeeded or failed.\n"
+	"\n"
+	"\n"
+	".. py:function:: on_commit(err, partitions)\n"
+	"\n"
+	"  :param Consumer consumer: Consumer instance.\n"
+	"  :param KafkaError err: Commit error object, or None on success.\n"
+	"  :param list(TopicPartition) partitions: List of partitions with "
+	"their committed offsets or per-partition errors.\n"
+	"\n"
+	"\n", /*tp_doc*/
+	(traverseproc)Consumer_traverse, /* tp_traverse */
+	(inquiry)Consumer_clear, /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	Consumer_methods,      /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+        Consumer_init,             /* tp_init */
+	0,                         /* tp_alloc */
+	Consumer_new           /* tp_new */
+};

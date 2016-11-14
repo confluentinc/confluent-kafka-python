@@ -36,3 +36,17 @@ def test_hash():
     tp2 = TopicPartition('somethingelse', 12)
     assert hash(tp1) != hash(tp2)
 
+
+def test_subclassing():
+    class SubTopicPartition(TopicPartition):
+        def __init__(self, topic_part_str):
+            topic, part = topic_part_str.split(":")
+            super(SubTopicPartition, self).__init__(topic=topic, partition=int(part))
+
+    st = SubTopicPartition("topic1:0")
+    assert st.topic == "topic1"
+    assert st.partition == 0
+
+    st = SubTopicPartition("topic2:920")
+    assert st.topic == "topic2"
+    assert st.partition == 920

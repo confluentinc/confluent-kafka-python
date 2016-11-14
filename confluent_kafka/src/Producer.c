@@ -426,10 +426,44 @@ static Py_ssize_t Producer__len__ (Handle *self) {
 static PySequenceMethods Producer_seq_methods = {
 	(lenfunc)Producer__len__ /* sq_length */
 };
-	
+
+
+static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
+        Handle *self = (Handle *)selfobj;
+        char errstr[256];
+        rd_kafka_conf_t *conf;
+
+        if (self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Producer already __init__:ialized");
+                return -1;
+        }
+
+        if (!(conf = common_conf_setup(RD_KAFKA_PRODUCER, self,
+                                       args, kwargs)))
+                return -1;
+
+        rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
+
+        self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,
+                                errstr, sizeof(errstr));
+        if (!self->rk) {
+                cfl_PyErr_Format(rd_kafka_last_error(),
+                                 "Failed to create producer: %s", errstr);
+                rd_kafka_conf_destroy(conf);
+                return -1;
+        }
+
+        return 0;
+}
+
 
 static PyObject *Producer_new (PyTypeObject *type, PyObject *args,
-				   PyObject *kwargs);
+                               PyObject *kwargs) {
+        return type->tp_alloc(type, 0);
+}
+
+
 
 PyTypeObject ProducerType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
@@ -451,7 +485,8 @@ PyTypeObject ProducerType = {
 	0,                         /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"Asynchronous Kafka Producer\n"
 	"\n"
 	".. py:function:: Producer(**kwargs)\n"
@@ -478,42 +513,11 @@ PyTypeObject ProducerType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
+        Producer_init,             /* tp_init */
 	0,                         /* tp_alloc */
 	Producer_new           /* tp_new */
 };
 
-
-
-static PyObject *Producer_new (PyTypeObject *type, PyObject *args,
-				   PyObject *kwargs) {
-	Handle *self;
-	char errstr[256];
-	rd_kafka_conf_t *conf;
-
-	self = (Handle *)ProducerType.tp_alloc(&ProducerType, 0);
-	if (!self)
-		return NULL;
-
-	if (!(conf = common_conf_setup(RD_KAFKA_PRODUCER, self,
-					   args, kwargs))) {
-		Py_DECREF(self);
-		return NULL;
-	}
-
-	rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
-
-	self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,
-				errstr, sizeof(errstr));
-	if (!self->rk) {
-		cfl_PyErr_Format(rd_kafka_last_error(),
-				 "Failed to create producer: %s", errstr);
-		Py_DECREF(self);
-		return NULL;
-	}
-
-	return (PyObject *)self;
-}
 
 
 

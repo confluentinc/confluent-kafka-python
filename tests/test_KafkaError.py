@@ -10,7 +10,6 @@ def error_cb (err):
     if err.code() == KafkaError._ALL_BROKERS_DOWN:
         global seen_all_brokers_down
         seen_all_brokers_down = True
-        
 
 def test_error_cb():
     """ Test the error callback. """
@@ -28,3 +27,12 @@ def test_error_cb():
         p.poll(1)
 
     assert seen_all_brokers_down
+
+
+def test_subclassing():
+    class MyExc(KafkaException):
+        def a_method (self):
+            return "yes"
+    err = MyExc()
+    assert err.a_method() == "yes"
+    assert isinstance(err, KafkaException)
