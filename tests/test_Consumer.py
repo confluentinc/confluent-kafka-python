@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE
+from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE, libversion
+import pytest
 
 
 def test_basic_api():
@@ -64,8 +65,13 @@ def test_basic_api():
     kc.close()
 
 
+# librdkafka <=0.9.2 has a race-issue where it will hang indefinately
+# if a commit is issued when no coordinator is available.
+@pytest.mark.skipif(libversion()[1] <= 0x000902ff,
+                    reason="requires librdkafka >0.9.2")
 def test_on_commit ():
     """ Verify that on_commit is only called once per commit() (issue #71) """
+
     class CommitState (object):
         def __init__(self, topic, partition):
             self.topic = topic
