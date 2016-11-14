@@ -27,7 +27,7 @@ def test_error_cb():
         seen_error_cb = True
         assert error_msg.code() in (confluent_kafka.KafkaError._TRANSPORT, confluent_kafka.KafkaError._ALL_BROKERS_DOWN)
 
-    conf = {'bootstrap.servers': 'localhost:9093', # Purposely cause connection refused error
+    conf = {'bootstrap.servers': 'localhost:65531', # Purposely cause connection refused error
             'group.id':'test',
             'socket.timeout.ms':'100',
             'session.timeout.ms': 1000, # Avoid close() blocking too long
