@@ -3,34 +3,80 @@
 import confluent_kafka
 import re
 from types import ModuleType
+from collections import defaultdict
+import inspect
+
+def build_doctree (tree, prefix, parent):
+    """ Build doctree dict with format:
+          dict key = full class/type name (e.g, "confluent_kafka.Message.timestamp")
+          value = object
+    """
+    for n in dir(parent):
+        if n.startswith('__') or n == 'cimpl':
+            # Skip internals and the C module (it is automatically imported
+            # to other names in __init__.py)
+            continue
+
+        o = parent.__dict__.get(n)
+        full = prefix + n
+        tree[full].append(o)
+
+        if hasattr(o, '__dict__'):
+            build_doctree(tree, full + '.', o)
+
 
 def test_verify_docs():
     """ Make sure all exported functions, classes, etc, have proper docstrings
     """
+
+    tree = defaultdict(list)
+    build_doctree(tree, 'confluent_kafka.', confluent_kafka)
+
     fails = 0
+    expect_refs = defaultdict(list)
+    all_docs = ''
 
-    for n in dir(confluent_kafka):
-        if n.startswith('__'):
-            # Skip internals
-            continue
-
-        err = None
+    for n,vs in tree.items():
         level = 'ERROR'
-        o = confluent_kafka.__dict__.get(n)
-        d = o.__doc__
-        if not d:
-            err = 'Missing __doc__ for: %s (type %s)' % (n, type(o))
-            fails += 1
-        elif not re.search(r':', d):
-            err = 'Missing Doxygen tag for: %s (type %s)' % (n, type(o))
-            # Ignore missing doc strings for the cimpl module itself and
-            # integer constants (which can't have a doc string)
-            if n == 'cimpl' or type(o) in [int]:
-                level = 'IGNORE'
+        err = None
+
+        if len(vs) > 1:
+            err = 'Multiple definitions of %s: %s' % (n, vs)
+        else:
+            o = vs[0]
+            doc = o.__doc__
+            shortname = n.split('.')[-1]
+            if n.find('KafkaException') != -1 and shortname in ['args','message']:
+                # Ignore some doc-less BaseException inheritance
+                err = None
+            elif doc is None:
+                err = 'Missing __doc__ for: %s (type %s)' % (n, type(o))
+            elif not re.search(r':', doc):
+                err = 'Missing Doxygen tag for: %s (type %s):\n%s' % (n, type(o), doc)
+                if n == 'confluent_kafka.cimpl':
+                    # Ignore missing doc strings for the cimpl module itself.
+                    level = 'IGNORE'
+                elif type(o) in [int, long]:
+                    # Integer constants can't have a doc strings so we check later
+                    # that they are referenced somehow in the overall docs.
+                    expect_refs[shortname].append(err)
+                    err = None
+                else:
+                    pass
+            else:
+                all_docs += doc
 
         if err is not None:
             print('%s: %s' % (level, err))
             if level == 'ERROR':
                 fails += 1
+
+    # Make sure constants without docstrings (they can have any)
+    # are referenced in other docstrings somewhere.
+    for n in expect_refs:
+        if all_docs.find(n) == -1:
+            print('ERROR: %s not referenced in documentation (%s)' % \
+                  (n, expect_refs[n]))
+            fails += 1
 
     assert fails == 0

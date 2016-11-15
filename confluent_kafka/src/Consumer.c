@@ -451,10 +451,11 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param list(TopicPartition) partitions: Absolute list of partitions being assigned or revoked.\n"
 	  "\n"
 	},
-	{ "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
-	  "  Remove current subscription.\n"
-	  "\n"
-	},
+        { "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
+          "  Remove current subscription.\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
 	{ "poll", (PyCFunction)Consumer_poll,
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: poll([timeout=None])\n"
@@ -483,10 +484,11 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming.\n"
 	  "\n"
 	},
-	{ "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
-	  "  Removes the current partition assignment and stops consuming.\n"
-	  "\n"
-	},
+        { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
+          "  Removes the current partition assignment and stops consuming.\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
 	  "\n"

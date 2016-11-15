@@ -620,15 +620,15 @@ static int TopicPartition_traverse (TopicPartition *self,
 
 
 static PyMemberDef TopicPartition_members[] = {
-	{ "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
-	  "Topic name" },
-	{ "partition", T_INT, offsetof(TopicPartition, partition), 0,
-	  "Partition number" },
-	{ "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
-	  "Offset" }, /* FIXME: Possibly use None for INVALID offset (-1001) */
-	{ "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
-	  "Indicates an error (with :py:class:`KafkaError`) unless None." },
-	{ NULL }
+        { "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
+          ":py:attribute: Topic name (string)" },
+        { "partition", T_INT, offsetof(TopicPartition, partition), 0,
+          ":py:attribute: Partition number (int)" },
+        { "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
+          ":py:attribute: Offset (long)" }, /* FIXME: Possibly use None for INVALID offset (-1001) */
+        { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
+          ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
+        { NULL }
 };
 
 
