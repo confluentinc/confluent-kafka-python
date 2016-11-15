@@ -4,7 +4,7 @@ import confluent_kafka
 import re
 from types import ModuleType
 from collections import defaultdict
-import inspect
+import sys
 
 def build_doctree (tree, prefix, parent):
     """ Build doctree dict with format:
@@ -36,6 +36,10 @@ def test_verify_docs():
     expect_refs = defaultdict(list)
     all_docs = ''
 
+    int_types = [int]
+    if sys.version_info < (3, 0):
+        int_types.append(long)
+
     for n,vs in tree.items():
         level = 'ERROR'
         err = None
@@ -46,17 +50,17 @@ def test_verify_docs():
             o = vs[0]
             doc = o.__doc__
             shortname = n.split('.')[-1]
-            if n.find('KafkaException') != -1 and shortname in ['args','message']:
-                # Ignore some doc-less BaseException inheritance
+            if n.find('KafkaException') != -1:
+                # Ignore doc-less BaseException inheritance
                 err = None
             elif doc is None:
                 err = 'Missing __doc__ for: %s (type %s)' % (n, type(o))
             elif not re.search(r':', doc):
-                err = 'Missing Doxygen tag for: %s (type %s):\n%s' % (n, type(o), doc)
+                err = 'Missing Doxygen tag for: %s (type %s):\n---\n%s\n---' % (n, type(o), doc)
                 if n == 'confluent_kafka.cimpl':
                     # Ignore missing doc strings for the cimpl module itself.
                     level = 'IGNORE'
-                elif type(o) in [int, long]:
+                elif type(o) in int_types:
                     # Integer constants can't have a doc strings so we check later
                     # that they are referenced somehow in the overall docs.
                     expect_refs[shortname].append(err)
