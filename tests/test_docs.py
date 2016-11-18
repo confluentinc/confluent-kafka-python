@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
-import confluent_kafka
 import re
-from types import ModuleType
-from collections import defaultdict
 import sys
+from collections import defaultdict
+from types import ModuleType
+
+import confluent_kafka
+
 
 def build_doctree (tree, prefix, parent):
     """ Build doctree dict with format:
@@ -22,7 +24,11 @@ def build_doctree (tree, prefix, parent):
         tree[full].append(o)
 
         if hasattr(o, '__dict__'):
-            build_doctree(tree, full + '.', o)
+            is_module = isinstance(o, ModuleType)
+            is_ck_package = o.__dict__.get('__module__', '').startswith('confluent_kafka.')
+            is_cimpl_package = o.__dict__.get('__module__', '').startswith('cimpl.')
+            if not is_module or is_ck_package or is_cimpl_package:
+                build_doctree(tree, full + '.', o)
 
 
 def test_verify_docs():

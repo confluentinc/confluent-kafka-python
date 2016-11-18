@@ -2,7 +2,11 @@
 
 from setuptools import setup, find_packages
 from distutils.core import Extension
-
+import sys
+if sys.version_info[0] < 3:
+    avro = 'avro'
+else:
+    avro = 'avro-python3'
 
 module = Extension('confluent_kafka.cimpl',
                     libraries= ['rdkafka'],
@@ -17,5 +21,8 @@ setup(name='confluent-kafka',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
-      packages=find_packages(),
-      data_files = [('', ['LICENSE'])])
+      packages=find_packages(exclude=("tests",)),
+      data_files = [('', ['LICENSE'])],
+      extras_require={
+          'avro': ['fastavro', 'requests', avro, 'unittest2']
+      })
