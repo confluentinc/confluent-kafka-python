@@ -1,2 +1,2 @@
-__all__ = ['cimpl','kafkatest']
+__all__ = ['cimpl', 'avro', 'kafkatest']
 from .cimpl import *
