@@ -60,6 +60,24 @@ avroProducer = AvroProducer({'bootstrap.servers': 'mybroker,mybroker2', 'schema.
 avroProducer.produce(topic='my_topic', value=value, key=key)
 ```
 
+**AvroConsumer**
+```
+from confluent_kafka.avro import AvroConsumer
+
+c = AvroConsumer({'bootstrap.servers': 'mybroker,mybroker2', 'group.id': 'greoupid', 'schema.registry.url': 'http://127.0.0.1:9002'})
+c.subscribe(['my_topic'])
+running = True
+while running:
+    msg = c.poll(10)
+    if msg:
+        if not msg.error():
+            print(msg.value())
+        elif msg.error().code() != KafkaError._PARTITION_EOF:
+            print(msg.error())
+            running = False
+c.close()
+```
+
 See [examples](examples) for more examples.
 
 

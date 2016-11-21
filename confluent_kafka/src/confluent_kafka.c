@@ -332,6 +332,19 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 			     self->timestamp);
 }
 
+static PyObject *Message_set_value (Message *self, PyObject *new_val) {
+   Py_DECREF(self->value);
+   self->value = new_val;
+   Py_INCREF(self->value);
+   Py_RETURN_NONE;
+}
+
+static PyObject *Message_set_key (Message *self, PyObject *new_key) {
+   Py_DECREF(self->key);
+   self->key = new_key;
+   Py_INCREF(self->key);
+   Py_RETURN_NONE;
+}
 
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
@@ -389,6 +402,16 @@ static PyMethodDef Message_methods[] = {
           "\n"
 	  "  :returns: tuple of message timestamp type, and timestamp.\n"
 	  "  :rtype: (int, int)\n"
+	  "\n"
+	},
+	{ "set_value", (PyCFunction)Message_set_value, METH_O,
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
+	{ "set_key", (PyCFunction)Message_set_key, METH_O,
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ NULL }
