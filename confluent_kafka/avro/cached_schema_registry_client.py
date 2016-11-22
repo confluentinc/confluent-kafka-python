@@ -26,6 +26,7 @@ from collections import defaultdict
 import requests
 
 from . import ClientError, VALID_LEVELS
+from . import loads
 
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
@@ -161,7 +162,7 @@ class CachedSchemaRegistryClient(object):
             # need to parse the schema
             schema_str = result.get("schema")
             try:
-                result = avro.loads(schema_str)
+                result = loads(schema_str)
                 # cache it
                 self._cache_schema(result, schema_id)
                 return result
@@ -200,7 +201,7 @@ class CachedSchemaRegistryClient(object):
             schema = self.id_to_schema[schema_id]
         else:
             try:
-                schema = avro.loads(result['schema'])
+                schema = loads(result['schema'])
             except:
                 # bad schema - should not happen
                 raise ClientError("Received bad schema from registry.")
