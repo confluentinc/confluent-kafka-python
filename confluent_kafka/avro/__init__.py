@@ -4,7 +4,7 @@
 """
 import sys
 
-from confluent_kafka import Producer
+from confluent_kafka import Producer, Consumer
 
 VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 
@@ -112,3 +112,43 @@ class AvroProducer(Producer):
                 raise SerializerError("Avro schema required for key")
 
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
+
+
+class AvroConsumer(Consumer):
+    """
+    Kafka Consumer client which does avro schema decoding of messages.
+    Handles message deserialization.
+
+    Constructor takes below parameters
+
+    @:param: config: dict object with config parameters containing url for schema registry (schema.registry.url).
+    """
+    def __init__(self, config):
+
+        if ('schema.registry.url' not in config.keys()):
+            raise ValueError("Missing parameter: schema.registry.url")
+        schem_registry_url = config["schema.registry.url"]
+        del config["schema.registry.url"]
+
+        super(AvroConsumer, self).__init__(config)
+        self._serializer = MessageSerializer(CachedSchemaRegistryClient(url=schem_registry_url))
+
+    def poll(self, timeout):
+        """
+        This is an overriden method from confluent_kafka.Consumer class. This handles message
+        deserialization using avro schema
+
+        @:param timeout
+        @:return message object with deserialized key and value as dict objects
+        """
+        message = super(AvroConsumer, self).poll(timeout)
+        if not message:
+            return message
+        if not message.error():
+            if message.value() is not None:
+                decoded_value = self._serializer.decode_message(message.value())
+                message.set_value(decoded_value)
+            if message.key() is not None:
+                decoded_key = self._serializer.decode_message(message.key())
+                message.set_key(decoded_key)
+        return message
