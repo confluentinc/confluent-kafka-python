@@ -333,16 +333,20 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 }
 
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
-   Py_DECREF(self->value);
-   self->value = new_val;
-   Py_INCREF(self->value);
+   if (self->value) {
+        Py_DECREF(self->value);
+        self->value = new_val;
+        Py_INCREF(self->value);
+    }
    Py_RETURN_NONE;
 }
 
 static PyObject *Message_set_key (Message *self, PyObject *new_key) {
-   Py_DECREF(self->key);
-   self->key = new_key;
-   Py_INCREF(self->key);
+   if (self->key) {
+        Py_DECREF(self->key);
+        self->key = new_key;
+        Py_INCREF(self->key);
+    }
    Py_RETURN_NONE;
 }
 
@@ -405,11 +409,13 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
+	  "  Set the field 'Message.value' with new value.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_key", (PyCFunction)Message_set_key, METH_O,
+	  "  Set the field 'Message.key' with new value.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"

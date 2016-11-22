@@ -144,7 +144,6 @@ class AvroConsumer(Consumer):
         message = super(AvroConsumer, self).poll(timeout)
         if not message:
             return message
-        print(message)
         if not message.error():
             if message.value():
                 decoded_value = self._serializer.decode_message(message.value())
