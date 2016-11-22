@@ -68,15 +68,17 @@ c = AvroConsumer({'bootstrap.servers': 'mybroker,mybroker2', 'group.id': 'groupi
 c.subscribe(['my_topic'])
 running = True
 while running:
-    msg = c.poll(10)
-    if msg:
-        if not msg.error():
-            if (msg.value() && isinstance(msg.value(), dict)):
-                print("Got back deserialized dict object")
-            print(msg.value())
-        elif msg.error().code() != KafkaError._PARTITION_EOF:
-            print(msg.error())
-            running = False
+    try:
+        msg = c.poll(10)
+        if msg:
+            if not msg.error():
+                print(msg.value())
+            elif msg.error().code() != KafkaError._PARTITION_EOF:
+                print(msg.error())
+                running = False
+    except SerializerError:
+        print("Unable to decode the message")
+        running = False
 c.close()
 ```
 
