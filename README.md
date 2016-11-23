@@ -62,7 +62,11 @@ avroProducer.produce(topic='my_topic', value=value, key=key)
 
 **AvroConsumer**
 ```
+import sys
+import traceback
+from confluent_kafka import KafkaError
 from confluent_kafka.avro import AvroConsumer
+from confluent_kafka.avro.serializer import SerializerError
 
 c = AvroConsumer({'bootstrap.servers': 'mybroker,mybroker2', 'group.id': 'groupid', 'schema.registry.url': 'http://127.0.0.1:8081'})
 c.subscribe(['my_topic'])
@@ -76,9 +80,11 @@ while running:
             elif msg.error().code() != KafkaError._PARTITION_EOF:
                 print(msg.error())
                 running = False
-    except SerializerError:
-        print("Unable to decode the message")
+    except SerializerError as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        print(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
         running = False
+        
 c.close()
 ```
 
@@ -122,7 +128,7 @@ Install
 
     $ pip install confluent-kafka
     
-    # for AvroProducer
+    # for AvroProducer or AvroConsumer
     $ pip install confluent-kafka[avro]
 
 
@@ -130,7 +136,7 @@ Install
 
     $ pip install .
 
-    # for AvroProducer
+    # for AvroProducer or AvroConsumer
     $ pip install .[avro]
 
 

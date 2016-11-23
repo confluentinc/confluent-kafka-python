@@ -410,14 +410,14 @@ static PyMethodDef Message_methods[] = {
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
 	  "  Set the field 'Message.value' with new value.\n"
-	  "  :param: PyObject value: Message.value.\n"
+	  "  :param: object value: Message.value.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_key", (PyCFunction)Message_set_key, METH_O,
 	  "  Set the field 'Message.key' with new value.\n"
-	  "  :param: PyObject value: Message.key.\n"
+	  "  :param: object value: Message.key.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
