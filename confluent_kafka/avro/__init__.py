@@ -145,10 +145,10 @@ class AvroConsumer(Consumer):
         if not message:
             return message
         if not message.error():
-            if message.value():
+            if message.value() is not None:
                 decoded_value = self._serializer.decode_message(message.value())
                 message.set_value(decoded_value)
-            if message.key():
+            if message.key() is not None:
                 decoded_key = self._serializer.decode_message(message.key())
                 message.set_key(decoded_key)
         return message
