@@ -636,11 +636,13 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
 	PyObject *errstr = self->error == Py_None ? NULL :
 		cfl_PyObject_Unistr(self->error);
 	PyObject *ret;
+	char offset_str[40];
+	snprintf(offset_str, sizeof(offset_str), "%"PRId64"", self->offset);
 	ret = cfl_PyUnistr(
 		_FromFormat("TopicPartition{topic=%s,partition=%"PRId32
-			    ",offset=%"PRId64",error=%s}",
+			    ",offset=%s,error=%s}",
 			    self->topic, self->partition,
-			    self->offset,
+			    offset_str,
 			    errstr ? cfl_PyUnistr_AsUTF8(errstr) : "None"));
 	if (errstr)
 		Py_DECREF(errstr);
