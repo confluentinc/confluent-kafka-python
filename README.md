@@ -81,8 +81,7 @@ while running:
                 print(msg.error())
                 running = False
     except SerializerError as e:
-        exc_type, exc_value, exc_traceback = sys.exc_info()
-        print(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+        print("Message deserialization failed for %s: %s" % (msg, e))
         running = False
         
 c.close()
