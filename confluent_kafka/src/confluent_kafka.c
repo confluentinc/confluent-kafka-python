@@ -962,7 +962,8 @@ void Handle_clear (Handle *h) {
 	if (h->stats_cb)
 		Py_DECREF(h->stats_cb);
 
-	PyThread_delete_key(h->tlskey);
+        if (h->initiated)
+                PyThread_delete_key(h->tlskey);
 }
 
 /**
@@ -1322,6 +1323,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	rd_kafka_conf_set_opaque(conf, h);
 
 	h->tlskey = PyThread_create_key();
+        h->initiated = 1;
 
 	return conf;
 }
