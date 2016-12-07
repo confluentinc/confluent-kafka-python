@@ -26,6 +26,14 @@
 #endif
 
 
+/**
+ * librdkafka feature detection
+ */
+#if RD_KAFKA_VERSION >= 0x00090300
+#define HAVE_PRODUCEV  1 /* rd_kafka_producev() */
+#endif
+
+
 
 /****************************************************************************
  *
