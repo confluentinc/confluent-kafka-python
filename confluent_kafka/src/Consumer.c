@@ -231,6 +231,28 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 	Py_RETURN_NONE;
 }
 
+static PyObject *Consumer_assignment (Handle *self, PyObject *args,
+				      PyObject *kwargs) {
+
+	PyObject *plist;
+	rd_kafka_topic_partition_list_t *c_parts;
+	rd_kafka_resp_err_t err;
+
+	err = rd_kafka_assignment(self->rk, &c_parts);
+	if (err) {
+		cfl_PyErr_Format(err,
+				 "Failed to get assignment: %s",
+				 rd_kafka_err2str(err));
+		return NULL;
+	}
+
+
+	plist = c_parts_to_py(c_parts);
+	rd_kafka_topic_partition_list_destroy(c_parts);
+
+	return plist;
+}
+
 
 
 static PyObject *Consumer_commit (Handle *self, PyObject *args,
@@ -489,6 +511,17 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: KafkaException\n"
           "\n"
         },
+	{ "assignment", (PyCFunction)Consumer_assignment,
+	  METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: assignment()\n"
+	  "\n"
+	  "  Returns the current partition assignment.\n"
+	  "\n"
+	  "  :returns: List of assigned topic+partitions.\n"
+	  "  :rtype: list(TopicPartition)\n"
+	  "  :raises: KafkaException\n"
+	  "\n"
+	},
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
 	  "\n"

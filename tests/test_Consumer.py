@@ -43,6 +43,10 @@ def test_basic_api():
     partitions = list(map(lambda p: TopicPartition("test", p), range(0,100,3)))
     kc.assign(partitions)
 
+    # Verify assignment
+    assignment = kc.assignment()
+    assert partitions == assignment
+
     kc.unassign()
 
     kc.commit(async=True)
