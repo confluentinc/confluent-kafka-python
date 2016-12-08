@@ -29,8 +29,6 @@
  *     partitioner run without any locks taken.
  *     Until this is fixed the partitioner is ignored and librdkafka's
  *     default will be used.
- *  - TopicPartition.offset should probably be None for the INVALID offset
- *    rather than exposing the special value -1001.
  *  - KafkaError type .tp_doc allocation is lost on exit.
  *
  */
@@ -643,11 +641,17 @@ static int TopicPartition_traverse (TopicPartition *self,
 
 static PyMemberDef TopicPartition_members[] = {
         { "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
-          ":py:attribute: Topic name (string)" },
+          ":py:attribute:topic - Topic name (string)" },
         { "partition", T_INT, offsetof(TopicPartition, partition), 0,
           ":py:attribute: Partition number (int)" },
         { "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
-          ":py:attribute: Offset (long)" }, /* FIXME: Possibly use None for INVALID offset (-1001) */
+          " :py:attribute: Offset (long)\n"
+          "Either an absolute offset (>=0) or a logical offset:"
+          " :py:const:`OFFSET_BEGINNING`,"
+          " :py:const:`OFFSET_END`,"
+          " :py:const:`OFFSET_STORED`,"
+          " :py:const:`OFFSET_INVALID`"
+        },
         { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
           ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
         { NULL }
@@ -1557,6 +1561,11 @@ static PyObject *_init_cimpl (void) {
 	PyModule_AddIntConstant(m, "TIMESTAMP_NOT_AVAILABLE", RD_KAFKA_TIMESTAMP_NOT_AVAILABLE);
 	PyModule_AddIntConstant(m, "TIMESTAMP_CREATE_TIME", RD_KAFKA_TIMESTAMP_CREATE_TIME);
 	PyModule_AddIntConstant(m, "TIMESTAMP_LOG_APPEND_TIME", RD_KAFKA_TIMESTAMP_LOG_APPEND_TIME);
+
+        PyModule_AddIntConstant(m, "OFFSET_BEGINNING", RD_KAFKA_OFFSET_BEGINNING);
+        PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
+        PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
+        PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
 
 	return m;
 }

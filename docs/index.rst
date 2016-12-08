@@ -55,6 +55,17 @@ KafkaException
 .. autoclass:: confluent_kafka.KafkaException
    :members:
 
+******
+Offset
+******
+
+Logical offset constants:
+
+ * :py:const:`OFFSET_BEGINNING` - Beginning of partition (oldest offset)
+ * :py:const:`OFFSET_END` - End of partition (next offset)
+ * :py:const:`OFFSET_STORED` - Use stored/committed offset
+ * :py:const:`OFFSET_INVALID` - Invalid/Default offset
+
 
 
 Configuration
