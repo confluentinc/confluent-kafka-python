@@ -87,9 +87,9 @@ class AvroProducer(Producer):
         """
             Sends message to kafka by encoding with specified avro schema
             @:param: topic: topic name
-            @:param: value: A dictionary object
+            @:param: value: An object to serialize
             @:param: value_schema : Avro schema for value
-            @:param: key: A dictionary object
+            @:param: key: An object to serialize
             @:param: key_schema : Avro schema for key
             @:exception: SerializerError
         """

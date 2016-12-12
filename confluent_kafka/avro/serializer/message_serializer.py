@@ -85,12 +85,10 @@ class MessageSerializer(object):
         The schema is registered with the subject of 'topic-value'
         @:param topic : Topic name
         @:param schema : Avro Schema
-        @:param record : A dictionary object
+        @:param record : An object to serialize
         @:param is_key : If the record is a key
         @:returns : Encoded record with schema ID as bytes
         """
-        if not isinstance(record, dict):
-            raise SerializerError("record must be a dictionary")
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
         subject_suffix = ('-key' if is_key else '-value')
@@ -112,12 +110,10 @@ class MessageSerializer(object):
         Encode a record with a given schema id.  The record must
         be a python dictionary.
         @:param: schema_id : integer ID
-        @:param: record : A dictionary object
+        @:param: record : An object to serialize
         @:param is_key : If the record is a key
         @:returns: decoder function
         """
-        if not isinstance(record, dict):
-            raise SerializerError("record must be a dictionary")
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
         # use slow avro
