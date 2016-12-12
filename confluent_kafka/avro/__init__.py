@@ -133,7 +133,7 @@ class AvroConsumer(Consumer):
         super(AvroConsumer, self).__init__(config)
         self._serializer = MessageSerializer(CachedSchemaRegistryClient(url=schem_registry_url))
 
-    def poll(self, timeout):
+    def poll(self, timeout=None):
         """
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
@@ -141,6 +141,7 @@ class AvroConsumer(Consumer):
         @:param timeout
         @:return message object with deserialized key and value as dict objects
         """
+        timeout = timeout or -1
         message = super(AvroConsumer, self).poll(timeout)
         if not message:
             return message
