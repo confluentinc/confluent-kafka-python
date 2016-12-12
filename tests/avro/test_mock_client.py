@@ -19,12 +19,9 @@
 #
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
-import sys
 
-if sys.version_info[0] < 3:
-    import unittest
-else:
-    import unittest2 as unittest
+import unittest
+
 from tests.avro import data_gen
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
@@ -121,7 +118,3 @@ class TestMockSchemaRegistryClient(unittest.TestCase):
 
     def hash_func(self):
         return hash(str(self))
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromTestCase(TestMockSchemaRegistryClient)

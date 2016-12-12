@@ -24,5 +24,5 @@ setup(name='confluent-kafka',
       packages=find_packages(exclude=("tests",)),
       data_files = [('', ['LICENSE'])],
       extras_require={
-          'avro': ['fastavro', 'requests', avro, 'unittest2']
+          'avro': ['fastavro', 'requests', avro]
       })

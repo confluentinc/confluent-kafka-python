@@ -20,16 +20,12 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 import os
-import sys
 
 from confluent_kafka import avro
 
 from requests.exceptions import ConnectionError
-if sys.version_info[0] < 3:
-    import unittest
-else:
-    import unittest2 as unittest
 
+import unittest
 from confluent_kafka.avro import AvroProducer
 from confluent_kafka.avro.serializer import (KeySerializerError,
                                              ValueSerializerError)

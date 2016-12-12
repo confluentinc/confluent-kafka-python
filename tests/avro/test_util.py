@@ -20,12 +20,8 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 
-import sys
+import unittest
 
-if sys.version_info[0] < 3:
-    import unittest
-else:
-    import unittest2 as unittest
 from avro import schema
 from tests.avro import data_gen
 from confluent_kafka import avro
@@ -39,7 +35,3 @@ class TestUtil(unittest.TestCase):
     def test_schema_from_file(self):
         parsed = avro.load(data_gen.get_schema_path('adv_schema.avsc'))
         self.assertTrue(isinstance(parsed, schema.Schema))
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromTestCase(TestUtil)

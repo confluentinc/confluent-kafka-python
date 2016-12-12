@@ -19,13 +19,11 @@
 #
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
-import struct
-import sys
 
-if sys.version_info[0] < 3:
-    import unittest
-else:
-    import unittest2 as unittest
+import struct
+
+import unittest
+
 from tests.avro import data_gen
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
@@ -79,7 +77,3 @@ class TestMessageSerializer(unittest.TestCase):
 
     def hash_func(self):
         return hash(str(self))
-
-
-def suite():
-    return unittest.TestLoader().loadTestsFromTestCase(unittest.BaseTestSuite)
