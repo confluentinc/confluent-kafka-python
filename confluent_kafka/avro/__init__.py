@@ -53,7 +53,9 @@ class ClientError(Exception):
 
 
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import SerializerError
+from confluent_kafka.avro.serializer import (SerializerError,
+                                             KeySerializerError,
+                                             ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
 
@@ -99,17 +101,19 @@ class AvroProducer(Producer):
             raise ClientError("Topic name not specified.")
         value = kwargs.pop('value', None)
         key = kwargs.pop('key', None)
+
         if value:
             if value_schema:
                 value = self._serializer.encode_record_with_schema(topic, value_schema, value)
             else:
-                raise SerializerError("Avro schema required for value")
+                raise ValueSerializerError("Avro schema required for values")
 
         if key:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:
-                raise SerializerError("Avro schema required for key")
+                raise KeySerializerError("Avro schema required for key")
+
 
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
 
