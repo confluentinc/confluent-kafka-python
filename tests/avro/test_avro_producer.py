@@ -58,11 +58,10 @@ class TestAvroProducer(unittest.TestCase):
             producer.produce(topic='test', value={"name": 'abc"'})
 
     def test_produce_no_key_schema(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema)
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(KeySerializerError):
             # If the key is provided as a dict an avro schema must also be provided
-            producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
+            producer.produce(topic='test', key={"name": 'abc"'})
 
     def test_produce_value_and_key_schemas(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
