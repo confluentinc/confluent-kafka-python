@@ -159,7 +159,7 @@ In order to run full test suite, simply execute:
 
     $ tox -r
 
-**NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](https://github.com/confluentinc/confluent-kafka-python/blob/master/tools/bootstrap-librdkafka.sh) into `tmp-build`.
+**NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](blob/master/tools/bootstrap-librdkafka.sh) into `tmp-build`.
 
 
 **Run integration tests:**
