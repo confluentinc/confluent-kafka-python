@@ -145,7 +145,8 @@ class AvroConsumer(Consumer):
         @:param timeout
         @:return message object with deserialized key and value as dict objects
         """
-        timeout = timeout or -1
+        if timeout is None:
+            timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
         if not message.value() and not message.key():
             return message
