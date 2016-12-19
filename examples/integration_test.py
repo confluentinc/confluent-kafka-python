@@ -20,11 +20,12 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
-import re
+import os
 import time
 import uuid
 import sys
 import json
+from copy import copy
 
 try:
     from progress.bar import Bar
@@ -34,6 +35,9 @@ except ImportError as e:
 
 # Kafka bootstrap server(s)
 bootstrap_servers = None
+
+# Confluent schema-registry
+schema_registry = None
 
 # Topic to use
 topic = 'test'
@@ -50,7 +54,7 @@ good_stats_cb_result = False
 def error_cb (err):
     print('Error: %s' % err)
 
-    
+
 class MyTestDr(object):
     """ Producer: Delivery report callback """
 
@@ -123,6 +127,83 @@ def verify_producer():
     # Block until all messages are delivered/failed
     p.flush()
 
+
+def verify_avro():
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'schema.registry.url': schema_registry,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'default.topic.config': {'produce.offset.report': True}}
+
+    # Create producer
+    p = avro.AvroProducer(conf)
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.
+
+    combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+    ]
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'schema.registry.url': schema_registry,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'on_commit': print_commit_result,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+    for i, combo in enumerate(combinations):
+        combo['topic'] = str(uuid.uuid4())
+        p.produce(**combo)
+        p.poll(0)
+        p.flush()
+
+        # Create consumer
+        c = avro.AvroConsumer(copy(cons_conf))
+        c.subscribe([combo['topic']])
+
+        while True:
+            msg = c.poll(0)
+            if msg is None:
+                continue
+
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    break
+                else:
+                    continue
+
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.key(), msg.value(), tstype, timestamp))
+
+            c.commit(msg, async=False)
+
+        # Close consumer
+        c.close()
 
 
 def verify_producer_performance(with_dr_cb=True):
@@ -283,8 +364,6 @@ def verify_consumer():
         print(tp)
 
     c.close()
-
-
 
 
 def verify_consumer_performance():
@@ -450,8 +529,10 @@ if __name__ == '__main__':
         bootstrap_servers = sys.argv[1]
         if len(sys.argv) > 2:
             topic = sys.argv[2]
+        if len(sys.argv) > 3:
+            schema_registry = sys.argv[3]
     else:
-        print('Usage: %s <broker> [<topic>]' % sys.argv[0])
+        print('Usage: %s <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
         sys.exit(1)
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
@@ -475,6 +556,8 @@ if __name__ == '__main__':
     print('=' * 30, 'Verifying stats_cb', '=' * 30)
     verify_stats_cb()
 
+    if schema_registry:
+        print('=' * 30, 'Verifying AVRO', '=' * 30)
+        topics = verify_avro()
+
     print('=' * 30, 'Done', '=' * 30)
-
-

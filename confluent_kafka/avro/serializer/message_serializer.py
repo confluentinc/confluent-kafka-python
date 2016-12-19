@@ -29,7 +29,9 @@ import avro
 import avro.io
 
 from confluent_kafka.avro import ClientError
-from . import SerializerError
+from confluent_kafka.avro.serializer import (SerializerError,
+                                             KeySerializerError,
+                                             ValueSerializerError)
 
 log = logging.getLogger(__name__)
 
@@ -83,11 +85,12 @@ class MessageSerializer(object):
         The schema is registered with the subject of 'topic-value'
         @:param topic : Topic name
         @:param schema : Avro Schema
-        @:param record : A dictionary object
+        @:param record : An object to serialize
+        @:param is_key : If the record is a key
         @:returns : Encoded record with schema ID as bytes
         """
-        if not isinstance(record, dict):
-            raise SerializerError("record must be a dictionary")
+        serialize_err = KeySerializerError if is_key else ValueSerializerError
+
         subject_suffix = ('-key' if is_key else '-value')
         # get the latest schema for the subject
         subject = topic + subject_suffix
@@ -95,23 +98,24 @@ class MessageSerializer(object):
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:
             message = "Unable to retrieve schema id for subject %s" % (subject)
-            raise SerializerError(message)
+            raise serialize_err(message)
 
         # cache writer
         self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
 
-        return self.encode_record_with_schema_id(schema_id, record)
+        return self.encode_record_with_schema_id(schema_id, record, is_key=is_key)
 
-    def encode_record_with_schema_id(self, schema_id, record):
+    def encode_record_with_schema_id(self, schema_id, record, is_key=False):
         """
         Encode a record with a given schema id.  The record must
         be a python dictionary.
         @:param: schema_id : integer ID
-        @:param: record : A dictionary object
+        @:param: record : An object to serialize
+        @:param is_key : If the record is a key
         @:returns: decoder function
         """
-        if not isinstance(record, dict):
-            raise SerializerError("record must be a dictionary")
+        serialize_err = KeySerializerError if is_key else ValueSerializerError
+
         # use slow avro
         if schema_id not in self.id_to_writers:
             # get the writer + schema
@@ -119,11 +123,11 @@ class MessageSerializer(object):
             try:
                 schema = self.registry_client.get_by_id(schema_id)
                 if not schema:
-                    raise SerializerError("Schema does not exist")
+                    raise serialize_err("Schema does not exist")
                 self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
             except ClientError as e:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                raise SerializerError("Error fetching schema from registry:" + repr(
+                raise serialize_err( + repr(
                     traceback.format_exception(exc_type, exc_value, exc_traceback)))
 
         # get the writer

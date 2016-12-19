@@ -157,16 +157,18 @@ Tests
 
 In order to run full test suite, simply execute:
 
-    $ tox
+    $ tox -r
 
-**NOTE**: Requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
+**NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](tools/bootstrap-librdkafka.sh) into `tmp-build`.
 
 
 **Run integration tests:**
 
-    $ examples/integration_test.py <kafka-broker> [<test-topic>]
+To run the integration tests, uncomment the following line from `tox.ini` and add the paths to your Kafka and Confluent Schema Registry instances. If no Schema Registry path is provided then no AVRO tests will by run. You can also run the integration tests outside of `tox` by running this command from the source root.
 
-**WARNING**: These tests require an active Kafka cluster and will make use of a topic named 'test'.
+    examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
+
+**WARNING**: These tests require an active Kafka cluster and will create new topics.
 
 
 

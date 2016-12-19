@@ -20,57 +20,65 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 import os
-import sys
 
 from confluent_kafka import avro
 
-if sys.version_info[0] < 3:
-    import unittest
-else:
-    import unittest2 as unittest
-from confluent_kafka.avro import AvroProducer
+from requests.exceptions import ConnectionError
 
+import unittest
+from confluent_kafka.avro import AvroProducer
+from confluent_kafka.avro.serializer import (KeySerializerError,
+                                             ValueSerializerError)
 avsc_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 class TestAvroProducer(unittest.TestCase):
-    def setUp(self):
-        pass
 
     def test_instantiation(self):
         obj = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'})
         self.assertTrue(isinstance(obj, AvroProducer))
         self.assertNotEqual(obj, None)
 
-    def test_Produce(self):
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'})
-        valueSchema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        try:
-            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=valueSchema, key='mykey')
-            self.fail("Should expect key_schema")
-        except Exception as e:
-            pass
-
-    def test_produce_arguments(self):
+    def test_produce_no_key(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'}, default_value_schema=value_schema)
-
-        try:
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema)
+        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
             producer.produce(topic='test', value={"name": 'abc"'})
-        except Exception as e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            if exc_type.__name__ == 'SerializerError':
-                self.fail()
 
-    def test_produce_arguments_list(self):
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'})
-        try:
-            producer.produce(topic='test', value={"name": 'abc"'}, key='mykey')
-        except Exception as e:
-            exc_type, exc_obj, exc_tb = sys.exc_info()
-            if exc_type.__name__ == 'SerializerError':
-                pass
+    def test_produce_no_value(self):
+        key_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_key_schema=key_schema)
+        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
+            producer.produce(topic='test', key={"name": 'abc"'})
 
+    def test_produce_no_value_schema(self):
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+        with self.assertRaises(ValueSerializerError):
+            # Producer should not accept a value with no schema
+            producer.produce(topic='test', value={"name": 'abc"'})
 
-def suite():
-    return unittest.TestLoader().loadTestsFromTestCase(TestAvroProducer)
+    def test_produce_no_key_schema(self):
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+        with self.assertRaises(KeySerializerError):
+            # If the key is provided as a dict an avro schema must also be provided
+            producer.produce(topic='test', key={"name": 'abc"'})
+
+    def test_produce_value_and_key_schemas(self):
+        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema, default_key_schema=value_schema)
+        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
+            producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
+
+    def test_produce_primitive_string_key(self):
+        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
+            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey', key_schema=key_schema)
+
+    def test_produce_primitive_key_and_value(self):
+        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
+            producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey', key_schema=key_schema)

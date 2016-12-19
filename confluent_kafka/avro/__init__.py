@@ -53,7 +53,9 @@ class ClientError(Exception):
 
 
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import SerializerError
+from confluent_kafka.avro.serializer import (SerializerError,
+                                             KeySerializerError,
+                                             ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
 
@@ -85,9 +87,9 @@ class AvroProducer(Producer):
         """
             Sends message to kafka by encoding with specified avro schema
             @:param: topic: topic name
-            @:param: value: A dictionary object
+            @:param: value: An object to serialize
             @:param: value_schema : Avro schema for value
-            @:param: key: A dictionary object
+            @:param: key: An object to serialize
             @:param: key_schema : Avro schema for key
             @:exception: SerializerError
         """
@@ -99,17 +101,19 @@ class AvroProducer(Producer):
             raise ClientError("Topic name not specified.")
         value = kwargs.pop('value', None)
         key = kwargs.pop('key', None)
+
         if value:
             if value_schema:
                 value = self._serializer.encode_record_with_schema(topic, value_schema, value)
             else:
-                raise SerializerError("Avro schema required for value")
+                raise ValueSerializerError("Avro schema required for values")
 
         if key:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:
-                raise SerializerError("Avro schema required for key")
+                raise KeySerializerError("Avro schema required for key")
+
 
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
 
@@ -133,7 +137,7 @@ class AvroConsumer(Consumer):
         super(AvroConsumer, self).__init__(config)
         self._serializer = MessageSerializer(CachedSchemaRegistryClient(url=schem_registry_url))
 
-    def poll(self, timeout):
+    def poll(self, timeout=None):
         """
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
@@ -141,8 +145,10 @@ class AvroConsumer(Consumer):
         @:param timeout
         @:return message object with deserialized key and value as dict objects
         """
+        if timeout is None:
+            timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
-        if not message:
+        if not message.value() and not message.key():
             return message
         if not message.error():
             if message.value() is not None:
