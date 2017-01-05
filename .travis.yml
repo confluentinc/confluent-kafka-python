@@ -3,12 +3,17 @@ sudo: required
 python:
   - "2.7"
   - "3.4"
+env:
+ global:
+    - LD_LIBRARY_PATH=$PWD/tmp-build/lib
+ matrix:
+  - LIBRDKAFKA_VERSION=v0.9.2
+  - LIBRDKAFKA_VERSION=master
 before_install:
-  - bash tools/bootstrap-librdkafka.sh v0.9.2 tmp-build
+  - rm -rf tmp-build
+  - bash tools/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
   - pip install --upgrade pip
   - pip install pytest-timeout
 install:
   - pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro]
-env:
-  - LD_LIBRARY_PATH=$PWD/tmp-build/lib
 script: py.test -v --timeout 20 --ignore=tmp-build --import-mode append

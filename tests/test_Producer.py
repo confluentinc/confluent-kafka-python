@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Producer, KafkaError, KafkaException
+from confluent_kafka import Producer, KafkaError, KafkaException, libversion
+import pytest
 
+def error_cb (err):
+    print('error_cb', err)
 
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
@@ -11,10 +14,6 @@ def test_basic_api():
         p = Producer()
     except TypeError as e:
         assert str(e) == "expected configuration dict"
-
-
-    def error_cb (err):
-        print('error_cb', err)
 
     p = Producer({'socket.timeout.ms':10,
                   'error_cb': error_cb,
@@ -35,6 +34,23 @@ def test_basic_api():
 
     p.flush()
 
+
+def test_produce_timestamp():
+    """ Test produce() with timestamp arg """
+    p = Producer({'socket.timeout.ms':10,
+                  'error_cb': error_cb,
+                  'default.topic.config': {'message.timeout.ms': 10}})
+
+    # Requires librdkafka >=v0.9.3
+
+    try:
+        p.produce('mytopic', timestamp=1234567)
+    except NotImplementedError:
+        # Should only fail on non-supporting librdkafka
+        if libversion()[1] >= 0x00090300:
+            raise
+
+    p.flush()
 
 
 def test_subclassing():

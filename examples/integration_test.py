@@ -116,6 +116,13 @@ def verify_producer():
               callback=lambda err, msg: MyTestDr._delivery(err, msg))
     p.produce(topic, value='This one has neither')
 
+    # Try producing with a timestamp
+    try:
+        p.produce(topic, value='with a timestamp', timestamp=123456789000)
+    except NotImplementedError:
+        if confluent_kafka.libversion()[1] >= 0x00090300:
+            raise
+
     # Produce even more messages
     for i in range(0, 10):
         p.produce(topic, value='Message #%d' % i, key=str(i),

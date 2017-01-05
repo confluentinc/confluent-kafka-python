@@ -242,7 +242,49 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 }
 
 
+#if HAVE_PRODUCEV
+static rd_kafka_resp_err_t
+Producer_producev (Handle *self,
+                   const char *topic, int32_t partition,
+                   const void *value, size_t value_len,
+                   const void *key, size_t key_len,
+                   void *opaque, int64_t timestamp) {
 
+        return rd_kafka_producev(self->rk,
+                                 RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
+                                 RD_KAFKA_V_TOPIC(topic),
+                                 RD_KAFKA_V_PARTITION(partition),
+                                 RD_KAFKA_V_KEY(key, (size_t)key_len),
+                                 RD_KAFKA_V_VALUE((void *)value,
+                                                  (size_t)value_len),
+                                 RD_KAFKA_V_TIMESTAMP(timestamp),
+                                 RD_KAFKA_V_OPAQUE(opaque),
+                                 RD_KAFKA_V_END);
+}
+#else
+
+static rd_kafka_resp_err_t
+Producer_produce0 (Handle *self,
+                   const char *topic, int32_t partition,
+                   const void *value, size_t value_len,
+                   const void *key, size_t key_len,
+                   void *opaque) {
+        rd_kafka_topic_t *rkt;
+        rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR_NO_ERROR;
+
+        if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL)))
+                return RD_KAFKA_RESP_ERR__INVALID_ARG;
+
+	if (rd_kafka_produce(rkt, partition, RD_KAFKA_MSG_F_COPY,
+			     (void *)value, value_len,
+			     (void *)key, key_len, opaque) == -1)
+                err = rd_kafka_last_error();
+
+        rd_kafka_topic_destroy(rkt);
+
+        return err;
+}
+#endif
 
 
 static PyObject *Producer_produce (Handle *self, PyObject *args,
@@ -251,7 +293,8 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
 	PyObject *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
-	rd_kafka_topic_t *rkt;
+        long long timestamp = 0;
+        rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
 	static char *kws[] = { "topic",
 			       "value",
@@ -260,24 +303,30 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
+                               "timestamp",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOO", kws,
+					 "s|z#z#iOOOL"
+                                         , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
-					 &dr_cb, &dr_cb2, &partitioner_cb))
+					 &dr_cb, &dr_cb2, &partitioner_cb,
+                                         &timestamp))
 		return NULL;
+
+#if !HAVE_PRODUCEV
+        if (timestamp) {
+                PyErr_Format(PyExc_NotImplementedError,
+                             "Producer timestamps require librdkafka "
+                             "version >=v0.9.3 (currently on %s)",
+                             rd_kafka_version_str());
+                return NULL;
+        }
+#endif
 
 	if (dr_cb2 && !dr_cb) /* Alias */
 		dr_cb = dr_cb2;
-
-	if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
-		cfl_PyErr_Format(rd_kafka_last_error(),
-				 "Unable to create topic object: %s",
-				 rd_kafka_err2str(rd_kafka_last_error()));
-		return NULL;
-	}
 
 	if (!dr_cb || dr_cb == Py_None)
 		dr_cb = self->u.Producer.default_dr_cb;
@@ -288,27 +337,34 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	 * are wanted. */
 	msgstate = Producer_msgstate_new(self, dr_cb, partitioner_cb);
 
-	/* Produce message */
-	if (rd_kafka_produce(rkt, partition, RD_KAFKA_MSG_F_COPY,
-			     (void *)value, value_len,
-			     (void *)key, key_len, msgstate) == -1) {
-		rd_kafka_resp_err_t err = rd_kafka_last_error();
+        /* Produce message */
+#if HAVE_PRODUCEV
+        err = Producer_producev(self, topic, partition,
+                                value, value_len,
+                                key, key_len,
+                                msgstate, timestamp);
+#else
+        err = Producer_produce0(self, topic, partition,
+                                value, value_len,
+                                key, key_len,
+                                msgstate);
 
+#endif
+
+        if (err) {
 		if (msgstate)
 			Producer_msgstate_destroy(msgstate);
 
 		if (err == RD_KAFKA_RESP_ERR__QUEUE_FULL)
 			PyErr_Format(PyExc_BufferError,
 				     "%s", rd_kafka_err2str(err));
-		else
+                else
 			cfl_PyErr_Format(err,
 					 "Unable to produce message: %s",
 					 rd_kafka_err2str(err));
 
 		return NULL;
 	}
-	
-	rd_kafka_topic_destroy(rkt);
 
 	Py_RETURN_NONE;
 }
@@ -364,7 +420,7 @@ static PyObject *Producer_flush (Handle *self, PyObject *ignore) {
 static PyMethodDef Producer_methods[] = {
 	{ "produce", (PyCFunction)Producer_produce,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: produce(topic, [value], [key], [partition], [callback])\n"
+	  ".. py:function:: produce(topic, [value], [key], [partition], [on_delivery], [timestamp])\n"
 	  "\n"
 	  "  Produce message to topic.\n"
 	  "  This is an asynchronous operation, an application may use the "
@@ -380,11 +436,13 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"
+          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.3, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"
 	  "  :raises KafkaException: for other errors, see exception code\n"
+          "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
 	  "\n"
 	},
 
