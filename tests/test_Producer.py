@@ -32,6 +32,7 @@ def test_basic_api():
 
     p.poll(0.001)
 
+    p.flush(0.002)
     p.flush()
 
 

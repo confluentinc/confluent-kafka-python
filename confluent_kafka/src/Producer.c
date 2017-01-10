@@ -408,12 +408,31 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
 }
 
 
-static PyObject *Producer_flush (Handle *self, PyObject *ignore) {
-	while (rd_kafka_outq_len(self->rk) > 0) {
-		if (Producer_poll0(self, 500) == -1)
-			return NULL;
-	}
-	Py_RETURN_NONE;
+static PyObject *Producer_flush (Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
+        double tmout = -1;
+        int qlen;
+        static char *kws[] = { "timeout", NULL };
+#if RD_KAFKA_VERSION >= 0x00090300
+        CallState cs;
+#endif
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
+                return NULL;
+
+#if RD_KAFKA_VERSION >= 0x00090300
+        CallState_begin(self, &cs);
+        rd_kafka_flush(self->rk, tmout < 0 ? -1 : (int)(tmout * 1000));
+        if (!CallState_end(self, &cs))
+                return NULL;
+        qlen = rd_kafka_outq_len(self->rk);
+#else
+        while ((qlen = rd_kafka_outq_len(self->rk)) > 0) {
+                if (Producer_poll0(self, 500) == -1)
+                        return NULL;
+        }
+#endif
+        return PyLong_FromLong(qlen);
 }
 
 
@@ -463,11 +482,16 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 
-	{ "flush", (PyCFunction)Producer_flush, METH_NOARGS,
+	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: flush([timeout])\n"
+          "\n"
 	  "   Wait for all messages in the Producer queue to be delivered.\n"
 	  "   This is a convenience method that calls :py:func:`poll()` until "
-	  ":py:func:`len()` is zero.\n"
+	  ":py:func:`len()` is zero or the optional timeout elapses.\n"
 	  "\n"
+          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.3).\n"
+          "  :returns: Number of messages still in queue.\n"
+          "\n"
 	  ".. note:: See :py:func:`poll()` for a description on what "
 	  "callbacks may be triggered.\n"
 	  "\n"
