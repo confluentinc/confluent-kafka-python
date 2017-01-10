@@ -359,6 +359,18 @@ def verify_consumer():
             print('max_msgcnt %d reached' % msgcnt)
             break
 
+    # Get current assignment
+    assignment = c.assignment()
+
+    # Get cached watermark offsets
+    # Since we're not making use of statistics the low offset is not known so ignore it.
+    lo,hi = c.get_watermark_offsets(assignment[0], cached=True)
+    print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Query broker for offsets
+    lo,hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
 
     # Close consumer
     c.close()

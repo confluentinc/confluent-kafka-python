@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE, libversion
+from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE, OFFSET_INVALID, libversion
 import pytest
 
 
@@ -43,6 +43,21 @@ def test_basic_api():
     partitions = list(map(lambda p: TopicPartition("test", p), range(0,100,3)))
     kc.assign(partitions)
 
+    # Verify assignment
+    assignment = kc.assignment()
+    assert partitions == assignment
+
+    # Get cached watermarks, should all be invalid.
+    lo, hi = kc.get_watermark_offsets(partitions[0], cached=True)
+    assert lo == -1001 and hi == -1001
+    assert lo == OFFSET_INVALID and hi == OFFSET_INVALID
+
+    # Query broker for watermarks, should raise an exception.
+    try:
+        lo, hi = kc.get_watermark_offsets(partitions[0], timeout=0.5, cached=False)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE), str(e.args([0]))
+
     kc.unassign()
 
     kc.commit(async=True)
@@ -54,7 +69,7 @@ def test_basic_api():
 
     # Get current position, should all be invalid.
     kc.position(partitions)
-    assert len([p for p in partitions if p.offset == -1001]) == len(partitions)
+    assert len([p for p in partitions if p.offset == OFFSET_INVALID]) == len(partitions)
 
     try:
         offsets = kc.committed(partitions, timeout=0.001)
