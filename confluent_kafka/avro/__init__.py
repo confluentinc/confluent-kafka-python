@@ -53,8 +53,7 @@ class ClientError(Exception):
 
 
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import (SerializerError,
-                                             KeySerializerError,
+from confluent_kafka.avro.serializer import (KeySerializerError,
                                              ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
@@ -148,6 +147,8 @@ class AvroConsumer(Consumer):
         if timeout is None:
             timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
+        if message is None:
+            return None
         if not message.value() and not message.key():
             return message
         if not message.error():
