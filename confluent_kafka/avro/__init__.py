@@ -53,7 +53,8 @@ class ClientError(Exception):
 
 
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import (KeySerializerError,
+from confluent_kafka.avro.serializer import (SerializerError,
+                                             KeySerializerError,
                                              ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
