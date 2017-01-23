@@ -148,6 +148,8 @@ class AvroConsumer(Consumer):
         if timeout is None:
             timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
+        if message is None:
+            return None
         if not message.value() and not message.key():
             return message
         if not message.error():
