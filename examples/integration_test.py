@@ -239,17 +239,19 @@ def verify_producer_performance(with_dr_cb=True):
         bar = None
 
     for i in range(0, msgcnt):
-        try:
-            if with_dr_cb:
-                p.produce(topic, value=msg_payload, callback=dr.delivery)
-            else:
-                p.produce(topic, value=msg_payload)
-        except BufferError as e:
-            # Local queue is full (slow broker connection?)
-            msgs_backpressure += 1
-            if bar is not None and (msgs_backpressure % 1000) == 0:
-                bar.next(n=0)
-            p.poll(0)
+        while True:
+            try:
+                if with_dr_cb:
+                    p.produce(topic, value=msg_payload, callback=dr.delivery)
+                else:
+                    p.produce(topic, value=msg_payload)
+                break
+            except BufferError as e:
+                # Local queue is full (slow broker connection?)
+                msgs_backpressure += 1
+                if bar is not None and (msgs_backpressure % 1000) == 0:
+                    bar.next(n=0)
+                p.poll(100)
             continue
 
         if bar is not None and (msgs_produced % 5000) == 0:
@@ -268,7 +270,7 @@ def verify_producer_performance(with_dr_cb=True):
           (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
            msgs_produced / t_produce_spent,
            (bytecnt/t_produce_spent) / (1024*1024)))
-    print('# %d messages not produce()d due to backpressure (local queue full)' % msgs_backpressure)
+    print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
     print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
     # Wait for deliveries
