@@ -108,8 +108,14 @@ static void Producer_dealloc (Handle *self) {
 
 	Producer_clear(self);
 
-	if (self->rk)
-		rd_kafka_destroy(self->rk);
+	if (self->rk) {
+                CallState cs;
+                CallState_begin(self, &cs);
+
+                rd_kafka_destroy(self->rk);
+
+                CallState_end(self, &cs);
+        }
 
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
