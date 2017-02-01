@@ -120,7 +120,7 @@ def verify_producer():
     try:
         p.produce(topic, value='with a timestamp', timestamp=123456789000)
     except NotImplementedError:
-        if confluent_kafka.libversion()[1] >= 0x00090300:
+        if confluent_kafka.libversion()[1] >= 0x00090400:
             raise
 
     # Produce even more messages

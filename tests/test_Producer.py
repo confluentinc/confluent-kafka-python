@@ -42,13 +42,13 @@ def test_produce_timestamp():
                   'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
-    # Requires librdkafka >=v0.9.3
+    # Requires librdkafka >=v0.9.4
 
     try:
         p.produce('mytopic', timestamp=1234567)
     except NotImplementedError:
         # Should only fail on non-supporting librdkafka
-        if libversion()[1] >= 0x00090300:
+        if libversion()[1] >= 0x00090400:
             raise
 
     p.flush()

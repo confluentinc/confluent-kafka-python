@@ -325,7 +325,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         if (timestamp) {
                 PyErr_Format(PyExc_NotImplementedError,
                              "Producer timestamps require librdkafka "
-                             "version >=v0.9.3 (currently on %s)",
+                             "version >=v0.9.4 (currently on %s)",
                              rd_kafka_version_str());
                 return NULL;
         }
@@ -461,7 +461,7 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"
-          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.3, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
+          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
@@ -495,7 +495,7 @@ static PyMethodDef Producer_methods[] = {
 	  "   This is a convenience method that calls :py:func:`poll()` until "
 	  ":py:func:`len()` is zero or the optional timeout elapses.\n"
 	  "\n"
-          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.3).\n"
+          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4).\n"
           "  :returns: Number of messages still in queue.\n"
           "\n"
 	  ".. note:: See :py:func:`poll()` for a description on what "
