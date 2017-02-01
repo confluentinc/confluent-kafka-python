@@ -47,7 +47,8 @@ c.close()
 ```
 
 **AvroProducer**
-```
+
+```python
 from confluent_kafka import avro 
 from confluent_kafka.avro import AvroProducer
 
@@ -61,9 +62,8 @@ avroProducer.produce(topic='my_topic', value=value, key=key)
 ```
 
 **AvroConsumer**
-```
-import sys
-import traceback
+
+```python
 from confluent_kafka import KafkaError
 from confluent_kafka.avro import AvroConsumer
 from confluent_kafka.avro.serializer import SerializerError
