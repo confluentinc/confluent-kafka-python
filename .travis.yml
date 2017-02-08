@@ -3,11 +3,13 @@ sudo: required
 python:
   - "2.7"
   - "3.4"
+  - "3.5"
 env:
  global:
     - LD_LIBRARY_PATH=$PWD/tmp-build/lib
  matrix:
   - LIBRDKAFKA_VERSION=v0.9.2
+  - LIBRDKAFKA_VERSION=v0.9.3
   - LIBRDKAFKA_VERSION=master
 before_install:
   - rm -rf tmp-build
