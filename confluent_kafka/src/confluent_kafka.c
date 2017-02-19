@@ -529,17 +529,19 @@ PyTypeObject MessageType = {
 /**
  * @brief Internal factory to create Message object from message_t
  */
-PyObject *Message_new0 (const rd_kafka_message_t *rkm) {
+PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	Message *self;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
 	if (!self)
 		return NULL;
 
-	self->error = KafkaError_new_or_None(rkm->err,
-					     rkm->err ?
-					     rd_kafka_message_errstr(rkm) :
-					     NULL);
+        /* Only use message error string on Consumer, for Producers
+         * it will contain the original message payload. */
+        self->error = KafkaError_new_or_None(
+                rkm->err,
+                (rkm->err && handle->type != RD_KAFKA_PRODUCER) ?
+                rd_kafka_message_errstr(rkm) : NULL);
 
 	if (rkm->rkt)
 		self->topic = cfl_PyUnistr(

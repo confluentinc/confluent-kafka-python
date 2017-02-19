@@ -152,7 +152,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 		goto done;
 	}
 
-	msgobj = Message_new0(rkm);
+	msgobj = Message_new0(self, rkm);
 	
 	args = Py_BuildValue("(OO)",
 			     Message_error((Message *)msgobj, NULL),
@@ -526,6 +526,8 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                 "Producer already __init__:ialized");
                 return -1;
         }
+
+        self->type = RD_KAFKA_PRODUCER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_PRODUCER, self,
                                        args, kwargs)))
