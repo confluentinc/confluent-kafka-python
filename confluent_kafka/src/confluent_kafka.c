@@ -258,7 +258,10 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
  PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str) {
 	if (!err)
 		Py_RETURN_NONE;
-	return KafkaError_new0(err, "%s", str);
+        if (str)
+                return KafkaError_new0(err, "%s", str);
+        else
+                return KafkaError_new0(err, NULL);
 }
 
 
