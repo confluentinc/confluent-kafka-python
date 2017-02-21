@@ -134,6 +134,62 @@ def verify_producer():
     # Block until all messages are delivered/failed
     p.flush()
 
+    #
+    # Additional isolated tests
+    #
+    test_producer_dr_only_error()
+
+
+
+def test_producer_dr_only_error():
+    """
+    The C delivery.report.only.error configuration property
+    can't be used with the Python client since the Python client
+    allocates a msgstate for each produced message that has a callback,
+    and on success (with delivery.report.only.error=true) the delivery report
+    will not be called and the msgstate will thus never be freed.
+
+    Since a proper broker is required for messages to be succesfully sent
+    this test must be run from the integration tests rather than
+    the unit tests.
+    """
+    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
+                                  'broker.address.family':'v4',
+                                  "delivery.report.only.error":True})
+
+    class DrOnlyTest (object):
+        def __init__ (self):
+            self.remaining = 1
+
+        def handle_err (self, err, msg):
+            """ This delivery handler should only get called for errored msgs """
+            assert "BAD:" in msg.value().decode('utf-8')
+            assert err is not None
+            self.remaining -= 1
+
+        def handle_success (self, err, msg):
+            """ This delivery handler should never get called """
+            # FIXME: Can we verify that it is actually garbage collected?
+            assert "GOOD:" in msg.value().decode('utf-8')
+            assert err is None
+            assert False, "should never come here"
+
+    state = DrOnlyTest()
+
+    print('only.error: Verifying delivery.report.only.error')
+    p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
+              partition=99, on_delivery=state.handle_err)
+
+    p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
+              on_delivery=state.handle_success)
+
+    print('only.error: Waiting for flush')
+    p.flush(10000)
+
+    print('only.error: Remaining messages now %d' % state.remaining)
+    assert state.remaining == 0
+
+
 
 def verify_avro():
     from confluent_kafka import avro
