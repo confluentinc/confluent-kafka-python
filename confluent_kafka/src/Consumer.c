@@ -463,7 +463,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         if (!rkm)
                 Py_RETURN_NONE;
 
-        msgobj = Message_new0(rkm);
+        msgobj = Message_new0(self, rkm);
         rd_kafka_message_destroy(rkm);
 
         return msgobj;
@@ -769,6 +769,8 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                 "Consumer already __init__:ialized");
                 return -1;
         }
+
+        self->type = RD_KAFKA_CONSUMER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
                                        args, kwargs)))

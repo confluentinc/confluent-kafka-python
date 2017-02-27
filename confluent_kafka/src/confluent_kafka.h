@@ -125,6 +125,7 @@ typedef struct {
 	PyObject *stats_cb;
         int initiated;
         int tlskey;  /* Thread-Local-Storage key */
+        rd_kafka_type_t type; /* Producer or consumer */
 
 	union {
 		/**
@@ -255,7 +256,7 @@ typedef struct {
 
 extern PyTypeObject MessageType;
 
-PyObject *Message_new0 (const rd_kafka_message_t *rkm);
+PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm);
 PyObject *Message_error (Message *self, PyObject *ignore);
 
 

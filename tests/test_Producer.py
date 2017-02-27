@@ -74,3 +74,27 @@ def test_subclassing():
     sp = SubProducer({'log.thread.name': True}, 'mytopic')
     sp.produce('someother', value='not hello')
     sp.produce_hi()
+
+
+def test_dr_msg_errstr():
+    """
+    Test that the error string for failed messages works (issue #129).
+    The underlying problem is that librdkafka reuses the message payload
+    for error value on Consumer messages, but on Producer messages the
+    payload is the original payload and no rich error string exists.
+    """
+    p = Producer({"default.topic.config":{"message.timeout.ms":10}})
+
+    def handle_dr (err, msg):
+        # Neither message payloads must not affect the error string.
+        assert err is not None
+        assert err.code() == KafkaError._MSG_TIMED_OUT
+        assert "Message timed out" in err.str()
+
+    # Unicode safe string
+    p.produce('mytopic', "This is the message payload", on_delivery=handle_dr)
+
+    # Invalid unicode sequence
+    p.produce('mytopic', "\xc2\xc2", on_delivery=handle_dr)
+
+    p.flush()
