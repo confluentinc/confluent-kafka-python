@@ -25,6 +25,7 @@ import time
 import uuid
 import sys
 import json
+import gc
 from copy import copy
 
 try:
@@ -133,6 +134,82 @@ def verify_producer():
 
     # Block until all messages are delivered/failed
     p.flush()
+
+    #
+    # Additional isolated tests
+    #
+    test_producer_dr_only_error()
+
+
+
+# Global variable to track garbage collection of suppressed on_delivery callbacks
+DrOnlyTestSuccess_gced = 0
+
+def test_producer_dr_only_error():
+    """
+    The C delivery.report.only.error configuration property
+    can't be used with the Python client since the Python client
+    allocates a msgstate for each produced message that has a callback,
+    and on success (with delivery.report.only.error=true) the delivery report
+    will not be called and the msgstate will thus never be freed.
+
+    Since a proper broker is required for messages to be succesfully sent
+    this test must be run from the integration tests rather than
+    the unit tests.
+    """
+    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
+                                  'broker.address.family':'v4',
+                                  "delivery.report.only.error":True})
+
+    class DrOnlyTestErr (object):
+        def __init__ (self):
+            self.remaining = 1
+
+        def handle_err (self, err, msg):
+            """ This delivery handler should only get called for errored msgs """
+            assert "BAD:" in msg.value().decode('utf-8')
+            assert err is not None
+            self.remaining -= 1
+
+    class DrOnlyTestSuccess (object):
+        def handle_success (self, err, msg):
+            """ This delivery handler should never get called """
+            # FIXME: Can we verify that it is actually garbage collected?
+            assert "GOOD:" in msg.value().decode('utf-8')
+            assert err is None
+            assert False, "should never come here"
+
+        def __del__ (self):
+            # Indicate that gc has hit this object.
+            global DrOnlyTestSuccess_gced
+            DrOnlyTestSuccess_gced = 1
+
+    print('only.error: Verifying delivery.report.only.error')
+
+    state = DrOnlyTestErr()
+    p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
+              partition=99, on_delivery=state.handle_err)
+
+    not_called_state = DrOnlyTestSuccess()
+    p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
+              on_delivery=not_called_state.handle_success)
+
+    # Garbage collection should not kick in yet for not_called_state
+    # since there is a on_delivery reference to it.
+    not_called_state = None
+    gc.collect()
+    global DrOnlyTestSuccess_gced
+    assert DrOnlyTestSuccess_gced == 0
+
+    print('only.error: Waiting for flush of %d messages' % len(p))
+    p.flush(10000)
+
+    print('only.error: Remaining messages now %d' % state.remaining)
+    assert state.remaining == 0
+
+    # Now with all messages flushed the reference to not_called_state should be gone.
+    gc.collect()
+    assert DrOnlyTestSuccess_gced == 1
 
 
 def verify_avro():

@@ -138,6 +138,8 @@ typedef struct {
 				const rd_kafka_topic_t *,
 				const void *, size_t, int32_t,
 				void *, void *);  /**< Fallback C partitioner*/
+
+                        int dr_only_error; /**< delivery.report.only.error */
 		} Producer;
 
 		/**

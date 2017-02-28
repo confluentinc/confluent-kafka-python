@@ -1124,7 +1124,26 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 		}
 
 		return 1;
-	}
+
+        } else if (!strcmp(name, "delivery.report.only.error")) {
+                /* Since we allocate msgstate for each produced message
+                 * with a callback we can't use delivery.report.only.error
+                 * as-is, as we wouldn't be able to ever free those msgstates.
+                 * Instead we shortcut this setting in the Python client,
+                 * providing the same functionality from dr_msg_cb trampoline.
+                 */
+
+                if (!PyBool_Check(valobj)) {
+                        cfl_PyErr_Format(
+                                RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "%s requires bool", name);
+                        return -1;
+                }
+
+                self->u.Producer.dr_only_error = valobj == Py_True;
+
+                return 1;
+        }
 
 	return 0; /* Not handled */
 }
