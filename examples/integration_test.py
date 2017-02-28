@@ -25,6 +25,7 @@ import time
 import uuid
 import sys
 import json
+import gc
 from copy import copy
 
 try:
@@ -141,6 +142,9 @@ def verify_producer():
 
 
 
+# Global variable to track garbage collection of suppressed on_delivery callbacks
+DrOnlyTestSuccess_gced = 0
+
 def test_producer_dr_only_error():
     """
     The C delivery.report.only.error configuration property
@@ -157,7 +161,7 @@ def test_producer_dr_only_error():
                                   'broker.address.family':'v4',
                                   "delivery.report.only.error":True})
 
-    class DrOnlyTest (object):
+    class DrOnlyTestErr (object):
         def __init__ (self):
             self.remaining = 1
 
@@ -167,6 +171,7 @@ def test_producer_dr_only_error():
             assert err is not None
             self.remaining -= 1
 
+    class DrOnlyTestSuccess (object):
         def handle_success (self, err, msg):
             """ This delivery handler should never get called """
             # FIXME: Can we verify that it is actually garbage collected?
@@ -174,21 +179,37 @@ def test_producer_dr_only_error():
             assert err is None
             assert False, "should never come here"
 
-    state = DrOnlyTest()
+        def __del__ (self):
+            # Indicate that gc has hit this object.
+            global DrOnlyTestSuccess_gced
+            DrOnlyTestSuccess_gced = 1
 
     print('only.error: Verifying delivery.report.only.error')
+
+    state = DrOnlyTestErr()
     p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
               partition=99, on_delivery=state.handle_err)
 
+    not_called_state = DrOnlyTestSuccess()
     p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
-              on_delivery=state.handle_success)
+              on_delivery=not_called_state.handle_success)
 
-    print('only.error: Waiting for flush')
+    # Garbage collection should not kick in yet for not_called_state
+    # since there is a on_delivery reference to it.
+    not_called_state = None
+    gc.collect()
+    global DrOnlyTestSuccess_gced
+    assert DrOnlyTestSuccess_gced == 0
+
+    print('only.error: Waiting for flush of %d messages' % len(p))
     p.flush(10000)
 
     print('only.error: Remaining messages now %d' % state.remaining)
     assert state.remaining == 0
 
+    # Now with all messages flushed the reference to not_called_state should be gone.
+    gc.collect()
+    assert DrOnlyTestSuccess_gced == 1
 
 
 def verify_avro():
