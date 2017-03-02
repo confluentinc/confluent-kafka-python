@@ -2,7 +2,7 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
 **confluent-kafka-python** is Confluent's Python client for [Apache Kafka](http://kafka.apache.org/) and the
-[Confluent Platform](https://www.confluent.io/product/).
+[Confluent Platform](https://www.confluent.io/product/compare/).
 
 Features:
 
@@ -19,9 +19,9 @@ and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dot
 [Confluent](https://confluent.io/).
 
 - **Future proof** - Confluent, founded by the
-creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/)
+creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
 with Apache Kafka at its core. It's high priority for us that client features keep
-pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/).
+pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 The Python bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9.
@@ -109,7 +109,7 @@ c.close()
 See [examples](examples) for more examples.
 
 
-Broker compatibility
+Broker Compatibility
 ====================
 The Python client (as well as the underlying C library librdkafka) supports
 all broker versions &gt;= 0.8.
@@ -192,7 +192,7 @@ To run the integration tests, uncomment the following line from `tox.ini` and ad
 
 
 
-Generate documentation
+Generate Documentation
 ======================
 Install sphinx and sphinx_rtd_theme packages and then:
 
