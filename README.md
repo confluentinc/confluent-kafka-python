@@ -1,8 +1,27 @@
-Confluent's Apache Kafka client for Python
-==========================================
+Confluent's Python Client for Apache Kafka<sup>TM</sup>
+=======================================================
 
-Confluent's Kafka client for Python wraps the librdkafka C library, providing
-full Kafka protocol support with great performance and reliability.
+**confluent-kafka-python** is Confluent's Python client for [Apache Kafka](http://kafka.apache.org/) and the
+[Confluent Platform](https://www.confluent.io/product/compare/).
+
+Features:
+
+- **High performance** - confluent-kafka-python is a lightweight wrapper around
+[librdkafka](https://github.com/edenhill/librdkafka), a finely tuned C
+client.
+
+- **Reliability** - There are a lot of details to get right when writing an Apache Kafka
+client. We get them right in one place (librdkafka) and leverage this work
+across all of our clients (also [confluent-kafka-go](https://github.com/confluentinc/confluent-kafka-go)
+and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dotnet)).
+
+- **Supported** - Commercial support is offered by
+[Confluent](https://confluent.io/).
+
+- **Future proof** - Confluent, founded by the
+creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
+with Apache Kafka at its core. It's high priority for us that client features keep
+pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 The Python bindings provides a high-level Producer and Consumer with support
 for the balanced consumer groups of Apache Kafka 0.9.
@@ -90,7 +109,7 @@ c.close()
 See [examples](examples) for more examples.
 
 
-Broker compatibility
+Broker Compatibility
 ====================
 The Python client (as well as the underlying C library librdkafka) supports
 all broker versions &gt;= 0.8.
@@ -173,7 +192,7 @@ To run the integration tests, uncomment the following line from `tox.ini` and ad
 
 
 
-Generate documentation
+Generate Documentation
 ======================
 Install sphinx and sphinx_rtd_theme packages and then:
 
