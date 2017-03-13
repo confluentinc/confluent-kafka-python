@@ -1265,6 +1265,15 @@ static PyMethodDef Consumer_methods[] = {
       "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
+
+    {
+        "get_metadata",
+        (PyCFunction)Kafka_generic_get_metadata,
+        METH_VARARGS|METH_KEYWORDS,
+        Kafka_generic_get_metadata_doc
+    },
+
+
 	{ NULL }
 };
 

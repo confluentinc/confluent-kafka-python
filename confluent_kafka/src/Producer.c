@@ -481,7 +481,6 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         return PyLong_FromLong(qlen);
 }
 
-
 static PyMethodDef Producer_methods[] = {
 	{ "produce", (PyCFunction)Producer_produce,
 	  METH_VARARGS|METH_KEYWORDS,
@@ -546,6 +545,14 @@ static PyMethodDef Producer_methods[] = {
 	  "callbacks may be triggered.\n"
 	  "\n"
 	},
+
+    {
+        "get_metadata",
+        (PyCFunction)Kafka_generic_get_metadata,
+        METH_VARARGS|METH_KEYWORDS,
+        Kafka_generic_get_metadata_doc
+    },
+
 	{ NULL }
 };
 
