@@ -72,14 +72,17 @@ class AvroProducer(Producer):
     """
 
     def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None):
-        if ('schema.registry.url' not in config.keys()):
-            raise ValueError("Missing parameter: schema.registry.url")
-        schem_registry_url = config["schema.registry.url"]
-        del config["schema.registry.url"]
+                 default_value_schema=None, schema_registry=None):
+        schema_registry_url = config.pop("schema.registry.url", None)
+        if schema_registry is None:
+            if schema_registry_url is None:
+                raise ValueError("Missing parameter: schema.registry.url")
+            schema_registry = CachedSchemaRegistryClient(url=schema_registry_url)
+        elif schema_registry_url is not None:
+            raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
         super(AvroProducer, self).__init__(config)
-        self._serializer = MessageSerializer(CachedSchemaRegistryClient(url=schem_registry_url))
+        self._serializer = MessageSerializer(schema_registry)
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
 
@@ -127,15 +130,17 @@ class AvroConsumer(Consumer):
 
     @:param: config: dict object with config parameters containing url for schema registry (schema.registry.url).
     """
-    def __init__(self, config):
-
-        if ('schema.registry.url' not in config.keys()):
-            raise ValueError("Missing parameter: schema.registry.url")
-        schem_registry_url = config["schema.registry.url"]
-        del config["schema.registry.url"]
+    def __init__(self, config, schema_registry=None):
+        schema_registry_url = config.pop("schema.registry.url", None)
+        if schema_registry is None:
+            if schema_registry_url is None:
+                raise ValueError("Missing parameter: schema.registry.url")
+            schema_registry = CachedSchemaRegistryClient(url=schema_registry_url)
+        elif schema_registry_url is not None:
+            raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
         super(AvroConsumer, self).__init__(config)
-        self._serializer = MessageSerializer(CachedSchemaRegistryClient(url=schem_registry_url))
+        self._serializer = MessageSerializer(schema_registry)
 
     def poll(self, timeout=None):
         """

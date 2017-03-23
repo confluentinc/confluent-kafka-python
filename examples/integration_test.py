@@ -38,7 +38,7 @@ except ImportError as e:
 bootstrap_servers = None
 
 # Confluent schema-registry
-schema_registry = None
+schema_registry_url = None
 
 # Topic to use
 topic = 'test'
@@ -54,6 +54,20 @@ good_stats_cb_result = False
 
 def error_cb (err):
     print('Error: %s' % err)
+
+
+class InMemorySchemaRegistry(object):
+
+    schemas = {}
+    next_idx = 0
+
+    def register(self, subject, schema):
+        self.next_idx += 1
+        self.schemas[self.next_idx] = schema
+        return self.next_idx
+
+    def get_by_id(self, idx):
+        return self.schemas.get(idx)
 
 
 class MyTestDr(object):
@@ -218,13 +232,16 @@ def verify_avro():
 
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
-            'schema.registry.url': schema_registry,
             'error_cb': error_cb,
             'api.version.request': api_version_request,
             'default.topic.config': {'produce.offset.report': True}}
 
     # Create producer
-    p = avro.AvroProducer(conf)
+    if schema_registry_url:
+        conf['schema.registry.url'] = schema_registry_url
+        p = avro.AvroProducer(conf)
+    else:
+        p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
 
     prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
     prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
@@ -247,7 +264,6 @@ def verify_avro():
 
     # Consumer config
     cons_conf = {'bootstrap.servers': bootstrap_servers,
-                 'schema.registry.url': schema_registry,
                  'group.id': 'test.py',
                  'session.timeout.ms': 6000,
                  'enable.auto.commit': False,
@@ -265,7 +281,12 @@ def verify_avro():
         p.flush()
 
         # Create consumer
-        c = avro.AvroConsumer(copy(cons_conf))
+        conf = copy(cons_conf)
+        if schema_registry_url:
+            conf['schema.registry.url'] = schema_registry_url
+            c = avro.AvroConsumer(conf)
+        else:
+            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry())
         c.subscribe([combo['topic']])
 
         while True:
@@ -628,7 +649,7 @@ if __name__ == '__main__':
         if len(sys.argv) > 2:
             topic = sys.argv[2]
         if len(sys.argv) > 3:
-            schema_registry = sys.argv[3]
+            schema_registry_url = sys.argv[3]
     else:
         print('Usage: %s <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
         sys.exit(1)
@@ -654,8 +675,7 @@ if __name__ == '__main__':
     print('=' * 30, 'Verifying stats_cb', '=' * 30)
     verify_stats_cb()
 
-    if schema_registry:
-        print('=' * 30, 'Verifying AVRO', '=' * 30)
-        topics = verify_avro()
+    print('=' * 30, 'Verifying AVRO', '=' * 30)
+    topics = verify_avro()
 
     print('=' * 30, 'Done', '=' * 30)
