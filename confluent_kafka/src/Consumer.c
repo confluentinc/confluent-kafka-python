@@ -487,6 +487,32 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 }
 
 
+
+static PyObject *Consumer_describe_group(Handle *self, PyObject *args,
+                                    PyObject *kwargs) {
+                                      
+        char *json=NULL;
+        double tmout = -1.0f;
+        char * group;
+        PyObject * rtn;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "group", "timeout", NULL };
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|d", kws, &group, &tmout))
+                return NULL;
+        
+        err = rd_kafka_describe_group_json(self->rk, group, &json, 10000);
+        if (err) {
+          cfl_PyErr_Format(err,
+               "Failed to get groups description : %s",
+               rd_kafka_err2str(err));
+           return NULL;
+        } else {
+          rtn = Py_BuildValue("s", json);
+          free(json); // Check if done properly
+          return rtn;
+        }
+}
+
 static PyMethodDef Consumer_methods[] = {
 	{ "subscribe", (PyCFunction)Consumer_subscribe,
 	  METH_VARARGS|METH_KEYWORDS,
@@ -518,11 +544,11 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param list(TopicPartition) partitions: Absolute list of partitions being assigned or revoked.\n"
 	  "\n"
 	},
-        { "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
-          "  Remove current subscription.\n"
-          "  :raises: KafkaException\n"
-          "\n"
-        },
+  { "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
+    "  Remove current subscription.\n"
+    "  :raises: KafkaException\n"
+    "\n"
+  },
 	{ "poll", (PyCFunction)Consumer_poll,
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: poll([timeout=None])\n"
@@ -551,22 +577,22 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming.\n"
 	  "\n"
 	},
-        { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
-          "  Removes the current partition assignment and stops consuming.\n"
-          "  :raises: KafkaException\n"
-          "\n"
-        },
-        { "assignment", (PyCFunction)Consumer_assignment,
-          METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: assignment()\n"
-          "\n"
-          "  Returns the current partition assignment.\n"
-          "\n"
-          "  :returns: List of assigned topic+partitions.\n"
-          "  :rtype: list(TopicPartition)\n"
-          "  :raises: KafkaException\n"
-          "\n"
-        },
+  { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
+    "  Removes the current partition assignment and stops consuming.\n"
+    "  :raises: KafkaException\n"
+    "\n"
+  },
+  { "assignment", (PyCFunction)Consumer_assignment,
+    METH_VARARGS|METH_KEYWORDS,
+    ".. py:function:: assignment()\n"
+    "\n"
+    "  Returns the current partition assignment.\n"
+    "\n"
+    "  :returns: List of assigned topic+partitions.\n"
+    "  :rtype: list(TopicPartition)\n"
+    "  :raises: KafkaException\n"
+    "\n"
+  },
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
 	  "\n"
@@ -611,22 +637,35 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :raises: KafkaException\n"
 	  "\n"
 	},
-        { "get_watermark_offsets", (PyCFunction)Consumer_get_watermark_offsets,
-          METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: get_watermark_offsets(partition, [timeout=None], [cached=False])\n"
-          "\n"
-          "  Retrieve low and high offsets for partition.\n"
-          "\n"
-          "  :param TopicPartition partition: Topic+partition to return offsets for."
-          "  :param float timeout: Request timeout (when cached=False).\n"
-          "  :param bool cached: Instead of querying the broker used cached information. "
-          "Cached values: The low offset is updated periodically (if statistics.interval.ms is set) while "
-          "the high offset is updated on each message fetched from the broker for this partition."
-          "  :returns: Tuple of (low,high) on success or None on timeout.\n"
-          "  :rtype: tuple(int,int)\n"
-          "  :raises: KafkaException\n"
-          "\n"
-        },
+  { "get_watermark_offsets", (PyCFunction)Consumer_get_watermark_offsets,
+    METH_VARARGS|METH_KEYWORDS,
+    ".. py:function:: get_watermark_offsets(partition, [timeout=None], [cached=False])\n"
+    "\n"
+    "  Retrieve low and high offsets for partition.\n"
+    "\n"
+    "  :param TopicPartition partition: Topic+partition to return offsets for."
+    "  :param float timeout: Request timeout (when cached=False).\n"
+    "  :param bool cached: Instead of querying the broker used cached information. "
+    "Cached values: The low offset is updated periodically (if statistics.interval.ms is set) while "
+    "the high offset is updated on each message fetched from the broker for this partition."
+    "  :returns: Tuple of (low,high) on success or None on timeout.\n"
+    "  :rtype: tuple(int,int)\n"
+    "  :raises: KafkaException\n"
+    "\n"
+  },
+	{ "describe_group", (PyCFunction)Consumer_describe_group, 
+    METH_VARARGS|METH_KEYWORDS,
+    ".. py:function:: describe_group(group, [timeout=None])\n"
+    "\n"
+    "  Retrieve group description for given consumer group.\n"
+    "\n"
+    "  :param str group: Consumer group to return description for."
+    "  :param float timeout: Request timeout.\n"
+    "  :returns: json string.\n"
+    "  :rtype: str\n"
+    "  :raises: KafkaException\n"
+    "\n"
+	},
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
 	  "\n"
 	  "  Close down and terminate the Kafka Consumer.\n"
