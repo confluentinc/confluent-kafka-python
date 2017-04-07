@@ -328,9 +328,11 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 #if !HAVE_PRODUCEV
         if (timestamp) {
                 PyErr_Format(PyExc_NotImplementedError,
-                             "Producer timestamps require librdkafka "
-                             "version >=v0.9.4 (currently on %s)",
-                             rd_kafka_version_str());
+                             "Producer timestamps require "
+                             "confluent-kafka-python built for librdkafka "
+                             "version >=v0.9.4 (librdkafka runtime 0x%x, "
+                             "buildtime 0x%x)",
+                             rd_kafka_version(), RD_KAFKA_VERSION);
                 return NULL;
         }
 #endif
