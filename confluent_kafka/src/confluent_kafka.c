@@ -1302,16 +1302,21 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		/*
 		 * Pass configuration property through to librdkafka.
 		 */
-		if (!(vs = cfl_PyObject_Unistr(vo))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property "
-					"value as type unicode string");
-			rd_kafka_topic_conf_destroy(tconf);
-			rd_kafka_conf_destroy(conf);
-			Py_DECREF(ks);
-			return NULL;
-		}
-		v = cfl_PyUnistr_AsUTF8(vs);
+                if (vo == Py_None) {
+                        v = NULL;
+                } else {
+                        if (!(vs = cfl_PyObject_Unistr(vo))) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected configuration "
+                                                "property value as type "
+                                                "unicode string");
+                                rd_kafka_topic_conf_destroy(tconf);
+                                rd_kafka_conf_destroy(conf);
+                                Py_DECREF(ks);
+                                return NULL;
+                        }
+                        v = cfl_PyUnistr_AsUTF8(vs);
+                }
 
 		if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
 		    RD_KAFKA_CONF_OK) {
@@ -1319,12 +1324,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					  "%s", errstr);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
-			Py_DECREF(vs);
+                        Py_XDECREF(vs);
 			Py_DECREF(ks);
 			return NULL;
 		}
 
-		Py_DECREF(vs);
+                Py_XDECREF(vs);
 		Py_DECREF(ks);
 	}
 
