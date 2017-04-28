@@ -67,3 +67,32 @@ def test_stats_cb():
         kc.poll(timeout=1)
     kc.close()
 
+
+
+seen_stats_cb_check_no_brokers = False
+def test_conf_none():
+    """ Issue #133
+    Test that None can be passed for NULL by setting bootstrap.servers
+    to None. If None would be converted to a string then a broker would
+    show up in statistics. Verify that it doesnt. """
+
+    def stats_cb_check_no_brokers(stats_json_str):
+        """ Make sure no brokers are reported in stats """
+        global seen_stats_cb_check_no_brokers
+        stats = json.loads(stats_json_str)
+        assert len(stats['brokers']) == 0, "expected no brokers in stats: %s" % stats_json_str
+        seen_stats_cb_check_no_brokers = True
+
+
+
+    conf = {'bootstrap.servers': 'something',
+            'bootstrap.servers': None, # overwrites previous value
+            'statistics.interval.ms': 10,
+            'stats_cb': stats_cb_check_no_brokers}
+
+    p = confluent_kafka.Producer(conf)
+    p.poll(timeout=1)
+
+    global seen_stats_cb_check_no_brokers
+    assert seen_stats_cb_check_no_brokers
+
