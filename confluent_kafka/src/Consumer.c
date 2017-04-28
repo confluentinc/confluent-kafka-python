@@ -391,6 +391,55 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 	return plist;
 }
 
+static PyObject *Consumer_pause(Handle *self, PyObject *args,
+                    PyObject *kwargs) {
+
+    PyObject *plist;
+	rd_kafka_topic_partition_list_t *c_parts;
+    rd_kafka_resp_err_t err;
+    static char *kws[] = {"partitions", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
+        return NULL;
+
+    if (!(c_parts = py_to_c_parts(plist)))
+        return NULL;
+
+    err = rd_kafka_pause_partitions(self->rk, c_parts);
+    if (err) {
+        rd_kafka_topic_partition_list_destroy(c_parts);
+        cfl_PyErr_Format(err,
+                "Failed to pause partitions: %s",
+                rd_kafka_err2str(err));
+        return NULL;
+    }
+	Py_RETURN_NONE;
+}
+
+static PyObject *Consumer_resume (Handle *self, PyObject *args,
+                    PyObject *kwargs) {
+
+    PyObject *plist;
+	rd_kafka_topic_partition_list_t *c_parts;
+    rd_kafka_resp_err_t err;
+    static char *kws[] = {"partitions", NULL};
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
+        return NULL;
+
+    if (!(c_parts = py_to_c_parts(plist)))
+        return NULL;
+
+    err = rd_kafka_resume_partitions(self->rk, c_parts);
+    if (err) {
+        rd_kafka_topic_partition_list_destroy(c_parts);
+        cfl_PyErr_Format(err,
+                "Failed to resume partitions: %s",
+                rd_kafka_err2str(err));
+        return NULL;
+    }
+	Py_RETURN_NONE;
+}
 
 static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
                                                  PyObject *kwargs) {
@@ -608,6 +657,30 @@ static PyMethodDef Consumer_methods[] = {
 	  "last consumed message + 1.\n"
 	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
 	  "  :rtype: list(TopicPartition)\n"
+	  "  :raises: KafkaException\n"
+	  "\n"
+	},
+	{ "pause", (PyCFunction)Consumer_pause,
+	  METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: pause(partitions)\n"
+	  "\n"
+	  "  Pause consumption for the provided list of partitions.\n"
+	  "\n"
+	  "  :param list(TopicPartition) partitions: List of topic+partitions "
+	  "to pause. \m"
+	  "  :rtype: None\n"
+	  "  :raises: KafkaException\n"
+	  "\n"
+	},
+	{ "resume", (PyCFunction)Consumer_resume,
+	  METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: resume(partitions)\n"
+	  "\n"
+	  "  Resume consumption for the provided list of partitions.\n"
+	  "\n"
+	  "  :param list(TopicPartition) partitions: List of topic+partitions "
+	  "to resume. \m"
+	  "  :rtype: None\n"
 	  "  :raises: KafkaException\n"
 	  "\n"
 	},
