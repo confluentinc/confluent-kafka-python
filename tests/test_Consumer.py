@@ -47,6 +47,12 @@ def test_basic_api():
     assignment = kc.assignment()
     assert partitions == assignment
 
+    # Pause partitions
+    kc.pause(partitions)
+
+    # Resume partitions
+    kc.resume(partitions)
+
     # Get cached watermarks, should all be invalid.
     lo, hi = kc.get_watermark_offsets(partitions[0], cached=True)
     assert lo == -1001 and hi == -1001
