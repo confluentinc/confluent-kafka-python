@@ -137,6 +137,15 @@ Prerequisites
 
  * Python >= 2.7 or Python 3.x
  * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.1
+ 
+ 
+For **Debian/Ubuntu**** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
+http://docs.confluent.io/current/installation.html#installation-apt
+
+For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
+http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
+
+On **OSX**, use **homebrew** and do `sudo brew install librdkafka`
 
 
 Install
