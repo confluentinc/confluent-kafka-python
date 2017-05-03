@@ -406,8 +406,8 @@ static PyObject *Consumer_pause(Handle *self, PyObject *args,
         return NULL;
 
     err = rd_kafka_pause_partitions(self->rk, c_parts);
+    rd_kafka_topic_partition_list_destroy(c_parts);
     if (err) {
-        rd_kafka_topic_partition_list_destroy(c_parts);
         cfl_PyErr_Format(err,
                 "Failed to pause partitions: %s",
                 rd_kafka_err2str(err));
@@ -431,8 +431,8 @@ static PyObject *Consumer_resume (Handle *self, PyObject *args,
         return NULL;
 
     err = rd_kafka_resume_partitions(self->rk, c_parts);
+    rd_kafka_topic_partition_list_destroy(c_parts);
     if (err) {
-        rd_kafka_topic_partition_list_destroy(c_parts);
         cfl_PyErr_Format(err,
                 "Failed to resume partitions: %s",
                 rd_kafka_err2str(err));
