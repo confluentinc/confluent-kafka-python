@@ -12,7 +12,8 @@ module = Extension('confluent_kafka.cimpl',
                     libraries= ['rdkafka'],
                     sources=['confluent_kafka/src/confluent_kafka.c',
                              'confluent_kafka/src/Producer.c',
-                             'confluent_kafka/src/Consumer.c'])
+                             'confluent_kafka/src/Consumer.c',
+                             'confluent_kafka/src/get_metadata_impl.c'])
 
 setup(name='confluent-kafka',
       version='0.9.4',
