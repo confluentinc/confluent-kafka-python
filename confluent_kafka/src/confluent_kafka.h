@@ -18,7 +18,7 @@
 #include <structmember.h>
 #include <pythread.h>
 
-#include <librdkafka/rdkafka.h>
+#include <rdkafka.h>
 
 #if PY_MAJOR_VERSION >= 3
 #define PY3
