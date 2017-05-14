@@ -2,6 +2,7 @@
 
 from confluent_kafka import TopicPartition
 
+
 def test_sort():
     """ TopicPartition sorting (rich comparator) """
 
@@ -28,7 +29,7 @@ def test_cmp():
     assert TopicPartition('b3x', 4) == TopicPartition('b3x', 4)
     assert TopicPartition('ulv', 2) < TopicPartition('xy', 0)
     assert TopicPartition('ulv', 2) <= TopicPartition('ulv', 3)
-    
+
 
 def test_hash():
 

@@ -1,5 +1,5 @@
 __all__ = ['cimpl', 'avro', 'kafkatest']
-from .cimpl import (Consumer,
+from .cimpl import (Consumer,  # noqa
                     KafkaError,
                     KafkaException,
                     Message,

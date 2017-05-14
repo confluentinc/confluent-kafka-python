@@ -24,13 +24,15 @@ import getopt
 import json
 from pprint import pformat
 
+
 def stats_cb(stats_json_str):
     stats_json = json.loads(stats_json_str)
     print('\nKAFKA Stats: {}\n'.format(pformat(stats_json)))
 
+
 def print_usage_and_exit(program_name):
     sys.stderr.write('Usage: %s [options..] <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
-    options='''
+    options = '''
  Options:
   -T <intvl>   Enable client statistics at specified interval (ms)
 '''
@@ -44,7 +46,7 @@ if __name__ == '__main__':
         print_usage_and_exit(sys.argv[0])
 
     broker = argv[0]
-    group  = argv[1]
+    group = argv[1]
     topics = argv[2:]
     # Consumer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
@@ -71,9 +73,9 @@ if __name__ == '__main__':
     # Create Consumer instance
     c = Consumer(**conf)
 
-    def print_assignment (consumer, partitions):
+    def print_assignment(consumer, partitions):
         print('Assignment:', partitions)
-    
+
     # Subscribe to topics
     c.subscribe(topics, on_assign=print_assignment)
 

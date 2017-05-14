@@ -23,6 +23,10 @@ import os
 import os.path
 import random
 
+from avro import schema
+from avro.datafile import DataFileWriter
+from avro.io import DatumWriter
+
 NAMES = ['stefan', 'melanie', 'nick', 'darrel', 'kent', 'simon']
 AGES = list(range(1, 10)) + [None]
 
@@ -65,10 +69,6 @@ def create_adv_item(i):
 
 
 ADVANCED_ITEMS = map(create_adv_item, range(1, 20))
-
-from avro import schema
-from avro.datafile import DataFileWriter
-from avro.io import DatumWriter
 
 
 def _write_items(base_name, schema_str, items):

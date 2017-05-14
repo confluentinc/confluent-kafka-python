@@ -125,10 +125,9 @@ class MessageSerializer(object):
                 if not schema:
                     raise serialize_err("Schema does not exist")
                 self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
-            except ClientError as e:
+            except ClientError:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                raise serialize_err( + repr(
-                    traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 
         # get the writer
         writer = self.id_to_writers[schema_id]
@@ -171,14 +170,15 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 schema_dict = schema.to_json()
-                obj = read_data(payload, schema_dict)
-                # here means we passed so this is something fastavro can do
-                # seek back since it will be called again for the
-                # same payload - one time hit
+                read_data(payload, schema_dict)
 
+                # If we reach this point, this means we have fastavro and it can
+                # do this deserialization. Rewind since this method just determines
+                # the reader function and we need to deserialize again along the
+                # normal path.
                 payload.seek(curr_pos)
-                decoder_func = lambda p: read_data(p, schema_dict)
-                self.id_to_decoder_func[schema_id] = decoder_func
+
+                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema_dict)
                 return self.id_to_decoder_func[schema_id]
             except:
                 pass

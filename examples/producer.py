@@ -29,7 +29,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     broker = sys.argv[1]
-    topic  = sys.argv[2]
+    topic = sys.argv[2]
 
     # Producer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
@@ -41,11 +41,11 @@ if __name__ == '__main__':
     # Optional per-message delivery callback (triggered by poll() or flush())
     # when a message has been successfully delivered or permanently
     # failed delivery (after retries).
-    def delivery_callback (err, msg):
+    def delivery_callback(err, msg):
         if err:
             sys.stderr.write('%% Message failed delivery: %s\n' % err)
         else:
-            sys.stderr.write('%% Message delivered to %s [%d]\n' % \
+            sys.stderr.write('%% Message delivered to %s [%d]\n' %
                              (msg.topic(), msg.partition()))
 
     # Read lines from stdin, produce each line to Kafka
@@ -53,10 +53,9 @@ if __name__ == '__main__':
         try:
             # Produce line (without newline)
             p.produce(topic, line.rstrip(), callback=delivery_callback)
-            
+
         except BufferError as e:
-            sys.stderr.write('%% Local producer queue is full ' \
-                             '(%d messages awaiting delivery): try again\n' %
+            sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' %
                              len(p))
 
         # Serve delivery callback queue.
