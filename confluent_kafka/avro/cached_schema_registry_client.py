@@ -25,8 +25,10 @@ from collections import defaultdict
 
 import requests
 
-from . import ClientError, VALID_LEVELS
+from .error import ClientError
 from . import loads
+
+VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
@@ -119,7 +121,7 @@ class CachedSchemaRegistryClient(object):
 
         schemas_to_id = self.subject_to_schema_ids[subject]
         schema_id = schemas_to_id.get(avro_schema, None)
-        if schema_id != None:
+        if schema_id is not None:
             return schema_id
         # send it up
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
@@ -222,7 +224,7 @@ class CachedSchemaRegistryClient(object):
         """
         schemas_to_version = self.subject_to_schema_versions[subject]
         version = schemas_to_version.get(avro_schema, None)
-        if version != None:
+        if version is not None:
             return version
 
         url = '/'.join([self.url, 'subjects', subject])

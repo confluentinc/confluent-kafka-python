@@ -69,7 +69,8 @@ class TestAvroProducer(unittest.TestCase):
 
     def test_produce_value_and_key_schemas(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema, default_key_schema=value_schema)
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema,
+                                default_key_schema=value_schema)
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
             producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
 
@@ -78,7 +79,8 @@ class TestAvroProducer(unittest.TestCase):
         key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey', key_schema=key_schema)
+            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
+                             key_schema=key_schema)
 
     def test_produce_primitive_key_and_value(self):
         value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
@@ -92,9 +94,10 @@ class TestAvroProducer(unittest.TestCase):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         producer = AvroProducer({}, schema_registry=schema_registry)
-        producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey', key_schema=key_schema)
+        producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
+                         key_schema=key_schema)
 
     def test_produce_with_custom_registry_and_registry_url(self):
         schema_registry = MockSchemaRegistryClient()
         with self.assertRaises(ValueError):
-            producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)
+            AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)

@@ -15,16 +15,18 @@
 # limitations under the License.
 #
 
-import argparse, time
-from confluent_kafka import Producer, KafkaError, KafkaException
+import argparse
+import time
+from confluent_kafka import Producer, KafkaException
 from verifiable_client import VerifiableClient
+
 
 class VerifiableProducer(VerifiableClient):
     """
     confluent-kafka-python backed VerifiableProducer class for use with
     Kafka's kafkatests client tests.
     """
-    def __init__ (self, conf):
+    def __init__(self, conf):
         """
         \p conf is a config dict passed to confluent_kafka.Producer()
         """
@@ -36,7 +38,7 @@ class VerifiableProducer(VerifiableClient):
         self.num_sent = 0
         self.num_err = 0
 
-    def dr_cb (self, err, msg):
+    def dr_cb(self, err, msg):
         """ Per-message Delivery report callback. Called from poll() """
         if err:
             self.num_err += 1
@@ -53,13 +55,9 @@ class VerifiableProducer(VerifiableClient):
                        'offset': msg.offset(),
                        'key': msg.key(),
                        'value': msg.value()})
-                       
+
         pass
 
-
-
-
-        
 
 if __name__ == '__main__':
 
@@ -67,7 +65,7 @@ if __name__ == '__main__':
     parser.add_argument('--topic', type=str, required=True)
     parser.add_argument('--throughput', type=int, default=0)
     parser.add_argument('--broker-list', dest='bootstrap.servers', required=True)
-    parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000) # avoid infinite
+    parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000)  # avoid infinite
     parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
     parser.add_argument('--acks', type=int, dest='topic.request.required.acks', default=-1)
     parser.add_argument('--producer.config', dest='producer_config')
@@ -106,16 +104,14 @@ if __name__ == '__main__':
                     vp.producer.produce(topic, value=(value_fmt % i))
                     vp.num_sent += 1
                 except KafkaException as e:
-                    self.err('produce() #%d/%d failed: %s' % \
-                             (i, vp.max_msgs, str(e)))
+                    vp.err('produce() #%d/%d failed: %s' % (i, vp.max_msgs, str(e)))
                     vp.num_err += 1
                 except BufferError:
-                    vp.dbg('Local produce queue full (produced %d/%d msgs), waiting for deliveries..' % \
+                    vp.dbg('Local produce queue full (produced %d/%d msgs), waiting for deliveries..' %
                            (i, vp.max_msgs))
                     vp.producer.poll(timeout=0.5)
                     continue
                 break
-
 
             # Delay to achieve desired throughput,
             # but make sure poll is called at least once
@@ -135,7 +131,7 @@ if __name__ == '__main__':
         vp.producer.flush()
     except KeyboardInterrupt:
         pass
-    
+
     vp.send({'name': 'shutdown_complete'})
 
     vp.dbg('All done')
