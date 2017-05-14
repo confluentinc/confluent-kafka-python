@@ -75,5 +75,10 @@ class TestMessageSerializer(unittest.TestCase):
             message = self.ms.encode_record_with_schema(topic, basic, record)
             self.assertMessageIsSame(message, record, schema_id)
 
+    def test_decode_none(self):
+        """"null/None messages should decode to None"""
+
+        self.assertIsNone(self.ms.decode_message(None))
+
     def hash_func(self):
         return hash(str(self))

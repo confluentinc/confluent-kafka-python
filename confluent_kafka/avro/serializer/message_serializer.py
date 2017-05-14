@@ -201,6 +201,10 @@ class MessageSerializer(object):
         the schema registry.
         @:param: message
         """
+
+        if message is None:
+            return None
+
         if len(message) <= 5:
             raise SerializerError("message is too small to decode")
 
