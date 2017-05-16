@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 HAS_FAST = False
 try:
-    from fastavro.reader import read_data
+    import fastavro  # noqa: F401
 
     HAS_FAST = True
 except:
