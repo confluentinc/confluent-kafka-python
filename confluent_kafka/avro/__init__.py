@@ -2,58 +2,12 @@
     Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
 
 """
-import sys
 
 from confluent_kafka import Producer, Consumer
-
-VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
-
-
-def loads(schema_str):
-    """ Parse a schema given a schema string """
-    if sys.version_info[0] < 3:
-        return schema.parse(schema_str)
-    else:
-        return schema.Parse(schema_str)
-
-
-def load(fp):
-    """ Parse a schema from a file path """
-    with open(fp) as f:
-        return loads(f.read())
-
-
-# avro.schema.RecordSchema and avro.schema.PrimitiveSchema classes are not hashable. Hence defining them explicitely as a quick fix
-def _hash_func(self):
-    return hash(str(self))
-
-
-try:
-    from avro import schema
-
-    schema.RecordSchema.__hash__ = _hash_func
-    schema.PrimitiveSchema.__hash__ = _hash_func
-except ImportError:
-    pass
-
-
-class ClientError(Exception):
-    """ Error thrown by Schema Registry clients """
-
-    def __init__(self, message, http_code=None):
-        self.message = message
-        self.http_code = http_code
-        super(ClientError, self).__init__(self.__str__())
-
-    def __repr__(self):
-        return "ClientError(error={error})".format(error=self.message)
-
-    def __str__(self):
-        return self.message
-
-
+from confluent_kafka.avro.error import ClientError
+from confluent_kafka.avro.load import load, loads  # noqa
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
-from confluent_kafka.avro.serializer import (SerializerError,
+from confluent_kafka.avro.serializer import (SerializerError,  # noqa
                                              KeySerializerError,
                                              ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
@@ -116,7 +70,6 @@ class AvroProducer(Producer):
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:
                 raise KeySerializerError("Avro schema required for key")
-
 
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
 

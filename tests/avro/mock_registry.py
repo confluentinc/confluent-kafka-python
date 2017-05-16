@@ -21,17 +21,18 @@
 #
 
 import sys
+import json
+import re
+
+from threading import Thread
+
+from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
+from confluent_kafka import avro
 
 if sys.version_info[0] < 3:
     import BaseHTTPServer as HTTPSERVER
 else:
     import http.server as HTTPSERVER
-import json
-import re
-from threading import Thread
-
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
-from confluent_kafka import avro
 
 
 class ReqHandler(HTTPSERVER.BaseHTTPRequestHandler):
@@ -151,7 +152,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
     def get_latest(self, req, groups):
         subject = groups[0]
         schema_id, avro_schema, version = self.registry.get_latest_schema(subject)
-        if schema_id == None:
+        if schema_id is None:
             return self._create_error("Not found", 404)
         result = {
             "schema": json.dumps(avro_schema.to_json()),

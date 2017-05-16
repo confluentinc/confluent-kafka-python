@@ -124,14 +124,13 @@ class MessageSerializer(object):
                 # get the writer + schema
 
                 try:
-                    avro_schema = self.registry_client.get_by_id(schema_id)
-                    if not avro_schema:
+                    schema = self.registry_client.get_by_id(schema_id)
+                    if not schema:
                         raise serialize_err("Schema does not exist")
-                    self.id_to_writers[schema_id] = avro.io.DatumWriter(avro_schema)
-                except ClientError as e:
+                    self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
+                except ClientError:
                     exc_type, exc_value, exc_traceback = sys.exc_info()
-                    raise serialize_err( + repr(
-                        traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                    raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 
         # get the writer
         with ContextStringIO() as outf:
@@ -167,15 +166,17 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 schema = self.registry_client.get_by_id(schema_id, json_format=True)
-
-                obj = read_data(payload, schema)
                 # here means we passed so this is something fastavro can do
                 # seek back since it will be called again for the
                 # same payload - one time hit
+                read_data(payload, schema)
 
+                # If we reach this point, this means we have fastavro and it can
+                # do this deserialization. Rewind since this method just determines
+                # the reader function and we need to deserialize again along the
+                # normal path.
                 payload.seek(curr_pos)
-                decoder_func = lambda p: read_data(p, schema)
-                self.id_to_decoder_func[schema_id] = decoder_func
+                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema)
                 return self.id_to_decoder_func[schema_id]
             except:
                 pass
@@ -208,6 +209,10 @@ class MessageSerializer(object):
         the schema registry.
         @:param: message
         """
+
+        if message is None:
+            return None
+
         if len(message) <= 5:
             raise SerializerError("message is too small to decode")
 

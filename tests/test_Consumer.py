@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from confluent_kafka import Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE, OFFSET_INVALID, libversion
+from confluent_kafka import (Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE,
+                             OFFSET_INVALID, libversion)
 import pytest
 
 
@@ -13,17 +14,17 @@ def test_basic_api():
     except TypeError as e:
         assert str(e) == "expected configuration dict"
 
-    def dummy_commit_cb (err, partitions):
+    def dummy_commit_cb(err, partitions):
         pass
 
-    kc = Consumer({'group.id':'test', 'socket.timeout.ms':'100',
-                   'session.timeout.ms': 1000, # Avoid close() blocking too long
+    kc = Consumer({'group.id': 'test', 'socket.timeout.ms': '100',
+                   'session.timeout.ms': 1000,  # Avoid close() blocking too long
                    'on_commit': dummy_commit_cb})
 
     kc.subscribe(["test"])
     kc.unsubscribe()
 
-    def dummy_assign_revoke (consumer, partitions):
+    def dummy_assign_revoke(consumer, partitions):
         pass
 
     kc.subscribe(["test"], on_assign=dummy_assign_revoke, on_revoke=dummy_assign_revoke)
@@ -40,7 +41,7 @@ def test_basic_api():
     if msg is not None:
         assert msg.timestamp() == (TIMESTAMP_NOT_AVAILABLE, -1)
 
-    partitions = list(map(lambda p: TopicPartition("test", p), range(0,100,3)))
+    partitions = list(map(lambda part: TopicPartition("test", part), range(0, 100, 3)))
     kc.assign(partitions)
 
     # Verify assignment
@@ -56,7 +57,8 @@ def test_basic_api():
     try:
         lo, hi = kc.get_watermark_offsets(partitions[0], timeout=0.5, cached=False)
     except KafkaException as e:
-        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE), str(e.args([0]))
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE),\
+            str(e.args([0]))
 
     kc.unassign()
 
@@ -72,10 +74,9 @@ def test_basic_api():
     assert len([p for p in partitions if p.offset == OFFSET_INVALID]) == len(partitions)
 
     try:
-        offsets = kc.committed(partitions, timeout=0.001)
+        kc.committed(partitions, timeout=0.001)
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._TIMED_OUT
-
 
     kc.close()
 
@@ -84,18 +85,18 @@ def test_basic_api():
 # if a commit is issued when no coordinator is available.
 @pytest.mark.skipif(libversion()[1] <= 0x000902ff,
                     reason="requires librdkafka >0.9.2")
-def test_on_commit ():
+def test_on_commit():
     """ Verify that on_commit is only called once per commit() (issue #71) """
 
-    class CommitState (object):
+    class CommitState(object):
         def __init__(self, topic, partition):
             self.topic = topic
             self.partition = partition
             self.once = True
 
-    def commit_cb (cs, err, ps):
+    def commit_cb(cs, err, ps):
         print('on_commit: err %s, partitions %s' % (err, ps))
-        assert cs.once == True
+        assert cs.once is True
         assert err == KafkaError._NO_OFFSET
         assert len(ps) == 1
         p = ps[0]
@@ -108,7 +109,7 @@ def test_on_commit ():
     c = Consumer({'group.id': 'x',
                   'enable.auto.commit': False, 'socket.timeout.ms': 50,
                   'session.timeout.ms': 100,
-                  'on_commit': lambda err,ps: commit_cb(cs, err, ps) })
+                  'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
 
     c.assign([TopicPartition(cs.topic, cs.partition)])
 
@@ -128,10 +129,10 @@ def test_on_commit ():
 
 def test_subclassing():
     class SubConsumer(Consumer):
-        def poll (self, somearg):
+        def poll(self, somearg):
             assert type(somearg) == str
             super(SubConsumer, self).poll(timeout=0.0001)
 
-    sc = SubConsumer({"group.id":"test", "session.timeout.ms": "90"})
+    sc = SubConsumer({"group.id": "test", "session.timeout.ms": "90"})
     sc.poll("astring")
     sc.close()

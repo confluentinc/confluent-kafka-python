@@ -13,7 +13,14 @@
 # limitations under the License.
 
 
-import signal, socket, os, sys, time, json, re, datetime
+import datetime
+import json
+import os
+import re
+import signal
+import socket
+import sys
+import time
 
 
 class VerifiableClient(object):
@@ -21,7 +28,7 @@ class VerifiableClient(object):
     Generic base class for a kafkatest verifiable client.
     Implements the common kafkatest protocol and semantics.
     """
-    def __init__ (self, conf):
+    def __init__(self, conf):
         """
         """
         super(VerifiableClient, self).__init__()
@@ -31,37 +38,36 @@ class VerifiableClient(object):
         signal.signal(signal.SIGTERM, self.sig_term)
         self.dbg('Pid is %d' % os.getpid())
 
-    def sig_term (self, sig, frame):
+    def sig_term(self, sig, frame):
         self.dbg('SIGTERM')
         self.run = False
 
     @staticmethod
-    def _timestamp ():
+    def _timestamp():
         return time.strftime('%H:%M:%S', time.localtime())
 
-    def dbg (self, s):
+    def dbg(self, s):
         """ Debugging printout """
         sys.stderr.write('%% %s DEBUG: %s\n' % (self._timestamp(), s))
 
-    def err (self, s, term=False):
+    def err(self, s, term=False):
         """ Error printout, if term=True the process will terminate immediately. """
         sys.stderr.write('%% %s ERROR: %s\n' % (self._timestamp(), s))
         if term:
             sys.stderr.write('%% FATAL ERROR ^\n')
             sys.exit(1)
 
-    def send (self, d):
+    def send(self, d):
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
         sys.stdout.flush()
 
-
     @staticmethod
-    def set_config (conf, args):
+    def set_config(conf, args):
         """ Set client config properties using args dict. """
-        for n,v in args.iteritems():
+        for n, v in args.iteritems():
             if v is None:
                 continue
             # Things to ignore
