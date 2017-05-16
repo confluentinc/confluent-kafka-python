@@ -9,10 +9,10 @@ else:
     avro = 'avro-python3'
 
 module = Extension('confluent_kafka.cimpl',
-                    libraries= ['rdkafka'],
-                    sources=['confluent_kafka/src/confluent_kafka.c',
-                             'confluent_kafka/src/Producer.c',
-                             'confluent_kafka/src/Consumer.c'])
+                   libraries=['rdkafka'],
+                   sources=['confluent_kafka/src/confluent_kafka.c',
+                            'confluent_kafka/src/Producer.c',
+                            'confluent_kafka/src/Consumer.c'])
 
 setup(name='confluent-kafka',
       version='0.9.4',
@@ -22,7 +22,7 @@ setup(name='confluent-kafka',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
       packages=find_packages(exclude=("tests",)),
-      data_files = [('', ['LICENSE'])],
+      data_files=[('', ['LICENSE'])],
       extras_require={
           'avro': ['fastavro', 'requests', avro]
       })

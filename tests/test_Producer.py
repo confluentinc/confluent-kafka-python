@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
-import pytest
 
-def error_cb (err):
+
+def error_cb(err):
     print('error_cb', err)
+
 
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
@@ -15,14 +16,14 @@ def test_basic_api():
     except TypeError as e:
         assert str(e) == "expected configuration dict"
 
-    p = Producer({'socket.timeout.ms':10,
+    p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
     p.produce('mytopic')
     p.produce('mytopic', value='somedata', key='a key')
 
-    def on_delivery(err,msg):
+    def on_delivery(err, msg):
         print('delivery', str)
         # Since there is no broker, produced messages should time out.
         assert err.code() == KafkaError._MSG_TIMED_OUT
@@ -38,7 +39,7 @@ def test_basic_api():
 
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """
-    p = Producer({'socket.timeout.ms':10,
+    p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
@@ -56,10 +57,11 @@ def test_produce_timestamp():
 
 def test_subclassing():
     class SubProducer(Producer):
-        def __init__ (self, conf, topic):
+        def __init__(self, conf, topic):
             super(SubProducer, self).__init__(conf)
             self.topic = topic
-        def produce_hi (self):
+
+        def produce_hi(self):
             super(SubProducer, self).produce(self.topic, value='hi')
 
     sp = SubProducer(dict(), 'atopic')
@@ -83,9 +85,9 @@ def test_dr_msg_errstr():
     for error value on Consumer messages, but on Producer messages the
     payload is the original payload and no rich error string exists.
     """
-    p = Producer({"default.topic.config":{"message.timeout.ms":10}})
+    p = Producer({"default.topic.config": {"message.timeout.ms": 10}})
 
-    def handle_dr (err, msg):
+    def handle_dr(err, msg):
         # Neither message payloads must not affect the error string.
         assert err is not None
         assert err.code() == KafkaError._MSG_TIMED_OUT

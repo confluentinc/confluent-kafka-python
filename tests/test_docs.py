@@ -8,7 +8,7 @@ from types import ModuleType
 import confluent_kafka
 
 
-def build_doctree (tree, prefix, parent):
+def build_doctree(tree, prefix, parent):
     """ Build doctree dict with format:
           dict key = full class/type name (e.g, "confluent_kafka.Message.timestamp")
           value = object
@@ -44,9 +44,9 @@ def test_verify_docs():
 
     int_types = [int]
     if sys.version_info < (3, 0):
-        int_types.append(long)
+        int_types.append(long)  # noqa - long not defined in python2
 
-    for n,vs in tree.items():
+    for n, vs in tree.items():
         level = 'ERROR'
         err = None
 
@@ -85,8 +85,7 @@ def test_verify_docs():
     # are referenced in other docstrings somewhere.
     for n in expect_refs:
         if all_docs.find(n) == -1:
-            print('ERROR: %s not referenced in documentation (%s)' % \
-                  (n, expect_refs[n]))
+            print('ERROR: %s not referenced in documentation (%s)' % (n, expect_refs[n]))
             fails += 1
 
     assert fails == 0

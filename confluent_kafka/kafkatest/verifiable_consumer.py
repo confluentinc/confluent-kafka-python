@@ -15,16 +15,17 @@
 # limitations under the License.
 #
 
-import argparse, sys
+import argparse
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from verifiable_client import VerifiableClient
+
 
 class VerifiableConsumer(VerifiableClient):
     """
     confluent-kafka-python backed VerifiableConsumer class for use with
     Kafka's kafkatests client tests.
     """
-    def __init__ (self, conf):
+    def __init__(self, conf):
         """
         \p conf is a config dict passed to confluent_kafka.Consumer()
         """
@@ -40,19 +41,16 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment = []
         self.assignment_dict = dict()
 
-
-    def find_assignment (self, topic, partition):
+    def find_assignment(self, topic, partition):
         """ Find and return existing assignment based on \p topic and \p partition,
         or None on miss. """
         skey = '%s %d' % (topic, partition)
         return self.assignment_dict.get(skey)
 
-
-    def send_records_consumed (self, immediate=False):
+    def send_records_consumed(self, immediate=False):
         """ Send records_consumed, every 100 messages, on timeout,
             or if immediate is set. """
-        if (self.consumed_msgs <= self.consumed_msgs_last_reported +
-            (0 if immediate else 100)):
+        if self.consumed_msgs <= self.consumed_msgs_last_reported + (0 if immediate else 100):
             return
 
         if len(self.assignment) == 0:
@@ -73,15 +71,13 @@ class VerifiableConsumer(VerifiableClient):
         self.send(d)
         self.consumed_msgs_last_reported = self.consumed_msgs
 
-
-    def send_assignment (self, evtype, partitions):
+    def send_assignment(self, evtype, partitions):
         """ Send assignment update, \p evtype is either 'assigned' or 'revoked' """
-        d = { 'name': 'partitions_' + evtype,
-              'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
+        d = {'name': 'partitions_' + evtype,
+             'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
         self.send(d)
 
-
-    def on_assign (self, consumer, partitions):
+    def on_assign(self, consumer, partitions):
         """ Rebalance on_assign callback """
         old_assignment = self.assignment
         self.assignment = [AssignedPartition(p.topic, p.partition) for p in partitions]
@@ -94,7 +90,7 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = {a.skey: a for a in self.assignment}
         self.send_assignment('assigned', partitions)
 
-    def on_revoke (self, consumer, partitions):
+    def on_revoke(self, consumer, partitions):
         """ Rebalance on_revoke callback """
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
@@ -104,8 +100,7 @@ class VerifiableConsumer(VerifiableClient):
         self.send_assignment('revoked', partitions)
         self.do_commit(immediate=True)
 
-
-    def on_commit (self, err, partitions):
+    def on_commit(self, err, partitions):
         """ Offsets Committed callback """
         if err is not None and err.code() == KafkaError._NO_OFFSET:
             self.dbg('on_commit(): no offsets to commit')
@@ -131,13 +126,12 @@ class VerifiableConsumer(VerifiableClient):
 
         self.send(d)
 
-
-    def do_commit (self, immediate=False, async=None):
+    def do_commit(self, immediate=False, async=None):
         """ Commit every 1000 messages or whenever there is a consume timeout
             or immediate. """
-        if (self.use_auto_commit or
-            self.consumed_msgs_at_last_commit + (0 if immediate else 1000) >
-            self.consumed_msgs):
+        if (self.use_auto_commit
+                or self.consumed_msgs_at_last_commit + (0 if immediate else 1000) >
+                self.consumed_msgs):
             return
 
         # Make sure we report consumption before commit,
@@ -166,8 +160,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.consumed_msgs_at_last_commit = self.consumed_msgs
 
-
-    def msg_consume (self, msg):
+    def msg_consume(self, msg):
         """ Handle consumed message (or error event) """
         if msg.error():
             if msg.error().code() == KafkaError._PARTITION_EOF:
@@ -178,11 +171,11 @@ class VerifiableConsumer(VerifiableClient):
             return
 
         if False:
-            self.dbg('Read msg from %s [%d] @ %d' % \
+            self.dbg('Read msg from %s [%d] @ %d' %
                      (msg.topic(), msg.partition(), msg.offset()))
 
         if self.max_msgs >= 0 and self.consumed_msgs >= self.max_msgs:
-            return # ignore extra messages
+            return  # ignore extra messages
 
         # Find assignment.
         a = self.find_assignment(msg.topic(), msg.partition())
@@ -204,7 +197,7 @@ class VerifiableConsumer(VerifiableClient):
 
 class AssignedPartition(object):
     """ Local state container for assigned partition. """
-    def __init__ (self, topic, partition):
+    def __init__(self, topic, partition):
         super(AssignedPartition, self).__init__()
         self.topic = topic
         self.partition = partition
@@ -213,20 +206,11 @@ class AssignedPartition(object):
         self.min_offset = -1
         self.max_offset = 0
 
-    def to_dict (self):
+    def to_dict(self):
         """ Return a dict of this partition's state """
         return {'topic': self.topic, 'partition': self.partition,
                 'minOffset': self.min_offset, 'maxOffset': self.max_offset}
 
-
-        
-
-    
-
-
-
-
-        
 
 if __name__ == '__main__':
 
@@ -256,7 +240,6 @@ if __name__ == '__main__':
     vc.dbg('Subscribing to %s' % args['topic'])
     vc.consumer.subscribe(args['topic'],
                           on_assign=vc.on_assign, on_revoke=vc.on_revoke)
-
 
     try:
         while vc.run:

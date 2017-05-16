@@ -52,7 +52,8 @@ api_version_request = True
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
-def error_cb (err):
+
+def error_cb(err):
     print('Error: %s' % err)
 
 
@@ -82,26 +83,25 @@ class MyTestDr(object):
     @staticmethod
     def _delivery(err, msg, silent=False):
         if err:
-            print('Message delivery failed (%s [%s]): %s' % \
+            print('Message delivery failed (%s [%s]): %s' %
                   (msg.topic(), str(msg.partition()), err))
             return 0
         else:
             if not silent:
-                print('Message delivered to %s [%s] at offset [%s]: %s' % \
+                print('Message delivered to %s [%s] at offset [%s]: %s' %
                       (msg.topic(), msg.partition(), msg.offset(), msg.value()))
             return 1
 
     def delivery(self, err, msg):
         if err:
-            print('Message delivery failed (%s [%s]): %s' % \
+            print('Message delivery failed (%s [%s]): %s' %
                   (msg.topic(), str(msg.partition()), err))
             return
         elif not self.silent:
-            print('Message delivered to %s [%s] at offset [%s]: %s' % \
+            print('Message delivered to %s [%s] at offset [%s]: %s' %
                   (msg.topic(), msg.partition(), msg.offset(), msg.value()))
         self.msgs_delivered += 1
         self.bytes_delivered += len(msg)
-
 
 
 def verify_producer():
@@ -111,7 +111,7 @@ def verify_producer():
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
             'api.version.request': api_version_request,
-            'default.topic.config':{'produce.offset.report': True}}
+            'default.topic.config': {'produce.offset.report': True}}
 
     # Create producer
     p = confluent_kafka.Producer(**conf)
@@ -155,9 +155,9 @@ def verify_producer():
     test_producer_dr_only_error()
 
 
-
 # Global variable to track garbage collection of suppressed on_delivery callbacks
 DrOnlyTestSuccess_gced = 0
+
 
 def test_producer_dr_only_error():
     """
@@ -172,28 +172,28 @@ def test_producer_dr_only_error():
     the unit tests.
     """
     p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
-                                  'broker.address.family':'v4',
-                                  "delivery.report.only.error":True})
+                                  'broker.address.family': 'v4',
+                                  "delivery.report.only.error": True})
 
-    class DrOnlyTestErr (object):
-        def __init__ (self):
+    class DrOnlyTestErr(object):
+        def __init__(self):
             self.remaining = 1
 
-        def handle_err (self, err, msg):
+        def handle_err(self, err, msg):
             """ This delivery handler should only get called for errored msgs """
             assert "BAD:" in msg.value().decode('utf-8')
             assert err is not None
             self.remaining -= 1
 
-    class DrOnlyTestSuccess (object):
-        def handle_success (self, err, msg):
+    class DrOnlyTestSuccess(object):
+        def handle_success(self, err, msg):
             """ This delivery handler should never get called """
             # FIXME: Can we verify that it is actually garbage collected?
             assert "GOOD:" in msg.value().decode('utf-8')
             assert err is None
             assert False, "should never come here"
 
-        def __del__ (self):
+        def __del__(self):
             # Indicate that gc has hit this object.
             global DrOnlyTestSuccess_gced
             DrOnlyTestSuccess_gced = 1
@@ -344,7 +344,7 @@ def verify_producer_performance(with_dr_cb=True):
                 else:
                     p.produce(topic, value=msg_payload)
                 break
-            except BufferError as e:
+            except BufferError:
                 # Local queue is full (slow broker connection?)
                 msgs_backpressure += 1
                 if bar is not None and (msgs_backpressure % 1000) == 0:
@@ -364,7 +364,7 @@ def verify_producer_performance(with_dr_cb=True):
     if bar is not None:
         bar.finish()
 
-    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' % \
+    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
           (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
            msgs_produced / t_produce_spent,
            (bytecnt/t_produce_spent) / (1024*1024)))
@@ -375,8 +375,7 @@ def verify_producer_performance(with_dr_cb=True):
     p.flush()
     t_delivery_spent = time.time() - t_produce_start
 
-
-    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' % \
+    print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
           (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
            msgs_produced / t_produce_spent,
            (bytecnt/t_produce_spent) / (1024*1024)))
@@ -387,15 +386,15 @@ def verify_producer_performance(with_dr_cb=True):
         dr.msgs_delivered = msgs_produced
         dr.bytes_delivered = bytecnt
 
-    print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' % \
+    print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
           (dr.msgs_delivered, dr.bytes_delivered / (1024*1024), t_delivery_spent,
            dr.msgs_delivered / t_delivery_spent,
            (dr.bytes_delivered/t_delivery_spent) / (1024*1024)))
-    print('# post-produce delivery wait took %.3fs' % \
+    print('# post-produce delivery wait took %.3fs' %
           (t_delivery_spent - t_produce_spent))
 
 
-def print_commit_result (err, partitions):
+def print_commit_result(err, partitions):
     if err is not None:
         print('# Failed to commit offsets: %s: %s' % (err, partitions))
     else:
@@ -436,7 +435,7 @@ def verify_consumer():
 
         if msg.error():
             if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                print('Reached end of %s [%d] at offset %d' % \
+                print('Reached end of %s [%d] at offset %d' %
                       (msg.topic(), msg.partition(), msg.offset()))
                 break
             else:
@@ -444,7 +443,7 @@ def verify_consumer():
                 break
 
         tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' % \
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
               (msg.topic(), msg.partition(), msg.offset(),
                msg.key(), msg.value(), tstype, timestamp))
 
@@ -464,21 +463,19 @@ def verify_consumer():
 
     # Get cached watermark offsets
     # Since we're not making use of statistics the low offset is not known so ignore it.
-    lo,hi = c.get_watermark_offsets(assignment[0], cached=True)
+    lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
     print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
     # Query broker for offsets
-    lo,hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
-
 
     # Close consumer
     c.close()
 
-
     # Start a new client and get the committed offsets
     c = confluent_kafka.Consumer(**conf)
-    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0,3))))
+    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
 
@@ -498,13 +495,13 @@ def verify_consumer_performance():
 
     c = confluent_kafka.Consumer(**conf)
 
-    def my_on_assign (consumer, partitions):
+    def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
         for p in partitions:
             print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
         consumer.assign(partitions)
 
-    def my_on_revoke (consumer, partitions):
+    def my_on_revoke(consumer, partitions):
         print('on_revoke:', len(partitions), 'partitions:')
         for p in partitions:
             print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
@@ -539,7 +536,6 @@ def verify_consumer_performance():
             else:
                 raise confluent_kafka.KafkaException(msg.error())
 
-
         bytecnt += len(msg)
         msgcnt += 1
 
@@ -556,7 +552,7 @@ def verify_consumer_performance():
 
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
-        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' % \
+        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
               (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
                (bytecnt / t_spent) / (1024*1024)))
 
@@ -573,7 +569,7 @@ def verify_stats_cb():
         if topic in stats_json['topics']:
             app_offset = stats_json['topics'][topic]['partitions']['0']['app_offset']
             if app_offset > 0:
-                print("# app_offset stats for topic %s partition 0: %d" % \
+                print("# app_offset stats for topic %s partition 0: %d" %
                       (topic, app_offset))
                 good_stats_cb_result = True
 
@@ -617,7 +613,6 @@ def verify_stats_cb():
             else:
                 raise confluent_kafka.KafkaException(msg.error())
 
-
         bytecnt += len(msg)
         msgcnt += 1
 
@@ -634,7 +629,7 @@ def verify_stats_cb():
 
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
-        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' % \
+        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
               (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
                (bytecnt / t_spent) / (1024*1024)))
 
@@ -676,6 +671,6 @@ if __name__ == '__main__':
     verify_stats_cb()
 
     print('=' * 30, 'Verifying AVRO', '=' * 30)
-    topics = verify_avro()
+    verify_avro()
 
     print('=' * 30, 'Done', '=' * 30)
