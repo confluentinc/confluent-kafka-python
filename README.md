@@ -203,7 +203,11 @@ To run the integration tests, uncomment the following line from `tox.ini` and ad
 
 Generate Documentation
 ======================
-Install sphinx and sphinx_rtd_theme packages and then:
+Install sphinx and sphinx_rtd_theme packages:
+
+    $ pip install sphinx sphinx_rtd_theme
+
+Build HTML docs:
 
     $ make docs
 
