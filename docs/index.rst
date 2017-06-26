@@ -108,8 +108,52 @@ The Python bindings also provide some additional configuration properties:
 Changelog
 =========
 
-Version 3.0.1
+Version 0.11.0
+^^^^^^^^^^^^^^
+
+ * Handle null/None values during deserialization
+ * Allow to pass custom schema registry instance.
+ * None conf values are now converted to NULL rather than the string "None" (#133)
+ * Fix memory leaks when certain exceptions were raised.
+ * Handle delivery.report.only.error in Python (#84)
+ * Proper use of Message error string on Producer (#129)
+ * Now Flake8 clean
+
+Version 0.9.4
 ^^^^^^^^^^^^^
+
+ * Unlock GIL for Consumer_close's rd_kafka_destroy()
+ * Unlock GIL on Producer's librdkafka destroy call (#107)
+ * Add optional timeout argument to Producer.flush() (#105)
+ * Added offset constants
+ * Added Consumer.get_watermark_offsets() (#31)
+ * Added Consumer.assignment() API
+ * Add timestamp= arg to produce()
+ * replace from .cimpl import * with explicit names. (#87)
+ * Dont delete unset tlskey (closes #78)
+ * AvroConsumer for handling schema registry (#80)
+ * Fix open issue #73 -- TopicPartition_str0 broken on Mac OS X (#83)
+ * Producer client for handling avro schemas (#40, @roopahc, @criccomini)
+ * enable.auto.commit behavior consequences on close() and commit() (#77)
+ * Consumer, Producer, TopicPartition classes are now sub-classable
+ * commit() without msg/offset args would call C commit() twice (#71)
+ * Consumer: set up callstate on dealloc to allow callbacks (#66)
+ * Added statistics callback support (#43)
+ * Add timestamp() to Messages
+
+Version 0.9.2
+^^^^^^^^^^^^^
+
+ * on_commit: handle NULL offsets list (on error)
+ * Fix 32-bit arch build warnings
+ * Destroy rd_kafka_t handle on consumer.close() (#30)
+ * Handle None error_cb and dr_cb
+ * Added CallState to track per-thread C call state (fixes #19)
+ * Make sure to GC on_commit callable
+
+
+Version 0.9.1.2
+^^^^^^^^^^^^^^^
 
 * `PR-3 <https://github.com/confluentinc/confluent-kafka-python/pull/3>`_ - Add /usr/local/lib to library_dirs in setup
 * `PR-4 <https://github.com/confluentinc/confluent-kafka-python/pull/4>`_ - Py3: use bytes for Message payload and key
