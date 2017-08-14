@@ -43,5 +43,6 @@ try:
 
     schema.RecordSchema.__hash__ = _hash_func
     schema.PrimitiveSchema.__hash__ = _hash_func
+    schema.UnionSchema.__hash__ = _hash_func
 except ImportError:
     schema = None
