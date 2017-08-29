@@ -1575,6 +1575,7 @@ static PyObject *_init_cimpl (void) {
 	Py_INCREF(&ConsumerType);
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
+#if PY_VERSION_HEX >= 0x02070000
 	KafkaException = PyErr_NewExceptionWithDoc(
 		"cimpl.KafkaException",
 		"Kafka exception that wraps the :py:class:`KafkaError` "
@@ -1584,6 +1585,9 @@ static PyObject *_init_cimpl (void) {
 		":py:class:`KafkaError` object\n"
 		"\n",
 		NULL, NULL);
+#else
+        KafkaException = PyErr_NewException("cimpl.KafkaException", NULL, NULL);
+#endif
 	Py_INCREF(KafkaException);
 	PyModule_AddObject(m, "KafkaException", KafkaException);
 
