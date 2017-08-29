@@ -68,7 +68,7 @@ c.close()
 **AvroProducer**
 
 ```python
-from confluent_kafka import avro 
+from confluent_kafka import avro
 from confluent_kafka.avro import AvroProducer
 
 value_schema = avro.load('ValueSchema.avsc')
@@ -103,7 +103,7 @@ while running:
     except SerializerError as e:
         print("Message deserialization failed for %s: %s" % (msg, e))
         running = False
-        
+
 c.close()
 ```
 
@@ -120,12 +120,12 @@ by the broker, thus you will need to hint the Python client what protocol
 version it may use. This is done through two configuration settings:
 
  * `broker.version.fallback=YOUR_BROKER_VERSION` (default 0.9.0.1)
- * `api.version.request=true|false` (default false)
+ * `api.version.request=true|false` (default true)
 
-When using a Kafka 0.10 broker or later you only need to set
-`api.version.request=true`.
-If you use Kafka broker 0.9 or 0.8 you should leave
-`api.version.request=false` (default) and set
+When using a Kafka 0.10 broker or later you don't need to do anything
+(`api.version.request=true` is the default).
+If you use Kafka broker 0.9 or 0.8 you must set
+`api.version.request=false` and set
 `broker.version.fallback` to your broker version,
 e.g `broker.version.fallback=0.9.0.1`.
 
@@ -136,17 +136,19 @@ https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 Prerequisites
 =============
 
- * Python >= 2.7 or Python 3.x
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.1
- 
- 
-For **Debian/Ubuntu**** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
+ * Python >= 2.6 or Python 3.x
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.1 (embedded in Linux wheels)
+
+librdkafka is embedded in the manylinux wheels, for other platforms or
+when a specific version of librdkafka is desired, following these guidelines:
+
+  * For **Debian/Ubuntu**** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
 http://docs.confluent.io/current/installation.html#installation-apt
 
-For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
+ * For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
 http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
-On **OSX**, use **homebrew** and do `sudo brew install librdkafka`
+ * On **OSX**, use **homebrew** and do `sudo brew install librdkafka`
 
 
 Install
@@ -155,7 +157,7 @@ Install
 **Install from PyPi:**
 
     $ pip install confluent-kafka
-    
+
     # for AvroProducer or AvroConsumer
     $ pip install confluent-kafka[avro]
 
