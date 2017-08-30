@@ -29,6 +29,8 @@ test -f configure ||
 curl -sL "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
     tar -xz --strip-components=1 -f -
 
+./configure --clean
+make clean
 ./configure --prefix="$PREFIXDIR"
 make -j
 make install

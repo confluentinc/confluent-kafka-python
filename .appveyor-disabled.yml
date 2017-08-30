@@ -1,0 +1,25 @@
+environment:
+  global:
+    CIBW_TEST_REQUIRES: pytest requests avro
+    CIBW_TEST_COMMAND: "pytest --import-mode=append --ignore={project}\\tests\\avro {project}\\tests"
+    # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
+    # /E:ON and /V:ON options are not enabled in the batch script intepreter
+    # See: http://stackoverflow.com/a/13751649/163740
+    CMD_IN_ENV: "cmd /E:ON /V:ON /C .\\tools\\appveyor\\run_with_env.cmd"
+
+#install:
+
+build_script:
+  - dir c:\python27
+  - dir c:\python27\include
+  - "curl https://raw.githubusercontent.com/chemeris/msinttypes/master/inttypes.h -o c:\\python27\\include\\inttypes.h"
+  - "curl https://raw.githubusercontent.com/chemeris/msinttypes/master/stdint.h -o c:\\python27\\include\\stdint.h"
+  - nuget install librdkafka.redist -OutputDirectory dest
+  - pip install https://github.com/joerick/cibuildwheel/archive/master.zip
+  - set INCLUDE=C:\\projects\\confluent-kafka-python\\dest\\librdkafka.redist.0.11.0\\build\\native\\include\\;%INCLUDE%
+  - set LIB=C:\\projects\\confluent-kafka-python\\dest\\librdkafka.redist.0.11.0\\runtimes\\win7-x64\\native;%LIB%
+  - cibuildwheel --output-dir wheelhouse
+
+artifacts:
+  - path: "wheelhouse\\*.whl"
+    name: Wheels
