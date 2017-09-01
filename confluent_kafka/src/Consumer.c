@@ -123,7 +123,7 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	topics = rd_kafka_topic_partition_list_new((int)PyList_Size(tlist));
 	for (pos = 0 ; pos < PyList_Size(tlist) ; pos++) {
 		PyObject *o = PyList_GetItem(tlist, pos);
-		PyObject *uo;
+		PyObject *uo, *uo8;
 		if (!(uo = cfl_PyObject_Unistr(o))) {
 			PyErr_Format(PyExc_TypeError,
 				     "expected list of unicode strings");
@@ -131,8 +131,9 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 			return NULL;
 		}
 		rd_kafka_topic_partition_list_add(topics,
-						  cfl_PyUnistr_AsUTF8(uo),
+						  cfl_PyUnistr_AsUTF8(uo, &uo8),
 						  RD_KAFKA_PARTITION_UA);
+                Py_XDECREF(uo8);
 		Py_DECREF(uo);
 	}
 
@@ -284,6 +285,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 			return NULL;
 	} else if (msg) {
 		Message *m;
+                PyObject *uo8;
 
 		if (PyObject_Type((PyObject *)msg) !=
 		    (PyObject *)&MessageType) {
@@ -296,8 +298,9 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 
 		c_offsets = rd_kafka_topic_partition_list_new(1);
 		rd_kafka_topic_partition_list_add(
-			c_offsets, cfl_PyUnistr_AsUTF8(m->topic),
+			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
 			m->partition)->offset =m->offset + 1;
+                Py_XDECREF(uo8);
 
 	} else {
 		c_offsets = NULL;

@@ -664,19 +664,27 @@ static PyMemberDef TopicPartition_members[] = {
 
 
 static PyObject *TopicPartition_str0 (TopicPartition *self) {
-	PyObject *errstr = self->error == Py_None ? NULL :
-		cfl_PyObject_Unistr(self->error);
+        PyObject *errstr = NULL;
+        PyObject *errstr8 = NULL;
+        const char *c_errstr = NULL;
 	PyObject *ret;
 	char offset_str[40];
+
 	snprintf(offset_str, sizeof(offset_str), "%"PRId64"", self->offset);
+
+        if (self->error != Py_None) {
+                errstr = cfl_PyObject_Unistr(self->error);
+                c_errstr = cfl_PyUnistr_AsUTF8(errstr, &errstr8);
+        }
+
 	ret = cfl_PyUnistr(
 		_FromFormat("TopicPartition{topic=%s,partition=%"PRId32
 			    ",offset=%s,error=%s}",
 			    self->topic, self->partition,
 			    offset_str,
-			    errstr ? cfl_PyUnistr_AsUTF8(errstr) : "None"));
-	if (errstr)
-		Py_DECREF(errstr);
+			    c_errstr ? c_errstr : "None"));
+        Py_XDECREF(errstr8);
+        Py_XDECREF(errstr);
 	return ret;
 }
 
@@ -996,8 +1004,8 @@ static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
 	}
 
 	while (PyDict_Next(dict, &pos, &ko, &vo)) {
-		PyObject *ks;
-		PyObject *vs;
+		PyObject *ks, *ks8;
+		PyObject *vs, *vs8;
 		const char *k;
 		const char *v;
 		char errstr[256];
@@ -1017,19 +1025,23 @@ static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
 			return -1;
 		}
 
-		k = cfl_PyUnistr_AsUTF8(ks);
-		v = cfl_PyUnistr_AsUTF8(vs);
+		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		v = cfl_PyUnistr_AsUTF8(vs, &vs8);
 
 		if (rd_kafka_topic_conf_set(tconf, k, v,
 					    errstr, sizeof(errstr)) !=
 		    RD_KAFKA_CONF_OK) {
 			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
 					 "%s: %s", what, errstr);
+                        Py_XDECREF(ks8);
+                        Py_XDECREF(vs8);
 			Py_DECREF(ks);
 			Py_DECREF(vs);
 			return -1;
 		}
 
+                Py_XDECREF(ks8);
+                Py_XDECREF(vs8);
 		Py_DECREF(ks);
 		Py_DECREF(vs);
 	}
@@ -1070,7 +1082,8 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 		if ((vs = cfl_PyObject_Unistr(valobj))) {
 			/* Use built-in C partitioners,
 			 * based on their name. */
-			val = cfl_PyUnistr_AsUTF8(vs);
+                        PyObject *vs8;
+			val = cfl_PyUnistr_AsUTF8(vs, &vs8);
 
 			if (!strcmp(val, "random"))
 				rd_kafka_topic_conf_set_partitioner_cb(
@@ -1087,10 +1100,12 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 					"unknown builtin partitioner: %s "
 					"(available: random, consistent, consistent_random)",
 					val);
+                                Py_XDECREF(vs8);
 				Py_DECREF(vs);
 				return -1;
 			}
 
+                        Py_XDECREF(vs8);
 			Py_DECREF(vs);
 
 		} else {
@@ -1210,8 +1225,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	/* Convert kwargs dict to config key-value pairs. */
 	while (PyDict_Next(kwargs, &pos, &ko, &vo)) {
-		PyObject *ks;
-		PyObject *vs = NULL;
+		PyObject *ks, *ks8;
+		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k;
 		const char *v;
 		char errstr[256];
@@ -1226,7 +1241,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			return NULL;
 		}
 
-		k = cfl_PyUnistr_AsUTF8(ks);
+		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 		if (!strcmp(k, "default.topic.config")) {
 			if (populate_topic_conf(tconf, k, vo) == -1) {
 				Py_DECREF(ks);
@@ -1234,7 +1249,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				rd_kafka_conf_destroy(conf);
 				return NULL;
 			}
-
+                        Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
 
@@ -1245,6 +1260,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_XDECREF(ks8);
 				Py_DECREF(ks);
 				return NULL;
                         }
@@ -1256,6 +1272,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				h->error_cb = vo;
 				Py_INCREF(h->error_cb);
 			}
+                        Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
 		} else if (!strcmp(k, "stats_cb")) {
@@ -1265,6 +1282,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_XDECREF(ks8);
 				Py_DECREF(ks);
 				return NULL;
                         }
@@ -1277,6 +1295,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				h->stats_cb = vo;
 				Py_INCREF(h->stats_cb);
 			}
+                        Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
 		}
@@ -1288,6 +1307,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			r = consumer_conf_set_special(h, conf, tconf, k, vo);
 		if (r == -1) {
 			/* Error */
+                        Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
@@ -1312,10 +1332,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "unicode string");
                                 rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
+                                Py_XDECREF(ks8);
                                 Py_DECREF(ks);
                                 return NULL;
                         }
-                        v = cfl_PyUnistr_AsUTF8(vs);
+                        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
                 }
 
 		if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
@@ -1324,12 +1345,16 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					  "%s", errstr);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_XDECREF(vs8);
                         Py_XDECREF(vs);
+                        Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			return NULL;
 		}
 
+                Py_XDECREF(vs8);
                 Py_XDECREF(vs);
+                Py_XDECREF(ks8);
 		Py_DECREF(ks);
 	}
 

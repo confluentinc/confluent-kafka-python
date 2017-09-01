@@ -64,8 +64,15 @@
 
 /**
  * @returns Unicode Python object as char * in UTF-8 encoding
+ * @param uobjp might be set to NULL or a new object reference (depending
+ *              on Python version) which needs to be cleaned up with
+ *              Py_XDECREF() after finished use of the returned string.
  */
-#define cfl_PyUnistr_AsUTF8(X)  PyUnicode_AsUTF8(X)
+static __inline const char *
+cfl_PyUnistr_AsUTF8 (PyObject *o, PyObject **uobjp) {
+        *uobjp = NULL; /* No intermediary object needed in Py3 */
+        return PyUnicode_AsUTF8(o);
+}
 
 /**
  * @returns Unicode Python string object
@@ -77,7 +84,11 @@
 /* See comments above */
 #define cfl_PyBin(X)    PyString ## X
 #define cfl_PyUnistr(X) PyUnicode ## X
-#define cfl_PyUnistr_AsUTF8(X) PyBytes_AsString(PyUnicode_AsUTF8String(X))
+static __inline const char *
+cfl_PyUnistr_AsUTF8 (PyObject *o, PyObject **uobjp) {
+        *uobjp = PyUnicode_AsUTF8String(o); /*UTF8 intermediary object on Py2*/
+        return PyBytes_AsString(*uobjp);
+}
 #define cfl_PyObject_Unistr(X) PyObject_Unicode(X)
 #endif
 
