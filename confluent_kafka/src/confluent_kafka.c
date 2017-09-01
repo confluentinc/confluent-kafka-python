@@ -1210,6 +1210,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				   const void *, size_t, int32_t,
 				   void *, void *) = partitioner_cb;
 
+        if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
+                PyErr_Format(PyExc_RuntimeError,
+                             "%s: librdkafka version %s (0x%x) detected",
+                             MIN_VER_ERRSTR, rd_kafka_version_str(),
+                             rd_kafka_version());
+                return NULL;
+        }
+
 	if (!kwargs) {
 		/* If no kwargs, fall back on single dict arg, if any. */
 		if (!args || !PyTuple_Check(args) || PyTuple_Size(args) < 1 ||
