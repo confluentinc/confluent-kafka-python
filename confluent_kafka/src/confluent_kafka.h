@@ -20,6 +20,14 @@
 
 #include <librdkafka/rdkafka.h>
 
+#if RD_KAFKA_VERSION < 0x0090100
+#ifdef __APPLE__
+#error "confluent-kafka-python requires librdkafka v0.9.1 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#else
+#error "confluent-kafka-python requires librdkafka v0.9.1 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#endif
+#endif
+
 #if PY_MAJOR_VERSION >= 3
 #define PY3
 #include <bytesobject.h>
