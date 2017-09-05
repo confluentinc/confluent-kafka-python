@@ -14,9 +14,9 @@ if [[ -z $PREFIX ]]; then
 fi
 
 set -ex
+set -o pipefail
 
 echo "# Building OpenSSL ${OPENSSL_VERSION}"
-
 
 if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
     echo "No usable build-openssl directory: downloading ${OPENSSL_VERSION}"
@@ -32,7 +32,14 @@ fi
 
 ./config --prefix=${PREFIX} zlib no-krb5 zlib shared
 echo "## building openssl"
-time make -j 2>&1 | tail -20
+if ! time make -j 2>&1 | tail -20 ; then
+    echo "## Make failed, cleaning up and retrying"
+    time make clean 2>&1 | tail -20
+    rm -f test/PASSED
+    echo "## building openssl (retry)"
+    time make -j 2>&1 | tail -20 ; then
+fi
+
 if [[ ! -f test/PASSED ]]; then
     echo "## testing openssl"
     time make test 2>&1 | tail -20

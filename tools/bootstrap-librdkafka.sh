@@ -4,13 +4,18 @@
 # Downloads, builds and installs librdkafka into <install-dir>
 #
 
-set -e
+if [[ $1 == "--require-ssl" ]]; then
+    REQUIRE_SSL=1
+    shift
+fi
 
 VERSION=$1
 PREFIXDIR=$2
 
+set -e
+
 if [[ -z "$VERSION" ]]; then
-    echo "Usage: $0 <librdkafka-version> [<install-dir>]" 1>&2
+    echo "Usage: $0 --require-ssl <librdkafka-version> [<install-dir>]" 1>&2
     exit 1
 fi
 
@@ -32,6 +37,12 @@ curl -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
 ./configure --clean
 make clean
 ./configure --prefix="$PREFIXDIR"
+
+if [[ $REQUIRE_SSL == 1 ]]; then
+    grep '^#define WITH_SSL 2$' config.h || \
+        (echo "ERROR: OpenSSL support required" ; cat config.log ; exit 1)
+fi
+
 make -j
 make install
 popd
