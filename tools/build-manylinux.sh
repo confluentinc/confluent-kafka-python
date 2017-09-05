@@ -14,10 +14,6 @@
 # Usage in container:
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux1_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
-# NOTE: Keep this updated to make sure we always build the latest
-#       version of OpenSSL in the 1.0 release train.
-OPENSSL_VERSION=1.0.2l
-
 LIBRDKAFKA_VERSION=$1
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
@@ -47,30 +43,14 @@ fi
 # Running in container
 #
 
-function install_openssl {
-    rm -rf build-openssl
-    mkdir -p build-openssl
-    pushd build-openssl
-    curl -s -l https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
-        tar -xz --strip-components=1 -f -
-    ./config --prefix=/usr/local zlib no-krb5 zlib shared
-    echo "## building openssl"
-    make 2>&1 | tail -50
-    echo "## testing openssl"
-    make test 2>&1 | tail -50
-    echo "## installing openssl"
-    make install 2>&1 | tail -50
-    popd
-}
-
 echo "# Installing basic system dependencies"
 yum install -y zlib-devel gcc-c++
 
-echo "# Building OpenSSL ${OPENSSL_VERSION}"
-install_openssl
+# Build OpenSSL
+$(dirname $0)/build-openssl.sh /usr
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
-$(dirname $0)/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} /usr/local
+$(dirname $0)/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} /usr
 
 # Compile wheels
 echo "# Compile"
