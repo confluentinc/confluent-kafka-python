@@ -24,11 +24,11 @@ curl -s -l https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
     tar -xz --strip-components=1 -f -
 ./config --prefix=${PREFIX} zlib no-krb5 zlib shared
 echo "## building openssl"
-make 2>&1 | tail -50
+time make -j 2>&1 | tail -20
 echo "## testing openssl"
-make test 2>&1 | tail -50
+time make -j test 2>&1 | tail -20
 echo "## installing openssl"
-make install 2>&1 | tail -50
+time make install 2>&1 | tail -20
 popd
 
 
