@@ -69,6 +69,9 @@ function run_all_with_docker {
     if [[ -z $_wheels ]]; then
         echo "No wheels in wheelhouse/, must run build-manylinux.sh first"
         exit 1
+    else
+        echo "Wheels:"
+        ls wheelhouse/*.whl
     fi
 
     for DOCKER_IMAGE in $DOCKER_IMAGES; do

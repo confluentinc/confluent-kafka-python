@@ -17,16 +17,26 @@ set -ex
 
 echo "# Building OpenSSL ${OPENSSL_VERSION}"
 
-rm -rf build-openssl
-mkdir -p build-openssl
-pushd build-openssl
-curl -s -l https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
-    tar -xz --strip-components=1 -f -
+
+if [[ ! -f build-openssl/config ]]; then
+    rm -rf build-openssl
+    mkdir -p build-openssl
+    pushd build-openssl
+    curl -s -l https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
+        tar -xz --strip-components=1 -f -
+else
+    echo "Reusing existing build-openssl directory"
+    pushd build-openssl
+fi
+
 ./config --prefix=${PREFIX} zlib no-krb5 zlib shared
 echo "## building openssl"
 time make -j 2>&1 | tail -20
-echo "## testing openssl"
-time make -j test 2>&1 | tail -20
+if [[ ! -f test/PASSED ]]; then
+    echo "## testing openssl"
+    time make test 2>&1 | tail -20
+    touch test/PASSED
+fi
 echo "## installing openssl"
 time make install 2>&1 | tail -20
 popd
