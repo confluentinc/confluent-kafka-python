@@ -20,7 +20,7 @@ matrix:
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.9.2
   # cibuildwheel for osx
   - os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
@@ -31,7 +31,7 @@ matrix:
     services: docker
 
 install:
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; bash tools/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install --upgrade pip && pip install pytest-timeout flake8 ; fi
  - if [[ ! -z $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel==0.4.1 ; fi
 

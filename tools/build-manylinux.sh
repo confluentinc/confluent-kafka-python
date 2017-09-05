@@ -50,7 +50,7 @@ yum install -y zlib-devel gcc-c++
 $(dirname $0)/build-openssl.sh /usr
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
-$(dirname $0)/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} /usr
+$(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
 
 # Compile wheels
 echo "# Compile"

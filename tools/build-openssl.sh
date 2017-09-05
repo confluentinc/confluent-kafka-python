@@ -32,12 +32,12 @@ fi
 
 ./config --prefix=${PREFIX} zlib no-krb5 zlib shared
 echo "## building openssl"
-if ! time make -j 2>&1 | tail -20 ; then
+if ! make -j 2>&1 | tail -20 ; then
     echo "## Make failed, cleaning up and retrying"
     time make clean 2>&1 | tail -20
     rm -f test/PASSED
     echo "## building openssl (retry)"
-    time make -j 2>&1 | tail -20 ; then
+    time make -j 2>&1 | tail -20
 fi
 
 if [[ ! -f test/PASSED ]]; then

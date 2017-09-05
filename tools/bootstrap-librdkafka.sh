@@ -39,8 +39,8 @@ make clean
 ./configure --prefix="$PREFIXDIR"
 
 if [[ $REQUIRE_SSL == 1 ]]; then
-    grep '^#define WITH_SSL 2$' config.h || \
-        (echo "ERROR: OpenSSL support required" ; cat config.log ; exit 1)
+    grep '^#define WITH_SSL 1$' config.h || \
+        (echo "ERROR: OpenSSL support required" ; cat config.log config.h ; exit 1)
 fi
 
 make -j
