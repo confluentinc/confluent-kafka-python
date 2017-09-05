@@ -24,7 +24,7 @@ function run_single_in_docker {
     # Run single test inside docker container
 
     # Detect OS
-    if grep -qi centos /etc/system-release ; then
+    if grep -qi centos /etc/system-release /etc/redhat-release ; then
         setup_centos
     elif grep -qi ubuntu /etc/os-release ; then
         setup_ubuntu

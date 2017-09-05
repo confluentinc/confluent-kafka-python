@@ -18,7 +18,8 @@ set -ex
 echo "# Building OpenSSL ${OPENSSL_VERSION}"
 
 
-if [[ ! -f build-openssl/config ]]; then
+if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
+    echo "No usable build-openssl directory: downloading ${OPENSSL_VERSION}"
     rm -rf build-openssl
     mkdir -p build-openssl
     pushd build-openssl

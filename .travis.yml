@@ -41,7 +41,7 @@ script:
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
  - if [[ ! -z $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse ; ls -la wheelhouse/ ; fi
- - if [[ $TRAVIS_OS_NAME == linux && ! -z $CIBW_BEFORE_BUILD ]]; then DOCKER_IMAGES=quay.io/pypa/manylinux1_x86_64:latest tools/test-manylinux.sh ; fi
+ - if [[ $TRAVIS_OS_NAME == linux && ! -z $CIBW_BEFORE_BUILD ]]; then DOCKER_IMAGES=centos:6.6 tools/test-manylinux.sh ; fi
 
 
 deploy:
