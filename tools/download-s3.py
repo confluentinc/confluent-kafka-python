@@ -20,7 +20,6 @@
 #   p-confluent-kafka-python__bld-travis__plat-linux__tag-__sha-112130ce297656ea1c39e7c94c99286f95133a24__bid-271588764__/confluent_kafka-0.11.0-cp35-cp35m-manylinux1_x86_64.whl
 
 
-import sys
 import re
 import os
 import argparse
@@ -31,9 +30,8 @@ s3_bucket = 'librdkafka-ci-packages'
 dry_run = False
 
 
-
 class Artifact (object):
-    def __init__ (self, arts, path, info=None):
+    def __init__(self, arts, path, info=None):
         self.path = path
         # Remove unexpanded AppVeyor $(..) tokens from filename
         self.fname = re.sub(r'\$\([^\)]+\)', '', os.path.basename(path))
@@ -42,13 +40,12 @@ class Artifact (object):
         self.arts = arts
         arts.artifacts.append(self)
 
-    def __repr__ (self):
+    def __repr__(self):
         return self.path
 
-    def download (self, dirpath):
+    def download(self, dirpath):
         """ Download artifact from S3 and store in dirpath directory.
             If the artifact is already downloaded nothing is done. """
-        dest = self.lpath
         if os.path.isfile(self.lpath) and os.path.getsize(self.lpath) > 0:
             return
         print('Downloading %s -> %s' % (self.path, self.lpath))
@@ -58,7 +55,7 @@ class Artifact (object):
 
 
 class Artifacts (object):
-    def __init__ (self, gitref, dlpath):
+    def __init__(self, gitref, dlpath):
         super(Artifacts, self).__init__()
         self.gitref = gitref
         self.artifacts = list()
@@ -66,41 +63,9 @@ class Artifacts (object):
         self.dlpath = dlpath
         if not os.path.isdir(self.dlpath):
             if not dry_run:
-                os.makedirs(self.dlpath, 0755)
+                os.makedirs(self.dlpath, 0o755)
 
-    def collect_single (self, path, folder):
-        """ Collect single entry
-         :param: path string: S3 or local path to file
-         :param: folder string: S3 folder name
-        """
-        folder = os.path.dirname(key.key)
-
-        rinfo = re.findall(r'(?P<tag>[^-]+)-(?P<val>.*?)__', folder)
-        if rinfo is None or len(rinfo) == 0:
-            # print('Incorrect folder/file name format for %s' % folder)
-            return None
-
-        info = dict(rinfo)
-
-        # Ignore AppVeyor Debug builds
-        if info.get('bldtype', '').lower() == 'debug':
-            print('Ignoring debug artifact %s' % folder)
-            return None
-
-        tag = info.get('tag', None)
-        if tag is not None and (len(tag) == 0 or tag.startswith('$(')):
-            # AppVeyor doesn't substite $(APPVEYOR_REPO_TAG_NAME)
-            # with an empty value when not set, it leaves that token
-            # in the string - so translate that to no tag.
-            tag = None
-
-        sha = info.get('sha', None)
-        if (tag is not None and tag == self.gitref) or (sha is not None and sha.startswith(self.gitref)):
-            return Artifact(self, path, info, lpath=lpath)
-
-        return None
-
-    def collect_single_s3 (self, path):
+    def collect_single_s3(self, path):
         """ Collect single S3 artifact
          :param: path string: S3 path
         """
@@ -136,8 +101,7 @@ class Artifacts (object):
 
         return None
 
-
-    def collect_s3 (self):
+    def collect_s3(self):
         """ Collect and download build-artifacts from S3 based on git reference """
         print('Collecting artifacts matching tag/sha %s from S3 bucket %s' % (self.gitref, s3_bucket))
         self.s3 = boto3.resource('s3')
@@ -149,7 +113,7 @@ class Artifacts (object):
         for a in self.artifacts:
             a.download(self.dlpath)
 
-    def collect_local (self, path):
+    def collect_local(self, path):
         """ Collect artifacts from a local directory possibly previously
         collected from s3 """
         for f in os.listdir(path):
@@ -159,12 +123,13 @@ class Artifacts (object):
             Artifact(self, lpath)
 
 
-
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--no-s3", help="Don't collect from S3", action="store_true")
-    parser.add_argument("--dry-run", help="Locate artifacts but don't actually download or do anything", action="store_true")
+    parser.add_argument("--dry-run",
+                        help="Locate artifacts but don't actually download or do anything",
+                        action="store_true")
     parser.add_argument("--directory", help="Download directory (default: dl-<gitref>)", default=None)
     parser.add_argument("tag", help="Tag or git SHA to collect")
 
