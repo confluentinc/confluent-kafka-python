@@ -3,6 +3,15 @@
 
 # cibuildwheel builder for Linux
 
+LIBRDKAFKA_VERSION=$1
+
+if [[ -z $LIBRDKAFKA_VERSION ]]; then
+    echo "Usage: $0 <librdkafka-version/tag/gitref>"
+    exit 1
+fi
+
+set -ex
+
 echo "# Installing basic system dependencies"
 yum install -y zlib-devel gcc-c++
 

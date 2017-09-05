@@ -5,6 +5,7 @@
 
 set -ex
 
+echo "$0 running from $(pwd): $*"
 
 function setup_centos {
     # CentOS container setup
@@ -39,6 +40,13 @@ function run_single_in_docker {
     pip install confluent_kafka --no-index -f /io/wheelhouse
     pip install pytest
 
+    # Verify that OpenSSL and zlib are properly linked
+    python -c '
+import confluent_kafka
+
+p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
+                              "compression.codec":"gzip"})
+'
 
     pushd /io/tests
     # Remove cached files from previous runs

@@ -1,8 +1,7 @@
 #env:
 #  global:
   # Wheel tests are not working due to some .cimpl import weirdness.
-  #- CIBW_TEST_REQUIRES="pytest requests avro"
-  #- CIBW_TEST_COMMAND="pytest {project}/tests"
+  #-  CIBW_TEST_REQUIRES="pytest requests avro" CIBW_TEST_COMMAND="pytest {project}/tests"
 
 matrix:
  include:
@@ -11,7 +10,7 @@ matrix:
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh master"
     language: python
     python: "2.7"
     services: docker
@@ -22,6 +21,10 @@ install:
 script:
 - cibuildwheel --output-dir wheelhouse
 - ls -la wheelhouse/
+
+test:
+- if [[ $TRAVIS_OS_NAME == linux ]]; then DOCKER_IMAGES=quay.io/pypa/manylinux1_x86_64:latest tools/test-manylinux.sh ; fi
+
 
 deploy:
   provider: s3
