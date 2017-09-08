@@ -2,10 +2,14 @@
 #
 #
 # Tests the manylinux wheels on a plethora of bare-bone Linux docker images.
+# To override docker images to test, set env DOCKER_IMAGES.
+#
+# Usage outside of docker:
+#  $ tools/test-manylinux.sh
 
 set -ex
 
-echo "$0 running from $(pwd): $*"
+echo "$0 running from $(pwd)"
 
 function setup_centos {
     # CentOS container setup
@@ -26,7 +30,7 @@ function run_single_in_docker {
     # Detect OS
     if grep -qi centos /etc/system-release /etc/redhat-release ; then
         setup_centos
-    elif grep -qi ubuntu /etc/os-release ; then
+    elif grep -qiE 'ubuntu|debian' /etc/os-release ; then
         setup_ubuntu
     else
         echo "WARNING: Don't know what platform I'm on: $(uname -a)"
@@ -62,7 +66,9 @@ function run_all_with_docker {
     # This is executed on the host.
 
     [[ ! -z $DOCKER_IMAGES ]] || \
-        DOCKER_IMAGES="ubuntu:14.04 ubuntu:devel centos:6.6 centos:latest"
+        # LTS and stable release of popular Linux distros.
+        # We require >= Python 2.7 to be avaialble (which rules out Centos 6.6)
+        DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:17.04 debian:stable centos:7"
 
 
     _wheels="wheelhouse/*manylinux*.whl"
