@@ -15,14 +15,14 @@ module = Extension('confluent_kafka.cimpl',
                             'confluent_kafka/src/Consumer.c'])
 
 setup(name='confluent-kafka',
-      version='0.11.0',
+      version='0.11.0.1rc1',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
       packages=find_packages(exclude=("tests",)),
-      data_files=[('', ['LICENSE'])],
+      data_files=[('', ['LICENSE.txt'])],
       extras_require={
           'avro': ['fastavro', 'requests', avro]
       })

@@ -1,23 +1,62 @@
-language: python
-sudo: required
-python:
-  - "2.7"
-  - "3.4"
-  - "3.5"
-env:
- global:
-    - LD_LIBRARY_PATH=$PWD/tmp-build/lib
- matrix:
-  - LIBRDKAFKA_VERSION=v0.9.2
-  - LIBRDKAFKA_VERSION=master
-before_install:
-  - rm -rf tmp-build
-  - bash tools/bootstrap-librdkafka.sh ${LIBRDKAFKA_VERSION} tmp-build
-  - pip install --upgrade pip
-  - pip install pytest-timeout
+matrix:
+ include:
+  # Source package verification with Python 2.7 and librdkafka master
+  - os: linux
+    language: python
+    dist: trusty
+    python: "2.7"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+  # Source package verification with Python 2.7 and librdkafka v0.9.2
+  - os: linux
+    language: python
+    dist: trusty
+    python: "2.7"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.9.2
+  # Source package verification with Python 3.5 and librdkafka master
+  - os: linux
+    language: python
+    dist: trusty
+    python: "3.5"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.9.2
+  # cibuildwheel for osx
+  - os: osx
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+  # cibuildwheel for manylinux
+  - os: linux
+    dist: trusty
+    sudo: required
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh master"
+    language: python
+    python: "2.7"
+    services: docker
+
 install:
-  - pip install flake8
-  - pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro]
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install --upgrade pip && pip install pytest-timeout flake8 ; fi
+ - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel==0.4.1 ; fi
+
+
 script:
-  - flake8
-  - py.test -v --timeout 20 --ignore=tmp-build --import-mode append
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
+ - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse ; ls -la wheelhouse/ ; fi
+ - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
+
+
+deploy:
+ provider: s3
+ access_key_id:
+  secure: TWG1fsfD+kWkTHB5RQNW9HDw6i7j7WlYs5oTPLLevOjFmuYhG4qCylp9ZYGqjMzL8Jl4MxydmNDSL/gXYDnNplOX9CA1qbp/pKIG1AjTda12JM6mxs9uZNUOrl4FYRteSfPP+N+25VhPA+ix8ffC/jZ/9wypdQMorn5aC6Ln0LlR3ZdG+JeiOdX2JeqO7d429iDyTzFWYZKJssW8GHGQj07OSVc3vQWBCUPJOaaVRsALKa3VZJgVXooXsjI2SORSnC4GAJhVgqzHLcs7AFVNaS2rrlF23mRcN8ePEnS76uIVk7Y2K90OeHcPgFfsTqrxFuLtHZYY68H2os+DamiERxD2xDpM28G2f3Ltb/bG7NGhuv0YHFWtwCbzB+aSJbGtUuFKqwdOwnD2PnQsVU0aX8N1lna3Fv4WVBBNXNeyKD0fbNYcTPvaOm+KSxN5/0l/BKyohjrTcVsn+6ZLdE6D5A0JfaX4sc3Lv2X+sdIc1ZLOL1OWg3eE1z4aAtKu3da8sPcP2Rb5V18uF0cBICdWP6kKtjRr+meCGw9S0Z2P3I1OLj+KfKmjrqtI7KXUTsz03npwOkbmFVprS5cXoW54kKhjrf99OhBXX7LhwJ5oKokBIDeXmUdyA+ettq5+5w5J8GgQ4MxIoY+vhy/wmcuM3yieASiftRPLFyJTr9/I6i8=
+ secret_access_key:
+  secure: G3KBqzmG7HaBznDMwNRq0qGIWiF3n96RgRnZzyvSfhRSqZq2Vv8llFo5GuCE0azzLA6Iot33x+Rugba3PbLReYoFOO87yWYT62Deq+lTwQHSEutcA1tNrW4ho+GPs2av/AhHE9e2r/xhp++2wHEvnj7Vp1HeVcmpAxkggZDkiS15GYiaVNEUa8tPL6GOcH3e8Xwcurr7dAi6KZnBFvylx0eADVPH3EAfN8TxapkT89FKjEtPZOV/srSFi5m561rW/P4+MwzBu0x01ouANdAKoAhEMubcEHANr1x8yuXlr99eapqnbfYMpaITyDbKIDSV/mVR5e/9G6xQEXs59FJJJ1bRCLF9uxIht3rlijED7WEElHJ1j2Ip9JZH0iKEPykw9vGNnjUZK2Hw4D8MvD+6jHbauZGsTeqTbh74tGxsIe/tpAZ2kmueqdO5iYK/R8louWjgmwGf+veqqQXCUw0UBnJoL5x+axp5nszQiepU/EnnyJ5bH1IB5qRUqesTYFWU/dxF7JQYie1wuAqn3ag40ir/Vg8stfjyNk8Ht0Ajpp+rgODzuURDiGutiblVpXffh83R5UZb21pI7oL6eE3HaeH20Ob6c8ELvWskM24EzS7baSJbrzatFtDw8hi0W3eeYIPqoeKC2btUavNnDkkP5mKPYQv0dsy754Yg3956SJw=
+ bucket: librdkafka-ci-packages
+ region: us-west-1
+ local-dir: wheelhouse
+ upload-dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
+ acl: public_read
+ skip_cleanup: true
+ on:
+  repo: confluentinc/confluent-kafka-python
+  tags: true
+  condition: "-n $CIBW_BEFORE_BUILD"

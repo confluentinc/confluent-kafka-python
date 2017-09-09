@@ -12,6 +12,8 @@ confluent?kafka.egg-info
 *.pyc
 .cache
 *.log
-confluent-kafka-0.*.*
+confluent-kafka-*.*.*
 tmp-build
 .tox
+wheelhouse
+dl-*
