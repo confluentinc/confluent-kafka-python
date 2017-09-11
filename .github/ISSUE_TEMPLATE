@@ -1,0 +1,24 @@
+Description
+===========
+
+
+
+
+How to reproduce
+================
+
+
+
+
+Checklist
+=========
+Please provide the following information:
+
+ - [ ] confluent-kafka-python and librdkafka version (`confluent_kafka.version()` and `confluent_kafka.libversion()`):
+ - [ ] Apache Kafka broker version:
+ - [ ] Client configuration: `{...}`
+ - [ ] Operating system:
+ - [ ] Provide client logs (with `'debug': '..'` as necessary)
+ - [ ] Provide broker log excerpts
+ - [ ] Critical issue
+
