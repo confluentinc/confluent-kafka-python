@@ -379,15 +379,13 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 		c_offsets = rd_kafka_topic_partition_list_new(1);
 		rd_kafka_topic_partition_list_add(
 			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-			m->partition)->offset =m->offset + 1;
+			m->partition)->offset = m->offset + 1;
 		Py_XDECREF(uo8);
 	}
 
 
 	err = rd_kafka_offsets_store(self->rk, c_offsets);
-
-	if (c_offsets)
-		rd_kafka_topic_partition_list_destroy(c_offsets);
+	rd_kafka_topic_partition_list_destroy(c_offsets);
 
 
 
