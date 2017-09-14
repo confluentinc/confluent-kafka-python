@@ -341,7 +341,7 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 		     "buildtime 0x%x)",
 		     rd_kafka_version(), RD_KAFKA_VERSION);
 	return NULL;
-#endif
+#else
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
 					 &msg, &offsets))
@@ -396,6 +396,7 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	}
 
 	Py_RETURN_NONE;
+#endif
 }
 
 
