@@ -81,6 +81,28 @@ def test_basic_api():
     kc.close()
 
 
+@pytest.mark.skipif(libversion()[1] < 0x000b0000,
+                    reason="requires librdkafka >=0.11.0")
+def test_store_offsets():
+    """ Basic store_offsets() tests """
+
+    c = Consumer({'group.id': 'test',
+                  'enable.auto.commit': True,
+                  'enable.auto.offset.store': False,
+                  'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100})
+
+    c.subscribe(["test"])
+
+    try:
+        c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
+    except KafkaException as e:
+        assert e.args[0].code() == KafkaError._UNKNOWN_PARTITION
+
+    c.unsubscribe()
+    c.close()
+
+
 # librdkafka <=0.9.2 has a race-issue where it will hang indefinately
 # if a commit is issued when no coordinator is available.
 @pytest.mark.skipif(libversion()[1] <= 0x000902ff,
