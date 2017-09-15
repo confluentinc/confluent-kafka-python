@@ -325,6 +325,82 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 
 
 
+static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
+						PyObject *kwargs) {
+
+#if RD_KAFKA_VERSION < 0x000b0000
+	PyErr_Format(PyExc_NotImplementedError,
+		     "Consumer store_offsets require "
+		     "confluent-kafka-python built for librdkafka "
+		     "version >=v0.11.0 (librdkafka runtime 0x%x, "
+		     "buildtime 0x%x)",
+		     rd_kafka_version(), RD_KAFKA_VERSION);
+	return NULL;
+#else
+	rd_kafka_resp_err_t err;
+	PyObject *msg = NULL, *offsets = NULL;
+	rd_kafka_topic_partition_list_t *c_offsets;
+	static char *kws[] = { "message", "offsets", NULL };
+
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
+					 &msg, &offsets))
+		return NULL;
+
+	if (msg && offsets) {
+		PyErr_SetString(PyExc_ValueError,
+				"message and offsets are mutually exclusive");
+		return NULL;
+	}
+
+	if (!msg && !offsets) {
+		PyErr_SetString(PyExc_ValueError,
+				"expected either message or offsets");
+		return NULL;
+	}
+
+	if (offsets) {
+
+		if (!(c_offsets = py_to_c_parts(offsets)))
+			return NULL;
+	} else {
+		Message *m;
+		PyObject *uo8;
+
+		if (PyObject_Type((PyObject *)msg) !=
+		    (PyObject *)&MessageType) {
+			PyErr_Format(PyExc_TypeError,
+				     "expected %s", MessageType.tp_name);
+			return NULL;
+		}
+
+		m = (Message *)msg;
+
+		c_offsets = rd_kafka_topic_partition_list_new(1);
+		rd_kafka_topic_partition_list_add(
+			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
+			m->partition)->offset = m->offset + 1;
+		Py_XDECREF(uo8);
+	}
+
+
+	err = rd_kafka_offsets_store(self->rk, c_offsets);
+	rd_kafka_topic_partition_list_destroy(c_offsets);
+
+
+
+	if (err) {
+		cfl_PyErr_Format(err,
+				 "StoreOffsets failed: %s", rd_kafka_err2str(err));
+		return NULL;
+	}
+
+	Py_RETURN_NONE;
+#endif
+}
+
+
+
 static PyObject *Consumer_committed (Handle *self, PyObject *args,
 					 PyObject *kwargs) {
 
@@ -570,6 +646,22 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: KafkaException\n"
           "\n"
         },
+	{ "store_offsets", (PyCFunction)Consumer_store_offsets, METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: store_offsets([message=None], [offsets=None])\n"
+	  "\n"
+	  "  Store offsets for a message or a list of offsets.\n"
+	  "\n"
+	  "  ``message`` and ``offsets`` are mutually exclusive. "
+	  "The stored offsets will be committed according to 'auto.commit.interval.ms' or manual "
+	  "offset-less :py:meth:`commit`. "
+	  "Note that 'enable.auto.offset.store' must be set to False when using this API.\n"
+	  "\n"
+	  "  :param confluent_kafka.Message message: Store message's offset+1.\n"
+	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to store.\n"
+	  "  :rtype: None\n"
+	  "  :raises: KafkaException\n"
+	  "\n"
+	},
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
 	  "\n"
