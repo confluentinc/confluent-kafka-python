@@ -328,11 +328,6 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 						PyObject *kwargs) {
 
-	rd_kafka_resp_err_t err;
-	PyObject *msg = NULL, *offsets = NULL;
-	rd_kafka_topic_partition_list_t *c_offsets;
-	static char *kws[] = { "message", "offsets", NULL };
-
 #if RD_KAFKA_VERSION < 0x000b0000
 	PyErr_Format(PyExc_NotImplementedError,
 		     "Consumer store_offsets require "
@@ -342,6 +337,11 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 		     rd_kafka_version(), RD_KAFKA_VERSION);
 	return NULL;
 #else
+	rd_kafka_resp_err_t err;
+	PyObject *msg = NULL, *offsets = NULL;
+	rd_kafka_topic_partition_list_t *c_offsets;
+	static char *kws[] = { "message", "offsets", NULL };
+
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
 					 &msg, &offsets))
