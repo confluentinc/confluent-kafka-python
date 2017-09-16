@@ -26,7 +26,10 @@ class AvroProducer(Producer):
     """
 
     def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None):
+                 default_value_schema=None,
+                 schema_registry=None,
+                 default_key_schema_id=None,
+                 default_value_schema_id=None):
         schema_registry_url = config.pop("schema.registry.url", None)
         if schema_registry is None:
             if schema_registry_url is None:
@@ -39,6 +42,8 @@ class AvroProducer(Producer):
         self._serializer = MessageSerializer(schema_registry)
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
+        self._key_schema_id = default_key_schema_id
+        self._value_schema_id = default_value_schema_id
 
     def produce(self, **kwargs):
         """
@@ -53,6 +58,8 @@ class AvroProducer(Producer):
         # get schemas from  kwargs if defined
         key_schema = kwargs.pop('key_schema', self._key_schema)
         value_schema = kwargs.pop('value_schema', self._value_schema)
+        key_schema_id = kwargs.pop('key_schema_id', self._key_schema_id)
+        value_schema_id = kwargs.pop('value_schema_id', self._value_schema_id)
         topic = kwargs.pop('topic', None)
         if not topic:
             raise ClientError("Topic name not specified.")
@@ -62,12 +69,16 @@ class AvroProducer(Producer):
         if value:
             if value_schema:
                 value = self._serializer.encode_record_with_schema(topic, value_schema, value)
+            elif value_schema_id:
+                value = self._serializer.encode_record_with_schema_id(value_schema_id, value)
             else:
                 raise ValueSerializerError("Avro schema required for values")
 
         if key:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
+            elif key_schema_id:
+                key = self._serializer.encode_record_with_schema_id(key_schema_id, key, True)
             else:
                 raise KeySerializerError("Avro schema required for key")
 

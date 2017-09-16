@@ -101,3 +101,16 @@ class TestAvroProducer(unittest.TestCase):
         schema_registry = MockSchemaRegistryClient()
         with self.assertRaises(ValueError):
             AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)
+
+    def test_produce_fetch_schema_by_id(self):
+        schema_registry = MockSchemaRegistryClient()
+        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+        topic = 'test'
+        # register schemas outside of AvroProducer
+        value_schema_id = schema_registry.register(topic+'-value', value_schema)
+        key_schema_id = schema_registry.register(topic+'-key', key_schema)
+        producer = AvroProducer({}, schema_registry=schema_registry)
+        # fetch schemas based on ids during produce
+        producer.produce(topic=topic, value={"name": 'abc"'}, key='mykey', value_schema_id=value_schema_id,
+                         key_schema_id=key_schema_id)
