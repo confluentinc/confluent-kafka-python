@@ -27,9 +27,9 @@ class AvroProducer(Producer):
 
     def __init__(self, config, default_key_schema=None,
                  default_value_schema=None,
-                 default_value_schema_id=None,
+                 schema_registry=None,
                  default_key_schema_id=None,
-                 schema_registry=None):
+                 default_value_schema_id=None):
         schema_registry_url = config.pop("schema.registry.url", None)
         if schema_registry is None:
             if schema_registry_url is None:
