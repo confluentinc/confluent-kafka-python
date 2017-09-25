@@ -39,7 +39,7 @@ MAGIC_BYTE = 0
 
 HAS_FAST = False
 try:
-    from fastavro.reader import read_data
+    from fastavro.reader import schemaless_reader
 
     HAS_FAST = True
 except:
@@ -170,7 +170,7 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 schema_dict = schema.to_json()
-                read_data(payload, schema_dict)
+                schemaless_reader(payload, schema_dict)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines
@@ -178,7 +178,7 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict)
                 return self.id_to_decoder_func[schema_id]
             except:
                 pass
