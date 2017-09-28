@@ -39,7 +39,7 @@ MAGIC_BYTE = 0
 
 HAS_FAST = False
 try:
-    from fastavro.reader import schemaless_reader
+    from fastavro import schemaless_reader
 
     HAS_FAST = True
 except:
