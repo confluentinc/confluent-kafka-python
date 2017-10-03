@@ -743,6 +743,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "see :py:func::`poll()` for more info.\n"
 	  "\n"
 	  "  :rtype: None\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ NULL }
