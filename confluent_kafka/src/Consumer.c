@@ -861,7 +861,7 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
         if (self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer already __init__:ialized");
+                                "Consumer already initialized");
                 return -1;
         }
 
