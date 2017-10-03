@@ -15,6 +15,8 @@ def test_version():
     assert len(sver) > 0
     assert iver > 0
 
+    assert confluent_kafka.version()[0] == confluent_kafka.__version__
+
 
 # global variable for error_cb call back function
 seen_error_cb = False
