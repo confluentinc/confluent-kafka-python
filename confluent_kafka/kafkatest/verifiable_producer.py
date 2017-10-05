@@ -131,10 +131,10 @@ if __name__ == '__main__':
     # Flush remaining messages to broker.
     vp.dbg('Flushing')
     try:
-        vp.producer.flush()
+        vp.producer.flush(5)
     except KeyboardInterrupt:
         pass
 
-    vp.send({'name': 'shutdown_complete'})
+    vp.send({'name': 'shutdown_complete', '_qlen': len(vp.producer)})
 
     vp.dbg('All done')
