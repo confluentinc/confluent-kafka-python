@@ -727,8 +727,11 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
                                      (int)(tmout * 1000.0f) : -1);
 
-        if (!CallState_end(self, &cs))
+        if (!CallState_end(self, &cs)) {
+                if (rkm)
+                        rd_kafka_message_destroy(rkm);
                 return NULL;
+        }
 
         if (!rkm)
                 Py_RETURN_NONE;
