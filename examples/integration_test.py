@@ -453,7 +453,9 @@ def verify_consumer():
         elif (msg.offset() % 4) == 0:
             offsets = c.commit(msg, async=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-            assert offsets[0].offset == msg.offset()+1, 'expected offset %d to be committed, not %s' % (msg.offset(), offsets)
+            assert offsets[0].offset == msg.offset()+1, \
+                'expected offset %d to be committed, not %s' % \
+                (msg.offset(), offsets)
             print('Sync committed offset: %s' % offsets)
 
         msgcnt += 1

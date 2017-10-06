@@ -171,7 +171,9 @@ class VerifiableConsumer(VerifiableClient):
                 if e.args[0].code() == KafkaError._NO_OFFSET:
                     self.dbg('No offsets to commit')
                     break
-                elif e.args[0].code() in (KafkaError.REQUEST_TIMED_OUT, KafkaError.NOT_COORDINATOR_FOR_GROUP, KafkaError._WAIT_COORD):
+                elif e.args[0].code() in (KafkaError.REQUEST_TIMED_OUT,
+                                          KafkaError.NOT_COORDINATOR_FOR_GROUP,
+                                          KafkaError._WAIT_COORD):
                     self.dbg('Commit failed: %s (%d retries)' % (str(e), retries))
                     if retries <= 0:
                         raise
