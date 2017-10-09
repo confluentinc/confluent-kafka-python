@@ -158,3 +158,22 @@ def test_subclassing():
     sc = SubConsumer({"group.id": "test", "session.timeout.ms": "90"})
     sc.poll("astring")
     sc.close()
+
+
+def test_multiple_close_throw_exception():
+    """ Calling Consumer.close() multiple times should throw Runtime Exception
+    """
+    c = Consumer({'group.id': 'test',
+                  'enable.auto.commit': True,
+                  'enable.auto.offset.store': False,
+                  'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100})
+
+    c.subscribe(["test"])
+
+    c.unsubscribe()
+    c.close()
+
+    with pytest.raises(RuntimeError) as ex:
+        c.close()
+        assert 'Consumer already closed' == str(ex.value)

@@ -550,19 +550,25 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
 
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
-	CallState cs;
+        CallState cs;
 
-	CallState_begin(self, &cs);
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer already closed");
+                return NULL;
+        }
 
-	rd_kafka_consumer_close(self->rk);
+        CallState_begin(self, &cs);
 
-	rd_kafka_destroy(self->rk);
-	self->rk = NULL;
+        rd_kafka_consumer_close(self->rk);
+
+        rd_kafka_destroy(self->rk);
+        self->rk = NULL;
 
         if (!CallState_end(self, &cs))
                 return NULL;
 
-	Py_RETURN_NONE;
+        Py_RETURN_NONE;
 }
 
 
@@ -736,6 +742,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "see :py:func::`poll()` for more info.\n"
 	  "\n"
 	  "  :rtype: None\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ NULL }
