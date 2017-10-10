@@ -198,40 +198,40 @@ def test_any_method_after_close_throws_exception():
 
     with pytest.raises(RuntimeError) as ex:
         c.unsubscribe()
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.poll()
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.assign([TopicPartition('test', 0)])
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.unassign()
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.assignment()
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.commit()
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.committed([TopicPartition("test", 0)])
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         c.position([TopicPartition("test", 0)])
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
-    assert 'Consumer already closed' == str(ex.value)
+    assert 'Consumer closed' == str(ex.value)
