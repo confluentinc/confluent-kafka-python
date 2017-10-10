@@ -217,10 +217,6 @@ def test_any_method_after_close_throws_exception():
     assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
-        c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
-    assert 'Consumer closed' == str(ex.value)
-
-    with pytest.raises(RuntimeError) as ex:
         c.commit()
     assert 'Consumer closed' == str(ex.value)
 
@@ -234,4 +230,24 @@ def test_any_method_after_close_throws_exception():
 
     with pytest.raises(RuntimeError) as ex:
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
+    assert 'Consumer closed' == str(ex.value)
+
+
+@pytest.mark.skipif(libversion()[1] < 0x000b0000,
+                    reason="requires librdkafka >=0.11.0")
+def test_calling_store_offsets_after_close_throws_erro():
+    """ calling store_offset after close should throw RuntimeError """
+
+    c = Consumer({'group.id': 'test',
+                  'enable.auto.commit': True,
+                  'enable.auto.offset.store': False,
+                  'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100})
+
+    c.subscribe(["test"])
+    c.unsubscribe()
+    c.close()
+
+    with pytest.raises(RuntimeError) as ex:
+        c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
     assert 'Consumer closed' == str(ex.value)
