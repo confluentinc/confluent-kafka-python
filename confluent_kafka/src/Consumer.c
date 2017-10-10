@@ -98,6 +98,12 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	Py_ssize_t pos = 0;
 	rd_kafka_resp_err_t err;
 
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OO", kws,
 					 &tlist, &on_assign, &on_revoke))
 		return NULL;
@@ -178,6 +184,12 @@ static PyObject *Consumer_unsubscribe (Handle *self,
 
 	rd_kafka_resp_err_t err;
 
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
+
 	err = rd_kafka_unsubscribe(self->rk);
 	if (err) {
 		cfl_PyErr_Format(err,
@@ -194,6 +206,12 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 
 	rd_kafka_topic_partition_list_t *c_parts;
 	rd_kafka_resp_err_t err;
+
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
 
 	if (!(c_parts = py_to_c_parts(tlist)))
 		return NULL;
@@ -219,6 +237,12 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
 	rd_kafka_resp_err_t err;
 
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
+
 	self->u.Consumer.rebalance_assigned++;
 
 	err = rd_kafka_assign(self->rk, NULL);
@@ -238,6 +262,12 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
         PyObject *plist;
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer already closed");
+                return NULL;
+        }
 
         err = rd_kafka_assignment(self->rk, &c_parts);
         if (err) {
@@ -264,6 +294,12 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	int async = 1;
 	static char *kws[] = { "message", "offsets", "async",NULL };
+
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOO", kws,
 					 &msg, &offsets, &async_o))
@@ -342,6 +378,11 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	static char *kws[] = { "message", "offsets", NULL };
 
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
 					 &msg, &offsets))
@@ -410,6 +451,12 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 	double tmout = -1.0f;
 	static char *kws[] = { "partitions", "timeout", NULL };
 
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
+
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
 					 &plist, &tmout))
 		return NULL;
@@ -444,6 +491,12 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_parts;
 	rd_kafka_resp_err_t err;
 	static char *kws[] = { "partitions", NULL };
+
+    if (!self->rk) {
+            PyErr_SetString(PyExc_RuntimeError,
+                            "Consumer already closed");
+            return NULL;
+    }
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
 					 &plist))
@@ -481,6 +534,12 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
         int64_t low = RD_KAFKA_OFFSET_INVALID, high = RD_KAFKA_OFFSET_INVALID;
         static char *kws[] = { "partition", "timeout", "cached", NULL };
         PyObject *rtup;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer already closed");
+                return NULL;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|db", kws,
                                          (PyObject **)&tp, &tmout, &cached))
@@ -527,6 +586,12 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         rd_kafka_message_t *rkm;
         PyObject *msgobj;
         CallState cs;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer already closed");
+                return NULL;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
@@ -594,6 +659,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "rebalance operation.\n"
 	  "\n"
 	  "  :raises KafkaException:\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	  "\n"
 	  ".. py:function:: on_assign(consumer, partitions)\n"
@@ -605,7 +671,9 @@ static PyMethodDef Consumer_methods[] = {
 	},
         { "unsubscribe", (PyCFunction)Consumer_unsubscribe, METH_NOARGS,
           "  Remove current subscription.\n"
+          "\n"
           "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
 	{ "poll", (PyCFunction)Consumer_poll,
@@ -625,6 +693,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param float timeout: Maximum time to block waiting for message, event or callback.\n"
 	  "  :returns: A Message object or None on timeout\n"
 	  "  :rtype: :py:class:`Message` or None\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ "assign", (PyCFunction)Consumer_assign, METH_O,
@@ -634,11 +703,13 @@ static PyMethodDef Consumer_methods[] = {
 	  ":py:class:`TopicPartition` and starts consuming.\n"
 	  "\n"
 	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming.\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
         { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
           "  Removes the current partition assignment and stops consuming.\n"
           "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
         { "assignment", (PyCFunction)Consumer_assignment,
@@ -650,6 +721,7 @@ static PyMethodDef Consumer_methods[] = {
           "  :returns: List of assigned topic+partitions.\n"
           "  :rtype: list(TopicPartition)\n"
           "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
 	{ "store_offsets", (PyCFunction)Consumer_store_offsets, METH_VARARGS|METH_KEYWORDS,
@@ -666,6 +738,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to store.\n"
 	  "  :rtype: None\n"
 	  "  :raises: KafkaException\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
@@ -682,6 +755,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param bool async: Asynchronous commit, return immediately.\n"
 	  "  :rtype: None\n"
 	  "  :raises: KafkaException\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},	  
 	{ "committed", (PyCFunction)Consumer_committed,
@@ -696,6 +770,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
 	  "  :rtype: list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ "position", (PyCFunction)Consumer_position,
@@ -710,6 +785,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
 	  "  :rtype: list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
+      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
         { "get_watermark_offsets", (PyCFunction)Consumer_get_watermark_offsets,
@@ -726,6 +802,7 @@ static PyMethodDef Consumer_methods[] = {
           "  :returns: Tuple of (low,high) on success or None on timeout.\n"
           "  :rtype: tuple(int,int)\n"
           "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
