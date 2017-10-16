@@ -1,8 +1,0 @@
-FIXME: Instructions on how to use this.
-
-
-Usage:
-
-   python -m confluent_kafka.kafkatest.verifiable_consumer <options>
-
-   python -m confluent_kafka.kafkatest.verifiable_producer <options>

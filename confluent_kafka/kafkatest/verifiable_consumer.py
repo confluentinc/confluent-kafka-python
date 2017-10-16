@@ -224,12 +224,15 @@ if __name__ == '__main__':
     parser.add_argument('--assignment-strategy', dest='partition.assignment.strategy')
     parser.add_argument('--reset-policy', dest='topic.auto.offset.reset', default='earliest')
     parser.add_argument('--consumer.config', dest='consumer_config')
+    parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
             'default.topic.config': dict()}
 
     VerifiableClient.set_config(conf, args)
+
+    conf.update([x[0].split('=') for x in args.get('extra_conf', [])])
 
     vc = VerifiableConsumer(conf)
     vc.use_auto_commit = args['enable.auto.commit']

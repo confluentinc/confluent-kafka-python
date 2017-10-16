@@ -1,5 +1,6 @@
 build
 _build
+build-*
 dist
 *~
 \#*
@@ -17,3 +18,4 @@ tmp-build
 .tox
 wheelhouse
 dl-*
+*.whl

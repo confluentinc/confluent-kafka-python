@@ -69,12 +69,15 @@ if __name__ == '__main__':
     parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
     parser.add_argument('--acks', type=int, dest='topic.request.required.acks', default=-1)
     parser.add_argument('--producer.config', dest='producer_config')
+    parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
             'default.topic.config': dict()}
 
     VerifiableClient.set_config(conf, args)
+
+    conf.update([x[0].split('=') for x in args.get('extra_conf', [])])
 
     vp = VerifiableProducer(conf)
 
