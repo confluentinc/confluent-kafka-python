@@ -63,7 +63,7 @@ fi
 # Inside our docker
 #
 
-if [[ $# -ne $2 ]]; then
+if [[ $# -ne 2 ]]; then
     echo "Inner usage: $0 --in-docker <librdkafka_tag>"
     exit 1
 fi
