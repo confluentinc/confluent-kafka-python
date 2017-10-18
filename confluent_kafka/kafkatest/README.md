@@ -34,7 +34,7 @@ wheels.
 
 From the confluent-kafka-python top-level directory, run:
 
-    $ CIBW_SKIP="cp3 *cpi686*" tools/cibuildwheel-build.sh wheels
+    $ CIBW_SKIP="cp3* *i686*" tools/cibuildwheel-build.sh wheels
 
 After about 5 minutes the resulting Python wheels should be available in
 the wheels/ directory.
