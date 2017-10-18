@@ -4,7 +4,7 @@
 # Deploys confluent-kafka-python (with dependencies) on kafkatest VM instance.
 #
 
-set -e
+set -ex
 
 if [[ $1 == "--prepare" ]]; then
     #
@@ -57,9 +57,6 @@ DIR=$1
 if [[ -z $DIR ]]; then
     DIR=/tmp
 fi
-
-echo $DIR
-exit 0
 
 [[ -d $DIR ]] || mkdir -p $DIR
 pushd $DIR
