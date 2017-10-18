@@ -21,7 +21,7 @@ if [[ $1 != "--in-docker" ]]; then
     # Outside our docker
     LIBRDKAFKA_VERSION=$1
     outdir=$2
-    [[ ! -d $outdir ]] || mkdir -p $outdir
+    [[ -d $outdir ]] || mkdir -p $outdir
 
     docker_image=quay.io/pypa/manylinux1_x86_64
 
