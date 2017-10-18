@@ -4,12 +4,14 @@
 # Builds autonomous Python packages including all available dependencies
 # using docker.
 #
-# This is a tiny linux alternative to cibuildwheel as a workaround
-# to provide --volumes-from=.. on docker-in-docker builds.
+# This is a tiny linux alternative to cibuildwheel on linux that does
+# not rely on Docker volumes to work (such as for docker-in-docker).
+#
+# The in-docker portion of this script is based on cibuildwheel's counterpart.
 #
 
-if [[ $# -lt 3 ]]; then
-    echo "Usage: $0 <librdkafka_tag> <repo-dir-full-path> <relative-out-dir>"
+if [[ $# -ne 2 ]]; then
+    echo "Usage: $0 <librdkafka_tag> <out-dir>"
     exit 1
 fi
 
@@ -17,28 +19,60 @@ set -ex
 
 if [[ $1 != "--in-docker" ]]; then
     # Outside our docker
-    workdir=$2
-    if [[ -f /.dockerenv ]]; then
-        echo "$0: $HOSTNAME: Currently running from inside docker: exposing host mounts"
-        docker run -i --volumes-from=$HOSTNAME quay.io/pypa/manylinux1_x86_64 $workdir/tools/build-linux-selfcontained.sh --in-docker $1 $2 $3
-    else
-        echo "$0: $HOSTNAME: Not currently running from inside docker: exposing $2 as volume"
-        docker run -i -v $workdir:$workdir quay.io/pypa/manylinux1_x86_64 $workdir/tools/build-linux-selfcontained.sh --in-docker $1 $2 $3
-    fi
+    LIBRDKAFKA_VERSION=$1
+    outdir=$2
+    [[ ! -d $outdir ]] || mkdir -p $outdir
+
+    docker_image=quay.io/pypa/manylinux1_x86_64
+
+    script_in_docker=/tmp/$(basename $0)
+
+    # Create container
+    container=$(basename $(mktemp -u pywhlXXXXXX))
+    docker create -i --name $container $docker_image $script_in_docker --in-docker $LIBRDKAFKA_VERSION
+
+    # Create archive
+    git archive -o src.tar.gz HEAD
+
+    # Copy this script to container
+    docker cp $0 $container:$script_in_docker
+
+    # Copy archive to container
+    docker cp src.tar.gz $container:/tmp/
+
+    # Run this script in docker
+    docker start -i $container
+
+    # Copy artifacts from container
+    rm -rf $outdir/output
+    docker cp $container:/output $outdir/
+    mv $outdir/output/* $outdir/
+    rm -rf $outdir/output
+
+    # Remove container
+    docker rm $container
+
+    echo "Artifacts now available in $outdir:"
+    ls -la $outdir/
+
     exit 0
 fi
+
 
 #
 # Inside our docker
 #
+
+if [[ $# -ne $2 ]]; then
+    echo "Inner usage: $0 --in-docker <librdkafka_tag>"
+    exit 1
+fi
 
 echo "$0: $HOSTNAME: Run"
 
 shift # remove --in-docker
 
 LIBRDKAFKA_VERSION=$1
-WORKDIR=$2
-OUTDIR=$3
 
 
 function install_deps {
@@ -49,7 +83,7 @@ function install_deps {
         yum install -y zlib-devel gcc gcc-c++ libstdc++-devel
 
         # Build OpenSSL
-        $(dirname $0)/build-openssl.sh /usr
+        tools/build-openssl.sh /usr
 
     fi
 }
@@ -57,16 +91,19 @@ function install_deps {
 function build_librdkafka {
     local dest=$1
     echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
-    $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} $dest
+    tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} $dest
 
 }
 
 
 function build {
     local workdir=$1
-    local outdir=$2
+    local outdir=/output
 
+    mkdir -p $workdir
     pushd $workdir
+
+    tar xvzf /tmp/src.tar.gz
 
     install_deps
 
@@ -101,10 +138,13 @@ function build {
 
         # we're all done here; move it to output
         mv "$delocated_wheel" $outdir/
+        ls -la $outdir/
     done
 
     popd # workdir
 }
 
-build $WORKDIR $OUTDIR
+echo "$0: $HOSTNAME: Building in docker"
+build /build
+echo "$0: $HOSTNAME: Done"
 
