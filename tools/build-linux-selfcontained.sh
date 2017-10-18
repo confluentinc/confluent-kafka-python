@@ -44,10 +44,8 @@ if [[ $1 != "--in-docker" ]]; then
     docker start -i $container
 
     # Copy artifacts from container
-    ls -lR $outdir/
     rm -rf $outdir/output
     docker cp $container:/output $outdir/
-    ls -lR $outdir/
     mv $outdir/output/* $outdir/
     rm -rf $outdir/output
 
@@ -85,7 +83,7 @@ function install_deps {
         yum install -y zlib-devel gcc gcc-c++ libstdc++-devel
 
         # Build OpenSSL
-        #tools/build-openssl.sh /usr
+        tools/build-openssl.sh /usr
 
     fi
 }
