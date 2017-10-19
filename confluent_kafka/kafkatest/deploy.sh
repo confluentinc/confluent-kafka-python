@@ -72,12 +72,13 @@ function setup_virtualenv {
         echo "Installing and creating virtualenv"
         which virtualenv || sudo apt-get install -y python-virtualenv
         virtualenv $DIR/venv
+        source $DIR/venv/bin/activate
+        # Upgrade pip
+        pip install -U pip
     else
         echo "Reusing existing virtualenv"
+        source $DIR/venv/bin/activate
     fi
-    source $DIR/venv/bin/activate
-    # Upgrade pip
-    pip install -U pip
 
 }
 
@@ -113,9 +114,13 @@ setup_virtualenv
 # librdkafka is bundled with the wheel, if not, install it here:
 #install_librdkafka
 
-install_client
-
-verify_client
+if ! verify_client ; then
+    echo "Client not installed, installing..."
+    install_client
+    verify_client
+else
+    echo "Client already installed"
+fi
 
 
 

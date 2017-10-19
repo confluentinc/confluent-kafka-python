@@ -16,6 +16,8 @@
 #
 
 import argparse
+import os
+import time
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from verifiable_client import VerifiableClient
 
@@ -95,10 +97,10 @@ class VerifiableConsumer(VerifiableClient):
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
         self.send_records_consumed(immediate=True)
+        self.do_commit(immediate=True, async=False)
         self.assignment = list()
         self.assignment_dict = dict()
         self.send_assignment('revoked', partitions)
-        self.do_commit(immediate=True)
 
     def on_commit(self, err, partitions):
         """ Offsets Committed callback """
@@ -125,6 +127,10 @@ class VerifiableConsumer(VerifiableClient):
                 pd['error'] = str(p.error)
             d['offsets'].append(pd)
 
+        if len(self.assignment) == 0:
+            self.dbg('Not sending offsets_committed: No current assignment: would be: %s' % d)
+            return
+
         self.send(d)
 
     def do_commit(self, immediate=False, async=None):
@@ -149,15 +155,33 @@ class VerifiableConsumer(VerifiableClient):
                  (self.consumed_msgs - self.consumed_msgs_at_last_commit,
                   async_mode))
 
-        try:
-            self.consumer.commit(async=async_mode)
-        except KafkaException as e:
-            if e.args[0].code() == KafkaError._WAIT_COORD:
-                self.dbg('Ignoring commit failure, still waiting for coordinator')
-            elif e.args[0].code() == KafkaError._NO_OFFSET:
-                self.dbg('No offsets to commit')
-            else:
-                raise
+        retries = 3
+        while True:
+            try:
+                self.dbg('Commit')
+                offsets = self.consumer.commit(async=async_mode)
+                self.dbg('Commit done: offsets %s' % offsets)
+
+                if not async_mode:
+                    self.on_commit(None, offsets)
+
+                break
+
+            except KafkaException as e:
+                if e.args[0].code() == KafkaError._NO_OFFSET:
+                    self.dbg('No offsets to commit')
+                    break
+                elif e.args[0].code() in (KafkaError.REQUEST_TIMED_OUT,
+                                          KafkaError.NOT_COORDINATOR_FOR_GROUP,
+                                          KafkaError._WAIT_COORD):
+                    self.dbg('Commit failed: %s (%d retries)' % (str(e), retries))
+                    if retries <= 0:
+                        raise
+                    retries -= 1
+                    time.sleep(1)
+                    continue
+                else:
+                    raise
 
         self.consumed_msgs_at_last_commit = self.consumed_msgs
 
@@ -168,7 +192,7 @@ class VerifiableConsumer(VerifiableClient):
                 # ignore EOF
                 pass
             else:
-                self.err('Consume failed: %s' % msg.error(), term=True)
+                self.err('Consume failed: %s' % msg.error(), term=False)
             return
 
         if False:
@@ -192,6 +216,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.consumed_msgs += 1
 
+        self.consumer.store_offsets(message=msg)
         self.send_records_consumed(immediate=False)
         self.do_commit(immediate=False)
 
@@ -229,7 +254,11 @@ if __name__ == '__main__':
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
-            'default.topic.config': dict()}
+            'default.topic.config': dict(),
+            # Do explicit manual offset stores to avoid race conditions
+            # where a message is consumed from librdkafka but not yet handled
+            # by the Python code that keeps track of last consumed offset.
+            'enable.auto.offset.store': False}
 
     VerifiableClient.set_config(conf, args)
 
@@ -239,6 +268,7 @@ if __name__ == '__main__':
     vc.use_auto_commit = args['enable.auto.commit']
     vc.max_msgs = args['max_messages']
 
+    vc.dbg('Pid %d' % os.getpid())
     vc.dbg('Using config: %s' % conf)
 
     vc.dbg('Subscribing to %s' % args['topic'])
@@ -261,6 +291,8 @@ if __name__ == '__main__':
             vc.msg_consume(msg)
 
     except KeyboardInterrupt:
+        vc.dbg('KeyboardInterrupt')
+        vc.run = False
         pass
 
     vc.dbg('Closing consumer')

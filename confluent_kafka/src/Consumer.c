@@ -285,6 +285,84 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
 }
 
 
+/**
+ * @brief Global offset commit on_commit callback trampoline triggered
+ *        from poll() et.al
+ */
+static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
+                                       rd_kafka_topic_partition_list_t *c_parts,
+                                       void *opaque) {
+        Handle *self = opaque;
+        PyObject *parts, *k_err, *args, *result;
+        CallState *cs;
+
+        if (!self->u.Consumer.on_commit)
+                return;
+
+        cs = CallState_get(self);
+
+        /* Insantiate error object */
+        k_err = KafkaError_new_or_None(err, NULL);
+
+        /* Construct list of TopicPartition based on 'c_parts' */
+        if (c_parts)
+                parts = c_parts_to_py(c_parts);
+        else
+                parts = PyList_New(0);
+
+        args = Py_BuildValue("(OO)", k_err, parts);
+
+        Py_DECREF(k_err);
+        Py_DECREF(parts);
+
+        if (!args) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                 "Unable to build callback args");
+                CallState_crash(cs);
+                CallState_resume(cs);
+                return;
+        }
+
+        result = PyObject_CallObject(self->u.Consumer.on_commit, args);
+
+        Py_DECREF(args);
+
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_crash(cs);
+                rd_kafka_yield(rk);
+        }
+
+        CallState_resume(cs);
+}
+
+/**
+ * @brief Simple struct to pass results from commit from offset_commit_return_cb
+ *        back to offset_commit() return value.
+ */
+struct commit_return {
+        rd_kafka_resp_err_t err;
+        rd_kafka_topic_partition_list_t *c_parts;
+};
+
+/**
+ * @brief Simple offset_commit_cb to pass the callback information
+ *        as return value from commit() through the commit_return struct.
+ *        Triggered from rd_kafka_commit_queue().
+ */
+static void
+Consumer_offset_commit_return_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
+                                  rd_kafka_topic_partition_list_t *c_parts,
+                                  void *opaque) {
+        struct commit_return *commit_return = opaque;
+
+        commit_return->err = err;
+        if (c_parts)
+                commit_return->c_parts =
+                        rd_kafka_topic_partition_list_copy(c_parts);
+}
+
 
 static PyObject *Consumer_commit (Handle *self, PyObject *args,
 					PyObject *kwargs) {
@@ -294,6 +372,9 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	int async = 1;
 	static char *kws[] = { "message", "offsets", "async",NULL };
+        rd_kafka_queue_t *rkqu = NULL;
+        struct commit_return commit_return;
+        PyThreadState *thread_state;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -342,28 +423,73 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		c_offsets = NULL;
 	}
 
-			
-	err = rd_kafka_commit(self->rk, c_offsets, async);
+        if (async) {
+                /* Async mode: Use consumer queue for offset commit callback,
+                 *             served by consumer_poll() */
+                rkqu = rd_kafka_queue_get_consumer(self->rk);
 
-	if (c_offsets)
-		rd_kafka_topic_partition_list_destroy(c_offsets);
+        } else {
+                /* Sync mode: Let commit_queue() trigger the callback. */
+                memset(&commit_return, 0, sizeof(commit_return));
 
+                /* Unlock GIL while we are blocking. */
+                thread_state = PyEval_SaveThread();
+        }
 
+        err = rd_kafka_commit_queue(self->rk, c_offsets, rkqu,
+                                    async ?
+                                    Consumer_offset_commit_cb :
+                                    Consumer_offset_commit_return_cb,
+                                    async ?
+                                    (void *)self : (void *)&commit_return);
 
-	if (err) {
-		cfl_PyErr_Format(err,
-				 "Commit failed: %s", rd_kafka_err2str(err));
-		return NULL;
-	}
+        if (c_offsets)
+                rd_kafka_topic_partition_list_destroy(c_offsets);
 
-	Py_RETURN_NONE;
+        if (async) {
+                /* Loose reference to consumer queue */
+                rd_kafka_queue_destroy(rkqu);
+
+        } else {
+                /* Re-lock GIL */
+                PyEval_RestoreThread(thread_state);
+
+                /* Honour inner error (richer) from offset_commit_return_cb */
+                if (commit_return.err)
+                        err = commit_return.err;
+        }
+
+        if (err) {
+                /* Outer error from commit_queue() */
+                if (!async && commit_return.c_parts)
+                        rd_kafka_topic_partition_list_destroy(commit_return.c_parts);
+
+                cfl_PyErr_Format(err,
+                                 "Commit failed: %s", rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        if (async) {
+                /* async commit returns None when commit is in progress */
+                Py_RETURN_NONE;
+
+        } else {
+                PyObject *plist;
+
+                /* sync commit returns the topic,partition,offset,err list */
+                assert(commit_return.c_parts);
+
+                plist = c_parts_to_py(commit_return.c_parts);
+                rd_kafka_topic_partition_list_destroy(commit_return.c_parts);
+
+                return plist;
+        }
 }
 
 
 
 static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 						PyObject *kwargs) {
-
 #if RD_KAFKA_VERSION < 0x000b0000
 	PyErr_Format(PyExc_NotImplementedError,
 		     "Consumer store_offsets require "
@@ -601,8 +727,11 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
                                      (int)(tmout * 1000.0f) : -1);
 
-        if (!CallState_end(self, &cs))
+        if (!CallState_end(self, &cs)) {
+                if (rkm)
+                        rd_kafka_message_destroy(rkm);
                 return NULL;
+        }
 
         if (!rkm)
                 Py_RETURN_NONE;
@@ -752,8 +881,10 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  :param confluent_kafka.Message message: Commit message's offset+1.\n"
 	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
-	  "  :param bool async: Asynchronous commit, return immediately.\n"
-	  "  :rtype: None\n"
+	  "  :param bool async: Asynchronous commit, return None immediately. "
+          "If False the commit() call will block until the commit succeeds or "
+          "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition will need to be checked for success.\n"
+	  "  :rtype: None|list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
@@ -888,53 +1019,6 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 }
 
 
-static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
-				       rd_kafka_topic_partition_list_t *c_parts,
-				       void *opaque) {
-	Handle *self = opaque;
-	PyObject *parts, *k_err, *args, *result;
-	CallState *cs;
-
-	if (!self->u.Consumer.on_commit)
-		return;
-
-	cs = CallState_get(self);
-
-	/* Insantiate error object */
-	k_err = KafkaError_new_or_None(err, NULL);
-
-	/* Construct list of TopicPartition based on 'c_parts' */
-	if (c_parts)
-		parts = c_parts_to_py(c_parts);
-	else
-		parts = PyList_New(0);
-
-	args = Py_BuildValue("(OO)", k_err, parts);
-
-	Py_DECREF(k_err);
-	Py_DECREF(parts);
-
-	if (!args) {
-		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
-				 "Unable to build callback args");
-		CallState_crash(cs);
-		CallState_resume(cs);
-		return;
-	}
-
-	result = PyObject_CallObject(self->u.Consumer.on_commit, args);
-
-	Py_DECREF(args);
-
-	if (result)
-		Py_DECREF(result);
-	else {
-		CallState_crash(cs);
-		rd_kafka_yield(rk);
-	}
-
-	CallState_resume(cs);
-}
 
 
 
