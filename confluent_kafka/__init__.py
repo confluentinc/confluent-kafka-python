@@ -14,3 +14,6 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_END,
                     OFFSET_STORED,
                     OFFSET_INVALID)
+
+
+__version__ = version()[0]
