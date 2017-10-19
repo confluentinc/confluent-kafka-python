@@ -120,8 +120,9 @@ class VerifiableConsumer(VerifiableClient):
             d['error'] = ''
 
         for p in partitions:
-            pd = {'topic': p.topic, 'partition': p.partition,
-                  'offset': p.offset, 'error': str(p.error)}
+            pd = {'topic': p.topic, 'partition': p.partition, 'offset': p.offset}
+            if p.error is not None:
+                pd['error'] = str(p.error)
             d['offsets'].append(pd)
 
         self.send(d)
