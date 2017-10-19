@@ -40,6 +40,7 @@ MAGIC_BYTE = 0
 HAS_FAST = False
 try:
     from fastavro.reader import read_data
+    from fastavro.writer import schemaless_writer
 
     HAS_FAST = True
 except:
@@ -116,21 +117,22 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        # use slow avro
-        if schema_id not in self.id_to_writers:
-            # get the writer + schema
+        if HAS_FAST:
+            json_schema = self.registry_client.get_by_id(schema_id, json_format=True)
+        else:
+            if schema_id not in self.id_to_writers:
+                # get the writer + schema
 
-            try:
-                schema = self.registry_client.get_by_id(schema_id)
-                if not schema:
-                    raise serialize_err("Schema does not exist")
-                self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
-            except ClientError:
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                try:
+                    schema = self.registry_client.get_by_id(schema_id)
+                    if not schema:
+                        raise serialize_err("Schema does not exist")
+                    self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
+                except ClientError:
+                    exc_type, exc_value, exc_traceback = sys.exc_info()
+                    raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 
         # get the writer
-        writer = self.id_to_writers[schema_id]
         with ContextStringIO() as outf:
             # write the header
             # magic byte
@@ -141,12 +143,16 @@ class MessageSerializer(object):
 
             outf.write(struct.pack('>I', schema_id))
 
-            # write the record to the rest of it
-            # Create an encoder that we'll write to
-            encoder = avro.io.BinaryEncoder(outf)
-            # write the magic byte
-            # write the object in 'obj' as Avro to the fake file...
-            writer.write(record, encoder)
+            if HAS_FAST:
+                schemaless_writer(outf, json_schema, record)
+            else:
+                writer = self.id_to_writers[schema_id]
+                # write the record to the rest of it
+                # Create an encoder that we'll write to
+                encoder = avro.io.BinaryEncoder(outf)
+                # write the magic byte
+                # write the object in 'obj' as Avro to the fake file...
+                writer.write(record, encoder)
 
             return outf.getvalue()
 
@@ -154,6 +160,26 @@ class MessageSerializer(object):
     def _get_decoder_func(self, schema_id, payload):
         if schema_id in self.id_to_decoder_func:
             return self.id_to_decoder_func[schema_id]
+
+        curr_pos = payload.tell()
+        if HAS_FAST:
+            # try to use fast avro
+            try:
+                schema = self.registry_client.get_by_id(schema_id, json_format=True)
+                # here means we passed so this is something fastavro can do
+                # seek back since it will be called again for the
+                # same payload - one time hit
+                read_data(payload, schema)
+
+                # If we reach this point, this means we have fastavro and it can
+                # do this deserialization. Rewind since this method just determines
+                # the reader function and we need to deserialize again along the
+                # normal path.
+                payload.seek(curr_pos)
+                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema)
+                return self.id_to_decoder_func[schema_id]
+            except:
+                pass
 
         # fetch from schema reg
         try:
@@ -164,24 +190,6 @@ class MessageSerializer(object):
         if not schema:
             err = "unable to fetch schema with id %d" % (schema_id)
             raise SerializerError(err)
-
-        curr_pos = payload.tell()
-        if HAS_FAST:
-            # try to use fast avro
-            try:
-                schema_dict = schema.to_json()
-                read_data(payload, schema_dict)
-
-                # If we reach this point, this means we have fastavro and it can
-                # do this deserialization. Rewind since this method just determines
-                # the reader function and we need to deserialize again along the
-                # normal path.
-                payload.seek(curr_pos)
-
-                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema_dict)
-                return self.id_to_decoder_func[schema_id]
-            except:
-                pass
 
         # here means we should just delegate to slow avro
         # rewind

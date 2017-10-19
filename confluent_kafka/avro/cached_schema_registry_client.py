@@ -34,6 +34,14 @@ VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
 
+HAS_FAST = False
+try:
+    import fastavro  # noqa: F401
+
+    HAS_FAST = True
+except:
+    pass
+
 
 class CachedSchemaRegistryClient(object):
     """
@@ -52,11 +60,13 @@ class CachedSchemaRegistryClient(object):
         self.url = url.rstrip('/')
 
         self.max_schemas_per_subject = max_schemas_per_subject
-        # subj => { schema => id }
+        # subj => { avro_schema => id }
         self.subject_to_schema_ids = defaultdict(dict)
         # id => avro_schema
         self.id_to_schema = defaultdict(dict)
-        # subj => { schema => version }
+        # id => json_schema
+        self.id_to_json_schema = defaultdict(dict)
+        # subj => { avro_schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
     def _send_request(self, url, method='GET', body=None, headers=None):
@@ -104,6 +114,10 @@ class CachedSchemaRegistryClient(object):
                 self._add_to_cache(self.subject_to_schema_versions,
                                    subject, schema, version)
 
+    def _cache_json_schema(self, schema, schema_id):
+        if schema_id not in self.id_to_schema:
+            self.id_to_json_schema[schema_id] = schema.to_json()
+
     def register(self, subject, avro_schema):
         """
         POST /subjects/(string: subject)/versions
@@ -139,17 +153,22 @@ class CachedSchemaRegistryClient(object):
         schema_id = result['id']
         # cache it
         self._cache_schema(avro_schema, schema_id, subject)
+
         return schema_id
 
-    def get_by_id(self, schema_id):
+    def get_by_id(self, schema_id, json_format=False):
         """
         GET /schemas/ids/{int: id}
         Retrieve a parsed avro schema by id or None if not found
         @:param: schema_id: int value
         @:returns: Avro schema
         """
-        if schema_id in self.id_to_schema:
-            return self.id_to_schema[schema_id]
+        if json_format:
+            if schema_id in self.id_to_json_schema:
+                return self.id_to_json_schema[schema_id]
+        else:
+            if schema_id in self.id_to_schema:
+                return self.id_to_schema[schema_id]
         # fetch from the registry
         url = '/'.join([self.url, 'schemas', 'ids', str(schema_id)])
 
@@ -164,10 +183,18 @@ class CachedSchemaRegistryClient(object):
             # need to parse the schema
             schema_str = result.get("schema")
             try:
-                result = loads(schema_str)
+                avro_schema = loads(schema_str)
                 # cache it
-                self._cache_schema(result, schema_id)
-                return result
+                self._cache_schema(avro_schema, schema_id)
+
+                if HAS_FAST:
+                    json_schema = json.loads(schema_str)
+                    self._cache_json_schema(json_schema, schema_id)
+
+                    if json_format:
+                        return json_schema
+                return avro_schema
+
             except:
                 # bad schema - should not happen
                 raise ClientError("Received bad schema from registry.")

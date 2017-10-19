@@ -36,6 +36,8 @@ class MockSchemaRegistryClient(object):
         self.subject_to_schema_ids = {}
         # id => avro_schema
         self.id_to_schema = {}
+        # id => json_schema
+        self.id_to_json_schema = {}
         # subj => { schema => version }
         self.subject_to_schema_versions = {}
 
@@ -74,6 +76,7 @@ class MockSchemaRegistryClient(object):
             schema = self.id_to_schema[schema_id]
         else:
             self.id_to_schema[schema_id] = schema
+            self.id_to_json_schema[schema_id] = schema.to_json()
 
         self._add_to_cache(self.subject_to_schema_ids,
                            subject, schema, schema_id)
@@ -109,9 +112,12 @@ class MockSchemaRegistryClient(object):
         self._cache_schema(avro_schema, schema_id, subject, version)
         return schema_id
 
-    def get_by_id(self, schema_id):
+    def get_by_id(self, schema_id, json_format=False):
         """Retrieve a parsed avro schema by id or None if not found"""
-        return self.id_to_schema.get(schema_id, None)
+        if json_format:
+            return self.id_to_json_schema.get(schema_id, None)
+        else:
+            return self.id_to_schema.get(schema_id, None)
 
     def get_latest_schema(self, subject):
         """
