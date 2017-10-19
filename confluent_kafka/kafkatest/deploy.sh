@@ -72,12 +72,13 @@ function setup_virtualenv {
         echo "Installing and creating virtualenv"
         which virtualenv || sudo apt-get install -y python-virtualenv
         virtualenv $DIR/venv
+        source $DIR/venv/bin/activate
         # Upgrade pip
         pip install -U pip
     else
         echo "Reusing existing virtualenv"
+        source $DIR/venv/bin/activate
     fi
-    source $DIR/venv/bin/activate
 
 }
 
