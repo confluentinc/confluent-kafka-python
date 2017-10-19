@@ -6,6 +6,10 @@
 
 set -ex
 
+# Relative directory where we put our stuff.
+#  $KAFKA_DIR/$REL_DIR on host, and /vagrant/$REL_DIR on worker
+REL_DIR=tests/confluent-kafka-python
+
 if [[ $1 == "--prepare" ]]; then
     #
     # On host: prepare kafka directory with artifacts needed on worker instances
@@ -25,7 +29,7 @@ if [[ $1 == "--prepare" ]]; then
         exit 1
     fi
 
-    DIR="$KAFKA_DIR/tests/confluent-kafka-python"
+    DIR="$KAFKA_DIR/$REL_DIR"
     mkdir -p $DIR
 
     # Copy this script
@@ -92,7 +96,7 @@ function install_librdkafka {
 
 function install_client {
     pip uninstall -y confluent_kafka || true
-    pip install -U --only-binary confluent_kafka --no-index -f /vagrant/wheels/ confluent_kafka
+    pip install -U --only-binary confluent_kafka --no-index -f /vagrant/$REL_DIR confluent_kafka
 }
 
 function verify_client {
