@@ -1231,6 +1231,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	conf = rd_kafka_conf_new();
 	tconf = rd_kafka_topic_conf_new();
 
+        /*
+         * Default config (overridable by user)
+         */
+
+        /* Enable valid offsets in delivery reports */
+        rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
+
 	/* Convert kwargs dict to config key-value pairs. */
 	while (PyDict_Next(kwargs, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
