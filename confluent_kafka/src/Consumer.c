@@ -706,6 +706,15 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
 
 static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
                                                  PyObject *kwargs) {
+#if RD_KAFKA_VERSION < 0x000b0000
+	PyErr_Format(PyExc_NotImplementedError,
+		     "Consumer offsets_for_times require "
+		     "confluent-kafka-python built for librdkafka "
+		     "version >=v0.11.0 (librdkafka runtime 0x%x, "
+		     "buildtime 0x%x)",
+		     rd_kafka_version(), RD_KAFKA_VERSION);
+	return NULL;
+#else
 
 	PyObject *plist;
 	double tmout = -1.0f;
@@ -742,7 +751,7 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_destroy(c_parts);
 
         return plist;
-
+#endif
 }
 
 
