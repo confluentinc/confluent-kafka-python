@@ -77,7 +77,7 @@ value = {"name": "Value"}
 key = {"name": "Key"}
 
 avroProducer = AvroProducer({'bootstrap.servers': 'mybroker,mybroker2', 'schema.registry.url': 'http://schem_registry_host:port'}, default_key_schema=key_schema, default_value_schema=value_schema)
-avroProducer.produce(topic='my_topic', value=value, key=key)
+avroProducer.produce(topic='my-topic', value=value, key=key)
 avroProducer.flush()
 ```
 
@@ -89,7 +89,7 @@ from confluent_kafka.avro import AvroConsumer
 from confluent_kafka.avro.serializer import SerializerError
 
 c = AvroConsumer({'bootstrap.servers': 'mybroker,mybroker2', 'group.id': 'groupid', 'schema.registry.url': 'http://127.0.0.1:8081'})
-c.subscribe(['my_topic'])
+c.subscribe(['my-topic'])
 running = True
 while running:
     try:
