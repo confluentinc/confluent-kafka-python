@@ -168,9 +168,9 @@ class CachedSchemaRegistryClient(object):
                 # cache it
                 self._cache_schema(result, schema_id)
                 return result
-            except:
+            except ClientError as e:
                 # bad schema - should not happen
-                raise ClientError("Received bad schema from registry.")
+                raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
 
     def get_latest_schema(self, subject):
         """
@@ -204,9 +204,9 @@ class CachedSchemaRegistryClient(object):
         else:
             try:
                 schema = loads(result['schema'])
-            except:
+            except ClientError:
                 # bad schema - should not happen
-                raise ClientError("Received bad schema from registry.")
+                raise
 
         self._cache_schema(schema, schema_id, subject, version)
         return (schema_id, schema, version)
@@ -269,7 +269,8 @@ class CachedSchemaRegistryClient(object):
             else:
                 log.error("Unable to check the compatibility")
                 False
-        except:
+        except Exception as e:
+            log.error("_send_request() failed: %s", e)
             return False
 
     def update_compatibility(self, level, subject=None):

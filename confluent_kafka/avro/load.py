@@ -17,13 +17,18 @@
 
 import sys
 
+from confluent_kafka.avro.error import ClientError
+
 
 def loads(schema_str):
     """ Parse a schema given a schema string """
-    if sys.version_info[0] < 3:
-        return schema.parse(schema_str)
-    else:
-        return schema.Parse(schema_str)
+    try:
+        if sys.version_info[0] < 3:
+            return schema.parse(schema_str)
+        else:
+            return schema.Parse(schema_str)
+    except schema.AvroException.SchemaParseException as e:
+        raise ClientError("Schema parse failed: %s" % (str(e)))
 
 
 def load(fp):
@@ -44,5 +49,6 @@ try:
     schema.RecordSchema.__hash__ = _hash_func
     schema.PrimitiveSchema.__hash__ = _hash_func
     schema.UnionSchema.__hash__ = _hash_func
+
 except ImportError:
     schema = None

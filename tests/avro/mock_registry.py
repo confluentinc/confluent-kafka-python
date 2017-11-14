@@ -28,6 +28,8 @@ from threading import Thread
 
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
+from confluent_kafka.avro.error import ClientError
+
 
 if sys.version_info[0] < 3:
     import BaseHTTPServer as HTTPSERVER
@@ -120,7 +122,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         try:
             avro_schema = avro.loads(schema)
             return self._get_identity_schema(avro_schema)
-        except:
+        except ClientError:
             return None
 
     def register(self, req, groups):

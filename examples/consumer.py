@@ -59,7 +59,7 @@ if __name__ == '__main__':
             continue
         try:
             intval = int(opt[1])
-        except:
+        except ValueError:
             sys.stderr.write("Invalid option value for -T: %s\n" % opt[1])
             sys.exit(1)
 
