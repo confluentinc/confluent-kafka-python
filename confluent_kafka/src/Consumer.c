@@ -997,7 +997,7 @@ static PyMethodDef Consumer_methods[] = {
           " corresponding partition.\n"
           "\n"
           "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field."
-          "  :param float timeout: Request timeout (when cached=False).\n"
+          "  :param float timeout: Request timeout.\n"
           "  :returns: list of topic+partition with offset field set and possibly error set\n"
           "  :rtype: list(TopicPartition)\n"
           "  :raises: KafkaException\n"
