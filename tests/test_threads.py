@@ -5,7 +5,7 @@ import threading
 import time
 try:
     from queue import Queue, Empty
-except:
+except ImportError:
     from Queue import Queue, Empty
 
 
