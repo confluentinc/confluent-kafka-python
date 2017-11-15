@@ -24,7 +24,7 @@ import sys
 import json
 import re
 
-from threading import Thread
+from threading import Thread, Event
 
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
@@ -176,10 +176,17 @@ class ServerThread(Thread):
         self.server = None
         self.port = port
         self.daemon = True
+        self.started = Event()
 
     def run(self):
         self.server = MockServer(('127.0.0.1', self.port), ReqHandler)
+        self.started.set()
         self.server.serve_forever()
+
+    def start(self):
+        """Start, and wait for server to be fully started, before returning."""
+        super(ServerThread, self).start()
+        self.started.wait()
 
     def shutdown(self):
         if self.server:

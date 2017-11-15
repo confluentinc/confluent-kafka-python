@@ -20,8 +20,6 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 
-import time
-
 import unittest
 
 from tests.avro import mock_registry
@@ -34,7 +32,6 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
     def setUp(self):
         self.server = mock_registry.ServerThread(0)
         self.server.start()
-        time.sleep(1)
         self.client = CachedSchemaRegistryClient('http://127.0.0.1:' + str(self.server.server.server_port))
 
     def tearDown(self):
