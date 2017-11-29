@@ -105,7 +105,7 @@ key_schema = avro.loads(key_schema_str)
 value = {"name": "Value"}
 key = {"name": "Key"}
 
-avroProducer = AvroProducer({'bootstrap.servers': 'mybroker,mybroker2', 'schema.registry.url': 'http://schem_registry_host:port'})
+avroProducer = AvroProducer({'bootstrap.servers': 'mybroker,mybroker2', 'schema.registry.url': 'http://schema_registry_host:port'})
 avroProducer.produce(topic='my-topic', value=value, key=key, value_schema=value_schema, key_schema=key_schema)
 avroProducer.flush()
 ```
