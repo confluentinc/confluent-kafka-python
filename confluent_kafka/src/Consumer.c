@@ -15,6 +15,7 @@
  */
 
 #include "confluent_kafka.h"
+#include <stdio.h>
 
 
 /****************************************************************************
@@ -743,6 +744,67 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 }
 
 
+static PyObject *Consumer_consume (Handle *self, PyObject *args,
+                                        PyObject *kwargs) {
+        size_t num_messages = 100;
+        double tmout = -1.0f;
+        static char *kws[] = { "timeout", "num_messages", NULL };
+        rd_kafka_message_t **rkmessages;
+        PyObject *msglist;
+        rd_kafka_queue_t *rkqu = NULL;
+        CallState cs;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|nd", kws,
+					 (Py_ssize_t *)&num_messages, &tmout))
+		return NULL;
+
+        CallState_begin(self, &cs); // This unlocks GIL
+
+        rkqu = rd_kafka_queue_get_consumer(self->rk);
+
+        rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
+
+        Py_ssize_t n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
+                tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
+                rkmessages,
+                num_messages > 0 ? (size_t)num_messages : 1);
+
+        /* Loose reference to consumer queue */
+        rd_kafka_queue_destroy(rkqu);
+
+        if (!CallState_end(self, &cs)) {
+                for (Py_ssize_t i = 0; i < n; i++) {
+                        rd_kafka_message_destroy(rkmessages[i]);
+                }
+                free(rkmessages);
+                return NULL;
+        }
+
+        if (n < 0) {
+                free(rkmessages);
+                Py_RETURN_NONE;
+        }
+
+        msglist = PyList_New(n);
+
+        for (Py_ssize_t i = 0; i < n; i++) {
+                PyObject *msgobj = Message_new0(self, rkmessages[i]);
+                PyList_SET_ITEM(msglist, i, msgobj);
+                rd_kafka_message_destroy(rkmessages[i]);
+        }
+
+        free(rkmessages);
+
+        return msglist;
+}
+
+
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         CallState cs;
 
@@ -823,6 +885,28 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :returns: A Message object or None on timeout\n"
 	  "  :rtype: :py:class:`Message` or None\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
+	  "\n"
+	},
+	{ "consume", (PyCFunction)Consumer_consume,
+	  METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: consume([num_messages=None], [timeout=None])\n"
+	  "\n"
+	  "  Consume messages, calls callbacks and returns list of messages.\n"
+	  "\n"
+	  "  The application must check the returned :py:class:`Message` "
+	  "object's :py:func:`Message.error()` method to distinguish "
+	  "between proper messages (error() returns None), or an event or "
+	  "error for each :py:class:`Message` in the list (see error().code() "
+	  "for specifics).\n"
+	  "\n"
+	  "  .. note: Callbacks may be called from this method, "
+	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
+	  "\n"
+	  "  :param int num_messages: Maximum number of messages to return.\n"
+	  "  :param float timeout: Maximum time to block waiting for message, event or callback.\n"
+	  "  :returns: A list of Message objects or None on timeout\n"
+	  "  :rtype: list(Message) or None\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
 	{ "assign", (PyCFunction)Consumer_assign, METH_O,
