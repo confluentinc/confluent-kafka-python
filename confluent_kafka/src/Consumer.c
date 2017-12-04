@@ -15,7 +15,6 @@
  */
 
 #include "confluent_kafka.h"
-#include <stdio.h>
 
 
 /****************************************************************************
@@ -748,7 +747,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                                         PyObject *kwargs) {
         size_t num_messages = 100;
         double tmout = -1.0f;
-        static char *kws[] = { "timeout", "num_messages", NULL };
+        static char *kws[] = { "num_messages", "timeout", NULL };
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = NULL;
@@ -764,7 +763,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 					 (Py_ssize_t *)&num_messages, &tmout))
 		return NULL;
 
-        CallState_begin(self, &cs); // This unlocks GIL
+        CallState_begin(self, &cs);
 
         rkqu = rd_kafka_queue_get_consumer(self->rk);
 
