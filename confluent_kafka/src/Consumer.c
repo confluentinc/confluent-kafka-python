@@ -907,7 +907,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  :param int num_messages: Maximum number of messages to return (default: 1).\n"
 	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (-1)).\n"
-	  "  :returns: A list of Message objects\n"
+	  "  :returns: A list of Message objects (possibly empty on timeout)\n"
 	  "  :rtype: list(Message)\n"
           "  :raises: RuntimeError if called on a closed consumer, KafkaError "
           "in case of internal error, or ValueError if num_messages > 1M.\n"
