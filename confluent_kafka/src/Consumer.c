@@ -41,6 +41,10 @@ static int Consumer_clear (Handle *self) {
 		Py_DECREF(self->u.Consumer.on_commit);
 		self->u.Consumer.on_commit = NULL;
 	}
+	if (self->u.Consumer.rkqu) {
+	        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
+	        self->u.Consumer.rkqu = NULL;
+	}
 
 	Handle_clear(self);
 
@@ -372,7 +376,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	int async = 1;
 	static char *kws[] = { "message", "offsets", "async",NULL };
-        rd_kafka_queue_t *rkqu = NULL;
+        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
@@ -426,7 +430,8 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         if (async) {
                 /* Async mode: Use consumer queue for offset commit callback,
                  *             served by consumer_poll() */
-                rkqu = rd_kafka_queue_get_consumer(self->rk);
+                if (!rkqu)
+                        rkqu = self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
 
         } else {
                 /* Sync mode: Let commit_queue() trigger the callback. */
@@ -446,11 +451,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         if (c_offsets)
                 rd_kafka_topic_partition_list_destroy(c_offsets);
 
-        if (async) {
-                /* Loose reference to consumer queue */
-                rd_kafka_queue_destroy(rkqu);
-
-        } else {
+        if (!async) {
                 /* Re-lock GIL */
                 PyEval_RestoreThread(thread_state);
 
@@ -750,7 +751,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         static char *kws[] = { "num_messages", "timeout", NULL };
         rd_kafka_message_t **rkmessages;
         PyObject *msglist;
-        rd_kafka_queue_t *rkqu = NULL;
+        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
 
         if (!self->rk) {
@@ -771,7 +772,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         CallState_begin(self, &cs);
 
-        rkqu = rd_kafka_queue_get_consumer(self->rk);
+        if (!rkqu)
+                rkqu = self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
 
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
 
@@ -779,9 +781,6 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
                 rkmessages,
                 num_messages);
-
-        /* Loose reference to consumer queue */
-        rd_kafka_queue_destroy(rkqu);
 
         if (!CallState_end(self, &cs)) {
                 for (Py_ssize_t i = 0; i < n; i++) {
