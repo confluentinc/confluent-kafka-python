@@ -745,7 +745,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
 static PyObject *Consumer_consume (Handle *self, PyObject *args,
                                         PyObject *kwargs) {
-        size_t num_messages = 100;
+        size_t num_messages = 1;
         double tmout = -1.0f;
         static char *kws[] = { "num_messages", "timeout", NULL };
         rd_kafka_message_t **rkmessages;
@@ -759,9 +759,15 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                 return NULL;
         }
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|nd", kws,
-					 (Py_ssize_t *)&num_messages, &tmout))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Id", kws,
+					 (unsigned int *)&num_messages, &tmout))
 		return NULL;
+
+	if (num_messages > 1000000) {
+	        PyErr_SetString(PyExc_ValueError,
+	                        "num_messages must be <= 1000000 (1M)");
+	        return NULL;
+	}
 
         CallState_begin(self, &cs);
 
@@ -772,7 +778,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         Py_ssize_t n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
                 rkmessages,
-                num_messages > 0 ? (size_t)num_messages : 1);
+                num_messages);
 
         /* Loose reference to consumer queue */
         rd_kafka_queue_destroy(rkqu);
@@ -787,7 +793,9 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         if (n < 0) {
                 free(rkmessages);
-                Py_RETURN_NONE;
+                cfl_PyErr_Format(rd_kafka_last_error(),
+                                 "%s", rd_kafka_err2str(rd_kafka_last_error()));
+                return NULL;
         }
 
         msglist = PyList_New(n);
@@ -888,7 +896,7 @@ static PyMethodDef Consumer_methods[] = {
 	},
 	{ "consume", (PyCFunction)Consumer_consume,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: consume([num_messages=None], [timeout=None])\n"
+	  ".. py:function:: consume([num_messages=1], [timeout=-1])\n"
 	  "\n"
 	  "  Consume messages, calls callbacks and returns list of messages.\n"
 	  "\n"
@@ -901,9 +909,9 @@ static PyMethodDef Consumer_methods[] = {
 	  "  .. note: Callbacks may be called from this method, "
 	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
 	  "\n"
-	  "  :param int num_messages: Maximum number of messages to return.\n"
-	  "  :param float timeout: Maximum time to block waiting for message, event or callback.\n"
-	  "  :returns: A list of Message objects or None on timeout\n"
+	  "  :param int num_messages: Maximum number of messages to return (default: 1).\n"
+	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (-1)).\n"
+	  "  :returns: A list of Message objects\n"
 	  "  :rtype: list(Message) or None\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
