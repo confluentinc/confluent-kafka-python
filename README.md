@@ -148,7 +148,7 @@ http://docs.confluent.io/current/installation.html#installation-apt
  * For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
 http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
- * On **OSX**, use **homebrew** and do `sudo brew install librdkafka`
+ * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
 
 Install
