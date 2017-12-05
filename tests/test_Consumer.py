@@ -41,6 +41,17 @@ def test_basic_api():
     if msg is not None:
         assert msg.timestamp() == (TIMESTAMP_NOT_AVAILABLE, -1)
 
+    msglist = kc.consume(num_messages=10, timeout=0.001)
+    if len(msglist) == 0:
+        print('OK: consume() timeout')
+    else:
+        for msg in msglist:
+            if msg.error():
+                print('OK: consumer error: %s' % msg.error().str())
+                break
+
+        print('OK: consumed messages')
+
     partitions = list(map(lambda part: TopicPartition("test", part), range(0, 100, 3)))
     kc.assign(partitions)
 
@@ -202,6 +213,10 @@ def test_any_method_after_close_throws_exception():
 
     with pytest.raises(RuntimeError) as ex:
         c.poll()
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
+        c.consume()
     assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
