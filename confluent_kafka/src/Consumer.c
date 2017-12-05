@@ -760,7 +760,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
 	if (num_messages > 1000000) {
 	        PyErr_SetString(PyExc_ValueError,
-	                        "num_messages must be <= 1000000 (1M)");
+	                        "num_messages must be between 0 and 1000000 (1M)");
 	        return NULL;
 	}
 
@@ -817,8 +817,8 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 
         if (self->u.Consumer.rkqu) {
                 rd_kafka_queue_destroy(self->u.Consumer.rkqu);
-	        self->u.Consumer.rkqu = NULL;
-	}
+                self->u.Consumer.rkqu = NULL;
+        }
 
         rd_kafka_destroy(self->rk);
         self->rk = NULL;

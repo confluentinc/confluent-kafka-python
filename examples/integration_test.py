@@ -589,21 +589,17 @@ def verify_batch_consumer():
     max_msgcnt = 100
     msgcnt = 0
 
-    while True:
+    while msgcnt < max_msgcnt:
         # Consume until EOF or error
 
         # Consume message (error()==0) or event (error()!=0)
         msglist = c.consume(max_msgcnt, 1.0)
+        assert len(msglist) == max_msgcnt
 
         for msg in msglist:
             if msg.error():
-                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                    print('Reached end of %s [%d] at offset %d' %
-                          (msg.topic(), msg.partition(), msg.offset()))
-                    break
-                else:
-                    print('Consumer error: %s: ignoring' % msg.error())
-                    break
+                print('Consumer error: %s: ignoring' % msg.error())
+                continue
 
             tstype, timestamp = msg.timestamp()
             print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
@@ -623,12 +619,7 @@ def verify_batch_consumer():
 
             msgcnt += 1
 
-            if msgcnt >= max_msgcnt:
-                print('max_msgcnt %d reached' % msgcnt)
-                break
-
-        if msgcnt >= max_msgcnt:
-            break
+        print('max_msgcnt %d reached' % msgcnt)
 
     # Get current assignment
     assignment = c.assignment()
@@ -694,7 +685,7 @@ def verify_batch_consumer_performance():
     else:
         bar = None
 
-    while True:
+    while msgcnt < max_msgcnt:
         # Consume until EOF or error
 
         msglist = c.consume(num_messages=batch_size, timeout=20.0)
@@ -715,11 +706,8 @@ def verify_batch_consumer_performance():
 
             if msgcnt == 1:
                 t_first_msg = time.time()
-            if msgcnt >= max_msgcnt:
+            elif msgcnt >= max_msgcnt:
                 break
-
-        if msgcnt >= max_msgcnt:
-            break
 
     if bar is not None:
         bar.finish()

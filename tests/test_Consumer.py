@@ -42,15 +42,15 @@ def test_basic_api():
         assert msg.timestamp() == (TIMESTAMP_NOT_AVAILABLE, -1)
 
     msglist = kc.consume(num_messages=10, timeout=0.001)
-    if len(msglist) == 0:
-        print('OK: consume() timeout')
-    else:
-        for msg in msglist:
-            if msg.error():
-                print('OK: consumer error: %s' % msg.error().str())
-                break
+    assert len(msglist) == 0, "expected 0 messages, not %d" % len(msglist)
 
-        print('OK: consumed messages')
+    with pytest.raises(ValueError) as ex:
+        kc.consume(-100)
+    assert 'num_messages must be between 0 and 1000000 (1M)' == str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        kc.consume(1000001)
+    assert 'num_messages must be between 0 and 1000000 (1M)' == str(ex.value)
 
     partitions = list(map(lambda part: TopicPartition("test", part), range(0, 100, 3)))
     kc.assign(partitions)
