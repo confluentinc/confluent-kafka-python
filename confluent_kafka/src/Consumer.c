@@ -376,7 +376,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	int async = 1;
 	static char *kws[] = { "message", "offsets", "async",NULL };
-        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
+        rd_kafka_queue_t *rkqu = NULL;
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
@@ -427,7 +427,12 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		c_offsets = NULL;
 	}
 
-        if (!async) {
+        if (async) {
+                /* Async mode: Use consumer queue for offset commit
+                 *             served by consumer_poll() */
+                rkqu = self->u.Consumer.rkqu;
+
+        } else {
                 /* Sync mode: Let commit_queue() trigger the callback. */
                 memset(&commit_return, 0, sizeof(commit_return));
 
@@ -747,6 +752,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
+        Py_ssize_t i;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -774,7 +780,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                 num_messages);
 
         if (!CallState_end(self, &cs)) {
-                for (Py_ssize_t i = 0; i < n; i++) {
+                for (i = 0; i < n; i++) {
                         rd_kafka_message_destroy(rkmessages[i]);
                 }
                 free(rkmessages);
@@ -790,7 +796,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         msglist = PyList_New(n);
 
-        for (Py_ssize_t i = 0; i < n; i++) {
+        for (i = 0; i < n; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
                 PyList_SET_ITEM(msglist, i, msgobj);
                 rd_kafka_message_destroy(rkmessages[i]);
