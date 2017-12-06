@@ -591,11 +591,11 @@ def verify_batch_consumer():
     msgcnt = 0
 
     while msgcnt < max_msgcnt:
-        # Consume until EOF or error
+        # Consume until we hit max_msgcnt
 
         # Consume messages (error()==0) or event (error()!=0)
-        msglist = c.consume(batch_cnt, 1.0)
-        assert len(msglist) == max_msgcnt
+        msglist = c.consume(batch_cnt, 10.0)
+        assert len(msglist) == batch_cnt
 
         for msg in msglist:
             if msg.error():
@@ -620,7 +620,7 @@ def verify_batch_consumer():
 
             msgcnt += 1
 
-        print('max_msgcnt %d reached' % msgcnt)
+    print('max_msgcnt %d reached' % msgcnt)
 
     # Get current assignment
     assignment = c.assignment()
@@ -687,7 +687,7 @@ def verify_batch_consumer_performance():
         bar = None
 
     while msgcnt < max_msgcnt:
-        # Consume until EOF or error
+        # Consume until we hit max_msgcnt
 
         msglist = c.consume(num_messages=batch_size, timeout=20.0)
 
