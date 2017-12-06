@@ -586,14 +586,15 @@ def verify_batch_consumer():
     # Subscribe to a list of topics
     c.subscribe([topic])
 
-    max_msgcnt = 100
+    max_msgcnt = 1000
+    batch_cnt = 100
     msgcnt = 0
 
     while msgcnt < max_msgcnt:
         # Consume until EOF or error
 
-        # Consume message (error()==0) or event (error()!=0)
-        msglist = c.consume(max_msgcnt, 1.0)
+        # Consume messages (error()==0) or event (error()!=0)
+        msglist = c.consume(batch_cnt, 1.0)
         assert len(msglist) == max_msgcnt
 
         for msg in msglist:
@@ -706,8 +707,6 @@ def verify_batch_consumer_performance():
 
             if msgcnt == 1:
                 t_first_msg = time.time()
-            elif msgcnt >= max_msgcnt:
-                break
 
     if bar is not None:
         bar.finish()
