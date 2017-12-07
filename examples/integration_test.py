@@ -565,6 +565,162 @@ def verify_consumer_performance():
     c.close()
 
 
+def verify_batch_consumer():
+    """ Verify basic batch Consumer functionality """
+
+    # Consumer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': 'test.py',
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'api.version.request': api_version_request,
+            'on_commit': print_commit_result,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    # Create consumer
+    c = confluent_kafka.Consumer(**conf)
+
+    # Subscribe to a list of topics
+    c.subscribe([topic])
+
+    max_msgcnt = 1000
+    batch_cnt = 100
+    msgcnt = 0
+
+    while msgcnt < max_msgcnt:
+        # Consume until we hit max_msgcnt
+
+        # Consume messages (error()==0) or event (error()!=0)
+        msglist = c.consume(batch_cnt, 10.0)
+        assert len(msglist) == batch_cnt
+
+        for msg in msglist:
+            if msg.error():
+                print('Consumer error: %s: ignoring' % msg.error())
+                continue
+
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.key(), msg.value(), tstype, timestamp))
+
+            if (msg.offset() % 5) == 0:
+                # Async commit
+                c.commit(msg, async=True)
+            elif (msg.offset() % 4) == 0:
+                offsets = c.commit(msg, async=False)
+                assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
+                assert offsets[0].offset == msg.offset()+1, \
+                    'expected offset %d to be committed, not %s' % \
+                    (msg.offset(), offsets)
+                print('Sync committed offset: %s' % offsets)
+
+            msgcnt += 1
+
+    print('max_msgcnt %d reached' % msgcnt)
+
+    # Get current assignment
+    assignment = c.assignment()
+
+    # Get cached watermark offsets
+    # Since we're not making use of statistics the low offset is not known so ignore it.
+    lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
+    print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Query broker for offsets
+    lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Close consumer
+    c.close()
+
+    # Start a new client and get the committed offsets
+    c = confluent_kafka.Consumer(**conf)
+    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
+    for tp in offsets:
+        print(tp)
+
+    c.close()
+
+
+def verify_batch_consumer_performance():
+    """ Verify batch Consumer performance """
+
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': uuid.uuid1(),
+            'session.timeout.ms': 6000,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    c = confluent_kafka.Consumer(**conf)
+
+    def my_on_assign(consumer, partitions):
+        print('on_assign:', len(partitions), 'partitions:')
+        for p in partitions:
+            print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+        consumer.assign(partitions)
+
+    def my_on_revoke(consumer, partitions):
+        print('on_revoke:', len(partitions), 'partitions:')
+        for p in partitions:
+            print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+        consumer.unassign()
+
+    c.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
+
+    max_msgcnt = 1000000
+    bytecnt = 0
+    msgcnt = 0
+    batch_size = 1000
+
+    print('Will now consume %d messages' % max_msgcnt)
+
+    if with_progress:
+        bar = Bar('Consuming', max=max_msgcnt,
+                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+    else:
+        bar = None
+
+    while msgcnt < max_msgcnt:
+        # Consume until we hit max_msgcnt
+
+        msglist = c.consume(num_messages=batch_size, timeout=20.0)
+
+        for msg in msglist:
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    # Reached EOF for a partition, ignore.
+                    continue
+                else:
+                    raise confluent_kafka.KafkaException(msg.error())
+
+            bytecnt += len(msg)
+            msgcnt += 1
+
+            if bar is not None and (msgcnt % 10000) == 0:
+                bar.next(n=10000)
+
+            if msgcnt == 1:
+                t_first_msg = time.time()
+
+    if bar is not None:
+        bar.finish()
+
+    if msgcnt > 0:
+        t_spent = time.time() - t_first_msg
+        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
+
+    print('closing consumer')
+    c.close()
+
+
 def verify_stats_cb():
     """ Verify stats_cb """
 
@@ -663,6 +819,9 @@ if __name__ == '__main__':
     print('=' * 30, 'Verifying Consumer', '=' * 30)
     verify_consumer()
 
+    print('=' * 30, 'Verifying batch Consumer', '=' * 30)
+    verify_batch_consumer()
+
     print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
     verify_producer_performance(with_dr_cb=True)
 
@@ -671,6 +830,9 @@ if __name__ == '__main__':
 
     print('=' * 30, 'Verifying Consumer performance', '=' * 30)
     verify_consumer_performance()
+
+    print('=' * 30, 'Verifying batch Consumer performance', '=' * 30)
+    verify_batch_consumer_performance()
 
     print('=' * 30, 'Verifying stats_cb', '=' * 30)
     verify_stats_cb()

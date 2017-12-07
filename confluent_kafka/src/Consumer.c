@@ -41,6 +41,10 @@ static int Consumer_clear (Handle *self) {
 		Py_DECREF(self->u.Consumer.on_commit);
 		self->u.Consumer.on_commit = NULL;
 	}
+	if (self->u.Consumer.rkqu) {
+	        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
+	        self->u.Consumer.rkqu = NULL;
+	}
 
 	Handle_clear(self);
 
@@ -424,9 +428,9 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	}
 
         if (async) {
-                /* Async mode: Use consumer queue for offset commit callback,
+                /* Async mode: Use consumer queue for offset commit
                  *             served by consumer_poll() */
-                rkqu = rd_kafka_queue_get_consumer(self->rk);
+                rkqu = self->u.Consumer.rkqu;
 
         } else {
                 /* Sync mode: Let commit_queue() trigger the callback. */
@@ -446,11 +450,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         if (c_offsets)
                 rd_kafka_topic_partition_list_destroy(c_offsets);
 
-        if (async) {
-                /* Loose reference to consumer queue */
-                rd_kafka_queue_destroy(rkqu);
-
-        } else {
+        if (!async) {
                 /* Re-lock GIL */
                 PyEval_RestoreThread(thread_state);
 
@@ -743,6 +743,71 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 }
 
 
+static PyObject *Consumer_consume (Handle *self, PyObject *args,
+                                        PyObject *kwargs) {
+        unsigned int num_messages = 1;
+        double tmout = -1.0f;
+        static char *kws[] = { "num_messages", "timeout", NULL };
+        rd_kafka_message_t **rkmessages;
+        PyObject *msglist;
+        rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
+        CallState cs;
+        Py_ssize_t i;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Id", kws,
+					 &num_messages, &tmout))
+		return NULL;
+
+	if (num_messages > 1000000) {
+	        PyErr_SetString(PyExc_ValueError,
+	                        "num_messages must be between 0 and 1000000 (1M)");
+	        return NULL;
+	}
+
+        CallState_begin(self, &cs);
+
+        rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
+
+        Py_ssize_t n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
+                tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
+                rkmessages,
+                num_messages);
+
+        if (!CallState_end(self, &cs)) {
+                for (i = 0; i < n; i++) {
+                        rd_kafka_message_destroy(rkmessages[i]);
+                }
+                free(rkmessages);
+                return NULL;
+        }
+
+        if (n < 0) {
+                free(rkmessages);
+                cfl_PyErr_Format(rd_kafka_last_error(),
+                                 "%s", rd_kafka_err2str(rd_kafka_last_error()));
+                return NULL;
+        }
+
+        msglist = PyList_New(n);
+
+        for (i = 0; i < n; i++) {
+                PyObject *msgobj = Message_new0(self, rkmessages[i]);
+                PyList_SET_ITEM(msglist, i, msgobj);
+                rd_kafka_message_destroy(rkmessages[i]);
+        }
+
+        free(rkmessages);
+
+        return msglist;
+}
+
+
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         CallState cs;
 
@@ -755,6 +820,11 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         CallState_begin(self, &cs);
 
         rd_kafka_consumer_close(self->rk);
+
+        if (self->u.Consumer.rkqu) {
+                rd_kafka_queue_destroy(self->u.Consumer.rkqu);
+                self->u.Consumer.rkqu = NULL;
+        }
 
         rd_kafka_destroy(self->rk);
         self->rk = NULL;
@@ -823,6 +893,30 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :returns: A Message object or None on timeout\n"
 	  "  :rtype: :py:class:`Message` or None\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
+	  "\n"
+	},
+	{ "consume", (PyCFunction)Consumer_consume,
+	  METH_VARARGS|METH_KEYWORDS,
+	  ".. py:function:: consume([num_messages=1], [timeout=-1])\n"
+	  "\n"
+	  "  Consume messages, calls callbacks and returns list of messages "
+	  "(possibly empty on timeout).\n"
+	  "\n"
+	  "  The application must check the returned :py:class:`Message` "
+	  "object's :py:func:`Message.error()` method to distinguish "
+	  "between proper messages (error() returns None), or an event or "
+	  "error for each :py:class:`Message` in the list (see error().code() "
+	  "for specifics).\n"
+	  "\n"
+	  "  .. note: Callbacks may be called from this method, "
+	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
+	  "\n"
+	  "  :param int num_messages: Maximum number of messages to return (default: 1).\n"
+	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (-1)).\n"
+	  "  :returns: A list of Message objects (possibly empty on timeout)\n"
+	  "  :rtype: list(Message)\n"
+          "  :raises: RuntimeError if called on a closed consumer, KafkaError "
+          "in case of internal error, or ValueError if num_messages > 1M.\n"
 	  "\n"
 	},
 	{ "assign", (PyCFunction)Consumer_assign, METH_O,
@@ -1052,6 +1146,8 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         }
 
         rd_kafka_poll_set_consumer(self->rk);
+
+        self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
 
         return 0;
 }

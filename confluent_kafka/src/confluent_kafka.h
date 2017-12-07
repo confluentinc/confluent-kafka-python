@@ -186,6 +186,7 @@ typedef struct {
 			PyObject *on_assign;     /* Rebalance: on_assign callback */
 			PyObject *on_revoke;     /* Rebalance: on_revoke callback */
 			PyObject *on_commit;     /* Commit callback */
+			rd_kafka_queue_t *rkqu;  /* Consumer queue */
 
 		} Consumer;
 	} u;
