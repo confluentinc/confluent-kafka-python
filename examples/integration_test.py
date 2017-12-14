@@ -41,7 +41,7 @@ bootstrap_servers = None
 schema_registry_url = None
 
 # Topic to use
-topic = 'test'
+topic = str(uuid.uuid4())
 
 # API version requests are only implemented in Kafka broker >=0.10
 # but the client handles failed API version requests gracefully for older
@@ -117,8 +117,10 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
+    headers = [('foo1', 'bar'), ('population_producer_id', b'1')]
+
     # Produce some messages
-    p.produce(topic, 'Hello Python!')
+    p.produce(topic, 'Hello Python!', headers=headers)
     p.produce(topic, key='Just a key')
     p.produce(topic, partition=1, value='Strictly for partition 1',
               key='mykey')
@@ -477,6 +479,7 @@ def verify_consumer():
             else:
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
+        import ipdb; ipdb.set_trace()
 
         tstype, timestamp = msg.timestamp()
         print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
@@ -885,10 +888,10 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
-        if len(sys.argv) > 2:
-            topic = sys.argv[2]
-        if len(sys.argv) > 3:
-            schema_registry_url = sys.argv[3]
+        # if len(sys.argv) > 2:
+            # topic = sys.argv[2]
+        # if len(sys.argv) > 3:
+            # schema_registry_url = sys.argv[3]
     else:
         print_usage(1)
 

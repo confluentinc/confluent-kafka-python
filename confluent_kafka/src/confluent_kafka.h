@@ -286,6 +286,7 @@ typedef struct {
 	PyObject *topic;
 	PyObject *value;
 	PyObject *key;
+	PyObject *headers;
 	PyObject *error;
 	int32_t partition;
 	int64_t offset;

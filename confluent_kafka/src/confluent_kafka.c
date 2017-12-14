@@ -333,6 +333,14 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 			     self->timestamp);
 }
 
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+	if (self->headers) {
+		Py_INCREF(self->headers);
+		return self->headers;
+	} else
+		Py_RETURN_NONE;
+}
+
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
    if (self->value)
         Py_DECREF(self->value);
@@ -409,6 +417,10 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: (int, int)\n"
 	  "\n"
 	},
+	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
+//TODO
+	  "\n"
+	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
 	  "  Set the field 'Message.value' with new value.\n"
 	  "  :param: object value: Message.value.\n"
@@ -443,6 +455,10 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->error);
 		self->error = NULL;
 	}
+	if (self->headers) {
+		Py_DECREF(self->headers);
+		self->headers = NULL;
+	}
 	return 0;
 }
 
@@ -464,6 +480,8 @@ static int Message_traverse (Message *self,
 		Py_VISIT(self->key);
 	if (self->error)
 		Py_VISIT(self->error);
+	if (self->headers)
+		Py_VISIT(self->headers);
 	return 0;
 }
 
@@ -560,6 +578,43 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	self->offset = rkm->offset;
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
+
+    rd_kafka_headers_t *hdrs;
+
+    if (!rd_kafka_message_headers(rkm, &hdrs)) {
+
+        size_t idx = 0;
+        size_t header_size = 0;
+        const char *header_key;
+        const void *header_value;
+        size_t header_value_size;
+        PyObject *header_list;
+
+        //HACK to figure out size of headers
+        while (!rd_kafka_header_iter_all(hdrs, header_size++,
+                                         &header_key, &header_value, &header_value_size)) {
+        }
+        header_list = PyList_New(header_size - 1);
+
+        while (!rd_kafka_header_iter_all(hdrs, idx++,
+                                         &header_key, &header_value, &header_value_size)) {
+                // Create one (key, value) tuple for each header
+                PyObject *header_tuple = PyTuple_New(2);
+                PyTuple_SetItem(header_tuple, 0,
+                    cfl_PyUnistr(_FromString(header_key))
+                );
+
+                if (header_value) {
+                        PyTuple_SetItem(header_tuple, 1,
+                            cfl_PyBin(_FromStringAndSize(header_value, header_value_size))
+                        );
+                } else {
+                    PyTuple_SetItem(header_tuple, 1, Py_None);
+                }
+            PyList_SET_ITEM(header_list, idx-1, header_tuple);
+        }
+        self->headers = header_list;
+    }
 
 	return (PyObject *)self;
 }

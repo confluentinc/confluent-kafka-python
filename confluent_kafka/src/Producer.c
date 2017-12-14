@@ -258,7 +258,8 @@ Producer_producev (Handle *self,
                    const char *topic, int32_t partition,
                    const void *value, size_t value_len,
                    const void *key, size_t key_len,
-                   void *opaque, int64_t timestamp) {
+                   void *opaque, int64_t timestamp,
+                   rd_kafka_headers_t *headers) {
 
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
@@ -268,6 +269,7 @@ Producer_producev (Handle *self,
                                  RD_KAFKA_V_VALUE((void *)value,
                                                   (size_t)value_len),
                                  RD_KAFKA_V_TIMESTAMP(timestamp),
+                                 RD_KAFKA_V_HEADERS(headers),
                                  RD_KAFKA_V_OPAQUE(opaque),
                                  RD_KAFKA_V_END);
 }
@@ -302,28 +304,32 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	const char *topic, *value = NULL, *key = NULL;
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
-	PyObject *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
+	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
+    rd_kafka_headers_t *rd_headers = NULL;
 	static char *kws[] = { "topic",
 			       "value",
 			       "key",
 			       "partition",
+                   "headers",
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
-                               "timestamp",
+                   "timestamp",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOOL"
+					 "s|z#z#iOOOOL"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
-					 &dr_cb, &dr_cb2, &partitioner_cb,
-                                         &timestamp))
+					 &headers, &dr_cb, &dr_cb2, 
+                     &partitioner_cb, &timestamp))
 		return NULL;
+
+//TODO: Add version check for headers
 
 #if !HAVE_PRODUCEV
         if (timestamp) {
@@ -351,10 +357,32 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
         /* Produce message */
 #if HAVE_PRODUCEV
+        if (headers){
+            int i, len;
+            len = PyList_Size(headers);
+            rd_headers = rd_kafka_headers_new(len);
+            for (i = 0; i < len; i++) {
+                //item = PySequence_Fast_GET_ITEM(seq, i);
+                const char *header_key, *header_value = NULL;
+                int header_key_len = 0, header_value_len = 0;
+
+                PyArg_ParseTuple(PyList_GET_ITEM(headers, i), "s#z#", &header_key,
+                        &header_key_len, &header_value, &header_value_len);
+                printf("GOT HEADER KEY %s with len: %i \n", header_key, header_key_len);
+
+                err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
+                if (err) {
+                    printf("GOT AND ERROR\n");
+                }
+                printf("ON %i header\n", i);
+            }
+
+        }
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
-                                msgstate, timestamp);
+                                msgstate, timestamp,
+                                rd_headers);
 #else
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
