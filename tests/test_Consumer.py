@@ -171,6 +171,24 @@ def test_subclassing():
     sc.close()
 
 
+@pytest.mark.skipif(libversion()[1] < 0x000b0000,
+                    reason="requires librdkafka >=0.11.0")
+def test_offsets_for_times():
+    c = Consumer({'group.id': 'test',
+                  'enable.auto.commit': True,
+                  'enable.auto.offset.store': False,
+                  'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100})
+    # Query broker for timestamps for partition
+    try:
+        test_topic_partition = TopicPartition("test", 0, 100)
+        c.offsets_for_times([test_topic_partition], timeout=0.1)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE),\
+            str(e.args([0]))
+    c.close()
+
+
 def test_multiple_close_throw_exception():
     """ Calling Consumer.close() multiple times should throw Runtime Exception
     """
@@ -265,4 +283,8 @@ def test_calling_store_offsets_after_close_throws_erro():
 
     with pytest.raises(RuntimeError) as ex:
         c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
+        c.offsets_for_times([TopicPartition("test", 0)])
     assert 'Consumer closed' == str(ex.value)

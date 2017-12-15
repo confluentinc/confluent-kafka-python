@@ -704,6 +704,56 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
 }
 
 
+static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
+                                                 PyObject *kwargs) {
+#if RD_KAFKA_VERSION < 0x000b0000
+	PyErr_Format(PyExc_NotImplementedError,
+		     "Consumer offsets_for_times require "
+		     "confluent-kafka-python built for librdkafka "
+		     "version >=v0.11.0 (librdkafka runtime 0x%x, "
+		     "buildtime 0x%x)",
+		     rd_kafka_version(), RD_KAFKA_VERSION);
+	return NULL;
+#else
+
+	PyObject *plist;
+	double tmout = -1.0f;
+	rd_kafka_topic_partition_list_t *c_parts;
+	rd_kafka_resp_err_t err;
+	static char *kws[] = { "partitions", "timeout", NULL };
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+					 &plist, &tmout))
+		return NULL;
+
+        if (!(c_parts = py_to_c_parts(plist)))
+                return NULL;
+
+        err = rd_kafka_offsets_for_times(self->rk,
+                                         c_parts,
+                                         tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+
+        if (err) {
+                rd_kafka_topic_partition_list_destroy(c_parts);
+                cfl_PyErr_Format(err,
+                                 "Failed to get offsets: %s",
+                                 rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        plist = c_parts_to_py(c_parts);
+        rd_kafka_topic_partition_list_destroy(c_parts);
+
+        return plist;
+#endif
+}
+
 
 static PyObject *Consumer_poll (Handle *self, PyObject *args,
                                     PyObject *kwargs) {
@@ -1026,6 +1076,24 @@ static PyMethodDef Consumer_methods[] = {
           "the high offset is updated on each message fetched from the broker for this partition."
           "  :returns: Tuple of (low,high) on success or None on timeout.\n"
           "  :rtype: tuple(int,int)\n"
+          "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
+          "\n"
+        },
+        { "offsets_for_times", (PyCFunction)Consumer_offsets_for_times,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: offsets_for_times(partitions, [timeout=None])\n"
+          "\n"
+          " offsets_for_times looks up offsets by timestamp for the given partitions.\n"
+          "\n"
+          " The returned offsets for each partition is the earliest offset whose\n"
+          " timestamp is greater than or equal to the given timestamp in the\n"
+          " corresponding partition.\n"
+          "\n"
+          "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field."
+          "  :param float timeout: Request timeout.\n"
+          "  :returns: list of topic+partition with offset field set and possibly error set\n"
+          "  :rtype: list(TopicPartition)\n"
           "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"

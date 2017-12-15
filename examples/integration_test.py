@@ -471,9 +471,17 @@ def verify_consumer():
     lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
     print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
+
     # Query broker for offsets
     lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Query offsets for timestamps by setting the topic partition offset to a timestamp. 123456789000 + 1
+    topic_partions_to_search = list(map(lambda p: confluent_kafka.TopicPartition(topic, p, 123456789001), range(0, 3)))
+    print("Searching for offsets with %s" % topic_partions_to_search)
+
+    offsets = c.offsets_for_times(topic_partions_to_search, timeout=1.0)
+    print("offsets_for_times results: %s" % offsets)
 
     # Close consumer
     c.close()
