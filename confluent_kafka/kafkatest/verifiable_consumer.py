@@ -242,30 +242,32 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Verifiable Python Consumer')
     parser.add_argument('--topic', action='append', type=str, required=True)
-    parser.add_argument('--group-id', dest='group.id', required=True)
-    parser.add_argument('--broker-list', dest='bootstrap.servers', required=True)
-    parser.add_argument('--session-timeout', type=int, dest='session.timeout.ms', default=6000)
-    parser.add_argument('--enable-autocommit', action='store_true', dest='enable.auto.commit', default=False)
+    parser.add_argument('--group-id', dest='conf_group.id', required=True)
+    parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
+    parser.add_argument('--session-timeout', type=int, dest='conf_session.timeout.ms', default=6000)
+    parser.add_argument('--enable-autocommit', action='store_true', dest='conf_enable.auto.commit', default=False)
     parser.add_argument('--max-messages', type=int, dest='max_messages', default=-1)
-    parser.add_argument('--assignment-strategy', dest='partition.assignment.strategy')
-    parser.add_argument('--reset-policy', dest='topic.auto.offset.reset', default='earliest')
+    parser.add_argument('--assignment-strategy', dest='conf_partition.assignment.strategy')
+    parser.add_argument('--reset-policy', dest='conf_auto.offset.reset', default='earliest')
     parser.add_argument('--consumer.config', dest='consumer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
-            'default.topic.config': dict(),
             # Do explicit manual offset stores to avoid race conditions
             # where a message is consumed from librdkafka but not yet handled
             # by the Python code that keeps track of last consumed offset.
             'enable.auto.offset.store': False}
 
+    if args.get('consumer_config', None) is not None:
+        args.update(VerifiableClient.read_config_file(args['consumer_config']))
+
+    args.update([x[0].split('=') for x in args.get('extra_conf', [])])
+
     VerifiableClient.set_config(conf, args)
 
-    conf.update([x[0].split('=') for x in args.get('extra_conf', [])])
-
     vc = VerifiableConsumer(conf)
-    vc.use_auto_commit = args['enable.auto.commit']
+    vc.use_auto_commit = args['conf_enable.auto.commit']
     vc.max_msgs = args['max_messages']
 
     vc.dbg('Pid %d' % os.getpid())

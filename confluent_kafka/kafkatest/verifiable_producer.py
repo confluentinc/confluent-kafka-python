@@ -32,7 +32,6 @@ class VerifiableProducer(VerifiableClient):
         """
         super(VerifiableProducer, self).__init__(conf)
         self.conf['on_delivery'] = self.dr_cb
-        self.conf['default.topic.config']['produce.offset.report'] = True
         self.producer = Producer(**self.conf)
         self.num_acked = 0
         self.num_sent = 0
@@ -64,20 +63,24 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Verifiable Python Producer')
     parser.add_argument('--topic', type=str, required=True)
     parser.add_argument('--throughput', type=int, default=0)
-    parser.add_argument('--broker-list', dest='bootstrap.servers', required=True)
+    parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
     parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000)  # avoid infinite
     parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
-    parser.add_argument('--acks', type=int, dest='topic.request.required.acks', default=-1)
+    parser.add_argument('--acks', type=int, dest='conf_request.required.acks', default=-1)
+    parser.add_argument('--message-create-time', type=int, dest='create_time', default=0)
     parser.add_argument('--producer.config', dest='producer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
-            'default.topic.config': dict()}
+            'produce.offset.report': True}
+
+    if args.get('producer_config', None) is not None:
+        args.update(VerifiableClient.read_config_file(args['producer_config']))
+
+    args.update([x[0].split('=') for x in args.get('extra_conf', [])])
 
     VerifiableClient.set_config(conf, args)
-
-    conf.update([x[0].split('=') for x in args.get('extra_conf', [])])
 
     vp = VerifiableProducer(conf)
 
@@ -104,7 +107,8 @@ if __name__ == '__main__':
             t_end = time.time() + delay
             while vp.run:
                 try:
-                    vp.producer.produce(topic, value=(value_fmt % i))
+                    vp.producer.produce(topic, value=(value_fmt % i),
+                                        timestamp=args.get('create_time', 0))
                     vp.num_sent += 1
                 except KafkaException as e:
                     vp.err('produce() #%d/%d failed: %s' % (i, vp.max_msgs, str(e)))
