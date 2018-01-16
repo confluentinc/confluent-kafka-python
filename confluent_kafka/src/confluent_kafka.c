@@ -418,7 +418,11 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	},
 	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
-//TODO
+      "  Retrieve the headers set on a message. Each header is a key value"
+      "pair. Please note that header keys are ordered and can repeat.\n"
+      "\n"
+	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
+	  "  :rtype: [(str, bytes),...] or None.\n"
 	  "\n"
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
