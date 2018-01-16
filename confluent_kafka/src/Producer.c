@@ -362,22 +362,22 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
             len = PyList_Size(headers);
             rd_headers = rd_kafka_headers_new(len);
             for (i = 0; i < len; i++) {
-                //item = PySequence_Fast_GET_ITEM(seq, i);
                 const char *header_key, *header_value = NULL;
                 int header_key_len = 0, header_value_len = 0;
 
                 PyArg_ParseTuple(PyList_GET_ITEM(headers, i), "s#z#", &header_key,
                         &header_key_len, &header_value, &header_value_len);
-                printf("GOT HEADER KEY %s with len: %i \n", header_key, header_key_len);
 
                 err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
                 if (err) {
-                    printf("GOT AND ERROR\n");
+                    cfl_PyErr_Format(err,
+                             "Unable to produce message: %s",
+                             rd_kafka_err2str(err));
+                    return NULL;
                 }
-                printf("ON %i header\n", i);
             }
-
         }
+
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
