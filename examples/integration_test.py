@@ -420,8 +420,15 @@ def verify_consumer():
     # Create consumer
     c = confluent_kafka.Consumer(**conf)
 
+    def print_wmark(consumer, parts):
+        # Verify #294: get_watermark_offsets() should not fail on the first call
+        #              This is really a librdkafka issue.
+        for p in parts:
+            wmarks = consumer.get_watermark_offsets(parts[0])
+            print('Watermarks for %s: %s' % (p, wmarks))
+
     # Subscribe to a list of topics
-    c.subscribe([topic])
+    c.subscribe([topic], on_assign=print_wmark)
 
     max_msgcnt = 100
     msgcnt = 0
