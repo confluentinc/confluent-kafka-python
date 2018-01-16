@@ -447,6 +447,15 @@ def verify_consumer():
               (msg.topic(), msg.partition(), msg.offset(),
                msg.key(), msg.value(), tstype, timestamp))
 
+        if (msgcnt == 11):
+            parts = c.assignment()
+            print('Pausing partitions briefly')
+            c.pause(parts)
+            exp_None = c.poll(timeout=2.0)
+            assert exp_None is None, "expected no messages during pause, got %s" % exp_None
+            print('Resuming partitions')
+            c.resume(parts)
+
         if (msg.offset() % 5) == 0:
             # Async commit
             c.commit(msg, async=True)
