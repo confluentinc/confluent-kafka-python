@@ -315,6 +315,7 @@ def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
             'api.version.request': api_version_request,
+            'linger.ms': 500,
             'error_cb': error_cb}
 
     p = confluent_kafka.Producer(**conf)
