@@ -41,7 +41,7 @@ bootstrap_servers = None
 schema_registry_url = None
 
 # Topic to use
-topic = str(uuid.uuid4())
+topic = 'test'
 
 # API version requests are only implemented in Kafka broker >=0.10
 # but the client handles failed API version requests gracefully for older
@@ -889,10 +889,10 @@ if __name__ == '__main__':
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
-        # if len(sys.argv) > 2:
-            # topic = sys.argv[2]
-        # if len(sys.argv) > 3:
-            # schema_registry_url = sys.argv[3]
+        if len(sys.argv) > 2:
+            topic = sys.argv[2]
+        if len(sys.argv) > 3:
+            schema_registry_url = sys.argv[3]
     else:
         print_usage(1)
 
