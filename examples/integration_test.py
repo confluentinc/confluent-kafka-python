@@ -488,7 +488,6 @@ def verify_consumer():
     lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
     print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
-
     # Query broker for offsets
     lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
@@ -620,7 +619,7 @@ def verify_batch_consumer():
 
         # Consume messages (error()==0) or event (error()!=0)
         msglist = c.consume(batch_cnt, 10.0)
-        assert len(msglist) == batch_cnt
+        assert len(msglist) == batch_cnt, 'expected %d messages, not %d' % (batch_cnt, len(msglist))
 
         for msg in msglist:
             if msg.error():
@@ -823,7 +822,33 @@ def verify_stats_cb():
     c.close()
 
 
+def print_usage(exitcode, reason=None):
+    """ Print usage and exit with exitcode """
+    if reason is not None:
+        print('Error: %s' % reason)
+    print('Usage: %s <broker> [opts] [<topic>] [<schema_registry>]' % sys.argv[0])
+    print('Options:')
+    print(' --consumer, --producer, --avro, --performance - limit to matching tests')
+
+    sys.exit(exitcode)
+
+
 if __name__ == '__main__':
+    modes = list()
+
+    # Parse options
+    while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
+        opt = sys.argv.pop(1)
+        if opt == '--consumer':
+            modes.append('consumer')
+        elif opt == '--producer':
+            modes.append('producer')
+        elif opt == '--avro':
+            modes.append('avro')
+        elif opt == '--performance':
+            modes.append('performance')
+        else:
+            print_usage(1, 'unknown option ' + opt)
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
@@ -832,37 +857,46 @@ if __name__ == '__main__':
         if len(sys.argv) > 3:
             schema_registry_url = sys.argv[3]
     else:
-        print('Usage: %s <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
-        sys.exit(1)
+        print_usage(1)
+
+    if len(modes) == 0:
+        modes = ['consumer', 'producer', 'avro', 'performance']
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
 
-    print('=' * 30, 'Verifying Producer', '=' * 30)
-    verify_producer()
+    if 'producer' in modes:
+        print('=' * 30, 'Verifying Producer', '=' * 30)
+        verify_producer()
 
-    print('=' * 30, 'Verifying Consumer', '=' * 30)
-    verify_consumer()
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
+            verify_producer_performance(with_dr_cb=True)
 
-    print('=' * 30, 'Verifying batch Consumer', '=' * 30)
-    verify_batch_consumer()
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Producer performance (without dr_cb)', '=' * 30)
+            verify_producer_performance(with_dr_cb=False)
 
-    print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
-    verify_producer_performance(with_dr_cb=True)
+    if 'consumer' in modes:
+        print('=' * 30, 'Verifying Consumer', '=' * 30)
+        verify_consumer()
 
-    print('=' * 30, 'Verifying Producer performance (without dr_cb)', '=' * 30)
-    verify_producer_performance(with_dr_cb=False)
+        print('=' * 30, 'Verifying batch Consumer', '=' * 30)
+        verify_batch_consumer()
 
-    print('=' * 30, 'Verifying Consumer performance', '=' * 30)
-    verify_consumer_performance()
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Consumer performance', '=' * 30)
+            verify_consumer_performance()
 
-    print('=' * 30, 'Verifying batch Consumer performance', '=' * 30)
-    verify_batch_consumer_performance()
+            print('=' * 30, 'Verifying batch Consumer performance', '=' * 30)
+            verify_batch_consumer_performance()
 
-    print('=' * 30, 'Verifying stats_cb', '=' * 30)
-    verify_stats_cb()
+        # The stats test is utilizing the consumer.
+        print('=' * 30, 'Verifying stats_cb', '=' * 30)
+        verify_stats_cb()
 
-    print('=' * 30, 'Verifying AVRO', '=' * 30)
-    verify_avro()
+    if 'avro' in modes:
+        print('=' * 30, 'Verifying AVRO', '=' * 30)
+        verify_avro()
 
     print('=' * 30, 'Done', '=' * 30)
