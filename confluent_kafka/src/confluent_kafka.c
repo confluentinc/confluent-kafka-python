@@ -590,13 +590,10 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
         size_t header_value_size;
         PyObject *header_list;
 
-        //HACK to figure out size of headers
-        while (!rd_kafka_header_iter_all(hdrs, header_size++,
-                                         &header_key, &header_value, &header_value_size)) {
-        }
-        header_list = PyList_New(header_size - 1);
+        header_size = rd_kafka_header_cnt(hdrs); 
+        header_list = PyList_New(header_size);
 
-        while (!rd_kafka_header_iter_all(hdrs, idx++,
+        while (!rd_kafka_header_get_all(hdrs, idx++,
                                          &header_key, &header_value, &header_value_size)) {
                 // Create one (key, value) tuple for each header
                 PyObject *header_tuple = PyTuple_New(2);

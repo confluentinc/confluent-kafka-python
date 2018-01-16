@@ -121,9 +121,9 @@ def verify_producer():
 
     # Produce some messages
     p.produce(topic, 'Hello Python!', headers=headers)
-    p.produce(topic, key='Just a key')
+    p.produce(topic, key='Just a key', headers=headers)
     p.produce(topic, partition=1, value='Strictly for partition 1',
-              key='mykey')
+              key='mykey', headers=headers)
 
     # Produce more messages, now with delivery report callbacks in various forms.
     mydr = MyTestDr()
@@ -479,12 +479,13 @@ def verify_consumer():
             else:
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
-        import ipdb; ipdb.set_trace()
 
         tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+        headers = msg.headers()
+
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s headers=%s' %
               (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp))
+               msg.key(), msg.value(), tstype, timestamp, headers))
 
         if first_msg is None:
             first_msg = msg

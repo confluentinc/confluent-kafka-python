@@ -22,6 +22,7 @@ def test_basic_api():
 
     p.produce('mytopic')
     p.produce('mytopic', value='somedata', key='a key')
+    p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
 
     def on_delivery(err, msg):
         print('delivery', str)
