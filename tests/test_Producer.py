@@ -25,7 +25,7 @@ def test_basic_api():
     p.produce('mytopic', value='somedata', key='a key')
     p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
     p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'dupvalue')])
-    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', None)])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('key_with_null_value', None)])
     p.produce('mytopic', value='somedata', key='a key', headers=[])
 
     with pytest.raises(TypeError) as ex:
