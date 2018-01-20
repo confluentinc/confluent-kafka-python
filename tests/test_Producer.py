@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
 
@@ -23,6 +24,13 @@ def test_basic_api():
     p.produce('mytopic')
     p.produce('mytopic', value='somedata', key='a key')
     p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'dupvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', None)])
+    p.produce('mytopic', value='somedata', key='a key', headers=[])
+
+    with pytest.raises(TypeError) as ex:
+        p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])
+    assert 'Headers are expected to be a tuple of (key, value)' == str(ex.value)
 
     def on_delivery(err, msg):
         print('delivery', str)

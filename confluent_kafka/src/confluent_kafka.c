@@ -556,6 +556,7 @@ PyTypeObject MessageType = {
  */
 PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	Message *self;
+    rd_kafka_headers_t *hdrs;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
 	if (!self)
@@ -583,38 +584,8 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
-    rd_kafka_headers_t *hdrs;
-
     if (!rd_kafka_message_headers(rkm, &hdrs)) {
-
-        size_t idx = 0;
-        size_t header_size = 0;
-        const char *header_key;
-        const void *header_value;
-        size_t header_value_size;
-        PyObject *header_list;
-
-        header_size = rd_kafka_header_cnt(hdrs); 
-        header_list = PyList_New(header_size);
-
-        while (!rd_kafka_header_get_all(hdrs, idx++,
-                                         &header_key, &header_value, &header_value_size)) {
-                // Create one (key, value) tuple for each header
-                PyObject *header_tuple = PyTuple_New(2);
-                PyTuple_SetItem(header_tuple, 0,
-                    cfl_PyUnistr(_FromString(header_key))
-                );
-
-                if (header_value) {
-                        PyTuple_SetItem(header_tuple, 1,
-                            cfl_PyBin(_FromStringAndSize(header_value, header_value_size))
-                        );
-                } else {
-                    PyTuple_SetItem(header_tuple, 1, Py_None);
-                }
-            PyList_SET_ITEM(header_list, idx-1, header_tuple);
-        }
-        self->headers = header_list;
+        self->headers = c_headers_to_py(hdrs);
     }
 
 	return (PyObject *)self;
@@ -939,6 +910,78 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	return c_parts;
 }
 
+/**
+ * @brief Convert Python list[(header_key, header_value),...]) to C rd_kafka_topic_partition_list_t.
+ *
+ * @returns The new Python list[(header_key, header_value),...] object.
+ */
+rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
+    int i, len;
+    rd_kafka_headers_t *rd_headers = NULL;
+    rd_kafka_resp_err_t err;
+    const char *header_key, *header_value = NULL;
+    int header_key_len = 0, header_value_len = 0;
+
+    len = PyList_Size(headers_plist);
+    rd_headers = rd_kafka_headers_new(len);
+
+    for (i = 0; i < len; i++) {
+
+        if(!PyArg_ParseTuple(PyList_GET_ITEM(headers_plist, i), "s#z#", &header_key,
+                &header_key_len, &header_value, &header_value_len)){
+            PyErr_SetString(PyExc_TypeError,
+                    "Headers are expected to be a tuple of (key, value)");
+            return NULL;
+        }
+
+        err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
+        if (err) {
+            cfl_PyErr_Format(err,
+                     "Unable to create message headers: %s",
+                     rd_kafka_err2str(err));
+            rd_kafka_headers_destroy(rd_headers);
+            return NULL;
+        }
+    }
+    return rd_headers;
+}
+
+/**
+ * @brief Convert rd_kafka_headers_t to Python list[(header_key, header_value),...])
+ *
+ * @returns The new C headers on success or NULL on error.
+ */
+PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
+    size_t idx = 0;
+    size_t header_size = 0;
+    const char *header_key;
+    const void *header_value;
+    size_t header_value_size;
+    PyObject *header_list;
+
+    header_size = rd_kafka_header_cnt(headers); 
+    header_list = PyList_New(header_size);
+
+    while (!rd_kafka_header_get_all(headers, idx++,
+                                     &header_key, &header_value, &header_value_size)) {
+            // Create one (key, value) tuple for each header
+            PyObject *header_tuple = PyTuple_New(2);
+            PyTuple_SetItem(header_tuple, 0,
+                cfl_PyUnistr(_FromString(header_key))
+            );
+
+            if (header_value) {
+                    PyTuple_SetItem(header_tuple, 1,
+                        cfl_PyBin(_FromStringAndSize(header_value, header_value_size))
+                    );
+            } else {
+                PyTuple_SetItem(header_tuple, 1, Py_None);
+            }
+        PyList_SET_ITEM(header_list, idx-1, header_tuple);
+    }
+
+    return header_list;
+}
 
 /****************************************************************************
  *

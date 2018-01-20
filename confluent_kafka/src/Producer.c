@@ -313,23 +313,33 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "value",
 			       "key",
 			       "partition",
-                   "headers",
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
                    "timestamp",
+                   "headers",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOOOL"
+					 "s|z#z#iOOOLO"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
-					 &headers, &dr_cb, &dr_cb2, 
-                     &partitioner_cb, &timestamp))
+					 &dr_cb, &dr_cb2, &partitioner_cb,
+                     &timestamp, &headers))
 		return NULL;
 
-//TODO: Add version check for headers
+#ifndef RD_KAFKA_V_HEADERS
+    if (headers) {
+            PyErr_Format(PyExc_NotImplementedError,
+                         "Producer message headers requires "
+                         "confluent-kafka-python built for librdkafka "
+                         "version >=v0.11.3 (librdkafka runtime 0x%x, "
+                         "buildtime 0x%x)",
+                         rd_kafka_version(), RD_KAFKA_VERSION);
+            return NULL;
+    }
+#endif
 
 #if !HAVE_PRODUCEV
         if (timestamp) {
@@ -357,25 +367,9 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
         /* Produce message */
 #if HAVE_PRODUCEV
-        if (headers){
-            int i, len;
-            len = PyList_Size(headers);
-            rd_headers = rd_kafka_headers_new(len);
-            for (i = 0; i < len; i++) {
-                const char *header_key, *header_value = NULL;
-                int header_key_len = 0, header_value_len = 0;
-
-                PyArg_ParseTuple(PyList_GET_ITEM(headers, i), "s#z#", &header_key,
-                        &header_key_len, &header_value, &header_value_len);
-
-                err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
-                if (err) {
-                    cfl_PyErr_Format(err,
-                             "Unable to produce message: %s",
-                             rd_kafka_err2str(err));
-                    return NULL;
-                }
-            }
+        if (headers) {
+            if(!(rd_headers = py_headers_to_c(headers)))
+                return NULL;
         }
 
         err = Producer_producev(self, topic, partition,
