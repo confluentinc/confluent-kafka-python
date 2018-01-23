@@ -1,0 +1,46 @@
+version: '2'
+
+services:
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2181:2181"
+
+  image:
+    build:
+      context: ./docker/kafka
+      dockerfile: Dockerfile
+    image: test-kafka
+
+  kafka1:
+    image: test-kafka
+    ports:
+      - "9093:9092"
+    environment:
+      - NUM_PARTITIONS=3
+      - NUM_REPLICATION=3
+      - ADVERTISED_LISTENERS=CLIENT://localhost:9093,REPLICATION://kafka1:10001
+      - LISTENERS=CLIENT://0.0.0.0:9092,REPLICATION://0.0.0.0:10001
+      - ZOOKEEPER_URL=zookeeper:2181
+
+  kafka2:
+    image: test-kafka
+    ports:
+      - "9094:9092"
+    environment:
+      - NUM_PARTITIONS=3
+      - NUM_REPLICATION=3
+      - ADVERTISED_LISTENERS=CLIENT://localhost:9094,REPLICATION://kafka2:10001
+      - LISTENERS=CLIENT://0.0.0.0:9092,REPLICATION://0.0.0.0:10001
+      - ZOOKEEPER_URL=zookeeper:2181
+
+  kafka3:
+    image: test-kafka
+    ports:
+      - "9095:9092"
+    environment:
+      - NUM_PARTITIONS=3
+      - NUM_REPLICATION=3
+      - ADVERTISED_LISTENERS=CLIENT://localhost:9095,REPLICATION://kafka3:10001
+      - LISTENERS=CLIENT://0.0.0.0:9092,REPLICATION://0.0.0.0:10001
+      - ZOOKEEPER_URL=zookeeper:2181
