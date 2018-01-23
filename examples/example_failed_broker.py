@@ -28,7 +28,7 @@ def test_broker(pause_broker):
     producer = Producer(**{
         'bootstrap.servers': 'localhost:9094',
         'compression.codec': 'snappy',
-        'queue.buffering.max.ms': 0,
+        'queue.buffering.max.ms': 1,
         'metadata.request.timeout.ms': 100,
         'topic.metadata.refresh.interval.ms': 100,
         'socket.timeout.ms': 100,
@@ -56,7 +56,16 @@ def test_broker(pause_broker):
         'error_cb': _error_callback,
     })
     new_consumer.subscribe([source_topic_name])
+
     msgs = []
+    def _ensure_assignment():
+        raw_msg = new_consumer.poll(0)
+        # buffer locally for count
+        if raw_msg:
+            msgs.append(raw_msg)
+
+        assert new_consumer.assignment()
+    retry(_ensure_assignment)
 
     def _ensure_delivery():
         while True:
