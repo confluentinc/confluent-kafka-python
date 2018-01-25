@@ -204,6 +204,9 @@ class MessageSerializer(object):
 
         if message is None:
             return None
+          
+        if len(message) == 0:
+            return ""
 
         if len(message) <= 5:
             raise SerializerError("message is too small to decode")
