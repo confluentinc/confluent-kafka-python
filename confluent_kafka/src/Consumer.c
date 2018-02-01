@@ -1267,10 +1267,10 @@ static PyMethodDef Consumer_methods[] = {
 	},
 
     {
-        "get_metadata",
-        (PyCFunction)Kafka_generic_get_metadata,
+        "list_topics",
+        (PyCFunction)get_metadata,
         METH_VARARGS|METH_KEYWORDS,
-        Kafka_generic_get_metadata_doc
+        get_metadata_doc
     },
 
 
