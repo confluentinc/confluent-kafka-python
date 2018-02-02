@@ -338,11 +338,9 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
         Py_INCREF(self->headers);
 		return self->headers;
     } else if (self->c_headers) {
-        size_t header_size;
-        header_size = rd_kafka_header_cnt(self->c_headers);
-        printf("inside Message_headers c_header size %zu\n", header_size);
-
         self->headers = c_headers_to_py(self->c_headers);
+        rd_kafka_headers_destroy(self->c_headers);
+        self->c_headers = NULL;
         Py_INCREF(self->headers);
         return self->headers;
 	} else {
@@ -488,6 +486,10 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->headers);
 		self->headers = NULL;
 	}
+    if (self->c_headers){
+        rd_kafka_headers_destroy(self->c_headers);
+        self->c_headers = NULL;
+    }
 	return 0;
 }
 
@@ -581,6 +583,7 @@ PyTypeObject MessageType = {
  */
 PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	Message *self;
+    rd_kafka_headers_t *hdrs;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
 	if (!self)
@@ -608,10 +611,8 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
-    if (!rd_kafka_message_headers(rkm, &self->c_headers)) {
-        size_t header_size;
-        header_size = rd_kafka_header_cnt(self->c_headers);
-        printf("after c_header set size %zu\n", header_size);
+    if (!rd_kafka_message_headers(rkm, &hdrs)) {
+        self->c_headers = rd_kafka_headers_copy(hdrs);
     }
 
 	return (PyObject *)self;
