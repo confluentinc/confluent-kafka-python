@@ -334,7 +334,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
             PyErr_Format(PyExc_NotImplementedError,
                          "Producer message headers requires "
                          "confluent-kafka-python built for librdkafka "
-                         "version >=v0.11.3 (librdkafka runtime 0x%x, "
+                         "version >=v0.11.4 (librdkafka runtime 0x%x, "
                          "buildtime 0x%x)",
                          rd_kafka_version(), RD_KAFKA_VERSION);
             return NULL;
@@ -361,17 +361,17 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	if (!partitioner_cb || partitioner_cb == Py_None)
 		partitioner_cb = self->u.Producer.partitioner_cb;
 
+    if (headers) {
+        if(!(rd_headers = py_headers_to_c(headers)))
+            return NULL;
+    }
+
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
 	msgstate = Producer_msgstate_new(self, dr_cb, partitioner_cb);
 
         /* Produce message */
 #if HAVE_PRODUCEV
-        if (headers) {
-            if(!(rd_headers = py_headers_to_c(headers)))
-                return NULL;
-        }
-
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,

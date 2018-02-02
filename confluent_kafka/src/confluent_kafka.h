@@ -288,6 +288,7 @@ typedef struct {
 	PyObject *value;
 	PyObject *key;
 	PyObject *headers;
+	rd_kafka_headers_t *c_headers;
 	PyObject *error;
 	int32_t partition;
 	int64_t offset;

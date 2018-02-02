@@ -335,10 +335,28 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 
 static PyObject *Message_headers (Message *self, PyObject *ignore) {
 	if (self->headers) {
-		Py_INCREF(self->headers);
+        Py_INCREF(self->headers);
 		return self->headers;
-	} else
+    } else if (self->c_headers) {
+        size_t header_size;
+        header_size = rd_kafka_header_cnt(self->c_headers);
+        printf("inside Message_headers c_header size %zu\n", header_size);
+
+        self->headers = c_headers_to_py(self->c_headers);
+        Py_INCREF(self->headers);
+        return self->headers;
+	} else {
 		Py_RETURN_NONE;
+    }
+}
+
+static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
+   if (self->headers)
+        Py_DECREF(self->headers);
+   self->headers = new_headers;
+   Py_INCREF(self->headers);
+
+   Py_RETURN_NONE;
 }
 
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
@@ -423,6 +441,13 @@ static PyMethodDef Message_methods[] = {
       "\n"
 	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
 	  "  :rtype: [(str, bytes),...] or None.\n"
+	  "\n"
+	},
+	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
+	  "  Set the field 'Message.headers' with new value.\n"
+	  "  :param: object value: Message.headers.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
@@ -556,7 +581,6 @@ PyTypeObject MessageType = {
  */
 PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	Message *self;
-    rd_kafka_headers_t *hdrs;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
 	if (!self)
@@ -584,8 +608,10 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
-    if (!rd_kafka_message_headers(rkm, &hdrs)) {
-        self->headers = c_headers_to_py(hdrs);
+    if (!rd_kafka_message_headers(rkm, &self->c_headers)) {
+        size_t header_size;
+        header_size = rd_kafka_header_cnt(self->c_headers);
+        printf("after c_header set size %zu\n", header_size);
     }
 
 	return (PyObject *)self;
@@ -929,6 +955,7 @@ rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
 
         if(!PyArg_ParseTuple(PyList_GET_ITEM(headers_plist, i), "s#z#", &header_key,
                 &header_key_len, &header_value, &header_value_len)){
+            rd_kafka_headers_destroy(rd_headers);
             PyErr_SetString(PyExc_TypeError,
                     "Headers are expected to be a tuple of (key, value)");
             return NULL;
@@ -936,10 +963,10 @@ rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
 
         err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
         if (err) {
+            rd_kafka_headers_destroy(rd_headers);
             cfl_PyErr_Format(err,
                      "Unable to create message headers: %s",
                      rd_kafka_err2str(err));
-            rd_kafka_headers_destroy(rd_headers);
             return NULL;
         }
     }
