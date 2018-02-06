@@ -133,7 +133,7 @@ static int Producer_traverse (Handle *self,
 }
 
 
-static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
+static void dr_msg_cb (rd_kafka_t *rk, rd_kafka_message_t *rkm,
 			   void *opaque) {
 	struct Producer_msgstate *msgstate = rkm->_private;
 	Handle *self = opaque;

@@ -298,7 +298,7 @@ typedef struct {
 
 extern PyTypeObject MessageType;
 
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm);
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm);
 PyObject *Message_error (Message *self, PyObject *ignore);
 
 
