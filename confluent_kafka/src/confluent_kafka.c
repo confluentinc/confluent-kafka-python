@@ -581,7 +581,7 @@ PyTypeObject MessageType = {
 /**
  * @brief Internal factory to create Message object from message_t
  */
-PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm) {
+PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	Message *self;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
@@ -609,8 +609,6 @@ PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm) {
 	self->offset = rkm->offset;
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
-
-    rd_kafka_message_detach_headers(rkm, &self->c_headers);
 
 	return (PyObject *)self;
 }

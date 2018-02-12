@@ -101,6 +101,9 @@ The Python bindings also provide some additional configuration properties:
   delivery result (success or failure).
   This property may also be set per-message by passing ``callback=callable``
   (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
+  Currently message headers are not supported on the message returned to the
+  callback. The ``msg.headers()`` will return None even if the original message
+  had headers set.
 
 * ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
   of commit requests.

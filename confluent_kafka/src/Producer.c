@@ -133,7 +133,7 @@ static int Producer_traverse (Handle *self,
 }
 
 
-static void dr_msg_cb (rd_kafka_t *rk, rd_kafka_message_t *rkm,
+static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 			   void *opaque) {
 	struct Producer_msgstate *msgstate = rkm->_private;
 	Handle *self = opaque;
@@ -480,6 +480,10 @@ static PyMethodDef Producer_methods[] = {
 	  "``callback`` (alias ``on_delivery``) argument to pass a function "
 	  "(or lambda) that will be called from :py:func:`poll()` when the "
 	  "message has been successfully delivered or permanently fails delivery.\n"
+      "\n"
+      "  Currently message headers are not supported on the message returned to the "
+      "callback. The ``msg.headers()`` will return None even if the original message "
+      "had headers set.\n"
 	  "\n"
 	  "  :param str topic: Topic to produce message to\n"
 	  "  :param str|bytes value: Message payload\n"
