@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from confluent_kafka import (Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE,
+from confluent_kafka import (Consumer, TopicPartition, KafkaError,
+                             KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
 import pytest
 
@@ -54,6 +55,10 @@ def test_basic_api():
 
     partitions = list(map(lambda part: TopicPartition("test", part), range(0, 100, 3)))
     kc.assign(partitions)
+
+    with pytest.raises(KafkaException) as ex:
+        kc.seek(TopicPartition("test", 0, 123))
+    assert 'Erroneous state' in str(ex.value)
 
     # Verify assignment
     assignment = kc.assignment()
@@ -265,6 +270,10 @@ def test_any_method_after_close_throws_exception():
 
     with pytest.raises(RuntimeError) as ex:
         c.position([TopicPartition("test", 0)])
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
+        c.seek([TopicPartition("test", 0, 0)])
     assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:

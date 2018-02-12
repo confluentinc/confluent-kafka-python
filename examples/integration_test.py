@@ -402,6 +402,32 @@ def print_commit_result(err, partitions):
         print('# Committed offsets for: %s' % partitions)
 
 
+def verify_consumer_seek(c, seek_to_msg):
+    """ Seek to message and verify the next consumed message matches.
+        Must only be performed on an actively consuming consumer. """
+
+    tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
+                                        seek_to_msg.partition(),
+                                        seek_to_msg.offset())
+    print('seek: Seeking to %s' % tp)
+    c.seek(tp)
+
+    while True:
+        msg = c.poll()
+        assert msg is not None
+        if msg.error():
+            print('seek: Ignoring non-message: %s' % msg)
+            continue
+
+        if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
+            continue
+
+        print('seek: message at offset %d' % msg.offset())
+        assert msg.offset() == seek_to_msg.offset(), \
+            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        break
+
+
 def verify_consumer():
     """ Verify basic Consumer functionality """
 
@@ -433,6 +459,8 @@ def verify_consumer():
     max_msgcnt = 100
     msgcnt = 0
 
+    first_msg = None
+
     while True:
         # Consume until EOF or error
 
@@ -454,6 +482,9 @@ def verify_consumer():
         print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
               (msg.topic(), msg.partition(), msg.offset(),
                msg.key(), msg.value(), tstype, timestamp))
+
+        if first_msg is None:
+            first_msg = msg
 
         if (msgcnt == 11):
             parts = c.assignment()
@@ -498,6 +529,8 @@ def verify_consumer():
 
     offsets = c.offsets_for_times(topic_partions_to_search, timeout=1.0)
     print("offsets_for_times results: %s" % offsets)
+
+    verify_consumer_seek(c, first_msg)
 
     # Close consumer
     c.close()

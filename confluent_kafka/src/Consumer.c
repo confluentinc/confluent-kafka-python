@@ -699,6 +699,55 @@ static PyObject *Consumer_resume (Handle *self, PyObject *args,
 	Py_RETURN_NONE;
 }
 
+
+static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) {
+
+        TopicPartition *tp;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "partition", NULL };
+        rd_kafka_topic_t *rkt;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
+                                         (PyObject **)&tp))
+                return NULL;
+
+
+        if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
+                PyErr_Format(PyExc_TypeError,
+                             "expected %s", TopicPartitionType.tp_name);
+                return NULL;
+        }
+
+        rkt = rd_kafka_topic_new(self->rk, tp->topic, NULL);
+        if (!rkt) {
+                cfl_PyErr_Format(rd_kafka_last_error(),
+                                 "Failed to get topic object for "
+                                 "topic \"%s\": %s",
+                                 tp->topic,
+                                 rd_kafka_err2str(rd_kafka_last_error()));
+                return NULL;
+        }
+
+        err = rd_kafka_seek(rkt, tp->partition, tp->offset, -1);
+
+        rd_kafka_topic_destroy(rkt);
+
+        if (err) {
+                cfl_PyErr_Format(err,
+                                 "Failed to seek to offset %"PRId64": %s",
+                                 tp->offset, rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
 static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
                                                  PyObject *kwargs) {
 
@@ -1136,6 +1185,24 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :raises: KafkaException\n"
 	  "\n"
 	},
+        { "seek", (PyCFunction)Consumer_seek,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: seek(partition)\n"
+          "\n"
+          "  Set consume position for partition to offset.\n"
+          "  The offset may be an absolute (>=0) or a\n"
+          "  logical offset (:py:const:`OFFSET_BEGINNING` et.al).\n"
+          "\n"
+          "  seek() may only be used to update the consume offset of an\n"
+          "  actively consumed partition (i.e., after :py:const:`assign()`),\n"
+          "  to set the starting offset of partition not being consumed instead\n"
+          "  pass the offset in an `assign()` call.\n"
+          "\n"
+          "  :param TopicPartition partition: Topic+partition+offset to seek to.\n"
+          "\n"
+          "  :raises: KafkaException\n"
+          "\n"
+        },
         { "get_watermark_offsets", (PyCFunction)Consumer_get_watermark_offsets,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: get_watermark_offsets(partition, [timeout=None], [cached=False])\n"
