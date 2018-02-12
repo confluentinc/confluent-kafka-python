@@ -951,7 +951,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
                 // Have to deatch headers outside Message_new0 because it declares the
                 // rk message as a const
-                rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
+                rd_kafka_message_detach_headers(rkmessages[i], &((Message *)msgobj)->c_headers);
                 PyList_SET_ITEM(msglist, i, msgobj);
                 rd_kafka_message_destroy(rkmessages[i]);
         }
