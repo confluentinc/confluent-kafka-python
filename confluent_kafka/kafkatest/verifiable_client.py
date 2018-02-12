@@ -75,14 +75,16 @@ class VerifiableClient(object):
                 # App config, skip
                 continue
 
-            n = n[5:] # Remove conf_ prefix
+            # Remove conf_ prefix
+            n = n[5:]
 
+            # Handle known Java properties to librdkafka properties.
             if n == 'partition.assignment.strategy':
                 # Convert Java class name to config value.
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
                 conf[n] = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
                                  lambda x: x.group(1).lower(), v)
-                                # Handle known Java properties to librdkafka properties.
+
             elif n == 'enable.idempotence':
                 # Ignore idempotence for now, best-effortly.
                 sys.stderr.write('%% WARN: Ignoring unsupported %s=%s\n' % (n, v))
@@ -90,7 +92,7 @@ class VerifiableClient(object):
                 conf[n] = v
 
     @staticmethod
-    def read_config_file (path):
+    def read_config_file(path):
         """Read (java client) config file and return dict with properties"""
         conf = {}
 
