@@ -57,7 +57,7 @@ def test_produce_timestamp():
 
 
 # Should be updated to 0.11.4 when it is released
-@pytest.mark.skipif(libversion()[1] < 0x000b0000,
+@pytest.mark.skipif(libversion()[1] < 0x000b0400,
                     reason="requires librdkafka >=0.11.4")
 def test_produce_headers():
     """ Test produce() with timestamp arg """
@@ -79,7 +79,7 @@ def test_produce_headers():
 
 
 # Should be updated to 0.11.4 when it is released
-@pytest.mark.skipif(libversion()[1] >= 0x000b0000,
+@pytest.mark.skipif(libversion()[1] >= 0x000b0400,
                     reason="Old versions should fail when using headers")
 def test_produce_headers_should_fail():
     """ Test produce() with timestamp arg """

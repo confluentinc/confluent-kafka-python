@@ -252,14 +252,17 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 }
 
 
+#if HAVE_PRODUCEV
+static rd_kafka_resp_err_t
+Producer_producev (Handle *self,
+                   const char *topic, int32_t partition,
+                   const void *value, size_t value_len,
+                   const void *key, size_t key_len,
+                   void *opaque, int64_t timestamp
 #if RD_KAFKA_V_HEADERS
-static rd_kafka_resp_err_t
-Producer_producev (Handle *self,
-                   const char *topic, int32_t partition,
-                   const void *value, size_t value_len,
-                   const void *key, size_t key_len,
-                   void *opaque, int64_t timestamp,
-                   rd_kafka_headers_t *headers) {
+                   ,rd_kafka_headers_t *headers
+#endif
+                   ) {
 
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
@@ -269,26 +272,9 @@ Producer_producev (Handle *self,
                                  RD_KAFKA_V_VALUE((void *)value,
                                                   (size_t)value_len),
                                  RD_KAFKA_V_TIMESTAMP(timestamp),
+#if RD_KAFKA_V_HEADERS
                                  RD_KAFKA_V_HEADERS(headers),
-                                 RD_KAFKA_V_OPAQUE(opaque),
-                                 RD_KAFKA_V_END);
-}
-#elif HAVE_PRODUCEV
-static rd_kafka_resp_err_t
-Producer_producev (Handle *self,
-                   const char *topic, int32_t partition,
-                   const void *value, size_t value_len,
-                   const void *key, size_t key_len,
-                   void *opaque, int64_t timestamp) {
-
-        return rd_kafka_producev(self->rk,
-                                 RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
-                                 RD_KAFKA_V_TOPIC(topic),
-                                 RD_KAFKA_V_PARTITION(partition),
-                                 RD_KAFKA_V_KEY(key, (size_t)key_len),
-                                 RD_KAFKA_V_VALUE((void *)value,
-                                                  (size_t)value_len),
-                                 RD_KAFKA_V_TIMESTAMP(timestamp),
+#endif
                                  RD_KAFKA_V_OPAQUE(opaque),
                                  RD_KAFKA_V_END);
 }
@@ -351,18 +337,6 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
                      &timestamp, &headers))
 		return NULL;
 
-#ifndef RD_KAFKA_V_HEADERS
-    if (headers) {
-            PyErr_Format(PyExc_NotImplementedError,
-                         "Producer message headers requires "
-                         "confluent-kafka-python built for librdkafka "
-                         "version >=v0.11.4 (librdkafka runtime 0x%x, "
-                         "buildtime 0x%x)",
-                         rd_kafka_version(), RD_KAFKA_VERSION);
-            return NULL;
-    }
-#endif
-
 #if !HAVE_PRODUCEV
         if (timestamp) {
                 PyErr_Format(PyExc_NotImplementedError,
@@ -375,6 +349,24 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         }
 #endif
 
+#ifndef RD_KAFKA_V_HEADERS
+    if (headers) {
+            PyErr_Format(PyExc_NotImplementedError,
+                         "Producer message headers requires "
+                         "confluent-kafka-python built for librdkafka "
+                         "version >=v0.11.4 (librdkafka runtime 0x%x, "
+                         "buildtime 0x%x)",
+                         rd_kafka_version(), RD_KAFKA_VERSION);
+            return NULL;
+    }
+#else
+    if (headers) {
+        if(!(rd_headers = py_headers_to_c(headers)))
+            return NULL;
+    }
+#endif
+
+
 	if (dr_cb2 && !dr_cb) /* Alias */
 		dr_cb = dr_cb2;
 
@@ -383,12 +375,6 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	if (!partitioner_cb || partitioner_cb == Py_None)
 		partitioner_cb = self->u.Producer.partitioner_cb;
 
-#ifdef RD_KAFKA_V_HEADERS
-    if (headers) {
-        if(!(rd_headers = py_headers_to_c(headers)))
-            return NULL;
-    }
-#endif
 
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
@@ -396,24 +382,19 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
         /* Produce message */
 #if HAVE_PRODUCEV
+        err = Producer_producev(self, topic, partition,
+                                value, value_len,
+                                key, key_len,
+                                msgstate, timestamp
 #if RD_KAFKA_V_HEADERS
-        err = Producer_producev(self, topic, partition,
-                                value, value_len,
-                                key, key_len,
-                                msgstate, timestamp,
-                                rd_headers);
-#else
-        err = Producer_producev(self, topic, partition,
-                                value, value_len,
-                                key, key_len,
-                                msgstate, timestamp);
+                                ,rd_headers
 #endif
+                                );
 #else
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
                                 msgstate);
-
 #endif
 
         if (err) {
