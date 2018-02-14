@@ -252,7 +252,7 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 }
 
 
-#if HAVE_PRODUCEV
+#if RD_KAFKA_V_HEADERS
 static rd_kafka_resp_err_t
 Producer_producev (Handle *self,
                    const char *topic, int32_t partition,
@@ -270,6 +270,25 @@ Producer_producev (Handle *self,
                                                   (size_t)value_len),
                                  RD_KAFKA_V_TIMESTAMP(timestamp),
                                  RD_KAFKA_V_HEADERS(headers),
+                                 RD_KAFKA_V_OPAQUE(opaque),
+                                 RD_KAFKA_V_END);
+}
+#elif HAVE_PRODUCEV
+static rd_kafka_resp_err_t
+Producer_producev (Handle *self,
+                   const char *topic, int32_t partition,
+                   const void *value, size_t value_len,
+                   const void *key, size_t key_len,
+                   void *opaque, int64_t timestamp) {
+
+        return rd_kafka_producev(self->rk,
+                                 RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
+                                 RD_KAFKA_V_TOPIC(topic),
+                                 RD_KAFKA_V_PARTITION(partition),
+                                 RD_KAFKA_V_KEY(key, (size_t)key_len),
+                                 RD_KAFKA_V_VALUE((void *)value,
+                                                  (size_t)value_len),
+                                 RD_KAFKA_V_TIMESTAMP(timestamp),
                                  RD_KAFKA_V_OPAQUE(opaque),
                                  RD_KAFKA_V_END);
 }
@@ -377,11 +396,18 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
         /* Produce message */
 #if HAVE_PRODUCEV
+#if RD_KAFKA_V_HEADERS
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
                                 msgstate, timestamp,
                                 rd_headers);
+#else
+        err = Producer_producev(self, topic, partition,
+                                value, value_len,
+                                key, key_len,
+                                msgstate, timestamp);
+#endif
 #else
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
