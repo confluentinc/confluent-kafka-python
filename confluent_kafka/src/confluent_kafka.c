@@ -334,6 +334,7 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 }
 
 static PyObject *Message_headers (Message *self, PyObject *ignore) {
+#ifdef RD_KAFKA_V_HEADERS
 	if (self->headers) {
         Py_INCREF(self->headers);
 		return self->headers;
@@ -346,6 +347,9 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
 	} else {
 		Py_RETURN_NONE;
     }
+#else
+		Py_RETURN_NONE;
+#endif
 }
 
 static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
@@ -486,10 +490,12 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->headers);
 		self->headers = NULL;
 	}
+#ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
         self->c_headers = NULL;
     }
+#endif
 	return 0;
 }
 
@@ -932,6 +938,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	return c_parts;
 }
 
+#ifdef RD_KAFKA_V_HEADERS
 /**
  * @brief Convert Python list[(header_key, header_value),...]) to C rd_kafka_topic_partition_list_t.
  *
@@ -1005,6 +1012,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     return header_list;
 }
+#endif
 
 /****************************************************************************
  *

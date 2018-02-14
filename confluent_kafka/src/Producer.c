@@ -308,7 +308,10 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
+#ifdef RD_KAFKA_V_HEADERS
     rd_kafka_headers_t *rd_headers = NULL;
+#endif
+
 	static char *kws[] = { "topic",
 			       "value",
 			       "key",
@@ -361,10 +364,12 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	if (!partitioner_cb || partitioner_cb == Py_None)
 		partitioner_cb = self->u.Producer.partitioner_cb;
 
+#ifdef RD_KAFKA_V_HEADERS
     if (headers) {
         if(!(rd_headers = py_headers_to_c(headers)))
             return NULL;
     }
+#endif
 
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
