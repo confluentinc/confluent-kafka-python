@@ -77,6 +77,7 @@ def test_produce_headers():
 
     p.flush()
 
+
 # Should be updated to 0.11.4 when it is released
 @pytest.mark.skipif(libversion()[1] >= 0x000b0000,
                     reason="Old versions should fail when using headers")
