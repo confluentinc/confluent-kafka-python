@@ -17,6 +17,7 @@
 #include <Python.h>
 #include <structmember.h>
 #include <pythread.h>
+#include <stdbool.h>
 
 #include <librdkafka/rdkafka.h>
 
@@ -302,7 +303,7 @@ typedef struct {
 
 extern PyTypeObject MessageType;
 
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm);
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm, bool detach_headers);
 PyObject *Message_error (Message *self, PyObject *ignore);
 
 

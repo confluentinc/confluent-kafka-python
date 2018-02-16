@@ -156,7 +156,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
         if (self->u.Producer.dr_only_error && !rkm->err)
                 goto done;
 
-	msgobj = Message_new0(self, rkm);
+	msgobj = Message_new0(self, (rd_kafka_message_t *)rkm, false);
 	
 	args = Py_BuildValue("(OO)",
 			     Message_error((Message *)msgobj, NULL),
@@ -492,10 +492,6 @@ static PyMethodDef Producer_methods[] = {
 	  "``callback`` (alias ``on_delivery``) argument to pass a function "
 	  "(or lambda) that will be called from :py:func:`poll()` when the "
 	  "message has been successfully delivered or permanently fails delivery.\n"
-      "\n"
-      "  Currently message headers are not supported on the message returned to the "
-      "callback. The ``msg.headers()`` will return None even if the original message "
-      "had headers set.\n"
 	  "\n"
 	  "  :param str topic: Topic to produce message to\n"
 	  "  :param str|bytes value: Message payload\n"
@@ -505,16 +501,15 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"
-          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
+	  "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"
 	  "  :raises KafkaException: for other errors, see exception code\n"
-          "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
+	  "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
 	  "\n"
 	},
-
 	{ "poll", (PyCFunction)Producer_poll, METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: poll([timeout])\n"
 	  "\n"
@@ -531,17 +526,16 @@ static PyMethodDef Producer_methods[] = {
 	  "  :rtype: int\n"
 	  "\n"
 	},
-
 	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: flush([timeout])\n"
-          "\n"
+	  ".. py:function:: flush([timeout])\n"
+	  "\n"
 	  "   Wait for all messages in the Producer queue to be delivered.\n"
 	  "   This is a convenience method that calls :py:func:`poll()` until "
 	  ":py:func:`len()` is zero or the optional timeout elapses.\n"
 	  "\n"
-          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4). (Seconds)\n"
-          "  :returns: Number of messages still in queue.\n"
-          "\n"
+	  "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4). (Seconds)\n"
+	  "  :returns: Number of messages still in queue.\n"
+	  "\n"
 	  ".. note:: See :py:func:`poll()` for a description on what "
 	  "callbacks may be triggered.\n"
 	  "\n"
