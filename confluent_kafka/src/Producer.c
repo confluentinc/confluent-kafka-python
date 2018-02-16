@@ -271,12 +271,16 @@ parse_dict_headers (PyObject *headers) {
 			rd_kafka_headers_destroy(hdrs);
 			return NULL;
 		}
-		if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0) {
-			rd_kafka_headers_destroy(hdrs);
-			return NULL;
+		if (value == Py_None) {
+			rd_kafka_header_add(hdrs, keybuf, -1, NULL, 0);
+		} else {
+			if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0) {
+				rd_kafka_headers_destroy(hdrs);
+				return NULL;
+			}
+			rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+			Py_XDECREF(tmpstr);
 		}
-		rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
-		Py_XDECREF(tmpstr);
 	}
 	return hdrs;
 }
@@ -306,12 +310,16 @@ parse_seq_headers (PyObject *headers) {
 			PyErr_Format(PyExc_TypeError, "Header keys must be strings.");
 			goto err;
 		}
-		if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0)
-			goto err;
-		rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+		if (value == Py_None) {
+			rd_kafka_header_add(hdrs, keybuf, -1, NULL, 0);
+		} else {
+			if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0)
+				goto err;
+			rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+			Py_XDECREF(tmpstr);
+		}
 		Py_DECREF(key);
 		Py_DECREF(value);
-		Py_XDECREF(tmpstr);
 	}
 	Py_DECREF(fasthdrs);
 	return hdrs;

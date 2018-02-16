@@ -368,9 +368,13 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
 	count = rd_kafka_header_cnt(self->headers);
 	for (size_t i = 0; i < count;  i++) {
 		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
-		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
-		PyDict_SetItemString(dict, keybuf, value);
-		Py_DECREF(value);
+		if (!valbuf) {
+			PyDict_SetItemString(dict, keybuf, Py_None);
+		} else {
+			value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+			PyDict_SetItemString(dict, keybuf, value);
+			Py_DECREF(value);
+		}
 	}
 	return dict;
 }
@@ -390,10 +394,15 @@ static PyObject *Message_raw_headers (Message *self, PyObject *ignore) {
 	for (size_t i = 0; i < count; i++) {
 		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
 		key = PyUnicode_FromString(keybuf);
-		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
 		item = PyTuple_New(2);
 		PyTuple_SET_ITEM(item, 0, key);
-		PyTuple_SET_ITEM(item, 1, value);
+		if (!valbuf) {
+			Py_INCREF(Py_None);
+			PyTuple_SET_ITEM(item, 1, Py_None);
+		} else {
+			value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+			PyTuple_SET_ITEM(item, 1, value);
+		}
 		PyTuple_SET_ITEM(tuple, (Py_ssize_t)i, item);
 	}
 	return tuple;
