@@ -57,6 +57,9 @@
 #define HAVE_PRODUCEV  1 /* rd_kafka_producev() */
 #endif
 
+#ifdef RD_KAFKA_V_HEADER
+#define HAVE_HEADERS  1 /* message headers */
+#endif
 
 
 /****************************************************************************
@@ -291,6 +294,9 @@ typedef struct {
 	int64_t offset;
 	int64_t timestamp;
 	rd_kafka_timestamp_type_t tstype;
+#if HAVE_HEADERS
+	rd_kafka_headers_t *headers;
+#endif
 } Message;
 
 extern PyTypeObject MessageType;
