@@ -530,10 +530,6 @@ static int Message_traverse (Message *self,
 		Py_VISIT(self->key);
 	if (self->error)
 		Py_VISIT(self->error);
-#if HAVE_HEADERS
-	if (self->headers)
-		Py_VISIT(self->headers);
-#endif
 	return 0;
 }
 
