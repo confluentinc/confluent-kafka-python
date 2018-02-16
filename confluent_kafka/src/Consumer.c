@@ -885,6 +885,11 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
                 Py_RETURN_NONE;
 
         msgobj = Message_new0(self, rkm);
+#ifdef RD_KAFKA_V_HEADERS
+        // Have to deatch headers outside Message_new0 because it declares the
+        // rk message as a const
+        rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
+#endif
         rd_kafka_message_destroy(rkm);
 
         return msgobj;
@@ -946,6 +951,11 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         for (i = 0; i < n; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
+#ifdef RD_KAFKA_V_HEADERS
+                // Have to deatch headers outside Message_new0 because it declares the
+                // rk message as a const
+                rd_kafka_message_detach_headers(rkmessages[i], &((Message *)msgobj)->c_headers);
+#endif
                 PyList_SET_ITEM(msglist, i, msgobj);
                 rd_kafka_message_destroy(rkmessages[i]);
         }
