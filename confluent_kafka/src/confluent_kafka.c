@@ -351,6 +351,55 @@ static PyObject *Message_set_key (Message *self, PyObject *new_key) {
    Py_RETURN_NONE;
 }
 
+#if HAVE_HEADERS
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+	const char *keybuf;
+	const void *valbuf;
+	size_t count, len;
+	PyObject *dict, *value;
+
+	if (!self->headers)
+		Py_RETURN_NONE;
+
+	dict = PyDict_New();
+	if (!dict)
+		return NULL;
+	// Parse into dictionary.
+	count = rd_kafka_header_cnt(self->headers);
+	for (size_t i = 0; i < count;  i++) {
+		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
+		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+		PyDict_SetItemString(dict, keybuf, value);
+		Py_DECREF(value);
+	}
+	return dict;
+}
+
+
+static PyObject *Message_raw_headers (Message *self, PyObject *ignore) {
+	const char *keybuf;
+	const void *valbuf;
+	size_t len, count;
+	PyObject *tuple, *item, *key, *value;
+
+	if (!self->headers)
+		Py_RETURN_NONE;
+
+	count = rd_kafka_header_cnt(self->headers);
+	tuple = PyTuple_New((Py_ssize_t)count);
+	for (size_t i = 0; i < count; i++) {
+		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
+		key = PyUnicode_FromString(keybuf);
+		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+		item = PyTuple_New(2);
+		PyTuple_SET_ITEM(item, 0, key);
+		PyTuple_SET_ITEM(item, 1, value);
+		PyTuple_SET_ITEM(tuple, (Py_ssize_t)i, item);
+	}
+	return tuple;
+}
+#endif
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -361,7 +410,6 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None or :py:class:`KafkaError`\n"
 	  "\n"
 	},
-
 	{ "value", (PyCFunction)Message_value, METH_NOARGS,
 	  "  :returns: message value (payload) or None if not available.\n"
 	  "  :rtype: str|bytes or None\n"
@@ -423,6 +471,18 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
+#if HAVE_HEADERS
+	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
+	  "  :returns: dict of headers or None if not available.\n"
+	  "  :rtype: Dict[str, bytes] or None\n"
+	  "\n"
+	},
+	{ "raw_headers", (PyCFunction)Message_raw_headers, METH_NOARGS,
+	  "  :returns: a tuple of key, value tuples or None if not available.\n"
+	  "  :rtype: Tuple[Tuple[str, bytes]] or None\n"
+	  "\n"
+	},
+#endif
 	{ NULL }
 };
 
@@ -443,6 +503,12 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->error);
 		self->error = NULL;
 	}
+#if HAVE_HEADERS
+	if (self->headers) {
+		rd_kafka_headers_destroy(self->headers);
+		self->headers = NULL;
+	}
+#endif
 	return 0;
 }
 
@@ -464,6 +530,10 @@ static int Message_traverse (Message *self,
 		Py_VISIT(self->key);
 	if (self->error)
 		Py_VISIT(self->error);
+#if HAVE_HEADERS
+	if (self->headers)
+		Py_VISIT(self->headers);
+#endif
 	return 0;
 }
 
@@ -555,6 +625,11 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	if (rkm->key)
 		self->key = cfl_PyBin(
 			_FromStringAndSize(rkm->key, rkm->key_len));
+#if HAVE_HEADERS
+	rd_kafka_headers_t *hdrs = NULL;
+	rd_kafka_message_detach_headers((rd_kafka_message_t *)rkm, &hdrs);
+	self->headers = hdrs;
+#endif
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
