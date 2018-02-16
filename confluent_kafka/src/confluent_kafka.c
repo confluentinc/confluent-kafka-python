@@ -340,8 +340,6 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
 		return self->headers;
 	} else if (self->c_headers) {
 		self->headers = c_headers_to_py(self->c_headers);
-		rd_kafka_headers_destroy(self->c_headers);
-		self->c_headers = NULL;
 		Py_INCREF(self->headers);
 		return self->headers;
 	} else {
