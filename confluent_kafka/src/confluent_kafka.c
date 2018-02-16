@@ -1057,6 +1057,39 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     return header_list;
 }
+
+
+rd_kafka_headers_t *
+parse_dict_headers (PyObject *headers) {
+	Py_ssize_t pos = 0;
+	PyObject *key, *value, *tmpstr;
+	const char *keybuf;
+	char *valbuf;
+	Py_ssize_t len;
+	rd_kafka_headers_t *hdrs;
+
+	len = PyDict_Size(headers);
+	hdrs = rd_kafka_headers_new((size_t)len);
+	while (PyDict_Next(headers, &pos, &key, &value)) {
+		if (!(keybuf = cfl_PyUnistr_AsUTF8(key, &tmpstr))) {
+			PyErr_Format(PyExc_TypeError, "Header keys must be strings.");
+			Py_XDECREF(tmpstr);
+			rd_kafka_headers_destroy(hdrs);
+			return NULL;
+		}
+		if (value == Py_None) {
+			rd_kafka_header_add(hdrs, keybuf, -1, NULL, 0);
+		} else {
+			if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0) {
+				rd_kafka_headers_destroy(hdrs);
+				return NULL;
+			}
+			rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+			Py_XDECREF(tmpstr);
+		}
+	}
+	return hdrs;
+}
 #endif
 
 /****************************************************************************

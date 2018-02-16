@@ -271,6 +271,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 #ifdef RD_KAFKA_V_HEADERS
 rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist);
 PyObject *c_headers_to_py (rd_kafka_headers_t *headers);
+rd_kafka_headers_t *parse_dict_headers (PyObject *headers);
 #endif
 /****************************************************************************
  *

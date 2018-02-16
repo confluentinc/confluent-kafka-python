@@ -310,11 +310,11 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
 	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
-        long long timestamp = 0;
-        rd_kafka_resp_err_t err;
+	long long timestamp = 0;
+	rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
 #ifdef RD_KAFKA_V_HEADERS
-    rd_kafka_headers_t *rd_headers = NULL;
+	rd_kafka_headers_t *rd_headers = NULL;
 #endif
 
 	static char *kws[] = { "topic",
@@ -324,17 +324,17 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
-                   "timestamp",
-                   "headers",
+			       "timestamp",
+			       "headers",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 "s|z#z#iOOOLO"
-                                         , kws,
+					 , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
 					 &dr_cb, &dr_cb2, &partitioner_cb,
-                     &timestamp, &headers))
+					 &timestamp, &headers))
 		return NULL;
 
 #if !HAVE_PRODUCEV
@@ -360,10 +360,18 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
             return NULL;
     }
 #else
-    if (headers) {
-        if(!(rd_headers = py_headers_to_c(headers)))
-            return NULL;
-    }
+	if (headers) {
+		if (PyDict_Check(headers)) {
+			rd_headers = parse_dict_headers(headers);
+		} else if (PySequence_Check(headers)) {
+			rd_headers = py_headers_to_c(headers);
+		} else {
+			PyErr_Format(PyExc_ValueError, "Message headers must be a dict or iterable.");
+			return NULL;
+		}
+		if (!rd_headers)
+			return NULL;
+	}
 #endif
 
 

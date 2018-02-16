@@ -522,7 +522,7 @@ def verify_consumer():
             break
 
     assert example_header, "We should have received at least one header"
-    assert example_header == [(u'foo1', 'bar'), (u'foo1', 'bar2'), (u'foo2', '1')]
+    assert example_header == [(u'foo1', b'bar'), (u'foo1', b'bar2'), (u'foo2', b'1')]
 
     # Get current assignment
     assignment = c.assignment()
