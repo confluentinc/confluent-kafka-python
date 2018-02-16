@@ -352,6 +352,37 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
 #endif
 }
 
+static PyObject *Message_headers_dict (Message *self, PyObject *ignore) {
+#ifdef RD_KAFKA_V_HEADERS
+	const char *keybuf;
+	const void *valbuf;
+	size_t count, len;
+	PyObject *dict, *value;
+
+	if (!self->c_headers)
+		Py_RETURN_NONE;
+
+	dict = PyDict_New();
+	if (!dict)
+		return NULL;
+	// Parse into dictionary.
+	count = rd_kafka_header_cnt(self->c_headers);
+	for (size_t i = 0; i < count;  i++) {
+		rd_kafka_header_get_all(self->c_headers, i, &keybuf, &valbuf, &len);
+		if (!valbuf) {
+			PyDict_SetItemString(dict, keybuf, Py_None);
+		} else {
+			value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+			PyDict_SetItemString(dict, keybuf, value);
+			Py_DECREF(value);
+		}
+	}
+	return dict;
+#else
+	Py_RETURN_NONE;
+#endif
+}
+
 static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
 	if (self->headers)
 		Py_DECREF(self->headers);
@@ -442,6 +473,14 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
 	  "  :rtype: [(str, bytes),...] or None.\n"
+	  "\n"
+	},
+	{ "headers_dict", (PyCFunction)Message_headers_dict, METH_NOARGS,
+	  "  Retrieve the headers set on a message as a str key, byte value dict."
+	  "  Duplicate headers will contain the last value set with that key.\n"
+	  "\n"
+	  "  :returns: a dict of str keys and bytes values.\n"
+	  "  :rtype: Dict[str,bytes] or None.\n"
 	  "\n"
 	},
 	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
