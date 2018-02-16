@@ -884,7 +884,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         if (!rkm)
                 Py_RETURN_NONE;
 
-        msgobj = Message_new0(self, rkm);
+        msgobj = Message_new0(self, rkm, true);
         rd_kafka_message_destroy(rkm);
 
         return msgobj;
@@ -945,7 +945,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         msglist = PyList_New(n);
 
         for (i = 0; i < n; i++) {
-                PyObject *msgobj = Message_new0(self, rkmessages[i]);
+                PyObject *msgobj = Message_new0(self, rkmessages[i], true);
                 PyList_SET_ITEM(msglist, i, msgobj);
                 rd_kafka_message_destroy(rkmessages[i]);
         }

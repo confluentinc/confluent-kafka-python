@@ -156,7 +156,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
         if (self->u.Producer.dr_only_error && !rkm->err)
                 goto done;
 
-	msgobj = Message_new0(self, rkm);
+	msgobj = Message_new0(self, (rd_kafka_message_t *)rkm, false);
 	
 	args = Py_BuildValue("(OO)",
 			     Message_error((Message *)msgobj, NULL),
@@ -252,13 +252,87 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 }
 
 
+#if HAVE_HEADERS
+static rd_kafka_headers_t *
+parse_dict_headers (PyObject *headers) {
+	Py_ssize_t pos = 0;
+	PyObject *key, *value, *tmpstr;
+	const char *keybuf;
+	char *valbuf;
+	Py_ssize_t len;
+	rd_kafka_headers_t *hdrs;
+
+	len = PyDict_Size(headers);
+	hdrs = rd_kafka_headers_new((size_t)len);
+	while (PyDict_Next(headers, &pos, &key, &value)) {
+		if (!(keybuf = cfl_PyUnistr_AsUTF8(key, &tmpstr))) {
+			PyErr_Format(PyExc_TypeError, "Header keys must be strings.");
+			Py_XDECREF(tmpstr);
+			rd_kafka_headers_destroy(hdrs);
+			return NULL;
+		}
+		if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0) {
+			rd_kafka_headers_destroy(hdrs);
+			return NULL;
+		}
+		rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+		Py_XDECREF(tmpstr);
+	}
+	return hdrs;
+}
+
+
+static rd_kafka_headers_t *
+parse_seq_headers (PyObject *headers) {
+	PyObject *fasthdrs, **items, *item, *key, *value, *tmpstr;
+	const char *keybuf;
+	char *valbuf;
+	Py_ssize_t count, len;
+	rd_kafka_headers_t *hdrs;
+
+	fasthdrs = PySequence_Fast(headers, NULL);
+	count = PySequence_Fast_GET_SIZE(fasthdrs);
+	items = PySequence_Fast_ITEMS(fasthdrs);
+	hdrs = rd_kafka_headers_new((size_t)count);
+	for (Py_ssize_t i = 0; i < count; i++) {
+		item = items[i];
+		key = PySequence_GetItem(item, 0);
+		value = PySequence_GetItem(item, 1);
+		if (!key || !value) {
+			PyErr_Format(PyExc_ValueError, "Invalid header.");
+			goto err;
+		}
+		if (!(keybuf = cfl_PyUnistr_AsUTF8(key, &tmpstr))) {
+			PyErr_Format(PyExc_TypeError, "Header keys must be strings.");
+			goto err;
+		}
+		if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0)
+			goto err;
+		rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+		Py_DECREF(key);
+		Py_DECREF(value);
+		Py_XDECREF(tmpstr);
+	}
+	Py_DECREF(fasthdrs);
+	return hdrs;
+err:
+	Py_XDECREF(key);
+	Py_XDECREF(value);
+	Py_XDECREF(tmpstr);
+	Py_DECREF(fasthdrs);
+	rd_kafka_headers_destroy(hdrs);
+	return NULL;
+}
+#endif
+
+
 #if HAVE_PRODUCEV
 static rd_kafka_resp_err_t
 Producer_producev (Handle *self,
                    const char *topic, int32_t partition,
                    const void *value, size_t value_len,
                    const void *key, size_t key_len,
-                   void *opaque, int64_t timestamp) {
+                   void *opaque, int64_t timestamp, void *headers) {
 
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
@@ -269,6 +343,9 @@ Producer_producev (Handle *self,
                                                   (size_t)value_len),
                                  RD_KAFKA_V_TIMESTAMP(timestamp),
                                  RD_KAFKA_V_OPAQUE(opaque),
+#if HAVE_HEADERS
+                                 RD_KAFKA_V_HEADERS((rd_kafka_headers_t *)headers),
+#endif
                                  RD_KAFKA_V_END);
 }
 #else
@@ -303,8 +380,10 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
 	PyObject *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
-        long long timestamp = 0;
-        rd_kafka_resp_err_t err;
+	long long timestamp = 0;
+	PyObject *headers = NULL;
+	void *hdrs = NULL;
+	rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
 	static char *kws[] = { "topic",
 			       "value",
@@ -313,16 +392,17 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
-                               "timestamp",
+			       "timestamp",
+			       "headers",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOOL"
+					 "s|z#z#iOOOLO"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
 					 &dr_cb, &dr_cb2, &partitioner_cb,
-                                         &timestamp))
+                                         &timestamp, &headers))
 		return NULL;
 
 #if !HAVE_PRODUCEV
@@ -335,6 +415,32 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
                              rd_kafka_version(), RD_KAFKA_VERSION);
                 return NULL;
         }
+#endif
+#if !HAVE_HEADERS
+	if (headers) {
+		PyErr_Format(PyExc_NotImplementedError,
+			     "Message headers require "
+			     "confluent-kafka-python built for librdkafka "
+			     "version > v0.11.3 (librdkafka runtime 0x%x, "
+			     "buildtime 0x%x)",
+			     rd_kafka_version(), RD_KAFKA_VERSION);
+		return NULL;
+	}
+#else
+	if (headers) {
+		// Check for dict or tuple.
+		if (PyDict_Check(headers)) {
+			hdrs = (void *)parse_dict_headers(headers);
+		} else if (PySequence_Check(headers)) {
+			hdrs = (void *)parse_seq_headers(headers);
+		} else {
+			PyErr_Format(PyExc_ValueError, "Message headers must be a dict or iterable.");
+			return NULL;
+		}
+		if (!hdrs) {
+			return NULL;
+		}
+	}
 #endif
 
 	if (dr_cb2 && !dr_cb) /* Alias */
@@ -354,7 +460,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
-                                msgstate, timestamp);
+                                msgstate, timestamp, hdrs);
 #else
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
@@ -375,6 +481,10 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 					 "Unable to produce message: %s",
 					 rd_kafka_err2str(err));
 
+#if HAVE_HEADERS
+		if (hdrs)
+			rd_kafka_headers_destroy(hdrs);
+#endif
 		return NULL;
 	}
 
@@ -467,13 +577,16 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"
-          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
+	  "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
+#if HAVE_HEADERS
+	  "  :param dict|iterable headers: string key and byte value headers in a dict or iterable of key, value tuples (requires librdkafka > v0.11.3 and broker >= 0.11.0.0).\n"
+#endif
 	  "\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"
 	  "  :raises KafkaException: for other errors, see exception code\n"
-          "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
+	  "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
 	  "\n"
 	},
 

@@ -351,6 +351,55 @@ static PyObject *Message_set_key (Message *self, PyObject *new_key) {
    Py_RETURN_NONE;
 }
 
+#if HAVE_HEADERS
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+	const char *keybuf;
+	const void *valbuf;
+	size_t count, len;
+	PyObject *dict, *value;
+
+	if (!self->headers)
+		Py_RETURN_NONE;
+
+	dict = PyDict_New();
+	if (!dict)
+		return NULL;
+	// Parse into dictionary.
+	count = rd_kafka_header_cnt(self->headers);
+	for (size_t i = 0; i < count;  i++) {
+		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
+		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+		PyDict_SetItemString(dict, keybuf, value);
+		Py_DECREF(value);
+	}
+	return dict;
+}
+
+
+static PyObject *Message_raw_headers (Message *self, PyObject *ignore) {
+	const char *keybuf;
+	const void *valbuf;
+	size_t len, count;
+	PyObject *tuple, *item, *key, *value;
+
+	if (!self->headers)
+		Py_RETURN_NONE;
+
+	count = rd_kafka_header_cnt(self->headers);
+	tuple = PyTuple_New((Py_ssize_t)count);
+	for (size_t i = 0; i < count; i++) {
+		rd_kafka_header_get_all(self->headers, i, &keybuf, &valbuf, &len);
+		key = PyUnicode_FromString(keybuf);
+		value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+		item = PyTuple_New(2);
+		PyTuple_SET_ITEM(item, 0, key);
+		PyTuple_SET_ITEM(item, 1, value);
+		PyTuple_SET_ITEM(tuple, (Py_ssize_t)i, item);
+	}
+	return tuple;
+}
+#endif
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -361,7 +410,6 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None or :py:class:`KafkaError`\n"
 	  "\n"
 	},
-
 	{ "value", (PyCFunction)Message_value, METH_NOARGS,
 	  "  :returns: message value (payload) or None if not available.\n"
 	  "  :rtype: str|bytes or None\n"
@@ -423,6 +471,18 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
+#if HAVE_HEADERS
+	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
+	  "  :returns: dict of headers or None if not available.\n"
+	  "  :rtype: Dict[str, bytes] or None\n"
+	  "\n"
+	},
+	{ "raw_headers", (PyCFunction)Message_raw_headers, METH_NOARGS,
+	  "  :returns: a tuple of key, value tuples or None if not available.\n"
+	  "  :rtype: Tuple[Tuple[str, bytes]] or None\n"
+	  "\n"
+	},
+#endif
 	{ NULL }
 };
 
@@ -443,6 +503,12 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->error);
 		self->error = NULL;
 	}
+#if HAVE_HEADERS
+	if (self->headers) {
+		rd_kafka_headers_destroy(self->headers);
+		self->headers = NULL;
+	}
+#endif
 	return 0;
 }
 
@@ -532,7 +598,7 @@ PyTypeObject MessageType = {
 /**
  * @brief Internal factory to create Message object from message_t
  */
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm, bool detach_headers) {
 	Message *self;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
@@ -555,6 +621,18 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	if (rkm->key)
 		self->key = cfl_PyBin(
 			_FromStringAndSize(rkm->key, rkm->key_len));
+#if HAVE_HEADERS
+	rd_kafka_headers_t *hdrs = NULL;
+	if (detach_headers) {
+		rd_kafka_message_detach_headers(rkm, &hdrs);
+	} else {
+		rd_kafka_headers_t *tmphdrs = NULL;
+		rd_kafka_message_headers(rkm, &tmphdrs);
+		if (tmphdrs)
+			hdrs = rd_kafka_headers_copy(tmphdrs);
+	}
+	self->headers = hdrs;
+#endif
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
@@ -832,7 +910,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	parts = PyList_New(c_parts->cnt);
 
-	for (i = 0 ; i < c_parts->cnt ; i++) {
+	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
 		PyList_SET_ITEM(parts, i,
 				TopicPartition_new0(
@@ -861,7 +939,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
-	for (i = 0 ; i < PyList_Size(plist) ; i++) {
+	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -1120,7 +1198,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 			}
 
 			 /* FIXME: Error out until GIL+rdkafka lock-ordering is fixed. */
-			if (1) {
+			if ((1)) {
 				cfl_PyErr_Format(
 					RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
 					"custom partitioner support not yet implemented");
