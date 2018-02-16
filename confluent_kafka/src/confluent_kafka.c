@@ -907,7 +907,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	parts = PyList_New(c_parts->cnt);
 
-	for (i = 0 ; i < c_parts->cnt ; i++) {
+	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
 		PyList_SET_ITEM(parts, i,
 				TopicPartition_new0(
@@ -936,7 +936,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
-	for (i = 0 ; i < PyList_Size(plist) ; i++) {
+	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -1195,7 +1195,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 			}
 
 			 /* FIXME: Error out until GIL+rdkafka lock-ordering is fixed. */
-			if (1) {
+			if ((1)) {
 				cfl_PyErr_Format(
 					RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
 					"custom partitioner support not yet implemented");
