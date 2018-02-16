@@ -65,9 +65,9 @@ def test_produce_headers():
                   'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
-    p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
-    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'dupvalue')])
-    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'diffvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', b'headervalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', b'dupvalue'), ('dupkey', b'dupvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', b'dupvalue'), ('dupkey', b'diffvalue')])
     p.produce('mytopic', value='somedata', key='a key', headers=[('key_with_null_value', None)])
     p.produce('mytopic', value='somedata', key='a key', headers=[])
 
@@ -88,7 +88,7 @@ def test_produce_headers_should_fail():
                   'default.topic.config': {'message.timeout.ms': 10}})
 
     with pytest.raises(NotImplementedError) as e:
-        p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
+        p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', b'headervalue')])
     assert 'Producer message headers requires confluent-kafka-python built for librdkafka version >=v0.11.4' in str(e)
 
 
