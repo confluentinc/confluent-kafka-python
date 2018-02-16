@@ -602,7 +602,7 @@ PyTypeObject MessageType = {
 /**
  * @brief Internal factory to create Message object from message_t
  */
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm, bool detach_headers) {
 	Message *self;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
@@ -627,7 +627,14 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 			_FromStringAndSize(rkm->key, rkm->key_len));
 #if HAVE_HEADERS
 	rd_kafka_headers_t *hdrs = NULL;
-	rd_kafka_message_detach_headers((rd_kafka_message_t *)rkm, &hdrs);
+	if (detach_headers) {
+		rd_kafka_message_detach_headers(rkm, &hdrs);
+	} else {
+		rd_kafka_headers_t *tmphdrs = NULL;
+		rd_kafka_message_headers(rkm, &tmphdrs);
+		if (tmphdrs)
+			hdrs = rd_kafka_headers_copy(tmphdrs);
+	}
 	self->headers = hdrs;
 #endif
 

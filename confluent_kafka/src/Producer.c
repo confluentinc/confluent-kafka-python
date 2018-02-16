@@ -156,7 +156,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
         if (self->u.Producer.dr_only_error && !rkm->err)
                 goto done;
 
-	msgobj = Message_new0(self, rkm);
+	msgobj = Message_new0(self, (rd_kafka_message_t *)rkm, false);
 	
 	args = Py_BuildValue("(OO)",
 			     Message_error((Message *)msgobj, NULL),
