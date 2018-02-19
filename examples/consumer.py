@@ -22,6 +22,7 @@ from confluent_kafka import Consumer, KafkaException, KafkaError
 import sys
 import getopt
 import json
+import logging
 from pprint import pformat
 
 
@@ -70,8 +71,16 @@ if __name__ == '__main__':
         conf['stats_cb'] = stats_cb
         conf['statistics.interval.ms'] = int(opt[1])
 
+    # Create logger for consumer (logs will be emitted when poll() is called)
+    logger = logging.getLogger('consumer')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)-15s %(levelname)-8s %(message)s'))
+    logger.addHandler(handler)
+
     # Create Consumer instance
-    c = Consumer(**conf)
+    # Hint: try debug='fetch' to generate some log messages
+    c = Consumer(conf, logger=logger)
 
     def print_assignment(consumer, partitions):
         print('Assignment:', partitions)

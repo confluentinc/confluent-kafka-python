@@ -163,6 +163,8 @@ typedef struct {
         int tlskey;  /* Thread-Local-Storage key */
         rd_kafka_type_t type; /* Producer or consumer */
 
+        PyObject *logger;
+
 	union {
 		/**
 		 * Producer

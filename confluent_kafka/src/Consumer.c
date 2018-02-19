@@ -1363,6 +1363,11 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        /* Forward log messages to main queue which is then forwarded
+         * to the consumer queue */
+        if (self->logger)
+                rd_kafka_set_log_queue(self->rk, NULL);
+
         rd_kafka_poll_set_consumer(self->rk);
 
         self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);

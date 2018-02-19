@@ -588,6 +588,10 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
         }
 
+        /* Forward log messages to poll queue */
+        if (self->logger)
+                rd_kafka_set_log_queue(self->rk, NULL);
+
         return 0;
 }
 
