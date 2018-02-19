@@ -1076,6 +1076,39 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	return 0;
 }
 
+static void log_cb (const rd_kafka_t *rk, int level,
+                    const char *fac, const char *buf) {
+        Handle *h = rd_kafka_opaque(rk);
+        PyObject *result;
+        CallState *cs;
+        static const int level_map[8] = {
+                /* Map syslog levels to python logging levels */
+                [0] = 50, /* LOG_EMERG   -> logging.CRITICAL */
+                [1] = 50, /* LOG_ALERT   -> logging.CRITICAL */
+                [2] = 50, /* LOG_CRIT    -> logging.CRITICAL */
+                [3] = 40, /* LOG_ERR     -> logging.ERROR */
+                [4] = 30, /* LOG_WARNING -> logging.WARNING */
+                [5] = 20, /* LOG_NOTICE  -> logging.INFO */
+                [6] = 20, /* LOG_INFO    -> logging.INFO */
+                [7] = 10, /* LOG_DEBUG   -> logging.DEBUG */
+        };
+
+        cs = CallState_get(h);
+        result = PyObject_CallMethod(h->logger, "log", "issss",
+                                     level_map[level],
+                                     "%s [%s] %s",
+                                     fac, rd_kafka_name(rk), buf);
+
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_crash(cs);
+                rd_kafka_yield(h->rk);
+        }
+
+        CallState_resume(cs);
+}
+
 /****************************************************************************
  *
  *
@@ -1097,6 +1130,8 @@ void Handle_clear (Handle *h) {
 
 	if (h->stats_cb)
 		Py_DECREF(h->stats_cb);
+
+        Py_XDECREF(h->logger);
 
         if (h->initiated)
                 PyThread_delete_key(h->tlskey);
@@ -1443,7 +1478,20 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
-		}
+                } else if (!strcmp(k, "logger")) {
+                        if (h->logger) {
+                                Py_DECREF(h->logger);
+                                h->logger = NULL;
+                        }
+
+                        if (vo != Py_None) {
+                                h->logger = vo;
+                                Py_INCREF(h->logger);
+                        }
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        continue;
+                }
 
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
@@ -1508,6 +1556,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	if (h->stats_cb)
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
+
+        if (h->logger) {
+                /* Write logs to log queue (which is forwarded
+                 * to the polled queue in the Producer/Consumer constructors) */
+                rd_kafka_conf_set(conf, "log.queue", "true", NULL, 0);
+                rd_kafka_conf_set_log_cb(conf, log_cb);
+        }
 
 	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);

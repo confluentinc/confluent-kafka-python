@@ -77,7 +77,7 @@ providing a dict of configuration properties to the instance constructor, e.g.::
           'group.id': 'mygroup', 'session.timeout.ms': 6000,
           'on_commit': my_commit_callback,
           'default.topic.config': {'auto.offset.reset': 'smallest'}}
-  consumer = confluent_kafka.Consumer(**conf)
+  consumer = confluent_kafka.Consumer(conf)
 
 The supported configuration values are dictated by the underlying
 librdkafka C library. For the full range of configuration properties
@@ -108,16 +108,12 @@ The Python bindings also provide some additional configuration properties:
 * ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
   of commit requests.
 
-Changelog
-=========
+* ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
+  provided ``logging.Handler`` instance.
+  To avoid spontaneous calls from non-Python threads the log messages
+  will only be forwarded when ``client.poll()`` is called.
 
-Version 3.0.1
-^^^^^^^^^^^^^
-
-* `PR-3 <https://github.com/confluentinc/confluent-kafka-python/pull/3>`_ - Add /usr/local/lib to library_dirs in setup
-* `PR-4 <https://github.com/confluentinc/confluent-kafka-python/pull/4>`_ - Py3: use bytes for Message payload and key
-* `PR-5 <https://github.com/confluentinc/confluent-kafka-python/pull/5>`_ - Removed hard coded c extentions lib/include paths
-* `PR-9 <https://github.com/confluentinc/confluent-kafka-python/pull/9>`_ - Use consistent syntax highlighting (e.g. prefix commands with `$`)
-* `PR-17 <https://github.com/confluentinc/confluent-kafka-python/pull/17>`_ - Version bump to 0.9.1.2
-
-
+  mylogger = logging.getLogger()
+  mylogger.addHandler(logging.StreamHandler())
+  producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'},
+                                      logger=mylogger)
