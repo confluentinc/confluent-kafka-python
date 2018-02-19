@@ -1371,6 +1371,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
+        PyObject *confdict = NULL;
 	int32_t (*partitioner_cb) (const rd_kafka_topic_t *,
 				   const void *, size_t, int32_t,
 				   void *, void *) = partitioner_cb;
@@ -1383,15 +1384,41 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 return NULL;
         }
 
-	if (!kwargs) {
-		/* If no kwargs, fall back on single dict arg, if any. */
-		if (!args || !PyTuple_Check(args) || PyTuple_Size(args) < 1 ||
-		    !PyDict_Check((kwargs = PyTuple_GetItem(args, 0)))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration dict");
-			return NULL;
-		}
-	}
+        /* Supported parameter constellations:
+         *  - kwargs (conf={..}, logger=..)
+         *  - args and kwargs ({..}, logger=..)
+         *  - args ({..})
+         * When both args and kwargs are present the kwargs take
+         * precedence in case of duplicate keys.
+         * All keys map to configuration properties.
+         */
+        if (args) {
+                if (!PyTuple_Check(args) ||
+                    PyTuple_Size(args) > 1) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected tuple containing single dict");
+                        return NULL;
+                } else if (PyTuple_Size(args) == 1 &&
+                           !PyDict_Check((confdict = PyTuple_GetItem(args, 0)))) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected configuration dict");
+                                return NULL;
+                }
+        }
+
+        if (!confdict) {
+                if (!kwargs) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected configuration dict");
+                        return NULL;
+                }
+
+                confdict = kwargs;
+
+        } else if (kwargs) {
+                /* Update confdict with kwargs */
+                PyDict_Update(confdict, kwargs);
+        }
 
 	conf = rd_kafka_conf_new();
 	tconf = rd_kafka_topic_conf_new();
@@ -1403,8 +1430,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         /* Enable valid offsets in delivery reports */
         rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
 
-	/* Convert kwargs dict to config key-value pairs. */
-	while (PyDict_Next(kwargs, &pos, &ko, &vo)) {
+	/* Convert config dict to config key-value pairs. */
+	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k;
