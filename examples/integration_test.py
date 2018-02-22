@@ -308,7 +308,7 @@ def verify_avro():
                   (msg.topic(), msg.partition(), msg.offset(),
                    msg.key(), msg.value(), tstype, timestamp))
 
-            c.commit(msg, async=False)
+            c.commit(msg, asynchronous=False)
 
         # Close consumer
         c.close()
@@ -507,9 +507,9 @@ def verify_consumer():
 
         if (msg.offset() % 5) == 0:
             # Async commit
-            c.commit(msg, async=True)
+            c.commit(msg, asynchronous=True)
         elif (msg.offset() % 4) == 0:
-            offsets = c.commit(msg, async=False)
+            offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
             assert offsets[0].offset == msg.offset()+1, \
                 'expected offset %d to be committed, not %s' % \
@@ -679,9 +679,9 @@ def verify_batch_consumer():
 
             if (msg.offset() % 5) == 0:
                 # Async commit
-                c.commit(msg, async=True)
+                c.commit(msg, asynchronous=True)
             elif (msg.offset() % 4) == 0:
-                offsets = c.commit(msg, async=False)
+                offsets = c.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
                 assert offsets[0].offset == msg.offset()+1, \
                     'expected offset %d to be committed, not %s' % \

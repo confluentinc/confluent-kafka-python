@@ -369,13 +369,13 @@ Consumer_offset_commit_return_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 
 
 static PyObject *Consumer_commit (Handle *self, PyObject *args,
-					PyObject *kwargs) {
-
+                                  PyObject *kwargs) {
 	rd_kafka_resp_err_t err;
 	PyObject *msg = NULL, *offsets = NULL, *async_o = NULL;
 	rd_kafka_topic_partition_list_t *c_offsets;
 	int async = 1;
-	static char *kws[] = { "message", "offsets", "async",NULL };
+	static char *kws[] = { "message", "offsets",
+                               "async", "asynchronous", NULL };
         rd_kafka_queue_t *rkqu = NULL;
         struct commit_return commit_return;
         PyThreadState *thread_state;
@@ -386,8 +386,8 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOO", kws,
-					 &msg, &offsets, &async_o))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
+					 &msg, &offsets, &async_o, &async_o))
 		return NULL;
 
 	if (msg && offsets) {
@@ -1123,7 +1123,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	},
 	{ "commit", (PyCFunction)Consumer_commit, METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: commit([message=None], [offsets=None], [async=True])\n"
+	  ".. py:function:: commit([message=None], [offsets=None], [asynchronous=True])\n"
 	  "\n"
 	  "  Commit a message or a list of offsets.\n"
 	  "\n"
@@ -1133,14 +1133,14 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  :param confluent_kafka.Message message: Commit message's offset+1.\n"
 	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
-	  "  :param bool async: Asynchronous commit, return None immediately. "
+	  "  :param bool asynchronous: Asynchronous commit, return None immediately. "
           "If False the commit() call will block until the commit succeeds or "
           "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition will need to be checked for success.\n"
 	  "  :rtype: None|list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
-	},	  
+	},
 	{ "committed", (PyCFunction)Consumer_committed,
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: committed(partitions, [timeout=None])\n"

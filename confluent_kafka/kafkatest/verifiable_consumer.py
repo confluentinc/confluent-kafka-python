@@ -97,7 +97,7 @@ class VerifiableConsumer(VerifiableClient):
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
         self.send_records_consumed(immediate=True)
-        self.do_commit(immediate=True, async=False)
+        self.do_commit(immediate=True, asynchronous=False)
         self.assignment = list()
         self.assignment_dict = dict()
         self.send_assignment('revoked', partitions)
@@ -133,7 +133,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.send(d)
 
-    def do_commit(self, immediate=False, async=None):
+    def do_commit(self, immediate=False, asynchronous=None):
         """ Commit every 1000 messages or whenever there is a consume timeout
             or immediate. """
         if (self.use_auto_commit
@@ -146,10 +146,10 @@ class VerifiableConsumer(VerifiableClient):
         if self.consumed_msgs_at_last_commit < self.consumed_msgs:
             self.send_records_consumed(immediate=True)
 
-        if async is None:
+        if asynchronous is None:
             async_mode = self.use_async_commit
         else:
-            async_mode = async
+            async_mode = asynchronous
 
         self.dbg('Committing %d messages (Async=%s)' %
                  (self.consumed_msgs - self.consumed_msgs_at_last_commit,
@@ -159,7 +159,7 @@ class VerifiableConsumer(VerifiableClient):
         while True:
             try:
                 self.dbg('Commit')
-                offsets = self.consumer.commit(async=async_mode)
+                offsets = self.consumer.commit(asynchronous=async_mode)
                 self.dbg('Commit done: offsets %s' % offsets)
 
                 if not async_mode:
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     vc.dbg('Closing consumer')
     vc.send_records_consumed(immediate=True)
     if not vc.use_auto_commit:
-        vc.do_commit(immediate=True, async=False)
+        vc.do_commit(immediate=True, asynchronous=False)
 
     vc.consumer.close()
 
