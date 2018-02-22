@@ -136,8 +136,8 @@ https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 Prerequisites
 =============
 
- * Python >= 2.6 or Python 3.x
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.1 (embedded in Linux wheels)
+ * Python >= 2.7 or Python 3.x
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.5 (latest release is embedded in wheels)
 
 librdkafka is embedded in the manylinux wheels, for other platforms or
 when a specific version of librdkafka is desired, following these guidelines:
