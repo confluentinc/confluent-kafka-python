@@ -31,8 +31,10 @@ matrix:
     services: docker
 
 install:
+ - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
+ - pip install -U pip
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install --upgrade pip && pip install pytest-timeout flake8 ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel==0.4.1 ; fi
 
 
@@ -47,9 +49,9 @@ script:
 deploy:
  provider: s3
  access_key_id:
-  secure: TWG1fsfD+kWkTHB5RQNW9HDw6i7j7WlYs5oTPLLevOjFmuYhG4qCylp9ZYGqjMzL8Jl4MxydmNDSL/gXYDnNplOX9CA1qbp/pKIG1AjTda12JM6mxs9uZNUOrl4FYRteSfPP+N+25VhPA+ix8ffC/jZ/9wypdQMorn5aC6Ln0LlR3ZdG+JeiOdX2JeqO7d429iDyTzFWYZKJssW8GHGQj07OSVc3vQWBCUPJOaaVRsALKa3VZJgVXooXsjI2SORSnC4GAJhVgqzHLcs7AFVNaS2rrlF23mRcN8ePEnS76uIVk7Y2K90OeHcPgFfsTqrxFuLtHZYY68H2os+DamiERxD2xDpM28G2f3Ltb/bG7NGhuv0YHFWtwCbzB+aSJbGtUuFKqwdOwnD2PnQsVU0aX8N1lna3Fv4WVBBNXNeyKD0fbNYcTPvaOm+KSxN5/0l/BKyohjrTcVsn+6ZLdE6D5A0JfaX4sc3Lv2X+sdIc1ZLOL1OWg3eE1z4aAtKu3da8sPcP2Rb5V18uF0cBICdWP6kKtjRr+meCGw9S0Z2P3I1OLj+KfKmjrqtI7KXUTsz03npwOkbmFVprS5cXoW54kKhjrf99OhBXX7LhwJ5oKokBIDeXmUdyA+ettq5+5w5J8GgQ4MxIoY+vhy/wmcuM3yieASiftRPLFyJTr9/I6i8=
+  secure: "T0hDlPMFjEliYnd9WjoKAvine5X7zLRLYzH5e2enzog747AveJJGU+I8Plgf+kfMj0hhin0tUWvuvfqEaRV5suSOLuO37Q+bmJRLHPf0ktpTZijXIVXGCw2X34LPyeOqv1XxbtJMD1p7FHEif9wHvUs3pwdBWE/iAwZTUr5B+pCTM02LrrskH1MA83rR/h98+ZK2G2yW+vJttRPIE4GDhG4ekOqkmho3fU2n7uCkEdnboGT/Kq5HkUcEyC9AjpnlLYzcJmgOPDNOKDMwb2pFjkRg1MfXcvaBoQT5bSSQyaS1WIqP9VfDi6oTl1vxuvg1AVLcXvZy9FzWFMjmghDxI/TLVAz0Tnh7RKL6WKqwFxyMRBJhxn81UkkG6c1kOlGDBABEySgAwKG01MkkwbPTaGU0mizxyvqj5JQNxZiS6vn0ZQHb3Y1YVeShdwkg2kb+G8MLKTAs9KYPQPdA5n91/g44BTTlMmy1JKNuBPfagrxyWdz9rDNG1l48HDnmSsERws8grJQh2kCCtON25GU7emtkjsBdfgZuZeVxKPdoW6CT5TUlh4Lo148Mm0OGIKgxsbQLJfRx3MGSBcCOYgYp0zdUDO5UKbli7Mv8A4kEgwXpGZGon20b5DD2O0e/DJWh9APnR/cfUN97OYqukmbk5SG9vt17MAtiVVDwj6UbrNE="
  secret_access_key:
-  secure: G3KBqzmG7HaBznDMwNRq0qGIWiF3n96RgRnZzyvSfhRSqZq2Vv8llFo5GuCE0azzLA6Iot33x+Rugba3PbLReYoFOO87yWYT62Deq+lTwQHSEutcA1tNrW4ho+GPs2av/AhHE9e2r/xhp++2wHEvnj7Vp1HeVcmpAxkggZDkiS15GYiaVNEUa8tPL6GOcH3e8Xwcurr7dAi6KZnBFvylx0eADVPH3EAfN8TxapkT89FKjEtPZOV/srSFi5m561rW/P4+MwzBu0x01ouANdAKoAhEMubcEHANr1x8yuXlr99eapqnbfYMpaITyDbKIDSV/mVR5e/9G6xQEXs59FJJJ1bRCLF9uxIht3rlijED7WEElHJ1j2Ip9JZH0iKEPykw9vGNnjUZK2Hw4D8MvD+6jHbauZGsTeqTbh74tGxsIe/tpAZ2kmueqdO5iYK/R8louWjgmwGf+veqqQXCUw0UBnJoL5x+axp5nszQiepU/EnnyJ5bH1IB5qRUqesTYFWU/dxF7JQYie1wuAqn3ag40ir/Vg8stfjyNk8Ht0Ajpp+rgODzuURDiGutiblVpXffh83R5UZb21pI7oL6eE3HaeH20Ob6c8ELvWskM24EzS7baSJbrzatFtDw8hi0W3eeYIPqoeKC2btUavNnDkkP5mKPYQv0dsy754Yg3956SJw=
+  secure: "imC8TwsarAxKhS7yMPNCwbvIhHmDhZB/NfWDLUToySP8ZQDWQMdlpiRlEA4RlNP8KOBGBShCX7dMXTC9nGFnbLhDKnpkZaQ3RIkXthjbcmsXiTAWNndVkCrgxDPpFwMHEs1Eu00AgJrELzDlKfhRls1txQO2N5wvVZFa1zyzlm46q4guesVakPVl3bZhx0gImYsJohXNVjvD3cks7+c6hFPDdMIEchgG+0amgCNNdK8ewZGfMMim5nvuHH00h8oJsIxQKOEzgz+JXwCi7hgd5UYn6DRFNyjmIK4iMphjC4pdKKp7r+m6Yj/s/Kc/YMVmRo3Zce4mM66KvmLSnnGGiewGRIkjyZ9UcvbrwkfudSMdPmWjnn0MKs7Vnfaej0xBZ9WN5c1QB6JzsLxStNp7gULfaZyqb7+zNtvYvbHYrFa80/RBpMbSBg6GSslsFmqEtsS9WInzTQYfNeSzrq5QU11ZKdsoQ53kruAtSxDJXFe1TKMSMnH/QWqvjwdrDoaJJZkJuMgNkznKuxorf7syF+mr9O63UKs72fHhEWBNOPfE+pwVlHUuBSE95jr5gu1Nxyyy5GV/sU+x/ik5a5Uytq9pcxhn4v3614VlG6t3Wy29BDDO54Sng0n12XXL2UaTYT6aIPTU1N8XQe66YjVvi7ms8Yt6HCA5+MMJdaSnkoI="
  bucket: librdkafka-ci-packages
  region: us-west-1
  local-dir: wheelhouse
