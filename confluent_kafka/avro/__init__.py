@@ -95,7 +95,7 @@ class AvroConsumer(Consumer):
         super(AvroConsumer, self).__init__(config)
         self._serializer = MessageSerializer(schema_registry)
 
-    def poll(self, timeout=None):
+    def poll(self, timeout=None, key_schema=True):
         """
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
@@ -114,7 +114,9 @@ class AvroConsumer(Consumer):
             if message.value() is not None:
                 decoded_value = self._serializer.decode_message(message.value())
                 message.set_value(decoded_value)
-            if message.key() is not None:
+            if message.key() is not None and key_schema:
                 decoded_key = self._serializer.decode_message(message.key())
                 message.set_key(decoded_key)
+            elif message.key() is not None and not key_schema:
+                message.set_key(message.key().decode())
         return message
