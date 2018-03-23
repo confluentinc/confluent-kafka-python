@@ -120,19 +120,19 @@ while True:
     try:
         msg = c.poll(10)
 
-        if msg:
-            if msg.error():
-                if msg.error().code() == KafkaError._PARTITION_EOF:
-                    continue
-                else:
-                    print(msg.error())
-                    break
-
-            print(msg.value())
-
     except SerializerError as e:
         print("Message deserialization failed for {}: {}".format(msg, e))
         break
+
+    if msg:
+        if msg.error():
+            if msg.error().code() == KafkaError._PARTITION_EOF:
+                continue
+            else:
+                print(msg.error())
+                break
+
+        print(msg.value())
 
 c.close()
 ```
