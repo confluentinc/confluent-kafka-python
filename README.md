@@ -124,15 +124,17 @@ while True:
         print("Message deserialization failed for {}: {}".format(msg, e))
         break
 
-    if msg:
-        if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                continue
-            else:
-                print(msg.error())
-                break
+    if msg is None:
+        continue
 
-        print(msg.value())
+    if msg.error():
+        if msg.error().code() == KafkaError._PARTITION_EOF:
+            continue
+        else:
+            print(msg.error())
+            break
+
+    print(msg.value())
 
 c.close()
 ```
