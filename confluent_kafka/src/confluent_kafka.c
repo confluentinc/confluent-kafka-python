@@ -749,7 +749,7 @@ PyObject *MetadataBroker_new0 (const struct rd_kafka_metadata_broker *broker) {
 		return NULL;
 
 	self->id = broker->id;
-	self->host = PyString_FromString(broker->host);
+	self->host = cfl_PyUnistr(_FromString(broker->host));
 	if (self->host == NULL)
 		goto error;
 	self->port = broker->port;
@@ -1131,7 +1131,7 @@ PyObject *MetadataTopic_new0 (const struct rd_kafka_metadata_topic *topic) {
 	self = (MetadataTopic *)MetadataTopicType.tp_alloc(&MetadataTopicType, 0);
 	if (!self)
 		return NULL;
-	self->topic = PyString_FromString(topic->topic);
+	self->topic = cfl_PyUnistr(_FromString(topic->topic));
 	if (self->topic == NULL)
 		goto error;
 	self->partitions = metadata_topic_partitions(topic);
@@ -1346,7 +1346,7 @@ PyObject *Metadata_new0 (const struct rd_kafka_metadata *metadata) {
 		goto error;
 	}
 	self->orig_broker_id = metadata->orig_broker_id;
-	self->orig_broker_name = PyString_FromString(metadata->orig_broker_name);
+	self->orig_broker_name = cfl_PyUnistr(_FromString(metadata->orig_broker_name));
 	if (self->orig_broker_name == NULL)
 		goto error;
 	return (PyObject *)self;
