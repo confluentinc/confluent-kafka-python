@@ -311,6 +311,71 @@ PyObject *Message_error (Message *self, PyObject *ignore);
 /****************************************************************************
  *
  *
+ * Metadata
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+/**
+ * @brief confluent_kafka.MetadataBroker object
+ */
+typedef struct {
+	PyObject_HEAD
+	int32_t id;
+	PyObject *host;
+	int port;
+} MetadataBroker;
+
+extern PyTypeObject MetadataBrokerType;
+
+/**
+ * @brief confluent_kafka.MetadataPartition object
+ */
+typedef struct {
+	PyObject_HEAD
+	int32_t id;
+	PyObject *error;
+	int32_t leader;
+	PyObject *replicas;
+	PyObject *isrs;
+} MetadataPartition;
+
+extern PyTypeObject MetadataPartitionType;
+
+/**
+ * @brief confluent_kafka.MetadataTopic object
+ */
+typedef struct {
+	PyObject_HEAD
+	PyObject *topic;
+	PyObject *partitions;
+	PyObject *error;
+} MetadataTopic;
+
+extern PyTypeObject MetadataTopicType;
+
+/**
+ * @brief confluent_kafka.Metadata object
+ */
+typedef struct {
+	PyObject_HEAD
+	PyObject *brokers;
+	PyObject *topics;
+	int32_t orig_broker_id;
+	PyObject *orig_broker_name;
+} Metadata;
+
+extern PyTypeObject MetadataType;
+
+extern const char Broker_metadata__doc[];
+PyObject *Broker_metadata (Handle *self, PyObject *args, PyObject *kwargs);
+
+
+/****************************************************************************
+ *
+ *
  * Producer
  *
  *
