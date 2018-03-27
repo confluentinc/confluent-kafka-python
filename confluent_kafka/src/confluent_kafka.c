@@ -333,6 +333,34 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 			     self->timestamp);
 }
 
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+#ifdef RD_KAFKA_V_HEADERS
+	if (self->headers) {
+        Py_INCREF(self->headers);
+		return self->headers;
+    } else if (self->c_headers) {
+        self->headers = c_headers_to_py(self->c_headers);
+        rd_kafka_headers_destroy(self->c_headers);
+        self->c_headers = NULL;
+        Py_INCREF(self->headers);
+        return self->headers;
+	} else {
+		Py_RETURN_NONE;
+    }
+#else
+		Py_RETURN_NONE;
+#endif
+}
+
+static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
+   if (self->headers)
+        Py_DECREF(self->headers);
+   self->headers = new_headers;
+   Py_INCREF(self->headers);
+
+   Py_RETURN_NONE;
+}
+
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
    if (self->value)
         Py_DECREF(self->value);
@@ -409,6 +437,21 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: (int, int)\n"
 	  "\n"
 	},
+	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
+      "  Retrieve the headers set on a message. Each header is a key value"
+      "pair. Please note that header keys are ordered and can repeat.\n"
+      "\n"
+	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
+	  "  :rtype: [(str, bytes),...] or None.\n"
+	  "\n"
+	},
+	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
+	  "  Set the field 'Message.headers' with new value.\n"
+	  "  :param: object value: Message.headers.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
 	  "  Set the field 'Message.value' with new value.\n"
 	  "  :param: object value: Message.value.\n"
@@ -443,6 +486,16 @@ static int Message_clear (Message *self) {
 		Py_DECREF(self->error);
 		self->error = NULL;
 	}
+	if (self->headers) {
+		Py_DECREF(self->headers);
+		self->headers = NULL;
+	}
+#ifdef RD_KAFKA_V_HEADERS
+    if (self->c_headers){
+        rd_kafka_headers_destroy(self->c_headers);
+        self->c_headers = NULL;
+    }
+#endif
 	return 0;
 }
 
@@ -464,6 +517,8 @@ static int Message_traverse (Message *self,
 		Py_VISIT(self->key);
 	if (self->error)
 		Py_VISIT(self->error);
+	if (self->headers)
+		Py_VISIT(self->headers);
 	return 0;
 }
 
@@ -883,6 +938,81 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	return c_parts;
 }
 
+#ifdef RD_KAFKA_V_HEADERS
+/**
+ * @brief Convert Python list[(header_key, header_value),...]) to C rd_kafka_topic_partition_list_t.
+ *
+ * @returns The new Python list[(header_key, header_value),...] object.
+ */
+rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
+    int i, len;
+    rd_kafka_headers_t *rd_headers = NULL;
+    rd_kafka_resp_err_t err;
+    const char *header_key, *header_value = NULL;
+    int header_key_len = 0, header_value_len = 0;
+
+    len = PyList_Size(headers_plist);
+    rd_headers = rd_kafka_headers_new(len);
+
+    for (i = 0; i < len; i++) {
+
+        if(!PyArg_ParseTuple(PyList_GET_ITEM(headers_plist, i), "s#z#", &header_key,
+                &header_key_len, &header_value, &header_value_len)){
+            rd_kafka_headers_destroy(rd_headers);
+            PyErr_SetString(PyExc_TypeError,
+                    "Headers are expected to be a tuple of (key, value)");
+            return NULL;
+        }
+
+        err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
+        if (err) {
+            rd_kafka_headers_destroy(rd_headers);
+            cfl_PyErr_Format(err,
+                     "Unable to create message headers: %s",
+                     rd_kafka_err2str(err));
+            return NULL;
+        }
+    }
+    return rd_headers;
+}
+
+/**
+ * @brief Convert rd_kafka_headers_t to Python list[(header_key, header_value),...])
+ *
+ * @returns The new C headers on success or NULL on error.
+ */
+PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
+    size_t idx = 0;
+    size_t header_size = 0;
+    const char *header_key;
+    const void *header_value;
+    size_t header_value_size;
+    PyObject *header_list;
+
+    header_size = rd_kafka_header_cnt(headers); 
+    header_list = PyList_New(header_size);
+
+    while (!rd_kafka_header_get_all(headers, idx++,
+                                     &header_key, &header_value, &header_value_size)) {
+            // Create one (key, value) tuple for each header
+            PyObject *header_tuple = PyTuple_New(2);
+            PyTuple_SetItem(header_tuple, 0,
+                cfl_PyUnistr(_FromString(header_key))
+            );
+
+            if (header_value) {
+                    PyTuple_SetItem(header_tuple, 1,
+                        cfl_PyBin(_FromStringAndSize(header_value, header_value_size))
+                    );
+            } else {
+                PyTuple_SetItem(header_tuple, 1, Py_None);
+            }
+        PyList_SET_ITEM(header_list, idx-1, header_tuple);
+    }
+
+    return header_list;
+}
+#endif
 
 /****************************************************************************
  *
@@ -946,6 +1076,39 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	return 0;
 }
 
+static void log_cb (const rd_kafka_t *rk, int level,
+                    const char *fac, const char *buf) {
+        Handle *h = rd_kafka_opaque(rk);
+        PyObject *result;
+        CallState *cs;
+        static const int level_map[8] = {
+                /* Map syslog levels to python logging levels */
+                [0] = 50, /* LOG_EMERG   -> logging.CRITICAL */
+                [1] = 50, /* LOG_ALERT   -> logging.CRITICAL */
+                [2] = 50, /* LOG_CRIT    -> logging.CRITICAL */
+                [3] = 40, /* LOG_ERR     -> logging.ERROR */
+                [4] = 30, /* LOG_WARNING -> logging.WARNING */
+                [5] = 20, /* LOG_NOTICE  -> logging.INFO */
+                [6] = 20, /* LOG_INFO    -> logging.INFO */
+                [7] = 10, /* LOG_DEBUG   -> logging.DEBUG */
+        };
+
+        cs = CallState_get(h);
+        result = PyObject_CallMethod(h->logger, "log", "issss",
+                                     level_map[level],
+                                     "%s [%s] %s",
+                                     fac, rd_kafka_name(rk), buf);
+
+        if (result)
+                Py_DECREF(result);
+        else {
+                CallState_crash(cs);
+                rd_kafka_yield(h->rk);
+        }
+
+        CallState_resume(cs);
+}
+
 /****************************************************************************
  *
  *
@@ -967,6 +1130,8 @@ void Handle_clear (Handle *h) {
 
 	if (h->stats_cb)
 		Py_DECREF(h->stats_cb);
+
+        Py_XDECREF(h->logger);
 
         if (h->initiated)
                 PyThread_delete_key(h->tlskey);
@@ -1206,6 +1371,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
+        PyObject *confdict = NULL;
 	int32_t (*partitioner_cb) (const rd_kafka_topic_t *,
 				   const void *, size_t, int32_t,
 				   void *, void *) = partitioner_cb;
@@ -1218,21 +1384,54 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 return NULL;
         }
 
-	if (!kwargs) {
-		/* If no kwargs, fall back on single dict arg, if any. */
-		if (!args || !PyTuple_Check(args) || PyTuple_Size(args) < 1 ||
-		    !PyDict_Check((kwargs = PyTuple_GetItem(args, 0)))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration dict");
-			return NULL;
-		}
-	}
+        /* Supported parameter constellations:
+         *  - kwargs (conf={..}, logger=..)
+         *  - args and kwargs ({..}, logger=..)
+         *  - args ({..})
+         * When both args and kwargs are present the kwargs take
+         * precedence in case of duplicate keys.
+         * All keys map to configuration properties.
+         */
+        if (args) {
+                if (!PyTuple_Check(args) ||
+                    PyTuple_Size(args) > 1) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected tuple containing single dict");
+                        return NULL;
+                } else if (PyTuple_Size(args) == 1 &&
+                           !PyDict_Check((confdict = PyTuple_GetItem(args, 0)))) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected configuration dict");
+                                return NULL;
+                }
+        }
+
+        if (!confdict) {
+                if (!kwargs) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected configuration dict");
+                        return NULL;
+                }
+
+                confdict = kwargs;
+
+        } else if (kwargs) {
+                /* Update confdict with kwargs */
+                PyDict_Update(confdict, kwargs);
+        }
 
 	conf = rd_kafka_conf_new();
 	tconf = rd_kafka_topic_conf_new();
 
-	/* Convert kwargs dict to config key-value pairs. */
-	while (PyDict_Next(kwargs, &pos, &ko, &vo)) {
+        /*
+         * Default config (overridable by user)
+         */
+
+        /* Enable valid offsets in delivery reports */
+        rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
+
+	/* Convert config dict to config key-value pairs. */
+	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k;
@@ -1306,7 +1505,20 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
-		}
+                } else if (!strcmp(k, "logger")) {
+                        if (h->logger) {
+                                Py_DECREF(h->logger);
+                                h->logger = NULL;
+                        }
+
+                        if (vo != Py_None) {
+                                h->logger = vo;
+                                Py_INCREF(h->logger);
+                        }
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        continue;
+                }
 
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
@@ -1371,6 +1583,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	if (h->stats_cb)
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
+
+        if (h->logger) {
+                /* Write logs to log queue (which is forwarded
+                 * to the polled queue in the Producer/Consumer constructors) */
+                rd_kafka_conf_set(conf, "log.queue", "true", NULL, 0);
+                rd_kafka_conf_set_log_cb(conf, log_cb);
+        }
 
 	rd_kafka_topic_conf_set_opaque(tconf, h);
 	rd_kafka_conf_set_default_topic_conf(conf, tconf);
@@ -1460,7 +1679,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.11.0", 0x000b0000);
+	return Py_BuildValue("si", "0.11.4", 0x000b0400);
 }
 
 static PyMethodDef cimpl_methods[] = {

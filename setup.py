@@ -15,7 +15,7 @@ module = Extension('confluent_kafka.cimpl',
                             'confluent_kafka/src/Consumer.c'])
 
 setup(name='confluent-kafka',
-      version='0.11.0',
+      version='0.11.4rc1',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',

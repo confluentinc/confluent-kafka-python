@@ -70,17 +70,46 @@ class VerifiableClient(object):
         for n, v in args.iteritems():
             if v is None:
                 continue
-            # Things to ignore
-            if '.' not in n:
+
+            if not n.startswith('conf_'):
                 # App config, skip
                 continue
-            if n.startswith('topic.'):
-                # Set "topic.<...>" properties on default topic conf dict
-                conf['default.topic.config'][n[6:]] = v
-            elif n == 'partition.assignment.strategy':
+
+            # Remove conf_ prefix
+            n = n[5:]
+
+            # Handle known Java properties to librdkafka properties.
+            if n == 'partition.assignment.strategy':
                 # Convert Java class name to config value.
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
                 conf[n] = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
                                  lambda x: x.group(1).lower(), v)
+
+            elif n == 'enable.idempotence':
+                # Ignore idempotence for now, best-effortly.
+                sys.stderr.write('%% WARN: Ignoring unsupported %s=%s\n' % (n, v))
             else:
                 conf[n] = v
+
+    @staticmethod
+    def read_config_file(path):
+        """Read (java client) config file and return dict with properties"""
+        conf = {}
+
+        with open(path, 'r') as f:
+            for line in f:
+                line = line.strip()
+
+                if line.startswith('#') or len(line) == 0:
+                    continue
+
+                fi = line.find('=')
+                if fi < 1:
+                    raise Exception('%s: invalid line, no key=value pair: %s' % (path, line))
+
+                k = line[:fi]
+                v = line[fi+1:]
+
+                conf[k] = v
+
+        return conf

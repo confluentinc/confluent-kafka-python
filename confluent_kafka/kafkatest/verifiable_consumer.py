@@ -97,7 +97,7 @@ class VerifiableConsumer(VerifiableClient):
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
         self.send_records_consumed(immediate=True)
-        self.do_commit(immediate=True, async=False)
+        self.do_commit(immediate=True, asynchronous=False)
         self.assignment = list()
         self.assignment_dict = dict()
         self.send_assignment('revoked', partitions)
@@ -133,7 +133,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.send(d)
 
-    def do_commit(self, immediate=False, async=None):
+    def do_commit(self, immediate=False, asynchronous=None):
         """ Commit every 1000 messages or whenever there is a consume timeout
             or immediate. """
         if (self.use_auto_commit
@@ -146,10 +146,10 @@ class VerifiableConsumer(VerifiableClient):
         if self.consumed_msgs_at_last_commit < self.consumed_msgs:
             self.send_records_consumed(immediate=True)
 
-        if async is None:
+        if asynchronous is None:
             async_mode = self.use_async_commit
         else:
-            async_mode = async
+            async_mode = asynchronous
 
         self.dbg('Committing %d messages (Async=%s)' %
                  (self.consumed_msgs - self.consumed_msgs_at_last_commit,
@@ -159,7 +159,7 @@ class VerifiableConsumer(VerifiableClient):
         while True:
             try:
                 self.dbg('Commit')
-                offsets = self.consumer.commit(async=async_mode)
+                offsets = self.consumer.commit(asynchronous=async_mode)
                 self.dbg('Commit done: offsets %s' % offsets)
 
                 if not async_mode:
@@ -242,30 +242,32 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Verifiable Python Consumer')
     parser.add_argument('--topic', action='append', type=str, required=True)
-    parser.add_argument('--group-id', dest='group.id', required=True)
-    parser.add_argument('--broker-list', dest='bootstrap.servers', required=True)
-    parser.add_argument('--session-timeout', type=int, dest='session.timeout.ms', default=6000)
-    parser.add_argument('--enable-autocommit', action='store_true', dest='enable.auto.commit', default=False)
+    parser.add_argument('--group-id', dest='conf_group.id', required=True)
+    parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
+    parser.add_argument('--session-timeout', type=int, dest='conf_session.timeout.ms', default=6000)
+    parser.add_argument('--enable-autocommit', action='store_true', dest='conf_enable.auto.commit', default=False)
     parser.add_argument('--max-messages', type=int, dest='max_messages', default=-1)
-    parser.add_argument('--assignment-strategy', dest='partition.assignment.strategy')
-    parser.add_argument('--reset-policy', dest='topic.auto.offset.reset', default='earliest')
+    parser.add_argument('--assignment-strategy', dest='conf_partition.assignment.strategy')
+    parser.add_argument('--reset-policy', dest='conf_auto.offset.reset', default='earliest')
     parser.add_argument('--consumer.config', dest='consumer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
 
     conf = {'broker.version.fallback': '0.9.0',
-            'default.topic.config': dict(),
             # Do explicit manual offset stores to avoid race conditions
             # where a message is consumed from librdkafka but not yet handled
             # by the Python code that keeps track of last consumed offset.
             'enable.auto.offset.store': False}
 
+    if args.get('consumer_config', None) is not None:
+        args.update(VerifiableClient.read_config_file(args['consumer_config']))
+
+    args.update([x[0].split('=') for x in args.get('extra_conf', [])])
+
     VerifiableClient.set_config(conf, args)
 
-    conf.update([x[0].split('=') for x in args.get('extra_conf', [])])
-
     vc = VerifiableConsumer(conf)
-    vc.use_auto_commit = args['enable.auto.commit']
+    vc.use_auto_commit = args['conf_enable.auto.commit']
     vc.max_msgs = args['max_messages']
 
     vc.dbg('Pid %d' % os.getpid())
@@ -298,7 +300,7 @@ if __name__ == '__main__':
     vc.dbg('Closing consumer')
     vc.send_records_consumed(immediate=True)
     if not vc.use_auto_commit:
-        vc.do_commit(immediate=True, async=False)
+        vc.do_commit(immediate=True, asynchronous=False)
 
     vc.consumer.close()
 

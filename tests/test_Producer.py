@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
 
@@ -53,6 +54,42 @@ def test_produce_timestamp():
             raise
 
     p.flush()
+
+
+# Should be updated to 0.11.4 when it is released
+@pytest.mark.skipif(libversion()[1] < 0x000b0400,
+                    reason="requires librdkafka >=0.11.4")
+def test_produce_headers():
+    """ Test produce() with timestamp arg """
+    p = Producer({'socket.timeout.ms': 10,
+                  'error_cb': error_cb,
+                  'default.topic.config': {'message.timeout.ms': 10}})
+
+    p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'dupvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'diffvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('key_with_null_value', None)])
+    p.produce('mytopic', value='somedata', key='a key', headers=[])
+
+    with pytest.raises(TypeError) as ex:
+        p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])
+    assert 'Headers are expected to be a tuple of (key, value)' == str(ex.value)
+
+    p.flush()
+
+
+# Should be updated to 0.11.4 when it is released
+@pytest.mark.skipif(libversion()[1] >= 0x000b0400,
+                    reason="Old versions should fail when using headers")
+def test_produce_headers_should_fail():
+    """ Test produce() with timestamp arg """
+    p = Producer({'socket.timeout.ms': 10,
+                  'error_cb': error_cb,
+                  'default.topic.config': {'message.timeout.ms': 10}})
+
+    with pytest.raises(NotImplementedError) as e:
+        p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
+    assert 'Producer message headers requires confluent-kafka-python built for librdkafka version >=v0.11.4' in str(e)
 
 
 def test_subclassing():

@@ -117,11 +117,14 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
+    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1')]
+
     # Produce some messages
-    p.produce(topic, 'Hello Python!')
+    p.produce(topic, 'Hello Python!', headers=headers)
+    p.produce(topic, key='Just a key and headers', headers=headers)
     p.produce(topic, key='Just a key')
     p.produce(topic, partition=1, value='Strictly for partition 1',
-              key='mykey')
+              key='mykey', headers=headers)
 
     # Produce more messages, now with delivery report callbacks in various forms.
     mydr = MyTestDr()
@@ -305,7 +308,7 @@ def verify_avro():
                   (msg.topic(), msg.partition(), msg.offset(),
                    msg.key(), msg.value(), tstype, timestamp))
 
-            c.commit(msg, async=False)
+            c.commit(msg, asynchronous=False)
 
         # Close consumer
         c.close()
@@ -315,6 +318,7 @@ def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
             'api.version.request': api_version_request,
+            'linger.ms': 500,
             'error_cb': error_cb}
 
     p = confluent_kafka.Producer(**conf)
@@ -401,6 +405,32 @@ def print_commit_result(err, partitions):
         print('# Committed offsets for: %s' % partitions)
 
 
+def verify_consumer_seek(c, seek_to_msg):
+    """ Seek to message and verify the next consumed message matches.
+        Must only be performed on an actively consuming consumer. """
+
+    tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
+                                        seek_to_msg.partition(),
+                                        seek_to_msg.offset())
+    print('seek: Seeking to %s' % tp)
+    c.seek(tp)
+
+    while True:
+        msg = c.poll()
+        assert msg is not None
+        if msg.error():
+            print('seek: Ignoring non-message: %s' % msg)
+            continue
+
+        if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
+            continue
+
+        print('seek: message at offset %d' % msg.offset())
+        assert msg.offset() == seek_to_msg.offset(), \
+            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        break
+
+
 def verify_consumer():
     """ Verify basic Consumer functionality """
 
@@ -419,11 +449,20 @@ def verify_consumer():
     # Create consumer
     c = confluent_kafka.Consumer(**conf)
 
+    def print_wmark(consumer, parts):
+        # Verify #294: get_watermark_offsets() should not fail on the first call
+        #              This is really a librdkafka issue.
+        for p in parts:
+            wmarks = consumer.get_watermark_offsets(parts[0])
+            print('Watermarks for %s: %s' % (p, wmarks))
+
     # Subscribe to a list of topics
-    c.subscribe([topic])
+    c.subscribe([topic], on_assign=print_wmark)
 
     max_msgcnt = 100
     msgcnt = 0
+
+    first_msg = None
 
     while True:
         # Consume until EOF or error
@@ -443,15 +482,34 @@ def verify_consumer():
                 break
 
         tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+        headers = msg.headers()
+        if headers:
+            example_header = headers
+
+        msg.set_headers([('foo', 'bar')])
+        assert msg.headers() == [('foo', 'bar')]
+
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s headers=%s' %
               (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp))
+               msg.key(), msg.value(), tstype, timestamp, headers))
+
+        if first_msg is None:
+            first_msg = msg
+
+        if (msgcnt == 11):
+            parts = c.assignment()
+            print('Pausing partitions briefly')
+            c.pause(parts)
+            exp_None = c.poll(timeout=2.0)
+            assert exp_None is None, "expected no messages during pause, got %s" % exp_None
+            print('Resuming partitions')
+            c.resume(parts)
 
         if (msg.offset() % 5) == 0:
             # Async commit
-            c.commit(msg, async=True)
+            c.commit(msg, asynchronous=True)
         elif (msg.offset() % 4) == 0:
-            offsets = c.commit(msg, async=False)
+            offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
             assert offsets[0].offset == msg.offset()+1, \
                 'expected offset %d to be committed, not %s' % \
@@ -462,6 +520,9 @@ def verify_consumer():
         if msgcnt >= max_msgcnt:
             print('max_msgcnt %d reached' % msgcnt)
             break
+
+    assert example_header, "We should have received at least one header"
+    assert example_header == [(u'foo1', 'bar'), (u'foo1', 'bar2'), (u'foo2', '1')]
 
     # Get current assignment
     assignment = c.assignment()
@@ -474,6 +535,15 @@ def verify_consumer():
     # Query broker for offsets
     lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Query offsets for timestamps by setting the topic partition offset to a timestamp. 123456789000 + 1
+    topic_partions_to_search = list(map(lambda p: confluent_kafka.TopicPartition(topic, p, 123456789001), range(0, 3)))
+    print("Searching for offsets with %s" % topic_partions_to_search)
+
+    offsets = c.offsets_for_times(topic_partions_to_search, timeout=1.0)
+    print("offsets_for_times results: %s" % offsets)
+
+    verify_consumer_seek(c, first_msg)
 
     # Close consumer
     c.close()
@@ -565,6 +635,162 @@ def verify_consumer_performance():
     c.close()
 
 
+def verify_batch_consumer():
+    """ Verify basic batch Consumer functionality """
+
+    # Consumer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': 'test.py',
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'api.version.request': api_version_request,
+            'on_commit': print_commit_result,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    # Create consumer
+    c = confluent_kafka.Consumer(**conf)
+
+    # Subscribe to a list of topics
+    c.subscribe([topic])
+
+    max_msgcnt = 1000
+    batch_cnt = 100
+    msgcnt = 0
+
+    while msgcnt < max_msgcnt:
+        # Consume until we hit max_msgcnt
+
+        # Consume messages (error()==0) or event (error()!=0)
+        msglist = c.consume(batch_cnt, 10.0)
+        assert len(msglist) == batch_cnt, 'expected %d messages, not %d' % (batch_cnt, len(msglist))
+
+        for msg in msglist:
+            if msg.error():
+                print('Consumer error: %s: ignoring' % msg.error())
+                continue
+
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.key(), msg.value(), tstype, timestamp))
+
+            if (msg.offset() % 5) == 0:
+                # Async commit
+                c.commit(msg, asynchronous=True)
+            elif (msg.offset() % 4) == 0:
+                offsets = c.commit(msg, asynchronous=False)
+                assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
+                assert offsets[0].offset == msg.offset()+1, \
+                    'expected offset %d to be committed, not %s' % \
+                    (msg.offset(), offsets)
+                print('Sync committed offset: %s' % offsets)
+
+            msgcnt += 1
+
+    print('max_msgcnt %d reached' % msgcnt)
+
+    # Get current assignment
+    assignment = c.assignment()
+
+    # Get cached watermark offsets
+    # Since we're not making use of statistics the low offset is not known so ignore it.
+    lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
+    print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Query broker for offsets
+    lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
+
+    # Close consumer
+    c.close()
+
+    # Start a new client and get the committed offsets
+    c = confluent_kafka.Consumer(**conf)
+    offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
+    for tp in offsets:
+        print(tp)
+
+    c.close()
+
+
+def verify_batch_consumer_performance():
+    """ Verify batch Consumer performance """
+
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': uuid.uuid1(),
+            'session.timeout.ms': 6000,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    c = confluent_kafka.Consumer(**conf)
+
+    def my_on_assign(consumer, partitions):
+        print('on_assign:', len(partitions), 'partitions:')
+        for p in partitions:
+            print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+        consumer.assign(partitions)
+
+    def my_on_revoke(consumer, partitions):
+        print('on_revoke:', len(partitions), 'partitions:')
+        for p in partitions:
+            print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
+        consumer.unassign()
+
+    c.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
+
+    max_msgcnt = 1000000
+    bytecnt = 0
+    msgcnt = 0
+    batch_size = 1000
+
+    print('Will now consume %d messages' % max_msgcnt)
+
+    if with_progress:
+        bar = Bar('Consuming', max=max_msgcnt,
+                  suffix='%(index)d/%(max)d [%(eta_td)s]')
+    else:
+        bar = None
+
+    while msgcnt < max_msgcnt:
+        # Consume until we hit max_msgcnt
+
+        msglist = c.consume(num_messages=batch_size, timeout=20.0)
+
+        for msg in msglist:
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    # Reached EOF for a partition, ignore.
+                    continue
+                else:
+                    raise confluent_kafka.KafkaException(msg.error())
+
+            bytecnt += len(msg)
+            msgcnt += 1
+
+            if bar is not None and (msgcnt % 10000) == 0:
+                bar.next(n=10000)
+
+            if msgcnt == 1:
+                t_first_msg = time.time()
+
+    if bar is not None:
+        bar.finish()
+
+    if msgcnt > 0:
+        t_spent = time.time() - t_first_msg
+        print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
+
+    print('closing consumer')
+    c.close()
+
+
 def verify_stats_cb():
     """ Verify stats_cb """
 
@@ -642,7 +868,33 @@ def verify_stats_cb():
     c.close()
 
 
+def print_usage(exitcode, reason=None):
+    """ Print usage and exit with exitcode """
+    if reason is not None:
+        print('Error: %s' % reason)
+    print('Usage: %s <broker> [opts] [<topic>] [<schema_registry>]' % sys.argv[0])
+    print('Options:')
+    print(' --consumer, --producer, --avro, --performance - limit to matching tests')
+
+    sys.exit(exitcode)
+
+
 if __name__ == '__main__':
+    modes = list()
+
+    # Parse options
+    while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
+        opt = sys.argv.pop(1)
+        if opt == '--consumer':
+            modes.append('consumer')
+        elif opt == '--producer':
+            modes.append('producer')
+        elif opt == '--avro':
+            modes.append('avro')
+        elif opt == '--performance':
+            modes.append('performance')
+        else:
+            print_usage(1, 'unknown option ' + opt)
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
@@ -651,31 +903,46 @@ if __name__ == '__main__':
         if len(sys.argv) > 3:
             schema_registry_url = sys.argv[3]
     else:
-        print('Usage: %s <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
-        sys.exit(1)
+        print_usage(1)
+
+    if len(modes) == 0:
+        modes = ['consumer', 'producer', 'avro', 'performance']
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
 
-    print('=' * 30, 'Verifying Producer', '=' * 30)
-    verify_producer()
+    if 'producer' in modes:
+        print('=' * 30, 'Verifying Producer', '=' * 30)
+        verify_producer()
 
-    print('=' * 30, 'Verifying Consumer', '=' * 30)
-    verify_consumer()
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
+            verify_producer_performance(with_dr_cb=True)
 
-    print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
-    verify_producer_performance(with_dr_cb=True)
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Producer performance (without dr_cb)', '=' * 30)
+            verify_producer_performance(with_dr_cb=False)
 
-    print('=' * 30, 'Verifying Producer performance (without dr_cb)', '=' * 30)
-    verify_producer_performance(with_dr_cb=False)
+    if 'consumer' in modes:
+        print('=' * 30, 'Verifying Consumer', '=' * 30)
+        verify_consumer()
 
-    print('=' * 30, 'Verifying Consumer performance', '=' * 30)
-    verify_consumer_performance()
+        print('=' * 30, 'Verifying batch Consumer', '=' * 30)
+        verify_batch_consumer()
 
-    print('=' * 30, 'Verifying stats_cb', '=' * 30)
-    verify_stats_cb()
+        if 'performance' in modes:
+            print('=' * 30, 'Verifying Consumer performance', '=' * 30)
+            verify_consumer_performance()
 
-    print('=' * 30, 'Verifying AVRO', '=' * 30)
-    verify_avro()
+            print('=' * 30, 'Verifying batch Consumer performance', '=' * 30)
+            verify_batch_consumer_performance()
+
+        # The stats test is utilizing the consumer.
+        print('=' * 30, 'Verifying stats_cb', '=' * 30)
+        verify_stats_cb()
+
+    if 'avro' in modes:
+        print('=' * 30, 'Verifying AVRO', '=' * 30)
+        verify_avro()
 
     print('=' * 30, 'Done', '=' * 30)

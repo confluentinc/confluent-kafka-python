@@ -258,7 +258,11 @@ Producer_producev (Handle *self,
                    const char *topic, int32_t partition,
                    const void *value, size_t value_len,
                    const void *key, size_t key_len,
-                   void *opaque, int64_t timestamp) {
+                   void *opaque, int64_t timestamp
+#ifdef RD_KAFKA_V_HEADERS
+                   ,rd_kafka_headers_t *headers
+#endif
+                   ) {
 
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
@@ -268,6 +272,9 @@ Producer_producev (Handle *self,
                                  RD_KAFKA_V_VALUE((void *)value,
                                                   (size_t)value_len),
                                  RD_KAFKA_V_TIMESTAMP(timestamp),
+#ifdef RD_KAFKA_V_HEADERS
+                                 RD_KAFKA_V_HEADERS(headers),
+#endif
                                  RD_KAFKA_V_OPAQUE(opaque),
                                  RD_KAFKA_V_END);
 }
@@ -302,10 +309,14 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	const char *topic, *value = NULL, *key = NULL;
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
-	PyObject *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
+	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
+#ifdef RD_KAFKA_V_HEADERS
+    rd_kafka_headers_t *rd_headers = NULL;
+#endif
+
 	static char *kws[] = { "topic",
 			       "value",
 			       "key",
@@ -313,16 +324,17 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "callback",
 			       "on_delivery", /* Alias */
 			       "partitioner",
-                               "timestamp",
+                   "timestamp",
+                   "headers",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOOL"
+					 "s|z#z#iOOOLO"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
 					 &dr_cb, &dr_cb2, &partitioner_cb,
-                                         &timestamp))
+                     &timestamp, &headers))
 		return NULL;
 
 #if !HAVE_PRODUCEV
@@ -337,6 +349,24 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         }
 #endif
 
+#ifndef RD_KAFKA_V_HEADERS
+    if (headers) {
+            PyErr_Format(PyExc_NotImplementedError,
+                         "Producer message headers requires "
+                         "confluent-kafka-python built for librdkafka "
+                         "version >=v0.11.4 (librdkafka runtime 0x%x, "
+                         "buildtime 0x%x)",
+                         rd_kafka_version(), RD_KAFKA_VERSION);
+            return NULL;
+    }
+#else
+    if (headers) {
+        if(!(rd_headers = py_headers_to_c(headers)))
+            return NULL;
+    }
+#endif
+
+
 	if (dr_cb2 && !dr_cb) /* Alias */
 		dr_cb = dr_cb2;
 
@@ -344,6 +374,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 		dr_cb = self->u.Producer.default_dr_cb;
 	if (!partitioner_cb || partitioner_cb == Py_None)
 		partitioner_cb = self->u.Producer.partitioner_cb;
+
 
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
@@ -354,13 +385,16 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
-                                msgstate, timestamp);
+                                msgstate, timestamp
+#ifdef RD_KAFKA_V_HEADERS
+                                ,rd_headers
+#endif
+                                );
 #else
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
                                 msgstate);
-
 #endif
 
         if (err) {
@@ -458,6 +492,10 @@ static PyMethodDef Producer_methods[] = {
 	  "``callback`` (alias ``on_delivery``) argument to pass a function "
 	  "(or lambda) that will be called from :py:func:`poll()` when the "
 	  "message has been successfully delivered or permanently fails delivery.\n"
+      "\n"
+      "  Currently message headers are not supported on the message returned to the "
+      "callback. The ``msg.headers()`` will return None even if the original message "
+      "had headers set.\n"
 	  "\n"
 	  "  :param str topic: Topic to produce message to\n"
 	  "  :param str|bytes value: Message payload\n"
@@ -488,7 +526,7 @@ static PyMethodDef Producer_methods[] = {
 	  "  - ``on_delivery`` callbacks from :py:func:`produce()`\n"
 	  "  - ...\n"
 	  "\n"
-	  "  :param float timeout: Maximum time to block waiting for events.\n"
+	  "  :param float timeout: Maximum time to block waiting for events. (Seconds)\n"
 	  "  :returns: Number of events processed (callbacks served)\n"
 	  "  :rtype: int\n"
 	  "\n"
@@ -501,7 +539,7 @@ static PyMethodDef Producer_methods[] = {
 	  "   This is a convenience method that calls :py:func:`poll()` until "
 	  ":py:func:`len()` is zero or the optional timeout elapses.\n"
 	  "\n"
-          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4).\n"
+          "  :param: float timeout: Maximum time to block (requires librdkafka >= v0.9.4). (Seconds)\n"
           "  :returns: Number of messages still in queue.\n"
           "\n"
 	  ".. note:: See :py:func:`poll()` for a description on what "
@@ -549,6 +587,10 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 rd_kafka_conf_destroy(conf);
                 return -1;
         }
+
+        /* Forward log messages to poll queue */
+        if (self->logger)
+                rd_kafka_set_log_queue(self->rk, NULL);
 
         return 0;
 }

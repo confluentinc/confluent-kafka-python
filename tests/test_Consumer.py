@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-from confluent_kafka import (Consumer, TopicPartition, KafkaError, KafkaException, TIMESTAMP_NOT_AVAILABLE,
+from confluent_kafka import (Consumer, TopicPartition, KafkaError,
+                             KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
 import pytest
 
@@ -41,12 +42,33 @@ def test_basic_api():
     if msg is not None:
         assert msg.timestamp() == (TIMESTAMP_NOT_AVAILABLE, -1)
 
+    msglist = kc.consume(num_messages=10, timeout=0.001)
+    assert len(msglist) == 0, "expected 0 messages, not %d" % len(msglist)
+
+    with pytest.raises(ValueError) as ex:
+        kc.consume(-100)
+    assert 'num_messages must be between 0 and 1000000 (1M)' == str(ex.value)
+
+    with pytest.raises(ValueError) as ex:
+        kc.consume(1000001)
+    assert 'num_messages must be between 0 and 1000000 (1M)' == str(ex.value)
+
     partitions = list(map(lambda part: TopicPartition("test", part), range(0, 100, 3)))
     kc.assign(partitions)
+
+    with pytest.raises(KafkaException) as ex:
+        kc.seek(TopicPartition("test", 0, 123))
+    assert 'Erroneous state' in str(ex.value)
 
     # Verify assignment
     assignment = kc.assignment()
     assert partitions == assignment
+
+    # Pause partitions
+    kc.pause(partitions)
+
+    # Resume partitions
+    kc.resume(partitions)
 
     # Get cached watermarks, should all be invalid.
     lo, hi = kc.get_watermark_offsets(partitions[0], cached=True)
@@ -62,10 +84,10 @@ def test_basic_api():
 
     kc.unassign()
 
-    kc.commit(async=True)
+    kc.commit(asynchronous=True)
 
     try:
-        kc.commit(async=False)
+        kc.commit(asynchronous=False)
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._NO_OFFSET)
 
@@ -141,7 +163,7 @@ def test_on_commit():
         if cs.once:
             # Try commit once
             try:
-                c.commit(async=False)
+                c.commit(asynchronous=False)
             except KafkaException as e:
                 print('commit failed with %s (expected)' % e)
                 assert e.args[0].code() == KafkaError._NO_OFFSET
@@ -158,6 +180,24 @@ def test_subclassing():
     sc = SubConsumer({"group.id": "test", "session.timeout.ms": "90"})
     sc.poll("astring")
     sc.close()
+
+
+@pytest.mark.skipif(libversion()[1] < 0x000b0000,
+                    reason="requires librdkafka >=0.11.0")
+def test_offsets_for_times():
+    c = Consumer({'group.id': 'test',
+                  'enable.auto.commit': True,
+                  'enable.auto.offset.store': False,
+                  'socket.timeout.ms': 50,
+                  'session.timeout.ms': 100})
+    # Query broker for timestamps for partition
+    try:
+        test_topic_partition = TopicPartition("test", 0, 100)
+        c.offsets_for_times([test_topic_partition], timeout=0.1)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE),\
+            str(e.args([0]))
+    c.close()
 
 
 def test_multiple_close_throw_exception():
@@ -205,6 +245,10 @@ def test_any_method_after_close_throws_exception():
     assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
+        c.consume()
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
         c.assign([TopicPartition('test', 0)])
     assert 'Consumer closed' == str(ex.value)
 
@@ -229,6 +273,10 @@ def test_any_method_after_close_throws_exception():
     assert 'Consumer closed' == str(ex.value)
 
     with pytest.raises(RuntimeError) as ex:
+        c.seek([TopicPartition("test", 0, 0)])
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
     assert 'Consumer closed' == str(ex.value)
 
@@ -250,4 +298,8 @@ def test_calling_store_offsets_after_close_throws_erro():
 
     with pytest.raises(RuntimeError) as ex:
         c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
+    assert 'Consumer closed' == str(ex.value)
+
+    with pytest.raises(RuntimeError) as ex:
+        c.offsets_for_times([TopicPartition("test", 0)])
     assert 'Consumer closed' == str(ex.value)

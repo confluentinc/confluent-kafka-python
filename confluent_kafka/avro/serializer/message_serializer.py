@@ -39,10 +39,10 @@ MAGIC_BYTE = 0
 
 HAS_FAST = False
 try:
-    from fastavro.reader import read_data
+    from fastavro import schemaless_reader
 
     HAS_FAST = True
-except:
+except ImportError:
     pass
 
 
@@ -158,19 +158,18 @@ class MessageSerializer(object):
         # fetch from schema reg
         try:
             schema = self.registry_client.get_by_id(schema_id)
-        except:
-            schema = None
+        except ClientError as e:
+            raise SerializerError("unable to fetch schema with id %d: %s" % (schema_id, str(e)))
 
-        if not schema:
-            err = "unable to fetch schema with id %d" % (schema_id)
-            raise SerializerError(err)
+        if schema is None:
+            raise SerializerError("unable to fetch schema with id %d" % (schema_id))
 
         curr_pos = payload.tell()
         if HAS_FAST:
             # try to use fast avro
             try:
                 schema_dict = schema.to_json()
-                read_data(payload, schema_dict)
+                schemaless_reader(payload, schema_dict)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines
@@ -178,9 +177,10 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: read_data(p, schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict)
                 return self.id_to_decoder_func[schema_id]
-            except:
+            except Exception:
+                # Fast avro failed, fall thru to standard avro below.
                 pass
 
         # here means we should just delegate to slow avro

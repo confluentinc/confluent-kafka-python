@@ -12,7 +12,8 @@ fi
 VERSION=$1
 PREFIXDIR=$2
 
-set -e
+set -ex
+set -o pipefail
 
 if [[ -z "$VERSION" ]]; then
     echo "Usage: $0 --require-ssl <librdkafka-version> [<install-dir>]" 1>&2
@@ -31,7 +32,7 @@ mkdir -p "$PREFIXDIR/librdkafka"
 pushd "$PREFIXDIR/librdkafka"
 
 test -f configure ||
-curl -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
+curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
     tar -xz --strip-components=1 -f -
 
 ./configure --clean

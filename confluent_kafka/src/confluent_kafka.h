@@ -163,6 +163,8 @@ typedef struct {
         int tlskey;  /* Thread-Local-Storage key */
         rd_kafka_type_t type; /* Producer or consumer */
 
+        PyObject *logger;
+
 	union {
 		/**
 		 * Producer
@@ -186,6 +188,7 @@ typedef struct {
 			PyObject *on_assign;     /* Rebalance: on_assign callback */
 			PyObject *on_revoke;     /* Rebalance: on_revoke callback */
 			PyObject *on_commit;     /* Commit callback */
+			rd_kafka_queue_t *rkqu;  /* Consumer queue */
 
 		} Consumer;
 	} u;
@@ -266,7 +269,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 
-
+#ifdef RD_KAFKA_V_HEADERS
+rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist);
+PyObject *c_headers_to_py (rd_kafka_headers_t *headers);
+#endif
 /****************************************************************************
  *
  *
@@ -285,6 +291,10 @@ typedef struct {
 	PyObject *topic;
 	PyObject *value;
 	PyObject *key;
+	PyObject *headers;
+#ifdef RD_KAFKA_V_HEADERS
+	rd_kafka_headers_t *c_headers;
+#endif
 	PyObject *error;
 	int32_t partition;
 	int64_t offset;
