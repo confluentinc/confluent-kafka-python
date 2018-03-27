@@ -683,10 +683,16 @@ static void MetadataBroker_dealloc (MetadataBroker *self) {
 }
 
 static PyObject *MetadataBroker_str0 (MetadataBroker *self) {
-	return cfl_PyUnistr(_FromFormat("MetadataBroker{id=%d,host=\"%s\",port=%d}",
-					self->id,
-					PyString_AsString(self->host),
-					self->port));
+	PyObject *host8 = NULL;
+	const char *host;
+	PyObject *result = NULL;
+
+	host = cfl_PyUnistr_AsUTF8(self->host, &host8);
+	if (host)
+		result = cfl_PyUnistr(_FromFormat("MetadataBroker{id=%d,host=\"%s\",port=%d}",
+						  self->id, host, self->port));
+	Py_XDECREF(host8);
+	return result;
 }
 
 static int MetadataBroker_traverse (MetadataBroker *self,
@@ -839,34 +845,46 @@ static void MetadataPartition_dealloc (MetadataPartition *self) {
 }
 
 static PyObject *MetadataPartition_str0 (MetadataPartition *self) {
-	PyObject *error_str0;
-	PyObject *replicas_str0;
-	PyObject *isrs_str0;
-	PyObject *result;
+	PyObject *error_str0 = NULL, *error_str8 = NULL;
+	const char *error_str;
+	PyObject *replicas_str0 = NULL, *replicas_str8 = NULL;
+	const char *replicas_str;
+	PyObject *isrs_str0 = NULL, *isrs_str8 = NULL;
+	const char *isrs_str;
+	PyObject *result = NULL;
 
 	error_str0 = PyObject_Str(self->error);
 	if (error_str0 == NULL)
-		return NULL;
+		goto error;
+	error_str = cfl_PyUnistr_AsUTF8(error_str0, &error_str8);
+	if (error_str == NULL)
+		goto error;
+
 	replicas_str0 = PyObject_Str(self->replicas);
-	if (replicas_str0 == NULL) {
-		Py_DECREF(error_str0);
-		return NULL;
-	}
+	if (replicas_str0 == NULL)
+		goto error;
+	replicas_str = cfl_PyUnistr_AsUTF8(replicas_str0, &replicas_str8);
+	if (replicas_str == NULL)
+		goto error;
+
 	isrs_str0 = PyObject_Str(self->isrs);
-	if (isrs_str0 == NULL) {
-		Py_DECREF(error_str0);
-		Py_DECREF(replicas_str0);
-		return NULL;
-	}
+	if (isrs_str0 == NULL)
+		goto error;
+	isrs_str = cfl_PyUnistr_AsUTF8(isrs_str0, &isrs_str8);
+	if (isrs_str == NULL)
+		goto error;
+
 	result = cfl_PyUnistr(_FromFormat("MetadataPartition{id=%d,error=%s,leader=%d,replicas=%s,isrs=%s}",
-					  self->id,
-					  PyString_AsString(error_str0),
-					  self->leader,
-					  PyString_AsString(replicas_str0),
-					  PyString_AsString(isrs_str0)));
-	Py_DECREF(error_str0);
-	Py_DECREF(replicas_str0);
-	Py_DECREF(isrs_str0);
+					  self->id, error_str,
+					  self->leader, replicas_str, isrs_str));
+
+error:
+	Py_XDECREF(error_str0);
+	Py_XDECREF(error_str8);
+	Py_XDECREF(replicas_str0);
+	Py_XDECREF(replicas_str8);
+	Py_XDECREF(isrs_str0);
+	Py_XDECREF(isrs_str8);
 	return result;
 }
 
@@ -931,7 +949,7 @@ static PyObject *list_of_ints(const int32_t *values, int cnt) {
 	if (list == NULL)
 		return NULL;
 	for (i = 0 ; i < cnt ; i++) {
-		PyObject *val = PyInt_FromLong(values[i]);
+		PyObject *val = PyLong_FromLong(values[i]);
 		if (val == NULL) {
 			Py_XDECREF(list);
 			return NULL;
@@ -1030,24 +1048,41 @@ static void MetadataTopic_dealloc (MetadataTopic *self) {
 }
 
 static PyObject *MetadataTopic_str0 (MetadataTopic *self) {
-	PyObject *partitions_str0;
-	PyObject *error_str0;
-	PyObject *result;
+	PyObject *topic8;
+	const char *topic;
+	PyObject *partitions_str0 = NULL, *partitions_str8 = NULL;
+	const char *partitions_str;
+	PyObject *error_str0 = NULL, *error_str8 = NULL;
+	const char *error_str;
+	PyObject *result = NULL;
+
+	topic = cfl_PyUnistr_AsUTF8(self->topic, &topic8);
+	if (topic == NULL)
+		goto error;
 
 	partitions_str0 = PyObject_Str(self->partitions);
 	if (partitions_str0 == NULL)
-		return NULL;
+		goto error;
+	partitions_str = cfl_PyUnistr_AsUTF8(partitions_str0, &partitions_str8);
+	if (partitions_str == NULL)
+		goto error;
+
 	error_str0 = PyObject_Str(self->error);
-	if (error_str0 == NULL) {
-		Py_DECREF(partitions_str0);
-		return NULL;
-	}
+	if (error_str0 == NULL)
+		goto error;
+	error_str = cfl_PyUnistr_AsUTF8(error_str0, &error_str8);
+	if (error_str == NULL)
+		goto error;
+
 	result = cfl_PyUnistr(_FromFormat("MetadataTopic{topic=\"%s\",partitions=%s,error=%s}",
-					PyString_AsString(self->topic),
-					PyString_AsString(partitions_str0),
-					PyString_AsString(error_str0)));
-	Py_DECREF(partitions_str0);
-	Py_DECREF(error_str0);
+					topic, partitions_str, error_str));
+
+error:
+	Py_XDECREF(topic8);
+	Py_XDECREF(partitions_str0);
+	Py_XDECREF(partitions_str8);
+	Py_XDECREF(error_str0);
+	Py_XDECREF(error_str8);
 	return result;
 }
 
@@ -1217,25 +1252,39 @@ static void Metadata_dealloc (Metadata *self) {
 }
 
 static PyObject *Metadata_str0 (Metadata *self) {
-	PyObject *brokers_str0;
-	PyObject *topics_str0;
-	PyObject *result;
+	PyObject *brokers_str0 = NULL, *brokers_str8 = NULL;
+	const char *brokers_str;
+	PyObject *topics_str0 = NULL, *topics_str8 = NULL;
+	const char *topics_str;
+	PyObject *orig_broker_name8 = NULL;
+	const char *orig_broker_name;
+	PyObject *result = NULL;
 
 	brokers_str0 = PyObject_Str(self->brokers);
 	if (brokers_str0 == NULL)
-		return NULL;
+		goto error;
+	brokers_str = cfl_PyUnistr_AsUTF8(brokers_str0, &brokers_str8);
+	if (brokers_str == NULL)
+		goto error;
+
 	topics_str0 = PyObject_Str(self->topics);
-	if (topics_str0 == NULL) {
-		Py_DECREF(brokers_str0);
-		return NULL;
-	}
+	if (topics_str0 == NULL)
+		goto error;
+	topics_str = cfl_PyUnistr_AsUTF8(topics_str0, &topics_str8);
+	if (topics_str == NULL)
+		goto error;
+
+	orig_broker_name = cfl_PyUnistr_AsUTF8(self->orig_broker_name, &orig_broker_name8);
+
 	result = cfl_PyUnistr(_FromFormat("Metadata{brokers=%s,topics=%s,orig_broker_id=%d,orig_broker_name=\"%s\"}",
-					  PyString_AsString(brokers_str0),
-					  PyString_AsString(topics_str0),
-					  self->orig_broker_id,
-					  PyString_AsString(self->orig_broker_name)));
-	Py_DECREF(brokers_str0);
-	Py_DECREF(topics_str0);
+					  brokers_str, topics_str, self->orig_broker_id, orig_broker_name));
+
+error:
+	Py_XDECREF(brokers_str0);
+	Py_XDECREF(brokers_str8);
+	Py_XDECREF(topics_str0);
+	Py_XDECREF(topics_str8);
+	Py_XDECREF(orig_broker_name8);
 	return result;
 }
 
