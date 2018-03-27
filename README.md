@@ -39,9 +39,12 @@ Usage
 ```python
 from confluent_kafka import Producer
 
+
 p = Producer({'bootstrap.servers': 'mybroker,mybroker2'})
+
 for data in some_data_source:
     p.produce('mytopic', data.encode('utf-8'))
+
 p.flush()
 ```
 
@@ -51,17 +54,29 @@ p.flush()
 ```python
 from confluent_kafka import Consumer, KafkaError
 
-c = Consumer({'bootstrap.servers': 'mybroker', 'group.id': 'mygroup',
-              'default.topic.config': {'auto.offset.reset': 'smallest'}})
+
+c = Consumer({
+    'bootstrap.servers': 'mybroker',
+    'group.id': 'mygroup',
+    'default.topic.config': {
+        'auto.offset.reset': 'smallest'
+    }
+})
+
 c.subscribe(['mytopic'])
-running = True
-while running:
+
+while True:
     msg = c.poll()
-    if not msg.error():
-        print('Received message: %s' % msg.value().decode('utf-8'))
-    elif msg.error().code() != KafkaError._PARTITION_EOF:
-        print(msg.error())
-        running = False
+
+    if msg.error():
+        if msg.error().code() == KafkaError._PARTITION_EOF:
+            continue
+        else:
+            print(msg.error())
+            break
+
+    print('Received message: {}'.format(msg.value().decode('utf-8')))
+
 c.close()
 ```
 
@@ -71,12 +86,17 @@ c.close()
 from confluent_kafka import avro
 from confluent_kafka.avro import AvroProducer
 
+
 value_schema = avro.load('ValueSchema.avsc')
 key_schema = avro.load('KeySchema.avsc')
 value = {"name": "Value"}
 key = {"name": "Key"}
 
-avroProducer = AvroProducer({'bootstrap.servers': 'mybroker,mybroker2', 'schema.registry.url': 'http://schem_registry_host:port'}, default_key_schema=key_schema, default_value_schema=value_schema)
+avroProducer = AvroProducer({
+    'bootstrap.servers': 'mybroker,mybroker2',
+    'schema.registry.url': 'http://schem_registry_host:port'
+    }, default_key_schema=key_schema, default_value_schema=value_schema)
+
 avroProducer.produce(topic='my_topic', value=value, key=key)
 avroProducer.flush()
 ```
@@ -88,21 +108,33 @@ from confluent_kafka import KafkaError
 from confluent_kafka.avro import AvroConsumer
 from confluent_kafka.avro.serializer import SerializerError
 
-c = AvroConsumer({'bootstrap.servers': 'mybroker,mybroker2', 'group.id': 'groupid', 'schema.registry.url': 'http://127.0.0.1:8081'})
+
+c = AvroConsumer({
+    'bootstrap.servers': 'mybroker,mybroker2',
+    'group.id': 'groupid',
+    'schema.registry.url': 'http://127.0.0.1:8081'})
+
 c.subscribe(['my_topic'])
-running = True
-while running:
+
+while True:
     try:
         msg = c.poll(10)
-        if msg:
-            if not msg.error():
-                print(msg.value())
-            elif msg.error().code() != KafkaError._PARTITION_EOF:
-                print(msg.error())
-                running = False
+
     except SerializerError as e:
-        print("Message deserialization failed for %s: %s" % (msg, e))
-        running = False
+        print("Message deserialization failed for {}: {}".format(msg, e))
+        break
+
+    if msg is None:
+        continue
+
+    if msg.error():
+        if msg.error().code() == KafkaError._PARTITION_EOF:
+            continue
+        else:
+            print(msg.error())
+            break
+
+    print(msg.value())
 
 c.close()
 ```
