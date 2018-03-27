@@ -258,10 +258,10 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
  PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str) {
 	if (!err)
 		Py_RETURN_NONE;
-        if (str)
-                return KafkaError_new0(err, "%s", str);
-        else
-                return KafkaError_new0(err, NULL);
+	if (str)
+		return KafkaError_new0(err, "%s", str);
+	else
+		return KafkaError_new0(err, NULL);
 }
 
 
@@ -336,29 +336,58 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 static PyObject *Message_headers (Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
 	if (self->headers) {
-        Py_INCREF(self->headers);
+		Py_INCREF(self->headers);
 		return self->headers;
-    } else if (self->c_headers) {
-        self->headers = c_headers_to_py(self->c_headers);
-        rd_kafka_headers_destroy(self->c_headers);
-        self->c_headers = NULL;
-        Py_INCREF(self->headers);
-        return self->headers;
+	} else if (self->c_headers) {
+		self->headers = c_headers_to_py(self->c_headers);
+		Py_INCREF(self->headers);
+		return self->headers;
 	} else {
 		Py_RETURN_NONE;
-    }
+	}
 #else
 		Py_RETURN_NONE;
 #endif
 }
 
-static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
-   if (self->headers)
-        Py_DECREF(self->headers);
-   self->headers = new_headers;
-   Py_INCREF(self->headers);
+static PyObject *Message_headers_dict (Message *self, PyObject *ignore) {
+#ifdef RD_KAFKA_V_HEADERS
+	const char *keybuf;
+	const void *valbuf;
+	size_t count, len;
+	PyObject *dict, *value;
 
-   Py_RETURN_NONE;
+	if (!self->c_headers)
+		Py_RETURN_NONE;
+
+	dict = PyDict_New();
+	if (!dict)
+		return NULL;
+	// Parse into dictionary.
+	count = rd_kafka_header_cnt(self->c_headers);
+	for (size_t i = 0; i < count;  i++) {
+		rd_kafka_header_get_all(self->c_headers, i, &keybuf, &valbuf, &len);
+		if (!valbuf) {
+			PyDict_SetItemString(dict, keybuf, Py_None);
+		} else {
+			value = cfl_PyBin(_FromStringAndSize((char *)valbuf, (Py_ssize_t)len));
+			PyDict_SetItemString(dict, keybuf, value);
+			Py_DECREF(value);
+		}
+	}
+	return dict;
+#else
+	Py_RETURN_NONE;
+#endif
+}
+
+static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
+	if (self->headers)
+		Py_DECREF(self->headers);
+	self->headers = new_headers;
+	Py_INCREF(self->headers);
+
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
@@ -389,7 +418,6 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None or :py:class:`KafkaError`\n"
 	  "\n"
 	},
-
 	{ "value", (PyCFunction)Message_value, METH_NOARGS,
 	  "  :returns: message value (payload) or None if not available.\n"
 	  "  :rtype: str|bytes or None\n"
@@ -416,33 +444,41 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	},
 	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
-          "  Retrieve timestamp type and timestamp from message.\n"
-          "  The timestamp type is one of:\n"
-          "    * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
-          " - Timestamps not supported by broker\n"
-          "    * :py:const:`TIMESTAMP_CREATE_TIME` "
-          " - Message creation time (or source / producer time)\n"
-          "    * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
-          " - Broker receive time\n"
-          "\n"
-          "  The returned timestamp should be ignored if the timestamp type is "
-          ":py:const:`TIMESTAMP_NOT_AVAILABLE`.\n"
-          "\n"
-          "  The timestamp is the number of milliseconds since the epoch (UTC).\n"
-          "\n"
-          "  Timestamps require broker version 0.10.0.0 or later and \n"
-          "  ``{'api.version.request': True}`` configured on the client.\n"
-          "\n"
+	  "  Retrieve timestamp type and timestamp from message.\n"
+	  "  The timestamp type is one of:\n"
+	  "    * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
+	  " - Timestamps not supported by broker\n"
+	  "    * :py:const:`TIMESTAMP_CREATE_TIME` "
+	  " - Message creation time (or source / producer time)\n"
+	  "    * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
+	  " - Broker receive time\n"
+	  "\n"
+	  "  The returned timestamp should be ignored if the timestamp type is "
+	  ":py:const:`TIMESTAMP_NOT_AVAILABLE`.\n"
+	  "\n"
+	  "  The timestamp is the number of milliseconds since the epoch (UTC).\n"
+	  "\n"
+	  "  Timestamps require broker version 0.10.0.0 or later and \n"
+	  "  ``{'api.version.request': True}`` configured on the client.\n"
+	  "\n"
 	  "  :returns: tuple of message timestamp type, and timestamp.\n"
 	  "  :rtype: (int, int)\n"
 	  "\n"
 	},
 	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
-      "  Retrieve the headers set on a message. Each header is a key value"
-      "pair. Please note that header keys are ordered and can repeat.\n"
-      "\n"
+	  "  Retrieve the headers set on a message. Each header is a key value"
+	  "pair. Please note that header keys are ordered and can repeat.\n"
+	  "\n"
 	  "  :returns: list of two-tuples, one (key, value) pair for each header.\n"
 	  "  :rtype: [(str, bytes),...] or None.\n"
+	  "\n"
+	},
+	{ "headers_dict", (PyCFunction)Message_headers_dict, METH_NOARGS,
+	  "  Retrieve the headers set on a message as a str key, byte value dict."
+	  "  Duplicate headers will contain the last value set with that key.\n"
+	  "\n"
+	  "  :returns: a dict of str keys and bytes values.\n"
+	  "  :rtype: Dict[str,bytes] or None.\n"
 	  "\n"
 	},
 	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
@@ -491,10 +527,10 @@ static int Message_clear (Message *self) {
 		self->headers = NULL;
 	}
 #ifdef RD_KAFKA_V_HEADERS
-    if (self->c_headers){
-        rd_kafka_headers_destroy(self->c_headers);
-        self->c_headers = NULL;
-    }
+	if (self->c_headers){
+		rd_kafka_headers_destroy(self->c_headers);
+		self->c_headers = NULL;
+	}
 #endif
 	return 0;
 }
@@ -587,19 +623,19 @@ PyTypeObject MessageType = {
 /**
  * @brief Internal factory to create Message object from message_t
  */
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm, bool detach_headers) {
 	Message *self;
 
 	self = (Message *)MessageType.tp_alloc(&MessageType, 0);
 	if (!self)
 		return NULL;
 
-        /* Only use message error string on Consumer, for Producers
-         * it will contain the original message payload. */
-        self->error = KafkaError_new_or_None(
-                rkm->err,
-                (rkm->err && handle->type != RD_KAFKA_PRODUCER) ?
-                rd_kafka_message_errstr(rkm) : NULL);
+	/* Only use message error string on Consumer, for Producers
+	 * it will contain the original message payload. */
+	self->error = KafkaError_new_or_None(
+		rkm->err,
+		(rkm->err && handle->type != RD_KAFKA_PRODUCER) ?
+		rd_kafka_message_errstr(rkm) : NULL);
 
 	if (rkm->rkt)
 		self->topic = cfl_PyUnistr(
@@ -615,7 +651,16 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	self->offset = rkm->offset;
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
-
+#ifdef RD_KAFKA_V_HEADERS
+	if (detach_headers) {
+		rd_kafka_message_detach_headers(rkm, &self->c_headers);
+	} else {
+		rd_kafka_headers_t *tmphdrs = NULL;
+		rd_kafka_message_headers(rkm, &tmphdrs);
+		if (tmphdrs)
+			self->c_headers = rd_kafka_headers_copy(tmphdrs);
+	}
+#endif
 	return (PyObject *)self;
 }
 
@@ -700,37 +745,37 @@ static int TopicPartition_traverse (TopicPartition *self,
 
 
 static PyMemberDef TopicPartition_members[] = {
-        { "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
-          ":py:attribute:topic - Topic name (string)" },
-        { "partition", T_INT, offsetof(TopicPartition, partition), 0,
-          ":py:attribute: Partition number (int)" },
-        { "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
-          " :py:attribute: Offset (long)\n"
-          "Either an absolute offset (>=0) or a logical offset:"
-          " :py:const:`OFFSET_BEGINNING`,"
-          " :py:const:`OFFSET_END`,"
-          " :py:const:`OFFSET_STORED`,"
-          " :py:const:`OFFSET_INVALID`"
-        },
-        { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
-          ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
-        { NULL }
+	{ "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
+	  ":py:attribute:topic - Topic name (string)" },
+	{ "partition", T_INT, offsetof(TopicPartition, partition), 0,
+	  ":py:attribute: Partition number (int)" },
+	{ "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
+	  " :py:attribute: Offset (long)\n"
+	  "Either an absolute offset (>=0) or a logical offset:"
+	  " :py:const:`OFFSET_BEGINNING`,"
+	  " :py:const:`OFFSET_END`,"
+	  " :py:const:`OFFSET_STORED`,"
+	  " :py:const:`OFFSET_INVALID`"
+	},
+	{ "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
+	  ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
+	{ NULL }
 };
 
 
 static PyObject *TopicPartition_str0 (TopicPartition *self) {
-        PyObject *errstr = NULL;
-        PyObject *errstr8 = NULL;
-        const char *c_errstr = NULL;
+	PyObject *errstr = NULL;
+	PyObject *errstr8 = NULL;
+	const char *c_errstr = NULL;
 	PyObject *ret;
 	char offset_str[40];
 
 	snprintf(offset_str, sizeof(offset_str), "%"PRId64"", self->offset);
 
-        if (self->error != Py_None) {
-                errstr = cfl_PyObject_Unistr(self->error);
-                c_errstr = cfl_PyUnistr_AsUTF8(errstr, &errstr8);
-        }
+	if (self->error != Py_None) {
+		errstr = cfl_PyObject_Unistr(self->error);
+		c_errstr = cfl_PyUnistr_AsUTF8(errstr, &errstr8);
+	}
 
 	ret = cfl_PyUnistr(
 		_FromFormat("TopicPartition{topic=%s,partition=%"PRId32
@@ -738,8 +783,8 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
 			    self->topic, self->partition,
 			    offset_str,
 			    c_errstr ? c_errstr : "None"));
-        Py_XDECREF(errstr8);
-        Py_XDECREF(errstr);
+	Py_XDECREF(errstr8);
+	Py_XDECREF(errstr);
 	return ret;
 }
 
@@ -1011,6 +1056,39 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
     }
 
     return header_list;
+}
+
+
+rd_kafka_headers_t *
+parse_dict_headers (PyObject *headers) {
+	Py_ssize_t pos = 0;
+	PyObject *key, *value, *tmpstr;
+	const char *keybuf;
+	char *valbuf;
+	Py_ssize_t len;
+	rd_kafka_headers_t *hdrs;
+
+	len = PyDict_Size(headers);
+	hdrs = rd_kafka_headers_new((size_t)len);
+	while (PyDict_Next(headers, &pos, &key, &value)) {
+		if (!(keybuf = cfl_PyUnistr_AsUTF8(key, &tmpstr))) {
+			PyErr_Format(PyExc_TypeError, "Header keys must be strings.");
+			Py_XDECREF(tmpstr);
+			rd_kafka_headers_destroy(hdrs);
+			return NULL;
+		}
+		if (value == Py_None) {
+			rd_kafka_header_add(hdrs, keybuf, -1, NULL, 0);
+		} else {
+			if (cfl_PyBin(_AsStringAndSize(value, &valbuf, &len)) < 0) {
+				rd_kafka_headers_destroy(hdrs);
+				return NULL;
+			}
+			rd_kafka_header_add(hdrs, keybuf, -1, valbuf, (size_t)len);
+			Py_XDECREF(tmpstr);
+		}
+	}
+	return hdrs;
 }
 #endif
 

@@ -17,6 +17,7 @@
 #include <Python.h>
 #include <structmember.h>
 #include <pythread.h>
+#include <stdbool.h>
 
 #include <librdkafka/rdkafka.h>
 
@@ -272,6 +273,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 #ifdef RD_KAFKA_V_HEADERS
 rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist);
 PyObject *c_headers_to_py (rd_kafka_headers_t *headers);
+rd_kafka_headers_t *parse_dict_headers (PyObject *headers);
 #endif
 /****************************************************************************
  *
@@ -304,7 +306,7 @@ typedef struct {
 
 extern PyTypeObject MessageType;
 
-PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm);
+PyObject *Message_new0 (const Handle *handle, rd_kafka_message_t *rkm, bool detach_headers);
 PyObject *Message_error (Message *self, PyObject *ignore);
 
 

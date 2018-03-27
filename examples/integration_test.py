@@ -117,7 +117,7 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
-    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1')]
+    headers = [('foo1', b'bar'), ('foo1', b'bar2'), ('foo2', b'1')]
 
     # Produce some messages
     p.produce(topic, 'Hello Python!', headers=headers)
@@ -486,8 +486,8 @@ def verify_consumer():
         if headers:
             example_header = headers
 
-        msg.set_headers([('foo', 'bar')])
-        assert msg.headers() == [('foo', 'bar')]
+        msg.set_headers([('foo', b'bar')])
+        assert msg.headers() == [('foo', b'bar')]
 
         print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s headers=%s' %
               (msg.topic(), msg.partition(), msg.offset(),
@@ -522,7 +522,7 @@ def verify_consumer():
             break
 
     assert example_header, "We should have received at least one header"
-    assert example_header == [(u'foo1', 'bar'), (u'foo1', 'bar2'), (u'foo2', '1')]
+    assert example_header == [(u'foo1', b'bar'), (u'foo1', b'bar2'), (u'foo2', b'1')]
 
     # Get current assignment
     assignment = c.assignment()
