@@ -34,6 +34,34 @@ Message
 .. autoclass:: confluent_kafka.Message
    :members:
 
+********
+Metadata
+********
+
+.. autoclass:: confluent_kafka.Metadata
+   :members:
+
+**************
+MetadataBroker
+**************
+
+.. autoclass:: confluent_kafka.MetadataBroker
+   :members:
+
+*************
+MetadataTopic
+*************
+
+.. autoclass:: confluent_kafka.MetadataTopic
+   :members:
+
+*****************
+MetadataPartition
+*****************
+
+.. autoclass:: confluent_kafka.MetadataPartition
+   :members:
+
 **************
 TopicPartition
 **************

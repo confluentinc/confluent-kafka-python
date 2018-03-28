@@ -651,19 +651,19 @@ static PyObject *MetadataBroker_port (MetadataBroker *self, PyObject *ignore) {
 
 static PyMethodDef MetadataBroker_methods[] = {
 	{ "id", (PyCFunction)MetadataBroker_id, METH_NOARGS,
-		"  :returns: id\n"
-			"  :rtype: int\n"
-			"\n"
+	  "  :returns: id\n"
+	  "  :rtype: int\n"
+	  "\n"
 	},
 	{ "host", (PyCFunction)MetadataBroker_host, METH_NOARGS,
-		"  :returns: host\n"
-			"  :rtype: str\n"
-			"\n"
+	  "  :returns: broker host\n"
+	  "  :rtype: str|bytes\n"
+	  "\n"
 	},
 	{ "port", (PyCFunction)MetadataBroker_port, METH_NOARGS,
-		"  :returns: port\n"
-			"  :rtype: int\n"
-			"\n"
+	  "  :returns: broker port\n"
+	  "  :rtype: int\n"
+	  "\n"
 	},
 	{ NULL }
 };
@@ -724,7 +724,9 @@ PyTypeObject MetadataBrokerType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
-	"The MetadataBroker object contains the broker metadata returned by the :py:func:`metadata()` method.\n"
+	"The MetadataBroker object describes an element returned by the :py:func:`Metadata.brokers()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
 	"\n",                      /*tp_doc*/
 	(traverseproc)MetadataBroker_traverse, /* tp_traverse */
 	(inquiry)MetadataBroker_clear, /* tp_clear */
@@ -795,29 +797,29 @@ static PyObject *MetadataPartition_isrs (MetadataPartition *self, PyObject *igno
 
 static PyMethodDef MetadataPartition_methods[] = {
 	{ "id", (PyCFunction)MetadataPartition_id, METH_NOARGS,
-		"  :returns: id\n"
-			"  :rtype: int\n"
-			"\n"
+	  "  :returns: id\n"
+	  "  :rtype: int\n"
+	  "\n"
 	},
 	{ "error", (PyCFunction)MetadataPartition_error, METH_NOARGS,
-		"  :returns: error\n"
-			"  :rtype: None or :py:class:`KafkaError`\n"
-			"\n"
+	  "  :returns: error\n"
+	  "  :rtype: None or :py:class:`KafkaError`\n"
+	  "\n"
 	},
 	{ "leader", (PyCFunction)MetadataPartition_leader, METH_NOARGS,
-		"  :returns: leader\n"
-			"  :rtype: int\n"
-			"\n"
+	  "  :returns: leader\n"
+	  "  :rtype: int\n"
+	  "\n"
 	},
 	{ "replicas", (PyCFunction)MetadataPartition_replicas, METH_NOARGS,
-		"  :returns: replicas\n"
-			"  :rtype: list\n"
-			"\n"
+	  "  :returns: replicas\n"
+	  "  :rtype: [int, ...]\n"
+	  "\n"
 	},
 	{ "isrs", (PyCFunction)MetadataPartition_isrs, METH_NOARGS,
-		"  :returns: isrs\n"
-			"  :rtype: list\n"
-			"\n"
+	  "  :returns: isrs\n"
+	  "  :rtype: [int, ...]\n"
+	  "\n"
 	},
 	{ NULL }
 };
@@ -921,7 +923,9 @@ PyTypeObject MetadataPartitionType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
-	"The MetadataPartition object contains a metadata topic returned by the :py:func:`metadata()` method.\n"
+	"The MetadataPartition object describes an element returned by the :py:func:`MetadataTopic.partitions()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
 	"\n",                      /*tp_doc*/
 	(traverseproc)MetadataPartition_traverse, /* tp_traverse */
 	(inquiry)MetadataPartition_clear, /* tp_clear */
@@ -1008,19 +1012,19 @@ static PyObject *MetadataTopic_error (MetadataTopic *self, PyObject *ignore) {
 
 static PyMethodDef MetadataTopic_methods[] = {
 	{ "topic", (PyCFunction)MetadataTopic_topic, METH_NOARGS,
-		"  :returns: topic\n"
-			"  :rtype: str\n"
-			"\n"
+	  "  :returns: topic name\n"
+	  "  :rtype: str\n"
+	  "\n"
 	},
 	{ "partitions", (PyCFunction)MetadataTopic_partitions, METH_NOARGS,
-		"  :returns: partitions\n"
-			"  :rtype: list\n"
-			"\n"
+	  "  :returns: list of partitions for topic\n"
+	  "  :rtype: [:py:class:`MetadataPartition`, ...]\n"
+	  "\n"
 	},
 	{ "error", (PyCFunction)MetadataTopic_error, METH_NOARGS,
-		"  :returns: error\n"
-			"  :rtype: None or :py:class:`KafkaError`\n"
-			"\n"
+	  "  :returns: error\n"
+	  "  :rtype: None or :py:class:`KafkaError`\n"
+	  "\n"
 	},
 	{ NULL }
 };
@@ -1048,7 +1052,7 @@ static void MetadataTopic_dealloc (MetadataTopic *self) {
 }
 
 static PyObject *MetadataTopic_str0 (MetadataTopic *self) {
-	PyObject *topic8;
+	PyObject *topic8 = NULL;
 	const char *topic;
 	PyObject *partitions_str0 = NULL, *partitions_str8 = NULL;
 	const char *partitions_str;
@@ -1075,7 +1079,7 @@ static PyObject *MetadataTopic_str0 (MetadataTopic *self) {
 		goto error;
 
 	result = cfl_PyUnistr(_FromFormat("MetadataTopic{topic=\"%s\",partitions=%s,error=%s}",
-					topic, partitions_str, error_str));
+					  topic, partitions_str, error_str));
 
 error:
 	Py_XDECREF(topic8);
@@ -1119,7 +1123,9 @@ PyTypeObject MetadataTopicType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
-	"The MetadataTopic object contains a metadata topic returned by the :py:func:`metadata()` method.\n"
+	"The MetadataTopic object describes an element returned by the :py:func:`Metadata.topics()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
 	"\n",                      /*tp_doc*/
 	(traverseproc)MetadataTopic_traverse, /* tp_traverse */
 	(inquiry)MetadataTopic_clear, /* tp_clear */
@@ -1207,24 +1213,24 @@ static PyObject *Metadata_orig_broker_name (Metadata *self, PyObject *ignore) {
 
 static PyMethodDef Metadata_methods[] = {
 	{ "brokers", (PyCFunction)Metadata_brokers, METH_NOARGS,
-		"  :returns: broker list\n"
-			"  :rtype: list\n"
-			"\n"
+	  "  :returns: broker list\n"
+	  "  :rtype: [:py:class:`MetadataBroker`, ...]\n"
+	  "\n"
 	},
 	{ "topics", (PyCFunction)Metadata_topics, METH_NOARGS,
-		"  :returns: topic list\n"
-			"  :rtype: list\n"
-			"\n"
+	  "  :returns: topic list\n"
+	  "  :rtype: [:py:class:`MetadataTopic`, ...]\n"
+	  "\n"
 	},
 	{ "orig_broker_id", (PyCFunction)Metadata_orig_broker_id, METH_NOARGS,
-		"  :returns: orig_broker_id\n"
-			"  :rtype: int\n"
-			"\n"
+	  "  :returns: orig_broker_id\n"
+	  "  :rtype: int\n"
+	  "\n"
 	},
 	{ "orig_broker_name", (PyCFunction)Metadata_orig_broker_name, METH_NOARGS,
-		"  :returns: orig_broker_name\n"
-			"  :rtype: str\n"
-			"\n"
+	  "  :returns: orig_broker_name\n"
+	  "  :rtype: str\n"
+	  "\n"
 	},
 	{ NULL }
 };
@@ -1321,7 +1327,9 @@ PyTypeObject MetadataType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
-	"The Metadata object contains the broker metadata returned by the :py:func:`metadata()` method.\n"
+	"The Metadata object contains the metadata returned by the Producer or Consumer :py:func:`metadata()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
 	"\n",                      /*tp_doc*/
 	(traverseproc)Metadata_traverse, /* tp_traverse */
 	(inquiry)Metadata_clear,   /* tp_clear */
@@ -1411,7 +1419,7 @@ const char Broker_metadata__doc[] = ".. py:function:: metadata(topic=None, timeo
 "\n"
 "  :param: str topic: Topic to fetch metadata for. If None return all topics in cluster.\n"
 "  :param float timeout: Request timeout. (Seconds)\n"
-"  :returns: Metadata.\n"
+"  :returns: :py:class:`Metadata`.\n"
 "\n";
 
 PyObject *Broker_metadata (Handle *self, PyObject *args,
@@ -2654,6 +2662,22 @@ static PyObject *_init_cimpl (void) {
 
 	Py_INCREF(&MessageType);
 	PyModule_AddObject(m, "Message", (PyObject *)&MessageType);
+
+	Py_INCREF(&MetadataType);
+	PyModule_AddObject(m, "Metadata",
+			   (PyObject *)&MetadataType);
+
+	Py_INCREF(&MetadataBrokerType);
+	PyModule_AddObject(m, "MetadataBroker",
+			   (PyObject *)&MetadataBrokerType);
+
+	Py_INCREF(&MetadataTopicType);
+	PyModule_AddObject(m, "MetadataTopic",
+			   (PyObject *)&MetadataTopicType);
+
+	Py_INCREF(&MetadataPartitionType);
+	PyModule_AddObject(m, "MetadataPartition",
+			   (PyObject *)&MetadataPartitionType);
 
 	Py_INCREF(&TopicPartitionType);
 	PyModule_AddObject(m, "TopicPartition",
