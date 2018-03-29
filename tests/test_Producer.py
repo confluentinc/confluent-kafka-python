@@ -2,7 +2,6 @@
 import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
-from struct import pack
 
 
 def error_cb(err):
@@ -66,25 +65,11 @@ def test_produce_headers():
                   'error_cb': error_cb,
                   'default.topic.config': {'message.timeout.ms': 10}})
 
-    binval = pack('hhl', 1, 2, 3)
-
-    headers_to_test = [
-        [('headerkey', 'headervalue')],
-        [('dupkey', 'dupvalue'), ('empty', ''), ('dupkey', 'dupvalue')],
-        [('dupkey', 'dupvalue'), ('dupkey', 'diffvalue')],
-        [('key_with_null_value', None)],
-        [('binaryval', binval)],
-
-        {'headerkey': 'headervalue'},
-        {'dupkey': 'dupvalue', 'empty': '', 'dupkey': 'dupvalue'},  # noqa: F601
-        {'dupkey': 'dupvalue', 'dupkey': 'diffvalue'},  # noqa: F601
-        {'key_with_null_value': None},
-        {'binaryval': binval}
-        ]
-
-    for headers in headers_to_test:
-        p.produce('mytopic', value='somedata', key='a key', headers=headers)
-        p.produce('mytopic', value='somedata', headers=headers)
+    p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'dupvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('dupkey', 'dupvalue'), ('dupkey', 'diffvalue')])
+    p.produce('mytopic', value='somedata', key='a key', headers=[('key_with_null_value', None)])
+    p.produce('mytopic', value='somedata', key='a key', headers=[])
 
     with pytest.raises(TypeError) as ex:
         p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])

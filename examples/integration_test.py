@@ -26,7 +26,6 @@ import uuid
 import sys
 import json
 import gc
-import struct
 from copy import copy
 
 try:
@@ -118,8 +117,7 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
-    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1'),
-               ('foobin', struct.pack('hhl', 10, 20, 30))]
+    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1')]
 
     # Produce some messages
     p.produce(topic, 'Hello Python!', headers=headers)
@@ -466,8 +464,6 @@ def verify_consumer():
 
     first_msg = None
 
-    example_header = None
-
     while True:
         # Consume until EOF or error
 
@@ -521,15 +517,12 @@ def verify_consumer():
             print('Sync committed offset: %s' % offsets)
 
         msgcnt += 1
-        if msgcnt >= max_msgcnt and example_header is not None:
+        if msgcnt >= max_msgcnt:
             print('max_msgcnt %d reached' % msgcnt)
             break
 
     assert example_header, "We should have received at least one header"
-    assert example_header == [(u'foo1', 'bar'),
-                              (u'foo1', 'bar2'),
-                              (u'foo2', '1'),
-                              ('foobin', struct.pack('hhl', 10, 20, 30))]
+    assert example_header == [(u'foo1', 'bar'), (u'foo1', 'bar2'), (u'foo2', '1')]
 
     # Get current assignment
     assignment = c.assignment()
