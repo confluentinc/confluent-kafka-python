@@ -951,16 +951,22 @@ rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
     const char *header_key, *header_value = NULL;
     int header_key_len = 0, header_value_len = 0;
 
+    if (!PyList_Check(headers_plist)) {
+            PyErr_SetString(PyExc_TypeError,
+                            "Headers are expected to be a "
+                            "list of (key,value) tuples");
+            return NULL;
+    }
+
     len = PyList_Size(headers_plist);
     rd_headers = rd_kafka_headers_new(len);
 
     for (i = 0; i < len; i++) {
-
         if(!PyArg_ParseTuple(PyList_GET_ITEM(headers_plist, i), "s#z#", &header_key,
                 &header_key_len, &header_value, &header_value_len)){
             rd_kafka_headers_destroy(rd_headers);
             PyErr_SetString(PyExc_TypeError,
-                    "Headers are expected to be a tuple of (key, value)");
+                    "Headers are expected to be a list of (key,value) tuples");
             return NULL;
         }
 

@@ -72,8 +72,12 @@ def test_produce_headers():
     p.produce('mytopic', value='somedata', key='a key', headers=[])
 
     with pytest.raises(TypeError) as ex:
+        p.produce('mytopic', value='somedata', key='a key', headers={'my': 'dict'})
+    assert 'Headers are expected to be a list of (key,value) tuples' == str(ex.value)
+
+    with pytest.raises(TypeError) as ex:
         p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])
-    assert 'Headers are expected to be a tuple of (key, value)' == str(ex.value)
+    assert 'Headers are expected to be a list of (key,value) tuples' == str(ex.value)
 
     p.flush()
 
