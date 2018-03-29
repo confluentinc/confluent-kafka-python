@@ -87,8 +87,36 @@ from confluent_kafka import avro
 from confluent_kafka.avro import AvroProducer
 
 
-value_schema = avro.load('ValueSchema.avsc')
-key_schema = avro.load('KeySchema.avsc')
+value_schema_str = """
+{
+   "namespace": "my.test",
+   "name": "value",
+   "type": "record",
+   "fields" : [
+     {
+       "name" : "name",
+       "type" : "string"
+     }
+   ]
+}
+"""
+
+key_schema_str = """
+{
+   "namespace": "my.test",
+   "name": "key",
+   "type": "record",
+   "fields" : [
+     {
+       "name" : "name",
+       "type" : "string"
+     }
+   ]
+}
+"""
+
+value_schema = avro.loads(value_schema_str)
+key_schema = avro.loads(key_schema_str)
 value = {"name": "Value"}
 key = {"name": "Key"}
 
