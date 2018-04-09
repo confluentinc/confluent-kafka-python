@@ -1265,18 +1265,23 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 			else if (!strcmp(val, "consistent_random"))
 				rd_kafka_topic_conf_set_partitioner_cb(
 					tconf, rd_kafka_msg_partitioner_consistent_random);
+#ifdef RD_KAFKA_VERSION >= 0x000b04ff
 			else if (!strcmp(val, "murmur2"))
 				rd_kafka_topic_conf_set_partitioner_cb(
 					tconf, rd_kafka_msg_partitioner_murmur2);
 			else if (!strcmp(val, "murmur2_random"))
 				rd_kafka_topic_conf_set_partitioner_cb(
 					tconf, rd_kafka_msg_partitioner_murmur2_random);
+#endif
 			else {
 				cfl_PyErr_Format(
 					RD_KAFKA_RESP_ERR__INVALID_ARG,
 					"unknown builtin partitioner: %s "
-					"(available: random, consistent, consistent_random, "
-                    "murmur2, murmur2_random)",
+					"(available: random, consistent, consistent_random"
+#ifdef RD_KAFKA_VERSION >= 0x000b04ff
+                    ", murmur2, murmur2_random"
+#endif
+                    ")",
 					val);
                                 Py_XDECREF(vs8);
 				Py_DECREF(vs);
