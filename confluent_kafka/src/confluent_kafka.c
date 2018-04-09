@@ -1265,7 +1265,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 			else if (!strcmp(val, "consistent_random"))
 				rd_kafka_topic_conf_set_partitioner_cb(
 					tconf, rd_kafka_msg_partitioner_consistent_random);
-#ifdef RD_KAFKA_VERSION >= 0x000b04ff
+#ifdef RD_KAFKA_VERSION > 0x000b04c9  // Only supported in 0.11.4
 			else if (!strcmp(val, "murmur2"))
 				rd_kafka_topic_conf_set_partitioner_cb(
 					tconf, rd_kafka_msg_partitioner_murmur2);
@@ -1278,7 +1278,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 					RD_KAFKA_RESP_ERR__INVALID_ARG,
 					"unknown builtin partitioner: %s "
 					"(available: random, consistent, consistent_random"
-#ifdef RD_KAFKA_VERSION >= 0x000b04ff
+#ifdef RD_KAFKA_VERSION > 0x000b04c9  // Only supported in 0.11.4
                     ", murmur2, murmur2_random"
 #endif
                     ")",
