@@ -38,6 +38,15 @@ def test_basic_api():
     p.flush()
 
 
+def test_partitioners_exception():
+    """ Ensure all valid partioners are supported and invalid thorws error"""
+    with pytest.raises(KafkaException) as e:
+        Producer(**{'partitioner': 'FOO'})
+    assert e.value.args[0].name() == '_INVALID_ARG'
+
+    for p in ['random', 'consistent', 'consistent_random', 'murmur2', 'murmur2_random']:
+        Producer(**{'partitioner': p})
+
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
