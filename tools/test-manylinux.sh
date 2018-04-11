@@ -11,6 +11,14 @@ set -ex
 
 echo "$0 running from $(pwd)"
 
+if [[ ! -z $1 ]]; then
+    WHEELHOUSE=$1
+else
+    WHEELHOUSE="wheelhouse"
+fi
+
+
+
 function setup_centos {
     # CentOS container setup
     yum install -q -y python epel-release
@@ -26,6 +34,12 @@ function setup_ubuntu {
 
 function run_single_in_docker {
     # Run single test inside docker container
+    local wheelhouse=/io/$1
+
+    if [[ ! -d $wheelhouse ]]; then
+        echo "On docker instance: wheelhouse $wheelhouse does not exist"
+        exit 1
+    fi
 
     # Detect OS
     if grep -qi centos /etc/system-release /etc/redhat-release ; then
@@ -41,7 +55,7 @@ function run_single_in_docker {
     hash -r # let go of previous 'pip'
 
     # Install modules
-    pip install confluent_kafka --no-index -f /io/wheelhouse
+    pip install confluent_kafka --no-index -f $wheelhouse
     pip install pytest
 
     # Verify that OpenSSL and zlib are properly linked
@@ -64,6 +78,7 @@ p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
 function run_all_with_docker {
     # Run tests in all listed docker containers.
     # This is executed on the host.
+    local wheelhouse=$1
 
     [[ ! -z $DOCKER_IMAGES ]] || \
         # LTS and stable release of popular Linux distros.
@@ -71,18 +86,18 @@ function run_all_with_docker {
         DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:17.10 debian:stable centos:7"
 
 
-    _wheels="wheelhouse/*manylinux*.whl"
+    _wheels="$wheelhouse/*manylinux*.whl"
     if [[ -z $_wheels ]]; then
-        echo "No wheels in wheelhouse/, must run build-manylinux.sh first"
+        echo "No wheels in $wheelhouse, must run build-manylinux.sh first"
         exit 1
     else
         echo "Wheels:"
-        ls wheelhouse/*.whl
+        ls $wheelhouse/*.whl
     fi
 
     for DOCKER_IMAGE in $DOCKER_IMAGES; do
         echo "# Testing on $DOCKER_IMAGE"
-        docker run -v $(pwd):/io $DOCKER_IMAGE /io/tools/test-manylinux.sh || \
+        docker run -v $(pwd):/io $DOCKER_IMAGE /io/tools/test-manylinux.sh "$wheelhouse" || \
             (echo "Failed on $DOCKER_IMAGE" ; false)
 
     done
@@ -92,11 +107,12 @@ function run_all_with_docker {
 
 if [[ -f /.dockerenv && -d /io ]]; then
     # Called from within a docker container
-    run_single_in_docker
+    run_single_in_docker $WHEELHOUSE
 
 else
     # Run from host, trigger runs for all docker images.
-    run_all_with_docker
+
+    run_all_with_docker $WHEELHOUSE
 fi
 
 
