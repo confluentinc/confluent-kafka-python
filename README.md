@@ -167,7 +167,8 @@ while True:
 c.close()
 ```
 
-See [examples](examples) for more examples.
+See the [examples](examples) directory for more examples, including [how to configure](examples/confluent_cloud.py) the python client for use with
+[Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 
 
 Broker Compatibility
