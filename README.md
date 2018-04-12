@@ -24,7 +24,7 @@ with Apache Kafka at its core. It's high priority for us that client features ke
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 The Python bindings provides a high-level Producer and Consumer with support
-for the balanced consumer groups of Apache Kafka 0.9.
+for the balanced consumer groups of Apache Kafka &gt;= 0.9.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
 
@@ -40,11 +40,26 @@ Usage
 from confluent_kafka import Producer
 
 
-p = Producer({'bootstrap.servers': 'mybroker,mybroker2'})
+p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
+
+def delivery_report(err, msg):
+    """ Called once for each message produced to indicate delivery result.
+        Triggered by poll() """
+    if err is not None:
+        print('Message delivery failed: {}'.format(err))
+    else:
+        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
 
 for data in some_data_source:
-    p.produce('mytopic', data.encode('utf-8'))
+    # Trigger delivery report callbacks from previous produce() calls
+    p.poll(0)
 
+    # Asynchronously produce a message, the optional but recommended
+    # delivery report callback will be triggered from poll()
+    # when the message has been successfully delivered or failed permanently.
+    p.produce('mytopic', data.encode('utf-8'), callback=delivery_report)
+
+# Wait for any outstanding messages to be delivered
 p.flush()
 ```
 
@@ -66,8 +81,10 @@ c = Consumer({
 c.subscribe(['mytopic'])
 
 while True:
-    msg = c.poll()
+    msg = c.poll(1.0)
 
+    if msg is None:
+        continue
     if msg.error():
         if msg.error().code() == KafkaError._PARTITION_EOF:
             continue
@@ -171,6 +188,24 @@ See the [examples](examples) directory for more examples, including [how to conf
 [Confluent Cloud](https://www.confluent.io/confluent-cloud/).
 
 
+Install
+=======
+
+**Install self-contained binary wheels for OSX and Linux from PyPi:**
+
+    $ pip install confluent-kafka
+
+**Install AvroProducer and AvroConsumer:**
+
+    $ pip install confluent-kafka[avro]
+
+**Install from source from PyPi** *(requires librdkafka + dependencies to be installed separately)*:
+
+    $ pip install --no-binary :all: confluent-kafka
+
+For source install, see *Prerequisites* below.
+
+
 Broker Compatibility
 ====================
 The Python client (as well as the underlying C library librdkafka) supports
@@ -200,7 +235,7 @@ Prerequisites
  * Python >= 2.7 or Python 3.x
  * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.9.5 (latest release is embedded in wheels)
 
-librdkafka is embedded in the manylinux wheels, for other platforms or
+librdkafka is embedded in the macosx manylinux wheels, for other platforms or
 when a specific version of librdkafka is desired, following these guidelines:
 
   * For **Debian/Ubuntu**** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
@@ -211,24 +246,10 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
-
-Install
-=======
-
-**Install from PyPi:**
-
-    $ pip install confluent-kafka
-
-    # for AvroProducer or AvroConsumer
-    $ pip install confluent-kafka[avro]
-
-
-**Install from source / tarball:**
-
-    $ pip install .
-
-    # for AvroProducer or AvroConsumer
-    $ pip install .[avro]
+**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos support.
+          If you need SASL Kerberos support you must install librdkafka and
+          its dependencies using the above repositories and then build
+          confluent-kafka from source.
 
 
 Build
