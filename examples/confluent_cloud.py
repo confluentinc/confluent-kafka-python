@@ -47,7 +47,9 @@
 # $ deactivate
 
 import uuid
+
 from confluent_kafka import Producer, Consumer, KafkaError
+
 
 p = Producer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
