@@ -203,7 +203,7 @@ Prerequisites
 librdkafka is embedded in the manylinux wheels, for other platforms or
 when a specific version of librdkafka is desired, following these guidelines:
 
-  * For **Debian/Ubuntu**** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
+  * For **Debian/Ubuntu** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
 http://docs.confluent.io/current/installation.html#installation-apt
 
  * For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
