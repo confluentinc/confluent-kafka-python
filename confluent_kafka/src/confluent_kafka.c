@@ -939,48 +939,124 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 }
 
 #ifdef RD_KAFKA_V_HEADERS
+
+
+/**
+ * @brief Convert Python list of tuples to rd_kafka_headers_t
+ */
+static rd_kafka_headers_t *py_headers_list_to_c (PyObject *hdrs) {
+        int i, len;
+        rd_kafka_headers_t *rd_headers = NULL;
+
+        len = (int)PyList_Size(hdrs);
+        rd_headers = rd_kafka_headers_new(len);
+
+        for (i = 0; i < len; i++) {
+                rd_kafka_resp_err_t err;
+                const char *header_key, *header_value = NULL;
+                int header_key_len = 0, header_value_len = 0;
+
+                if(!PyArg_ParseTuple(PyList_GET_ITEM(hdrs, i), "s#z#",
+                                     &header_key, &header_key_len,
+                                     &header_value, &header_value_len)){
+                        rd_kafka_headers_destroy(rd_headers);
+                        PyErr_SetString(PyExc_TypeError,
+                                        "Headers are expected to be a "
+                                        "tuple of (key, value)");
+                        return NULL;
+                }
+
+                err = rd_kafka_header_add(rd_headers,
+                                          header_key, header_key_len,
+                                          header_value, header_value_len);
+                if (err) {
+                        cfl_PyErr_Format(err,
+                                         "Unable to add message header \"%s\": "
+                                         "%s",
+                                         header_key, rd_kafka_err2str(err));
+                        rd_kafka_headers_destroy(rd_headers);
+                        return NULL;
+                }
+        }
+        return rd_headers;
+}
+
+
+/**
+ * @brief Convert Python dict to rd_kafka_headers_t
+ */
+static rd_kafka_headers_t *py_headers_dict_to_c (PyObject *hdrs) {
+        int len;
+        Py_ssize_t pos = 0;
+        rd_kafka_headers_t *rd_headers = NULL;
+        PyObject *ko, *vo;
+
+        len = (int)PyDict_Size(hdrs);
+        rd_headers = rd_kafka_headers_new(len);
+
+        while (PyDict_Next(hdrs, &pos, &ko, &vo)) {
+                PyObject *ks, *ks8;
+                const char *k;
+                const void *v = NULL;
+                Py_ssize_t vsize = 0;
+                rd_kafka_resp_err_t err;
+
+                if (!(ks = cfl_PyObject_Unistr(ko))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected header key to be unicode "
+                                        "string");
+                        rd_kafka_headers_destroy(rd_headers);
+                        return NULL;
+                }
+
+                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+                if (vo != Py_None) {
+                        if (PyString_AsStringAndSize(vo, (char **)&v,
+                                                     &vsize) == -1) {
+                                Py_DECREF(ks);
+                                rd_kafka_headers_destroy(rd_headers);
+                                return NULL;
+                        }
+                }
+
+                if ((err = rd_kafka_header_add(rd_headers, k, -1, v, vsize))) {
+                        cfl_PyErr_Format(err,
+                                         "Unable to add message header \"%s\": "
+                                         "%s",
+                                         k, rd_kafka_err2str(err));
+                        Py_DECREF(ks);
+                        rd_kafka_headers_destroy(rd_headers);
+                        return NULL;
+                }
+
+                Py_DECREF(ks);
+        }
+
+        return rd_headers;
+}
+
+
 /**
  * @brief Convert Python list[(header_key, header_value),...]) to C rd_kafka_topic_partition_list_t.
  *
  * @returns The new Python list[(header_key, header_value),...] object.
  */
-rd_kafka_headers_t *py_headers_to_c (PyObject *headers_plist) {
-    int i, len;
-    rd_kafka_headers_t *rd_headers = NULL;
-    rd_kafka_resp_err_t err;
-    const char *header_key, *header_value = NULL;
-    int header_key_len = 0, header_value_len = 0;
+rd_kafka_headers_t *py_headers_to_c (PyObject *hdrs) {
 
-    if (!PyList_Check(headers_plist)) {
-            PyErr_SetString(PyExc_TypeError,
-                            "Headers are expected to be a "
-                            "list of (key,value) tuples");
-            return NULL;
-    }
-
-    len = PyList_Size(headers_plist);
-    rd_headers = rd_kafka_headers_new(len);
-
-    for (i = 0; i < len; i++) {
-        if(!PyArg_ParseTuple(PyList_GET_ITEM(headers_plist, i), "s#z#", &header_key,
-                &header_key_len, &header_value, &header_value_len)){
-            rd_kafka_headers_destroy(rd_headers);
-            PyErr_SetString(PyExc_TypeError,
-                    "Headers are expected to be a list of (key,value) tuples");
-            return NULL;
+        if (PyList_Check(hdrs)) {
+                return py_headers_list_to_c(hdrs);
+        } else if (PyDict_Check(hdrs)) {
+                return py_headers_dict_to_c(hdrs);
+        } else {
+                PyErr_Format(PyExc_TypeError,
+                             "expected headers to be "
+                             "dict or list of (key, value) tuples, not %s",
+                             ((PyTypeObject *)PyObject_Type(hdrs))->tp_name);
+                return NULL;
         }
-
-        err = rd_kafka_header_add(rd_headers, header_key, header_key_len, header_value, header_value_len);
-        if (err) {
-            rd_kafka_headers_destroy(rd_headers);
-            cfl_PyErr_Format(err,
-                     "Unable to create message headers: %s",
-                     rd_kafka_err2str(err));
-            return NULL;
-        }
-    }
-    return rd_headers;
 }
+
 
 /**
  * @brief Convert rd_kafka_headers_t to Python list[(header_key, header_value),...])
@@ -995,7 +1071,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
     size_t header_value_size;
     PyObject *header_list;
 
-    header_size = rd_kafka_header_cnt(headers); 
+    header_size = rd_kafka_header_cnt(headers);
     header_list = PyList_New(header_size);
 
     while (!rd_kafka_header_get_all(headers, idx++,
