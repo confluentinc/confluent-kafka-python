@@ -108,13 +108,23 @@ and librdkafka versions:
 
 ## 7. Upload packages to PyPi
 
-To upload packages to test.pypi.org, use:
+To upload binary packages to test.pypi.org, use:
 
     $ twine upload -r test dl-v0.11.4rc1/*
 
-To upload packages to the proper pypi.org (WARNING!), use:
+To upload binary packages to the proper pypi.org (WARNING!), use:
 
     $ twine upload dl-v0.11.4rc1/*
+
+For upload source packages make sure to have checked out the correct tag.
+
+Upload source packages to test.pypi.org:
+
+    $ python setup.py sdist upload -r test
+
+Upload source packages to the proper pypi.org (WARNING!):
+
+    $ python setup.py sdist upload
 
 
 ## 8. Verify installation from PyPi
