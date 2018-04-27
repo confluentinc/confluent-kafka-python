@@ -97,8 +97,7 @@ class AvroConsumer(Consumer):
 
     def poll(self, timeout=None):
         """
-        This is an overriden method from confluent_kafka.Consumer class. This handles message
-        deserialization using avro schema
+        This is an overriden method from confluent_kafka.Consumer class.
 
         @:param timeout
         @:return message object with deserialized key and value as dict objects
@@ -106,6 +105,33 @@ class AvroConsumer(Consumer):
         if timeout is None:
             timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
+        return self._decode_message(message)
+
+    def consume(self, num_messages=1, *args, **kwargs):
+        """
+        This is an overriden method from confluent_kafka.Consumer class.
+
+        @:param num_messages
+        @:param timeout
+        @:return list of message objects with deserialized key and value as dict objects
+        """
+        if 'timeout' in kwargs and kwargs['timeout'] is None:
+            kwargs['timeout'] = -1
+        messages = super(AvroConsumer, self).consume(num_messages,  *args, **kwargs)
+        if not messages:
+            return messages
+        decoded_messages = []
+        for message in messages:
+            decoded_messages.append(self._decode_message(message))
+        return decoded_messages
+
+    def _decode_message(self, message):
+        """
+        This is a helper method that handles message deserialization using avro schema
+
+        @:param message
+        @:return message object with deserialized key and value as dict objects
+        """
         if message is None:
             return None
         if not message.value() and not message.key():
