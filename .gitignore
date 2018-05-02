@@ -19,3 +19,4 @@ tmp-build
 wheelhouse
 dl-*
 *.whl
+.pytest_cache
