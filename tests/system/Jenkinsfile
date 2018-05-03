@@ -1,0 +1,48 @@
+def config = jobConfig {
+    cron = '@midnight'
+    nodeLabel = 'docker-oraclejdk7'
+    realJobPrefixes = ['system-test-python-client']
+    slackChannel = 'clients-eng'
+    timeoutHours = 3
+}
+
+def job = {
+    withCredentials([
+        file(credentialsId: 'muckrake-2017-06-01.pem', variable: 'MUCKRAKE_PEM')]) {
+        sshagent(['ConfluentJenkins Github SSH Key']) {
+            configFileProvider([configFile(fileId: 'jenkins-maven-global-settings',
+                                targetLocation: '/home/jenkins/.m2/settings.xml')]) {
+                stage("Run tests") {
+                    sh 'tests/system/run-tests.sh'
+                }
+            }
+        }
+    }
+}
+
+def post = {
+    withCredentials([file(credentialsId: 'muckrake-2017-06-01.pem', variable: 'MUCKRAKE_PEM')]) {
+        stage('Cleanup tests') {
+            sh 'tests/system/cleanup-tests.sh'
+        }
+
+        if (config.isRealJob) {
+            stage('Upload test results') {
+                def s3Bucket = sh(
+                    script: 'python jenkins-common/scripts/system-tests/test-result-storage/get_upload_location.py ' +
+                            '--project muckrake --branch python-client-' + env.BRANCH_NAME, returnStdout: true).trim()
+                def resultsDir = sh(script: 'ls -tr results | tail -1', returnStdout: true).trim()
+
+                config.testResultSpecs['ducktape'] = "results/$resultsDir/report.json"
+                config.testResultSpecs['ducktape_results_url'] = "s3://$s3Bucket/$resultsDir"
+
+                sh '''
+                    tests/system/upload-tests.sh muckrake python-client-$BRANCH_NAME \
+                        https://github.com/confluentinc/confluent-kafka-python tests/kafkatest/tests/client
+                '''
+            }
+        }
+    }
+}
+
+runJob config, job, post
