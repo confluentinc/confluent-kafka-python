@@ -2,7 +2,7 @@ def config = jobConfig {
     cron = '@midnight'
     nodeLabel = 'docker-oraclejdk7'
     realJobPrefixes = ['system-test-python-client']
-    slackChannel = 'clients-eng'
+    owner = 'client'
     timeoutHours = 3
 }
 
