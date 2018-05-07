@@ -100,7 +100,7 @@ if __name__ == '__main__':
                     # End of partition event
                     sys.stderr.write('%% %s [%d] reached end at offset %d\n' %
                                      (msg.topic(), msg.partition(), msg.offset()))
-                elif msg.error():
+                else:
                     # Error
                     raise KafkaException(msg.error())
             else:
