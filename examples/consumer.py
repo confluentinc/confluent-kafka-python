@@ -100,7 +100,7 @@ if __name__ == '__main__':
                     # End of partition event
                     sys.stderr.write('%% %s [%d] reached end at offset %d\n' %
                                      (msg.topic(), msg.partition(), msg.offset()))
-                elif msg.error():
+                else:
                     # Error
                     raise KafkaException(msg.error())
             else:
@@ -113,5 +113,6 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
 
-    # Close down consumer to commit final offsets.
-    c.close()
+    finally:
+        # Close down consumer to commit final offsets.
+        c.close()
