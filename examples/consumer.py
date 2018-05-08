@@ -112,7 +112,7 @@ if __name__ == '__main__':
 
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
-        
-    finally:      
+
+    finally:
         # Close down consumer to commit final offsets.
         c.close()
