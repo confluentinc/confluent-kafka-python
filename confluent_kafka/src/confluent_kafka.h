@@ -47,6 +47,10 @@
 #if PY_MAJOR_VERSION >= 3
 #define PY3
 #include <bytesobject.h>
+
+ #if PY_MINOR_VERSION >= 7
+  #define WITH_PY_TSS
+ #endif
 #endif
 
 
@@ -108,9 +112,28 @@ cfl_PyUnistr_AsUTF8 (PyObject *o, PyObject **uobjp) {
 /* See comments above */
 #define cfl_PyBin(X)    PyString ## X
 #define cfl_PyUnistr(X) PyUnicode ## X
+
+/**
+ * @returns NULL if object \p can't be represented as UTF8, else a temporary
+ *          char string with a lifetime equal of \p o and \p uobjp
+ */
 static __inline const char *
 cfl_PyUnistr_AsUTF8 (PyObject *o, PyObject **uobjp) {
-        *uobjp = PyUnicode_AsUTF8String(o); /*UTF8 intermediary object on Py2*/
+        if (!PyUnicode_Check(o)) {
+                PyObject *uo;
+                if (!(uo = PyUnicode_FromObject(o))) {
+                        *uobjp = NULL;
+                        return NULL;
+                }
+                /*UTF8 intermediary object on Py2*/
+                *uobjp = PyUnicode_AsUTF8String(o);
+                Py_DECREF(uo);
+        } else {
+                /*UTF8 intermediary object on Py2*/
+                *uobjp = PyUnicode_AsUTF8String(o);
+        }
+        if (!*uobjp)
+                return NULL;
         return PyBytes_AsString(*uobjp);
 }
 #define cfl_PyObject_Unistr(X) PyObject_Unicode(X)
@@ -160,7 +183,14 @@ typedef struct {
 	PyObject *error_cb;
 	PyObject *stats_cb;
         int initiated;
-        int tlskey;  /* Thread-Local-Storage key */
+
+        /* Thread-Local-Storage key */
+#ifdef WITH_PY_TSS
+        Py_tss_t tlskey;
+#else
+        int tlskey;
+#endif
+
         rd_kafka_type_t type; /* Producer or consumer */
 
         PyObject *logger;
