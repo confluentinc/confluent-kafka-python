@@ -1,12 +1,12 @@
 matrix:
  include:
-  # Source package verification with Python 2.7 and librdkafka master
+  # Source package verification with Python 2.7 and librdkafka adminapi
   - os: linux
     language: python
     dist: trusty
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
-  # Source package verification with Python 2.7 and librdkafka v0.9.5
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=adminapi
+  # Source package verification with Python 2.7 and librdkafka adminapi
   - os: linux
     language: python
     dist: trusty
@@ -18,15 +18,14 @@ matrix:
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=adminapi
-t 3.7
   # cibuildwheel for osx
   - os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl adminapi tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh master"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh adminapi"
     language: python
     python: "2.7"
     services: docker
