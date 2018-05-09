@@ -13,10 +13,12 @@ module = Extension('confluent_kafka.cimpl',
                    sources=['confluent_kafka/src/confluent_kafka.c',
                             'confluent_kafka/src/Producer.c',
                             'confluent_kafka/src/Consumer.c',
-                             'confluent_kafka/src/get_metadata_impl.c'])
+                            'confluent_kafka/src/get_metadata_impl.c'])
+                            'confluent_kafka/src/AdminTypes.c',
+                            'confluent_kafka/src/Admin.c'])
 
 setup(name='confluent-kafka',
-      version='0.11.4',
+      version='0.11.5rc0',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',

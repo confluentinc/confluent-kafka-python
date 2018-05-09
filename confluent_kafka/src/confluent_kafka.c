@@ -110,12 +110,27 @@ static PyMethodDef KafkaError_methods[] = {
 };
 
 
-static void KafkaError_dealloc (KafkaError *self) {
-	if (self->str)
-		free(self->str);
-	Py_TYPE(self)->tp_free((PyObject *)self);
+static void KafkaError_clear (PyObject *self0) {
+        KafkaError *self = (KafkaError *)self0;
+        if (self->str) {
+                free(self->str);
+                self->str = NULL;
+        }
 }
 
+static void KafkaError_dealloc (PyObject *self0) {
+        KafkaError *self = (KafkaError *)self0;
+        KafkaError_clear(self0);;
+        PyObject_GC_UnTrack(self0);
+        Py_TYPE(self)->tp_free(self0);
+}
+
+
+
+static int KafkaError_traverse (KafkaError *self,
+                                visitproc visit, void *arg) {
+        return 0;
+}
 
 static PyObject *KafkaError_str0 (KafkaError *self) {
 	return cfl_PyUnistr(_FromFormat("KafkaError{code=%s,val=%d,str=\"%s\"}",
@@ -130,6 +145,8 @@ static long KafkaError_hash (KafkaError *self) {
 }
 
 static PyTypeObject KafkaErrorType;
+
+
 
 static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 					 int op) {
@@ -193,7 +210,8 @@ static PyTypeObject KafkaErrorType = {
 	PyObject_GenericGetAttr,   /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_BASE_EXC_SUBCLASS | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"Kafka error and event object\n"
 	"\n"
 	"  The KafkaError class serves multiple purposes:\n"
@@ -204,8 +222,8 @@ static PyTypeObject KafkaErrorType = {
 	"\n"
 	"  This class is not user-instantiable.\n"
 	"\n", /*tp_doc*/
-	0,		           /* tp_traverse */
-	0,		           /* tp_clear */
+        (traverseproc)KafkaError_traverse, /* tp_traverse */
+	(inquiry)KafkaError_clear, /* tp_clear */
 	(richcmpfunc)KafkaError_richcompare, /* tp_richcompare */
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
@@ -556,7 +574,7 @@ PyTypeObject MessageType = {
 	0,                         /*tp_hash */
 	0,                         /*tp_call*/
 	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
+	PyObject_GenericGetAttr,                         /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
@@ -1533,7 +1551,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		const char *k;
 		const char *v;
 		char errstr[256];
-		int r;
+                int r = 0;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
 			PyErr_SetString(PyExc_TypeError,
@@ -1619,7 +1637,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
 			r = producer_conf_set_special(h, conf, tconf, k, vo);
-		else
+		else if (ktype == RD_KAFKA_CONSUMER)
 			r = consumer_conf_set_special(h, conf, tconf, k, vo);
 		if (r == -1) {
 			/* Error */
@@ -1780,6 +1798,168 @@ void CallState_crash (CallState *cs) {
 
 
 
+/**
+ * @brief Find class/type/object \p typename in \p modulename
+ *
+ * @returns a new reference to the object.
+ *
+ * @raises a TypeError exception if the type is not found.
+ */
+
+PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
+        PyObject *module = PyImport_ImportModule(modulename);
+        PyObject *obj;
+
+        if (!modulename) {
+                PyErr_Format(PyExc_TypeError,
+                             "Module %s not found when looking up %s.%s",
+                             modulename, modulename, typename);
+                return NULL;
+        }
+
+        obj = PyObject_GetAttrString(module, typename);
+        if (!obj) {
+                Py_DECREF(module);
+                PyErr_Format(PyExc_TypeError,
+                             "No such class/type/object: %s.%s",
+                             modulename, typename);
+                return NULL;
+        }
+
+        return obj;
+}
+
+
+void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val) {
+        PyDict_SetItemString(dict, name, cfl_PyUnistr(_FromString(val)));
+}
+
+void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
+        PyDict_SetItemString(dict, name, PyLong_FromLong((long)val));
+}
+
+
+/**
+ * @brief Get attribute \p attr_name from \p object and verify it is
+ *        of type \p py_type.
+ *
+ * @returns 1 if \p valp was updated with the object (new reference) or NULL
+ *          if not matched and not required, or
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
+                          PyObject **valp, const PyTypeObject *py_type,
+                          int required) {
+        PyObject *o;
+
+        o = PyObject_GetAttrString(object, attr_name);
+        if (!o) {
+                if (!required) {
+                        *valp = NULL;
+                        return 1;
+                }
+
+                PyErr_Format(PyExc_TypeError,
+                             "Required attribute .%s missing", attr_name);
+                return 0;
+        }
+
+        if (Py_TYPE(o) != py_type) {
+                Py_DECREF(o);
+                PyErr_Format(PyExc_TypeError,
+                             "Expected .%s to be %s type, not %s",
+                             attr_name, py_type->tp_name,
+                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                return 0;
+        }
+
+        *valp = o;
+
+        return 1;
+}
+
+/**
+ * @brief Get attribute \p attr_name from \p object and make sure it is
+ *        an integer type.
+ *
+ * @returns 1 if \p valp was updated with either the object value, or \p defval.
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
+                         int defval, int required) {
+        PyObject *o;
+
+        if (!cfl_PyObject_GetAttr(object, attr_name, &o,
+#ifdef PY3
+                                  &PyLong_Type,
+#else
+                                  &PyInt_Type,
+#endif
+                                  required))
+                return 0;
+
+        if (!o) {
+                *valp = defval;
+                return 1;
+        }
+
+        *valp = (int)PyLong_AsLong(o);
+        Py_DECREF(o);
+
+        return 1;
+}
+
+/**
+ * @brief Get attribute \p attr_name from \p object and make sure it is
+ *        a string type.
+ *
+ * @returns 1 if \p valp was updated with a newly allocated copy of either the
+ *          object value (UTF8), or \p defval.
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
+                            char **valp, const char *defval, int required) {
+        PyObject *o, *uo, *uop;
+
+        if (!cfl_PyObject_GetAttr(object, attr_name, &o,
+#ifdef PY3
+                                  &PyUnicode_Type,
+#else
+                                  &PyString_Type,
+#endif
+                                  required))
+                return 0;
+
+        if (!o) {
+                *valp = defval ? strdup(defval) : NULL;
+                return 1;
+        }
+
+        if (!(uo = cfl_PyObject_Unistr(o))) {
+                Py_DECREF(o);
+                PyErr_Format(PyExc_TypeError,
+                             "Expected .%s to be a unicode string type, not %s",
+                             attr_name,
+                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                return 0;
+        }
+        Py_DECREF(o);
+
+        *valp = (char *)cfl_PyUnistr_AsUTF8(uo, &uop);
+        if (!*valp) {
+                Py_DECREF(uo);
+                Py_XDECREF(uop);
+                return 0; /* exception raised by AsUTF8 */
+        }
+
+        *valp = strdup(*valp);
+        Py_DECREF(uo);
+        Py_XDECREF(uop);
+
+        return 1;
+}
+
+
 /****************************************************************************
  *
  *
@@ -1798,7 +1978,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.11.4", 0x000b0400);
+	return Py_BuildValue("si", "0.11.5rc0", 0x000b0500);
 }
 
 static PyMethodDef cimpl_methods[] = {
@@ -1907,6 +2087,8 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+        PyEval_InitThreads();
+
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;
 	if (PyType_Ready(&MessageType) < 0)
@@ -1917,6 +2099,10 @@ static PyObject *_init_cimpl (void) {
 		return NULL;
 	if (PyType_Ready(&ConsumerType) < 0)
 		return NULL;
+        if (PyType_Ready(&AdminType) < 0)
+                return NULL;
+        if (AdminTypes_Ready() < 0)
+                return NULL;
 
 #ifdef PY3
 	m = PyModule_Create(&cimpl_moduledef);
@@ -1945,6 +2131,11 @@ static PyObject *_init_cimpl (void) {
 
 	Py_INCREF(&ConsumerType);
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
+
+        Py_INCREF(&AdminType);
+        PyModule_AddObject(m, "AdminClientImpl", (PyObject *)&AdminType);
+
+        AdminTypes_AddObjects(m);
 
 #if PY_VERSION_HEX >= 0x02070000
 	KafkaException = PyErr_NewExceptionWithDoc(

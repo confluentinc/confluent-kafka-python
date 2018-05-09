@@ -1,0 +1,191 @@
+#!/usr/bin/env python
+#
+# Copyright 2018 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+#
+# Example Admin clients.
+#
+
+from confluent_kafka import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry
+import sys
+
+
+def example_create_topics(a, topics):
+    """ Create topics """
+
+    new_topics = [NewTopic(topic, num_partitions=3, replication_factor=1) for topic in topics]
+    # Call create_topics to asynchronously create topics, a future is returned.
+    f = a.create_topics(new_topics)
+
+    # Wait for operation to finish.
+    # Timeouts are preferably controlled by passing request_timeout=15.0
+    # to the create_topics() call.
+    try:
+        res = f.result()
+    except Exception:
+        print('Request-level error:')
+        raise
+
+    # The result is a dict indexed by the topic name with the value
+    # being a KafkaError on error, or None on success.
+    for topic, error in res.iteritems():
+        if error is None:
+            print('Topic %s created' % topic)
+        else:
+            print('Failed to create topic %s: %s' % (topic, error))
+
+
+def example_delete_topics(a, topics):
+    """ delete topics """
+
+    # Call delete_topics to asynchronously delete topics, a future is returned.
+    # By default this operation on the broker returns immediately while
+    # topics are deleted in the background. But here we give it some time (30s)
+    # to propagate in the cluster before returning.
+    f = a.delete_topics(topics, operation_timeout=30)
+
+    # Wait for operation to finish.
+    try:
+        res = f.result()
+    except Exception:
+        print('Request-level error:')
+        raise
+
+    # The result is a dict indexed by the topic name with the value
+    # being a KafkaError on error, or None on success.
+    for topic, error in res.iteritems():
+        if error is None:
+            print('Topic %s marked for deletion' % topic)
+        else:
+            print('Failed to delete topic %s: %s' % (topic, error))
+
+
+def example_create_partitions(a, topics):
+    """ create partitions """
+
+    new_parts = [NewPartitions(topic, int(new_total_count)) for
+                 topic, new_total_count in zip(topics[0::2], topics[1::2])]
+
+    # Try switching validate_only to True to only validate the operation
+    # on the broker but not actually perform it.
+    f = a.create_partitions(new_parts, validate_only=False)
+
+    # Wait for operation to finish.
+    try:
+        res = f.result()
+    except Exception:
+        print('Request-level error:')
+        raise
+
+    # The result is a dict indexed by the topic name with the value
+    # being a KafkaError on error, or None on success.
+    for topic, error in res.iteritems():
+        if error is None:
+            print('Additional partitions created for topic %s' % topic)
+        else:
+            print('Failed to create additional partitions for topic %s: %s' % (topic, error))
+
+
+def example_describe_configs(a, args):
+    """ describe configs """
+
+    resources = [ConfigResource(restype, resname) for
+                 restype, resname in zip(args[0::2], args[1::2])]
+
+    f = a.describe_configs(resources)
+
+    # Wait for operation to finish.
+    try:
+        resources = f.result()
+    except Exception:
+        print('Request-level error:')
+        raise
+
+    # The result is a dict indexed by FIXME.. the topic name with the value
+    # being a KafkaError on error, or None on success.
+    for res in resources:
+        if res.error is not None:
+            print(res)  # __str__ includes the error message
+            continue
+
+        for config in iter(res.configs.values()):
+            def print_config(config, depth):
+                print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s]' %
+                      ((' ' * depth) + config.name, config.value,
+                       ConfigEntry.config_source_to_str(config.source),
+                       config.is_read_only, config.is_default,
+                       config.is_sensitive, config.is_synonym,
+                       ["%s:%s" % (x.name, ConfigEntry.config_source_to_str(x.source)) for x in iter(config.synonyms.values())]))
+
+            print_config(config, 1)
+
+    print(res)
+
+
+def example_alter_configs(a, args):
+    """ alter configs """
+
+    resources = []
+    for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
+        resource = ConfigResource(restype, resname)
+        resources.append(resource)
+        for k, v in [conf.split('=') for conf in configs.split(',')]:
+            resource.set_config(k, v)
+
+    f = a.alter_configs(resources)
+
+    # Wait for operation to finish.
+    try:
+        res = f.result()
+    except Exception:
+        print('Request-level error:')
+        raise
+
+    # The result is a dict indexed by FIXME.. the topic name with the value
+    # being a KafkaError on error, or None on success.
+    print(res)
+
+
+if __name__ == '__main__':
+    if len(sys.argv) < 3:
+        sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
+        sys.stderr.write('operation := create_topics | delete_topics | create_partitions\n\n')
+        sys.stderr.write(' create_topics <topic1> <topic2> ..\n')
+        sys.stderr.write(' delete_topics <topic1> <topic2> ..\n')
+        sys.stderr.write(' create_partitions <topic1> <new_total_count1> <topic2> <new_total_count2> ..\n')
+        sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
+        sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
+                         '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.exit(1)
+
+    broker = sys.argv[1]
+    operation = sys.argv[2]
+    args = sys.argv[3:]
+
+    # Create Admin client
+    a = AdminClient({'bootstrap.servers': broker})
+
+    opsmap = {'create_topics': example_create_topics,
+              'delete_topics': example_delete_topics,
+              'create_partitions': example_create_partitions,
+              'describe_configs': example_describe_configs,
+              'alter_configs': example_alter_configs}
+
+    if operation not in opsmap:
+        sys.stderr.write('Unknown operation: %s\n' % operation)
+        sys.exit(1)
+
+    opsmap[operation](a, args)

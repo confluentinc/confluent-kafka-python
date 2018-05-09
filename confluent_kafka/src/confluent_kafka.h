@@ -263,6 +263,20 @@ void CallState_resume (CallState *cs);
 void CallState_crash (CallState *cs);
 
 
+
+PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
+
+void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
+void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
+
+int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
+                          PyObject **valp, const PyTypeObject *py_type,
+                          int required);
+int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
+                         int defval, int required);
+int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
+                            char **valp, const char *defval, int required);
+
 /****************************************************************************
  *
  *
@@ -292,6 +306,11 @@ extern PyTypeObject TopicPartitionType;
  *
  *
  ****************************************************************************/
+#define PY_RD_KAFKA_ADMIN  100 /* There is no Admin client type in librdkafka,
+                                * so we use the producer type for now,
+                                * but we need to differentiate between a
+                                * proper producer and an admin client in the
+                                * python code in some places. */
 rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    Handle *h,
 				    PyObject *args,
@@ -375,3 +394,49 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
  ****************************************************************************/
 
 extern PyTypeObject ConsumerType;
+
+
+/****************************************************************************
+ *
+ *
+ * AdminClient types
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+typedef struct {
+        PyObject_HEAD
+        char *topic;
+        int   num_partitions;
+        int   replication_factor;
+        PyObject *replica_assignment;
+} NewTopic;
+
+extern PyTypeObject NewTopicType;
+
+
+typedef struct {
+        PyObject_HEAD
+        char *topic;
+        int   new_total_count;
+        PyObject *replica_assignment;
+} NewPartitions;
+
+extern PyTypeObject NewPartitionsType;
+
+int AdminTypes_Ready (void);
+void AdminTypes_AddObjects (PyObject *m);
+
+/****************************************************************************
+ *
+ *
+ * AdminClient
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+extern PyTypeObject AdminType;
