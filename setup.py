@@ -26,6 +26,9 @@ setup(name='confluent-kafka',
       ext_modules=[module],
       packages=find_packages(exclude=("tests", "tests.*")),
       data_files=[('', ['LICENSE.txt'])],
+      install_requires=[
+          'futures;python_version<"3.0"'
+      ],
       extras_require={
           'avro': ['fastavro', 'requests', avro]
       })
