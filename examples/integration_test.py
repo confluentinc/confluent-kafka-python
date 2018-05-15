@@ -231,6 +231,7 @@ def test_producer_dr_only_error():
     assert DrOnlyTestSuccess_gced == 1
 
 
+# Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
 def verify_avro():
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
@@ -265,6 +266,8 @@ def verify_avro():
         dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
         dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
         dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        dict(value='', value_schema=prim_string, key=0., key_schema=prim_float),
+        dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
     ]
 
     # Consumer config
