@@ -101,3 +101,16 @@ class TestAvroProducer(unittest.TestCase):
         schema_registry = MockSchemaRegistryClient()
         with self.assertRaises(ValueError):
             AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)
+
+    def test_produce_with_empty_value_identity(self):
+        schema_registry = MockSchemaRegistryClient()
+        producer = AvroProducer({}, schema_registry=schema_registry)
+        with self.assertRaises(ValueSerializerError):
+            producer.produce(topic='test', value='', key='not empty')
+
+    def test_produce_with_empty_key_identify(self):
+        schema_registry = MockSchemaRegistryClient()
+        producer = AvroProducer({}, schema_registry=schema_registry,
+                                default_value_schema=avro.loads('{"type": "int"}'))
+        with self.assertRaises(KeySerializerError):
+            producer.produce(topic='test', value=0, key='')
