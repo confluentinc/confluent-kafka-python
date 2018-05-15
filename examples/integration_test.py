@@ -251,8 +251,10 @@ def verify_avro():
     prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
     prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
     basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-    str_value = 'abc'
-    float_value = 32.
+
+    # Ensure zero values are serialized; Issue 342
+    str_value = ''
+    float_value = 0.0
 
     combinations = [
         dict(key=float_value, key_schema=prim_float),
