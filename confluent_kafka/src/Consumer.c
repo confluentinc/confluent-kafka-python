@@ -1248,6 +1248,7 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
+	{ "metadata", (PyCFunction)Broker_metadata, METH_VARARGS|METH_KEYWORDS, (const char *)Broker_metadata__doc },
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
 	  "\n"
 	  "  Close down and terminate the Kafka Consumer.\n"

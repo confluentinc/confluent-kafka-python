@@ -625,6 +625,844 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 /****************************************************************************
  *
  *
+ * Metadata
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+/****************************************************************************
+ * MetadataBroker
+ ****************************************************************************/
+
+static PyObject *MetadataBroker_id (MetadataBroker *self, PyObject *ignore) {
+	return PyLong_FromLong(self->id);
+}
+
+static PyObject *MetadataBroker_host (MetadataBroker *self, PyObject *ignore) {
+	Py_INCREF(self->host);
+	return self->host;
+}
+
+static PyObject *MetadataBroker_port (MetadataBroker *self, PyObject *ignore) {
+	return PyLong_FromLong(self->port);
+}
+
+static PyMethodDef MetadataBroker_methods[] = {
+	{ "id", (PyCFunction)MetadataBroker_id, METH_NOARGS,
+	  "  :returns: id\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "host", (PyCFunction)MetadataBroker_host, METH_NOARGS,
+	  "  :returns: broker host\n"
+	  "  :rtype: str|bytes\n"
+	  "\n"
+	},
+	{ "port", (PyCFunction)MetadataBroker_port, METH_NOARGS,
+	  "  :returns: broker port\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+static int MetadataBroker_clear (MetadataBroker *self) {
+	if (self->host) {
+		Py_DECREF(self->host);
+		self->host = NULL;
+	}
+	return 0;
+}
+
+static void MetadataBroker_dealloc (MetadataBroker *self) {
+	MetadataBroker_clear(self);
+	PyObject_GC_UnTrack(self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *MetadataBroker_str0 (MetadataBroker *self) {
+	PyObject *host8 = NULL;
+	const char *host;
+	PyObject *result = NULL;
+
+	host = cfl_PyUnistr_AsUTF8(self->host, &host8);
+	if (host)
+		result = cfl_PyUnistr(_FromFormat("MetadataBroker{id=%d,host=\"%s\",port=%d}",
+						  self->id, host, self->port));
+	Py_XDECREF(host8);
+	return result;
+}
+
+static int MetadataBroker_traverse (MetadataBroker *self,
+				    visitproc visit, void *arg) {
+	if (self->host)
+		Py_VISIT(self->host);
+	return 0;
+}
+
+PyTypeObject MetadataBrokerType = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.MetadataBroker",    /*tp_name*/
+	sizeof(MetadataBroker),    /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)MetadataBroker_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	(reprfunc)MetadataBroker_str0, /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
+	"The MetadataBroker object describes an element returned by the :py:func:`Metadata.brokers()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
+	"\n",                      /*tp_doc*/
+	(traverseproc)MetadataBroker_traverse, /* tp_traverse */
+	(inquiry)MetadataBroker_clear, /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	MetadataBroker_methods,    /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0,                         /* tp_init */
+	0                          /* tp_alloc */
+};
+
+/**
+ * @brief Internal factory to create MetadataBroker object from rd_kafka_metadata_broker
+ */
+PyObject *MetadataBroker_new0 (const struct rd_kafka_metadata_broker *broker) {
+	MetadataBroker *self;
+
+	self = (MetadataBroker *)MetadataBrokerType.tp_alloc(&MetadataBrokerType, 0);
+	if (!self)
+		return NULL;
+
+	self->id = broker->id;
+	self->host = cfl_PyUnistr(_FromString(broker->host));
+	if (self->host == NULL)
+		goto error;
+	self->port = broker->port;
+	return (PyObject *)self;
+
+error:
+	Py_DECREF(self);
+	return NULL;
+}
+
+/****************************************************************************
+ * MetadataPartition
+ ****************************************************************************/
+
+static PyObject *MetadataPartition_id (MetadataPartition *self, PyObject *ignore) {
+	return PyLong_FromLong(self->id);
+}
+
+static PyObject *MetadataPartition_error (MetadataPartition *self, PyObject *ignore) {
+	Py_INCREF(self->error);
+	return self->error;
+}
+
+static PyObject *MetadataPartition_leader (MetadataPartition *self, PyObject *ignore) {
+	return PyLong_FromLong(self->leader);
+}
+
+static PyObject *MetadataPartition_replicas (MetadataPartition *self, PyObject *ignore) {
+	Py_INCREF(self->replicas);
+	return self->replicas;
+}
+
+static PyObject *MetadataPartition_isrs (MetadataPartition *self, PyObject *ignore) {
+	Py_INCREF(self->isrs);
+	return self->isrs;
+}
+
+static PyMethodDef MetadataPartition_methods[] = {
+	{ "id", (PyCFunction)MetadataPartition_id, METH_NOARGS,
+	  "  :returns: id\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "error", (PyCFunction)MetadataPartition_error, METH_NOARGS,
+	  "  :returns: error\n"
+	  "  :rtype: None or :py:class:`KafkaError`\n"
+	  "\n"
+	},
+	{ "leader", (PyCFunction)MetadataPartition_leader, METH_NOARGS,
+	  "  :returns: leader\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "replicas", (PyCFunction)MetadataPartition_replicas, METH_NOARGS,
+	  "  :returns: replicas\n"
+	  "  :rtype: [int, ...]\n"
+	  "\n"
+	},
+	{ "isrs", (PyCFunction)MetadataPartition_isrs, METH_NOARGS,
+	  "  :returns: isrs\n"
+	  "  :rtype: [int, ...]\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+static int MetadataPartition_clear (MetadataPartition *self) {
+	if (self->error) {
+		Py_DECREF(self->error);
+		self->error = NULL;
+	}
+	if (self->replicas) {
+		Py_DECREF(self->replicas);
+		self->replicas = NULL;
+	}
+	if (self->isrs) {
+		Py_DECREF(self->isrs);
+		self->isrs = NULL;
+	}
+	return 0;
+}
+
+static void MetadataPartition_dealloc (MetadataPartition *self) {
+	MetadataPartition_clear(self);
+	PyObject_GC_UnTrack(self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *MetadataPartition_str0 (MetadataPartition *self) {
+	PyObject *error_str0 = NULL, *error_str8 = NULL;
+	const char *error_str;
+	PyObject *replicas_str0 = NULL, *replicas_str8 = NULL;
+	const char *replicas_str;
+	PyObject *isrs_str0 = NULL, *isrs_str8 = NULL;
+	const char *isrs_str;
+	PyObject *result = NULL;
+
+	error_str0 = PyObject_Str(self->error);
+	if (error_str0 == NULL)
+		goto error;
+	error_str = cfl_PyUnistr_AsUTF8(error_str0, &error_str8);
+	if (error_str == NULL)
+		goto error;
+
+	replicas_str0 = PyObject_Str(self->replicas);
+	if (replicas_str0 == NULL)
+		goto error;
+	replicas_str = cfl_PyUnistr_AsUTF8(replicas_str0, &replicas_str8);
+	if (replicas_str == NULL)
+		goto error;
+
+	isrs_str0 = PyObject_Str(self->isrs);
+	if (isrs_str0 == NULL)
+		goto error;
+	isrs_str = cfl_PyUnistr_AsUTF8(isrs_str0, &isrs_str8);
+	if (isrs_str == NULL)
+		goto error;
+
+	result = cfl_PyUnistr(_FromFormat("MetadataPartition{id=%d,error=%s,leader=%d,replicas=%s,isrs=%s}",
+					  self->id, error_str,
+					  self->leader, replicas_str, isrs_str));
+
+error:
+	Py_XDECREF(error_str0);
+	Py_XDECREF(error_str8);
+	Py_XDECREF(replicas_str0);
+	Py_XDECREF(replicas_str8);
+	Py_XDECREF(isrs_str0);
+	Py_XDECREF(isrs_str8);
+	return result;
+}
+
+static int MetadataPartition_traverse (MetadataPartition *self,
+			      visitproc visit, void *arg) {
+	if (self->error)
+		Py_VISIT(self->error);
+	if (self->replicas)
+		Py_VISIT(self->replicas);
+	if (self->isrs)
+		Py_VISIT(self->isrs);
+	return 0;
+}
+
+PyTypeObject MetadataPartitionType = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.MetadataPartition", /*tp_name*/
+	sizeof(MetadataPartition), /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)MetadataPartition_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	(reprfunc)MetadataPartition_str0, /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
+	"The MetadataPartition object describes an element returned by the :py:func:`MetadataTopic.partitions()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
+	"\n",                      /*tp_doc*/
+	(traverseproc)MetadataPartition_traverse, /* tp_traverse */
+	(inquiry)MetadataPartition_clear, /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	MetadataPartition_methods, /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0,                         /* tp_init */
+	0                          /* tp_alloc */
+};
+
+static PyObject *list_of_ints(const int32_t *values, int cnt) {
+	PyObject *list;
+	int i;
+
+	list = PyList_New(cnt);
+	if (list == NULL)
+		return NULL;
+	for (i = 0 ; i < cnt ; i++) {
+		PyObject *val = PyLong_FromLong(values[i]);
+		if (val == NULL) {
+			Py_XDECREF(list);
+			return NULL;
+		}
+		PyList_SET_ITEM(list, i, val);
+	}
+	return list;
+}
+
+/**
+ * @brief Internal factory to create MetadataPartition object from rd_kafka_metadata_partition
+ */
+PyObject *MetadataPartition_new0 (const struct rd_kafka_metadata_partition *partition) {
+	MetadataPartition *self;
+
+	self = (MetadataPartition *)MetadataPartitionType.tp_alloc(&MetadataPartitionType, 0);
+	if (!self)
+		return NULL;
+
+	self->id = partition->id;
+	self->error = KafkaError_new_or_None(partition->err, NULL);
+	if (self->error == NULL)
+		goto error;
+	self->leader = partition->leader;
+	self->replicas = list_of_ints(partition->replicas, partition->replica_cnt);
+	if (self->replicas == NULL)
+		goto error;
+	self->isrs = list_of_ints(partition->isrs, partition->isr_cnt);
+	if (self->isrs == NULL)
+		goto error;
+	return (PyObject *)self;
+
+error:
+	Py_DECREF(self);
+	return NULL;
+}
+
+/****************************************************************************
+ * MetadataTopic
+ ****************************************************************************/
+
+static PyObject *MetadataTopic_topic (MetadataTopic *self, PyObject *ignore) {
+	Py_INCREF(self->topic);
+	return self->topic;
+}
+
+static PyObject *MetadataTopic_partitions (MetadataTopic *self, PyObject *ignore) {
+	Py_INCREF(self->partitions);
+	return self->partitions;
+}
+
+static PyObject *MetadataTopic_error (MetadataTopic *self, PyObject *ignore) {
+	Py_INCREF(self->error);
+	return self->error;
+}
+
+static PyMethodDef MetadataTopic_methods[] = {
+	{ "topic", (PyCFunction)MetadataTopic_topic, METH_NOARGS,
+	  "  :returns: topic name\n"
+	  "  :rtype: str\n"
+	  "\n"
+	},
+	{ "partitions", (PyCFunction)MetadataTopic_partitions, METH_NOARGS,
+	  "  :returns: list of partitions for topic\n"
+	  "  :rtype: [:py:class:`MetadataPartition`, ...]\n"
+	  "\n"
+	},
+	{ "error", (PyCFunction)MetadataTopic_error, METH_NOARGS,
+	  "  :returns: error\n"
+	  "  :rtype: None or :py:class:`KafkaError`\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+static int MetadataTopic_clear (MetadataTopic *self) {
+	if (self->topic) {
+		Py_DECREF(self->topic);
+		self->topic = NULL;
+	}
+	if (self->partitions) {
+		Py_DECREF(self->partitions);
+		self->partitions = NULL;
+	}
+	if (self->error) {
+		Py_DECREF(self->error);
+		self->error = NULL;
+	}
+	return 0;
+}
+
+static void MetadataTopic_dealloc (MetadataTopic *self) {
+	MetadataTopic_clear(self);
+	PyObject_GC_UnTrack(self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *MetadataTopic_str0 (MetadataTopic *self) {
+	PyObject *topic8 = NULL;
+	const char *topic;
+	PyObject *partitions_str0 = NULL, *partitions_str8 = NULL;
+	const char *partitions_str;
+	PyObject *error_str0 = NULL, *error_str8 = NULL;
+	const char *error_str;
+	PyObject *result = NULL;
+
+	topic = cfl_PyUnistr_AsUTF8(self->topic, &topic8);
+	if (topic == NULL)
+		goto error;
+
+	partitions_str0 = PyObject_Str(self->partitions);
+	if (partitions_str0 == NULL)
+		goto error;
+	partitions_str = cfl_PyUnistr_AsUTF8(partitions_str0, &partitions_str8);
+	if (partitions_str == NULL)
+		goto error;
+
+	error_str0 = PyObject_Str(self->error);
+	if (error_str0 == NULL)
+		goto error;
+	error_str = cfl_PyUnistr_AsUTF8(error_str0, &error_str8);
+	if (error_str == NULL)
+		goto error;
+
+	result = cfl_PyUnistr(_FromFormat("MetadataTopic{topic=\"%s\",partitions=%s,error=%s}",
+					  topic, partitions_str, error_str));
+
+error:
+	Py_XDECREF(topic8);
+	Py_XDECREF(partitions_str0);
+	Py_XDECREF(partitions_str8);
+	Py_XDECREF(error_str0);
+	Py_XDECREF(error_str8);
+	return result;
+}
+
+static int MetadataTopic_traverse (MetadataTopic *self,
+				   visitproc visit, void *arg) {
+	if (self->topic)
+		Py_VISIT(self->topic);
+	if (self->partitions)
+		Py_VISIT(self->partitions);
+	if (self->error)
+		Py_VISIT(self->error);
+	return 0;
+}
+
+PyTypeObject MetadataTopicType = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.MetadataTopic",     /*tp_name*/
+	sizeof(MetadataTopic),     /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)MetadataTopic_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	(reprfunc)MetadataTopic_str0, /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
+	"The MetadataTopic object describes an element returned by the :py:func:`Metadata.topics()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
+	"\n",                      /*tp_doc*/
+	(traverseproc)MetadataTopic_traverse, /* tp_traverse */
+	(inquiry)MetadataTopic_clear, /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	MetadataTopic_methods,     /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0,                         /* tp_init */
+	0                          /* tp_alloc */
+};
+
+static PyObject *metadata_topic_partitions(const struct rd_kafka_metadata_topic *topic) {
+	PyObject *partitions;
+	int i;
+
+	partitions = PyList_New(topic->partition_cnt);
+	if (partitions == NULL)
+		return NULL;
+	for (i = 0 ; i < topic->partition_cnt ; i++) {
+		PyObject *info = MetadataPartition_new0(&topic->partitions[i]);
+		if (info == NULL) {
+			Py_DECREF(partitions);
+			return NULL;
+		}
+		PyList_SET_ITEM(partitions, i, info);
+	}
+	return partitions;
+}
+
+/**
+ * @brief Internal factory to create MetadataTopic object from rd_kafka_metadata_Topic
+ */
+PyObject *MetadataTopic_new0 (const struct rd_kafka_metadata_topic *topic) {
+	MetadataTopic *self;
+
+	self = (MetadataTopic *)MetadataTopicType.tp_alloc(&MetadataTopicType, 0);
+	if (!self)
+		return NULL;
+	self->topic = cfl_PyUnistr(_FromString(topic->topic));
+	if (self->topic == NULL)
+		goto error;
+	self->partitions = metadata_topic_partitions(topic);
+	if (self->partitions == NULL)
+		goto error;
+	self->error = KafkaError_new_or_None(topic->err, NULL);
+	if (self->error == NULL)
+		goto error;
+	return (PyObject *)self;
+
+error:
+	Py_DECREF(self);
+	return NULL;
+}
+
+/****************************************************************************
+ * Metadata
+ ****************************************************************************/
+
+static PyObject *Metadata_brokers (Metadata *self, PyObject *ignore) {
+	Py_INCREF(self->brokers);
+	return self->brokers;
+}
+
+static PyObject *Metadata_topics (Metadata *self, PyObject *ignore) {
+	Py_INCREF(self->topics);
+	return self->topics;
+}
+
+static PyObject *Metadata_orig_broker_id (Metadata *self, PyObject *ignore) {
+	return PyLong_FromLong(self->orig_broker_id);
+}
+
+static PyObject *Metadata_orig_broker_name (Metadata *self, PyObject *ignore) {
+	Py_INCREF(self->orig_broker_name);
+	return self->orig_broker_name;
+}
+
+static PyMethodDef Metadata_methods[] = {
+	{ "brokers", (PyCFunction)Metadata_brokers, METH_NOARGS,
+	  "  :returns: broker list\n"
+	  "  :rtype: [:py:class:`MetadataBroker`, ...]\n"
+	  "\n"
+	},
+	{ "topics", (PyCFunction)Metadata_topics, METH_NOARGS,
+	  "  :returns: topic list\n"
+	  "  :rtype: [:py:class:`MetadataTopic`, ...]\n"
+	  "\n"
+	},
+	{ "orig_broker_id", (PyCFunction)Metadata_orig_broker_id, METH_NOARGS,
+	  "  :returns: orig_broker_id\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "orig_broker_name", (PyCFunction)Metadata_orig_broker_name, METH_NOARGS,
+	  "  :returns: orig_broker_name\n"
+	  "  :rtype: str\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+static int Metadata_clear (Metadata *self) {
+	if (self->brokers) {
+		Py_DECREF(self->brokers);
+		self->brokers = NULL;
+	}
+	if (self->topics) {
+		Py_DECREF(self->topics);
+		self->topics = NULL;
+	}
+	if (self->orig_broker_name) {
+		Py_DECREF(self->orig_broker_name);
+		self->orig_broker_name = NULL;
+	}
+	return 0;
+}
+
+static void Metadata_dealloc (Metadata *self) {
+	Metadata_clear(self);
+	PyObject_GC_UnTrack(self);
+	Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static PyObject *Metadata_str0 (Metadata *self) {
+	PyObject *brokers_str0 = NULL, *brokers_str8 = NULL;
+	const char *brokers_str;
+	PyObject *topics_str0 = NULL, *topics_str8 = NULL;
+	const char *topics_str;
+	PyObject *orig_broker_name8 = NULL;
+	const char *orig_broker_name;
+	PyObject *result = NULL;
+
+	brokers_str0 = PyObject_Str(self->brokers);
+	if (brokers_str0 == NULL)
+		goto error;
+	brokers_str = cfl_PyUnistr_AsUTF8(brokers_str0, &brokers_str8);
+	if (brokers_str == NULL)
+		goto error;
+
+	topics_str0 = PyObject_Str(self->topics);
+	if (topics_str0 == NULL)
+		goto error;
+	topics_str = cfl_PyUnistr_AsUTF8(topics_str0, &topics_str8);
+	if (topics_str == NULL)
+		goto error;
+
+	orig_broker_name = cfl_PyUnistr_AsUTF8(self->orig_broker_name, &orig_broker_name8);
+
+	result = cfl_PyUnistr(_FromFormat("Metadata{brokers=%s,topics=%s,orig_broker_id=%d,orig_broker_name=\"%s\"}",
+					  brokers_str, topics_str, self->orig_broker_id, orig_broker_name));
+
+error:
+	Py_XDECREF(brokers_str0);
+	Py_XDECREF(brokers_str8);
+	Py_XDECREF(topics_str0);
+	Py_XDECREF(topics_str8);
+	Py_XDECREF(orig_broker_name8);
+	return result;
+}
+
+static int Metadata_traverse (Metadata *self,
+			     visitproc visit, void *arg) {
+	if (self->brokers)
+		Py_VISIT(self->brokers);
+	if (self->topics)
+		Py_VISIT(self->topics);
+	if (self->orig_broker_name)
+		Py_VISIT(self->orig_broker_name);
+	return 0;
+}
+
+PyTypeObject MetadataType = {
+	PyVarObject_HEAD_INIT(NULL, 0)
+	"cimpl.Metadata",          /*tp_name*/
+	sizeof(Metadata),          /*tp_basicsize*/
+	0,                         /*tp_itemsize*/
+	(destructor)Metadata_dealloc, /*tp_dealloc*/
+	0,                         /*tp_print*/
+	0,                         /*tp_getattr*/
+	0,                         /*tp_setattr*/
+	0,                         /*tp_compare*/
+	(reprfunc)Metadata_str0,   /*tp_repr*/
+	0,                         /*tp_as_number*/
+	0,                         /*tp_as_sequence*/
+	0,                         /*tp_as_mapping*/
+	0,                         /*tp_hash */
+	0,                         /*tp_call*/
+	0,                         /*tp_str*/
+	0,                         /*tp_getattro*/
+	0,                         /*tp_setattro*/
+	0,                         /*tp_as_buffer*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC,        /*tp_flags*/
+	"The Metadata object contains the metadata returned by the Producer or Consumer :py:func:`metadata()` method.\n"
+	"\n"
+	"  This class is not user-instantiable.\n"
+	"\n",                      /*tp_doc*/
+	(traverseproc)Metadata_traverse, /* tp_traverse */
+	(inquiry)Metadata_clear,   /* tp_clear */
+	0,		           /* tp_richcompare */
+	0,		           /* tp_weaklistoffset */
+	0,		           /* tp_iter */
+	0,		           /* tp_iternext */
+	Metadata_methods,          /* tp_methods */
+	0,                         /* tp_members */
+	0,                         /* tp_getset */
+	0,                         /* tp_base */
+	0,                         /* tp_dict */
+	0,                         /* tp_descr_get */
+	0,                         /* tp_descr_set */
+	0,                         /* tp_dictoffset */
+	0,                         /* tp_init */
+	0                          /* tp_alloc */
+};
+
+static PyObject *metadata_brokers(const struct rd_kafka_metadata *metadata) {
+	PyObject *brokers;
+	int i;
+
+	brokers = PyList_New(metadata->broker_cnt);
+	if (brokers == NULL)
+		return NULL;
+	for (i = 0 ; i < metadata->broker_cnt ; i++) {
+		PyObject *info = MetadataBroker_new0(&metadata->brokers[i]);
+		if (info == NULL) {
+			Py_DECREF(brokers);
+			return NULL;
+		}
+		PyList_SET_ITEM(brokers, i, info);
+	}
+	return brokers;
+}
+
+static PyObject *metadata_topics(const struct rd_kafka_metadata *metadata) {
+	PyObject *topics;
+	int i;
+
+	topics = PyList_New(metadata->topic_cnt);
+	if (topics == NULL)
+		return NULL;
+	for (i = 0 ; i < metadata->topic_cnt ; i++) {
+		PyObject *info = MetadataTopic_new0(&metadata->topics[i]);
+		if (info == NULL) {
+			Py_DECREF(topics);
+			return NULL;
+		}
+		PyList_SET_ITEM(topics, i, info);
+	}
+	return topics;
+}
+
+/**
+ * @brief Internal factory to create Metadata object from rd_kafka_metadata
+ */
+PyObject *Metadata_new0 (const struct rd_kafka_metadata *metadata) {
+	Metadata *self;
+
+	self = (Metadata *)MetadataType.tp_alloc(&MetadataType, 0);
+	if (!self)
+		return NULL;
+
+	self->brokers = metadata_brokers(metadata);
+	if (self->brokers == NULL)
+		goto error;
+	self->topics = metadata_topics(metadata);
+	if (self->topics == NULL) {
+		goto error;
+	}
+	self->orig_broker_id = metadata->orig_broker_id;
+	self->orig_broker_name = cfl_PyUnistr(_FromString(metadata->orig_broker_name));
+	if (self->orig_broker_name == NULL)
+		goto error;
+	return (PyObject *)self;
+
+error:
+	Py_DECREF(self);
+	return NULL;
+}
+
+const char Broker_metadata__doc[] = ".. py:function:: metadata(topic=None, timeout=-1)\n"
+"\n"
+"   Request metadata from the broker.\n"
+"\n"
+"  :param: str topic: Topic to fetch metadata for. If None return all topics in cluster.\n"
+"  :param float timeout: Request timeout. (Seconds)\n"
+"  :returns: :py:class:`Metadata`.\n"
+"\n";
+
+PyObject *Broker_metadata (Handle *self, PyObject *args,
+			   PyObject *kwargs) {
+	char *topic = NULL;
+	double tmout = -1;
+	rd_kafka_topic_t *only_rkt = NULL;
+	int timeout = -1;
+	const struct rd_kafka_metadata *metadata;
+	rd_kafka_resp_err_t err;
+	PyObject *result;
+	static char *kws[] = { "topic", "timeout", NULL };
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|sd", kws, &topic, &tmout))
+		return NULL;
+	if (topic != NULL) {
+		only_rkt = rd_kafka_topic_new(self->rk, topic, NULL);
+		if (only_rkt == NULL) {
+			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, rd_kafka_err2str(RD_KAFKA_RESP_ERR__INVALID_ARG));
+			return NULL;
+		}
+	}
+	if (tmout != -1)
+		timeout = (int)(tmout * 1000);
+	err = rd_kafka_metadata(self->rk, topic == NULL, only_rkt, &metadata, timeout);
+	if (err != RD_KAFKA_RESP_ERR_NO_ERROR)
+		goto error;
+	result = Metadata_new0(metadata);
+	rd_kafka_metadata_destroy(metadata);
+	return result;
+
+error:
+	if (only_rkt)
+		rd_kafka_topic_destroy(only_rkt);
+	cfl_PyErr_Format(err,
+			 "Unable to query metadata: %s",
+			 rd_kafka_err2str(err));
+	return NULL;
+}
+
+/****************************************************************************
+ *
+ *
  * TopicPartition
  *
  *
@@ -1874,6 +2712,14 @@ static PyObject *_init_cimpl (void) {
 		return NULL;
 	if (PyType_Ready(&MessageType) < 0)
 		return NULL;
+	if (PyType_Ready(&MetadataType) < 0)
+		return NULL;
+	if (PyType_Ready(&MetadataBrokerType) < 0)
+		return NULL;
+	if (PyType_Ready(&MetadataTopicType) < 0)
+		return NULL;
+	if (PyType_Ready(&MetadataPartitionType) < 0)
+		return NULL;
 	if (PyType_Ready(&TopicPartitionType) < 0)
 		return NULL;
 	if (PyType_Ready(&ProducerType) < 0)
@@ -1898,6 +2744,22 @@ static PyObject *_init_cimpl (void) {
 
 	Py_INCREF(&MessageType);
 	PyModule_AddObject(m, "Message", (PyObject *)&MessageType);
+
+	Py_INCREF(&MetadataType);
+	PyModule_AddObject(m, "Metadata",
+			   (PyObject *)&MetadataType);
+
+	Py_INCREF(&MetadataBrokerType);
+	PyModule_AddObject(m, "MetadataBroker",
+			   (PyObject *)&MetadataBrokerType);
+
+	Py_INCREF(&MetadataTopicType);
+	PyModule_AddObject(m, "MetadataTopic",
+			   (PyObject *)&MetadataTopicType);
+
+	Py_INCREF(&MetadataPartitionType);
+	PyModule_AddObject(m, "MetadataPartition",
+			   (PyObject *)&MetadataPartitionType);
 
 	Py_INCREF(&TopicPartitionType);
 	PyModule_AddObject(m, "TopicPartition",

@@ -532,6 +532,8 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 
+	{ "metadata", (PyCFunction)Broker_metadata, METH_VARARGS|METH_KEYWORDS, (const char *)Broker_metadata__doc },
+
 	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: flush([timeout])\n"
           "\n"
