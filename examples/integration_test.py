@@ -49,7 +49,7 @@ bootstrap_servers = None
 # Confluent schema-registry
 schema_registry_url = None
 
-# Topic to use
+# Topic prefix to use
 topic = 'test'
 
 # API version requests are only implemented in Kafka broker >=0.10
@@ -962,35 +962,37 @@ def verify_admin():
     if error is not None:
         raise error
 
+
+all_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
+"""All test modes"""
+
+
 def print_usage(exitcode, reason=None):
     """ Print usage and exit with exitcode """
     if reason is not None:
         print('Error: %s' % reason)
-    print('Usage: %s <broker> [opts] [<topic>] [<schema_registry>]' % sys.argv[0])
+    print('Usage: %s [options] <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
     print('Options:')
-    print(' --consumer, --producer, --avro, --performance - limit to matching tests')
+    print(' %s - limit to matching tests' % ', '.join(['--' + x for x in all_modes]))
 
     sys.exit(exitcode)
 
 
-def run():
-    """Run integration tests"""
+if __name__ == '__main__':
+    """Run test suites"""
+
+    if with_pympler:
+        tr = tracker.SummaryTracker()
+        print('Running with pympler memory tracker')
 
     modes = list()
 
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
-        opt = sys.argv.pop(1)
-        if opt == '--consumer':
-            modes.append('consumer')
-        elif opt == '--producer':
-            modes.append('producer')
-        elif opt == '--avro':
-            modes.append('avro')
-        elif opt == '--performance':
-            modes.append('performance')
-        else:
-            print_usage(1, 'unknown option ' + opt)
+        opt = sys.argv.pop(1)[2:]
+        if opt not in all_modes:
+            print_usage(1, 'unknown option --' + opt)
+        modes.append(opt)
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
@@ -1002,10 +1004,13 @@ def run():
         print_usage(1)
 
     if len(modes) == 0:
-        modes = ['consumer', 'producer', 'avro', 'performance']
+        modes = all_modes
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
+    print('Testing: %s' % modes)
+    print('Brokers: %s' % bootstrap_servers)
+    print('Topic prefix: %s' % topic)
 
     if 'producer' in modes:
         print('=' * 30, 'Verifying Producer', '=' * 30)
@@ -1046,15 +1051,6 @@ def run():
         verify_admin()
 
     print('=' * 30, 'Done', '=' * 30)
-
-
-if __name__ == '__main__':
-    if with_pympler:
-        tr = tracker.SummaryTracker()
-        print('Running with pympler memory tracker')
-
-    # Run tests
-    run()
 
     if with_pympler:
         gc.collect()
