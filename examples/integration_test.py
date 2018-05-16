@@ -282,6 +282,7 @@ def verify_avro():
                      'auto.offset.reset': 'earliest'
                  }}
 
+    falsy_count = 0
     for i, combo in enumerate(combinations):
         combo['topic'] = str(uuid.uuid4())
         p.produce(**combo)
@@ -313,10 +314,19 @@ def verify_avro():
                   (msg.topic(), msg.partition(), msg.offset(),
                    msg.key(), msg.value(), tstype, timestamp))
 
+            # verify Falsy keys and values are consumed
+            if not msg.key() is not None and not msg.key():
+                falsy_count += 1
+
+            if msg.value() is not None and not msg.value():
+                falsy_count += 1
+
             c.commit(msg, asynchronous=False)
 
         # Close consumer
         c.close()
+
+    assert falsy_count == 4
 
 
 def verify_producer_performance(with_dr_cb=True):
