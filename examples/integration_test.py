@@ -30,6 +30,14 @@ import struct
 from copy import copy
 
 try:
+    # Memory tracker
+    from pympler import tracker
+    with_pympler = True
+except Exception as e:
+    with_pympler = False
+
+
+try:
     from progress.bar import Bar
     with_progress = True
 except ImportError as e:
@@ -965,7 +973,9 @@ def print_usage(exitcode, reason=None):
     sys.exit(exitcode)
 
 
-if __name__ == '__main__':
+def run():
+    """Run integration tests"""
+
     modes = list()
 
     # Parse options
@@ -1036,3 +1046,17 @@ if __name__ == '__main__':
         verify_admin()
 
     print('=' * 30, 'Done', '=' * 30)
+
+
+if __name__ == '__main__':
+    if with_pympler:
+        tr = tracker.SummaryTracker()
+        print('Running with pympler memory tracker')
+
+    # Run tests
+    run()
+
+    if with_pympler:
+        gc.collect()
+        print('Memory tracker results')
+        tr.print_diff()
