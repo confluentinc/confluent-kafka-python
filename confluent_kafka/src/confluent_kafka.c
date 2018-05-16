@@ -1839,6 +1839,15 @@ void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
 }
 
 
+int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
+        return PyObject_SetAttrString(o, name, cfl_PyUnistr(_FromString(val)));
+}
+
+int cfl_PyObject_SetLong (PyObject *o, const char *name, long val) {
+        return PyObject_SetAttrString(o, name, PyLong_FromLong(val));
+}
+
+
 /**
  * @brief Get attribute \p attr_name from \p object and verify it is
  *        of type \p py_type.
@@ -1957,6 +1966,26 @@ int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
         Py_XDECREF(uop);
 
         return 1;
+}
+
+
+
+/**
+ * @returns a Python list of longs based on the input int32_t array
+ */
+PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
+        PyObject *list;
+        size_t i;
+
+        list = PyList_New((Py_ssize_t)cnt);
+        if (!list)
+                return NULL;
+
+        for (i = 0 ; i < cnt ; i++)
+                PyList_SET_ITEM(list, (Py_ssize_t)i,
+                                PyLong_FromLong((long)arr[i]));
+
+        return list;
 }
 
 

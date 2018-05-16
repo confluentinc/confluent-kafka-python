@@ -128,7 +128,9 @@ def example_describe_configs(a, args):
                        ConfigEntry.config_source_to_str(config.source),
                        config.is_read_only, config.is_default,
                        config.is_sensitive, config.is_synonym,
-                       ["%s:%s" % (x.name, ConfigEntry.config_source_to_str(x.source)) for x in iter(config.synonyms.values())]))
+                       ["%s:%s" % (x.name,
+                                   ConfigEntry.config_source_to_str(x.source))
+                        for x in iter(config.synonyms.values())]))
 
             print_config(config, 1)
 
@@ -159,16 +161,59 @@ def example_alter_configs(a, args):
     print(res)
 
 
+def example_list(a, args):
+    """ list topics and cluster metadata """
+
+    if len(args) == 0:
+        what = "all"
+    else:
+        what = args[0]
+
+    md = a.list_topics(timeout=10)
+
+    print("Cluster {} metadata (response from broker {}):".format(md.cluster_id, md.orig_broker_name))
+
+    if what in ("all", "brokers"):
+        print(" {} brokers:".format(len(md.brokers)))
+        for b in iter(md.brokers.values()):
+            if b.id == md.controller_id:
+                print("  {}  (controller)".format(b))
+            else:
+                print("  {}".format(b))
+
+    if what not in ("all", "topics"):
+        return
+
+    print(" {} topics:".format(len(md.topics)))
+    for t in iter(md.topics.values()):
+        if t.error is not None:
+            errstr = ": {}".format(t.error)
+        else:
+            errstr = ""
+
+        print("  \"{}\" with {} partition(s){}".format(t, len(t.partitions), errstr))
+
+        for p in iter(t.partitions.values()):
+            if p.error is not None:
+                errstr = ": {}".format(p.error)
+            else:
+                errstr = ""
+
+            print("    partition {} leader: {}, replicas: {}, isrs: {}".format(
+                p.id, p.leader, p.replicas, p.isrs, errstr))
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
-        sys.stderr.write('operation := create_topics | delete_topics | create_partitions\n\n')
+        sys.stderr.write('operations:\n')
         sys.stderr.write(' create_topics <topic1> <topic2> ..\n')
         sys.stderr.write(' delete_topics <topic1> <topic2> ..\n')
         sys.stderr.write(' create_partitions <topic1> <new_total_count1> <topic2> <new_total_count2> ..\n')
         sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' list [<all|topics|brokers>]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -182,7 +227,8 @@ if __name__ == '__main__':
               'delete_topics': example_delete_topics,
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
-              'alter_configs': example_alter_configs}
+              'alter_configs': example_alter_configs,
+              'list': example_list}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

@@ -13,7 +13,7 @@ module = Extension('confluent_kafka.cimpl',
                    sources=['confluent_kafka/src/confluent_kafka.c',
                             'confluent_kafka/src/Producer.c',
                             'confluent_kafka/src/Consumer.c',
-                            'confluent_kafka/src/get_metadata_impl.c'])
+                            'confluent_kafka/src/Metadata.c',
                             'confluent_kafka/src/AdminTypes.c',
                             'confluent_kafka/src/Admin.c'])
 

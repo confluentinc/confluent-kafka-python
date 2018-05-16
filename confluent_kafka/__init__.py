@@ -201,3 +201,105 @@ class AdminClient (AdminClientImpl):
         if not f.set_running_or_notify_cancel():
             raise RuntimeError("Future was cancelled prematurely")
         return super(AdminClient, self).alter_configs(resources, f, **kwargs)
+
+
+class ClusterMetadata (object):
+    """
+    ClusterMetadata as returned by list_topics() contains information
+    about the Kafka cluster, brokers, and topics.
+
+    :ivar cluster_id: Cluster id string, if supported by broker, else None.
+    :ivar controller_id: Current controller broker id, or -1.
+    :ivar brokers: Map of brokers indexed by the int broker id. Value is BrokerMetadata object.
+    :ivar topics: Map of topics indexed by the topic name. Value is TopicMetadata object.
+    :ivar orig_broker_id: The broker this metadata originated from.
+    :ivar orig_broker_name: Broker name/address this metadata originated from.
+    """
+    def __init__(self):
+        self.cluster_id = None
+        self.controller_id = -1
+        self.brokers = {}
+        self.topics = {}
+        self.orig_broker_id = -1
+        self.orig_broker_name = None
+
+    def __repr__(self):
+        return "ClusterMetadata({})".format(self.cluster_id)
+
+    def __str__(self):
+        return str(self.cluster_id)
+
+
+class BrokerMetadata (object):
+    """
+    BrokerMetadata contains information about a Kafka broker.
+
+    :ivar id: Broker id.
+    :ivar host: Broker hostname.
+    :ivar port: Broker port.
+    """
+    def __init__(self):
+        self.id = -1
+        self.host = None
+        self.port = -1
+
+    def __repr__(self):
+        return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
+
+    def __str__(self):
+        return "{}:{}/{}".format(self.host, self.port, self.id)
+
+
+class TopicMetadata (object):
+    """
+    TopicMetadata contains information about a Kafka topic.
+
+    :ivar topic: Topic name.
+    :ivar partitions: Map of partitions indexed by partition id. Value is PartitionMetadata object.
+    :ivar error: Topic error, or None. Value is a KafkaError object.
+    """
+    def __init__(self):
+        self.topic = None
+        self.partitions = {}
+        self.error = None
+
+    def __repr__(self):
+        if self.error is not None:
+            return "TopicMetadata({}, {} partitions, {})".format(self.topic, len(self.partitions), self.error)
+        else:
+            return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
+
+    def __str__(self):
+        return self.topic
+
+
+class PartitionMetadata (object):
+    """
+    PartitionsMetadata contains information about a Kafka partition.
+
+    :ivar id: Partition id.
+    :ivar leader: Current leader broker for this partition, or -1.
+    :ivar replicas: List of replica broker ids for this partition.
+    :ivar isrs: List of in-sync-replica broker ids for this partition.
+    :ivar error: Partition error, or None. Value is a KafkaError object.
+
+    :warning: Depending on cluster state the broker ids referenced in
+              leader, replicas and isrs may temporarily not be reported
+              in ClusterMetadata.brokers. Always check the availability
+              of a broker id in the brokers dict.
+    """
+    def __init__(self):
+        self.partition = -1
+        self.leader = -1
+        self.replicas = []
+        self.isrs = []
+        self.error = None
+
+    def __repr__(self):
+        if self.error is not None:
+            return "PartitionMetadata({}, {})".format(self.partition, self.error)
+        else:
+            return "PartitionMetadata({})".format(self.partition)
+
+    def __str__(self):
+        return "{}".format(self.partition)

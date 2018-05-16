@@ -38,6 +38,11 @@ def test_basic_api():
     p.flush(0.002)
     p.flush()
 
+    try:
+        p.list_topics(timeout=0.2)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
 
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """

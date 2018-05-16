@@ -545,13 +545,9 @@ static PyMethodDef Producer_methods[] = {
 	  "callbacks may be triggered.\n"
 	  "\n"
 	},
-
-    {
-        "list_topics",
-        (PyCFunction)get_metadata,
-        METH_VARARGS|METH_KEYWORDS,
-        get_metadata_doc
-    },
+        { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
+          list_topics_doc
+        },
 
 	{ NULL }
 };

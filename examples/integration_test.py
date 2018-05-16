@@ -890,6 +890,70 @@ def verify_stats_cb():
     c.close()
 
 
+def verify_admin():
+    """ Verify Admin API """
+    a = confluent_kafka.AdminClient({'bootstrap.servers': bootstrap_servers})
+
+    our_topic = topic + '_admin_' + str(uuid.uuid4())
+    num_partitions = 2
+
+    # First only validate our_topic creation, then create it.
+    for validate in (True, False):
+        f = a.create_topics([confluent_kafka.NewTopic(our_topic,
+                                                      num_partitions=num_partitions,
+                                                      replication_factor=1)],
+                            validate_only=validate,
+                            operation_timeout=10.0)
+
+        for error in iter(f.result().values()):
+            if error is not None:
+                raise error
+
+    # Find the topic in list_topics
+    md = a.list_topics()
+    assert our_topic in md.topics, "Expected {} in metadata: {}".format(our_topic, md.topics.keys())
+
+    assert len(md.topics[our_topic].partitions) == num_partitions, \
+        "Expected {} partitions for topic {}, not {}".format(
+            num_partitions, our_topic, md.topics[our_topic].partitions)
+
+    # Increase the partition count
+    num_partitions += 3
+    f = a.create_partitions([confluent_kafka.NewPartitions(our_topic,
+                                                           new_total_count=num_partitions)],
+                            operation_timeout=10.0)
+    topic_errors = f.result()
+    if topic_errors[our_topic] is not None:
+        raise topic_errors[our_topic]
+
+    # Verify with list_topics.
+    # Non-controller brokers may return the previous partition count for some
+    # time before being updated, in this case simply retry.
+    while True:
+        md = a.list_topics(topic=our_topic)
+        assert our_topic in md.topics, "Expected {} in metadata: {}".format(
+            our_topic, md.topics.keys())
+
+        if len(md.topics[our_topic].partitions) < num_partitions:
+            print("Topic {} partition count not yet updated: retrying".format(
+                our_topic))
+            time.sleep(1)
+            continue
+
+        assert len(md.topics[our_topic].partitions) == num_partitions, \
+            "Expected {} partitions for topic {}, not {}".format(
+                num_partitions, our_topic, md.topics[our_topic].partitions)
+        break
+
+    # Delete the topic
+    f = a.delete_topics([our_topic])
+    topic_results = f.result()
+
+    error = topic_results[our_topic]
+    print('Delete topic {}: {}'.format(our_topic, error))
+    if error is not None:
+        raise error
+
 def print_usage(exitcode, reason=None):
     """ Print usage and exit with exitcode """
     if reason is not None:
@@ -966,5 +1030,9 @@ if __name__ == '__main__':
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
+
+    if 'admin' in modes:
+        print('=' * 30, 'Verifying Admin API', '=' * 30)
+        verify_admin()
 
     print('=' * 30, 'Done', '=' * 30)

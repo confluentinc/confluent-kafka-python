@@ -268,7 +268,8 @@ PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
-
+int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val);
+int cfl_PyObject_SetLong (PyObject *o, const char *name, long val);
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
                           PyObject **valp, const PyTypeObject *py_type,
                           int required);
@@ -276,6 +277,9 @@ int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
                          int defval, int required);
 int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
                             char **valp, const char *defval, int required);
+int cfl_PyBool_get (PyObject *object, const char *name, int *valp);
+
+PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt);
 
 /****************************************************************************
  *
@@ -317,10 +321,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *kwargs);
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
-PyObject *get_metadata(Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 
 
-extern const char get_metadata_doc[];
+extern const char list_topics_doc[];
 
 
 #ifdef RD_KAFKA_V_HEADERS

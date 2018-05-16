@@ -1089,6 +1089,11 @@ static PyMethodDef Admin_methods[] = {
           "  :rtype: int\n"
           "\n"
         },
+
+        { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
+          list_topics_doc
+        },
+
         { NULL }
 };
 
