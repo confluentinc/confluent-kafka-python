@@ -59,13 +59,13 @@ class AvroProducer(Producer):
         value = kwargs.pop('value', None)
         key = kwargs.pop('key', None)
 
-        if value:
+        if value is not None:
             if value_schema:
                 value = self._serializer.encode_record_with_schema(topic, value_schema, value)
             else:
                 raise ValueSerializerError("Avro schema required for values")
 
-        if key:
+        if key is not None:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:

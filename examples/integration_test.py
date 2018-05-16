@@ -265,6 +265,9 @@ def verify_avro():
         dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
         dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
         dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0., key_schema=prim_float),
+        dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
     ]
 
     # Consumer config
@@ -309,6 +312,18 @@ def verify_avro():
             print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
                   (msg.topic(), msg.partition(), msg.offset(),
                    msg.key(), msg.value(), tstype, timestamp))
+
+            # omit empty Avro fields from payload for comparison
+            record_key = msg.key()
+            record_value = msg.value()
+            if isinstance(msg.key(), dict):
+                record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+            if isinstance(msg.value(), dict):
+                record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+            assert combo.get('key') == record_key
+            assert combo.get('value') == record_value
 
             c.commit(msg, asynchronous=False)
 
