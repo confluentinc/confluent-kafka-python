@@ -192,10 +192,10 @@ See the [examples](examples) directory for more examples, including [how to conf
 Install
 =======
 
-**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos support.
-          If you need SASL Kerberos support you must install librdkafka and
+**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
+          If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
-          confluent-kafka from source. See [librdkafka's wiki for details](https://github.com/edenhill/librdkafka/wiki/Using-SASL-with-librdkafka)
+          confluent-kafka from source.
 
 **Install self-contained binary wheels for OSX and Linux from PyPi:**
 
@@ -208,6 +208,7 @@ Install
 **Install from source from PyPi** *(requires librdkafka + dependencies to be installed separately)*:
 
     $ pip install --no-binary :all: confluent-kafka
+
 
 For source install, see *Prerequisites* below.
 
@@ -252,10 +253,6 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
-**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos support.
-          If you need SASL Kerberos support you must install librdkafka and
-          its dependencies using the above repositories and then build
-          confluent-kafka from source. See [librdkafka's wiki for details](https://github.com/edenhill/librdkafka/wiki/Using-SASL-with-librdkafka)
 
 Build
 =====
