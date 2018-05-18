@@ -415,7 +415,8 @@ typedef struct {
         char *topic;
         int   num_partitions;
         int   replication_factor;
-        PyObject *replica_assignment;
+        PyObject *replica_assignment;  /**< list<int> */
+        PyObject *config;              /**< dict<str,str> */
 } NewTopic;
 
 extern PyTypeObject NewTopicType;

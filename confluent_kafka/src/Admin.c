@@ -71,17 +71,19 @@ static int Admin_traverse (Handle *self,
 #define Admin_options_def_float ((float)Admin_options_def_int)
 
 struct Admin_options {
-        int   validate_only;      /* parser: i */
+        int   validate_only;      /* needs special bool parsing */
         float request_timeout;    /* parser: f */
         float operation_timeout;  /* parser: f */
         int   broker;             /* parser: i */
+        int   incremental;        /* needs special bool parsing */
 };
 
 /**@brief "unset" value initializers for Admin_options
  * Make sure this is kept up to date with Admin_options above. */
 #define Admin_options_INITIALIZER {                                     \
                 Admin_options_def_int, Admin_options_def_float,         \
-                        Admin_options_def_float, Admin_options_def_int \
+                        Admin_options_def_float, Admin_options_def_int, \
+                        Admin_options_def_int,                          \
                         }
 
 #define Admin_options_is_set_int(v) ((v) != Admin_options_def_int)
@@ -139,6 +141,11 @@ Admin_options_to_c (Handle *self, const char *forApi,
                     errstr, sizeof(errstr))))
                 goto err;
 
+        if (Admin_options_is_set_int(options->incremental) &&
+            (err = rd_kafka_AdminOptions_set_incremental(
+                    c_options, options->incremental,
+                    errstr, sizeof(errstr))))
+                goto err;
 
         return c_options;
 
@@ -198,7 +205,8 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                 for (ri = 0 ; ri < replica_cnt ; ri++) {
                         PyObject *replica =
                                 PyList_GET_ITEM(replicas, ri);
-                        if (!PyLong_Check(replica)) {
+
+                        if (!cfl_PyInt_Check(replica)) {
                                 PyErr_Format(
                                         PyExc_TypeError,
                                         "replica_assignment must be "
@@ -207,8 +215,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                                 return 0;
                         }
 
-                        c_replicas[ri] =
-                                (int32_t)PyLong_AsLong(replica);
+                        c_replicas[ri] = (int32_t)cfl_PyInt_AsInt(replica);
 
                 }
 
@@ -240,6 +247,85 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
         return 1;
 }
 
+/**
+ * @brief Translate a dict to ConfigResource {set,add,delete}_config() calls,
+ *        or to NewTopic_add_config() calls.
+ *
+ *
+ * @returns 1 on success or 0 if an exception was raised.
+ */
+static int
+Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
+        Py_ssize_t pos = 0;
+        PyObject *ko, *vo;
+
+        while (PyDict_Next(dict, &pos, &ko, &vo)) {
+                PyObject *ks, *ks8;
+                const char *k;
+                const char *v;
+                rd_kafka_resp_err_t err;
+
+                if (!(ks = cfl_PyObject_Unistr(ko))) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected %s config name to be unicode "
+                                     "string", op_name);
+                        return 0;
+                }
+
+                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+                if (!strcmp(op_name, "del_config")) {
+                        err = rd_kafka_ConfigResource_delete_config(
+                                (rd_kafka_ConfigResource_t *)c_obj, k);
+                } else {
+                        PyObject *vs = NULL, *vs8 = NULL;
+                        if (!(vs = cfl_PyObject_Unistr(vo)) ||
+                            !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
+                                PyErr_Format(PyExc_TypeError,
+                                             "expect %s config value for %s "
+                                             "to be unicode string",
+                                             op_name, k);
+                                Py_XDECREF(vs);
+                                Py_XDECREF(vs8);
+                                Py_DECREF(ks);
+                                Py_XDECREF(ks8);
+                                return 0;
+                        }
+
+                        if (!strcmp(op_name, "add_config"))
+                                err = rd_kafka_ConfigResource_add_config(
+                                        (rd_kafka_ConfigResource_t *)c_obj,
+                                        k, v);
+                        else if (!strcmp(op_name, "set_config"))
+                                err = rd_kafka_ConfigResource_set_config(
+                                        (rd_kafka_ConfigResource_t *)c_obj,
+                                        k, v);
+                        else if (!strcmp(op_name, "newtopic_set_config"))
+                                err = rd_kafka_NewTopic_set_config(
+                                        (rd_kafka_NewTopic_t *)c_obj, k, v);
+                        else
+                                err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
+
+                        if (err) {
+                                PyErr_Format(PyExc_ValueError,
+                                             "%s config %s failed: %s",
+                                             op_name, k, rd_kafka_err2str(err));
+                                Py_XDECREF(vs);
+                                Py_XDECREF(vs8);
+                                Py_DECREF(ks);
+                                Py_XDECREF(ks8);
+                                return 0;
+                        }
+
+                        Py_XDECREF(vs);
+                        Py_XDECREF(vs8);
+                }
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+        }
+
+        return 1;
+}
 
 
 /**
@@ -247,7 +333,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
  */
 static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                       PyObject *kwargs) {
-        PyObject *topics = NULL, *future;
+        PyObject *topics = NULL, *future, *validate_only_obj = NULL;
         static char *kws[] = { "topics",
                                "future",
                                /* options */
@@ -264,9 +350,9 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         CallState cs;
 
         /* topics is a list of NewTopic objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|iff", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
                                          &topics, &future,
-                                         &options.validate_only,
+                                         &validate_only_obj,
                                          &options.request_timeout,
                                          &options.operation_timeout))
                 return NULL;
@@ -277,6 +363,11 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 return NULL;
         }
 
+        if (validate_only_obj &&
+            !cfl_PyBool_get(validate_only_obj, "validate_only",
+                            &options.validate_only))
+                return NULL;
+
         c_options = Admin_options_to_c(self, "CreateTopics", &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
@@ -285,12 +376,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
-
-        /* Look up the NewTopic class so we can check if the provided
-         * topics are of correct type.
-         * Since this is not in the fast path we treat ourselves
-         * to the luxury of looking up this for each call. */
-        // FIXME
 
         /*
          * Parse the list of NewTopics and convert to corresponding C types.
@@ -320,6 +405,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         PyErr_Format(PyExc_TypeError,
                                      "Invalid NewTopic(%s): %s",
                                      newt->topic, errstr);
+                        i++;
                         goto err;
                 }
 
@@ -329,15 +415,27 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                                 "replication_factor and "
                                                 "replica_assignment are "
                                                 "mutually exclusive");
+                                i++;
                                 goto err;
                         }
 
                         if (!Admin_set_replica_assignment(
-                                    "CreateTopics", (void *)newt,
+                                    "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
                                     newt->num_partitions, newt->num_partitions,
-                                    "num_partitions"))
-                                goto err; /* Exception raised by set_repl.. */
+                                    "num_partitions")) {
+                                i++;
+                                goto err;
+                        }
+                }
+
+                if (newt->config) {
+                        if (!Admin_config_dict_to_c((void *)c_objs[i],
+                                                    newt->config,
+                                                    "newtopic_set_config")) {
+                                i++;
+                                goto err;
+                        }
                 }
         }
 
@@ -417,12 +515,6 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        /* Look up the NewTopic class so we can check if the provided
-         * topics are of correct type.
-         * Since this is not in the fast path we treat ourselves
-         * to the luxury of looking up this for each call. */
-        // FIXME
-
         /*
          * Parse the list of strings and convert to corresponding C types.
          */
@@ -433,10 +525,13 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
                 PyObject *utopic;
                 PyObject *uotopic = NULL;
 
-                if (!PyUnicode_Check(topic) ||
+                if (topic == Py_None ||
                     !(utopic = cfl_PyObject_Unistr(topic))) {
-                        PyErr_SetString(PyExc_TypeError,
-                                        "Expected list of topic strings");
+                        PyErr_Format(PyExc_TypeError,
+                                     "Expected list of topic strings, "
+                                     "not %s",
+                                     ((PyTypeObject *)PyObject_Type(topic))->
+                                     tp_name);
                         goto err;
                 }
 
@@ -462,7 +557,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         rd_kafka_DeleteTopics(self->rk, c_objs, tcnt, c_options, rkqu);
         CallState_end(self, &cs);
 
-        rd_kafka_DeleteTopic_destroy_array(c_objs, tcnt);
+        rd_kafka_DeleteTopic_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
 
@@ -485,7 +580,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
  */
 static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                                           PyObject *kwargs) {
-        PyObject *topics = NULL, *future;
+        PyObject *topics = NULL, *future, *validate_only_obj = NULL;
         static char *kws[] = { "topics",
                                "future",
                                /* options */
@@ -502,20 +597,27 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
         CallState cs;
 
         /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|iff", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
                                          &topics, &future,
-                                         &options.validate_only,
+                                         &validate_only_obj,
                                          &options.request_timeout,
                                          &options.operation_timeout))
                 return NULL;
 
         if (!PyList_Check(topics) || (tcnt = (int)PyList_Size(topics)) < 1) {
                 PyErr_SetString(PyExc_TypeError,
-                                "Expected non-empty list of NewPartitions objects");
+                                "Expected non-empty list of "
+                                "NewPartitions objects");
                 return NULL;
         }
 
-        c_options = Admin_options_to_c(self, "CreatePartitions", &options, future);
+        if (validate_only_obj &&
+            !cfl_PyBool_get(validate_only_obj, "validate_only",
+                            &options.validate_only))
+                return NULL;
+
+        c_options = Admin_options_to_c(self, "CreatePartitions",
+                                       &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
 
@@ -524,19 +626,14 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        /* Look up the NewTopic class so we can check if the provided
-         * topics are of correct type.
-         * Since this is not in the fast path we treat ourselves
-         * to the luxury of looking up this for each call. */
-        // FIXME
-
         /*
          * Parse the list of NewPartitions and convert to corresponding C types.
          */
         c_objs = alloca(sizeof(*c_objs) * tcnt);
 
         for (i = 0 ; i < tcnt ; i++) {
-                NewPartitions *newp = (NewPartitions *)PyList_GET_ITEM(topics, i);
+                NewPartitions *newp = (NewPartitions *)PyList_GET_ITEM(topics,
+                                                                       i);
                 char errstr[512];
                 int r;
 
@@ -546,7 +643,8 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
                         PyErr_SetString(PyExc_TypeError,
-                                        "Expected list of NewPartitions objects");
+                                        "Expected list of "
+                                        "NewPartitions objects");
                         goto err;
                 }
 
@@ -562,12 +660,14 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
 
                 if (newp->replica_assignment &&
                     !Admin_set_replica_assignment(
-                            "CreatePartitions", (void *)newp,
+                            "CreatePartitions", (void *)c_objs[i],
                             newp->replica_assignment,
                             1, newp->new_total_count,
                             "new_total_count - "
-                            "existing partition count"))
-                        goto err; /* Exception raised by to_c() */
+                            "existing partition count")) {
+                        i++;
+                        goto err; /* Exception raised by set_..() */
+                }
         }
 
 
@@ -651,7 +751,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                                                   "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
-                return NULL; /* Exception raised by find() */
+                return NULL; /* Exception raised by lookup() */
         }
 
         /* options_to_c() sets future as the opaque, which is used in the
@@ -738,91 +838,19 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 
 
 /**
- * @brief Translate a dict to ConfigResource {set,add,delete}_config() calls.
- *
- * @returns 1 on success or 0 if an exception was raised.
- */
-static int
-Admin_ConfigEntry_dict_to_c (rd_kafka_ConfigResource_t *c_res,
-                             PyObject *dict, const char *op_name) {
-        Py_ssize_t pos = 0;
-        PyObject *ko, *vo;
-
-        while (PyDict_Next(dict, &pos, &ko, &vo)) {
-                PyObject *ks, *ks8;
-                const char *k;
-                const char *v;
-                rd_kafka_resp_err_t err;
-
-                if (!(ks = cfl_PyObject_Unistr(ko))) {
-                        PyErr_Format(PyExc_TypeError,
-                                     "expected %s config name to be unicode "
-                                     "string", op_name);
-                        return 0;
-                }
-
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-
-                if (!strcmp(op_name, "del_config")) {
-                        err = rd_kafka_ConfigResource_delete_config(c_res, k);
-                } else {
-                        PyObject *vs = NULL, *vs8 = NULL;
-                        if (!PyUnicode_Check(vo) ||
-                            !(vs = cfl_PyObject_Unistr(vo)) ||
-                            !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
-                                PyErr_Format(PyExc_TypeError,
-                                             "expect %s config value fo %s "
-                                             "to be unicode string",
-                                             op_name, k);
-                                Py_XDECREF(vs);
-                                Py_XDECREF(vs8);
-                                Py_DECREF(ks);
-                                Py_XDECREF(ks8);
-                                return 0;
-                        }
-
-                        if (!strcmp(op_name, "add_config"))
-                                err = rd_kafka_ConfigResource_add_config(
-                                        c_res, k, v);
-                        else if (!strcmp(op_name, "set_config"))
-                                err = rd_kafka_ConfigResource_set_config(
-                                        c_res, k, v);
-                        else
-                                err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
-
-                        if (err) {
-                                PyErr_Format(PyExc_ValueError,
-                                             "%s config %s failed: %s",
-                                             op_name, k, rd_kafka_err2str(err));
-                                Py_XDECREF(vs);
-                                Py_XDECREF(vs8);
-                                Py_DECREF(ks);
-                                Py_XDECREF(ks8);
-                                return 0;
-                        }
-
-                        Py_XDECREF(vs);
-                        Py_XDECREF(vs8);
-                }
-                Py_DECREF(ks);
-                Py_XDECREF(ks8);
-        }
-
-        return 1;
-}
-
-
-/**
  * @brief alter_configs
  */
 static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                                          PyObject *kwargs) {
         PyObject *resources, *future;
+        PyObject *validate_only_obj = NULL, *incremental_obj = NULL;
         static char *kws[] = { "resources",
                                "future",
                                /* options */
+                               "validate_only",
                                "request_timeout",
                                "broker",
+                               "incremental",
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -833,10 +861,12 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         CallState cs;
 
         /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|OfiO", kws,
                                          &resources, &future,
+                                         &validate_only_obj,
                                          &options.request_timeout,
-                                         &options.broker))
+                                         &options.broker,
+                                         &incremental_obj))
                 return NULL;
 
         if (!PyList_Check(resources) ||
@@ -846,6 +876,17 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                                 "objects");
                 return NULL;
         }
+
+        if (validate_only_obj &&
+            !cfl_PyBool_get(validate_only_obj, "validate_only",
+                            &options.validate_only))
+                return NULL;
+
+        if (incremental_obj &&
+            !cfl_PyBool_get(incremental_obj, "incremental",
+                            &options.incremental))
+                return NULL;
+
 
         c_options = Admin_options_to_c(self, "AlterConfigs",
                                        &options, future);
@@ -912,31 +953,37 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                  * Translate and apply config entries in the various dicts.
                  */
                 if (!cfl_PyObject_GetAttr(res, "set_config_dict", &dict,
-                                          &PyDict_Type, 1))
+                                          &PyDict_Type, 1)) {
+                        i++;
                         goto err;
-                if (!Admin_ConfigEntry_dict_to_c(c_objs[i], dict,
-                                                 "set_config")) {
+                }
+                if (!Admin_config_dict_to_c(c_objs[i], dict, "set_config")) {
                         Py_DECREF(dict);
+                        i++;
                         goto err;
                 }
                 Py_DECREF(dict);
 
                 if (!cfl_PyObject_GetAttr(res, "add_config_dict", &dict,
-                                          &PyDict_Type, 1))
+                                          &PyDict_Type, 1)) {
+                        i++;
                         goto err;
-                if (!Admin_ConfigEntry_dict_to_c(c_objs[i], dict,
-                                                 "add_config")) {
+                }
+                if (!Admin_config_dict_to_c(c_objs[i], dict, "add_config")) {
                         Py_DECREF(dict);
+                        i++;
                         goto err;
                 }
                 Py_DECREF(dict);
 
                 if (!cfl_PyObject_GetAttr(res, "del_config_dict", &dict,
-                                          &PyDict_Type, 1))
+                                          &PyDict_Type, 1)) {
+                        i++;
                         goto err;
-                if (!Admin_ConfigEntry_dict_to_c(c_objs[i], dict,
-                                                 "del_config")) {
+                }
+                if (!Admin_config_dict_to_c(c_objs[i], dict, "del_config")) {
                         Py_DECREF(dict);
+                        i++;
                         goto err;
                 }
                 Py_DECREF(dict);
@@ -1013,7 +1060,7 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
         if (r == -1)
                 return NULL;
 
-        return PyLong_FromLong(r);
+        return cfl_PyInt_FromInt(r);
 }
 
 
@@ -1024,55 +1071,36 @@ static PyMethodDef Admin_methods[] = {
           ".. py:function:: create_topics(topics, future, [validate_only, request_timeout, operation_timeout])\n"
           "\n"
           "  Create new topics.\n"
-          "  This is an asynchronous operation, an application may use the "
-          "``callback`` (alias ``on_delivery``) argument to pass a function "
-          "(or lambda) that will be called from :py:func:`poll()` when the "
-          "message has been successfully delivered or permanently fails delivery.\n"
           "\n"
-          "  Currently message headers are not supported on the message returned to the "
-      "callback. The ``msg.headers()`` will return None even if the original message "
-      "had headers set.\n"
-          "\n"
-          "  :param str topic: Topic to produce message to\n"
-          "  :param str|bytes value: Message payload\n"
-          "  :param str|bytes key: Message key\n"
-          "  :param int partition: Partition to produce to, elses uses the "
-          "configured partitioner.\n"
-          "  :param func on_delivery(err,msg): Delivery report callback to call "
-          "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
-          "failed delivery\n"
-          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
-          "\n"
-          "  :rtype: None\n"
-          "  :raises BufferError: if the internal producer message queue is "
-          "full (``queue.buffering.max.messages`` exceeded)\n"
-          "  :raises KafkaException: for other errors, see exception code\n"
-          "  :raises NotImplementedError: if timestamp is specified without underlying library support.\n"
-          "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.create_topics()\n"
         },
 
         { "delete_topics", (PyCFunction)Admin_delete_topics,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: delete_topics(topics, future, [request_timeout, operation_timeout])\n"
           "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.delete_topics()\n"
         },
 
         { "create_partitions", (PyCFunction)Admin_create_partitions,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: create_partitions(topics, future, [validate_only, request_timeout, operation_timeout])\n"
           "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.create_partitions()\n"
         },
 
         { "describe_configs", (PyCFunction)Admin_describe_configs,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: describe_configs(resources, future, [request_timeout, broker])\n"
           "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.describe_configs()\n"
         },
 
         { "alter_configs", (PyCFunction)Admin_alter_configs,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: alter_configs(resources, future, [request_timeout, broker])\n"
           "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.alter_configs()\n"
         },
 
 
@@ -1120,12 +1148,18 @@ Admin_c_topic_result_to_py (const rd_kafka_topic_result_t **c_result,
         result = PyDict_New();
 
         for (ti = 0 ; ti < cnt ; ti++) {
+                PyObject *error;
+
+                error = KafkaError_new_or_None(
+                        rd_kafka_topic_result_error(c_result[ti]),
+                        rd_kafka_topic_result_error_string(c_result[ti]));
+
                 PyDict_SetItemString(
                         result,
                         rd_kafka_topic_result_name(c_result[ti]),
-                        KafkaError_new_or_None(
-                                rd_kafka_topic_result_error(c_result[ti]),
-                                rd_kafka_topic_result_error_string(c_result[ti])));
+                        error);
+
+                Py_DECREF(error);
         }
 
         return result;
@@ -1146,12 +1180,14 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
         dict = PyDict_New();
 
         for (ci = 0 ; ci < config_cnt ; ci++) {
-                PyObject *kwargs = PyDict_New();
+                PyObject *kwargs, *args;
                 const rd_kafka_ConfigEntry_t *ent = c_configs[ci];
                 const rd_kafka_ConfigEntry_t **c_synonyms;
                 PyObject *entry, *synonyms;
                 size_t synonym_cnt;
                 const char *val;
+
+                kwargs = PyDict_New();
 
                 cfl_PyDict_SetString(kwargs, "name",
                                      rd_kafka_ConfigEntry_name(ent));
@@ -1182,9 +1218,11 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
                         return NULL;
                 }
                 PyDict_SetItemString(kwargs, "synonyms", synonyms);
+                Py_DECREF(synonyms);
 
-                PyObject *wrap = PyTuple_New(0);
-                entry = PyObject_Call(ConfigEntry_type, wrap, kwargs);
+                args = PyTuple_New(0);
+                entry = PyObject_Call(ConfigEntry_type, args, kwargs);
+                Py_DECREF(args);
                 Py_DECREF(kwargs);
                 if (!entry) {
                         Py_DECREF(dict);
@@ -1193,6 +1231,7 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
 
                 PyDict_SetItemString(dict, rd_kafka_ConfigEntry_name(ent),
                                      entry);
+                Py_DECREF(entry);
         }
 
 
@@ -1203,10 +1242,13 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
 /**
  * @brief Convert C ConfigResource array to dict indexed by ConfigResource
  *        with the value of dict(ConfigEntry).
+ *
+ * @param ret_configs If true, return configs rather than None.
  */
 static PyObject *
 Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resources,
-                                     size_t cnt) {
+                                     size_t cnt,
+                                     int ret_configs) {
         PyObject *result;
         PyObject *ConfigResource_type;
         PyObject *ConfigEntry_type;
@@ -1229,7 +1271,7 @@ Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resourc
         for (ri = 0 ; ri < cnt ; ri++) {
                 const rd_kafka_ConfigResource_t *c_res = c_resources[ri];
                 const rd_kafka_ConfigEntry_t **c_configs;
-                PyObject *args;
+                PyObject *kwargs, *wrap;
                 PyObject *key;
                 PyObject *configs, *error;
                 size_t config_cnt;
@@ -1244,25 +1286,34 @@ Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resourc
                         rd_kafka_ConfigResource_error(c_res),
                         rd_kafka_ConfigResource_error_string(c_res));
 
+                kwargs = PyDict_New();
+                cfl_PyDict_SetInt(kwargs, "restype",
+                                  (int)rd_kafka_ConfigResource_type(c_res));
+                cfl_PyDict_SetString(kwargs, "name",
+                                     rd_kafka_ConfigResource_name(c_res));
+                PyDict_SetItemString(kwargs, "described_configs", configs);
+                PyDict_SetItemString(kwargs, "error", error);
+                Py_DECREF(error);
 
-                args = Py_BuildValue("isOO",
-                                     (int)rd_kafka_ConfigResource_type(c_res),
-                                     rd_kafka_ConfigResource_name(c_res),
-                                     configs,
-                                     error);
-
-                key = PyObject_CallObject(ConfigResource_type, args);
-                Py_DECREF(args);
+                /* Instantiate ConfigResource */
+                wrap = PyTuple_New(0);
+                key = PyObject_Call(ConfigResource_type, wrap, kwargs);
+                Py_DECREF(wrap);
+                Py_DECREF(kwargs);
                 if (!key) {
                         Py_DECREF(configs);
                         goto err;
                 }
 
-                PyObject *wrap = PyDict_New();
-                PyDict_SetItemString(wrap, "error", error);
-                PyDict_SetItemString(wrap, "config", configs);
-                PyDict_SetItem(result, key, wrap);
-                Py_DECREF(wrap);
+                /* Set result to dict[ConfigResource(..)] = configs | None
+                 * depending on ret_configs */
+                if (ret_configs)
+                        PyDict_SetItem(result, key, configs);
+                else
+                        PyDict_SetItem(result, key, Py_None);
+
+                Py_DECREF(configs);
+                Py_DECREF(key);
         }
         return result;
 
@@ -1291,6 +1342,7 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         PyGILState_STATE gstate;
         PyObject *error, *method, *ret;
         PyObject *result = NULL;
+        PyObject *exctype = NULL, *exc = NULL, *excargs = NULL;
 
         /* Acquire GIL */
         gstate = PyGILState_Ensure();
@@ -1353,8 +1405,10 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 c_resources = rd_kafka_DescribeConfigs_result_resources(
                         rd_kafka_event_DescribeConfigs_result(rkev),
                         &resource_cnt);
-                result = Admin_c_ConfigResource_result_to_py(c_resources,
-                                                             resource_cnt);
+                result = Admin_c_ConfigResource_result_to_py(
+                        c_resources,
+                        resource_cnt,
+                        1/* return configs */);
                 break;
         }
 
@@ -1366,12 +1420,15 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 c_resources = rd_kafka_AlterConfigs_result_resources(
                         rd_kafka_event_AlterConfigs_result(rkev),
                         &resource_cnt);
-                result = Admin_c_ConfigResource_result_to_py(c_resources,
-                                                             resource_cnt);
+                result = Admin_c_ConfigResource_result_to_py(
+                        c_resources,
+                        resource_cnt,
+                        0/* return None instead of (the empty) configs */);
                 break;
         }
 
         default:
+                Py_DECREF(error); /* Py_None */
                 error = KafkaError_new0(RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE,
                                         "Unsupported event type %s",
                                         rd_kafka_event_name(rkev));
@@ -1379,6 +1436,7 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         }
 
         if (!result) {
+                Py_DECREF(error); /* Py_None */
                 if (!PyErr_Occurred()) {
                         error = KafkaError_new0(RD_KAFKA_RESP_ERR__INVALID_ARG,
                                                 "BUG: Event %s handling failed "
@@ -1390,29 +1448,13 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                          * the future.
                          * We loose the backtrace here unfortunately, so
                          * these errors are a bit cryptic. */
-                        PyObject *exctype, *trace, *reraise, *excargs;
+                        PyObject *trace = NULL;
 
-                        /* Fetch currently raised exception */
+                        /* Fetch (and clear) currently raised exception */
                         PyErr_Fetch(&exctype, &error, &trace);
-
-                        /* Create a new exception using the original exception's
-                         * type and message. */
-                        excargs = PyTuple_New(1);
-                        PyTuple_SET_ITEM(excargs, 0, error);
-                        reraise = ((PyTypeObject *)exctype)->tp_new(
-                                (PyTypeObject *)exctype, NULL, NULL);
-                        reraise->ob_type->tp_init(reraise, excargs, NULL);
-                        Py_DECREF(excargs);
-                        Py_XDECREF(exctype);
-                        Py_XDECREF(error);
                         Py_XDECREF(trace);
-
-                        /* error is handled by the raise: goto label below. */
-                        error = reraise;
-
-                        /* Clear the current exception. */
-                        PyErr_Clear();
                 }
+
                 goto raise;
         }
 
@@ -1425,6 +1467,7 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         Py_XDECREF(ret);
         Py_XDECREF(result);
         Py_DECREF(future);
+        Py_DECREF(method);
 
         /* Release GIL */
         PyGILState_Release(gstate);
@@ -1435,14 +1478,34 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
  raise:
         /*
-         * Call future.set_exception(error)
+         * Pass an exception to future.set_exception().
+         */
+
+        if (!exctype) {
+                /* No previous exception raised, use KafkaException */
+                exctype = KafkaException;
+                Py_INCREF(exctype);
+        }
+
+        /* Create a new exception based on exception type and error. */
+        excargs = PyTuple_New(1);
+        PyTuple_SET_ITEM(excargs, 0, error);
+        exc = ((PyTypeObject *)exctype)->tp_new(
+                (PyTypeObject *)exctype, NULL, NULL);
+        exc->ob_type->tp_init(exc, excargs, NULL);
+        Py_DECREF(excargs);
+        Py_XDECREF(exctype);
+        Py_XDECREF(error);
+
+        /*
+         * Call future.set_exception(exc)
          */
         method = cfl_PyUnistr(_FromString("set_exception"));
-        ret = PyObject_CallMethodObjArgs(future, method, error, NULL);
+        ret = PyObject_CallMethodObjArgs(future, method, exc, NULL);
         Py_XDECREF(ret);
-        Py_DECREF(error);
-
+        Py_DECREF(exc);
         Py_DECREF(future);
+        Py_DECREF(method);
 
         /* Release GIL */
         PyGILState_Release(gstate);
@@ -1526,6 +1589,7 @@ PyTypeObject AdminType = {
         "\n"
         "  Create new AdminClient instance using provided configuration dict.\n"
         "\n"
+        "This class should not be used directly, use confluent_kafka.AdminClient\n."
         "\n"
         ".. py:function:: len()\n"
         "\n"

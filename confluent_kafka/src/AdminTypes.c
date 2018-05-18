@@ -47,6 +47,10 @@ static int NewTopic_clear (NewTopic *self) {
                 Py_DECREF(self->replica_assignment);
                 self->replica_assignment = NULL;
         }
+        if (self->config) {
+                Py_DECREF(self->config);
+                self->config = NULL;
+        }
         return 0;
 }
 
@@ -67,16 +71,31 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                                "num_partitions",
                                "replication_factor",
                                "replica_assignment",
+                               "config",
                                NULL };
 
         self->replication_factor = -1;
         self->replica_assignment = NULL;
+        self->config = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|iO", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|iOO", kws,
                                          &topic, &self->num_partitions,
                                          &self->replication_factor,
-                                         &self->replica_assignment))
+                                         &self->replica_assignment,
+                                         &self->config))
                 return -1;
+
+
+        if (self->config) {
+                if (!PyDict_Check(self->config)) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "config must be a dict of strings");
+                        return -1;
+                }
+                Py_INCREF(self->config);
+        }
+
+        Py_XINCREF(self->replica_assignment);
 
         self->topic = strdup(topic);
 
@@ -96,6 +115,8 @@ static int NewTopic_traverse (NewTopic *self,
                               visitproc visit, void *arg) {
         if (self->replica_assignment)
                 Py_VISIT(self->replica_assignment);
+        if (self->config)
+                Py_VISIT(self->config);
         return 0;
 }
 
@@ -116,13 +137,18 @@ static PyMemberDef NewTopic_members[] = {
           "list is the replica assignment (broker ids) for that partition.\n"
           "replication_factor and replica_assignment are mutually exclusive.\n"
         },
+        { "config", T_OBJECT, offsetof(NewTopic, config),
+          0,
+          ":py:attribute: Optional topic configuration.\n"
+          "See http://kafka.apache.org/documentation.html#topicconfigs.\n"
+        },
         { NULL }
 };
 
 
 static PyObject *NewTopic_str0 (NewTopic *self) {
         return cfl_PyUnistr(
-                _FromFormat("NewTopic{topic=%s,num_partitions=%d}",
+                _FromFormat("NewTopic(topic=%s,num_partitions=%d)",
                             self->topic, self->num_partitions));
 }
 
@@ -207,7 +233,7 @@ PyTypeObject NewTopicType = {
         "NewTopic specifies per-topic settings for passing to "
         "passed to AdminClient.create_topics().\n"
         "\n"
-        ".. py:function:: NewTopic(topic, num_partitions, [replication_factor], [replica_assignment])\n"
+        ".. py:function:: NewTopic(topic, num_partitions, [replication_factor], [replica_assignment], [config])\n"
         "\n"
         "  Instantiate a NewTopic object.\n"
         "\n"
@@ -215,6 +241,7 @@ PyTypeObject NewTopicType = {
         "  :param int num_partitions: Number of partitions to create\n"
         "  :param int replication_factor: Replication factor of partitions, or -1 if replica_assignment is used.\n"
         "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
+        "  :param dict config: Dict (str:str) of topic configuration. See http://kafka.apache.org/documentation.html#topicconfigs\n"
         "  :rtype: NewTopic\n"
         "\n"
         "\n", /*tp_doc*/
@@ -286,6 +313,7 @@ static int NewPartitions_init (PyObject *self0, PyObject *args,
                 return -1;
 
         self->topic = strdup(topic);
+        Py_XINCREF(self->replica_assignment);
 
         return 0;
 }
@@ -324,7 +352,7 @@ static PyMemberDef NewPartitions_members[] = {
 
 static PyObject *NewPartitions_str0 (NewPartitions *self) {
         return cfl_PyUnistr(
-                _FromFormat("NewPartitions{topic=%s,new_total_count=%d}",
+                _FromFormat("NewPartitions(topic=%s,new_total_count=%d)",
                             self->topic, self->new_total_count));
 }
 

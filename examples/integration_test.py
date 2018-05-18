@@ -898,69 +898,138 @@ def verify_stats_cb():
     c.close()
 
 
+def verify_topic_metadata(client, exp_topics):
+    """
+    Verify that exp_topics (dict<topicname,partcnt>) is reported in metadata.
+    Will retry and wait for some time to let changes propagate.
+
+    Non-controller brokers may return the previous partition count for some
+    time before being updated, in this case simply retry.
+    """
+
+    for retry in range(0, 3):
+        do_retry = 0
+
+        md = client.list_topics()
+
+        for exptopic, exppartcnt in exp_topics.iteritems():
+            if exptopic not in md.topics:
+                print("Topic {} not yet reported in metadata: retrying".format(exptopic))
+                do_retry += 1
+                continue
+
+            if len(md.topics[exptopic].partitions) < exppartcnt:
+                print("Topic {} partition count not yet updated ({} != expected {}): retrying".format(
+                    exptopic, len(md.topics[exptopic].partitions), exppartcnt))
+                do_retry += 1
+                continue
+
+            assert len(md.topics[exptopic].partitions) == exppartcnt, \
+                "Expected {} partitions for topic {}, not {}".format(
+                    exppartcnt, exptopic, md.topics[exptopic].partitions)
+
+        if do_retry == 0:
+            return  # All topics okay.
+
+        time.sleep(1)
+
+    raise Exception("Timed out waiting for topics {} in metadata".format(exp_topics))
+
+
 def verify_admin():
     """ Verify Admin API """
-    a = confluent_kafka.AdminClient({'bootstrap.servers': bootstrap_servers})
 
+    a = confluent_kafka.AdminClient({'bootstrap.servers': bootstrap_servers})
     our_topic = topic + '_admin_' + str(uuid.uuid4())
     num_partitions = 2
 
-    # First only validate our_topic creation, then create it.
+    topic_config = {"compression.type": "gzip"}
+
+    #
+    # First iteration: validate our_topic creation.
+    # Second iteration: create topic.
+    #
     for validate in (True, False):
-        f = a.create_topics([confluent_kafka.NewTopic(our_topic,
-                                                      num_partitions=num_partitions,
-                                                      replication_factor=1)],
-                            validate_only=validate,
-                            operation_timeout=10.0)
+        fs = a.create_topics([confluent_kafka.NewTopic(our_topic,
+                                                       num_partitions=num_partitions,
+                                                       config=topic_config,
+                                                       replication_factor=1)],
+                             validate_only=validate,
+                             operation_timeout=10.0)
 
-        for error in iter(f.result().values()):
-            if error is not None:
-                raise error
+        for topic2, f in fs.iteritems():
+            f.result()  # trigger exception if there was an error
 
+    #
     # Find the topic in list_topics
-    md = a.list_topics()
-    assert our_topic in md.topics, "Expected {} in metadata: {}".format(our_topic, md.topics.keys())
+    #
+    verify_topic_metadata(a, {our_topic: num_partitions})
 
-    assert len(md.topics[our_topic].partitions) == num_partitions, \
-        "Expected {} partitions for topic {}, not {}".format(
-            num_partitions, our_topic, md.topics[our_topic].partitions)
-
+    #
     # Increase the partition count
+    #
     num_partitions += 3
-    f = a.create_partitions([confluent_kafka.NewPartitions(our_topic,
-                                                           new_total_count=num_partitions)],
-                            operation_timeout=10.0)
-    topic_errors = f.result()
-    if topic_errors[our_topic] is not None:
-        raise topic_errors[our_topic]
+    fs = a.create_partitions([confluent_kafka.NewPartitions(our_topic,
+                                                            new_total_count=num_partitions)],
+                             operation_timeout=10.0)
 
+    for topic2, f in fs.iteritems():
+        f.result()  # trigger exception if there was an error
+
+    #
     # Verify with list_topics.
-    # Non-controller brokers may return the previous partition count for some
-    # time before being updated, in this case simply retry.
-    while True:
-        md = a.list_topics(topic=our_topic)
-        assert our_topic in md.topics, "Expected {} in metadata: {}".format(
-            our_topic, md.topics.keys())
+    #
+    verify_topic_metadata(a, {our_topic: num_partitions})
 
-        if len(md.topics[our_topic].partitions) < num_partitions:
-            print("Topic {} partition count not yet updated: retrying".format(
-                our_topic))
-            time.sleep(1)
-            continue
+    def verify_config(expconfig, configs):
+        """
+        Verify that the config key,values in expconfig are found
+        and matches the ConfigEntry in configs.
+        """
+        for key, expvalue in expconfig.iteritems():
+            entry = configs.get(key, None)
+            assert entry is not None, "Config {} not found in returned configs".format(key)
 
-        assert len(md.topics[our_topic].partitions) == num_partitions, \
-            "Expected {} partitions for topic {}, not {}".format(
-                num_partitions, our_topic, md.topics[our_topic].partitions)
-        break
+            assert entry.value == str(expvalue), \
+                "Config {} with value {} does not match expected value {}".format(key, entry, expvalue)
 
+    #
+    # Get current topic config
+    #
+    resource = confluent_kafka.ConfigResource(confluent_kafka.RESOURCE_TOPIC, our_topic)
+    fs = a.describe_configs([resource])
+    configs = fs[resource].result()  # will raise exception on failure
+
+    # Verify config matches our expectations
+    verify_config(topic_config, configs)
+
+    #
+    # Now change the config.
+    #
+    topic_config["file.delete.delay.ms"] = 12345
+    topic_config["compression.type"] = "snappy"
+
+    for key, value in topic_config.iteritems():
+        resource.set_config(key, value)
+
+    fs = a.alter_configs([resource])
+    fs[resource].result()  # will raise exception on failure
+
+    #
+    # Read the config back again and verify.
+    #
+    fs = a.describe_configs([resource])
+    configs = fs[resource].result()  # will raise exception on failure
+
+    # Verify config matches our expectations
+    verify_config(topic_config, configs)
+
+    #
     # Delete the topic
-    f = a.delete_topics([our_topic])
-    topic_results = f.result()
-
-    error = topic_results[our_topic]
-    print('Delete topic {}: {}'.format(our_topic, error))
-    if error is not None:
-        raise error
+    #
+    fs = a.delete_topics([our_topic])
+    fs[our_topic].result()  # will raise exception on failure
+    print("Topic {} marked for deletion".format(our_topic))
 
 
 all_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']

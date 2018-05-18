@@ -19,7 +19,7 @@
 # Example Admin clients.
 #
 
-from confluent_kafka import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry
+from confluent_kafka import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry, KafkaException
 import sys
 
 
@@ -27,25 +27,20 @@ def example_create_topics(a, topics):
     """ Create topics """
 
     new_topics = [NewTopic(topic, num_partitions=3, replication_factor=1) for topic in topics]
-    # Call create_topics to asynchronously create topics, a future is returned.
-    f = a.create_topics(new_topics)
+    # Call create_topics to asynchronously create topics, a dict
+    # of <topic,future> is returned.
+    fs = a.create_topics(new_topics)
 
     # Wait for operation to finish.
     # Timeouts are preferably controlled by passing request_timeout=15.0
     # to the create_topics() call.
-    try:
-        res = f.result()
-    except Exception:
-        print('Request-level error:')
-        raise
-
-    # The result is a dict indexed by the topic name with the value
-    # being a KafkaError on error, or None on success.
-    for topic, error in res.iteritems():
-        if error is None:
-            print('Topic %s created' % topic)
-        else:
-            print('Failed to create topic %s: %s' % (topic, error))
+    # All futures will finish at the same time.
+    for topic, f in fs.iteritems():
+        try:
+            f.result()  # The result itself is None
+            print("Topic {} created".format(topic))
+        except Exception as e:
+            print("Failed to create topic {}: {}".format(topic, e))
 
 
 def example_delete_topics(a, topics):
@@ -55,22 +50,17 @@ def example_delete_topics(a, topics):
     # By default this operation on the broker returns immediately while
     # topics are deleted in the background. But here we give it some time (30s)
     # to propagate in the cluster before returning.
-    f = a.delete_topics(topics, operation_timeout=30)
+    #
+    # Returns a dict of <topic,future>.
+    fs = a.delete_topics(topics, operation_timeout=30)
 
     # Wait for operation to finish.
-    try:
-        res = f.result()
-    except Exception:
-        print('Request-level error:')
-        raise
-
-    # The result is a dict indexed by the topic name with the value
-    # being a KafkaError on error, or None on success.
-    for topic, error in res.iteritems():
-        if error is None:
-            print('Topic %s marked for deletion' % topic)
-        else:
-            print('Failed to delete topic %s: %s' % (topic, error))
+    for topic, f in fs.iteritems():
+        try:
+            f.result()  # The result itself is None
+            print("Topic {} deleted".format(topic))
+        except Exception as e:
+            print("Failed to delete topic {}: {}".format(topic, e))
 
 
 def example_create_partitions(a, topics):
@@ -81,22 +71,25 @@ def example_create_partitions(a, topics):
 
     # Try switching validate_only to True to only validate the operation
     # on the broker but not actually perform it.
-    f = a.create_partitions(new_parts, validate_only=False)
+    fs = a.create_partitions(new_parts, validate_only=False)
 
     # Wait for operation to finish.
-    try:
-        res = f.result()
-    except Exception:
-        print('Request-level error:')
-        raise
+    for topic, f in fs.iteritems():
+        try:
+            f.result()  # The result itself is None
+            print("Additional partitions created for topic {}".format(topic))
+        except Exception as e:
+            print("Failed to add partitions to topic {}: {}".format(topic, e))
 
-    # The result is a dict indexed by the topic name with the value
-    # being a KafkaError on error, or None on success.
-    for topic, error in res.iteritems():
-        if error is None:
-            print('Additional partitions created for topic %s' % topic)
-        else:
-            print('Failed to create additional partitions for topic %s: %s' % (topic, error))
+
+def print_config(config, depth):
+    print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s]' %
+          ((' ' * depth) + config.name, config.value,
+           ConfigEntry.config_source_to_str(config.source),
+           config.is_read_only, config.is_default,
+           config.is_sensitive, config.is_synonym,
+           ["%s:%s" % (x.name, ConfigEntry.config_source_to_str(x.source))
+            for x in iter(config.synonyms.values())]))
 
 
 def example_describe_configs(a, args):
@@ -105,36 +98,19 @@ def example_describe_configs(a, args):
     resources = [ConfigResource(restype, resname) for
                  restype, resname in zip(args[0::2], args[1::2])]
 
-    f = a.describe_configs(resources)
+    fs = a.describe_configs(resources)
 
     # Wait for operation to finish.
-    try:
-        resources = f.result()
-    except Exception:
-        print('Request-level error:')
-        raise
+    for res, f in fs.iteritems():
+        try:
+            configs = f.result()
+            for config in iter(configs.values()):
+                print_config(config, 1)
 
-    # The result is a dict indexed by FIXME.. the topic name with the value
-    # being a KafkaError on error, or None on success.
-    for res in resources:
-        if res.error is not None:
-            print(res)  # __str__ includes the error message
-            continue
-
-        for config in iter(res.configs.values()):
-            def print_config(config, depth):
-                print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s]' %
-                      ((' ' * depth) + config.name, config.value,
-                       ConfigEntry.config_source_to_str(config.source),
-                       config.is_read_only, config.is_default,
-                       config.is_sensitive, config.is_synonym,
-                       ["%s:%s" % (x.name,
-                                   ConfigEntry.config_source_to_str(x.source))
-                        for x in iter(config.synonyms.values())]))
-
-            print_config(config, 1)
-
-    print(res)
+        except KafkaException as e:
+            print("Failed to describe {}: {}".format(res, e))
+        except Exception as e:
+            raise
 
 
 def example_alter_configs(a, args):
@@ -147,18 +123,15 @@ def example_alter_configs(a, args):
         for k, v in [conf.split('=') for conf in configs.split(',')]:
             resource.set_config(k, v)
 
-    f = a.alter_configs(resources)
+    fs = a.alter_configs(resources)
 
     # Wait for operation to finish.
-    try:
-        res = f.result()
-    except Exception:
-        print('Request-level error:')
-        raise
-
-    # The result is a dict indexed by FIXME.. the topic name with the value
-    # being a KafkaError on error, or None on success.
-    print(res)
+    for res, f in fs.iteritems():
+        try:
+            f.result()  # empty, but raises exception on failure
+            print("{} configuration successfully altered".format(res))
+        except Exception:
+            raise
 
 
 def example_list(a, args):
