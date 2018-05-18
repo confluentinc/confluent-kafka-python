@@ -1427,14 +1427,9 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
                  * providing the same functionality from dr_msg_cb trampoline.
                  */
 
-                if (!PyBool_Check(valobj)) {
-                        cfl_PyErr_Format(
-                                RD_KAFKA_RESP_ERR__INVALID_ARG,
-                                "%s requires bool", name);
+                if (!cfl_PyBool_get(valobj, name,
+                                    &self->u.Producer.dr_only_error))
                         return -1;
-                }
-
-                self->u.Producer.dr_only_error = valobj == Py_True;
 
                 return 1;
         }
@@ -1831,20 +1826,30 @@ PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
 
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val) {
-        PyDict_SetItemString(dict, name, cfl_PyUnistr(_FromString(val)));
+        PyObject *vo = cfl_PyUnistr(_FromString(val));
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
 }
 
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
-        PyDict_SetItemString(dict, name, PyLong_FromLong((long)val));
+        PyObject *vo = cfl_PyInt_FromInt(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
 }
 
 
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
-        return PyObject_SetAttrString(o, name, cfl_PyUnistr(_FromString(val)));
+        PyObject *vo = cfl_PyUnistr(_FromString(val));
+        int r = PyObject_SetAttrString(o, name, vo);
+        Py_DECREF(vo);
+        return r;
 }
 
-int cfl_PyObject_SetLong (PyObject *o, const char *name, long val) {
-        return PyObject_SetAttrString(o, name, PyLong_FromLong(val));
+int cfl_PyObject_SetInt (PyObject *o, const char *name, int val) {
+        PyObject *vo = cfl_PyInt_FromInt(val);
+        int r = PyObject_SetAttrString(o, name, vo);
+        Py_DECREF(vo);
+        return r;
 }
 
 
