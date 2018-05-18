@@ -20,6 +20,14 @@ def build_doctree(tree, prefix, parent):
             continue
 
         o = parent.__dict__.get(n)
+        if o is None:
+            # Skip inherited (not overloaded)
+            continue
+
+        if isinstance(o, ModuleType):
+            # Skip imported modules
+            continue
+
         full = prefix + n
         tree[full].append(o)
 
