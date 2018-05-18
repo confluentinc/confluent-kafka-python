@@ -66,7 +66,7 @@ typedef struct {
 
 
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
-	return PyLong_FromLong(self->code);
+	return cfl_PyInt_FromInt(self->code);
 }
 
 static PyObject *KafkaError_str (KafkaError *self, PyObject *ignore) {
@@ -157,7 +157,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 	if (Py_TYPE(o2) == &KafkaErrorType)
 		code2 = ((KafkaError *)o2)->code;
 	else
-		code2 = (int)PyLong_AsLong(o2);
+		code2 = cfl_PyInt_AsInt(o2);
 
 	switch (op)
 	{
@@ -340,7 +340,7 @@ static PyObject *Message_topic (Message *self, PyObject *ignore) {
 
 static PyObject *Message_partition (Message *self, PyObject *ignore) {
 	if (self->partition != RD_KAFKA_PARTITION_UA)
-		return PyLong_FromLong(self->partition);
+		return cfl_PyInt_FromInt(self->partition);
 	else
 		Py_RETURN_NONE;
 }
@@ -1912,11 +1912,34 @@ int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
                 return 1;
         }
 
-        *valp = (int)PyLong_AsLong(o);
+        *valp = cfl_PyInt_AsInt(o);
         Py_DECREF(o);
 
         return 1;
 }
+
+
+/**
+ * @brief Checks that \p object is a bool (or boolable) and sets
+ *        \p *valp according to the object.
+ *
+ * @returns 1 if \p valp was set, or 0 if \p object is not a boolable object.
+ *          An exception is raised in the error case.
+ */
+int cfl_PyBool_get (PyObject *object, const char *name, int *valp) {
+        if (!PyBool_Check(object)) {
+                PyErr_Format(PyExc_TypeError,
+                             "Expected %s to be bool type, not %s",
+                             name,
+                             ((PyTypeObject *)PyObject_Type(object))->tp_name);
+                return 0;
+        }
+
+        *valp = object == Py_True;
+
+        return 1;
+}
+
 
 /**
  * @brief Get attribute \p attr_name from \p object and make sure it is
@@ -1983,7 +2006,7 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
 
         for (i = 0 ; i < cnt ; i++)
                 PyList_SET_ITEM(list, (Py_ssize_t)i,
-                                PyLong_FromLong((long)arr[i]));
+                                cfl_PyInt_FromInt(arr[i]));
 
         return list;
 }
@@ -2083,7 +2106,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 		if (!descs[i].desc)
 			continue;
 
-		code = PyLong_FromLong(descs[i].code);
+		code = cfl_PyInt_FromInt(descs[i].code);
 
 		PyDict_SetItemString(dict, descs[i].name, code);
 

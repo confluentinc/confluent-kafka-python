@@ -237,7 +237,7 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 	Py_DECREF(args);
 
 	if (result) {
-		r = (int32_t)PyLong_AsLong(result);
+		r = (int32_t)cfl_PyInt_AsInt(result);
 		if (PyErr_Occurred())
 			printf("FIXME: partition_cb returned wrong type "
 			       "(expected long), how to propagate?\n");
@@ -450,7 +450,7 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
 	if (r == -1)
 		return NULL;
 
-	return PyLong_FromLong(r);
+	return cfl_PyInt_FromInt(r);
 }
 
 
@@ -478,7 +478,7 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
                         return NULL;
         }
 #endif
-        return PyLong_FromLong(qlen);
+        return cfl_PyInt_FromInt(qlen);
 }
 
 static PyMethodDef Producer_methods[] = {

@@ -263,13 +263,29 @@ void CallState_resume (CallState *cs);
 void CallState_crash (CallState *cs);
 
 
+/**
+ * @brief Python 3 renamed the internal PyInt type to PyLong, but the
+ *        type is still exposed as 'int' in Python.
+ *        We use the (cfl_)PyInt name for both Python 2 and 3 to mean an int,
+ *        assuming it will be at least 31 bits+signed on all platforms.
+ */
+#ifdef PY3
+#define cfl_PyInt_Check(o) PyLong_Check(o)
+#define cfl_PyInt_AsInt(o) (int)PyLong_AsLong(o)
+#define cfl_PyInt_FromInt(v) PyLong_FromLong(v)
+#else
+#define cfl_PyInt_Check(o) PyInt_Check(o)
+#define cfl_PyInt_AsInt(o) (int)PyInt_AsLong(o)
+#define cfl_PyInt_FromInt(v) PyInt_FromLong(v)
+#endif
+
 
 PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val);
-int cfl_PyObject_SetLong (PyObject *o, const char *name, long val);
+int cfl_PyObject_SetInt (PyObject *o, const char *name, int val);
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
                           PyObject **valp, const PyTypeObject *py_type,
                           int required);
