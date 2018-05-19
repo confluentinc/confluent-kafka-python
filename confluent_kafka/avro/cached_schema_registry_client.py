@@ -267,8 +267,8 @@ class CachedSchemaRegistryClient(object):
             elif code >= 200 and code <= 299:
                 return result.get('is_compatible')
             else:
-                log.error("Unable to check the compatibility")
-                False
+                log.error("Unable to check the compatibility: " + str(code))
+                return False
         except Exception as e:
             log.error("_send_request() failed: %s", e)
             return False
