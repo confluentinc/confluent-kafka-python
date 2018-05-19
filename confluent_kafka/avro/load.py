@@ -27,7 +27,7 @@ def loads(schema_str):
             return schema.parse(schema_str)
         else:
             return schema.Parse(schema_str)
-    except schema.AvroException.SchemaParseException as e:
+    except schema.SchemaParseException as e:
         raise ClientError("Schema parse failed: %s" % (str(e)))
 
 
