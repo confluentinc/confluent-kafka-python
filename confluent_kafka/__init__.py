@@ -281,7 +281,7 @@ class AdminClient (AdminClientImpl):
         """
         try:
             result = f.result()
-            for topic, error in result.iteritems():
+            for topic, error in result.items():
                 fut = futmap.get(topic, None)
                 if fut is None:
                     raise RuntimeError("Topic {} not found in future-map: {}".format(topic, futmap))
@@ -294,7 +294,7 @@ class AdminClient (AdminClientImpl):
                     fut.set_result(None)
         except Exception as e:
             # Request-level exception, raise the same for all topics
-            for topic, fut in futmap.iteritems():
+            for topic, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -305,7 +305,7 @@ class AdminClient (AdminClientImpl):
         """
         try:
             result = f.result()
-            for resource, configs in result.iteritems():
+            for resource, configs in result.items():
                 fut = futmap.get(resource, None)
                 if fut is None:
                     raise RuntimeError("Resource {} not found in future-map: {}".format(resource, futmap))
@@ -319,7 +319,7 @@ class AdminClient (AdminClientImpl):
                     fut.set_result(configs)
         except Exception as e:
             # Request-level exception, raise the same for all resources
-            for resource, fut in futmap.iteritems():
+            for resource, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod

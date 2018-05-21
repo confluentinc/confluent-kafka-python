@@ -509,6 +509,8 @@ def verify_consumer():
 
     example_headers = None
 
+    eof_reached = dict()
+
     while True:
         # Consume until EOF or error
 
@@ -521,7 +523,10 @@ def verify_consumer():
             if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
                 print('Reached end of %s [%d] at offset %d' %
                       (msg.topic(), msg.partition(), msg.offset()))
-                break
+                eof_reached[(msg.topic(), msg.partition())] = True
+                if len(eof_reached) == len(c.assignment()):
+                    print('EOF reached for all assigned partitions: exiting')
+                    break
             else:
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
@@ -928,7 +933,7 @@ def verify_topic_metadata(client, exp_topics):
 
         md = client.list_topics()
 
-        for exptopic, exppartcnt in exp_topics.iteritems():
+        for exptopic, exppartcnt in exp_topics.items():
             if exptopic not in md.topics:
                 print("Topic {} not yet reported in metadata: retrying".format(exptopic))
                 do_retry += 1
@@ -973,7 +978,7 @@ def verify_admin():
                              validate_only=validate,
                              operation_timeout=10.0)
 
-        for topic2, f in fs.iteritems():
+        for topic2, f in fs.items():
             f.result()  # trigger exception if there was an error
 
     #
@@ -989,7 +994,7 @@ def verify_admin():
                                                             new_total_count=num_partitions)],
                              operation_timeout=10.0)
 
-    for topic2, f in fs.iteritems():
+    for topic2, f in fs.items():
         f.result()  # trigger exception if there was an error
 
     #
@@ -1002,7 +1007,7 @@ def verify_admin():
         Verify that the config key,values in expconfig are found
         and matches the ConfigEntry in configs.
         """
-        for key, expvalue in expconfig.iteritems():
+        for key, expvalue in expconfig.items():
             entry = configs.get(key, None)
             assert entry is not None, "Config {} not found in returned configs".format(key)
 
@@ -1025,7 +1030,7 @@ def verify_admin():
     topic_config["file.delete.delay.ms"] = 12345
     topic_config["compression.type"] = "snappy"
 
-    for key, value in topic_config.iteritems():
+    for key, value in topic_config.items():
         resource.set_config(key, value)
 
     fs = a.alter_configs([resource])

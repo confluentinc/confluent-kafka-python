@@ -35,7 +35,7 @@ def example_create_topics(a, topics):
     # Timeouts are preferably controlled by passing request_timeout=15.0
     # to the create_topics() call.
     # All futures will finish at the same time.
-    for topic, f in fs.iteritems():
+    for topic, f in fs.items():
         try:
             f.result()  # The result itself is None
             print("Topic {} created".format(topic))
@@ -55,7 +55,7 @@ def example_delete_topics(a, topics):
     fs = a.delete_topics(topics, operation_timeout=30)
 
     # Wait for operation to finish.
-    for topic, f in fs.iteritems():
+    for topic, f in fs.items():
         try:
             f.result()  # The result itself is None
             print("Topic {} deleted".format(topic))
@@ -74,7 +74,7 @@ def example_create_partitions(a, topics):
     fs = a.create_partitions(new_parts, validate_only=False)
 
     # Wait for operation to finish.
-    for topic, f in fs.iteritems():
+    for topic, f in fs.items():
         try:
             f.result()  # The result itself is None
             print("Additional partitions created for topic {}".format(topic))
@@ -101,7 +101,7 @@ def example_describe_configs(a, args):
     fs = a.describe_configs(resources)
 
     # Wait for operation to finish.
-    for res, f in fs.iteritems():
+    for res, f in fs.items():
         try:
             configs = f.result()
             for config in iter(configs.values()):
@@ -126,7 +126,7 @@ def example_alter_configs(a, args):
     fs = a.alter_configs(resources)
 
     # Wait for operation to finish.
-    for res, f in fs.iteritems():
+    for res, f in fs.items():
         try:
             f.result()  # empty, but raises exception on failure
             print("{} configuration successfully altered".format(res))
