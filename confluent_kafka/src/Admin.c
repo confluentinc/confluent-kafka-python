@@ -1489,13 +1489,14 @@ static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         /* Create a new exception based on exception type and error. */
         excargs = PyTuple_New(1);
+        Py_INCREF(error); /* tuple's reference */
         PyTuple_SET_ITEM(excargs, 0, error);
         exc = ((PyTypeObject *)exctype)->tp_new(
                 (PyTypeObject *)exctype, NULL, NULL);
         exc->ob_type->tp_init(exc, excargs, NULL);
         Py_DECREF(excargs);
         Py_XDECREF(exctype);
-        Py_XDECREF(error);
+        Py_XDECREF(error); /* from error source above */
 
         /*
          * Call future.set_exception(exc)

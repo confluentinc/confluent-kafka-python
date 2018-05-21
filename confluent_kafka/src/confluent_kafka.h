@@ -163,7 +163,6 @@ PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
 #define cfl_PyErr_Format(err,...) do {					\
 		PyObject *_eo = KafkaError_new0(err, __VA_ARGS__);	\
 		PyErr_SetObject(KafkaException, _eo);			\
-		Py_DECREF(_eo); \
 	} while (0)
 
 
