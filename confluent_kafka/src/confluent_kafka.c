@@ -969,7 +969,76 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 
 /**
+ * @brief Translate Python \p key and \p value to C types and set on
+ *        provided \p rd_headers object.
+ *
+ * @returns 1 on success or 0 if an exception was raised.
+ */
+static int py_header_to_c (rd_kafka_headers_t *rd_headers,
+                           PyObject *key, PyObject *value) {
+        PyObject *ks, *ks8, *vo8 = NULL;
+        const char *k;
+        const void *v = NULL;
+        Py_ssize_t vsize = 0;
+        rd_kafka_resp_err_t err;
+
+        if (!(ks = cfl_PyObject_Unistr(key))) {
+                PyErr_SetString(PyExc_TypeError,
+                                "expected header key to be unicode "
+                                "string");
+                return 0;
+        }
+
+        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+        if (value != Py_None) {
+                if (cfl_PyBin(_Check(value))) {
+                        /* Proper binary */
+                        if (cfl_PyBin(_AsStringAndSize(value, (char **)&v,
+                                                       &vsize)) == -1) {
+                                Py_DECREF(ks);
+                                return 0;
+                        }
+                } else if (cfl_PyUnistr(_Check(value))) {
+                        /* Unicode string, translate to utf-8. */
+                        v = cfl_PyUnistr_AsUTF8(value, &vo8);
+                        if (!v) {
+                                Py_DECREF(ks);
+                                return 0;
+                        }
+                        vsize = (Py_ssize_t)strlen(v);
+                } else {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected header value to be "
+                                     "None, binary, or unicode string, not %s",
+                                     ((PyTypeObject *)PyObject_Type(value))->
+                                     tp_name);
+                        return 0;
+                }
+        }
+
+        if ((err = rd_kafka_header_add(rd_headers, k, -1, v, vsize))) {
+                cfl_PyErr_Format(err,
+                                 "Unable to add message header \"%s\": "
+                                 "%s",
+                                 k, rd_kafka_err2str(err));
+                Py_DECREF(ks);
+                Py_XDECREF(vo8);
+                return 0;
+        }
+
+        Py_DECREF(ks);
+        Py_XDECREF(vo8);
+
+        return 1;
+}
+
+/**
  * @brief Convert Python list of tuples to rd_kafka_headers_t
+ *
+ * Header names must be unicode strong.
+ * Header values may be None, binary or unicode string, the latter is
+ * automatically encoded as utf-8.
  */
 static rd_kafka_headers_t *py_headers_list_to_c (PyObject *hdrs) {
         int i, len;
@@ -979,28 +1048,19 @@ static rd_kafka_headers_t *py_headers_list_to_c (PyObject *hdrs) {
         rd_headers = rd_kafka_headers_new(len);
 
         for (i = 0; i < len; i++) {
-                rd_kafka_resp_err_t err;
-                const char *header_key, *header_value = NULL;
-                int header_key_len = 0, header_value_len = 0;
+                PyObject *tuple = PyList_GET_ITEM(hdrs, i);
 
-                if(!PyArg_ParseTuple(PyList_GET_ITEM(hdrs, i), "s#z#",
-                                     &header_key, &header_key_len,
-                                     &header_value, &header_value_len)){
+                if (!PyTuple_Check(tuple) || PyTuple_Size(tuple) != 2) {
                         rd_kafka_headers_destroy(rd_headers);
                         PyErr_SetString(PyExc_TypeError,
                                         "Headers are expected to be a "
-                                        "tuple of (key, value)");
+                                        "list of (key, value) tuples");
                         return NULL;
                 }
 
-                err = rd_kafka_header_add(rd_headers,
-                                          header_key, header_key_len,
-                                          header_value, header_value_len);
-                if (err) {
-                        cfl_PyErr_Format(err,
-                                         "Unable to add message header \"%s\": "
-                                         "%s",
-                                         header_key, rd_kafka_err2str(err));
+                if (!py_header_to_c(rd_headers,
+                                    PyTuple_GET_ITEM(tuple, 0),
+                                    PyTuple_GET_ITEM(tuple, 1))) {
                         rd_kafka_headers_destroy(rd_headers);
                         return NULL;
                 }
@@ -1022,42 +1082,11 @@ static rd_kafka_headers_t *py_headers_dict_to_c (PyObject *hdrs) {
         rd_headers = rd_kafka_headers_new(len);
 
         while (PyDict_Next(hdrs, &pos, &ko, &vo)) {
-                PyObject *ks, *ks8;
-                const char *k;
-                const void *v = NULL;
-                Py_ssize_t vsize = 0;
-                rd_kafka_resp_err_t err;
 
-                if (!(ks = cfl_PyObject_Unistr(ko))) {
-                        PyErr_SetString(PyExc_TypeError,
-                                        "expected header key to be unicode "
-                                        "string");
+                if (!py_header_to_c(rd_headers, ko, vo)) {
                         rd_kafka_headers_destroy(rd_headers);
                         return NULL;
                 }
-
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-
-                if (vo != Py_None) {
-                        if (cfl_PyBin(_AsStringAndSize(vo, (char **)&v,
-                                                       &vsize)) == -1) {
-                                Py_DECREF(ks);
-                                rd_kafka_headers_destroy(rd_headers);
-                                return NULL;
-                        }
-                }
-
-                if ((err = rd_kafka_header_add(rd_headers, k, -1, v, vsize))) {
-                        cfl_PyErr_Format(err,
-                                         "Unable to add message header \"%s\": "
-                                         "%s",
-                                         k, rd_kafka_err2str(err));
-                        Py_DECREF(ks);
-                        rd_kafka_headers_destroy(rd_headers);
-                        return NULL;
-                }
-
-                Py_DECREF(ks);
         }
 
         return rd_headers;

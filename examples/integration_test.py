@@ -61,6 +61,25 @@ api_version_request = True
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
+# Shared between producer and consumer tests and used to verify
+# that consumed headers are what was actually produced.
+produce_headers = [('foo1', 'bar'),
+                   ('foo1', 'bar2'),
+                   ('foo2', b'1'),
+                   ('Jämtland', 'Härjedalen'),  # automatically utf-8 encoded
+                   ('nullheader', None),
+                   ('empty', ''),
+                   ('foobin', struct.pack('hhl', 10, 20, 30))]
+
+# Identical to produce_headers but with proper binary typing
+expected_headers = [('foo1', b'bar'),
+                    ('foo1', b'bar2'),
+                    ('foo2', b'1'),
+                    ('Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
+                    ('nullheader', None),
+                    ('empty', b''),
+                    ('foobin', struct.pack('hhl', 10, 20, 30))]
+
 
 def error_cb(err):
     print('Error: %s' % err)
@@ -126,8 +145,7 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
-    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1'),
-               ('foobin', struct.pack('hhl', 10, 20, 30))]
+    headers = produce_headers
 
     # Produce some messages
     p.produce(topic, 'Hello Python!', headers=headers)
@@ -444,7 +462,7 @@ def verify_consumer_seek(c, seek_to_msg):
         msg = c.poll()
         assert msg is not None
         if msg.error():
-            print('seek: Ignoring non-message: %s' % msg)
+            print('seek: Ignoring non-message: %s' % msg.error())
             continue
 
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
@@ -489,7 +507,7 @@ def verify_consumer():
 
     first_msg = None
 
-    example_header = None
+    example_headers = None
 
     while True:
         # Consume until EOF or error
@@ -511,7 +529,7 @@ def verify_consumer():
         tstype, timestamp = msg.timestamp()
         headers = msg.headers()
         if headers:
-            example_header = headers
+            example_headers = headers
 
         msg.set_headers([('foo', 'bar')])
         assert msg.headers() == [('foo', 'bar')]
@@ -544,15 +562,13 @@ def verify_consumer():
             print('Sync committed offset: %s' % offsets)
 
         msgcnt += 1
-        if msgcnt >= max_msgcnt and example_header is not None:
+        if msgcnt >= max_msgcnt and example_headers is not None:
             print('max_msgcnt %d reached' % msgcnt)
             break
 
-    assert example_header, "We should have received at least one header"
-    assert example_header == [(u'foo1', 'bar'),
-                              (u'foo1', 'bar2'),
-                              (u'foo2', '1'),
-                              ('foobin', struct.pack('hhl', 10, 20, 30))]
+    assert example_headers, "We should have received at least one header"
+    assert example_headers == expected_headers, \
+        "example header mismatch:\n{}\nexpected:\n{}".format(example_headers, expected_headers)
 
     # Get current assignment
     assignment = c.assignment()
