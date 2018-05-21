@@ -40,8 +40,6 @@ static int Admin_clear (Handle *self) {
 static void Admin_dealloc (Handle *self) {
         PyObject_GC_UnTrack(self);
 
-        Admin_clear(self);
-
         if (self->rk) {
                 CallState cs;
                 CallState_begin(self, &cs);
@@ -50,6 +48,8 @@ static void Admin_dealloc (Handle *self) {
 
                 CallState_end(self, &cs);
         }
+
+        Admin_clear(self);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
 }

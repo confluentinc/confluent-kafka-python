@@ -28,7 +28,7 @@
  ****************************************************************************/
 
 
-static int Consumer_clear (Handle *self) {
+static void Consumer_clear0 (Handle *self) {
 	if (self->u.Consumer.on_assign) {
 		Py_DECREF(self->u.Consumer.on_assign);
 		self->u.Consumer.on_assign = NULL;
@@ -45,18 +45,20 @@ static int Consumer_clear (Handle *self) {
 	        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
 	        self->u.Consumer.rkqu = NULL;
 	}
+}
 
-	Handle_clear(self);
-
-	return 0;
+static int Consumer_clear (Handle *self) {
+        Consumer_clear0(self);
+        Handle_clear(self);
+        return 0;
 }
 
 static void Consumer_dealloc (Handle *self) {
 	PyObject_GC_UnTrack(self);
 
-	Consumer_clear(self);
+        Consumer_clear0(self);
 
-	if (self->rk) {
+        if (self->rk) {
                 CallState cs;
 
                 CallState_begin(self, &cs);
@@ -70,6 +72,8 @@ static void Consumer_dealloc (Handle *self) {
 
                 CallState_end(self, &cs);
         }
+
+        Handle_clear(self);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
 }

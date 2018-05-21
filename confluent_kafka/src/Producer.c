@@ -88,27 +88,29 @@ Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
 }
 
 
+static void Producer_clear0 (Handle *self) {
+        if (self->u.Producer.default_dr_cb) {
+                Py_DECREF(self->u.Producer.default_dr_cb);
+                self->u.Producer.default_dr_cb = NULL;
+        }
+        if (self->u.Producer.partitioner_cb) {
+                Py_DECREF(self->u.Producer.partitioner_cb);
+                self->u.Producer.partitioner_cb = NULL;
+        }
+}
+
 static int Producer_clear (Handle *self) {
-	if (self->u.Producer.default_dr_cb) {
-		Py_DECREF(self->u.Producer.default_dr_cb);
-		self->u.Producer.default_dr_cb = NULL;
-	}
-	if (self->u.Producer.partitioner_cb) {
-		Py_DECREF(self->u.Producer.partitioner_cb);
-		self->u.Producer.partitioner_cb = NULL;
-	}
-
-	Handle_clear(self);
-
-	return 0;
+        Producer_clear0(self);
+        Handle_clear(self);
+        return 0;
 }
 
 static void Producer_dealloc (Handle *self) {
 	PyObject_GC_UnTrack(self);
 
-	Producer_clear(self);
+        Producer_clear0(self);
 
-	if (self->rk) {
+        if (self->rk) {
                 CallState cs;
                 CallState_begin(self, &cs);
 
@@ -116,6 +118,8 @@ static void Producer_dealloc (Handle *self) {
 
                 CallState_end(self, &cs);
         }
+
+        Handle_clear(self);
 
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
