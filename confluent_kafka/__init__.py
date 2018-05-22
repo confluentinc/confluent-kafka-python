@@ -634,3 +634,25 @@ class PartitionMetadata (object):
 
     def __str__(self):
         return "{}".format(self.partition)
+
+
+class ThrottleEvent (object):
+    """
+    ThrottleEvent passed as an argument to throttle_cb.
+    Contains details about requests throttled by the broker.
+
+    This class is typically not user instantiated.
+
+    :ivar broker_name:
+    :ivar broker_id:
+    :ivar throttle_time_ms:
+
+
+    """
+    def __init__(self, broker_name=None,
+                 broker_id=-1,
+                 throttle_time_ms=-1):
+
+        self.broker_name = broker_name
+        self.broker_id = broker_id
+        self.throttle_time_ms = throttle_time_ms

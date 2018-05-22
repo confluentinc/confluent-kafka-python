@@ -1188,10 +1188,10 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 }
 
 static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
-        int throttle_time_ms, void *opaque) {
-
+       int throttle_time_ms, void *opaque) {
 	Handle *h = opaque;
-	PyObject *eo, *result;
+	PyObject *ThrottleEvent_type, *throttle_event;
+	PyObject *result, *kwargs, *args;
 	CallState *cs;
 
 	cs = CallState_get(h);
@@ -1200,20 +1200,42 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
 		goto done;
 	}
 
-	eo = Py_BuildValue("{s:s,s:i,s:i}", "broker_name", broker_name, "broker_id", broker_id,
-	        "throttle_time_ms", throttle_time_ms);
+    ThrottleEvent_type = cfl_PyObject_lookup("confluent_kafka",
+                                              "ThrottleEvent");
 
-	result = PyObject_CallFunctionObjArgs(h->throttle_cb, eo, NULL);
+    if(!ThrottleEvent_type) {
+        /*ThrottleEvent class not found*/
+        goto err;
+    }
 
-	Py_DECREF(eo);
+    args = Py_BuildValue("(sii)", broker_name, broker_id, throttle_time_ms);
+    throttle_event = PyObject_Call(ThrottleEvent_type, args, NULL);
 
-	if (result)
-		Py_DECREF(result);
-	else {
-		CallState_crash(cs);
-		rd_kafka_yield(h->rk);
-	}
+    Py_DECREF(args);
+    Py_DECREF(ThrottleEvent_type);
 
+    if(!throttle_event) {
+        /* Failed to instantiate ThrottleEvent object */
+        goto err;
+     }
+
+    result = PyObject_CallFunctionObjArgs(h->throttle_cb, throttle_event, NULL);
+
+    Py_DECREF(throttle_event);
+
+	if(result) {
+	    /* throttle_cb executed successfully */
+	    Py_DECREF(result);
+	    goto done;
+    }
+
+ /**
+  * stop callback dispatcher, return err to application
+  * fall-through to unlock GIL
+  */
+ err:
+    CallState_crash(cs);
+    rd_kafka_yield(h->rk);
  done:
 	CallState_resume(cs);
 }
@@ -1894,7 +1916,7 @@ void CallState_crash (CallState *cs) {
  * @raises a TypeError exception if the type is not found.
  */
 
-PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
+    PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
         PyObject *module = PyImport_ImportModule(modulename);
         PyObject *obj;
 

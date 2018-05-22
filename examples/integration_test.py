@@ -39,7 +39,6 @@ except Exception as e:
 
 try:
     from progress.bar import Bar
-
     with_progress = True
 except ImportError as e:
     with_progress = False
@@ -90,12 +89,15 @@ def error_cb(err):
 
 
 def throttle_cb(t_report):
+    # validate argument type
+    assert isinstance(t_report, confluent_kafka.ThrottleEvent)
+
     global throttled_requests
     throttled_requests += 1
 
-    print('Request to broker %s[id=%d] throttled for %d ms' % (t_report.get('broker_name'),
-                                                               t_report.get('broker_id'),
-                                                               t_report.get('throttle_time_ms')))
+    print('Request to broker %s[id=%d] throttled for %d ms' % (t_report.broker_name,
+                                                               t_report.broker_id,
+                                                               t_report.throttle_time_ms))
 
 
 class InMemorySchemaRegistry(object):
@@ -425,9 +427,9 @@ def verify_producer_performance(with_dr_cb=True):
         bar.finish()
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt / t_produce_spent) / (1024 * 1024)))
+           (bytecnt/t_produce_spent) / (1024*1024)))
     print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
     print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
@@ -436,9 +438,9 @@ def verify_producer_performance(with_dr_cb=True):
     t_delivery_spent = time.time() - t_produce_start
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt / t_produce_spent) / (1024 * 1024)))
+           (bytecnt/t_produce_spent) / (1024*1024)))
 
     # Fake numbers if not using a dr_cb
     if not with_dr_cb:
@@ -447,9 +449,9 @@ def verify_producer_performance(with_dr_cb=True):
         dr.bytes_delivered = bytecnt
 
     print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (dr.msgs_delivered, dr.bytes_delivered / (1024 * 1024), t_delivery_spent,
+          (dr.msgs_delivered, dr.bytes_delivered / (1024*1024), t_delivery_spent,
            dr.msgs_delivered / t_delivery_spent,
-           (dr.bytes_delivered / t_delivery_spent) / (1024 * 1024)))
+           (dr.bytes_delivered/t_delivery_spent) / (1024*1024)))
     print('# post-produce delivery wait took %.3fs' %
           (t_delivery_spent - t_produce_spent))
 
@@ -574,7 +576,7 @@ def verify_consumer():
         elif (msg.offset() % 4) == 0:
             offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-            assert offsets[0].offset == msg.offset() + 1, \
+            assert offsets[0].offset == msg.offset()+1, \
                 'expected offset %d to be committed, not %s' % \
                 (msg.offset(), offsets)
             print('Sync committed offset: %s' % offsets)
@@ -692,8 +694,8 @@ def verify_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
 
     print('closing consumer')
     c.close()
@@ -747,7 +749,7 @@ def verify_batch_consumer():
             elif (msg.offset() % 4) == 0:
                 offsets = c.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-                assert offsets[0].offset == msg.offset() + 1, \
+                assert offsets[0].offset == msg.offset()+1, \
                     'expected offset %d to be committed, not %s' % \
                     (msg.offset(), offsets)
                 print('Sync committed offset: %s' % offsets)
@@ -848,22 +850,22 @@ def verify_batch_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
 
     print('closing consumer')
     c.close()
 
 
 def verify_throttle_cb():
-    """ Time how long it takes to produce and delivery X messages """
+    """ Verify throttle_cb is invoked """
     conf = {'bootstrap.servers': bootstrap_servers,
             'api.version.request': api_version_request,
             'linger.ms': 500,
             'client.id': 'throttled_client',
             'throttle_cb': throttle_cb}
 
-    p = confluent_kafka.Producer(**conf)
+    p = confluent_kafka.Producer(conf)
 
     msgcnt = 1000000
     msgsize = 100
@@ -977,8 +979,8 @@ def verify_stats_cb():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024 * 1024)))
+              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024*1024)))
 
     print('closing consumer')
     c.close()
@@ -1118,7 +1120,10 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
-all_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
+# Exclude throttle since from default list
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
+all_modes = default_modes + ['throttle']
+
 """All test modes"""
 
 
@@ -1159,7 +1164,7 @@ if __name__ == '__main__':
         print_usage(1)
 
     if len(modes) == 0:
-        modes = all_modes
+        modes = default_modes
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
@@ -1179,10 +1184,6 @@ if __name__ == '__main__':
             print('=' * 30, 'Verifying Producer performance (without dr_cb)', '=' * 30)
             verify_producer_performance(with_dr_cb=False)
 
-        # The throttle test is utilizing the producer.
-        print('=' * 30, 'Verifying throttle_cb', '=' * 30)
-        verify_throttle_cb()
-
     if 'consumer' in modes:
         print('=' * 30, 'Verifying Consumer', '=' * 30)
         verify_consumer()
@@ -1200,6 +1201,11 @@ if __name__ == '__main__':
         # The stats test is utilizing the consumer.
         print('=' * 30, 'Verifying stats_cb', '=' * 30)
         verify_stats_cb()
+
+    # The throttle test is utilizing the producer.
+    if 'throttle' in modes:
+        print('=' * 30, 'Verifying throttle_cb', '=' * 30)
+        verify_throttle_cb()
 
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)

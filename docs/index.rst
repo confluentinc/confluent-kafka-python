@@ -92,8 +92,8 @@ The Python bindings also provide some additional configuration properties:
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served by
   poll().
 
-* ``throttle_cb({broker_name_str, broker_id_int, throttle_time_ms_int})``: Callback for thorttled request reporting.
-  This callback is served by poll().
+* ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
+  This callback is served by poll() and flush().
 
 * ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll()
   every ``statistics.interval.ms`` (needs to be configured separately).
