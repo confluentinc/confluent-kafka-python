@@ -301,6 +301,7 @@ class CachedSchemaRegistryClient(object):
         Get the current compatibility level for a subject.  Result will be one of:
 
         @:param: subject: subject name
+        @:raises: ClientError: if the request was unsuccessful or an invalid compatibility level was returned
         @:return: 'NONE','FULL','FORWARD', or 'BACKWARD'
         """
         url = '/'.join([self.url, 'config'])
@@ -308,10 +309,16 @@ class CachedSchemaRegistryClient(object):
             url += '/' + subject
 
         result, code = self._send_request(url)
-        if code >= 200 and code <= 299:
-            compatibility = result.get('compatibility', None)
+        is_successful_request = code >= 200 and code <= 299
+        if not is_successful_request:
+            raise ClientError('Unable to fetch compatibility level. Error code: %d' % code)
 
-        if not compatibility:
-            compatibility = result.get('compatibilityLevel')
+        compatibility = result.get('compatibility', None)
+        if compatibility not in VALID_LEVELS:
+            if compatibility is None:
+                error_msg_suffix = 'No compatibility was returned'
+            else:
+                error_msg_suffix = str(compatibility)
+            raise ClientError('Invalid compatibility level received: %s' % error_msg_suffix)
 
         return compatibility
