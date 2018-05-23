@@ -52,5 +52,5 @@ class TestUtil(unittest.TestCase):
 
     def test_schema_load_parse_error(self):
         with pytest.raises(avro.ClientError) as excinfo:
-            parsed = avro.loads(WRONG_SCHEMA)
+            avro.loads(WRONG_SCHEMA)
         assert 'Schema parse failed: Type property "array" not a valid Avro schema' in str(excinfo.value)
