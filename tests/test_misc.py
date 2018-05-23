@@ -99,3 +99,33 @@ def test_conf_none():
 
     global seen_stats_cb_check_no_brokers
     assert seen_stats_cb_check_no_brokers
+
+
+def throttle_cb_instantiate_fail():
+    """ Ensure noncallables raise TypeError"""
+    conf = {
+        'throttle_cb': 1
+    }
+
+    try:
+        confluent_kafka.Producer(conf)
+    except(TypeError) as e:
+        assert str(e) == "expected throttle_cb property as a callable function"
+
+
+def throttle_cb_instantiate():
+    """ Ensure we can configure a proper callback"""
+
+    def throttle_cb(throttle_event):
+        """NOOP"""
+
+    conf = {
+        'throttle_cb': throttle_cb
+    }
+
+    confluent_kafka.Producer(conf)
+
+
+def test_throttleevent_instantiate():
+    """ Instantiate a ThrottleEvent """
+    assert isinstance(confluent_kafka.ThrottleEvent(), confluent_kafka.ThrottleEvent)

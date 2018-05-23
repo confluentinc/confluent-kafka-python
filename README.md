@@ -277,14 +277,9 @@ In order to run full test suite, simply execute:
 **NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](tools/bootstrap-librdkafka.sh) into `tmp-build`.
 
 
-**Run integration tests:**
+**Integration tests:**
 
-To run the integration tests, uncomment the following line from `tox.ini` and add the addresses to your Kafka and Confluent Schema Registry instances. You can also run the integration tests outside of `tox` by running this command from the source root.
-
-    examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
-
-**WARNING**: These tests require an active Kafka cluster and will create new topics.
-
+    See [tests/README.md](tests/README.md) for instructions on how to run integration tests.
 
 
 

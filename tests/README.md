@@ -1,6 +1,8 @@
 Unit tests
 ==========
 
+**WARNING**: These tests require an active Kafka cluster and will create new topics.
+
 From top-level directory run:
 
     $ tox
