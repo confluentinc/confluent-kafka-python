@@ -279,19 +279,12 @@ In order to run full test suite, simply execute:
 
 **Run integration tests:**
 
-To run the confluent-kafka-python integration tests you will need access to a running Kafka cluster. In order to execute successfully client will need create, read and write topics. Additionally you will need access to Zookeeper in order to set a request quota for the client `throttled-client`.
-
-```
-kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
-        --alter --add-config 'request_percentage=01' \
-        --entity-name throttled_client --entity-type clients
-```
-
-To run the integration tests, run the kafka-configs command above and uncomment the following line from `tox.ini`.
+To run the integration tests, uncomment the following line from `tox.ini` and add the paths to your Kafka and Confluent Schema Registry instances. You can also run the integration tests outside of `tox` by running this command from the source root.
 
     examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
 
-Be sure to update Zookeeper, Broker and Schema Registry connection string with appropriate values. You can also run the integration tests outside of `tox` by running this command from the top level directory.
+**WARNING**: These tests require an active Kafka cluster and will create new topics.
+
 
 
 
