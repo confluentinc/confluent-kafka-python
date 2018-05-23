@@ -858,7 +858,10 @@ def verify_batch_consumer_performance():
 
 
 def verify_throttle_cb():
-    """ Verify throttle_cb is invoked """
+    """ Verify throttle_cb is invoked
+        This test requires client quotas be configured.
+        See tests/README for more information
+    """
     conf = {'bootstrap.servers': bootstrap_servers,
             'api.version.request': api_version_request,
             'linger.ms': 500,
@@ -867,7 +870,7 @@ def verify_throttle_cb():
 
     p = confluent_kafka.Producer(conf)
 
-    msgcnt = 1000000
+    msgcnt = 1000
     msgsize = 100
     msg_pattern = 'test.py throttled client'
     msg_payload = (msg_pattern * int(msgsize / len(msg_pattern)))[0:msgsize]
@@ -1119,8 +1122,8 @@ def verify_admin():
 
 
 # Exclude throttle since from default list
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
-all_modes = default_modes + ['throttle']
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
+all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
 

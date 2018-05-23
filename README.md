@@ -279,7 +279,7 @@ In order to run full test suite, simply execute:
 
 **Run integration tests:**
 
-To run the integration tests, uncomment the following line from `tox.ini` and add the paths to your Kafka and Confluent Schema Registry instances. You can also run the integration tests outside of `tox` by running this command from the source root.
+To run the integration tests, uncomment the following line from `tox.ini` and add the addresses to your Kafka and Confluent Schema Registry instances. You can also run the integration tests outside of `tox` by running this command from the source root.
 
     examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
 

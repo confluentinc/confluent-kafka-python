@@ -1188,49 +1188,49 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 }
 
 static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
-       int throttle_time_ms, void *opaque) {
-	Handle *h = opaque;
-	PyObject *ThrottleEvent_type, *throttle_event;
-	PyObject *result, *kwargs, *args;
-	CallState *cs;
+                         int throttle_time_ms, void *opaque) {
+        Handle *h = opaque;
+        PyObject *ThrottleEvent_type, *throttle_event;
+        PyObject *result, *kwargs, *args;
+        CallState *cs;
 
-	cs = CallState_get(h);
-	if (!h->throttle_cb) {
-		/* No callback defined */
-		goto done;
-	}
+        cs = CallState_get(h);
+        if (!h->throttle_cb) {
+                /* No callback defined */
+	        goto done;
+        }
 
-    ThrottleEvent_type = cfl_PyObject_lookup("confluent_kafka",
-                                              "ThrottleEvent");
+        ThrottleEvent_type = cfl_PyObject_lookup("confluent_kafka",
+                                                 "ThrottleEvent");
 
-    if(!ThrottleEvent_type) {
-        /*ThrottleEvent class not found*/
-        goto err;
-    }
+        if (!ThrottleEvent_type) {
+                /*ThrottleEvent class not found*/
+                goto err;
+        }
 
-    args = Py_BuildValue("(sii)", broker_name, broker_id, throttle_time_ms);
-    throttle_event = PyObject_Call(ThrottleEvent_type, args, NULL);
+        args = Py_BuildValue("(sid)", broker_name, broker_id, throttle_time_ms);
+        throttle_event = PyObject_Call(ThrottleEvent_type, args, NULL);
 
-    Py_DECREF(args);
-    Py_DECREF(ThrottleEvent_type);
+        Py_DECREF(args);
+        Py_DECREF(ThrottleEvent_type);
 
-    if(!throttle_event) {
-        /* Failed to instantiate ThrottleEvent object */
-        goto err;
-     }
+        if (!throttle_event) {
+                /* Failed to instantiate ThrottleEvent object */
+                goto err;
+        }
 
-    result = PyObject_CallFunctionObjArgs(h->throttle_cb, throttle_event, NULL);
+        result = PyObject_CallFunctionObjArgs(h->throttle_cb, throttle_event, NULL);
 
-    Py_DECREF(throttle_event);
+        Py_DECREF(throttle_event);
 
-	if(result) {
-	    /* throttle_cb executed successfully */
-	    Py_DECREF(result);
-	    goto done;
-    }
+        if(result) {
+                /* throttle_cb executed successfully */
+                Py_DECREF(result);
+                goto done;
+        }
 
  /**
-  * stop callback dispatcher, return err to application
+  * Stop callback dispatcher, return err to application
   * fall-through to unlock GIL
   */
  err:
@@ -1679,30 +1679,28 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
-
-		} else if (!strcmp(k, "throttle_cb")) {
-			if (!PyCallable_Check(vo)) {
-				PyErr_SetString(PyExc_TypeError,
-						"expected throttle_cb property "
-						"as a callable function");
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
+                } else if (!strcmp(k, "throttle_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                        "expected throttle_cb property "
+                                        "as a callable function");
+                                rd_kafka_topic_conf_destroy(tconf);
+                                rd_kafka_conf_destroy(conf);
                                 Py_XDECREF(ks8);
-				Py_DECREF(ks);
-				return NULL;
+                                Py_DECREF(ks);
+                                return NULL;
                         }
-			if (h->throttle_cb) {
-				Py_DECREF(h->throttle_cb);
-				h->throttle_cb = NULL;
-			}
-			if (vo != Py_None) {
-				h->throttle_cb = vo;
-				Py_INCREF(h->throttle_cb);
-			}
+                        if (h->throttle_cb) {
+                                Py_DECREF(h->throttle_cb);
+                                h->throttle_cb = NULL;
+                        }
+                        if (vo != Py_None) {
+                                h->throttle_cb = vo;
+                                Py_INCREF(h->throttle_cb);
+                        }
                         Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			continue;
-
+                        Py_DECREF(ks);
+                        continue;
 		} else if (!strcmp(k, "stats_cb")) {
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
