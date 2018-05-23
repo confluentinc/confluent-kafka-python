@@ -1916,7 +1916,7 @@ void CallState_crash (CallState *cs) {
  * @raises a TypeError exception if the type is not found.
  */
 
-    PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
+PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
         PyObject *module = PyImport_ImportModule(modulename);
         PyObject *obj;
 

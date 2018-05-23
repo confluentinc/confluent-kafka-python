@@ -58,10 +58,10 @@ topic = 'test'
 # on each connect with this set to True.
 api_version_request = True
 
-# global variable to be set by stats_cb callback function
+# global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
-# global variable to be incremented by throttle_cb callback function
+# global variable to be incremented by throttle_cb call back function
 throttled_requests = 0
 
 # Shared between producer and consumer tests and used to verify
@@ -903,9 +903,7 @@ def verify_throttle_cb():
         bar.finish()
 
     p.flush()
-
     print('# %d of %d produce requests were throttled' % (throttled_requests, msgs_produced))
-
     assert throttled_requests >= 1
 
 
@@ -1123,7 +1121,6 @@ def verify_admin():
 # Exclude throttle since from default list
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
 all_modes = default_modes + ['throttle']
-
 """All test modes"""
 
 
