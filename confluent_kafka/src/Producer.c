@@ -505,7 +505,7 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"
-          "  :param int timestamp: Message timestamp (CreateTime) in microseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
+          "  :param int timestamp: Message timestamp (CreateTime) in milliseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
