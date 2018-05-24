@@ -27,19 +27,6 @@ from tests.avro import data_gen
 from confluent_kafka import avro
 
 
-WRONG_SCHEMA = """\
-{
-  "type" : "record",
-  "name" : "string_key",
-  "namespace" : "OrbitDbProducer",
-  "fields" : [ {
-    "name" : "key",
-    "type" : "array",
-    "items": "string"
-  } ]
-} """
-
-
 class TestUtil(unittest.TestCase):
     def test_schema_from_string(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
