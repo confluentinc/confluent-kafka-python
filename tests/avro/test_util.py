@@ -41,7 +41,6 @@ WRONG_SCHEMA = """\
 
 
 class TestUtil(unittest.TestCase):
-
     def test_schema_from_string(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
         self.assertTrue(isinstance(parsed, schema.Schema))
@@ -52,5 +51,5 @@ class TestUtil(unittest.TestCase):
 
     def test_schema_load_parse_error(self):
         with pytest.raises(avro.ClientError) as excinfo:
-            avro.loads(WRONG_SCHEMA)
+            avro.load(data_gen.get_schema_path("invalid_scema.avsc"))
         assert 'Schema parse failed:' in str(excinfo.value)

@@ -1,0 +1,10 @@
+{
+  "type" : "record",
+  "name" : "string_key",
+  "namespace" : "OrbitDbProducer",
+  "fields" : [ {
+    "name" : "key",
+    "type" : "array",
+    "items": "string"
+  } ]
+}
