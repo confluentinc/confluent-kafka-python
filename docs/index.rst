@@ -107,10 +107,10 @@ The Python bindings also provide some additional configuration properties:
   (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
   Currently message headers are not supported on the message returned to the
   callback. The ``msg.headers()`` will return None even if the original message
-  had headers set. This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
+  had headers set. This callback is served upon calling ``producer.poll()``.
 
 * ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
-  of commit requests. This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
+  of commit requests. This callback is served upon calling ``consumer.poll()``.
 
 * ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
   provided ``logging.Handler`` instance.

@@ -88,16 +88,16 @@ def error_cb(err):
     print('Error: %s' % err)
 
 
-def throttle_cb(t_report):
+def throttle_cb(throttle_event):
     # validate argument type
-    assert isinstance(t_report, confluent_kafka.ThrottleEvent)
+    assert isinstance(throttle_event.broker_name, str)
+    assert isinstance(throttle_event.broker_id, int)
+    assert isinstance(throttle_event.broker_name, float)
 
     global throttled_requests
     throttled_requests += 1
 
-    print('Request to broker %s[id=%d] throttled for %d ms' % (t_report.broker_name,
-                                                               t_report.broker_id,
-                                                               t_report.throttle_time_ms))
+    print throttle_event
 
 
 class InMemorySchemaRegistry(object):

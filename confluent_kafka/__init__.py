@@ -638,22 +638,21 @@ class PartitionMetadata (object):
 
 class ThrottleEvent (object):
     """
-    ThrottleEvent passed as an argument to throttle_cb.
-    Contains details about requests throttled by the broker.
+    ThrottleEvent contains details about a throttled request.
 
     This class is typically not user instantiated.
 
     :ivar broker_name: The hostname of the broker which throttled the request
-    :ivar broker_id: The broker's id
-    :ivar throttle_time_ms: The delay associated with the request(seconds)
+    :ivar broker_id: The broker id
+    :ivar throttle_time: The amount of time the broker throttled (delayed) the request before responding (seconds)
     """
-    def __init__(self, broker_name=None,
-                 broker_id=-1,
-                 throttle_time_ms=-1.):
+    def __init__(self, broker_name,
+                 broker_id,
+                 throttle_time):
 
         self.broker_name = broker_name
         self.broker_id = broker_id
-        self.throttle_time_ms = throttle_time_ms
+        self.throttle_time = throttle_time
 
     def __str__(self):
-        return "{}:{}/{}".format(self.broker_name, self.broker_id, self.throttle_time_ms)
+        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id, int(self.throttle_time * 1000))
