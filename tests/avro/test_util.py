@@ -21,7 +21,7 @@
 #
 
 import unittest
-
+import pytest
 from avro import schema
 from tests.avro import data_gen
 from confluent_kafka import avro
@@ -35,3 +35,8 @@ class TestUtil(unittest.TestCase):
     def test_schema_from_file(self):
         parsed = avro.load(data_gen.get_schema_path('adv_schema.avsc'))
         self.assertTrue(isinstance(parsed, schema.Schema))
+
+    def test_schema_load_parse_error(self):
+        with pytest.raises(avro.ClientError) as excinfo:
+            avro.load(data_gen.get_schema_path("invalid_scema.avsc"))
+        assert 'Schema parse failed:' in str(excinfo.value)
