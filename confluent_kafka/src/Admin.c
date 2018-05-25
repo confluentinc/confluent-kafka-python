@@ -373,8 +373,8 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 return NULL; /* Exception raised by options_to_c() */
 
         /* options_to_c() sets future as the opaque, which is used in the
-         * event_cb to set the results on the future as the admin operation
-         * is finished, so we need to keep our own refcount. */
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
         /*
@@ -440,15 +440,15 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         }
 
 
-        /* Use librdkafka's internal main thread queue to dispatch
-         * Admin_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_internal(self->rk);
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
 
         /*
          * Call CreateTopics.
          *
          * We need to set up a CallState and release GIL here since
-         * the event_cb may be triggered immediately.
+         * the background_event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
         rd_kafka_CreateTopics(self->rk, c_objs, tcnt, c_options, rkqu);
@@ -456,7 +456,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
 
         rd_kafka_NewTopic_destroy_array(c_objs, tcnt);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         /* Increase refcount for the return value since
          * it is currently a borrowed reference. */
@@ -511,8 +511,8 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
                 return NULL; /* Exception raised by options_to_c() */
 
         /* options_to_c() sets opaque to the future object, which is used in the
-         * event_cb to set the results on the future as the admin operation
-         * is finished, so we need to keep our own refcount. */
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
         /*
@@ -543,9 +543,9 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         }
 
 
-        /* Use librdkafka's internal main thread queue to dispatch
-         * Admin_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_internal(self->rk);
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
 
         /*
          * Call DeleteTopics.
@@ -559,7 +559,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
 
         rd_kafka_DeleteTopic_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         /* Increase refcount for the return value since
          * it is currently a borrowed reference. */
@@ -671,9 +671,9 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
         }
 
 
-        /* Use librdkafka's internal main thread queue to dispatch
-         * Admin_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_internal(self->rk);
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
 
         /*
          * Call CreatePartitions
@@ -687,7 +687,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
 
         rd_kafka_NewPartitions_destroy_array(c_objs, tcnt);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         /* Increase refcount for the return value since
          * it is currently a borrowed reference. */
@@ -800,9 +800,9 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         }
 
 
-        /* Use librdkafka's internal main thread queue to dispatch
-         * Admin_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_internal(self->rk);
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
 
         /*
          * Call DescribeConfigs
@@ -816,7 +816,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 
         rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
@@ -990,9 +990,9 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         }
 
 
-        /* Use librdkafka's internal main thread queue to dispatch
-         * Admin_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_internal(self->rk);
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
 
         /*
          * Call AlterConfigs
@@ -1006,7 +1006,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
 
         rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_queue_destroy(rkqu); /* drop our reference from get_internal */
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
@@ -1326,16 +1326,16 @@ Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resourc
 
 
 /**
- * @brief Event callback triggered from internal librdkafka thread
+ * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
  *
  *        The rkev opaque (not \p opaque) is the future PyObject
  *        which we'll set the result on.
  *
- * @locality internal rdkafka thread
+ * @locality background rdkafka thread
  */
-static void Admin_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
-                            void *opaque) {
+static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
+                                       void *opaque) {
         PyObject *future = (PyObject *)rd_kafka_event_opaque(rkev);
         const rd_kafka_topic_result_t **c_topic_res;
         size_t c_topic_res_cnt;
@@ -1532,7 +1532,7 @@ static int Admin_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                        args, kwargs)))
                 return -1;
 
-        rd_kafka_conf_set_event_cb(conf, Admin_event_cb);
+        rd_kafka_conf_set_background_event_cb(conf, Admin_background_event_cb);
 
         /* There is no dedicated ADMIN client type in librdkafka, the Admin
          * API can use either PRODUCER or CONSUMER.
