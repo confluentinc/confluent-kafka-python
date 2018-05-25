@@ -84,6 +84,8 @@ class AvroConsumer(Consumer):
     @:param: config: dict object with config parameters containing url for schema registry (schema.registry.url).
     """
     def __init__(self, config, schema_registry=None):
+        self._enable_key_decoding = config.pop("enable.key.decoding", True)
+
         schema_registry_url = config.pop("schema.registry.url", None)
         if schema_registry is None:
             if schema_registry_url is None:
@@ -114,7 +116,7 @@ class AvroConsumer(Consumer):
             if message.value() is not None:
                 decoded_value = self._serializer.decode_message(message.value())
                 message.set_value(decoded_value)
-            if message.key() is not None:
+            if self._enable_key_decoding and message.key() is not None:
                 decoded_key = self._serializer.decode_message(message.key())
                 message.set_key(decoded_key)
         return message
