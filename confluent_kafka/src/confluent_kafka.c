@@ -1208,7 +1208,7 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                                                  "ThrottleEvent");
 
         if (!ThrottleEvent_type) {
-                /*ThrottleEvent class not found*/
+                /* ThrottleEvent class not found */
                 goto err;
         }
 
