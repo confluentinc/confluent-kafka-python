@@ -97,7 +97,7 @@ def throttle_cb(throttle_event):
     global throttled_requests
     throttled_requests += 1
 
-    print throttle_event
+    print(throttle_event)
 
 
 class InMemorySchemaRegistry(object):
