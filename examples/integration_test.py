@@ -860,7 +860,7 @@ def verify_batch_consumer_performance():
 def verify_throttle_cb():
     """ Verify throttle_cb is invoked
         This test requires client quotas be configured.
-        See tests/README for more information
+        See tests/README.md for more information
     """
     conf = {'bootstrap.servers': bootstrap_servers,
             'api.version.request': api_version_request,
