@@ -1904,10 +1904,10 @@ static PyObject *_init_cimpl (void) {
 			   (PyObject *)&TopicPartitionType);
 
 	Py_INCREF(&ProducerType);
-	PyModule_AddObject(m, "Producer", (PyObject *)&ProducerType);
+        PyModule_AddObject(m, "ProducerImpl", (PyObject *)&ProducerType);
 
 	Py_INCREF(&ConsumerType);
-	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
+        PyModule_AddObject(m, "ConsumerImpl", (PyObject *)&ConsumerType);
 
 #if PY_VERSION_HEX >= 0x02070000
 	KafkaException = PyErr_NewExceptionWithDoc(
