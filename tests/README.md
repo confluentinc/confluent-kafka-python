@@ -1,8 +1,6 @@
 Unit tests
 ==========
 
-**WARNING**: These tests require an active Kafka cluster and will create new topics.
-
 From top-level directory run:
 
     $ tox
@@ -11,6 +9,9 @@ From top-level directory run:
 
 Integration tests
 =================
+
+**WARNING**: These tests require an active Kafka cluster and will create new topics.
+
 
 To run all of the integration test `modes` uncomment the following line from `tox.ini` and add the addresses to your Kafka and Confluent Schema Registry instances.
 
@@ -40,12 +41,14 @@ In order to execute the throttle_cb test you must first set a throttle for the c
         --alter --add-config 'request_percentage=01' \
         --entity-name throttled_client --entity-type clients
 
-To remove the throttle you can execute the following
+Once the throttle has been set you can proceed with the following command:
+
+    tox -- --throttle
+
+
+    To remove the throttle you can execute the following
+
 
     kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
         --alter --delete-config 'request_percentage' \
         --entity-name throttled_client --entity-type clients
-
-Once the throttle has been set you can proceed with the following command:
-
-    tox -- --throttle

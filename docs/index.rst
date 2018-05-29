@@ -95,10 +95,11 @@ The Python bindings also provide some additional configuration properties:
 * ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
   This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
 
-* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll()
+* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll() or flush
   every ``statistics.interval.ms`` (needs to be configured separately).
   Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
-  This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
+  This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
+  https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
 
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final

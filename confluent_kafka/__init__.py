@@ -642,9 +642,9 @@ class ThrottleEvent (object):
 
     This class is typically not user instantiated.
 
-    :ivar broker_name: The hostname of the broker which throttled the request
-    :ivar broker_id: The broker id
-    :ivar throttle_time: The amount of time the broker throttled (delayed) the request before responding (seconds)
+    :ivar broker_name str: The hostname of the broker which throttled the request
+    :ivar broker_id int: The broker id
+    :ivar throttle_time float: The amount of time the broker throttled (delayed) the request before responding (seconds)
     """
     def __init__(self, broker_name,
                  broker_id,

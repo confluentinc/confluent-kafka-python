@@ -92,7 +92,7 @@ def throttle_cb(throttle_event):
     # validate argument type
     assert isinstance(throttle_event.broker_name, str)
     assert isinstance(throttle_event.broker_id, int)
-    assert isinstance(throttle_event.broker_name, float)
+    assert isinstance(throttle_event.throttle_time, float)
 
     global throttled_requests
     throttled_requests += 1
