@@ -1233,10 +1233,10 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                 goto done;
         }
 
- /**
-  * Stop callback dispatcher, return err to application
-  * fall-through to unlock GIL
-  */
+        /**
+        * Stop callback dispatcher, return err to application
+        * fall-through to unlock GIL
+        */
  err:
         CallState_crash(cs);
         rd_kafka_yield(h->rk);
