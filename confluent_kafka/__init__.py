@@ -1,9 +1,7 @@
 __all__ = ['cimpl', 'avro', 'kafkatest']
-from .cimpl import (Consumer,  # noqa
-                    KafkaError,
+from .cimpl import (KafkaError,  # noqa
                     KafkaException,
                     Message,
-                    Producer,
                     TopicPartition,
                     libversion,
                     version,
@@ -15,5 +13,7 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_STORED,
                     OFFSET_INVALID)
 
+from confluent_kafka.producer import Producer  # noqa
+from confluent_kafka.consumer import Consumer  # noqa
 
 __version__ = version()[0]

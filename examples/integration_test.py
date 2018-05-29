@@ -20,6 +20,7 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
+from confluent_kafka.serializer import Serializer, Deserializer
 import os
 import time
 import uuid
@@ -890,6 +891,69 @@ def verify_stats_cb():
     c.close()
 
 
+class SerializerTest(Serializer):
+    def serialize(self, topic, value):
+        return value[::-1]
+
+
+class DeserializerTest(Deserializer):
+    def deserialize(self, topic, value):
+        return value[::-1]
+
+
+def verify_serializer():
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'api.version.request': api_version_request,
+            'max.in.flight.requests.per.connection': 1,
+            'error_cb': error_cb,
+            'acks': -1
+            }
+
+    t = "verify_serializer_{}".format(uuid.uuid4())
+
+    p = confluent_kafka.Producer(conf, key_serializer=SerializerTest())
+
+    mydr = MyTestDr()
+    p.produce(t, 'value', 'key', callback=mydr.delivery)
+    p.produce(t, None, 'key', callback=mydr.delivery)
+    p.produce(t, 'value', None, callback=mydr.delivery)
+    p.produce(t, value='value', key='key', callback=mydr.delivery)
+    p.produce(t, key='key', callback=mydr.delivery)
+    p.produce(t, value='value', callback=mydr.delivery)
+
+    p.flush()
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+    c = confluent_kafka.Consumer(cons_conf, key_deserializer=DeserializerTest())
+    c.subscribe([t])
+
+    while True:
+        msg = c.poll()
+
+        if msg is None:
+            continue
+        if msg.error():
+            if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                break
+            else:
+                print(msg.error())
+                break
+
+        print('Received message: {}'.format(msg.value()))
+
+    c.close()
+
+
 def print_usage(exitcode, reason=None):
     """ Print usage and exit with exitcode """
     if reason is not None:
@@ -915,6 +979,8 @@ if __name__ == '__main__':
             modes.append('avro')
         elif opt == '--performance':
             modes.append('performance')
+        elif opt == '--serializer':
+            modes.append('serializer')
         else:
             print_usage(1, 'unknown option ' + opt)
 
@@ -928,7 +994,7 @@ if __name__ == '__main__':
         print_usage(1)
 
     if len(modes) == 0:
-        modes = ['consumer', 'producer', 'avro', 'performance']
+        modes = ['consumer', 'producer', 'avro', 'performance', 'serializers']
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
@@ -966,5 +1032,9 @@ if __name__ == '__main__':
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
+
+    if 'serializers' in modes:
+        print('=' * 30, 'Verifying Serializer', '=' * 30)
+        verify_serializer()
 
     print('=' * 30, 'Done', '=' * 30)
