@@ -644,7 +644,7 @@ class ThrottleEvent (object):
 
     :ivar broker_name str: The hostname of the broker which throttled the request
     :ivar broker_id int: The broker id
-    :ivar throttle_time float: The amount of time the broker throttled (delayed) the request(seconds)
+    :ivar throttle_time float: The amount of time (in seconds) the broker throttled (delayed) the request
     """
     def __init__(self, broker_name,
                  broker_id,

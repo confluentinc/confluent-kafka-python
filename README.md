@@ -279,7 +279,7 @@ In order to run full test suite, simply execute:
 
 **Integration tests:**
 
-    See [tests/README.md](tests/README.md) for instructions on how to run integration tests.
+See [tests/README.md](tests/README.md) for instructions on how to run integration tests.
 
 
 

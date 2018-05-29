@@ -46,7 +46,7 @@ Once the throttle has been set you can proceed with the following command:
     tox -- --throttle
 
 
-    To remove the throttle you can execute the following
+To remove the throttle you can execute the following
 
 
     kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
