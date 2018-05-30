@@ -108,14 +108,6 @@ class TestAvroProducer(unittest.TestCase):
         with self.assertRaises(ValueSerializerError):
             producer.produce(topic='test', value='', key='not empty')
 
-    def test_produce_with_empty_key_no_schema(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        schema_registry = MockSchemaRegistryClient()
-        producer = AvroProducer({}, schema_registry=schema_registry,
-                                default_value_schema=value_schema)
-        with self.assertRaises(KeySerializerError):
-            producer.produce(topic='test', value=0.0, key='')
-
     def test_produce_with_empty_key_value_with_schema(self):
         key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
@@ -124,3 +116,10 @@ class TestAvroProducer(unittest.TestCase):
                                 default_key_schema=key_schema,
                                 default_value_schema=value_schema)
         producer.produce(topic='test', value=0.0, key='')
+
+    def test_produce_only_value_with_schema(self):
+        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+        schema_registry = MockSchemaRegistryClient()
+        producer = AvroProducer({}, schema_registry=schema_registry,
+                                default_value_schema=value_schema)
+        producer.produce(topic='test', value=0.0, key='test_key_plain_string')

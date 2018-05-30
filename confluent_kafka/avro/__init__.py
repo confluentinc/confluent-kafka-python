@@ -2,6 +2,7 @@
     Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
 
 """
+from six import string_types
 
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
@@ -68,8 +69,8 @@ class AvroProducer(Producer):
         if key is not None:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
-            else:
-                raise KeySerializerError("Avro schema required for key")
+            elif not isinstance(key, string_types):
+                raise KeySerializerError("Avro schema required for non string type key")
 
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
 
