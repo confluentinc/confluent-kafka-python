@@ -15,7 +15,7 @@ Integration tests
 
 To run all of the integration test `modes` uncomment the following line from `tox.ini` and add the addresses to your Kafka and Confluent Schema Registry instances.
 
-    #python examples/integration_test.py {posargs} <bootstrap-servers> confluent-kafka-testing [<schema-registry-url>]
+    #python examples/integration_test.py <bootstrap-servers> confluent-kafka-testing [<schema-registry-url>]
 
 You can also run the integration tests outside of `tox` by running this command from the source root directory
 
@@ -23,11 +23,11 @@ You can also run the integration tests outside of `tox` by running this command 
 
 To run individual integration test `modes` with `tox` use the following syntax
 
-    tox -- --<test mode>
+     examples/integration_test.py --<test mode>  <kafka-broker> [<test-topic>] [<schema-registry>]
 
 For example:
 
-    tox -- --producer
+    examples/integration_test.py --producer <kafka-broker> [<test-topic>]
 
 To get a list of modes you can run the integration test manually with the `--help` flag
 
@@ -43,11 +43,10 @@ In order to execute the throttle_cb test you must first set a throttle for the c
 
 Once the throttle has been set you can proceed with the following command:
 
-    tox -- --throttle
+    examples/integration_test.py --throttle <kafka-broker> [<test-topic>]
 
 
 To remove the throttle you can execute the following
-
 
     kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
         --alter --delete-config 'request_percentage' \
