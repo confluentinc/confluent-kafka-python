@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 #
 # Copyright 2016 Confluent Inc.
@@ -66,7 +67,7 @@ good_stats_cb_result = False
 produce_headers = [('foo1', 'bar'),
                    ('foo1', 'bar2'),
                    ('foo2', b'1'),
-                   ('Jämtland', 'Härjedalen'),  # automatically utf-8 encoded
+                   (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
                    ('nullheader', None),
                    ('empty', ''),
                    ('foobin', struct.pack('hhl', 10, 20, 30))]
@@ -75,7 +76,7 @@ produce_headers = [('foo1', 'bar'),
 expected_headers = [('foo1', b'bar'),
                     ('foo1', b'bar2'),
                     ('foo2', b'1'),
-                    ('Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
+                    (u'Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
                     ('nullheader', None),
                     ('empty', b''),
                     ('foobin', struct.pack('hhl', 10, 20, 30))]
