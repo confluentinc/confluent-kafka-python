@@ -101,17 +101,19 @@ struct Admin_options {
  *          which case an exception is raised.
  */
 static rd_kafka_AdminOptions_t *
-Admin_options_to_c (Handle *self, const char *forApi,
+Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
                     const struct Admin_options *options,
                     PyObject *future) {
         rd_kafka_AdminOptions_t *c_options;
         rd_kafka_resp_err_t err;
         char errstr[512];
 
-        c_options = rd_kafka_AdminOptions_new(self->rk, forApi);
+        c_options = rd_kafka_AdminOptions_new(self->rk, for_api);
         if (!c_options) {
                 PyErr_Format(PyExc_RuntimeError,
-                             "Admin API %s unsupported by librdkafka", forApi);
+                             "This Admin API method "
+                             "is unsupported by librdkafka %s",
+                             rd_kafka_version_str());
                 return NULL;
         }
 
@@ -368,7 +370,8 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                             &options.validate_only))
                 return NULL;
 
-        c_options = Admin_options_to_c(self, "CreateTopics", &options, future);
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATETOPICS,
+                                       &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
 
@@ -506,7 +509,8 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
                 return NULL;
         }
 
-        c_options = Admin_options_to_c(self, "DeleteTopics", &options, future);
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETETOPICS,
+                                       &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
 
@@ -616,7 +620,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                             &options.validate_only))
                 return NULL;
 
-        c_options = Admin_options_to_c(self, "CreatePartitions",
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEPARTITIONS,
                                        &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
@@ -738,7 +742,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                 return NULL;
         }
 
-        c_options = Admin_options_to_c(self, "DescribeConfigs",
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECONFIGS,
                                        &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
@@ -888,7 +892,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                 return NULL;
 
 
-        c_options = Admin_options_to_c(self, "AlterConfigs",
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
                                        &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
