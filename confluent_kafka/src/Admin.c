@@ -461,10 +461,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
-        /* Increase refcount for the return value since
-         * it is currently a borrowed reference. */
-        Py_INCREF(future);
-        return future;
+        Py_RETURN_NONE;
 
  err:
         rd_kafka_NewTopic_destroy_array(c_objs, i);
@@ -565,10 +562,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
-        /* Increase refcount for the return value since
-         * it is currently a borrowed reference. */
-        Py_INCREF(future);
-        return future;
+        Py_RETURN_NONE;
 
  err:
         rd_kafka_DeleteTopic_destroy_array(c_objs, i);
@@ -693,10 +687,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
-        /* Increase refcount for the return value since
-         * it is currently a borrowed reference. */
-        Py_INCREF(future);
-        return future;
+        Py_RETURN_NONE;
 
  err:
         rd_kafka_NewPartitions_destroy_array(c_objs, i);
@@ -824,10 +815,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
-        /* Increase refcount for the return value since
-         * it is currently a borrowed reference. */
-        Py_INCREF(future);
-        return future;
+        Py_RETURN_NONE;
 
  err:
         rd_kafka_ConfigResource_destroy_array(c_objs, i);
@@ -1014,10 +1002,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
 
-        /* Increase refcount for the return value since
-         * it is currently a borrowed reference. */
-        Py_INCREF(future);
-        return future;
+        Py_RETURN_NONE;
 
  err:
         rd_kafka_ConfigResource_destroy_array(c_objs, i);
