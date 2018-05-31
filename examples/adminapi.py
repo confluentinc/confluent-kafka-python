@@ -21,6 +21,10 @@
 
 from confluent_kafka import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry, KafkaException
 import sys
+import threading
+import logging
+
+logging.basicConfig()
 
 
 def example_create_topics(a, topics):
@@ -114,7 +118,9 @@ def example_describe_configs(a, args):
 
 
 def example_alter_configs(a, args):
-    """ alter configs """
+    """ Alter configs atomically, replacing non-specified
+    configuration properties with their default values.
+    """
 
     resources = []
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
@@ -132,6 +138,101 @@ def example_alter_configs(a, args):
             print("{} configuration successfully altered".format(res))
         except Exception:
             raise
+
+
+def example_delta_alter_configs(a, args):
+    """
+    Alter only supplied configs (pre incremental/KIP-248)
+
+    The pre incremental/KIP-248 AlterConfigs Kafka API requires all
+    configuration to be passed, any left out configuration properties will
+    revert to their default settings.
+
+    This example shows how to just modify the supplied configuration entries
+    by first reading the configuration from the broker, updating the supplied
+    configuration with the broker configuration (without overwriting), and
+    then writing it all back.
+
+    The async nature of futures is also show-cased, which makes this example
+    a bit more complex than it needs to be in the synchronous case.
+    """
+
+    # Convert supplied config to resources.
+    # We can reuse the same resources both for describe_configs and
+    # alter_configs.
+    resources = []
+    for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
+        resource = ConfigResource(restype, resname)
+        resources.append(resource)
+        for k, v in [conf.split('=') for conf in configs.split(',')]:
+            resource.set_config(k, v)
+
+    # Set up a locked counter and an Event (for signaling) to track when the
+    # second level of futures are done. This is a bit of contrived example
+    # due to no other asynchronous mechanism being used, so we'll need
+    # to wait on something to signal completion.
+
+    class WaitZero(object):
+        def __init__(self, waitcnt):
+            self.cnt = waitcnt
+            self.lock = threading.Lock()
+            self.event = threading.Event()
+
+        def decr(self):
+            """ Decrement cnt by 1"""
+            with self.lock:
+                assert self.cnt > 0
+                self.cnt -= 1
+            self.event.set()
+
+        def wait(self):
+            """ Wait until cnt reaches 0 """
+            self.lock.acquire()
+            while self.cnt > 0:
+                self.lock.release()
+                self.event.wait()
+                self.event.clear()
+                self.lock.acquire()
+            self.lock.release()
+
+        def __len__(self):
+            with self.lock:
+                return self.cnt
+
+    wait_zero = WaitZero(len(resources))
+
+    # Read existing configuration from cluster
+    fs = a.describe_configs(resources)
+
+    def delta_alter_configs_done(fut, resource):
+        e = fut.exception()
+        if e is not None:
+            print("Config update for {} failed: {}".format(resource, e))
+        else:
+            print("Config for {} updated".format(resource))
+        wait_zero.decr()
+
+    def delta_alter_configs(resource, remote_config):
+        print("Updating {} supplied config entries {} with {} config entries read from cluster".format(
+            len(resource), resource, len(remote_config)))
+        # Only set configuration that is not default
+        for k, entry in [(k, v) for k, v in remote_config.items() if not v.is_default]:
+            resource.set_config(k, entry.value, overwrite=False)
+
+        fs = a.alter_configs([resource])
+        fs[resource].add_done_callback(lambda fut: delta_alter_configs_done(fut, resource))
+
+    # For each resource's future set up a completion callback
+    # that in turn calls alter_configs() on that single resource.
+    # This is ineffective since the resources can usually go in
+    # one single alter_configs() call, but we're also show-casing
+    # the futures here.
+    for res, f in fs.items():
+        f.add_done_callback(lambda fut, resource=res: delta_alter_configs(resource, fut.result()))
+
+    # Wait for done callbacks to be triggered and operations to complete.
+    print("Waiting for {} resource updates to finish".format(len(wait_zero)))
+    wait_zero.wait()
 
 
 def example_list(a, args):
@@ -186,6 +287,8 @@ if __name__ == '__main__':
         sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
+                         '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' list [<all|topics|brokers>]\n')
         sys.exit(1)
 
@@ -201,6 +304,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
+              'delta_alter_configs': example_delta_alter_configs,
               'list': example_list}
 
     if operation not in opsmap:
