@@ -206,7 +206,14 @@ class ConfigResource(object):
     def __eq__(self, other):
         return self.restype == other.restype and self.name == other.name
 
-    def set_config(self, name, value):
+    def __len__(self):
+        """
+        :rtype int:
+        :returns: number of configuration entries/operations
+        """
+        return len(self.add_config_dict) + len(self.set_config_dict) + len(self.del_config_dict)
+
+    def set_config(self, name, value, overwrite=True):
         """
         Set/Overwrite configuration entry
 
@@ -217,7 +224,11 @@ class ConfigResource(object):
 
         :param name str: Configuration property name
         :param value str: Configuration value
+        :param overwrite bool: If True overwrite entry if already exists (default).
+                               If False do nothing if entry already exists.
         """
+        if not overwrite and name in self.set_config_dict:
+            return
         self.set_config_dict[name] = value
 
     def add_config(self, name, value):
