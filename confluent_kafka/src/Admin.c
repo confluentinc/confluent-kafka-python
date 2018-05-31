@@ -174,7 +174,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
         if (!PyList_Check(ra) ||
             (int)PyList_Size(ra) < min_count ||
             (int)PyList_Size(ra) > max_count) {
-                PyErr_Format(PyExc_TypeError,
+                PyErr_Format(PyExc_ValueError,
                              "replica_assignment must be "
                              "a list of int lists with an "
                              "outer size of %s", err_count_desc);
@@ -192,7 +192,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                 if (!PyList_Check(replicas) ||
                     (replica_cnt = (size_t)PyList_Size(replicas)) < 1) {
                         PyErr_Format(
-                                PyExc_TypeError,
+                                PyExc_ValueError,
                                 "replica_assignment must be "
                                 "a list of int lists with an "
                                 "outer size of %s", err_count_desc);
@@ -208,7 +208,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
                         if (!cfl_PyInt_Check(replica)) {
                                 PyErr_Format(
-                                        PyExc_TypeError,
+                                        PyExc_ValueError,
                                         "replica_assignment must be "
                                         "a list of int lists with an "
                                         "outer size of %s", err_count_desc);
@@ -239,7 +239,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
                 if (err) {
                         PyErr_SetString(
-                                PyExc_TypeError, errstr);
+                                PyExc_ValueError, errstr);
                         return 0;
                 }
         }
@@ -266,7 +266,7 @@ Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
                 rd_kafka_resp_err_t err;
 
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "expected %s config name to be unicode "
                                      "string", op_name);
                         return 0;
@@ -281,7 +281,7 @@ Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
                         PyObject *vs = NULL, *vs8 = NULL;
                         if (!(vs = cfl_PyObject_Unistr(vo)) ||
                             !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
-                                PyErr_Format(PyExc_TypeError,
+                                PyErr_Format(PyExc_ValueError,
                                              "expect %s config value for %s "
                                              "to be unicode string",
                                              op_name, k);
@@ -358,7 +358,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 return NULL;
 
         if (!PyList_Check(topics) || (tcnt = (int)PyList_Size(topics)) < 1) {
-                PyErr_SetString(PyExc_TypeError,
+                PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of NewTopic objects");
                 return NULL;
         }
@@ -392,7 +392,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 if (r == -1)
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
-                        PyErr_SetString(PyExc_TypeError,
+                        PyErr_SetString(PyExc_ValueError,
                                         "Expected list of NewTopic objects");
                         goto err;
                 }
@@ -402,7 +402,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                                    newt->replication_factor,
                                                    errstr, sizeof(errstr));
                 if (!c_objs[i]) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "Invalid NewTopic(%s): %s",
                                      newt->topic, errstr);
                         i++;
@@ -411,7 +411,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
 
                 if (newt->replica_assignment) {
                         if (newt->replication_factor != -1) {
-                                PyErr_SetString(PyExc_TypeError,
+                                PyErr_SetString(PyExc_ValueError,
                                                 "replication_factor and "
                                                 "replica_assignment are "
                                                 "mutually exclusive");
@@ -501,7 +501,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
                 return NULL;
 
         if (!PyList_Check(topics) || (tcnt = (int)PyList_Size(topics)) < 1) {
-                PyErr_SetString(PyExc_TypeError,
+                PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of topic strings");
                 return NULL;
         }
@@ -527,7 +527,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
 
                 if (topic == Py_None ||
                     !(utopic = cfl_PyObject_Unistr(topic))) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "Expected list of topic strings, "
                                      "not %s",
                                      ((PyTypeObject *)PyObject_Type(topic))->
@@ -605,7 +605,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                 return NULL;
 
         if (!PyList_Check(topics) || (tcnt = (int)PyList_Size(topics)) < 1) {
-                PyErr_SetString(PyExc_TypeError,
+                PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of "
                                 "NewPartitions objects");
                 return NULL;
@@ -642,7 +642,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                 if (r == -1)
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
-                        PyErr_SetString(PyExc_TypeError,
+                        PyErr_SetString(PyExc_ValueError,
                                         "Expected list of "
                                         "NewPartitions objects");
                         goto err;
@@ -652,7 +652,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
                                                        newp->new_total_count,
                                                        errstr, sizeof(errstr));
                 if (!c_objs[i]) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "Invalid NewPartitions(%s): %s",
                                      newp->topic, errstr);
                         goto err;
@@ -732,7 +732,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 
         if (!PyList_Check(resources) ||
             (cnt = (int)PyList_Size(resources)) < 1) {
-                PyErr_SetString(PyExc_TypeError,
+                PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of ConfigResource "
                                 "objects");
                 return NULL;
@@ -775,7 +775,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                 if (r == -1)
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
-                        PyErr_SetString(PyExc_TypeError,
+                        PyErr_SetString(PyExc_ValueError,
                                         "Expected list of "
                                         "ConfigResource objects");
                         goto err;
@@ -790,7 +790,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                 c_objs[i] = rd_kafka_ConfigResource_new(
                         (rd_kafka_ResourceType_t)restype, resname);
                 if (!c_objs[i]) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "Invalid ConfigResource(%d,%s)",
                                      restype, resname);
                         free(resname);
@@ -871,7 +871,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
 
         if (!PyList_Check(resources) ||
             (cnt = (int)PyList_Size(resources)) < 1) {
-                PyErr_SetString(PyExc_TypeError,
+                PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of ConfigResource "
                                 "objects");
                 return NULL;
@@ -926,7 +926,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                 if (r == -1)
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
-                        PyErr_SetString(PyExc_TypeError,
+                        PyErr_SetString(PyExc_ValueError,
                                         "Expected list of "
                                         "ConfigResource objects");
                         goto err;
@@ -941,7 +941,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                 c_objs[i] = rd_kafka_ConfigResource_new(
                         (rd_kafka_ResourceType_t)restype, resname);
                 if (!c_objs[i]) {
-                        PyErr_Format(PyExc_TypeError,
+                        PyErr_Format(PyExc_ValueError,
                                      "Invalid ConfigResource(%d,%s)",
                                      restype, resname);
                         free(resname);

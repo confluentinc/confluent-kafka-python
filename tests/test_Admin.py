@@ -121,16 +121,16 @@ def test_delete_topics_api():
     fs = a.delete_topics(["mytopic"])
     # ignore the result
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.delete_topics(None)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.delete_topics("mytopic")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.delete_topics([])
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         a.delete_topics([None, "mytopic"])
 
     fs = a.delete_topics(["mytopic", "other"])
@@ -167,7 +167,7 @@ def test_create_partitions_api():
     with pytest.raises(Exception):
         a.create_partitions("mytopic")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.create_partitions([])
 
     with pytest.raises(Exception):
@@ -204,16 +204,16 @@ def test_describe_configs_api():
     fs = a.describe_configs([ConfigResource(confluent_kafka.RESOURCE_BROKER, "3")])
     # ignore the result
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.describe_configs(None)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.describe_configs("something")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.describe_configs([])
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         a.describe_configs([None, ConfigResource(confluent_kafka.RESOURCE_TOPIC, "mytopic")])
 
     fs = a.describe_configs([ConfigResource(confluent_kafka.RESOURCE_TOPIC, "mytopic"),
@@ -235,16 +235,16 @@ def test_alter_configs_api():
                                          set_config={"some": "config"})])
     # ignore the result
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.alter_configs(None)
 
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         a.alter_configs("something")
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         a.alter_configs([])
 
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         a.alter_configs([None, ConfigResource("topic", "mytopic",
                                               add_config={"something": "else"})])
 

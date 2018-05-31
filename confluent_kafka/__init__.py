@@ -139,8 +139,10 @@ class ConfigResource(object):
         :param name str: Resource name, depending on restype.
                           For RESOURCE_BROKER the resource name is the broker id.
         :param set_config dict: Configuration to set/overwrite. Dict of str, str.
-        :param add_config dict: Configuration to add/append. Dict of str, str. Requires broker version >=2.0.
-        :param del_config list: Configuration to delete/revert to default. List of str. Requires broker version >=2.0.
+        :param add_config dict: Configuration to add/append. Dict of str, str.
+                                Requires broker version with KIP-248 support.
+        :param del_config list: Configuration to delete/revert to default. List of str.
+                                Requires broker version with KIP-248 support.
         :param described_configs dict: For internal use only.
         :param error KafkaError: For internal use only.
 
@@ -148,7 +150,7 @@ class ConfigResource(object):
         and any configuration parameter not specified will be reverted to
         its default value.
 
-        With alter_configs(incremental=True) (requires broker version >=2.0),
+        With alter_configs(incremental=True) (requires broker version with KIP-248 support)
         only the configuration parameters specified through set, add or del
         will be modified.
         """
@@ -222,7 +224,7 @@ class ConfigResource(object):
         """
         Append value to configuration entry.
 
-        Requires broker version >=2.0.0 and alter_configs(.., incremental=True).
+        Requires broker version with KIP-248 support and alter_configs(.., incremental=True).
 
         :param name str: Configuration property name
         :param value str: Configuration value
@@ -233,7 +235,7 @@ class ConfigResource(object):
         """
         Delete configuration entry, reverting it to the default value.
 
-        Requires broker version >=2.0.0 and alter_configs(.., incremental=True).
+        Requires broker version with KIP-248 support and alter_configs(.., incremental=True).
 
         :param name str: Configuration property name
         """
@@ -331,7 +333,7 @@ class AdminClient (AdminClientImpl):
         futmap = {}
         for key in futmap_keys:
             if class_check is not None and not isinstance(key, class_check):
-                raise TypeError("Expected list of {}".format(type(class_check)))
+                raise ValueError("Expected list of {}".format(type(class_check)))
             futmap[key] = concurrent.futures.Future()
             if not futmap[key].set_running_or_notify_cancel():
                 raise RuntimeError("Future was cancelled prematurely")
@@ -492,8 +494,7 @@ class AdminClient (AdminClientImpl):
                   reverting all other configuration for the resource back
                   to their default values.
                   Use incremental=True to change the behaviour so that only the
-                  passed configuration is modified.
-                  Requires broker version >=2.0.
+                  passed configuration is modified, requires broker version with KIP-248 support.
 
         :warning: Multiple resources and resource types may be specified,
                   but at most one resource of type RESOURCE_BROKER is allowed
@@ -508,7 +509,7 @@ class AdminClient (AdminClientImpl):
                   without altering the configuration. Default: False
         :param incremental bool: If true, only update the specified configuration
                   entries, not reverting unspecified configuration.
-                  This requires broker version >=2.0. Default: False
+                  This requires broker version with KIP-248 support. Default: False
 
         :returns: a dict of futures for each resource, keyed by the ConfigResource.
         :rtype dict(<ConfigResource, future>):
@@ -531,14 +532,14 @@ class ClusterMetadata (object):
     ClusterMetadata as returned by list_topics() contains information
     about the Kafka cluster, brokers, and topics.
 
+    This class is typically not user instantiated.
+
     :ivar cluster_id: Cluster id string, if supported by broker, else None.
     :ivar controller_id: Current controller broker id, or -1.
     :ivar brokers: Map of brokers indexed by the int broker id. Value is BrokerMetadata object.
     :ivar topics: Map of topics indexed by the topic name. Value is TopicMetadata object.
     :ivar orig_broker_id: The broker this metadata originated from.
     :ivar orig_broker_name: Broker name/address this metadata originated from.
-
-    This class is typically not user instantiated.
     """
     def __init__(self):
         self.cluster_id = None
@@ -559,11 +560,11 @@ class BrokerMetadata (object):
     """
     BrokerMetadata contains information about a Kafka broker.
 
+    This class is typically not user instantiated.
+
     :ivar id: Broker id.
     :ivar host: Broker hostname.
     :ivar port: Broker port.
-
-    This class is typically not user instantiated.
     """
     def __init__(self):
         self.id = -1
@@ -581,11 +582,11 @@ class TopicMetadata (object):
     """
     TopicMetadata contains information about a Kafka topic.
 
+    This class is typically not user instantiated.
+
     :ivar topic: Topic name.
     :ivar partitions: Map of partitions indexed by partition id. Value is PartitionMetadata object.
     :ivar error: Topic error, or None. Value is a KafkaError object.
-
-    This class is typically not user instantiated.
     """
     def __init__(self):
         self.topic = None
@@ -606,6 +607,8 @@ class PartitionMetadata (object):
     """
     PartitionsMetadata contains information about a Kafka partition.
 
+    This class is typically not user instantiated.
+
     :ivar id: Partition id.
     :ivar leader: Current leader broker for this partition, or -1.
     :ivar replicas: List of replica broker ids for this partition.
@@ -616,8 +619,6 @@ class PartitionMetadata (object):
               leader, replicas and isrs may temporarily not be reported
               in ClusterMetadata.brokers. Always check the availability
               of a broker id in the brokers dict.
-
-    This class is typically not user instantiated.
     """
     def __init__(self):
         self.partition = -1
