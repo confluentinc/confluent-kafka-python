@@ -38,7 +38,6 @@ class AvroProducer(Producer):
         if schema_registry is None:
             if schema_registry_url is None:
                 raise ValueError("Missing parameter: schema.registry.url")
-
             schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
                                                          ca_path=schema_registry_ca_path,
                                                          cert_location=schema_registry_certificate_location,
@@ -102,7 +101,6 @@ class AvroConsumer(Consumer):
                         and the standard Kafka client configuration (``bootstrap.servers`` et.al).
     """
     def __init__(self, config, schema_registry=None):
-
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_path = config.pop("schema.registry.ssl.ca.path", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
@@ -111,7 +109,6 @@ class AvroConsumer(Consumer):
         if schema_registry is None:
             if schema_registry_url is None:
                 raise ValueError("Missing parameter: schema.registry.url")
-
             schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
                                                          ca_path=schema_registry_ca_path,
                                                          cert_location=schema_registry_certificate_location,
