@@ -51,3 +51,17 @@ To remove the throttle you can execute the following
     kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
         --alter --delete-config 'request_percentage' \
         --entity-name throttled_client --entity-type clients
+
+
+Schema Registry HTTPS tests
+===========================
+
+HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener. 
+
+For instructions on how to configure the Schema Registry please see Confleunt's documentation: 
+
+[Schema Registry documentation](https://docs.confluent.io/current/schema-registry/docs/security.html#configuring-the-rest-api-for-http-or-https)
+
+If client authentication has been enabled you will need to provide both the client certificate, `cert_path`, and the client's private key, `key_path`
+
+        examples/integration_test.py <bootstrap-servers> confluent-kafka-testing <schema-registry-url> [ca_path] [[cert_path] [key_path]]
