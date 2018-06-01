@@ -482,6 +482,7 @@ def verify_avro_https(*args):
     c.commit(asynchronous=False)
     c.close()
 
+
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
