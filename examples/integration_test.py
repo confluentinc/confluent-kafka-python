@@ -374,6 +374,115 @@ def verify_avro():
         c.close()
 
 
+def verify_avro_https(*args):
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Avoid potential for never ending consume/produce cycle
+    timeout = time.time() + 15
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'default.topic.config': {'produce.offset.report': True}}
+
+    # Create producer
+    if schema_registry_url:
+        conf['schema.registry.url'] = schema_registry_url
+        conf['schema.registry.ssl.ca.path'] = args[0]
+        conf['schema.registry.ssl.certificate.location'] = args[1]
+        conf['schema.registry.key.location'] = args[2]
+    else:
+        raise ValueError("Schema Registry URL required for the avro-https test")
+
+    p = avro.AvroProducer(conf)
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.
+
+    combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0., key_schema=prim_float),
+        dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
+    ]
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'on_commit': print_commit_result,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+    for i, combo in enumerate(combinations):
+        combo['topic'] = str(uuid.uuid4())
+        combo['headers'] = [('index', str(i))]
+        p.produce(**combo)
+    p.flush()
+
+    conf = copy(cons_conf)
+    conf['schema.registry.url'] = schema_registry_url
+    conf['schema.registry.ssl.ca.path'] = args[0]
+    conf['schema.registry.ssl.certificate.location'] = args[1]
+    conf['schema.registry.key.location'] = args[2]
+
+    c = avro.AvroConsumer(conf)
+    c.subscribe([(t['topic']) for t in combinations])
+
+    msgcount = 0
+    while msgcount < len(combinations):
+        msg = c.poll(0)
+
+        if msg is None or msg.error():
+            continue
+
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
+
+        # omit empty Avro fields from payload for comparison
+        record_key = msg.key()
+        record_value = msg.value()
+        index = int(msg.headers()[0][1])
+
+        if isinstance(msg.key(), dict):
+            record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+        if isinstance(msg.value(), dict):
+            record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+        assert combinations[index].get('key') == record_key
+        assert combinations[index].get('value') == record_value
+
+        msgcount += 1
+
+        if time.time() > timeout:
+            raise RuntimeError("verify_avro_https cailed to complete within 15 seconds")
+
+    # Close consumer
+    c.commit(asynchronous=False)
+    c.close()
+
+
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
@@ -1148,7 +1257,6 @@ if __name__ == '__main__':
         print('Running with pympler memory tracker')
 
     modes = list()
-
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
@@ -1216,6 +1324,13 @@ if __name__ == '__main__':
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)
         verify_admin()
+
+    if 'avro-https' in modes:
+        print('=' * 30, 'Verifying AVRO with https', '=' * 30)
+        if len(sys.argv) > 4:
+            verify_avro_https(*tuple(sys.argv[4:]))
+        else:
+            print_usage(1)
 
     print('=' * 30, 'Done', '=' * 30)
 
