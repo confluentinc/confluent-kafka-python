@@ -443,16 +443,16 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	},
 	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
-          "  Retrieve timestamp type and timestamp from message.\n"
-          "  The timestamp type is one of:\n"
-          "    * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
+          "Retrieve timestamp type and timestamp from message.\n"
+          "The timestamp type is one of:\n"
+          " * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
           " - Timestamps not supported by broker\n"
-          "    * :py:const:`TIMESTAMP_CREATE_TIME` "
+          " * :py:const:`TIMESTAMP_CREATE_TIME` "
           " - Message creation time (or source / producer time)\n"
-          "    * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
+          " * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
           " - Broker receive time\n"
           "\n"
-          "  The returned timestamp should be ignored if the timestamp type is "
+          "The returned timestamp should be ignored if the timestamp type is "
           ":py:const:`TIMESTAMP_NOT_AVAILABLE`.\n"
           "\n"
           "  The timestamp is the number of milliseconds since the epoch (UTC).\n"
@@ -474,21 +474,24 @@ static PyMethodDef Message_methods[] = {
 	},
 	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
 	  "  Set the field 'Message.headers' with new value.\n"
-	  "  :param: object value: Message.headers.\n"
+          "\n"
+	  "  :param object value: Message.headers.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
 	  "  Set the field 'Message.value' with new value.\n"
-	  "  :param: object value: Message.value.\n"
+          "\n"
+	  "  :param object value: Message.value.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_key", (PyCFunction)Message_set_key, METH_O,
 	  "  Set the field 'Message.key' with new value.\n"
-	  "  :param: object value: Message.key.\n"
+          "\n"
+	  "  :param object value: Message.key.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
@@ -728,19 +731,20 @@ static int TopicPartition_traverse (TopicPartition *self,
 
 static PyMemberDef TopicPartition_members[] = {
         { "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
-          ":py:attribute:topic - Topic name (string)" },
+          ":attribute topic: Topic name (string)" },
         { "partition", T_INT, offsetof(TopicPartition, partition), 0,
-          ":py:attribute: Partition number (int)" },
+          ":attribute partition: Partition number (int)" },
         { "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
-          " :py:attribute: Offset (long)\n"
-          "Either an absolute offset (>=0) or a logical offset:"
+          ":attribute offset: Offset (long)\n"
+          "\n"
+          "Either an absolute offset (>=0) or a logical offset: "
           " :py:const:`OFFSET_BEGINNING`,"
           " :py:const:`OFFSET_END`,"
           " :py:const:`OFFSET_STORED`,"
-          " :py:const:`OFFSET_INVALID`"
+          " :py:const:`OFFSET_INVALID`\n"
         },
         { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
-          ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
+          ":attribute error: Indicates an error (with :py:class:`KafkaError`) unless None." },
         { NULL }
 };
 

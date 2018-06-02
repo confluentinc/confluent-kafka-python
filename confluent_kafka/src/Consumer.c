@@ -890,7 +890,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         msgobj = Message_new0(self, rkm);
 #ifdef RD_KAFKA_V_HEADERS
-        // Have to deatch headers outside Message_new0 because it declares the
+        // Have to detach headers outside Message_new0 because it declares the
         // rk message as a const
         rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
 #endif
@@ -956,7 +956,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         for (i = 0; i < n; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
 #ifdef RD_KAFKA_V_HEADERS
-                // Have to deatch headers outside Message_new0 because it declares the
+                // Have to detach headers outside Message_new0 because it declares the
                 // rk message as a const
                 rd_kafka_message_detach_headers(rkmessages[i], &((Message *)msgobj)->c_headers);
 #endif
@@ -1077,8 +1077,9 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (-1)). (Seconds)\n"
 	  "  :returns: A list of Message objects (possibly empty on timeout)\n"
 	  "  :rtype: list(Message)\n"
-          "  :raises: RuntimeError if called on a closed consumer, KafkaError "
-          "in case of internal error, or ValueError if num_messages > 1M.\n"
+          "  :raises RuntimeError: if called on a closed consumer\n"
+          "  :raises KafkaError: in case of internal error\n"
+          "  :raises ValueError: if num_messages > 1M\n"
 	  "\n"
 	},
 	{ "assign", (PyCFunction)Consumer_assign, METH_O,
@@ -1088,19 +1089,18 @@ static PyMethodDef Consumer_methods[] = {
 	  ":py:class:`TopicPartition` and starts consuming.\n"
 	  "\n"
 	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming.\n"
-      "  :raises: RuntimeError if called on a closed consumer\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
         { "unassign", (PyCFunction)Consumer_unassign, METH_NOARGS,
           "  Removes the current partition assignment and stops consuming.\n"
-          "  :raises: KafkaException\n"
-          "  :raises: RuntimeError if called on a closed consumer\n"
+          "\n"
+          "  :raises KafkaException:\n"
+          "  :raises RuntimeError: if called on a closed consumer\n"
           "\n"
         },
         { "assignment", (PyCFunction)Consumer_assignment,
           METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: assignment()\n"
-          "\n"
           "  Returns the current partition assignment.\n"
           "\n"
           "  :returns: List of assigned topic+partitions.\n"
@@ -1223,11 +1223,11 @@ static PyMethodDef Consumer_methods[] = {
           "\n"
           "  Retrieve low and high offsets for partition.\n"
           "\n"
-          "  :param TopicPartition partition: Topic+partition to return offsets for."
+          "  :param TopicPartition partition: Topic+partition to return offsets for.\n"
           "  :param float timeout: Request timeout (when cached=False). (Seconds)\n"
           "  :param bool cached: Instead of querying the broker used cached information. "
           "Cached values: The low offset is updated periodically (if statistics.interval.ms is set) while "
-          "the high offset is updated on each message fetched from the broker for this partition."
+          "the high offset is updated on each message fetched from the broker for this partition.\n"
           "  :returns: Tuple of (low,high) on success or None on timeout.\n"
           "  :rtype: tuple(int,int)\n"
           "  :raises: KafkaException\n"
@@ -1244,7 +1244,7 @@ static PyMethodDef Consumer_methods[] = {
           " timestamp is greater than or equal to the given timestamp in the\n"
           " corresponding partition.\n"
           "\n"
-          "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field."
+          "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field.\n"
           "  :param float timeout: Request timeout. (Seconds)\n"
           "  :returns: list of topic+partition with offset field set and possibly error set\n"
           "  :rtype: list(TopicPartition)\n"

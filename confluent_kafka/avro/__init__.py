@@ -18,11 +18,12 @@ class AvroProducer(Producer):
         Kafka Producer client which does avro schema encoding to messages.
         Handles schema registration, Message serialization.
 
-        Constructor takes below parameters
+        Constructor takes below parameters.
 
-        @:param: config: dict object with config parameters containing url for schema registry (schema.registry.url).
-        @:param: default_key_schema: Optional avro schema for key
-        @:param: default_value_schema: Optional avro schema for value
+        :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
+                            and the standard Kafka client configuration (``bootstrap.servers`` et.al).
+        :param str default_key_schema: Optional default avro schema for key
+        :param str default_value_schema: Optional default avro schema for value
     """
 
     def __init__(self, config, default_key_schema=None,
@@ -42,13 +43,19 @@ class AvroProducer(Producer):
 
     def produce(self, **kwargs):
         """
-            Sends message to kafka by encoding with specified avro schema
-            @:param: topic: topic name
-            @:param: value: An object to serialize
-            @:param: value_schema : Avro schema for value
-            @:param: key: An object to serialize
-            @:param: key_schema : Avro schema for key
-            @:exception: SerializerError
+            Asynchronously sends message to Kafka by encoding with specified or default avro schema.
+
+            :param str topic: topic name
+            :param object value: An object to serialize
+            :param str value_schema: Avro schema for value
+            :param object key: An object to serialize
+            :param str key_schema: Avro schema for key
+
+            Plus any other parameters accepted by confluent_kafka.Producer.produce
+
+            :raises SerializerError: On serialization failure
+            :raises BufferError: If producer queue is full.
+            :raises KafkaException: For other produce failures.
         """
         # get schemas from  kwargs if defined
         key_schema = kwargs.pop('key_schema', self._key_schema)
@@ -81,7 +88,8 @@ class AvroConsumer(Consumer):
 
     Constructor takes below parameters
 
-    @:param: config: dict object with config parameters containing url for schema registry (schema.registry.url).
+    :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
+                        and the standard Kafka client configuration (``bootstrap.servers`` et.al).
     """
     def __init__(self, config, schema_registry=None):
         schema_registry_url = config.pop("schema.registry.url", None)
@@ -100,8 +108,9 @@ class AvroConsumer(Consumer):
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
 
-        @:param timeout
-        @:return message object with deserialized key and value as dict objects
+        :param float timeout: Poll timeout in seconds (default: indefinite)
+        :returns: message object with deserialized key and value as dict objects
+        :rtype: Message
         """
         if timeout is None:
             timeout = -1

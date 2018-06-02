@@ -27,6 +27,24 @@ Producer
 .. autoclass:: confluent_kafka.Producer
    :members:
 
+*****
+Admin
+*****
+
+.. automodule:: confluent_kafka.admin
+   :members:
+
+.. autoclass:: confluent_kafka.admin.NewTopic
+.. autoclass:: confluent_kafka.admin.NewPartitions
+
+****
+Avro
+****
+
+.. automodule:: confluent_kafka.avro
+   :members:
+
+
 *******
 Message
 *******
@@ -86,7 +104,7 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
 The Python bindings also provide some additional configuration properties:
 
-* ``default.topic.config``: value is a dict of topic-level configuration
+* ``default.topic.config``: value is a dict of client topic-level configuration
   properties that are applied to all used topics for the instance.
 
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served upon calling
@@ -120,5 +138,4 @@ The Python bindings also provide some additional configuration properties:
 
   mylogger = logging.getLogger()
   mylogger.addHandler(logging.StreamHandler())
-  producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'},
-                                      logger=mylogger)
+  producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
