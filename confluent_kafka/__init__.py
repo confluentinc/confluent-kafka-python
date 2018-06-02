@@ -21,12 +21,16 @@ __version__ = version()[0]
 class ThrottleEvent (object):
     """
     ThrottleEvent contains details about a throttled request.
+    Set up a throttle callback by setting the ``throttle_cb`` configuration
+    property to a callable that takes a ThrottleEvent object as its only argument.
+    The callback will be triggered from poll(), consume() or flush() when a request
+    has been throttled by the broker.
 
     This class is typically not user instantiated.
 
-    :ivar broker_name str: The hostname of the broker which throttled the request
-    :ivar broker_id int: The broker id
-    :ivar throttle_time float: The amount of time (in seconds) the broker throttled (delayed) the request
+    :ivar str broker_name: The hostname of the broker which throttled the request
+    :ivar int broker_id: The broker id
+    :ivar float throttle_time: The amount of time (in seconds) the broker throttled (delayed) the request
     """
     def __init__(self, broker_name,
                  broker_id,

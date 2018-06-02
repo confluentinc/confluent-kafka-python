@@ -84,6 +84,12 @@ Logical offset constants:
  * :py:const:`OFFSET_STORED` - Use stored/committed offset
  * :py:const:`OFFSET_INVALID` - Invalid/Default offset
 
+*************
+ThrottleEvent
+*************
+
+.. autoclass:: confluent_kafka.ThrottleEvent
+   :members:
 
 
 Configuration

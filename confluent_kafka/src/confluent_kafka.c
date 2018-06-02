@@ -1199,7 +1199,7 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                          int throttle_time_ms, void *opaque) {
         Handle *h = opaque;
         PyObject *ThrottleEvent_type, *throttle_event;
-        PyObject *result, *kwargs, *args;
+        PyObject *result, *args;
         CallState *cs;
 
         cs = CallState_get(h);
