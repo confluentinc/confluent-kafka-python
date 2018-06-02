@@ -742,7 +742,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
          * topics are of correct type.
          * Since this is not in the fast path we treat ourselves
          * to the luxury of looking up this for each call. */
-        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka",
+        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
@@ -776,7 +776,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                         goto err;
                 }
 
-                if (!cfl_PyObject_GetInt(res, "restype", &restype, 0, 0))
+                if (!cfl_PyObject_GetInt(res, "restype_int", &restype, 0, 0))
                         goto err;
 
                 if (!cfl_PyObject_GetString(res, "name", &resname, NULL, 0))
@@ -889,7 +889,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
          * topics are of correct type.
          * Since this is not in the fast path we treat ourselves
          * to the luxury of looking up this for each call. */
-        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka",
+        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "ConfigResource");
         if (!ConfigResource_type) {
                 rd_kafka_AdminOptions_destroy(c_options);
@@ -924,7 +924,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                         goto err;
                 }
 
-                if (!cfl_PyObject_GetInt(res, "restype", &restype, 0, 0))
+                if (!cfl_PyObject_GetInt(res, "restype_int", &restype, 0, 0))
                         goto err;
 
                 if (!cfl_PyObject_GetString(res, "name", &resname, NULL, 0))
@@ -1243,12 +1243,12 @@ Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resourc
         PyObject *ConfigEntry_type;
         size_t ri;
 
-        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka",
+        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "ConfigResource");
         if (!ConfigResource_type)
                 return NULL;
 
-        ConfigEntry_type = cfl_PyObject_lookup("confluent_kafka",
+        ConfigEntry_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                "ConfigEntry");
         if (!ConfigEntry_type) {
                 Py_DECREF(ConfigResource_type);

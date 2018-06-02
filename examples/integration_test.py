@@ -21,6 +21,7 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
+from confluent_kafka import admin
 import os
 import time
 import uuid
@@ -1029,7 +1030,7 @@ def verify_topic_metadata(client, exp_topics):
 def verify_admin():
     """ Verify Admin API """
 
-    a = confluent_kafka.AdminClient({'bootstrap.servers': bootstrap_servers})
+    a = admin.AdminClient({'bootstrap.servers': bootstrap_servers})
     our_topic = topic + '_admin_' + str(uuid.uuid4())
     num_partitions = 2
 
@@ -1040,10 +1041,10 @@ def verify_admin():
     # Second iteration: create topic.
     #
     for validate in (True, False):
-        fs = a.create_topics([confluent_kafka.NewTopic(our_topic,
-                                                       num_partitions=num_partitions,
-                                                       config=topic_config,
-                                                       replication_factor=1)],
+        fs = a.create_topics([admin.NewTopic(our_topic,
+                                             num_partitions=num_partitions,
+                                             config=topic_config,
+                                             replication_factor=1)],
                              validate_only=validate,
                              operation_timeout=10.0)
 
@@ -1059,8 +1060,8 @@ def verify_admin():
     # Increase the partition count
     #
     num_partitions += 3
-    fs = a.create_partitions([confluent_kafka.NewPartitions(our_topic,
-                                                            new_total_count=num_partitions)],
+    fs = a.create_partitions([admin.NewPartitions(our_topic,
+                                                  new_total_count=num_partitions)],
                              operation_timeout=10.0)
 
     for topic2, f in fs.items():
@@ -1086,7 +1087,7 @@ def verify_admin():
     #
     # Get current topic config
     #
-    resource = confluent_kafka.ConfigResource(confluent_kafka.RESOURCE_TOPIC, our_topic)
+    resource = admin.ConfigResource(admin.RESOURCE_TOPIC, our_topic)
     fs = a.describe_configs([resource])
     configs = fs[resource].result()  # will raise exception on failure
 

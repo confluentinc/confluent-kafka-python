@@ -35,7 +35,7 @@ c_partitions_to_py (Handle *self,
         PyObject *dict;
         int i;
 
-        PartitionMetadata_type = cfl_PyObject_lookup("confluent_kafka",
+        PartitionMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                      "PartitionMetadata");
         if (!PartitionMetadata_type)
                 return NULL;
@@ -126,7 +126,7 @@ c_topics_to_py (Handle *self, const rd_kafka_metadata_topic_t *c_topics,
         PyObject *dict;
         int i;
 
-        TopicMetadata_type = cfl_PyObject_lookup("confluent_kafka",
+        TopicMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "TopicMetadata");
         if (!TopicMetadata_type)
                 return NULL;
@@ -200,7 +200,7 @@ static PyObject *c_brokers_to_py (Handle *self,
         PyObject *dict;
         int i;
 
-        BrokerMetadata_type = cfl_PyObject_lookup("confluent_kafka",
+        BrokerMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "BrokerMetadata");
         if (!BrokerMetadata_type)
                 return NULL;
@@ -264,7 +264,7 @@ c_metadata_to_py (Handle *self, const rd_kafka_metadata_t *metadata) {
         char *cluster_id;
 #endif
 
-        ClusterMetadata_type = cfl_PyObject_lookup("confluent_kafka",
+        ClusterMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                    "ClusterMetadata");
         if (!ClusterMetadata_type)
                 return NULL;

@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 import pytest
 
-from confluent_kafka import AdminClient, NewTopic, NewPartitions, \
-    KafkaException, KafkaError, ConfigResource, libversion
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource
+from confluent_kafka import KafkaException, KafkaError, libversion
 import confluent_kafka
 import concurrent.futures
 
 
 def test_types():
-    ConfigResource(confluent_kafka.RESOURCE_BROKER, "2")
+    ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "2")
     ConfigResource("broker", "2")
-    ConfigResource(confluent_kafka.RESOURCE_GROUP, "mygroup")
-    ConfigResource(confluent_kafka.RESOURCE_TOPIC, "")
+    ConfigResource(confluent_kafka.admin.RESOURCE_GROUP, "mygroup")
+    ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "")
     with pytest.raises(ValueError):
         ConfigResource("doesnt exist", "hi")
     with pytest.raises(ValueError):
-        ConfigResource(confluent_kafka.RESOURCE_TOPIC, None)
+        ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, None)
 
 
 @pytest.mark.skipif(libversion()[1] < 0x000b0500,
@@ -201,7 +201,7 @@ def test_describe_configs_api():
         is no broker configured. """
 
     a = AdminClient({"socket.timeout.ms": 10})
-    fs = a.describe_configs([ConfigResource(confluent_kafka.RESOURCE_BROKER, "3")])
+    fs = a.describe_configs([ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "3")])
     # ignore the result
 
     with pytest.raises(Exception):
@@ -214,10 +214,10 @@ def test_describe_configs_api():
         a.describe_configs([])
 
     with pytest.raises(ValueError):
-        a.describe_configs([None, ConfigResource(confluent_kafka.RESOURCE_TOPIC, "mytopic")])
+        a.describe_configs([None, ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "mytopic")])
 
-    fs = a.describe_configs([ConfigResource(confluent_kafka.RESOURCE_TOPIC, "mytopic"),
-                             ConfigResource(confluent_kafka.RESOURCE_GROUP, "mygroup")],
+    fs = a.describe_configs([ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "mytopic"),
+                             ConfigResource(confluent_kafka.admin.RESOURCE_GROUP, "mygroup")],
                             request_timeout=0.123)
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
@@ -231,7 +231,7 @@ def test_alter_configs_api():
         is no broker configured. """
 
     a = AdminClient({"socket.timeout.ms": 10})
-    fs = a.alter_configs([ConfigResource(confluent_kafka.RESOURCE_BROKER, "3",
+    fs = a.alter_configs([ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "3",
                                          set_config={"some": "config"})])
     # ignore the result
 
@@ -253,7 +253,7 @@ def test_alter_configs_api():
                                                      "and": "this"},
                                          add_config={"add": "this"},
                                          del_config=["this"]),
-                          ConfigResource(confluent_kafka.RESOURCE_GROUP,
+                          ConfigResource(confluent_kafka.admin.RESOURCE_GROUP,
                                          "mygroup")],
                          request_timeout=0.123)
 

@@ -19,7 +19,8 @@
 # Example Admin clients.
 #
 
-from confluent_kafka import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry, KafkaException
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry
+from confluent_kafka import KafkaException
 import sys
 import threading
 import logging
