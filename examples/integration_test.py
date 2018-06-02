@@ -62,6 +62,9 @@ api_version_request = True
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
+# global variable to be incremented by throttle_cb call back function
+throttled_requests = 0
+
 # Shared between producer and consumer tests and used to verify
 # that consumed headers are what was actually produced.
 produce_headers = [('foo1', 'bar'),
@@ -84,6 +87,18 @@ expected_headers = [('foo1', b'bar'),
 
 def error_cb(err):
     print('Error: %s' % err)
+
+
+def throttle_cb(throttle_event):
+    # validate argument type
+    assert isinstance(throttle_event.broker_name, str)
+    assert isinstance(throttle_event.broker_id, int)
+    assert isinstance(throttle_event.throttle_time, float)
+
+    global throttled_requests
+    throttled_requests += 1
+
+    print(throttle_event)
 
 
 class InMemorySchemaRegistry(object):
@@ -843,6 +858,59 @@ def verify_batch_consumer_performance():
     c.close()
 
 
+def verify_throttle_cb():
+    """ Verify throttle_cb is invoked
+        This test requires client quotas be configured.
+        See tests/README.md for more information
+    """
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'api.version.request': api_version_request,
+            'linger.ms': 500,
+            'client.id': 'throttled_client',
+            'throttle_cb': throttle_cb}
+
+    p = confluent_kafka.Producer(conf)
+
+    msgcnt = 1000
+    msgsize = 100
+    msg_pattern = 'test.py throttled client'
+    msg_payload = (msg_pattern * int(msgsize / len(msg_pattern)))[0:msgsize]
+
+    msgs_produced = 0
+    msgs_backpressure = 0
+    print('# producing %d messages to topic %s' % (msgcnt, topic))
+
+    if with_progress:
+        bar = Bar('Producing', max=msgcnt)
+    else:
+        bar = None
+
+    for i in range(0, msgcnt):
+        while True:
+            try:
+                p.produce(topic, value=msg_payload)
+                break
+            except BufferError:
+                # Local queue is full (slow broker connection?)
+                msgs_backpressure += 1
+                if bar is not None and (msgs_backpressure % 1000) == 0:
+                    bar.next(n=0)
+                p.poll(100)
+            continue
+
+        if bar is not None and (msgs_produced % 5000) == 0:
+            bar.next(n=5000)
+        msgs_produced += 1
+        p.poll(0)
+
+    if bar is not None:
+        bar.finish()
+
+    p.flush()
+    print('# %d of %d produce requests were throttled' % (throttled_requests, msgs_produced))
+    assert throttled_requests >= 1
+
+
 def verify_stats_cb():
     """ Verify stats_cb """
 
@@ -1054,7 +1122,9 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
-all_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'none']
+# Exclude throttle since from default list
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
+all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
 
@@ -1095,7 +1165,7 @@ if __name__ == '__main__':
         print_usage(1)
 
     if len(modes) == 0:
-        modes = all_modes
+        modes = default_modes
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
@@ -1132,6 +1202,11 @@ if __name__ == '__main__':
         # The stats test is utilizing the consumer.
         print('=' * 30, 'Verifying stats_cb', '=' * 30)
         verify_stats_cb()
+
+    # The throttle test is utilizing the producer.
+    if 'throttle' in modes:
+        print('=' * 30, 'Verifying throttle_cb', '=' * 30)
+        verify_throttle_cb()
 
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)

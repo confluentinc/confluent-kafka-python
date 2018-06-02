@@ -89,12 +89,17 @@ The Python bindings also provide some additional configuration properties:
 * ``default.topic.config``: value is a dict of topic-level configuration
   properties that are applied to all used topics for the instance.
 
-* ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served by
-  poll().
+* ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served upon calling
+  ``client.poll()`` or ``producer.flush()``.
 
-* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll()
+* ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
+  This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
+
+* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll() or flush
   every ``statistics.interval.ms`` (needs to be configured separately).
   Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
+  This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
+  https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
 
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
@@ -103,15 +108,15 @@ The Python bindings also provide some additional configuration properties:
   (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
   Currently message headers are not supported on the message returned to the
   callback. The ``msg.headers()`` will return None even if the original message
-  had headers set.
+  had headers set. This callback is served upon calling ``producer.poll()`` or ``producer.flush()``.
 
 * ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
-  of commit requests.
+  of commit requests. This callback is served upon calling ``consumer.poll()``.
 
 * ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
   provided ``logging.Handler`` instance.
   To avoid spontaneous calls from non-Python threads the log messages
-  will only be forwarded when ``client.poll()`` is called.
+  will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
 
   mylogger = logging.getLogger()
   mylogger.addHandler(logging.StreamHandler())
