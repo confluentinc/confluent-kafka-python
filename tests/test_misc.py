@@ -104,7 +104,7 @@ def test_conf_none():
 
 def throttle_cb_instantiate_fail():
     """ Ensure noncallables raise TypeError"""
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError):
         confluent_kafka.Producer({'throttle_cb': 1})
 
 

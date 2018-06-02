@@ -1685,7 +1685,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			continue;
                 } else if (!strcmp(k, "throttle_cb")) {
                         if (!PyCallable_Check(vo)) {
-                                PyErr_SetString(PyExc_TypeError,
+                                PyErr_SetString(PyExc_ValueError,
                                         "expected throttle_cb property "
                                         "as a callable function");
                                 rd_kafka_topic_conf_destroy(tconf);

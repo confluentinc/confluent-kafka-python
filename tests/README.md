@@ -21,7 +21,7 @@ You can also run the integration tests outside of `tox` by running this command 
 
     examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
 
-To run individual integration test `modes` with `tox` use the following syntax
+To run individual integration test `modes` use the following syntax
 
      examples/integration_test.py --<test mode>  <kafka-broker> [<test-topic>] [<schema-registry>]
 
