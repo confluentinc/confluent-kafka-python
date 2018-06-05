@@ -2311,7 +2311,7 @@ static PyObject *_init_cimpl (void) {
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
 
         Py_INCREF(&AdminType);
-        PyModule_AddObject(m, "AdminClientImpl", (PyObject *)&AdminType);
+        PyModule_AddObject(m, "_AdminClientImpl", (PyObject *)&AdminType);
 
         AdminTypes_AddObjects(m);
 

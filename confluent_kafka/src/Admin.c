@@ -1553,7 +1553,7 @@ static PyObject *Admin_new (PyTypeObject *type, PyObject *args,
 
 PyTypeObject AdminType = {
         PyVarObject_HEAD_INIT(NULL, 0)
-        "cimpl.AdminClientImpl",   /*tp_name*/
+        "cimpl._AdminClientImpl",   /*tp_name*/
         sizeof(Handle),            /*tp_basicsize*/
         0,                         /*tp_itemsize*/
         (destructor)Admin_dealloc, /*tp_dealloc*/

@@ -2,7 +2,7 @@
 Kafka Admin client: create, view, alter, delete topics and resources.
 """
 from ..cimpl import (KafkaException, # noqa
-                     AdminClientImpl,
+                     _AdminClientImpl,
                      NewTopic,
                      NewPartitions,
                      CONFIG_SOURCE_UNKNOWN_CONFIG,
@@ -227,7 +227,7 @@ class ConfigResource(object):
         self.del_config_dict[name] = None
 
 
-class AdminClient (AdminClientImpl):
+class AdminClient (_AdminClientImpl):
     """
     The Kafka AdminClient provides admin operations for Kafka brokers,
     topics, groups, and other resource types supported by the broker.
