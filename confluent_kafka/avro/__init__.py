@@ -31,15 +31,15 @@ class AvroProducer(Producer):
                  schema_registry=None):
 
         schema_registry_url = config.pop("schema.registry.url", None)
-        schema_registry_ca_path = config.pop("schema.registry.ssl.ca.path", None)
+        schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
-        schema_registry_key_location = config.pop("schema.registry.key.location", None)
+        schema_registry_key_location = config.pop("schema.registry.ssl.key.location", None)
 
         if schema_registry is None:
             if schema_registry_url is None:
                 raise ValueError("Missing parameter: schema.registry.url")
             schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
-                                                         ca_path=schema_registry_ca_path,
+                                                         ca_location=schema_registry_ca_location,
                                                          cert_location=schema_registry_certificate_location,
                                                          key_location=schema_registry_key_location)
         elif schema_registry_url is not None:
@@ -102,15 +102,15 @@ class AvroConsumer(Consumer):
     """
     def __init__(self, config, schema_registry=None):
         schema_registry_url = config.pop("schema.registry.url", None)
-        schema_registry_ca_path = config.pop("schema.registry.ssl.ca.path", None)
+        schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
-        schema_registry_key_location = config.pop("schema.registry.key.location", None)
+        schema_registry_key_location = config.pop("schema.registry.ssl.key.location", None)
 
         if schema_registry is None:
             if schema_registry_url is None:
                 raise ValueError("Missing parameter: schema.registry.url")
             schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
-                                                         ca_path=schema_registry_ca_path,
+                                                         ca_location=schema_registry_ca_location,
                                                          cert_location=schema_registry_certificate_location,
                                                          key_location=schema_registry_key_location)
         elif schema_registry_url is not None:

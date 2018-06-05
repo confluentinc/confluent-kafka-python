@@ -1,0 +1,11 @@
+{
+    "topic": "<test-topic> or $TOPIC env",
+    "bootstrap.servers": "<bootstrap-broker> or $BOOTSTRAP_SERVER env",
+    "schema.registry.url": "<schema-registry-url> or $SCHEMA_REGISTRY_URL env",
+    "schema_registry_https": {
+            "schema.registry.url": "<schema-regsitry-url> or $SCHEMA_REGISTRY_SSL_URL env",
+            "schema.registry.ssl.ca.location": "/path/to/ca-cert or $SCHEMA_REGISTRY_SSL_CA_LOCATION env",
+            "schema.registry.ssl.certificate.location": "/path/to/client.pem or $SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION env",
+            "schema.registry.ssl.key.location": "/path/to/client.key or $SCHEMA_REGISTRY_SSL_KEY_LOCATION env"
+    }
+}

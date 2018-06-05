@@ -45,6 +45,7 @@ try:
 except ImportError as e:
     with_progress = False
 
+testconf = None
 # Kafka bootstrap server(s)
 bootstrap_servers = None
 
@@ -52,7 +53,7 @@ bootstrap_servers = None
 schema_registry_url = None
 
 # Topic prefix to use
-topic = 'test'
+topic = None
 
 # API version requests are only implemented in Kafka broker >=0.10
 # but the client handles failed API version requests gracefully for older
@@ -374,27 +375,17 @@ def verify_avro():
         c.close()
 
 
-def verify_avro_https(*args):
+def verify_avro_https():
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
-
-    # Avoid potential for never ending consume/produce cycle
-    timeout = time.time() + 15
 
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
             'api.version.request': api_version_request,
-            'default.topic.config': {'produce.offset.report': True}}
+            }
 
-    # Create producer
-    if schema_registry_url:
-        conf['schema.registry.url'] = schema_registry_url
-        conf['schema.registry.ssl.ca.path'] = args[0]
-        conf['schema.registry.ssl.certificate.location'] = args[1]
-        conf['schema.registry.key.location'] = args[2]
-    else:
-        raise ValueError("Schema Registry URL required for the avro-https test")
+    conf.update(testconf['schema_registry_https'])
 
     p = avro.AvroProducer(conf)
 
@@ -402,7 +393,7 @@ def verify_avro_https(*args):
     prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
     basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
     str_value = 'abc'
-    float_value = 32.
+    float_value = 32.0
 
     combinations = [
         dict(key=float_value, key_schema=prim_float),
@@ -420,29 +411,24 @@ def verify_avro_https(*args):
         dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
     ]
 
-    # Consumer config
-    cons_conf = {'bootstrap.servers': bootstrap_servers,
-                 'group.id': 'test.py',
-                 'session.timeout.ms': 6000,
-                 'enable.auto.commit': False,
-                 'api.version.request': api_version_request,
-                 'on_commit': print_commit_result,
-                 'error_cb': error_cb,
-                 'default.topic.config': {
-                     'auto.offset.reset': 'earliest'
-                 }}
-
     for i, combo in enumerate(combinations):
         combo['topic'] = str(uuid.uuid4())
         combo['headers'] = [('index', str(i))]
         p.produce(**combo)
     p.flush()
 
-    conf = copy(cons_conf)
-    conf['schema.registry.url'] = schema_registry_url
-    conf['schema.registry.ssl.ca.path'] = args[0]
-    conf['schema.registry.ssl.certificate.location'] = args[1]
-    conf['schema.registry.key.location'] = args[2]
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': _supply_group_id(),
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'api.version.request': api_version_request,
+            'on_commit': print_commit_result,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    conf.update(testconf['schema_registry_https'])
 
     c = avro.AvroConsumer(conf)
     c.subscribe([(t['topic']) for t in combinations])
@@ -462,7 +448,7 @@ def verify_avro_https(*args):
         # omit empty Avro fields from payload for comparison
         record_key = msg.key()
         record_value = msg.value()
-        index = int(msg.headers()[0][1])
+        index = int(dict(msg.headers())['index'])
 
         if isinstance(msg.key(), dict):
             record_key = {k: v for k, v in msg.key().items() if v is not None}
@@ -473,13 +459,10 @@ def verify_avro_https(*args):
         assert combinations[index].get('key') == record_key
         assert combinations[index].get('value') == record_value
 
+        c.commit()
         msgcount += 1
 
-        if time.time() > timeout:
-            raise RuntimeError("verify_avro_https cailed to complete within 15 seconds")
-
     # Close consumer
-    c.commit(asynchronous=False)
     c.close()
 
 
@@ -1234,7 +1217,7 @@ def verify_admin():
 
 # Exclude throttle since from default list
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'none']
+all_modes = default_modes + ['throttle', 'avro-https', 'none']
 """All test modes"""
 
 
@@ -1249,6 +1232,20 @@ def print_usage(exitcode, reason=None):
     sys.exit(exitcode)
 
 
+def _supply_group_id():
+    return uuid.uuid1()
+
+
+# Resolve environment variables
+def _normalize(_conf):
+    for k, v in _conf.items():
+        if isinstance(v, dict):
+            _normalize(v)
+
+        if str(v).startswith('$'):
+            _conf[k] = os.getenv(v[1:])
+
+
 if __name__ == '__main__':
     """Run test suites"""
 
@@ -1260,18 +1257,20 @@ if __name__ == '__main__':
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
+
+        if opt == 'conf':
+            with open(sys.argv.pop(1)) as f:
+                testconf = json.load(f)
+                _normalize(testconf)
+            continue
+
         if opt not in all_modes:
             print_usage(1, 'unknown option --' + opt)
         modes.append(opt)
 
-    if len(sys.argv) > 1:
-        bootstrap_servers = sys.argv[1]
-        if len(sys.argv) > 2:
-            topic = sys.argv[2]
-        if len(sys.argv) > 3:
-            schema_registry_url = sys.argv[3]
-    else:
-        print_usage(1)
+    bootstrap_servers = testconf['bootstrap.servers']
+    topic = testconf['topic']
+    schema_registry_url = testconf['schema.registry.url']
 
     if len(modes) == 0:
         modes = default_modes
@@ -1327,10 +1326,7 @@ if __name__ == '__main__':
 
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with https', '=' * 30)
-        if len(sys.argv) > 4:
-            verify_avro_https(*tuple(sys.argv[4:]))
-        else:
-            print_usage(1)
+        verify_avro_https()
 
     print('=' * 30, 'Done', '=' * 30)
 

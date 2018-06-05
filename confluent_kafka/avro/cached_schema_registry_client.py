@@ -47,7 +47,7 @@ class CachedSchemaRegistryClient(object):
     @:param: url: url to schema registry
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000, ca_path=None, cert_location=None, key_location=None):
+    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
         """Construct a client by passing in the base URL of the schema registry server"""
 
         self.url = url.rstrip('/')
@@ -62,26 +62,27 @@ class CachedSchemaRegistryClient(object):
 
         self._session = requests.Session()
         with self._session as s:
-            if ca_path:
-                s.verify = ca_path
-            if cert_location or key_location:
-                if not key_location and cert_location:
-                    raise ValueError("Both cert_location and key_location must be set: {} {}".format(
-                        cert_location,
-                        key_location))
+            if ca_location:
+                s.verify = ca_location
+            if (cert_location or key_location) is not None:
+                if (key_location and cert_location) is None:
+                    raise ValueError(
+                        "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location"
+                        "must be set: {} {}".format(cert_location, key_location))
                 s.cert = (cert_location, key_location)
 
     def _send_request(self, url, method='GET', body=None, headers={}):
         if method not in VALID_METHODS:
-            raise ClientError("Invalid HTTP request type")
+            raise ClientError("Method {} invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        headers['Accept'] = ACCEPT_HDR
+        _headers = {'Accept': ACCEPT_HDR}
         if body:
-            headers["Content-Length"] = str(len(body))
-            headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+            _headers["Content-Length"] = str(len(body))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        _headers.update(headers)
 
         with self._session as s:
-            response = s.request(method, url, headers=headers, json=body)
+            response = s.request(method, url, headers=_headers, json=body)
             return response.json(), response.status_code
 
     def _add_to_cache(self, cache, subject, schema, value):

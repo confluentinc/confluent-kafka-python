@@ -10,30 +10,35 @@ From top-level directory run:
 Integration tests
 =================
 
-**WARNING**: These tests require an active Kafka cluster and will create new topics.
+**NOTE**: Integration tests require an existing Kafka cluster and a `testconf.json` configuration file.
+At a minimum you must specify `bootstrap.servers` and `topic` within `testconf.json`. Please reference [tests/testconf-example.json](tests/testconf-example.json) for formatting.
 
+**WARNING**: These tests will create new topics and consumer groups.
 
-To run all of the integration test `modes` uncomment the following line from `tox.ini` and add the addresses to your Kafka and Confluent Schema Registry instances.
+Integration test
+To run all of the integration test `modes` uncomment the following line from `tox.ini` and provide the location to your `testconf.json`
 
-    #python examples/integration_test.py <bootstrap-servers> confluent-kafka-testing [<schema-registry-url>]
+    #python examples/integration_test.py --conf <testconf.json>
 
 You can also run the integration tests outside of `tox` by running this command from the source root directory
 
-    examples/integration_test.py <kafka-broker> [<test-topic>] [<schema-registry>]
+    examples/integration_test.py --conf <testconf.json>
 
 To run individual integration test `modes` use the following syntax
 
-     examples/integration_test.py --<test mode>  <kafka-broker> [<test-topic>] [<schema-registry>]
+     examples/integration_test.py --<test mode> --conf <testconf.json>
 
 For example:
 
-    examples/integration_test.py --producer <kafka-broker> [<test-topic>]
+    examples/integration_test.py --producer --conf testconf.json
 
 To get a list of modes you can run the integration test manually with the `--help` flag
 
     examples/integration_tests.py --help
 
 
+**Throttle Callback tests**
+===========================
 The throttle_cb integration test requires an additional step and as such is not included in the default test modes.
 In order to execute the throttle_cb test you must first set a throttle for the client 'throttled_client' with the command below:
 
@@ -43,7 +48,7 @@ In order to execute the throttle_cb test you must first set a throttle for the c
 
 Once the throttle has been set you can proceed with the following command:
 
-    examples/integration_test.py --throttle <kafka-broker> [<test-topic>]
+    examples/integration_test.py --throttle --conf testconf.json
 
 
 To remove the throttle you can execute the following
@@ -52,16 +57,15 @@ To remove the throttle you can execute the following
         --alter --delete-config 'request_percentage' \
         --entity-name throttled_client --entity-type clients
 
+**HTTPS Schema Registry tests**
+===============================
 
-Schema Registry HTTPS tests
-===========================
+HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener.
 
-HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener. 
-
-For instructions on how to configure the Schema Registry please see Confleunt's documentation: 
+For instructions on how to configure the Schema Registry please see Confleunt's documentation:
 
 [Schema Registry documentation](https://docs.confluent.io/current/schema-registry/docs/security.html#configuring-the-rest-api-for-http-or-https)
 
 If client authentication has been enabled you will need to provide both the client certificate, `cert_path`, and the client's private key, `key_path`
 
-        examples/integration_test.py <bootstrap-servers> confluent-kafka-testing <schema-registry-url> [ca_path] [[cert_path] [key_path]]
+        examples/integration_test.py --avro-https --conf testconf.json

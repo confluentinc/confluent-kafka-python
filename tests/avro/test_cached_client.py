@@ -139,5 +139,5 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
 
     def test_cert_path(self):
             self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',
-                                                     ca_path='/path/to/ca',)
+                                                     ca_location='/path/to/ca',)
             self.assertEqual('/path/to/ca', self.client._session.verify)
