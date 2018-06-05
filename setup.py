@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-import os
 from setuptools import setup, find_packages
 from distutils.core import Extension
 import sys
@@ -22,16 +21,6 @@ module = Extension('confluent_kafka.cimpl',
                             'confluent_kafka/src/AdminTypes.c',
                             'confluent_kafka/src/Admin.c'])
 
-
-def get_install_requirements(path):
-    content = open(os.path.join(os.path.dirname(__file__), path)).read()
-    return [
-        req
-        for req in content.split("\n")
-        if req != '' and not req.startswith('#')
-    ]
-
-
 setup(name='confluent-kafka',
       version='0.11.5rc0',
       description='Confluent\'s Apache Kafka client for Python',
@@ -43,6 +32,5 @@ setup(name='confluent-kafka',
       data_files=[('', ['LICENSE.txt'])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
-          'avro': ['fastavro', 'requests', avro],
-          'dev': get_install_requirements("test-requirements.txt")
+          'avro': ['fastavro', 'requests', avro]
       })
