@@ -37,7 +37,7 @@ To get a list of modes you can run the integration test manually with the `--hel
     examples/integration_tests.py --help
 
 
-**Throttle Callback tests**
+**Throttle Callback test**
 ===========================
 The throttle_cb integration test requires an additional step and as such is not included in the default test modes.
 In order to execute the throttle_cb test you must first set a throttle for the client 'throttled_client' with the command below:
@@ -57,7 +57,7 @@ To remove the throttle you can execute the following
         --alter --delete-config 'request_percentage' \
         --entity-name throttled_client --entity-type clients
 
-**HTTPS Schema Registry tests**
+**HTTPS Schema Registry test**
 ===============================
 
 HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener.
