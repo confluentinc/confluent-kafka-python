@@ -1254,6 +1254,7 @@ if __name__ == '__main__':
         print('Running with pympler memory tracker')
 
     modes = list()
+
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
