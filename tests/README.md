@@ -66,6 +66,7 @@ For instructions on how to configure the Schema Registry please see Confleunt's 
 
 [Schema Registry documentation](https://docs.confluent.io/current/schema-registry/docs/security.html#configuring-the-rest-api-for-http-or-https)
 
-If client authentication has been enabled you will need to provide both the client certificate, `cert_path`, and the client's private key, `key_path`
+If client authentication has been enabled you will need to provide both the client certificate, `schema.registry.ssl.certificate.location`,
+and the client's private key, `schema.registry.ssl.key.location`
 
         examples/integration_test.py --avro-https --conf testconf.json
