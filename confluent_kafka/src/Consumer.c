@@ -1411,25 +1411,28 @@ PyTypeObject ConsumerType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"High-level Kafka Consumer\n"
-	"\n"
-	".. py:function:: Consumer(config, **kwargs)\n"
-	"\n"
-	"  Create new Consumer instance using provided configuration dict.\n"
-	"\n"
-	" Special configuration properties:\n"
-	"   ``on_commit``: Optional callback will be called when a commit "
-	"request has succeeded or failed.\n"
-	"\n"
-	"\n"
-	".. py:function:: on_commit(err, partitions)\n"
-	"\n"
-	"  :param Consumer consumer: Consumer instance.\n"
-	"  :param KafkaError err: Commit error object, or None on success.\n"
-	"  :param list(TopicPartition) partitions: List of partitions with "
-	"their committed offsets or per-partition errors.\n"
-	"\n"
-	"\n", /*tp_doc*/
+        "High-level Kafka Consumer\n"
+        "\n"
+        ".. py:function:: Consumer(config)\n"
+        "\n"
+        "  :param dict config: Configuration properties. At a minimum ``bootstrap.servers`` and "
+        "``group.id`` **should** be set"
+        "\n"
+        "Create new Consumer instance using provided configuration dict.\n"
+        "\n"
+        " Special configuration properties:\n"
+                "   ``on_commit``: Optional callback will be called when a commit "
+        "request has succeeded or failed.\n"
+        "\n"
+        "\n"
+        ".. py:function:: on_commit(err, partitions)\n"
+        "\n"
+        "  :param Consumer consumer: Consumer instance.\n"
+        "  :param KafkaError err: Commit error object, or None on success.\n"
+        "  :param list(TopicPartition) partitions: List of partitions with "
+        "their committed offsets or per-partition errors.\n"
+        "\n"
+        "\n", /*tp_doc*/
 	(traverseproc)Consumer_traverse, /* tp_traverse */
 	(inquiry)Consumer_clear, /* tp_clear */
 	0,		           /* tp_richcompare */
