@@ -1413,7 +1413,7 @@ PyTypeObject ConsumerType = {
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"High-level Kafka Consumer\n"
 	"\n"
-	".. py:function:: Consumer(**kwargs)\n"
+	".. py:function:: Consumer(config, **kwargs)\n"
 	"\n"
 	"  Create new Consumer instance using provided configuration dict.\n"
 	"\n"

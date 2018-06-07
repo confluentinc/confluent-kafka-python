@@ -635,7 +635,7 @@ PyTypeObject ProducerType = {
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"Asynchronous Kafka Producer\n"
 	"\n"
-	".. py:function:: Producer(**kwargs)\n"
+	".. py:function:: Producer(config, **kwargs)\n"
 	"\n"
 	"  Create new Producer instance using provided configuration dict.\n"
 	"\n"
