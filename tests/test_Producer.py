@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
@@ -38,6 +39,11 @@ def test_basic_api():
     p.flush(0.002)
     p.flush()
 
+    try:
+        p.list_topics(timeout=0.2)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
 
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """
@@ -74,15 +80,20 @@ def test_produce_headers():
         [('dupkey', 'dupvalue'), ('dupkey', 'diffvalue')],
         [('key_with_null_value', None)],
         [('binaryval', binval)],
+        [('alreadyutf8', u'Småland'.encode('utf-8'))],
+        [('isunicode', 'Jämtland')],
 
         {'headerkey': 'headervalue'},
         {'dupkey': 'dupvalue', 'empty': '', 'dupkey': 'dupvalue'},  # noqa: F601
         {'dupkey': 'dupvalue', 'dupkey': 'diffvalue'},  # noqa: F601
         {'key_with_null_value': None},
-        {'binaryval': binval}
+        {'binaryval': binval},
+        {'alreadyutf8': u'Småland'.encode('utf-8')},
+        {'isunicode': 'Jämtland'}
         ]
 
     for headers in headers_to_test:
+        print('headers', type(headers), headers)
         p.produce('mytopic', value='somedata', key='a key', headers=headers)
         p.produce('mytopic', value='somedata', headers=headers)
 
@@ -91,6 +102,9 @@ def test_produce_headers():
 
     with pytest.raises(TypeError):
         p.produce('mytopic', value='somedata', key='a key', headers=[('malformed_header')])
+
+    with pytest.raises(TypeError):
+        p.produce('mytopic', value='somedata', headers={'anint': 1234})
 
     p.flush()
 

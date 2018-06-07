@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 #
 # Copyright 2016 Confluent Inc.
@@ -20,6 +21,7 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
+from confluent_kafka import admin
 import os
 import time
 import uuid
@@ -28,6 +30,14 @@ import json
 import gc
 import struct
 from copy import copy
+
+try:
+    # Memory tracker
+    from pympler import tracker
+    with_pympler = True
+except Exception as e:
+    with_pympler = False
+
 
 try:
     from progress.bar import Bar
@@ -41,7 +51,7 @@ bootstrap_servers = None
 # Confluent schema-registry
 schema_registry_url = None
 
-# Topic to use
+# Topic prefix to use
 topic = 'test'
 
 # API version requests are only implemented in Kafka broker >=0.10
@@ -53,9 +63,43 @@ api_version_request = True
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
+# global variable to be incremented by throttle_cb call back function
+throttled_requests = 0
+
+# Shared between producer and consumer tests and used to verify
+# that consumed headers are what was actually produced.
+produce_headers = [('foo1', 'bar'),
+                   ('foo1', 'bar2'),
+                   ('foo2', b'1'),
+                   (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
+                   ('nullheader', None),
+                   ('empty', ''),
+                   ('foobin', struct.pack('hhl', 10, 20, 30))]
+
+# Identical to produce_headers but with proper binary typing
+expected_headers = [('foo1', b'bar'),
+                    ('foo1', b'bar2'),
+                    ('foo2', b'1'),
+                    (u'Jämtland', b'H\xc3\xa4rjedalen'),  # not automatically utf-8 decoded
+                    ('nullheader', None),
+                    ('empty', b''),
+                    ('foobin', struct.pack('hhl', 10, 20, 30))]
+
 
 def error_cb(err):
     print('Error: %s' % err)
+
+
+def throttle_cb(throttle_event):
+    # validate argument type
+    assert isinstance(throttle_event.broker_name, str)
+    assert isinstance(throttle_event.broker_id, int)
+    assert isinstance(throttle_event.throttle_time, float)
+
+    global throttled_requests
+    throttled_requests += 1
+
+    print(throttle_event)
 
 
 class InMemorySchemaRegistry(object):
@@ -118,8 +162,7 @@ def verify_producer():
     p = confluent_kafka.Producer(**conf)
     print('producer at %s' % p)
 
-    headers = [('foo1', 'bar'), ('foo1', 'bar2'), ('foo2', b'1'),
-               ('foobin', struct.pack('hhl', 10, 20, 30))]
+    headers = produce_headers
 
     # Produce some messages
     p.produce(topic, 'Hello Python!', headers=headers)
@@ -436,7 +479,7 @@ def verify_consumer_seek(c, seek_to_msg):
         msg = c.poll()
         assert msg is not None
         if msg.error():
-            print('seek: Ignoring non-message: %s' % msg)
+            print('seek: Ignoring non-message: %s' % msg.error())
             continue
 
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
@@ -481,7 +524,9 @@ def verify_consumer():
 
     first_msg = None
 
-    example_header = None
+    example_headers = None
+
+    eof_reached = dict()
 
     while True:
         # Consume until EOF or error
@@ -495,7 +540,10 @@ def verify_consumer():
             if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
                 print('Reached end of %s [%d] at offset %d' %
                       (msg.topic(), msg.partition(), msg.offset()))
-                break
+                eof_reached[(msg.topic(), msg.partition())] = True
+                if len(eof_reached) == len(c.assignment()):
+                    print('EOF reached for all assigned partitions: exiting')
+                    break
             else:
                 print('Consumer error: %s: ignoring' % msg.error())
                 break
@@ -503,7 +551,7 @@ def verify_consumer():
         tstype, timestamp = msg.timestamp()
         headers = msg.headers()
         if headers:
-            example_header = headers
+            example_headers = headers
 
         msg.set_headers([('foo', 'bar')])
         assert msg.headers() == [('foo', 'bar')]
@@ -536,15 +584,13 @@ def verify_consumer():
             print('Sync committed offset: %s' % offsets)
 
         msgcnt += 1
-        if msgcnt >= max_msgcnt and example_header is not None:
+        if msgcnt >= max_msgcnt and example_headers is not None:
             print('max_msgcnt %d reached' % msgcnt)
             break
 
-    assert example_header, "We should have received at least one header"
-    assert example_header == [(u'foo1', 'bar'),
-                              (u'foo1', 'bar2'),
-                              (u'foo2', '1'),
-                              ('foobin', struct.pack('hhl', 10, 20, 30))]
+    assert example_headers, "We should have received at least one header"
+    assert example_headers == expected_headers, \
+        "example header mismatch:\n{}\nexpected:\n{}".format(example_headers, expected_headers)
 
     # Get current assignment
     assignment = c.assignment()
@@ -813,6 +859,59 @@ def verify_batch_consumer_performance():
     c.close()
 
 
+def verify_throttle_cb():
+    """ Verify throttle_cb is invoked
+        This test requires client quotas be configured.
+        See tests/README.md for more information
+    """
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'api.version.request': api_version_request,
+            'linger.ms': 500,
+            'client.id': 'throttled_client',
+            'throttle_cb': throttle_cb}
+
+    p = confluent_kafka.Producer(conf)
+
+    msgcnt = 1000
+    msgsize = 100
+    msg_pattern = 'test.py throttled client'
+    msg_payload = (msg_pattern * int(msgsize / len(msg_pattern)))[0:msgsize]
+
+    msgs_produced = 0
+    msgs_backpressure = 0
+    print('# producing %d messages to topic %s' % (msgcnt, topic))
+
+    if with_progress:
+        bar = Bar('Producing', max=msgcnt)
+    else:
+        bar = None
+
+    for i in range(0, msgcnt):
+        while True:
+            try:
+                p.produce(topic, value=msg_payload)
+                break
+            except BufferError:
+                # Local queue is full (slow broker connection?)
+                msgs_backpressure += 1
+                if bar is not None and (msgs_backpressure % 1000) == 0:
+                    bar.next(n=0)
+                p.poll(100)
+            continue
+
+        if bar is not None and (msgs_produced % 5000) == 0:
+            bar.next(n=5000)
+        msgs_produced += 1
+        p.poll(0)
+
+    if bar is not None:
+        bar.finish()
+
+    p.flush()
+    print('# %d of %d produce requests were throttled' % (throttled_requests, msgs_produced))
+    assert throttled_requests >= 1
+
+
 def verify_stats_cb():
     """ Verify stats_cb """
 
@@ -890,33 +989,172 @@ def verify_stats_cb():
     c.close()
 
 
+def verify_topic_metadata(client, exp_topics):
+    """
+    Verify that exp_topics (dict<topicname,partcnt>) is reported in metadata.
+    Will retry and wait for some time to let changes propagate.
+
+    Non-controller brokers may return the previous partition count for some
+    time before being updated, in this case simply retry.
+    """
+
+    for retry in range(0, 3):
+        do_retry = 0
+
+        md = client.list_topics()
+
+        for exptopic, exppartcnt in exp_topics.items():
+            if exptopic not in md.topics:
+                print("Topic {} not yet reported in metadata: retrying".format(exptopic))
+                do_retry += 1
+                continue
+
+            if len(md.topics[exptopic].partitions) < exppartcnt:
+                print("Topic {} partition count not yet updated ({} != expected {}): retrying".format(
+                    exptopic, len(md.topics[exptopic].partitions), exppartcnt))
+                do_retry += 1
+                continue
+
+            assert len(md.topics[exptopic].partitions) == exppartcnt, \
+                "Expected {} partitions for topic {}, not {}".format(
+                    exppartcnt, exptopic, md.topics[exptopic].partitions)
+
+        if do_retry == 0:
+            return  # All topics okay.
+
+        time.sleep(1)
+
+    raise Exception("Timed out waiting for topics {} in metadata".format(exp_topics))
+
+
+def verify_admin():
+    """ Verify Admin API """
+
+    a = admin.AdminClient({'bootstrap.servers': bootstrap_servers})
+    our_topic = topic + '_admin_' + str(uuid.uuid4())
+    num_partitions = 2
+
+    topic_config = {"compression.type": "gzip"}
+
+    #
+    # First iteration: validate our_topic creation.
+    # Second iteration: create topic.
+    #
+    for validate in (True, False):
+        fs = a.create_topics([admin.NewTopic(our_topic,
+                                             num_partitions=num_partitions,
+                                             config=topic_config,
+                                             replication_factor=1)],
+                             validate_only=validate,
+                             operation_timeout=10.0)
+
+        for topic2, f in fs.items():
+            f.result()  # trigger exception if there was an error
+
+    #
+    # Find the topic in list_topics
+    #
+    verify_topic_metadata(a, {our_topic: num_partitions})
+
+    #
+    # Increase the partition count
+    #
+    num_partitions += 3
+    fs = a.create_partitions([admin.NewPartitions(our_topic,
+                                                  new_total_count=num_partitions)],
+                             operation_timeout=10.0)
+
+    for topic2, f in fs.items():
+        f.result()  # trigger exception if there was an error
+
+    #
+    # Verify with list_topics.
+    #
+    verify_topic_metadata(a, {our_topic: num_partitions})
+
+    def verify_config(expconfig, configs):
+        """
+        Verify that the config key,values in expconfig are found
+        and matches the ConfigEntry in configs.
+        """
+        for key, expvalue in expconfig.items():
+            entry = configs.get(key, None)
+            assert entry is not None, "Config {} not found in returned configs".format(key)
+
+            assert entry.value == str(expvalue), \
+                "Config {} with value {} does not match expected value {}".format(key, entry, expvalue)
+
+    #
+    # Get current topic config
+    #
+    resource = admin.ConfigResource(admin.RESOURCE_TOPIC, our_topic)
+    fs = a.describe_configs([resource])
+    configs = fs[resource].result()  # will raise exception on failure
+
+    # Verify config matches our expectations
+    verify_config(topic_config, configs)
+
+    #
+    # Now change the config.
+    #
+    topic_config["file.delete.delay.ms"] = 12345
+    topic_config["compression.type"] = "snappy"
+
+    for key, value in topic_config.items():
+        resource.set_config(key, value)
+
+    fs = a.alter_configs([resource])
+    fs[resource].result()  # will raise exception on failure
+
+    #
+    # Read the config back again and verify.
+    #
+    fs = a.describe_configs([resource])
+    configs = fs[resource].result()  # will raise exception on failure
+
+    # Verify config matches our expectations
+    verify_config(topic_config, configs)
+
+    #
+    # Delete the topic
+    #
+    fs = a.delete_topics([our_topic])
+    fs[our_topic].result()  # will raise exception on failure
+    print("Topic {} marked for deletion".format(our_topic))
+
+
+# Exclude throttle since from default list
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
+all_modes = default_modes + ['throttle', 'none']
+"""All test modes"""
+
+
 def print_usage(exitcode, reason=None):
     """ Print usage and exit with exitcode """
     if reason is not None:
         print('Error: %s' % reason)
-    print('Usage: %s <broker> [opts] [<topic>] [<schema_registry>]' % sys.argv[0])
+    print('Usage: %s [options] <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
     print('Options:')
-    print(' --consumer, --producer, --avro, --performance - limit to matching tests')
+    print(' %s - limit to matching tests' % ', '.join(['--' + x for x in all_modes]))
 
     sys.exit(exitcode)
 
 
 if __name__ == '__main__':
+    """Run test suites"""
+
+    if with_pympler:
+        tr = tracker.SummaryTracker()
+        print('Running with pympler memory tracker')
+
     modes = list()
 
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
-        opt = sys.argv.pop(1)
-        if opt == '--consumer':
-            modes.append('consumer')
-        elif opt == '--producer':
-            modes.append('producer')
-        elif opt == '--avro':
-            modes.append('avro')
-        elif opt == '--performance':
-            modes.append('performance')
-        else:
-            print_usage(1, 'unknown option ' + opt)
+        opt = sys.argv.pop(1)[2:]
+        if opt not in all_modes:
+            print_usage(1, 'unknown option --' + opt)
+        modes.append(opt)
 
     if len(sys.argv) > 1:
         bootstrap_servers = sys.argv[1]
@@ -928,10 +1166,13 @@ if __name__ == '__main__':
         print_usage(1)
 
     if len(modes) == 0:
-        modes = ['consumer', 'producer', 'avro', 'performance']
+        modes = default_modes
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
+    print('Testing: %s' % modes)
+    print('Brokers: %s' % bootstrap_servers)
+    print('Topic prefix: %s' % topic)
 
     if 'producer' in modes:
         print('=' * 30, 'Verifying Producer', '=' * 30)
@@ -963,8 +1204,22 @@ if __name__ == '__main__':
         print('=' * 30, 'Verifying stats_cb', '=' * 30)
         verify_stats_cb()
 
+    # The throttle test is utilizing the producer.
+    if 'throttle' in modes:
+        print('=' * 30, 'Verifying throttle_cb', '=' * 30)
+        verify_throttle_cb()
+
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
 
+    if 'admin' in modes:
+        print('=' * 30, 'Verifying Admin API', '=' * 30)
+        verify_admin()
+
     print('=' * 30, 'Done', '=' * 30)
+
+    if with_pympler:
+        gc.collect()
+        print('Memory tracker results')
+        tr.print_diff()

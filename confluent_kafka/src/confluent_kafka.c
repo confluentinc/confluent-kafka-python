@@ -48,7 +48,16 @@ PyObject *KafkaException;
  *
  ****************************************************************************/
 typedef struct {
-	PyObject_HEAD
+#ifdef PY3
+        PyException_HEAD
+#else
+        PyObject_HEAD
+        /* Standard fields of PyBaseExceptionObject which we inherit from. */
+        PyObject *dict;
+        PyObject *args;
+        PyObject *message;
+#endif
+
 	rd_kafka_resp_err_t code;  /* Error code */
 	char *str;   /* Human readable representation of error, if one
 		      * was provided by librdkafka.
@@ -57,7 +66,7 @@ typedef struct {
 
 
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
-	return PyLong_FromLong(self->code);
+	return cfl_PyInt_FromInt(self->code);
 }
 
 static PyObject *KafkaError_str (KafkaError *self, PyObject *ignore) {
@@ -101,12 +110,27 @@ static PyMethodDef KafkaError_methods[] = {
 };
 
 
-static void KafkaError_dealloc (KafkaError *self) {
-	if (self->str)
-		free(self->str);
-	Py_TYPE(self)->tp_free((PyObject *)self);
+static void KafkaError_clear (PyObject *self0) {
+        KafkaError *self = (KafkaError *)self0;
+        if (self->str) {
+                free(self->str);
+                self->str = NULL;
+        }
 }
 
+static void KafkaError_dealloc (PyObject *self0) {
+        KafkaError *self = (KafkaError *)self0;
+        KafkaError_clear(self0);;
+        PyObject_GC_UnTrack(self0);
+        Py_TYPE(self)->tp_free(self0);
+}
+
+
+
+static int KafkaError_traverse (KafkaError *self,
+                                visitproc visit, void *arg) {
+        return 0;
+}
 
 static PyObject *KafkaError_str0 (KafkaError *self) {
 	return cfl_PyUnistr(_FromFormat("KafkaError{code=%s,val=%d,str=\"%s\"}",
@@ -122,6 +146,8 @@ static long KafkaError_hash (KafkaError *self) {
 
 static PyTypeObject KafkaErrorType;
 
+
+
 static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 					 int op) {
 	int code2;
@@ -131,7 +157,7 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 	if (Py_TYPE(o2) == &KafkaErrorType)
 		code2 = ((KafkaError *)o2)->code;
 	else
-		code2 = (int)PyLong_AsLong(o2);
+		code2 = cfl_PyInt_AsInt(o2);
 
 	switch (op)
 	{
@@ -184,7 +210,8 @@ static PyTypeObject KafkaErrorType = {
 	PyObject_GenericGetAttr,   /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
-	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE, /*tp_flags*/
+	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+        Py_TPFLAGS_BASE_EXC_SUBCLASS | Py_TPFLAGS_HAVE_GC, /*tp_flags*/
 	"Kafka error and event object\n"
 	"\n"
 	"  The KafkaError class serves multiple purposes:\n"
@@ -195,8 +222,8 @@ static PyTypeObject KafkaErrorType = {
 	"\n"
 	"  This class is not user-instantiable.\n"
 	"\n", /*tp_doc*/
-	0,		           /* tp_traverse */
-	0,		           /* tp_clear */
+        (traverseproc)KafkaError_traverse, /* tp_traverse */
+	(inquiry)KafkaError_clear, /* tp_clear */
 	(richcmpfunc)KafkaError_richcompare, /* tp_richcompare */
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
@@ -313,7 +340,7 @@ static PyObject *Message_topic (Message *self, PyObject *ignore) {
 
 static PyObject *Message_partition (Message *self, PyObject *ignore) {
 	if (self->partition != RD_KAFKA_PARTITION_UA)
-		return PyLong_FromLong(self->partition);
+		return cfl_PyInt_FromInt(self->partition);
 	else
 		Py_RETURN_NONE;
 }
@@ -416,16 +443,16 @@ static PyMethodDef Message_methods[] = {
 	  "\n"
 	},
 	{ "timestamp", (PyCFunction)Message_timestamp, METH_NOARGS,
-          "  Retrieve timestamp type and timestamp from message.\n"
-          "  The timestamp type is one of:\n"
-          "    * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
+          "Retrieve timestamp type and timestamp from message.\n"
+          "The timestamp type is one of:\n"
+          " * :py:const:`TIMESTAMP_NOT_AVAILABLE`"
           " - Timestamps not supported by broker\n"
-          "    * :py:const:`TIMESTAMP_CREATE_TIME` "
+          " * :py:const:`TIMESTAMP_CREATE_TIME` "
           " - Message creation time (or source / producer time)\n"
-          "    * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
+          " * :py:const:`TIMESTAMP_LOG_APPEND_TIME` "
           " - Broker receive time\n"
           "\n"
-          "  The returned timestamp should be ignored if the timestamp type is "
+          "The returned timestamp should be ignored if the timestamp type is "
           ":py:const:`TIMESTAMP_NOT_AVAILABLE`.\n"
           "\n"
           "  The timestamp is the number of milliseconds since the epoch (UTC).\n"
@@ -447,21 +474,24 @@ static PyMethodDef Message_methods[] = {
 	},
 	{ "set_headers", (PyCFunction)Message_set_headers, METH_O,
 	  "  Set the field 'Message.headers' with new value.\n"
-	  "  :param: object value: Message.headers.\n"
+          "\n"
+	  "  :param object value: Message.headers.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_value", (PyCFunction)Message_set_value, METH_O,
 	  "  Set the field 'Message.value' with new value.\n"
-	  "  :param: object value: Message.value.\n"
+          "\n"
+	  "  :param object value: Message.value.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
 	},
 	{ "set_key", (PyCFunction)Message_set_key, METH_O,
 	  "  Set the field 'Message.key' with new value.\n"
-	  "  :param: object value: Message.key.\n"
+          "\n"
+	  "  :param object value: Message.key.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
@@ -547,7 +577,7 @@ PyTypeObject MessageType = {
 	0,                         /*tp_hash */
 	0,                         /*tp_call*/
 	0,                         /*tp_str*/
-	0,                         /*tp_getattro*/
+	PyObject_GenericGetAttr,                         /*tp_getattro*/
 	0,                         /*tp_setattro*/
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
@@ -701,19 +731,20 @@ static int TopicPartition_traverse (TopicPartition *self,
 
 static PyMemberDef TopicPartition_members[] = {
         { "topic", T_STRING, offsetof(TopicPartition, topic), READONLY,
-          ":py:attribute:topic - Topic name (string)" },
+          ":attribute topic: Topic name (string)" },
         { "partition", T_INT, offsetof(TopicPartition, partition), 0,
-          ":py:attribute: Partition number (int)" },
+          ":attribute partition: Partition number (int)" },
         { "offset", T_LONGLONG, offsetof(TopicPartition, offset), 0,
-          " :py:attribute: Offset (long)\n"
-          "Either an absolute offset (>=0) or a logical offset:"
+          ":attribute offset: Offset (long)\n"
+          "\n"
+          "Either an absolute offset (>=0) or a logical offset: "
           " :py:const:`OFFSET_BEGINNING`,"
           " :py:const:`OFFSET_END`,"
           " :py:const:`OFFSET_STORED`,"
-          " :py:const:`OFFSET_INVALID`"
+          " :py:const:`OFFSET_INVALID`\n"
         },
         { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
-          ":py:attribute: Indicates an error (with :py:class:`KafkaError`) unless None." },
+          ":attribute error: Indicates an error (with :py:class:`KafkaError`) unless None." },
         { NULL }
 };
 
@@ -887,7 +918,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	parts = PyList_New(c_parts->cnt);
 
-	for (i = 0 ; i < c_parts->cnt ; i++) {
+	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
 		PyList_SET_ITEM(parts, i,
 				TopicPartition_new0(
@@ -916,7 +947,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
-	for (i = 0 ; i < PyList_Size(plist) ; i++) {
+	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -942,7 +973,76 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 
 /**
+ * @brief Translate Python \p key and \p value to C types and set on
+ *        provided \p rd_headers object.
+ *
+ * @returns 1 on success or 0 if an exception was raised.
+ */
+static int py_header_to_c (rd_kafka_headers_t *rd_headers,
+                           PyObject *key, PyObject *value) {
+        PyObject *ks, *ks8, *vo8 = NULL;
+        const char *k;
+        const void *v = NULL;
+        Py_ssize_t vsize = 0;
+        rd_kafka_resp_err_t err;
+
+        if (!(ks = cfl_PyObject_Unistr(key))) {
+                PyErr_SetString(PyExc_TypeError,
+                                "expected header key to be unicode "
+                                "string");
+                return 0;
+        }
+
+        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+        if (value != Py_None) {
+                if (cfl_PyBin(_Check(value))) {
+                        /* Proper binary */
+                        if (cfl_PyBin(_AsStringAndSize(value, (char **)&v,
+                                                       &vsize)) == -1) {
+                                Py_DECREF(ks);
+                                return 0;
+                        }
+                } else if (cfl_PyUnistr(_Check(value))) {
+                        /* Unicode string, translate to utf-8. */
+                        v = cfl_PyUnistr_AsUTF8(value, &vo8);
+                        if (!v) {
+                                Py_DECREF(ks);
+                                return 0;
+                        }
+                        vsize = (Py_ssize_t)strlen(v);
+                } else {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected header value to be "
+                                     "None, binary, or unicode string, not %s",
+                                     ((PyTypeObject *)PyObject_Type(value))->
+                                     tp_name);
+                        return 0;
+                }
+        }
+
+        if ((err = rd_kafka_header_add(rd_headers, k, -1, v, vsize))) {
+                cfl_PyErr_Format(err,
+                                 "Unable to add message header \"%s\": "
+                                 "%s",
+                                 k, rd_kafka_err2str(err));
+                Py_DECREF(ks);
+                Py_XDECREF(vo8);
+                return 0;
+        }
+
+        Py_DECREF(ks);
+        Py_XDECREF(vo8);
+
+        return 1;
+}
+
+/**
  * @brief Convert Python list of tuples to rd_kafka_headers_t
+ *
+ * Header names must be unicode strong.
+ * Header values may be None, binary or unicode string, the latter is
+ * automatically encoded as utf-8.
  */
 static rd_kafka_headers_t *py_headers_list_to_c (PyObject *hdrs) {
         int i, len;
@@ -952,28 +1052,19 @@ static rd_kafka_headers_t *py_headers_list_to_c (PyObject *hdrs) {
         rd_headers = rd_kafka_headers_new(len);
 
         for (i = 0; i < len; i++) {
-                rd_kafka_resp_err_t err;
-                const char *header_key, *header_value = NULL;
-                int header_key_len = 0, header_value_len = 0;
+                PyObject *tuple = PyList_GET_ITEM(hdrs, i);
 
-                if(!PyArg_ParseTuple(PyList_GET_ITEM(hdrs, i), "s#z#",
-                                     &header_key, &header_key_len,
-                                     &header_value, &header_value_len)){
+                if (!PyTuple_Check(tuple) || PyTuple_Size(tuple) != 2) {
                         rd_kafka_headers_destroy(rd_headers);
                         PyErr_SetString(PyExc_TypeError,
                                         "Headers are expected to be a "
-                                        "tuple of (key, value)");
+                                        "list of (key, value) tuples");
                         return NULL;
                 }
 
-                err = rd_kafka_header_add(rd_headers,
-                                          header_key, header_key_len,
-                                          header_value, header_value_len);
-                if (err) {
-                        cfl_PyErr_Format(err,
-                                         "Unable to add message header \"%s\": "
-                                         "%s",
-                                         header_key, rd_kafka_err2str(err));
+                if (!py_header_to_c(rd_headers,
+                                    PyTuple_GET_ITEM(tuple, 0),
+                                    PyTuple_GET_ITEM(tuple, 1))) {
                         rd_kafka_headers_destroy(rd_headers);
                         return NULL;
                 }
@@ -995,42 +1086,11 @@ static rd_kafka_headers_t *py_headers_dict_to_c (PyObject *hdrs) {
         rd_headers = rd_kafka_headers_new(len);
 
         while (PyDict_Next(hdrs, &pos, &ko, &vo)) {
-                PyObject *ks, *ks8;
-                const char *k;
-                const void *v = NULL;
-                Py_ssize_t vsize = 0;
-                rd_kafka_resp_err_t err;
 
-                if (!(ks = cfl_PyObject_Unistr(ko))) {
-                        PyErr_SetString(PyExc_TypeError,
-                                        "expected header key to be unicode "
-                                        "string");
+                if (!py_header_to_c(rd_headers, ko, vo)) {
                         rd_kafka_headers_destroy(rd_headers);
                         return NULL;
                 }
-
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-
-                if (vo != Py_None) {
-                        if (PyString_AsStringAndSize(vo, (char **)&v,
-                                                     &vsize) == -1) {
-                                Py_DECREF(ks);
-                                rd_kafka_headers_destroy(rd_headers);
-                                return NULL;
-                        }
-                }
-
-                if ((err = rd_kafka_header_add(rd_headers, k, -1, v, vsize))) {
-                        cfl_PyErr_Format(err,
-                                         "Unable to add message header \"%s\": "
-                                         "%s",
-                                         k, rd_kafka_err2str(err));
-                        Py_DECREF(ks);
-                        rd_kafka_headers_destroy(rd_headers);
-                        return NULL;
-                }
-
-                Py_DECREF(ks);
         }
 
         return rd_headers;
@@ -1131,6 +1191,63 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	CallState_resume(cs);
 }
 
+/**
+ * @brief librdkafka throttle callback triggered by poll() or flush(), triggers the
+ *        corresponding Python throttle_cb
+ */
+static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker_id,
+                         int throttle_time_ms, void *opaque) {
+        Handle *h = opaque;
+        PyObject *ThrottleEvent_type, *throttle_event;
+        PyObject *result, *args;
+        CallState *cs;
+
+        cs = CallState_get(h);
+        if (!h->throttle_cb) {
+                /* No callback defined */
+                goto done;
+        }
+
+        ThrottleEvent_type = cfl_PyObject_lookup("confluent_kafka",
+                                                 "ThrottleEvent");
+
+        if (!ThrottleEvent_type) {
+                /* ThrottleEvent class not found */
+                goto err;
+        }
+
+        args = Py_BuildValue("(sid)", broker_name, broker_id, (double)throttle_time_ms/1000);
+        throttle_event = PyObject_Call(ThrottleEvent_type, args, NULL);
+
+        Py_DECREF(args);
+        Py_DECREF(ThrottleEvent_type);
+
+        if (!throttle_event) {
+                /* Failed to instantiate ThrottleEvent object */
+                goto err;
+        }
+
+        result = PyObject_CallFunctionObjArgs(h->throttle_cb, throttle_event, NULL);
+
+        Py_DECREF(throttle_event);
+
+        if (result) {
+                /* throttle_cb executed successfully */
+                Py_DECREF(result);
+                goto done;
+        }
+
+        /**
+        * Stop callback dispatcher, return err to application
+        * fall-through to unlock GIL
+        */
+ err:
+        CallState_crash(cs);
+        rd_kafka_yield(h->rk);
+ done:
+        CallState_resume(cs);
+}
+
 static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	Handle *h = opaque;
 	PyObject *eo = NULL, *result = NULL;
@@ -1210,13 +1327,21 @@ void Handle_clear (Handle *h) {
 	if (h->error_cb)
 		Py_DECREF(h->error_cb);
 
+        if (h->throttle_cb)
+                Py_DECREF(h->throttle_cb);
+
 	if (h->stats_cb)
 		Py_DECREF(h->stats_cb);
 
         Py_XDECREF(h->logger);
 
-        if (h->initiated)
+        if (h->initiated) {
+#ifdef WITH_PY_TSS
+                PyThread_tss_delete(&h->tlskey);
+#else
                 PyThread_delete_key(h->tlskey);
+#endif
+        }
 }
 
 /**
@@ -1225,6 +1350,9 @@ void Handle_clear (Handle *h) {
 int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	if (h->error_cb)
 		Py_VISIT(h->error_cb);
+
+        if (h->throttle_cb)
+                Py_VISIT(h->throttle_cb);
 
 	if (h->stats_cb)
 		Py_VISIT(h->stats_cb);
@@ -1395,14 +1523,9 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
                  * providing the same functionality from dr_msg_cb trampoline.
                  */
 
-                if (!PyBool_Check(valobj)) {
-                        cfl_PyErr_Format(
-                                RD_KAFKA_RESP_ERR__INVALID_ARG,
-                                "%s requires bool", name);
+                if (!cfl_PyBool_get(valobj, name,
+                                    &self->u.Producer.dr_only_error))
                         return -1;
-                }
-
-                self->u.Producer.dr_only_error = valobj == Py_True;
 
                 return 1;
         }
@@ -1519,7 +1642,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		const char *k;
 		const char *v;
 		char errstr[256];
-		int r;
+                int r = 0;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
 			PyErr_SetString(PyExc_TypeError,
@@ -1564,6 +1687,28 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
+                } else if (!strcmp(k, "throttle_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_ValueError,
+                                        "expected throttle_cb property "
+                                        "as a callable function");
+                                rd_kafka_topic_conf_destroy(tconf);
+                                rd_kafka_conf_destroy(conf);
+                                Py_XDECREF(ks8);
+                                Py_DECREF(ks);
+                                return NULL;
+                        }
+                        if (h->throttle_cb) {
+                                Py_DECREF(h->throttle_cb);
+                                h->throttle_cb = NULL;
+                        }
+                        if (vo != Py_None) {
+                                h->throttle_cb = vo;
+                                Py_INCREF(h->throttle_cb);
+                        }
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        continue;
 		} else if (!strcmp(k, "stats_cb")) {
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
@@ -1605,7 +1750,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
 			r = producer_conf_set_special(h, conf, tconf, k, vo);
-		else
+		else if (ktype == RD_KAFKA_CONSUMER)
 			r = consumer_conf_set_special(h, conf, tconf, k, vo);
 		if (r == -1) {
 			/* Error */
@@ -1663,6 +1808,9 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	if (h->error_cb)
 		rd_kafka_conf_set_error_cb(conf, error_cb);
 
+        if (h->throttle_cb)
+                rd_kafka_conf_set_throttle_cb(conf, throttle_cb);
+
 	if (h->stats_cb)
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
 
@@ -1678,7 +1826,17 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	rd_kafka_conf_set_opaque(conf, h);
 
-	h->tlskey = PyThread_create_key();
+#ifdef WITH_PY_TSS
+        if (PyThread_tss_create(&h->tlskey)) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Failed to initialize thread local storage");
+                rd_kafka_conf_destroy(conf);
+                return NULL;
+        }
+#else
+        h->tlskey = PyThread_create_key();
+#endif
+
         h->initiated = 1;
 
 	return conf;
@@ -1695,7 +1853,11 @@ void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
 	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
-	PyThread_set_key_value(h->tlskey, cs);
+#ifdef WITH_PY_TSS
+        PyThread_tss_set(&h->tlskey, cs);
+#else
+        PyThread_set_key_value(h->tlskey, cs);
+#endif
 }
 
 /**
@@ -1703,7 +1865,11 @@ void CallState_begin (Handle *h, CallState *cs) {
  * @returns 0 if a Python signal was raised or a callback crashed, else 1.
  */
 int CallState_end (Handle *h, CallState *cs) {
-	PyThread_delete_key_value(h->tlskey);
+#ifdef WITH_PY_TSS
+        PyThread_tss_set(&h->tlskey, NULL);
+#else
+        PyThread_delete_key_value(h->tlskey);
+#endif
 
 	PyEval_RestoreThread(cs->thread_state);
 
@@ -1718,7 +1884,12 @@ int CallState_end (Handle *h, CallState *cs) {
  * @brief Get the current thread's CallState and re-locks the GIL.
  */
 CallState *CallState_get (Handle *h) {
-	CallState *cs = PyThread_get_key_value(h->tlskey);
+        CallState *cs;
+#ifdef WITH_PY_TSS
+        cs = PyThread_tss_get(&h->tlskey);
+#else
+        cs = PyThread_get_key_value(h->tlskey);
+#endif
 	assert(cs != NULL);
 	assert(cs->thread_state != NULL);
 	PyEval_RestoreThread(cs->thread_state);
@@ -1743,6 +1914,230 @@ void CallState_crash (CallState *cs) {
 
 
 
+/**
+ * @brief Find class/type/object \p typename in \p modulename
+ *
+ * @returns a new reference to the object.
+ *
+ * @raises a TypeError exception if the type is not found.
+ */
+
+PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
+        PyObject *module = PyImport_ImportModule(modulename);
+        PyObject *obj;
+
+        if (!modulename) {
+                PyErr_Format(PyExc_TypeError,
+                             "Module %s not found when looking up %s.%s",
+                             modulename, modulename, typename);
+                return NULL;
+        }
+
+        obj = PyObject_GetAttrString(module, typename);
+        if (!obj) {
+                Py_DECREF(module);
+                PyErr_Format(PyExc_TypeError,
+                             "No such class/type/object: %s.%s",
+                             modulename, typename);
+                return NULL;
+        }
+
+        return obj;
+}
+
+
+void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val) {
+        PyObject *vo = cfl_PyUnistr(_FromString(val));
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
+
+void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
+        PyObject *vo = cfl_PyInt_FromInt(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
+
+
+int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
+        PyObject *vo = cfl_PyUnistr(_FromString(val));
+        int r = PyObject_SetAttrString(o, name, vo);
+        Py_DECREF(vo);
+        return r;
+}
+
+int cfl_PyObject_SetInt (PyObject *o, const char *name, int val) {
+        PyObject *vo = cfl_PyInt_FromInt(val);
+        int r = PyObject_SetAttrString(o, name, vo);
+        Py_DECREF(vo);
+        return r;
+}
+
+
+/**
+ * @brief Get attribute \p attr_name from \p object and verify it is
+ *        of type \p py_type.
+ *
+ * @returns 1 if \p valp was updated with the object (new reference) or NULL
+ *          if not matched and not required, or
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
+                          PyObject **valp, const PyTypeObject *py_type,
+                          int required) {
+        PyObject *o;
+
+        o = PyObject_GetAttrString(object, attr_name);
+        if (!o) {
+                if (!required) {
+                        *valp = NULL;
+                        return 1;
+                }
+
+                PyErr_Format(PyExc_TypeError,
+                             "Required attribute .%s missing", attr_name);
+                return 0;
+        }
+
+        if (Py_TYPE(o) != py_type) {
+                Py_DECREF(o);
+                PyErr_Format(PyExc_TypeError,
+                             "Expected .%s to be %s type, not %s",
+                             attr_name, py_type->tp_name,
+                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                return 0;
+        }
+
+        *valp = o;
+
+        return 1;
+}
+
+/**
+ * @brief Get attribute \p attr_name from \p object and make sure it is
+ *        an integer type.
+ *
+ * @returns 1 if \p valp was updated with either the object value, or \p defval.
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
+                         int defval, int required) {
+        PyObject *o;
+
+        if (!cfl_PyObject_GetAttr(object, attr_name, &o,
+#ifdef PY3
+                                  &PyLong_Type,
+#else
+                                  &PyInt_Type,
+#endif
+                                  required))
+                return 0;
+
+        if (!o) {
+                *valp = defval;
+                return 1;
+        }
+
+        *valp = cfl_PyInt_AsInt(o);
+        Py_DECREF(o);
+
+        return 1;
+}
+
+
+/**
+ * @brief Checks that \p object is a bool (or boolable) and sets
+ *        \p *valp according to the object.
+ *
+ * @returns 1 if \p valp was set, or 0 if \p object is not a boolable object.
+ *          An exception is raised in the error case.
+ */
+int cfl_PyBool_get (PyObject *object, const char *name, int *valp) {
+        if (!PyBool_Check(object)) {
+                PyErr_Format(PyExc_TypeError,
+                             "Expected %s to be bool type, not %s",
+                             name,
+                             ((PyTypeObject *)PyObject_Type(object))->tp_name);
+                return 0;
+        }
+
+        *valp = object == Py_True;
+
+        return 1;
+}
+
+
+/**
+ * @brief Get attribute \p attr_name from \p object and make sure it is
+ *        a string type.
+ *
+ * @returns 1 if \p valp was updated with a newly allocated copy of either the
+ *          object value (UTF8), or \p defval.
+ *          0 if an exception was raised.
+ */
+int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
+                            char **valp, const char *defval, int required) {
+        PyObject *o, *uo, *uop;
+
+        if (!cfl_PyObject_GetAttr(object, attr_name, &o,
+#ifdef PY3
+                                  &PyUnicode_Type,
+#else
+                                  &PyString_Type,
+#endif
+                                  required))
+                return 0;
+
+        if (!o) {
+                *valp = defval ? strdup(defval) : NULL;
+                return 1;
+        }
+
+        if (!(uo = cfl_PyObject_Unistr(o))) {
+                Py_DECREF(o);
+                PyErr_Format(PyExc_TypeError,
+                             "Expected .%s to be a unicode string type, not %s",
+                             attr_name,
+                             ((PyTypeObject *)PyObject_Type(o))->tp_name);
+                return 0;
+        }
+        Py_DECREF(o);
+
+        *valp = (char *)cfl_PyUnistr_AsUTF8(uo, &uop);
+        if (!*valp) {
+                Py_DECREF(uo);
+                Py_XDECREF(uop);
+                return 0; /* exception raised by AsUTF8 */
+        }
+
+        *valp = strdup(*valp);
+        Py_DECREF(uo);
+        Py_XDECREF(uop);
+
+        return 1;
+}
+
+
+
+/**
+ * @returns a Python list of longs based on the input int32_t array
+ */
+PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
+        PyObject *list;
+        size_t i;
+
+        list = PyList_New((Py_ssize_t)cnt);
+        if (!list)
+                return NULL;
+
+        for (i = 0 ; i < cnt ; i++)
+                PyList_SET_ITEM(list, (Py_ssize_t)i,
+                                cfl_PyInt_FromInt(arr[i]));
+
+        return list;
+}
+
+
 /****************************************************************************
  *
  *
@@ -1761,7 +2156,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.11.4", 0x000b0400);
+	return Py_BuildValue("si", "0.11.5rc0", 0x000b0500);
 }
 
 static PyMethodDef cimpl_methods[] = {
@@ -1837,7 +2232,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 		if (!descs[i].desc)
 			continue;
 
-		code = PyLong_FromLong(descs[i].code);
+		code = cfl_PyInt_FromInt(descs[i].code);
 
 		PyDict_SetItemString(dict, descs[i].name, code);
 
@@ -1870,6 +2265,8 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+        PyEval_InitThreads();
+
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;
 	if (PyType_Ready(&MessageType) < 0)
@@ -1880,6 +2277,10 @@ static PyObject *_init_cimpl (void) {
 		return NULL;
 	if (PyType_Ready(&ConsumerType) < 0)
 		return NULL;
+        if (PyType_Ready(&AdminType) < 0)
+                return NULL;
+        if (AdminTypes_Ready() < 0)
+                return NULL;
 
 #ifdef PY3
 	m = PyModule_Create(&cimpl_moduledef);
@@ -1908,6 +2309,11 @@ static PyObject *_init_cimpl (void) {
 
 	Py_INCREF(&ConsumerType);
 	PyModule_AddObject(m, "Consumer", (PyObject *)&ConsumerType);
+
+        Py_INCREF(&AdminType);
+        PyModule_AddObject(m, "_AdminClientImpl", (PyObject *)&AdminType);
+
+        AdminTypes_AddObjects(m);
 
 #if PY_VERSION_HEX >= 0x02070000
 	KafkaException = PyErr_NewExceptionWithDoc(

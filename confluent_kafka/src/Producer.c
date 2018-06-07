@@ -88,27 +88,29 @@ Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
 }
 
 
+static void Producer_clear0 (Handle *self) {
+        if (self->u.Producer.default_dr_cb) {
+                Py_DECREF(self->u.Producer.default_dr_cb);
+                self->u.Producer.default_dr_cb = NULL;
+        }
+        if (self->u.Producer.partitioner_cb) {
+                Py_DECREF(self->u.Producer.partitioner_cb);
+                self->u.Producer.partitioner_cb = NULL;
+        }
+}
+
 static int Producer_clear (Handle *self) {
-	if (self->u.Producer.default_dr_cb) {
-		Py_DECREF(self->u.Producer.default_dr_cb);
-		self->u.Producer.default_dr_cb = NULL;
-	}
-	if (self->u.Producer.partitioner_cb) {
-		Py_DECREF(self->u.Producer.partitioner_cb);
-		self->u.Producer.partitioner_cb = NULL;
-	}
-
-	Handle_clear(self);
-
-	return 0;
+        Producer_clear0(self);
+        Handle_clear(self);
+        return 0;
 }
 
 static void Producer_dealloc (Handle *self) {
 	PyObject_GC_UnTrack(self);
 
-	Producer_clear(self);
+        Producer_clear0(self);
 
-	if (self->rk) {
+        if (self->rk) {
                 CallState cs;
                 CallState_begin(self, &cs);
 
@@ -116,6 +118,8 @@ static void Producer_dealloc (Handle *self) {
 
                 CallState_end(self, &cs);
         }
+
+        Handle_clear(self);
 
 	Py_TYPE(self)->tp_free((PyObject *)self);
 }
@@ -237,7 +241,7 @@ int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
 	Py_DECREF(args);
 
 	if (result) {
-		r = (int32_t)PyLong_AsLong(result);
+		r = (int32_t)cfl_PyInt_AsInt(result);
 		if (PyErr_Occurred())
 			printf("FIXME: partition_cb returned wrong type "
 			       "(expected long), how to propagate?\n");
@@ -450,7 +454,7 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
 	if (r == -1)
 		return NULL;
 
-	return PyLong_FromLong(r);
+	return cfl_PyInt_FromInt(r);
 }
 
 
@@ -478,14 +482,13 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
                         return NULL;
         }
 #endif
-        return PyLong_FromLong(qlen);
+        return cfl_PyInt_FromInt(qlen);
 }
-
 
 static PyMethodDef Producer_methods[] = {
 	{ "produce", (PyCFunction)Producer_produce,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: produce(topic, [value], [key], [partition], [on_delivery], [timestamp])\n"
+	  ".. py:function:: produce(topic, [value], [key], [partition], [on_delivery], [timestamp], [headers])\n"
 	  "\n"
 	  "  Produce message to topic.\n"
 	  "  This is an asynchronous operation, an application may use the "
@@ -507,6 +510,7 @@ static PyMethodDef Producer_methods[] = {
 	  "failed delivery\n"
           "  :param int timestamp: Message timestamp (CreateTime) in milliseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
+          "  :param headers dict|list: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"
@@ -546,6 +550,10 @@ static PyMethodDef Producer_methods[] = {
 	  "callbacks may be triggered.\n"
 	  "\n"
 	},
+        { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
+          list_topics_doc
+        },
+
 	{ NULL }
 };
 

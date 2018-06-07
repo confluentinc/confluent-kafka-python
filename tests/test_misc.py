@@ -2,6 +2,7 @@
 
 import confluent_kafka
 import json
+import pytest
 
 
 def test_version():
@@ -99,3 +100,26 @@ def test_conf_none():
 
     global seen_stats_cb_check_no_brokers
     assert seen_stats_cb_check_no_brokers
+
+
+def throttle_cb_instantiate_fail():
+    """ Ensure noncallables raise TypeError"""
+    with pytest.raises(ValueError):
+        confluent_kafka.Producer({'throttle_cb': 1})
+
+
+def throttle_cb_instantiate():
+    """ Ensure we can configure a proper callback"""
+
+    def throttle_cb(throttle_event):
+        pass
+
+    confluent_kafka.Producer({'throttle_cb': throttle_cb})
+
+
+def test_throttle_event_types():
+    throttle_event = confluent_kafka.ThrottleEvent("broker", 0, 10.0)
+    assert isinstance(throttle_event.broker_name, str) and throttle_event.broker_name == "broker"
+    assert isinstance(throttle_event.broker_id, int) and throttle_event.broker_id == 0
+    assert isinstance(throttle_event.throttle_time, float) and throttle_event.throttle_time == 10.0
+    assert str(throttle_event) == "broker/0 throttled for 10000 ms"

@@ -13,7 +13,10 @@ module = Extension('confluent_kafka.cimpl',
                    libraries=['rdkafka'],
                    sources=['confluent_kafka/src/confluent_kafka.c',
                             'confluent_kafka/src/Producer.c',
-                            'confluent_kafka/src/Consumer.c'])
+                            'confluent_kafka/src/Consumer.c',
+                            'confluent_kafka/src/Metadata.c',
+                            'confluent_kafka/src/AdminTypes.c',
+                            'confluent_kafka/src/Admin.c'])
 
 
 def get_install_requirements(path):
@@ -26,7 +29,7 @@ def get_install_requirements(path):
 
 
 setup(name='confluent-kafka',
-      version='0.11.4',
+      version='0.11.5rc0',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',
@@ -34,6 +37,10 @@ setup(name='confluent-kafka',
       ext_modules=[module],
       packages=find_packages(exclude=("tests", "tests.*")),
       data_files=[('', ['LICENSE.txt'])],
+      install_requires=[
+          'futures;python_version<"3.0"',
+          'enum34;python_version<"3.0"'
+      ],
       extras_require={
           'avro': ['fastavro', 'requests', avro],
           'dev': get_install_requirements("test-requirements.txt")

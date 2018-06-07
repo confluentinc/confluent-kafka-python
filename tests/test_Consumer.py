@@ -100,6 +100,16 @@ def test_basic_api():
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
+    try:
+        kc.list_topics(timeout=0.2)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
+    try:
+        kc.list_topics(topic="hi", timeout=0.1)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
     kc.close()
 
 
