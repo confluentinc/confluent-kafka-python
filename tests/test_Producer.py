@@ -181,7 +181,7 @@ def test_set_partioner_murmur2_random():
     """
     Test ability to set built-in partitioner type murmur2_random
     """
-    Producer({'partitioner': 'murmur2'})
+    Producer({'partitioner': 'murmur2_random'})
 
 
 def test_set_invalid_partioner_murmur():
