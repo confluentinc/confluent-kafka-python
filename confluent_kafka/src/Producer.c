@@ -633,18 +633,20 @@ PyTypeObject ProducerType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-	"Asynchronous Kafka Producer\n"
-	"\n"
-	".. py:function:: Producer(**kwargs)\n"
-	"\n"
-	"  Create new Producer instance using provided configuration dict.\n"
-	"\n"
-	"\n"
-	".. py:function:: len()\n"
-	"\n"
-	"  :returns: Number of messages and Kafka protocol requests waiting to be delivered to broker.\n"
-	"  :rtype: int\n"
-	"\n", /*tp_doc*/
+        "Asynchronous Kafka Producer\n"
+        "\n"
+        ".. py:function:: Producer(config)\n"
+        "\n"
+        "  :param dict config: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set\n"
+        "\n"
+        "  Create new Producer instance using provided configuration dict.\n"
+        "\n"
+        "\n"
+        ".. py:function:: len()\n"
+        "\n"
+        "  :returns: Number of messages and Kafka protocol requests waiting to be delivered to broker.\n"
+        "  :rtype: int\n"
+        "\n", /*tp_doc*/
 	(traverseproc)Producer_traverse, /* tp_traverse */
 	(inquiry)Producer_clear, /* tp_clear */
 	0,		           /* tp_richcompare */
