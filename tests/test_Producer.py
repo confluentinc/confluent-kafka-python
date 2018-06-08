@@ -170,24 +170,24 @@ def test_dr_msg_errstr():
     p.flush()
 
 
-def test_set_partioner_murmur2():
+def test_set_partitioner_murmur2():
     """
     Test ability to set built-in partitioner type murmur
     """
     Producer({'partitioner': 'murmur2'})
 
 
-def test_set_partioner_murmur2_random():
+def test_set_partitioner_murmur2_random():
     """
     Test ability to set built-in partitioner type murmur2_random
     """
     Producer({'partitioner': 'murmur2_random'})
 
 
-def test_set_invalid_partioner_murmur():
+def test_set_invalid_partitioner_murmur():
     """
     Assert invalid partitioner raises KafkaException
     """
     with pytest.raises(KafkaException) as e:
         Producer({'partitioner': 'murmur'})
-        assert e == 'unknown builtin partitioner: murmur' in e
+    assert 'Invalid value for configuration property "partitioner": murmur' in str(e)

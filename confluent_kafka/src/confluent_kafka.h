@@ -201,12 +201,6 @@ typedef struct {
 		 */
 		struct {
 			PyObject *default_dr_cb;
-			PyObject *partitioner_cb; /**< Registered Python partitioner */
-			int32_t (*c_partitioner_cb) (
-				const rd_kafka_topic_t *,
-				const void *, size_t, int32_t,
-				void *, void *);  /**< Fallback C partitioner*/
-
                         int dr_only_error; /**< delivery.report.only.error */
 		} Producer;
 
@@ -394,13 +388,6 @@ PyObject *Message_error (Message *self, PyObject *ignore);
  ****************************************************************************/
 
 extern PyTypeObject ProducerType;
-
-
-int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
-				 const void *keydata,
-				 size_t keylen,
-				 int32_t partition_cnt,
-				 void *rkt_opaque, void *msg_opaque);
 
 
 /****************************************************************************

@@ -1513,9 +1513,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
-	int32_t (*partitioner_cb) (const rd_kafka_topic_t *,
-				   const void *, size_t, int32_t,
-				   void *, void *) = partitioner_cb;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
                 PyErr_Format(PyExc_RuntimeError,
