@@ -45,7 +45,8 @@ try:
 except ImportError as e:
     with_progress = False
 
-testconf = None
+testconf = 'tests/testconf-example.json'
+
 # Kafka bootstrap server(s)
 bootstrap_servers = None
 
@@ -382,10 +383,10 @@ def verify_avro_https():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
-            'api.version.request': api_version_request,
+            'api.version.request': api_version_request
             }
 
-    conf.update(testconf['schema_registry_https'])
+    conf.update(testconf.get('schema_registry_https', {}))
 
     p = avro.AvroProducer(conf)
 
@@ -418,7 +419,7 @@ def verify_avro_https():
     p.flush()
 
     conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': _supply_group_id(),
+            'group.id': _generate_group_id(),
             'session.timeout.ms': 6000,
             'enable.auto.commit': False,
             'api.version.request': api_version_request,
@@ -428,7 +429,7 @@ def verify_avro_https():
                 'auto.offset.reset': 'earliest'
             }}
 
-    conf.update(testconf['schema_registry_https'])
+    conf.update(testconf.get('schema_registry_https', {}))
 
     c = avro.AvroConsumer(conf)
     c.subscribe([(t['topic']) for t in combinations])
@@ -1217,7 +1218,7 @@ def verify_admin():
 
 # Exclude throttle since from default list
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'avro-https', 'none']
+all_modes = default_modes + ['throttle', 'avro-HTTPS', 'none']
 """All test modes"""
 
 
@@ -1232,15 +1233,16 @@ def print_usage(exitcode, reason=None):
     sys.exit(exitcode)
 
 
-def _supply_group_id():
-    return uuid.uuid1()
+def _generate_group_id():
+    return str(uuid.uuid1())
 
 
-# Resolve environment variables
-def _normalize(_conf):
+def _resolve_envs(_conf):
+    """Resolve environment variables"""
+
     for k, v in _conf.items():
         if isinstance(v, dict):
-            _normalize(v)
+            _resolve_envs(v)
 
         if str(v).startswith('$'):
             _conf[k] = os.getenv(v[1:])
@@ -1262,16 +1264,16 @@ if __name__ == '__main__':
         if opt == 'conf':
             with open(sys.argv.pop(1)) as f:
                 testconf = json.load(f)
-                _normalize(testconf)
+                _resolve_envs(testconf)
             continue
 
         if opt not in all_modes:
             print_usage(1, 'unknown option --' + opt)
         modes.append(opt)
 
-    bootstrap_servers = testconf['bootstrap.servers']
-    topic = testconf['topic']
-    schema_registry_url = testconf['schema.registry.url']
+    bootstrap_servers = testconf.get('bootstrap.servers', None)
+    topic = testconf.get('topic', None)
+    schema_registry_url = testconf.get('schema.registry.url', None)
 
     if len(modes) == 0:
         modes = default_modes
@@ -1325,7 +1327,7 @@ if __name__ == '__main__':
         print('=' * 30, 'Verifying Admin API', '=' * 30)
         verify_admin()
 
-    if 'avro-https' in modes:
+    if 'avro-HTTPS' in modes:
         print('=' * 30, 'Verifying AVRO with https', '=' * 30)
         verify_avro_https()
 

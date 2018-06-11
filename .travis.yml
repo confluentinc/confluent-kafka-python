@@ -1,5 +1,6 @@
 matrix:
  include:
+  # Source package verification with Python 2.7 and librdkafka master
   - os: linux
     language: python
     dist: trusty

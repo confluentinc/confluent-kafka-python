@@ -60,16 +60,28 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
-        self._session = requests.Session()
-        with self._session as s:
-            if ca_location:
-                s.verify = ca_location
-            if (cert_location or key_location) is not None:
-                if (key_location and cert_location) is None:
-                    raise ValueError(
-                        "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location"
-                        "must be set: {} {}".format(cert_location, key_location))
-                s.cert = (cert_location, key_location)
+        s = requests.Session()
+        if ca_location is not None:
+            s.verify = ca_location
+        if cert_location is not None or key_location is not None:
+            if cert_location is None or key_location is None:
+                raise ValueError(
+                    "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
+            s.cert = (cert_location, key_location)
+
+        self._session = s
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        self._session.close()
 
     def _send_request(self, url, method='GET', body=None, headers={}):
         if method not in VALID_METHODS:
@@ -81,9 +93,8 @@ class CachedSchemaRegistryClient(object):
             _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         _headers.update(headers)
 
-        with self._session as s:
-            response = s.request(method, url, headers=_headers, json=body)
-            return response.json(), response.status_code
+        response = self._session.request(method, url, headers=_headers, json=body)
+        return response.json(), response.status_code
 
     def _add_to_cache(self, cache, subject, schema, value):
         sub_cache = cache[subject]

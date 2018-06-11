@@ -129,7 +129,7 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
     def test_cert_no_key(self):
         with self.assertRaises(ValueError):
             self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',
-                                                     cert_location='{}'.format('/path/to/cert'), )
+                                                     cert_location='/path/to/cert')
 
     def test_cert_with_key(self):
         self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',

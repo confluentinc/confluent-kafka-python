@@ -10,12 +10,13 @@ From top-level directory run:
 Integration tests
 =================
 
-**NOTE**: Integration tests require an existing Kafka cluster and a `testconf.json` configuration file.
+**NOTE**: Integration tests require an existing Kafka cluster and a `testconf.json` configuration file. Any value provided
+in `testconf.json` prefixed with '$' will be treated as an environment variable and automatically resolved.
+
 At a minimum you must specify `bootstrap.servers` and `topic` within `testconf.json`. Please reference [tests/testconf-example.json](tests/testconf-example.json) for formatting.
 
 **WARNING**: These tests will create new topics and consumer groups.
 
-Integration test
 To run all of the integration test `modes` uncomment the following line from `tox.ini` and provide the location to your `testconf.json`
 
     #python examples/integration_test.py --conf <testconf.json>
@@ -37,8 +38,8 @@ To get a list of modes you can run the integration test manually with the `--hel
     examples/integration_tests.py --help
 
 
-**Throttle Callback test**
-===========================
+Throttle Callback test
+======================
 The throttle_cb integration test requires an additional step and as such is not included in the default test modes.
 In order to execute the throttle_cb test you must first set a throttle for the client 'throttled_client' with the command below:
 
@@ -57,8 +58,8 @@ To remove the throttle you can execute the following
         --alter --delete-config 'request_percentage' \
         --entity-name throttled_client --entity-type clients
 
-**HTTPS Schema Registry test**
-===============================
+HTTPS Schema Registry test
+==========================
 
 HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener.
 
