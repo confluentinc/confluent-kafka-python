@@ -48,7 +48,6 @@
 struct Producer_msgstate {
 	Handle   *self;
 	PyObject *dr_cb;
-	PyObject *partitioner_cb;
 };
 
 
@@ -58,11 +57,8 @@ struct Producer_msgstate {
  */
 static __inline struct Producer_msgstate *
 Producer_msgstate_new (Handle *self,
-		       PyObject *dr_cb, PyObject *partitioner_cb) {
+		       PyObject *dr_cb) {
 	struct Producer_msgstate *msgstate;
-
-	if (!dr_cb && !partitioner_cb)
-		return NULL;
 
 	msgstate = calloc(1, sizeof(*msgstate));
 	msgstate->self = self;
@@ -71,10 +67,6 @@ Producer_msgstate_new (Handle *self,
 		msgstate->dr_cb = dr_cb;
 		Py_INCREF(dr_cb);
 	}
-	if (partitioner_cb) {
-		msgstate->partitioner_cb = partitioner_cb;
-		Py_INCREF(partitioner_cb);
-	}
 	return msgstate;
 }
 
@@ -82,8 +74,6 @@ static __inline void
 Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
 	if (msgstate->dr_cb)
 		Py_DECREF(msgstate->dr_cb);
-	if (msgstate->partitioner_cb)
-		Py_DECREF(msgstate->partitioner_cb);
 	free(msgstate);
 }
 
@@ -92,10 +82,6 @@ static void Producer_clear0 (Handle *self) {
         if (self->u.Producer.default_dr_cb) {
                 Py_DECREF(self->u.Producer.default_dr_cb);
                 self->u.Producer.default_dr_cb = NULL;
-        }
-        if (self->u.Producer.partitioner_cb) {
-                Py_DECREF(self->u.Producer.partitioner_cb);
-                self->u.Producer.partitioner_cb = NULL;
         }
 }
 
@@ -128,8 +114,6 @@ static int Producer_traverse (Handle *self,
 			      visitproc visit, void *arg) {
 	if (self->u.Producer.default_dr_cb)
 		Py_VISIT(self->u.Producer.default_dr_cb);
-	if (self->u.Producer.partitioner_cb)
-		Py_VISIT(self->u.Producer.partitioner_cb);
 
 	Handle_traverse(self, visit, arg);
 
@@ -191,71 +175,6 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 }
 
 
-/**
- * FIXME: The partitioner is currently broken due to threading/GIL issues.
- */
-int32_t Producer_partitioner_cb (const rd_kafka_topic_t *rkt,
-				 const void *keydata,
-				 size_t keylen,
-				 int32_t partition_cnt,
-				 void *rkt_opaque, void *msg_opaque) {
-	Handle *self = rkt_opaque;
-	struct Producer_msgstate *msgstate = msg_opaque;
-	PyGILState_STATE gstate;
-	PyObject *result;
-	PyObject *args;
-	int32_t r = RD_KAFKA_PARTITION_UA;
-
-	if (!msgstate) {
-		/* Fall back on default C partitioner if neither a per-msg
-		 * partitioner nor a default Python partitioner is available */
-		return self->u.Producer.c_partitioner_cb(rkt, keydata, keylen,
-							 partition_cnt,
-							 rkt_opaque, msg_opaque);
-	}
-
-	gstate = PyGILState_Ensure();
-
-	if (!msgstate->partitioner_cb) {
-		/* Fall back on default C partitioner if neither a per-msg
-		 * partitioner nor a default Python partitioner is available */
-		r = msgstate->self->u.Producer.c_partitioner_cb(rkt,
-								keydata, keylen,
-								partition_cnt,
-								rkt_opaque,
-								msg_opaque);
-		goto done;
-	}
-
-	args = Py_BuildValue("(s#l)",
-			     (const char *)keydata, (int)keylen,
-			     (long)partition_cnt);
-	if (!args) {
-		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
-				 "Unable to build callback args");
-		goto done;
-	}
-
-
-	result = PyObject_CallObject(msgstate->partitioner_cb, args);
-	Py_DECREF(args);
-
-	if (result) {
-		r = (int32_t)cfl_PyInt_AsInt(result);
-		if (PyErr_Occurred())
-			printf("FIXME: partition_cb returned wrong type "
-			       "(expected long), how to propagate?\n");
-		Py_DECREF(result);
-	} else {
-		printf("FIXME: partitioner_cb crashed, how to propagate?\n");
-	}
-
- done:
-	PyGILState_Release(gstate);
-	return r;
-}
-
-
 #if HAVE_PRODUCEV
 static rd_kafka_resp_err_t
 Producer_producev (Handle *self,
@@ -313,7 +232,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	const char *topic, *value = NULL, *key = NULL;
 	int value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
-	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL, *partitioner_cb = NULL;
+	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
@@ -327,17 +246,16 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "partition",
 			       "callback",
 			       "on_delivery", /* Alias */
-			       "partitioner",
                    "timestamp",
                    "headers",
 			       NULL };
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOOLO"
+					 "s|z#z#iOOLO"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
-					 &dr_cb, &dr_cb2, &partitioner_cb,
+					 &dr_cb, &dr_cb2,
                      &timestamp, &headers))
 		return NULL;
 
@@ -376,13 +294,10 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
 	if (!dr_cb || dr_cb == Py_None)
 		dr_cb = self->u.Producer.default_dr_cb;
-	if (!partitioner_cb || partitioner_cb == Py_None)
-		partitioner_cb = self->u.Producer.partitioner_cb;
-
 
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
-	msgstate = Producer_msgstate_new(self, dr_cb, partitioner_cb);
+	msgstate = Producer_msgstate_new(self, dr_cb);
 
         /* Produce message */
 #if HAVE_PRODUCEV
@@ -503,8 +418,8 @@ static PyMethodDef Producer_methods[] = {
 	  "  :param str topic: Topic to produce message to\n"
 	  "  :param str|bytes value: Message payload\n"
 	  "  :param str|bytes key: Message key\n"
-	  "  :param int partition: Partition to produce to, elses uses the "
-	  "configured partitioner.\n"
+	  "  :param int partition: Partition to produce to, else uses the "
+	  "configured built-in partitioner.\n"
 	  "  :param func on_delivery(err,msg): Delivery report callback to call "
 	  "(from :py:func:`poll()` or :py:func:`flush()`) on successful or "
 	  "failed delivery\n"

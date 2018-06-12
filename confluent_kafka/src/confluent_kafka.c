@@ -1451,70 +1451,6 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 
 		return 1;
 
-	} else if (!strcasecmp(name, "partitioner") ||
-		   !strcasecmp(name, "partitioner_callback")) {
-
-		if ((vs = cfl_PyObject_Unistr(valobj))) {
-			/* Use built-in C partitioners,
-			 * based on their name. */
-                        PyObject *vs8;
-			val = cfl_PyUnistr_AsUTF8(vs, &vs8);
-
-			if (!strcmp(val, "random"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_random);
-			else if (!strcmp(val, "consistent"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_consistent);
-			else if (!strcmp(val, "consistent_random"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_consistent_random);
-			else {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__INVALID_ARG,
-					"unknown builtin partitioner: %s "
-					"(available: random, consistent, consistent_random)",
-					val);
-                                Py_XDECREF(vs8);
-				Py_DECREF(vs);
-				return -1;
-			}
-
-                        Py_XDECREF(vs8);
-			Py_DECREF(vs);
-
-		} else {
-			/* Custom partitioner (Python callback) */
-
-			if (!PyCallable_Check(valobj)) {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__INVALID_ARG,
-					"%s requires a callable "
-					"object", name);
-				return -1;
-			}
-
-			 /* FIXME: Error out until GIL+rdkafka lock-ordering is fixed. */
-			if (1) {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
-					"custom partitioner support not yet implemented");
-				return -1;
-			}
-
-			if (self->u.Producer.partitioner_cb)
-				Py_DECREF(self->u.Producer.partitioner_cb);
-
-			self->u.Producer.partitioner_cb = valobj;
-			Py_INCREF(self->u.Producer.partitioner_cb);
-
-			/* Use trampoline to call Python code. */
-			rd_kafka_topic_conf_set_partitioner_cb(tconf,
-							       Producer_partitioner_cb);
-		}
-
-		return 1;
-
         } else if (!strcmp(name, "delivery.report.only.error")) {
                 /* Since we allocate msgstate for each produced message
                  * with a callback we can't use delivery.report.only.error
@@ -1577,9 +1513,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
-	int32_t (*partitioner_cb) (const rd_kafka_topic_t *,
-				   const void *, size_t, int32_t,
-				   void *, void *) = partitioner_cb;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
                 PyErr_Format(PyExc_RuntimeError,
