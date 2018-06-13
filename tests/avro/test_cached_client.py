@@ -125,3 +125,19 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
 
     def hash_func(self):
         return hash(str(self))
+
+    def test_cert_no_key(self):
+        with self.assertRaises(ValueError):
+            self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',
+                                                     cert_location='/path/to/cert')
+
+    def test_cert_with_key(self):
+        self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',
+                                                 cert_location='/path/to/cert',
+                                                 key_location='/path/to/key')
+        self.assertTupleEqual(('/path/to/cert', '/path/to/key'), self.client._session.cert)
+
+    def test_cert_path(self):
+            self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:8081',
+                                                     ca_location='/path/to/ca',)
+            self.assertEqual('/path/to/ca', self.client._session.verify)
