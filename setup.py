@@ -45,4 +45,11 @@ setup(name='confluent-kafka',
       extras_require={
           'avro': ['fastavro', 'requests', avro],
           'dev': get_install_requirements("test-requirements.txt")
+      },
+      entry_points={
+          'subject.name.strategy': [
+              'TopicName = confluent_kafka.avro.serializer.name_strategies:TopicNameStrategy [avro]',
+              'RecordName = confluent_kafka.avro.serializer.name_strategies:RecordNameStrategy [avro]',
+              'TopicRecordName = confluent_kafka.avro.serializer.name_strategies:TopicRecordNameStrategy [avro]'
+          ]
       })

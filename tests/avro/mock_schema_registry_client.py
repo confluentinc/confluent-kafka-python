@@ -27,7 +27,7 @@ class MockSchemaRegistryClient(object):
     """
     A client that acts as a schema registry locally.
 
-    Compatibiity related methods are not implemented at this time.
+    Compatibility related methods are not implemented at this time.
     """
 
     def __init__(self, max_schemas_per_subject=1000):

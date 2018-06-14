@@ -32,6 +32,7 @@ from confluent_kafka.avro import ClientError
 from confluent_kafka.avro.serializer import (SerializerError,
                                              KeySerializerError,
                                              ValueSerializerError)
+from confluent_kafka.avro.serializer.name_strategies import TopicNameStrategy
 
 log = logging.getLogger(__name__)
 
@@ -68,8 +69,11 @@ class MessageSerializer(object):
     All decode_* methods expect a buffer received from kafka.
     """
 
-    def __init__(self, registry_client):
+    def __init__(self, registry_client,
+                 key_subject_name_strategy=TopicNameStrategy(), value_subject_name_strategy=TopicNameStrategy()):
         self.registry_client = registry_client
+        self.key_subject_name_strategy = key_subject_name_strategy
+        self.value_subject_name_strategy = value_subject_name_strategy
         self.id_to_decoder_func = {}
         self.id_to_writers = {}
 
@@ -82,7 +86,7 @@ class MessageSerializer(object):
         Given a parsed avro schema, encode a record for the given topic.  The
         record is expected to be a dictionary.
 
-        The schema is registered with the subject of 'topic-value'
+        The schema is registered with the subject name as returned by the provided subject_name_strategy
         @:param topic : Topic name
         @:param schema : Avro Schema
         @:param record : An object to serialize
@@ -91,9 +95,8 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        subject_suffix = ('-key' if is_key else '-value')
-        # get the latest schema for the subject
-        subject = topic + subject_suffix
+        name_strategy = self.key_subject_name_strategy if is_key else self.value_subject_name_strategy
+        subject = name_strategy.get_subject_name(topic, is_key, schema)
         # register it
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:
