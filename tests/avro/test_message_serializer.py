@@ -36,15 +36,16 @@ class TestMessageSerializer(unittest.TestCase):
         self.client = MockSchemaRegistryClient()
         self.ms = MessageSerializer(self.client)
 
-    def assertMessageIsSame(self, message, expected, schema_id):
+    def assertMessageIsSame(self, message, expected, schema_id, schema):
         self.assertTrue(message)
         self.assertTrue(len(message) > 5)
         magic, sid = struct.unpack('>bI', message[0:5])
         self.assertEqual(magic, 0)
         self.assertEqual(sid, schema_id)
-        decoded = self.ms.decode_message(message)
-        self.assertTrue(decoded)
-        self.assertEqual(decoded, expected)
+        decoded_msg, decoded_schema = self.ms.decode_message(message)
+        self.assertTrue(decoded_msg)
+        self.assertEqual(decoded_msg, expected)
+        self.assertEqual(decoded_schema, schema)
 
     def test_encode_with_schema_id(self):
         adv = avro.loads(data_gen.ADVANCED_SCHEMA)
@@ -55,7 +56,7 @@ class TestMessageSerializer(unittest.TestCase):
         records = data_gen.BASIC_ITEMS
         for record in records:
             message = self.ms.encode_record_with_schema_id(schema_id, record)
-            self.assertMessageIsSame(message, record, schema_id)
+            self.assertMessageIsSame(message, record, schema_id, basic)
 
         subject = 'test_adv'
         adv_schema_id = self.client.register(subject, adv)
@@ -63,7 +64,7 @@ class TestMessageSerializer(unittest.TestCase):
         records = data_gen.ADVANCED_ITEMS
         for record in records:
             message = self.ms.encode_record_with_schema_id(adv_schema_id, record)
-            self.assertMessageIsSame(message, record, adv_schema_id)
+            self.assertMessageIsSame(message, record, adv_schema_id, adv)
 
     def test_encode_record_with_schema(self):
         topic = 'test'
@@ -73,7 +74,7 @@ class TestMessageSerializer(unittest.TestCase):
         records = data_gen.BASIC_ITEMS
         for record in records:
             message = self.ms.encode_record_with_schema(topic, basic, record)
-            self.assertMessageIsSame(message, record, schema_id)
+            self.assertMessageIsSame(message, record, schema_id, basic)
 
     def test_decode_none(self):
         """"null/None messages should decode to None"""

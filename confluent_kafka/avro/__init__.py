@@ -81,6 +81,45 @@ class AvroProducer(Producer):
         super(AvroProducer, self).produce(topic, value, key, **kwargs)
 
 
+class AvroMessage(object):
+    """
+    Provides the schemas for the key and value of a message.  All other calls are delegated to the original message.
+    """
+    __slots__ = {'_key_schema', '_value_schema', '_message'}
+
+    def __init__(self, key_schema, value_schema, message):
+        self._key_schema = key_schema
+        self._value_schema = value_schema
+        self._message = message
+
+    def __getattr__(self, item):
+        return getattr(self._message, item)
+
+    @property
+    def key_schema(self):
+        """
+        The Avro schema used to encode the `key` of this message.
+        :return:
+        """
+        return self._key_schema
+
+    @property
+    def value_schema(self):
+        """
+        The Avro schema used to encode the `value` of this message.
+        :return:
+        """
+        return self._value_schema
+
+    @property
+    def message(self):
+        """
+        The raw message.
+        :return:
+        """
+        return self._message
+
+
 class AvroConsumer(Consumer):
     """
     Kafka Consumer client which does avro schema decoding of messages.
@@ -103,27 +142,29 @@ class AvroConsumer(Consumer):
         super(AvroConsumer, self).__init__(config)
         self._serializer = MessageSerializer(schema_registry)
 
-    def poll(self, timeout=None):
+    def poll(self, timeout=None, with_schema=False):
         """
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
 
         :param float timeout: Poll timeout in seconds (default: indefinite)
+        :param boolean with_schema: If true, the key_schema and value_schema are added as properties of the message (default: False)
         :returns: message object with deserialized key and value as dict objects
-        :rtype: Message
+        :rtype: Message or AvroMessage
         """
         if timeout is None:
             timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
+        key_schema = value_schema = None
         if message is None:
             return None
         if not message.value() and not message.key():
             return message
         if not message.error():
             if message.value() is not None:
-                decoded_value = self._serializer.decode_message(message.value())
+                decoded_value, value_schema = self._serializer.decode_message(message.value())
                 message.set_value(decoded_value)
             if message.key() is not None:
-                decoded_key = self._serializer.decode_message(message.key())
+                decoded_key, key_schema = self._serializer.decode_message(message.key())
                 message.set_key(decoded_key)
-        return message
+        return message if not with_schema else AvroMessage(key_schema, value_schema, message)
