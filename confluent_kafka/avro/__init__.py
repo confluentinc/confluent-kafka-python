@@ -2,8 +2,6 @@
     Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
 
 """
-import pkg_resources
-
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
 from confluent_kafka.avro.load import load, loads  # noqa
@@ -12,6 +10,7 @@ from confluent_kafka.avro.serializer import (SerializerError,  # noqa
                                              KeySerializerError,
                                              ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
+from confluent_kafka.avro.serializer.name_strategies import topic_name_strategy
 
 
 class AvroProducer(Producer):
@@ -28,8 +27,9 @@ class AvroProducer(Producer):
     """
 
     def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None):
-
+                 default_value_schema=None, schema_registry=None,
+                 value_subject_name_strategy=topic_name_strategy, key_subject_name_strategy=topic_name_strategy):
+        
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
@@ -47,26 +47,12 @@ class AvroProducer(Producer):
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
         self._serializer = MessageSerializer(schema_registry,
-                                             self._load_name_strategy(config, "value.subject.name.strategy"),
-                                             self._load_name_strategy(config, "key.subject.name.strategy"))
+                                             key_subject_name_strategy=key_subject_name_strategy,
+                                             value_subject_name_strategy=value_subject_name_strategy)
 
         super(AvroProducer, self).__init__(config)
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
-
-    @staticmethod
-    def _load_name_strategy(config, key):
-        strategy_name = config.pop(key, "TopicName")
-        subject_name_strategy_plugins = {
-            entry_point.name: entry_point
-            for entry_point
-            in pkg_resources.iter_entry_points('subject.name.strategy')
-        }
-        subject_name_strategy = subject_name_strategy_plugins.get(strategy_name, None)
-        if subject_name_strategy is None:
-            raise ValueError("The subject name strategy plugin named {} could not be found.".format(
-                strategy_name))
-        return subject_name_strategy.load()()
 
     def produce(self, **kwargs):
         """

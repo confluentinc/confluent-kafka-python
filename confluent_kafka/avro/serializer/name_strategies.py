@@ -20,52 +20,32 @@ A set of common Subject naming strategies for use with the Confluent Schema Regi
 the strategies provided via the Java client (https://github.com/confluentinc/schema-registry).
 
 The built in strategies include:
-``TopicName``
+``topic_name_strategy``
   The topic name is used along with either "key" or "value".
 
-``RecordName``
+``record_name_strategy``
   The fully-qualified name of the avro schema is used.
 
-``TopicRecordName``
+``topic_record_name_strategy``
   The topic name is used along with the fully-qualified name of the avro schema.
 
-Additional strategies may be provided at run time by registering a class with the ``subject.name.strategy`` entry
-point.
+Additional strategies may be provided by passing a callable accepting topic, is_key, and schema as arguments.
 
 """
 
 
-class SubjectNameStrategy(object):
-    """
-    A {@link SubjectNameStrategy} is used by the Avro serializer to determine
-    the subject name under which the event record schemas should be registered
-    in the schema registry. The default is {@link TopicNameStrategy}.
-    """
-    def get_subject_name(self, topic, is_key, schema):
-        """
-        For a given topic and message, returns the subject name under which the
-        schema should be registered in the schema registry.
-        :param topic: The Kafka topic name to which the message is being published.
-        :param is_key: True when encoding a message key, false for a message value.
-        :param schema: The value to be published in the message.
-        :return: The subject name under which the schema should be registered.
-        """
-        raise NotImplemented("SubjectNameStrategy implementations must implement get_subject_name.")
-
-
-class TopicNameStrategy(SubjectNameStrategy):
+def topic_name_strategy(topic, is_key, schema):
     """
     Default {@link SubjectNameStrategy}: for any messages published to
     `topic`, the schema of the message key is registered under
     the subject name `topic`-key, and the message value is registered
     under the subject name `topic`-value.
     """
-    def get_subject_name(self, topic, is_key, schema):
-        suffix = "-key" if is_key else "-value"
-        return topic + suffix
+    suffix = "-key" if is_key else "-value"
+    return topic + suffix
 
 
-class RecordNameStrategy(SubjectNameStrategy):
+def record_name_strategy(topic, is_key, schema):
     """
     For any Avro record type that is published to Kafka, registers the schema
     in the registry under the fully-qualified record name (regardless of the
@@ -74,11 +54,10 @@ class RecordNameStrategy(SubjectNameStrategy):
     Instead, checks compatibility of any occurrences of the same record name
     across `all` topics.
     """
-    def get_subject_name(self, topic, is_key, schema):
-        return schema.fullname
+    return schema.fullname
 
 
-class TopicRecordNameStrategy(RecordNameStrategy):
+def topic_record_name_strategy(topic, is_key, schema):
     """
     For any Avro record type that is published to Kafka topic `topic`,
     registers the schema in the registry under the subject name
@@ -89,5 +68,4 @@ class TopicRecordNameStrategy(RecordNameStrategy):
     incompatible versions of the same record name, since the compatibility
     check is scoped to a particular record name within a particular topic.
     """
-    def get_subject_name(self, topic, is_key, schema):
-        return topic + "-" + RecordNameStrategy.get_subject_name(self, topic, is_key, schema)
+    return topic + "-" + record_name_strategy(topic, is_key, schema)

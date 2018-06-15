@@ -23,8 +23,12 @@ module = Extension('confluent_kafka.cimpl',
                             'confluent_kafka/src/Admin.c'])
 
 
+install_requirements_path = os.environ.get('INSTALL_REQUIREMENTS_PATH_OVERRIDE',
+                                           os.path.dirname(__file__))
+
+
 def get_install_requirements(path):
-    content = open(os.path.join(os.path.dirname(__file__), path)).read()
+    content = open(os.path.join(install_requirements_path, path)).read()
     return [
         req
         for req in content.split("\n")
@@ -45,11 +49,4 @@ setup(name='confluent-kafka',
       extras_require={
           'avro': ['fastavro', 'requests', avro],
           'dev': get_install_requirements("test-requirements.txt")
-      },
-      entry_points={
-          'subject.name.strategy': [
-              'TopicName = confluent_kafka.avro.serializer.name_strategies:TopicNameStrategy [avro]',
-              'RecordName = confluent_kafka.avro.serializer.name_strategies:RecordNameStrategy [avro]',
-              'TopicRecordName = confluent_kafka.avro.serializer.name_strategies:TopicRecordNameStrategy [avro]'
-          ]
       })

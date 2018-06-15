@@ -26,77 +26,69 @@ from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 
 class TestMessageSerializer(unittest.TestCase):
     def test_topic_name(self):
-        strategy = strategies.TopicNameStrategy()
+        strategy = strategies.topic_name_strategy
         topic = "some_legal_topic_name"
         expected = topic + "-key"
-        actual = strategy.get_subject_name(topic, True, None)
+        actual = strategy(topic, True, None)
         assert expected == actual
         expected = topic + "-value"
-        actual = strategy.get_subject_name(topic, False, None)
+        actual = strategy(topic, False, None)
         assert expected == actual
 
     def test_record_name(self):
-        strategy = strategies.RecordNameStrategy()
+        strategy = strategies.record_name_strategy
         schema = RecordSchema("MyRecordType", "my.namespace", fields=[], names=Names())
         expected = "my.namespace.MyRecordType"
-        actual = strategy.get_subject_name(None, None, schema)
+        actual = strategy(None, None, schema)
         assert expected == actual
 
     def test_topic_record_name(self):
-        strategy = strategies.TopicRecordNameStrategy()
+        strategy = strategies.topic_record_name_strategy
         topic = "some_legal_topic_name"
         schema = RecordSchema("MyRecordType", "my.namespace", fields=[], names=Names())
         expected = "some_legal_topic_name-my.namespace.MyRecordType"
-        actual = strategy.get_subject_name(topic, None, schema)
+        actual = strategy(topic, None, schema)
         assert expected == actual
 
     def test_default_subject_name_strategy(self):
         schema_registry = MockSchemaRegistryClient()
         producer = AvroProducer(config={}, schema_registry=schema_registry)
         serializer = producer._serializer
-        assert isinstance(serializer.key_subject_name_strategy, strategies.TopicNameStrategy)
-        assert isinstance(serializer.value_subject_name_strategy, strategies.TopicNameStrategy)
+        assert serializer.key_subject_name_strategy is strategies.topic_name_strategy
+        assert serializer.value_subject_name_strategy is strategies.topic_name_strategy
 
     def test_explicit_topic_subject_name_strategy(self):
         schema_registry = MockSchemaRegistryClient()
-        config = {
-            'value.subject.name.strategy': 'TopicName',
-            'key.subject.name.strategy': 'TopicName'
-        }
-        producer = AvroProducer(config=config, schema_registry=schema_registry)
+        producer = AvroProducer(config={}, schema_registry=schema_registry,
+                                key_subject_name_strategy=strategies.topic_name_strategy,
+                                value_subject_name_strategy=strategies.topic_name_strategy)
         serializer = producer._serializer
-        assert isinstance(serializer.key_subject_name_strategy, strategies.TopicNameStrategy)
-        assert isinstance(serializer.value_subject_name_strategy, strategies.TopicNameStrategy)
+        assert serializer.key_subject_name_strategy is strategies.topic_name_strategy
+        assert serializer.value_subject_name_strategy is strategies.topic_name_strategy
 
     def test_explicit_record_subject_name_strategy(self):
         schema_registry = MockSchemaRegistryClient()
-        config = {
-            'value.subject.name.strategy': 'RecordName',
-            'key.subject.name.strategy': 'RecordName'
-        }
-        producer = AvroProducer(config=config, schema_registry=schema_registry)
+        producer = AvroProducer(config={}, schema_registry=schema_registry,
+                                key_subject_name_strategy=strategies.record_name_strategy,
+                                value_subject_name_strategy=strategies.record_name_strategy)
         serializer = producer._serializer
-        assert isinstance(serializer.key_subject_name_strategy, strategies.RecordNameStrategy)
-        assert isinstance(serializer.value_subject_name_strategy, strategies.RecordNameStrategy)
+        assert serializer.key_subject_name_strategy is strategies.record_name_strategy
+        assert serializer.value_subject_name_strategy is strategies.record_name_strategy
 
     def test_explicit_topic_record_subject_name_strategy(self):
         schema_registry = MockSchemaRegistryClient()
-        config = {
-            'value.subject.name.strategy': 'TopicRecordName',
-            'key.subject.name.strategy': 'TopicRecordName'
-        }
-        producer = AvroProducer(config=config, schema_registry=schema_registry)
+        producer = AvroProducer(config={}, schema_registry=schema_registry,
+                                key_subject_name_strategy=strategies.topic_record_name_strategy,
+                                value_subject_name_strategy=strategies.topic_record_name_strategy)
         serializer = producer._serializer
-        assert isinstance(serializer.key_subject_name_strategy, strategies.TopicRecordNameStrategy)
-        assert isinstance(serializer.value_subject_name_strategy, strategies.TopicRecordNameStrategy)
+        assert serializer.key_subject_name_strategy is strategies.topic_record_name_strategy
+        assert serializer.value_subject_name_strategy is strategies.topic_record_name_strategy
 
     def test_differing_key_and_value_subject_name_strategies(self):
         schema_registry = MockSchemaRegistryClient()
-        config = {
-            'value.subject.name.strategy': 'RecordName',
-            'key.subject.name.strategy': 'TopicRecordName'
-        }
-        producer = AvroProducer(config=config, schema_registry=schema_registry)
+        producer = AvroProducer(config={}, schema_registry=schema_registry,
+                                key_subject_name_strategy=strategies.record_name_strategy,
+                                value_subject_name_strategy=strategies.topic_record_name_strategy)
         serializer = producer._serializer
-        assert isinstance(serializer.key_subject_name_strategy, strategies.RecordNameStrategy)
-        assert isinstance(serializer.value_subject_name_strategy, strategies.TopicRecordNameStrategy)
+        assert serializer.key_subject_name_strategy is strategies.record_name_strategy
+        assert serializer.value_subject_name_strategy is strategies.topic_record_name_strategy

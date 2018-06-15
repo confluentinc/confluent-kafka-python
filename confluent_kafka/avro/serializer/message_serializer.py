@@ -32,7 +32,7 @@ from confluent_kafka.avro import ClientError
 from confluent_kafka.avro.serializer import (SerializerError,
                                              KeySerializerError,
                                              ValueSerializerError)
-from confluent_kafka.avro.serializer.name_strategies import TopicNameStrategy
+from confluent_kafka.avro.serializer.name_strategies import topic_name_strategy
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ class MessageSerializer(object):
     """
 
     def __init__(self, registry_client,
-                 key_subject_name_strategy=TopicNameStrategy(), value_subject_name_strategy=TopicNameStrategy()):
+                 key_subject_name_strategy=topic_name_strategy, value_subject_name_strategy=topic_name_strategy):
         self.registry_client = registry_client
         self.key_subject_name_strategy = key_subject_name_strategy
         self.value_subject_name_strategy = value_subject_name_strategy
@@ -96,7 +96,7 @@ class MessageSerializer(object):
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
         name_strategy = self.key_subject_name_strategy if is_key else self.value_subject_name_strategy
-        subject = name_strategy.get_subject_name(topic, is_key, schema)
+        subject = name_strategy(topic, is_key, schema)
         # register it
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:
