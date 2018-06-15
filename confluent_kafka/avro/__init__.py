@@ -148,7 +148,8 @@ class AvroConsumer(Consumer):
         deserialization using avro schema
 
         :param float timeout: Poll timeout in seconds (default: indefinite)
-        :param boolean with_schema: If true, the key_schema and value_schema are added as properties of the message (default: False)
+        :param boolean with_schema: If true, the key_schema and value_schema are added as properties of the message
+                                    (default: False)
         :returns: message object with deserialized key and value as dict objects
         :rtype: Message or AvroMessage
         """
