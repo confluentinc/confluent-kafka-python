@@ -54,6 +54,10 @@ function run_single_in_docker {
     pip install -U pip
     hash -r # let go of previous 'pip'
 
+    # Install dependencies, back out confluent_kafka build
+    pip install ..
+    pip uninstall -y confluent_kafka
+
     # Install modules
     pip install confluent_kafka --no-index -f $wheelhouse
     pip install pytest
