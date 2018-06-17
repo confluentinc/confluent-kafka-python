@@ -55,7 +55,7 @@ function run_single_in_docker {
     hash -r # let go of previous 'pip'
 
     # Install dependencies, back out confluent_kafka build
-    pip install .
+    pip install -e /io
     pip uninstall -y confluent_kafka
 
     # Install modules
