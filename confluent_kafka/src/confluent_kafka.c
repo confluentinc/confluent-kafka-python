@@ -1568,6 +1568,47 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         /* Enable valid offsets in delivery reports */
         rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
 
+       /*
+        * Plugins must be configured prior to handling any of their configuration properties.
+        * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
+        * This ensures all configuration properties are handled in the right order.
+        */
+        if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
+                const char *v;
+                char errstr[256];
+                PyObject *vs = NULL, *vs8 = NULL;
+
+                if (!(vs = cfl_PyObject_Unistr(vo))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                "expected configuration property name "
+                                "as type unicode string");
+                        rd_kafka_topic_conf_destroy(tconf);
+                        rd_kafka_conf_destroy(conf);
+                        return NULL;
+                }
+
+                v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+
+                if (rd_kafka_conf_set(conf, "plugin.library.paths", v, errstr, sizeof(errstr))
+                   != RD_KAFKA_CONF_OK) {
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "%s", NULL);
+
+                        rd_kafka_topic_conf_destroy(tconf);
+                        rd_kafka_conf_destroy(conf);
+
+                        Py_XDECREF(vs8);
+                        Py_XDECREF(vs);
+
+                        return NULL;
+                }
+
+                Py_XDECREF(vs8);
+                Py_DECREF(vs);
+
+                PyDict_DelItemString(confdict, "plugin.library.paths");
+        }
+
 	/* Convert config dict to config key-value pairs. */
 	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
