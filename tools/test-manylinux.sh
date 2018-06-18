@@ -55,6 +55,11 @@ function run_single_in_docker {
     hash -r # let go of previous 'pip'
 
     # Install modules
+
+    # TODO: revisit to avoid hardcoding dependencies
+    pip install "futures;python_version=='2.7'"
+    pip install "enum34;python_version=='2.7'"
+
     pip install confluent_kafka --no-index -f $wheelhouse
     pip install pytest
 
