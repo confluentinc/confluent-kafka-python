@@ -55,8 +55,16 @@ function run_single_in_docker {
     hash -r # let go of previous 'pip'
 
     # Install modules
+
+    # TODO: revisit to avoid hardcoding dependencies
+    pip install "futures;python_version=='2.7'"
+    pip install "enum34;python_version=='2.7'"
+
     pip install confluent_kafka --no-index -f $wheelhouse
+
+    # https://github.com/pypa/pip/issues/5247
     pip install pytest
+    pip install pytest --ignore-installed six
 
     # Verify that OpenSSL and zlib are properly linked
     python -c '
