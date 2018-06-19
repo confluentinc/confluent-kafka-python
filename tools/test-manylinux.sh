@@ -62,7 +62,7 @@ function run_single_in_docker {
 
     pip install confluent_kafka --no-index -f $wheelhouse
 
-    # Pytest relies on a new version of 6; later versions of pip fail to remove older versions gracefully
+    # Pytest relies on a new version of six; later versions of pip fail to remove older versions gracefully
     # https://github.com/pypa/pip/issues/5247
     pip install pytest
     pip install pytest --ignore-installed six
