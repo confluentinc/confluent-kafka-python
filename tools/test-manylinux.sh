@@ -64,7 +64,6 @@ function run_single_in_docker {
 
     # Pytest relies on a new version of six; later versions of pip fail to remove older versions gracefully
     # https://github.com/pypa/pip/issues/5247
-    pip install pytest
     pip install pytest --ignore-installed six
 
     # Verify that OpenSSL and zlib are properly linked
