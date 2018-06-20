@@ -130,9 +130,9 @@ def test_throttle_event_types():
                          if os.path.exists("monitoring-interceptor" + x)]) == 0,
                     reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
 @pytest.mark.parametrize("init_func", [
-    (confluent_kafka.Consumer),
-    (confluent_kafka.Producer),
-    (confluent_kafka.admin.AdminClient),
+    confluent_kafka.Consumer,
+    confluent_kafka.Producer,
+    confluent_kafka.admin.AdminClient,
 ])
 def test_unordered_dict(init_func):
     """
