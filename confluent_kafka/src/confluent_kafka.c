@@ -1529,8 +1529,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
          * When both args and kwargs are present the kwargs take
          * precedence in case of duplicate keys.
          * All keys map to configuration properties.
+         *
+         * Copy configuration dict to avoid manipulating application config.
          */
-        if (args) {
+        if (args && PyTuple_Size(args)) {
                 if (!PyTuple_Check(args) ||
                     PyTuple_Size(args) > 1) {
                         PyErr_SetString(PyExc_TypeError,
@@ -1542,6 +1544,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "expected configuration dict");
                                 return NULL;
                 }
+                confdict = PyDict_Copy(confdict);
         }
 
         if (!confdict) {
@@ -1551,7 +1554,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         return NULL;
                 }
 
-                confdict = kwargs;
+                confdict = PyDict_Copy(kwargs);
 
         } else if (kwargs) {
                 /* Update confdict with kwargs */
@@ -1568,11 +1571,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         /* Enable valid offsets in delivery reports */
         rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
 
-       /*
-        * Plugins must be configured prior to handling any of their configuration properties.
-        * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
-        * This ensures all configuration properties are handled in the right order.
-        */
+        /*
+         * Plugins must be configured prior to handling any of their configuration properties.
+         * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
+         * This ensures plugin configuration properties are handled in the correct order.
+         */
         if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
                 const char *v;
                 char errstr[256];
@@ -1584,6 +1587,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                 "as type unicode string");
                         rd_kafka_topic_conf_destroy(tconf);
                         rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
                         return NULL;
                 }
 
@@ -1592,10 +1597,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 if (rd_kafka_conf_set(conf, "plugin.library.paths", v, errstr, sizeof(errstr))
                    != RD_KAFKA_CONF_OK) {
                         cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-                                "%s", NULL);
+                                "%s", errstr);
 
                         rd_kafka_topic_conf_destroy(tconf);
                         rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
 
                         Py_XDECREF(vs8);
                         Py_XDECREF(vs);
@@ -1624,6 +1630,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					"as type unicode string");
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
 			return NULL;
 		}
 
@@ -1633,6 +1641,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				Py_DECREF(ks);
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
 				return NULL;
 			}
                         Py_XDECREF(ks8);
@@ -1646,8 +1655,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
 				Py_DECREF(ks);
+
 				return NULL;
                         }
 			if (h->error_cb) {
@@ -1668,8 +1680,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                         "as a callable function");
                                 rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
                                 Py_DECREF(ks);
+
                                 return NULL;
                         }
                         if (h->throttle_cb) {
@@ -1690,8 +1705,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
 				Py_DECREF(ks);
+
 				return NULL;
                         }
 
@@ -1732,6 +1750,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			Py_DECREF(ks);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
 			return NULL;
 
 		} else if (r == 1) {
@@ -1753,8 +1773,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "unicode string");
                                 rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
                                 Py_DECREF(ks);
+
                                 return NULL;
                         }
                         v = cfl_PyUnistr_AsUTF8(vs, &vs8);
@@ -1766,10 +1789,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					  "%s", errstr);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
                         Py_XDECREF(vs8);
                         Py_XDECREF(vs);
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
+
 			return NULL;
 		}
 
@@ -1778,6 +1804,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 Py_XDECREF(ks8);
 		Py_DECREF(ks);
 	}
+
+        Py_DECREF(confdict);
 
 	if (h->error_cb)
 		rd_kafka_conf_set_error_cb(conf, error_cb);
