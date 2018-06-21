@@ -29,6 +29,7 @@ from .error import ClientError
 from . import loads
 
 VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
+VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
@@ -46,7 +47,7 @@ class CachedSchemaRegistryClient(object):
     @:param: url: url to schema registry
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000):
+    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
         """Construct a client by passing in the base URL of the schema registry server"""
 
         self.url = url.rstrip('/')
@@ -59,32 +60,41 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
-    def _send_request(self, url, method='GET', body=None, headers=None):
-        if body:
-            body = json.dumps(body)
-            body = body.encode('utf8')
-        _headers = dict()
-        _headers["Accept"] = ACCEPT_HDR
+        s = requests.Session()
+        if ca_location is not None:
+            s.verify = ca_location
+        if cert_location is not None or key_location is not None:
+            if cert_location is None or key_location is None:
+                raise ValueError(
+                    "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
+            s.cert = (cert_location, key_location)
+
+        self._session = s
+
+    def __del__(self):
+        self.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    def close(self):
+        self._session.close()
+
+    def _send_request(self, url, method='GET', body=None, headers={}):
+        if method not in VALID_METHODS:
+            raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
+
+        _headers = {'Accept': ACCEPT_HDR}
         if body:
             _headers["Content-Length"] = str(len(body))
             _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        _headers.update(headers)
 
-        if headers:
-            for header_name in headers:
-                _headers[header_name] = headers[header_name]
-        if method == 'GET':
-            response = requests.get(url, headers=_headers)
-        elif method == 'POST':
-            response = requests.post(url, body, headers=_headers)
-        elif method == 'PUT':
-            response = requests.put(url, body, headers=_headers)
-        elif method == 'DELETE':
-            response = requests.delete(url, headers=_headers)
-        else:
-            raise ClientError("Invalid HTTP request type")
-
-        result = json.loads(response.text)
-        return (result, response.status_code)
+        response = self._session.request(method, url, headers=_headers, json=body)
+        return response.json(), response.status_code
 
     def _add_to_cache(self, cache, subject, schema, value):
         sub_cache = cache[subject]
