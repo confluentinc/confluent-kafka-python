@@ -89,9 +89,10 @@ class AvroConsumer(Consumer):
     Constructor takes below parameters
 
     :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
-                        and the standard Kafka client configuration (``bootstrap.servers`` et.al).
+                        and the standard Kafka client configuration (``bootstrap.servers`` et.al)
+    :param optional a read schema for the messages
     """
-    def __init__(self, config, schema_registry=None):
+    def __init__(self, config, schema_registry=None, read_schema =None):
         schema_registry_url = config.pop("schema.registry.url", None)
         if schema_registry is None:
             if schema_registry_url is None:
@@ -101,7 +102,7 @@ class AvroConsumer(Consumer):
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
         super(AvroConsumer, self).__init__(config)
-        self._serializer = MessageSerializer(schema_registry)
+        self._serializer = MessageSerializer(schema_registry, read_schema)
 
     def poll(self, timeout=None):
         """
