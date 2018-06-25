@@ -1434,8 +1434,6 @@ static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
 static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
-	PyObject *vs;
-	const char *val;
 
 	if (!strcasecmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
