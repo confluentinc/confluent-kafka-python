@@ -25,7 +25,20 @@ replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
 
-## 1. Update in-source versions
+## 1. Update OpenSSL version if necessary
+
+As of v0.11.4 OpenSSL is packaged with the python client. It's important
+that the OpenSSL version is kept up to date with the latest release.
+
+Update `OPENSSL_VERSION` in `tools/build-openssl.sh` with the latest 1.0.x version
+as documented at [openssl.org](https://www.openssl.org/source/)
+
+Commit this change with a commit-message mentioning the version bump:
+
+    $ git commit -m "OpenSSL version bump to 1.0.2o" tools/build-openssl.sh
+
+
+## 2. Update in-source versions
 
 There are a number of source files that needs to be updated with the
 new version number, the easiest way to find these is to search for the
@@ -42,18 +55,6 @@ Commit these changes with a commit-message containing the version:
 
     $ git commit -m "Version v0.11.4rc1" confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
 
-
-## 2. Update OpenSSL version if necessary
-
-As of v0.11.4 OpenSSL is packaged with the python client. It's important
-that the OpenSSL version is kept up to date with the latest release.
-
-Update `OPENSSL_VERSION` in `tools/build-openssl.sh` with the latest 1.0.x version
-as documented at [openssl.org](https://www.openssl.org/source/)
-
-Commit this change with a commit-message mentioning the version bump:
-
-    $ git commit -m "OpenSSL version bump to 1.0.2o" tools/build-openssl.sh
 
 ## 3. Create a tag
 
