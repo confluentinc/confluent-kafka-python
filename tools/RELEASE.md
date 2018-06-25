@@ -43,7 +43,19 @@ Commit these changes with a commit-message containing the version:
     $ git commit -m "Version v0.11.4rc1" confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
 
 
-## 2. Create a tag
+## 2. Update OpenSSL version if necessary
+
+As of v0.11.4 OpenSSL is packaged with the python client. It's important
+that the OpenSSL version is kept up to date with the latest release.
+
+Update `OPENSSL_VERSION` in `tools/build-openssl.sh` with the latest 1.0.x version
+as documented at [openssl.org](https://www.openssl.org/source/)
+
+Commit this change with a commit-message mentioning the version bump:
+
+    $ git commit -m "OpenSSL version bump to 1.0.2o" tools/build-openssl.sh
+
+## 3. Create a tag
 
 The tag should be created right after the commit and be named the same as
 the version.
@@ -51,7 +63,7 @@ the version.
     $ git tag v0.11.4rc1
 
 
-## 3. Push tag and commits
+## 4. Push tag and commits
 
 Perform a dry-run push first to make sure the correct branch and only our tag
 is pushed.
@@ -66,13 +78,13 @@ An alternative is to push branch and tags separately:
     $ git push --dry-run --tags origin v0.11.4rc1
 
 
-## 4. Wait for CI builds
+## 5. Wait for CI builds
 
 Monitor travis-ci builds by looking atthe *tag* build at
 [travis-ci]https://travis-ci.org/confluentinc/confluent-kafka-python
 
 
-## 5. Download build artifacts from S3
+## 6. Download build artifacts from S3
 
 *Note*: You will need set up your AWS credentials in `~/.aws/credentials` to
         gain access to the S3 bucket.
@@ -87,7 +99,7 @@ The artifacts will be downloaded to `dl-<tag>/`.
 
 
 
-## 6. Verify packages
+## 7. Verify packages
 
 Create a new virtualenv:
 
@@ -106,7 +118,7 @@ and librdkafka versions:
     py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
 
-## 7. Upload packages to PyPi
+## 8. Upload packages to PyPi
 
 To upload binary packages to test.pypi.org, use:
 
@@ -127,7 +139,7 @@ Upload source packages to the proper pypi.org (WARNING!):
     $ python setup.py sdist upload
 
 
-## 8. Verify installation from PyPi
+## 9. Verify installation from PyPi
 
 In the same virtualenv as created above:
 
@@ -151,7 +163,7 @@ Verify that the package works and prints the expected version:
 
 
 
-## 9. Create github release
+## 10. Create github release
 
 If this was the final release, go to
 [github releases](https://github.com/confluentinc/confluent-kafka-python/releases)
