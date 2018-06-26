@@ -179,9 +179,11 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict, reader_schema=reader_schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict,
+                                                                                 reader_schema=reader_schema_dict)
                 return self.id_to_decoder_func[schema_id]
-            except Exception: #TODO make exceptions more specific
+            except Exception:
+                # TODO make exceptions more specific
                 # Fast avro failed, fall thru to standard avro below.
                 pass
 
