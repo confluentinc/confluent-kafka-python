@@ -12,6 +12,16 @@ matrix:
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+  # Source package verification with Python 2.7 and librdkafka master
+  - os: osx
+    language: python
+    python: "2.7"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+  # Source package verification with Python 3.6 and librdkafka master
+  - os: osx
+    language: python
+    python: "3.6"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
   # cibuildwheel for osx
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
