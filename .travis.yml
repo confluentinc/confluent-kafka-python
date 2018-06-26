@@ -26,7 +26,6 @@ matrix:
 
 install:
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - pip install --upgrade pip
  - pip install -U pip
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
@@ -34,6 +33,7 @@ install:
 
 
 script:
+ - pip install --upgrade pip
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
