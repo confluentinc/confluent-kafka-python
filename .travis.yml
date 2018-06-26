@@ -53,6 +53,6 @@ deploy:
  acl: public_read
  skip_cleanup: true
  on:
-  repo: confluentinc/confluent-kafka-python
+  repo: martintaraz/confluent-kafka-python
   tags: true
   condition: "-n $CIBW_BEFORE_BUILD"
