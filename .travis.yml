@@ -1,25 +1,43 @@
 matrix:
  include:
-  # Source package verification with Python 2.7 and librdkafka master
+  # Source package verification with Python 2.7 and librdkafka v0.11.5
   - os: linux
     language: python
     dist: trusty
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
-  # Source package verification with Python 3.6 and librdkafka master
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
+  # Source package verification with Python 3.6 and librdkafka v0.11.5
   - os: linux
     language: python
     dist: trusty
     python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
+  # Source package verification with Python 2.7 and librdkafka v0.11.5
+  - os: osx
+    python: "2.7"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
+    before_install:
+        - brew update && brew upgrade pyenv
+        - pyenv install -f 2.7.15
+        - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
+        - source env/bin/activate
+  # Source package verification with Python 3.6 and librdkafka v0.11.5
+  - os: osx
+    python: "3.6"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
+    before_install:
+        - brew update && brew upgrade pyenv
+        - pyenv install -f 3.6.5
+        - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
+        - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.5 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh master"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.5"
     language: python
     python: "2.7"
     services: docker
