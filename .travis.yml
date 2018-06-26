@@ -14,14 +14,22 @@ matrix:
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
   # Source package verification with Python 2.7 and librdkafka master
   - os: osx
-    language: python
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+    before_install:
+        - brew update
+        - brew install python2
+        - virtualenv env -p python2
+        - source env/bin/activate
   # Source package verification with Python 3.6 and librdkafka master
   - os: osx
-    language: python
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
+    before_install:
+        - brew update
+        - brew install python3
+        - virtualenv env -p python3
+        - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
