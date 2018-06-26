@@ -18,8 +18,9 @@ matrix:
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
     before_install:
         - brew update
-        - brew install python2
-        - virtualenv env -p python2
+        - brew install pyenv
+        - pyenv install 2.7
+        - virtualenv -p ~/.pyenv/versions/2.7/bin/python ./env
         - source env/bin/activate
   # Source package verification with Python 3.6 and librdkafka master
   - os: osx
@@ -27,8 +28,9 @@ matrix:
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
     before_install:
         - brew update
-        - brew install python3
-        - virtualenv env -p python3
+        - brew install pyenv
+        - pyenv install 3.6.5
+        - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
         - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
