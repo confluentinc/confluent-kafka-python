@@ -18,8 +18,8 @@ matrix:
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
     before_install:
         - brew update && brew upgrade pyenv
-        - pyenv install -f 2.7
-        - virtualenv -p ~/.pyenv/versions/2.7/bin/python ./env
+        - pyenv install -f 2.7.15
+        - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
         - source env/bin/activate
   # Source package verification with Python 3.6 and librdkafka master
   - os: osx
