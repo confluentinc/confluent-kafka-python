@@ -39,6 +39,13 @@ script:
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse ; ls -la wheelhouse/ ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
 
+before_install:
+ - docker pull landoop/fast-data-dev
+ - docker run -d\
+  -p 2181:2181 -p 3030:3030 -p 8081:8081 \
+  -p 8082:8082 -p 8083:8083 -p 9092:9092 \
+  -e ADV_HOST=127.0.0.1 \
+  landoop/fast-data-dev
 
 deploy:
  provider: s3
