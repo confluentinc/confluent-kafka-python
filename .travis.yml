@@ -14,12 +14,6 @@ matrix:
     python: "3.6"
     services: docker
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
-  # cibuildwheel for osx
-  - os: osx
-    language: python
-    python: "3.6"
-    services: docker
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl master tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
