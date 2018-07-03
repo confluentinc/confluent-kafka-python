@@ -595,8 +595,10 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 	if (!(c_parts = py_to_c_parts(plist)))
 		return NULL;
 
-	err = rd_kafka_committed(self->rk, c_parts,
-				tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        Py_BEGIN_ALLOW_THREADS;
+        err = rd_kafka_committed(self->rk, c_parts,
+                                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        Py_END_ALLOW_THREADS;
 
 	if (err) {
 		rd_kafka_topic_partition_list_destroy(c_parts);
@@ -737,7 +739,9 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
                 return NULL;
         }
 
+        Py_BEGIN_ALLOW_THREADS;
         err = rd_kafka_seek(rkt, tp->partition, tp->offset, -1);
+        Py_END_ALLOW_THREADS;
 
         rd_kafka_topic_destroy(rkt);
 
@@ -785,10 +789,12 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
                                                      tp->topic, tp->partition,
                                                      &low, &high);
         } else {
+                Py_BEGIN_ALLOW_THREADS;
                 err = rd_kafka_query_watermark_offsets(self->rk,
                                                        tp->topic, tp->partition,
                                                        &low, &high,
                                                        tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+                Py_END_ALLOW_THREADS;
         }
 
         if (err) {
@@ -837,9 +843,11 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
         if (!(c_parts = py_to_c_parts(plist)))
                 return NULL;
 
+        Py_BEGIN_ALLOW_THREADS;
         err = rd_kafka_offsets_for_times(self->rk,
                                          c_parts,
                                          tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        Py_END_ALLOW_THREADS;
 
         if (err) {
                 rd_kafka_topic_partition_list_destroy(c_parts);
