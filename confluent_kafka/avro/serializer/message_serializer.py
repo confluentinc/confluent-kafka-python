@@ -39,7 +39,7 @@ MAGIC_BYTE = 0
 
 HAS_FAST = False
 try:
-    from fastavro import schemaless_reader
+    from fastavro import schemaless_reader, schemaless_writer
 
     HAS_FAST = True
 except ImportError:
@@ -77,6 +77,13 @@ class MessageSerializer(object):
 
     '''
 
+    def _slow_make_datum_writer(self, schema):
+        return avro.io.DatumWriter(schema)
+
+    def _fast_make_datum_writer(self, record_schema):
+        schema = record_schema.to_json()
+        return lambda fp, record: schemaless_writer(fp, schema, record)
+
     def encode_record_with_schema(self, topic, schema, record, is_key=False):
         """
         Given a parsed avro schema, encode a record for the given topic.  The
@@ -101,33 +108,33 @@ class MessageSerializer(object):
             raise serialize_err(message)
 
         # cache writer
-        self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
+        self.id_to_writers[schema_id] = self.make_datum_writer(schema)
 
         return self.encode_record_with_schema_id(schema_id, record, is_key=is_key)
 
-    def encode_record_with_schema_id(self, schema_id, record, is_key=False):
+    def _ensure_writer(self, schema_id, is_key=False):
+        serialize_err = KeySerializerError if is_key else ValueSerializerError
+
+        if schema_id not in self.id_to_writers:
+            # get the writer + schema
+            try:
+                schema = self.registry_client.get_by_id(schema_id)
+                if not schema:
+                    raise serialize_err("Schema does not exist")
+                self.id_to_writers[schema_id] = self.make_datum_writer(schema)
+            except ClientError:
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+
+    def _slow_encode_record_with_schema_id(self, schema_id, record, is_key=False):
         """
         Encode a record with a given schema id.  The record must
         be a python dictionary.
         @:param: schema_id : integer ID
         @:param: record : An object to serialize
         @:param is_key : If the record is a key
-        @:returns: decoder function
+        @:returns: Encoded record with schema ID as bytes
         """
-        serialize_err = KeySerializerError if is_key else ValueSerializerError
-
-        # use slow avro
-        if schema_id not in self.id_to_writers:
-            # get the writer + schema
-
-            try:
-                schema = self.registry_client.get_by_id(schema_id)
-                if not schema:
-                    raise serialize_err("Schema does not exist")
-                self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
-            except ClientError:
-                exc_type, exc_value, exc_traceback = sys.exc_info()
-                raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
 
         # get the writer
         writer = self.id_to_writers[schema_id]
@@ -149,6 +156,41 @@ class MessageSerializer(object):
             writer.write(record, encoder)
 
             return outf.getvalue()
+
+    def _fast_encode_record_with_schema_id(self, schema_id, record, is_key=False):
+        """
+        Encode a record with a given schema id.  The record must
+        be a python dictionary.
+        @:param: schema_id : integer ID
+        @:param: record : An object to serialize
+        @:param is_key : If the record is a key
+        @:returns: Encoded record with schema ID as bytes
+        """
+        self._ensure_writer(schema_id, is_key)
+
+        # get the writer
+        writer = self.id_to_writers[schema_id]
+        with ContextStringIO() as outf:
+            # write the header
+            # magic byte
+
+            outf.write(struct.pack('b', MAGIC_BYTE))
+
+            # write the schema ID in network byte order (big end)
+
+            outf.write(struct.pack('>I', schema_id))
+
+            # write the record to the rest of it
+            writer(outf, record)
+
+            return outf.getvalue()
+
+    if not HAS_FAST:
+        encode_record_with_schema_id = _slow_encode_record_with_schema_id
+        make_datum_writer = _slow_make_datum_writer
+    else:
+        encode_record_with_schema_id = _fast_encode_record_with_schema_id
+        make_datum_writer = _fast_make_datum_writer
 
     # Decoder support
     def _get_decoder_func(self, schema_id, payload):
