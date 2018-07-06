@@ -34,13 +34,14 @@ from copy import copy
 try:
     # Memory tracker
     from pympler import tracker
+
     with_pympler = True
 except Exception as e:
     with_pympler = False
 
-
 try:
     from progress.bar import Bar
+
     with_progress = True
 except ImportError as e:
     with_progress = False
@@ -103,7 +104,6 @@ def throttle_cb(throttle_event):
 
 
 class InMemorySchemaRegistry(object):
-
     schemas = {}
     next_idx = 0
 
@@ -429,9 +429,9 @@ def verify_producer_performance(with_dr_cb=True):
         bar.finish()
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt/t_produce_spent) / (1024*1024)))
+           (bytecnt / t_produce_spent) / (1024 * 1024)))
     print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
     print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
@@ -440,9 +440,9 @@ def verify_producer_performance(with_dr_cb=True):
     t_delivery_spent = time.time() - t_produce_start
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt/t_produce_spent) / (1024*1024)))
+           (bytecnt / t_produce_spent) / (1024 * 1024)))
 
     # Fake numbers if not using a dr_cb
     if not with_dr_cb:
@@ -451,9 +451,9 @@ def verify_producer_performance(with_dr_cb=True):
         dr.bytes_delivered = bytecnt
 
     print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (dr.msgs_delivered, dr.bytes_delivered / (1024*1024), t_delivery_spent,
+          (dr.msgs_delivered, dr.bytes_delivered / (1024 * 1024), t_delivery_spent,
            dr.msgs_delivered / t_delivery_spent,
-           (dr.bytes_delivered/t_delivery_spent) / (1024*1024)))
+           (dr.bytes_delivered / t_delivery_spent) / (1024 * 1024)))
     print('# post-produce delivery wait took %.3fs' %
           (t_delivery_spent - t_produce_spent))
 
@@ -578,7 +578,7 @@ def verify_consumer():
         elif (msg.offset() % 4) == 0:
             offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-            assert offsets[0].offset == msg.offset()+1, \
+            assert offsets[0].offset == msg.offset() + 1, \
                 'expected offset %d to be committed, not %s' % \
                 (msg.offset(), offsets)
             print('Sync committed offset: %s' % offsets)
@@ -696,8 +696,8 @@ def verify_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
@@ -751,7 +751,7 @@ def verify_batch_consumer():
             elif (msg.offset() % 4) == 0:
                 offsets = c.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-                assert offsets[0].offset == msg.offset()+1, \
+                assert offsets[0].offset == msg.offset() + 1, \
                     'expected offset %d to be committed, not %s' % \
                     (msg.offset(), offsets)
                 print('Sync committed offset: %s' % offsets)
@@ -852,8 +852,8 @@ def verify_batch_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
@@ -982,8 +982,8 @@ def verify_stats_cb():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
@@ -1123,8 +1123,106 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
+def verify_explicit_read():
+    """ verify that the explicit reading schema works"""
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'default.topic.config': {'produce.offset.report': True}}
+
+    # Create producer
+    if schema_registry_url:
+        conf['schema.registry.url'] = schema_registry_url
+        p = avro.AvroProducer(conf)
+    else:
+        p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
+
+    key_schema = avro.load(os.path.join(avsc_dir, " primitive_float.avsc"))
+    schema1 = avro.load(os.path.join(avsc_dir, "read_test_schema.avsc"))
+    schema2 = avro.load(os.path.join(avsc_dir, "incremented_read_test_schema.avsc"))
+    float_value = 32.
+    val = {
+        "name":"abc",
+        "favorite_number":42,
+        "favorite_colo":"orange"
+    }
+
+    combinations = [
+        dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
+             read_schema=schema1),
+        dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
+             read_schema=schema2),
+    ]
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'on_commit': print_commit_result,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+    for i, combo in enumerate(combinations):
+        schema1 = combo.pop("schema1")
+        combo['topic'] = str(uuid.uuid4())
+        p.produce(**combo)
+        p.poll(0)
+        p.flush()
+
+        # Create consumer
+        conf = copy(cons_conf)
+        if schema_registry_url:
+            conf['schema.registry.url'] = schema_registry_url
+            c = avro.AvroConsumer(conf)
+        else:
+            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry(), read_schema=schema1)
+        c.subscribe([combo['topic']])
+
+        while True:
+            msg = c.poll(0)
+            if msg is None:
+                continue
+
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    break
+                else:
+                    continue
+
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.key(), msg.value(), tstype, timestamp))
+
+            # omit empty Avro fields from payload for comparison
+            record_key = msg.key()
+            record_value = msg.value()
+            if isinstance(msg.key(), dict):
+                record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+            if isinstance(msg.value(), dict):
+                record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+            assert combo.get('key') == record_key
+            assert combo.get('value') == record_value
+
+            c.commit(msg, asynchronous=False)
+
+        # Close consumer
+        c.close()
+    pass
+
+
 # Exclude throttle since from default list
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
@@ -1216,6 +1314,10 @@ if __name__ == '__main__':
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)
         verify_admin()
+
+    if 'explicit-read' in modes:
+        print('=' * 30, 'Verifying Admin API', '=' * 30)
+        verify_explicit_read()
 
     print('=' * 30, 'Done', '=' * 30)
 
