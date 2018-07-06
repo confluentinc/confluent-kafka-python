@@ -21,7 +21,7 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
-from confluent_kafka import admin
+# from confluent_kafka import admin
 import os
 import time
 import uuid
@@ -1141,7 +1141,7 @@ def verify_explicit_read():
     else:
         p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
 
-    key_schema = avro.load(os.path.join(avsc_dir, " primitive_float.avsc"))
+    key_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
     schema1 = avro.load(os.path.join(avsc_dir, "read_test_schema.avsc"))
     schema2 = avro.load(os.path.join(avsc_dir, "incremented_read_test_schema.avsc"))
     float_value = 32.
@@ -1150,11 +1150,14 @@ def verify_explicit_read():
         "favorite_number": 42,
         "favorite_colo": "orange"
     }
+    val1 = {
+        "name": "abc"
+    }
 
     combinations = [
         dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
              read_schema=schema1),
-        dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
+        dict(value=val1, value_schema=schema1, key=float_value, key_schema=key_schema,
              read_schema=schema2),
     ]
 
@@ -1170,8 +1173,8 @@ def verify_explicit_read():
                      'auto.offset.reset': 'earliest'
                  }}
 
-    for i, combo in enumerate(combinations):
-        schema1 = combo.pop("schema1")
+    for (i, combo) in enumerate(combinations):
+        read_schema = combo.pop("read_schema")
         combo['topic'] = str(uuid.uuid4())
         p.produce(**combo)
         p.poll(0)
@@ -1181,9 +1184,9 @@ def verify_explicit_read():
         conf = copy(cons_conf)
         if schema_registry_url:
             conf['schema.registry.url'] = schema_registry_url
-            c = avro.AvroConsumer(conf)
+            c = avro.AvroConsumer(conf, read_schema=read_schema)
         else:
-            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry(), read_schema=schema1)
+            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry(), read_schema=read_schema)
         c.subscribe([combo['topic']])
 
         while True:
@@ -1212,7 +1215,12 @@ def verify_explicit_read():
                 record_value = {k: v for k, v in msg.value().items() if v is not None}
 
             assert combo.get('key') == record_key
-            assert combo.get('value') == record_value
+            if i == 0:
+                assert combo.get('value')['name'] == record_value['name']
+            elif i == 1:
+                assert combo.get('value')['name'] == record_value['name']
+                assert combo.get('value')['favorite_color'] == None
+                assert combo.get('value')['favorite_number'] == None
 
             c.commit(msg, asynchronous=False)
 
@@ -1316,7 +1324,7 @@ if __name__ == '__main__':
         verify_admin()
 
     if 'explicit-read' in modes:
-        print('=' * 30, 'Verifying Admin API', '=' * 30)
+        print('=' * 30, 'Verifying Explicit Reading Schema', '=' * 30)
         verify_explicit_read()
 
     print('=' * 30, 'Done', '=' * 30)
