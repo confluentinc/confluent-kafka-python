@@ -1146,13 +1146,13 @@ def verify_explicit_read():
     schema2 = avro.load(os.path.join(avsc_dir, "incremented_read_test_schema.avsc"))
     float_value = 32.
     val = {
-        "name":"abc",
-        "favorite_number":42,
-        "favorite_colo":"orange"
+        "name": "abc",
+        "favorite_number": 42,
+        "favorite_colo": "orange"
     }
 
     combinations = [
-        dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
+        dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
              read_schema=schema1),
         dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
              read_schema=schema2),
