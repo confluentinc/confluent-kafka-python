@@ -108,7 +108,8 @@ class MessageSerializer(object):
             raise serialize_err(message)
 
         # cache writer
-        self.id_to_writers[schema_id] = self.make_datum_writer(schema)
+        if id not in self.id_to_writers:
+            self.id_to_writers[schema_id] = self.make_datum_writer(schema)
 
         return self.encode_record_with_schema_id(schema_id, record, is_key=is_key)
 
