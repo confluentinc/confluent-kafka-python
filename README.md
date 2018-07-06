@@ -195,7 +195,8 @@ Install
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
-          confluent-kafka from source.
+          confluent-kafka from source or use the command in the "Install from
+          source from PyPi" section below.
 
 **Install self-contained binary wheels for OSX and Linux from PyPi:**
 
