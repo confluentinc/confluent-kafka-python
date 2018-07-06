@@ -183,7 +183,6 @@ class MessageSerializer(object):
                                                                                  reader_schema=reader_schema_dict)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
-                # TODO make exceptions more specific
                 # Fast avro failed, fall thru to standard avro below.
                 pass
 
