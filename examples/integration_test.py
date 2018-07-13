@@ -1155,7 +1155,7 @@ def verify_explicit_read():
     }
 
     combinations = [
-        dict(value=val, value_schema=schema1, key=float_value, key_schema=key_schema,
+        dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
              read_schema=schema1),
         dict(value=val1, value_schema=schema1, key=float_value, key_schema=key_schema,
              read_schema=schema2),
