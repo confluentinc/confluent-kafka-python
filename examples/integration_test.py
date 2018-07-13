@@ -1215,15 +1215,8 @@ def verify_explicit_read():
                 record_value = {k: v for k, v in msg.value().items() if v is not None}
 
             assert combo.get('key') == record_key
-            if i == 0:
-                assert combo.get('value')['name'] == record_value['name']
-            elif i == 1:
-                assert combo.get('value')['name'] == record_value['name']
-                assert combo.get('value')['favorite_color'] == None
-                assert combo.get('value')['favorite_number'] == None
-
+            assert combo.get('value')['name'] == record_value['name']
             c.commit(msg, asynchronous=False)
-
         # Close consumer
         c.close()
     pass
@@ -1232,6 +1225,7 @@ def verify_explicit_read():
 # Exclude throttle since from default list
 #default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 default_modes = ['consumer', 'producer', 'performance', 'explicit-read']
+default_modes = ['explicit-read']
 all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
