@@ -1225,7 +1225,7 @@ def verify_explicit_read():
 # Exclude throttle since from default list
 #default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 default_modes = ['consumer', 'producer', 'performance', 'explicit-read']
-default_modes = ['explicit-read']
+#default_modes = ['explicit-read']
 all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
