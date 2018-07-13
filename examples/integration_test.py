@@ -21,7 +21,11 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
+<<<<<<< HEAD
 from confluent_kafka import admin
+=======
+#from confluent_kafka import admin
+>>>>>>> work on integration test for explicit read
 import os
 import time
 import uuid
@@ -1304,8 +1308,14 @@ def verify_explicit_read():
 
 >>>>>>> work on integration test for explicit read
 # Exclude throttle since from default list
+<<<<<<< HEAD
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
 all_modes = default_modes + ['throttle', 'avro-https', 'none']
+=======
+#default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
+default_modes = ['consumer', 'producer', 'performance', 'explicit-read']
+all_modes = default_modes + ['throttle', 'none']
+>>>>>>> work on integration test for explicit read
 """All test modes"""
 
 
