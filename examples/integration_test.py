@@ -21,7 +21,6 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
-#from confluent_kafka import admin
 import os
 import time
 import uuid
@@ -1028,8 +1027,9 @@ def verify_topic_metadata(client, exp_topics):
 
 
 def verify_admin():
-    """ Verify Admin API """
 
+    """ Verify Admin API """
+    from confluent_kafka import admin
     a = admin.AdminClient({'bootstrap.servers': bootstrap_servers})
     our_topic = topic + '_admin_' + str(uuid.uuid4())
     num_partitions = 2
@@ -1223,9 +1223,8 @@ def verify_explicit_read():
 
 
 # Exclude throttle since from default list
-#default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
+# default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 default_modes = ['consumer', 'producer', 'performance', 'explicit-read']
-#default_modes = ['explicit-read']
 all_modes = default_modes + ['throttle', 'none']
 """All test modes"""
 
