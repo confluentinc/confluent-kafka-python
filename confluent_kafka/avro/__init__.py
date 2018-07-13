@@ -29,7 +29,7 @@ class AvroProducer(Producer):
     def __init__(self, config, default_key_schema=None,
                  default_value_schema=None, schema_registry=None,
                  value_subject_name_strategy=topic_name_strategy, key_subject_name_strategy=topic_name_strategy):
-        
+
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
