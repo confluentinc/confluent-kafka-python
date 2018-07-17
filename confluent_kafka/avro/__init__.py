@@ -46,11 +46,11 @@ class AvroProducer(Producer):
         elif schema_registry_url is not None:
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
+        super(AvroProducer, self).__init__(config)
+
         self._serializer = MessageSerializer(schema_registry,
                                              key_subject_name_strategy=key_subject_name_strategy,
                                              value_subject_name_strategy=value_subject_name_strategy)
-
-        super(AvroProducer, self).__init__(config)
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
 
