@@ -54,7 +54,10 @@ def record_name_strategy(topic, is_key, schema):
     Instead, checks compatibility of any occurrences of the same record name
     across `all` topics.
     """
-    return schema.fullname
+    return schema.fullname if hasattr(schema, 'fullname') \
+        else schema.name if hasattr(schema, 'name') \
+        else schema.type if schema is not None \
+        else 'null'
 
 
 def topic_record_name_strategy(topic, is_key, schema):

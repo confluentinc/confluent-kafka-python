@@ -17,7 +17,7 @@
 
 import unittest
 
-from avro.schema import Names, RecordSchema
+from avro.schema import Names, RecordSchema, PrimitiveSchema
 
 import confluent_kafka.avro.serializer.name_strategies as strategies
 from confluent_kafka.avro import AvroProducer
@@ -42,11 +42,41 @@ class TestMessageSerializer(unittest.TestCase):
         actual = strategy(None, None, schema)
         assert expected == actual
 
+    def test_record_name_primitive_schema(self):
+        strategy = strategies.record_name_strategy
+        schema = PrimitiveSchema(type='string')
+        expected = 'string'
+        actual = strategy(None, None, schema)
+        assert expected == actual
+
+    def test_record_name_none_schema(self):
+        strategy = strategies.record_name_strategy
+        schema = None
+        expected = 'null'
+        actual = strategy(None, None, schema)
+        assert expected == actual
+
     def test_topic_record_name(self):
         strategy = strategies.topic_record_name_strategy
         topic = "some_legal_topic_name"
         schema = RecordSchema("MyRecordType", "my.namespace", fields=[], names=Names())
         expected = "some_legal_topic_name-my.namespace.MyRecordType"
+        actual = strategy(topic, None, schema)
+        assert expected == actual
+
+    def test_topic_record_name_primitive_schema(self):
+        strategy = strategies.topic_record_name_strategy
+        topic = "some_legal_topic_name"
+        schema = PrimitiveSchema(type='string')
+        expected = 'some_legal_topic_name-string'
+        actual = strategy(topic, None, schema)
+        assert expected == actual
+
+    def test_topic_record_name_none_schema(self):
+        strategy = strategies.topic_record_name_strategy
+        topic = "some_legal_topic_name"
+        schema = None
+        expected = 'some_legal_topic_name-null'
         actual = strategy(topic, None, schema)
         assert expected == actual
 

@@ -20,3 +20,4 @@ wheelhouse
 dl-*
 *.whl
 .pytest_cache
+librdkafka-tmp

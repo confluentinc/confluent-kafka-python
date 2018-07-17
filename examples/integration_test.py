@@ -377,6 +377,137 @@ def verify_avro():
         c.close()
 
 
+def verify_avro_subject_names():
+    from confluent_kafka import avro
+    from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
+    import confluent_kafka.avro.serializer.name_strategies as name_strategies
+    from itertools import permutations
+
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'default.topic.config': {'produce.offset.report': True}}
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.
+
+    data_combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0., key_schema=prim_float),
+        dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
+    ]
+
+    strategy_combinations = sorted(set(permutations([strategy
+                                                     for strategy
+                                                     in [candidate
+                                                         for candidate
+                                                         in dir(name_strategies)
+                                                         if not candidate.startswith('_')]
+                                                     for _
+                                                     in (0, 1)], 2)))
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'on_commit': print_commit_result,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+    schema_registry = CachedSchemaRegistryClient(schema_registry_url)
+
+    for i, combo in enumerate(data_combinations):
+        j = 0
+        for key_strategy_name, value_strategy_name in strategy_combinations:
+            key_strategy = getattr(name_strategies, key_strategy_name)
+            value_strategy = getattr(name_strategies, value_strategy_name)
+
+            p = avro.AvroProducer(conf, schema_registry=schema_registry,
+                                  key_subject_name_strategy=key_strategy,
+                                  value_subject_name_strategy=value_strategy)
+            local_topic = topic + '_' + str(uuid.uuid4())
+            key_schema = combo.get('key_schema', None)
+            value_schema = combo.get('value_schema', None)
+            p.produce(topic=local_topic, **combo)
+            p.poll(0)
+            p.flush()
+
+            # Create consumer
+            c = avro.AvroConsumer(cons_conf, schema_registry=schema_registry)
+            c.subscribe([local_topic])
+
+            key_subject_name = key_strategy(local_topic, True, key_schema)
+            value_subject_name = value_strategy(local_topic, False, value_schema)
+
+            while True:
+                msg = c.poll(0)
+                if msg is None:
+                    continue
+
+                if msg.error():
+                    if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                        break
+                    else:
+                        continue
+
+                tstype, timestamp = msg.timestamp()
+
+                record_key = msg.key()
+                record_value = msg.value()
+
+                found_key_schema = schema_registry.get_latest_schema(key_subject_name)[1]
+                found_value_schema = schema_registry.get_latest_schema(value_subject_name)[1]
+
+                print('%s[%d]@%d:\n\t'
+                      'i=%s, j=%s, key_strategy=%s, value_strategy=%s, combo=%s,\n\t'
+                      'key_subject_name=%s, key=%s,\n\t'
+                      'value_subject_name=%s, value=%s,\n\t'
+                      'tstype=%d, timestamp=%s' %
+                      (msg.topic(), msg.partition(), msg.offset(),
+                       i, j, key_strategy_name, value_strategy_name, combo,
+                       key_subject_name, record_key,
+                       value_subject_name, record_value,
+                       tstype, timestamp))
+
+                # omit empty Avro fields from payload for comparison
+                if isinstance(msg.key(), dict):
+                    record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+                if isinstance(msg.value(), dict):
+                    record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+                assert combo.get('key') == record_key
+                assert combo.get('value') == record_value
+                assert key_schema == found_key_schema
+                assert value_schema == found_value_schema
+
+                c.commit(msg, asynchronous=False)
+
+            # Close consumer
+            c.close()
+            j += 1
+
+
 def verify_avro_https():
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
@@ -1218,7 +1349,7 @@ def verify_admin():
 
 # Exclude throttle since from default list
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'avro-https', 'none']
+all_modes = default_modes + ['throttle', 'avro-subject-names', 'avro-https', 'none']
 """All test modes"""
 
 
@@ -1328,6 +1459,10 @@ if __name__ == '__main__':
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
+
+    if 'avro-subject-names' in modes:
+        print('=' * 30, 'Verifying AVRO Subject Names', '=' * 30)
+        verify_avro_subject_names()
 
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
