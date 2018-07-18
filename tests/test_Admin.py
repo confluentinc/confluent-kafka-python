@@ -244,15 +244,9 @@ def test_alter_configs_api():
     with pytest.raises(ValueError):
         a.alter_configs([])
 
-    with pytest.raises(ValueError):
-        a.alter_configs([None, ConfigResource("topic", "mytopic",
-                                              add_config={"something": "else"})])
-
     fs = a.alter_configs([ConfigResource("topic", "mytopic",
                                          set_config={"set": "this",
-                                                     "and": "this"},
-                                         add_config={"add": "this"},
-                                         del_config=["this"]),
+                                                     "and": "this"}),
                           ConfigResource(confluent_kafka.admin.RESOURCE_GROUP,
                                          "mygroup")],
                          request_timeout=0.123)
