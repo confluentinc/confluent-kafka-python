@@ -433,7 +433,6 @@ class AdminClient (_AdminClientImpl):
                   the provided resources with the new configuration given,
                   reverting all other configuration for the resource back
                   to their default values.
-                  If and when KIP-248 is adopted incremental updates will be possible.
 
         :warning: Multiple resources and resource types may be specified,
                   but at most one resource of type RESOURCE_BROKER is allowed
