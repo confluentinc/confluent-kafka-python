@@ -5,8 +5,8 @@ when no more blocking issues needs to be fixed a final tag is created
 and the final release is rolled.
 
 confluent-kafka-python uses semver versioning and loosely follows
-librdkafka's version, e.g. v0.11.5 for the final release and
-v0.11.5rc3 for the 3rd v0.11.5 release candidate.
+librdkafka's version, e.g. v0.11.4 for the final release and
+v0.11.4rc3 for the 3rd v0.11.4 release candidate.
 
 With the addition of prebuilt binary wheels we make use of travis-ci.org
 to build OSX and Linux binaries which are uploaded to Confluent's private
@@ -16,11 +16,11 @@ and then uploaded manually to PyPi.
 **Note**: Python package versions use a lowercase `rcN` suffix to indicate
           release candidates while librdkafka uses `-RCN`. The Python format
           must be used for confluent-kafka-python releases.
-          That is to say that while the librdkafka RC is named `v0.11.5-RC3`
-          a Python client RC with the same version is named `v0.11.5rc3`.
+          That is to say that while the librdkafka RC is named `v0.11.4-RC3`
+          a Python client RC with the same version is named `v0.11.4rc3`.
 
 
-The following guide uses `v0.11.5rc1` as version for a release candidate,
+The following guide uses `v0.11.4rc1` as version for a release candidate,
 replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
@@ -53,7 +53,7 @@ RCs, so only needs to be set once for each release.
 
 Commit these changes with a commit-message containing the version:
 
-    $ git commit -m "Version v0.11.5rc1" confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
+    $ git commit -m "Version v0.11.4rc1" confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
 
 
 ## 3. Create a tag
@@ -61,7 +61,7 @@ Commit these changes with a commit-message containing the version:
 The tag should be created right after the commit and be named the same as
 the version.
 
-    $ git tag v0.11.5rc1
+    $ git tag v0.11.4rc1
 
 
 ## 4. Push tag and commits
@@ -76,7 +76,7 @@ Remove `--dry-run` when you're happy with the results.
 An alternative is to push branch and tags separately:
 
     $ git push --dry-run origin master
-    $ git push --dry-run --tags origin v0.11.5rc1
+    $ git push --dry-run --tags origin v0.11.4rc1
 
 
 ## 5. Wait for CI builds
@@ -94,7 +94,7 @@ When the build for all platforms are successful download the resulting
 artifacts from S3 using:
 
     $ cd tools
-    $ ./download-s3.py v0.11.5rc1  # replace with your tagged version
+    $ ./download-s3.py v0.11.4rc1  # replace with your tagged version
 
 The artifacts will be downloaded to `dl-<tag>/`.
 
@@ -110,7 +110,7 @@ Create a new virtualenv:
 
 Install the relevant package for your platform:
 
-    $ pip install dl-v0.11.5rc1/confluent_kafka-....whl
+    $ pip install dl-v0.11.4rc1/confluent_kafka-....whl
 
 Verify that the package works, should print the expected Python client
 and librdkafka versions:
@@ -123,11 +123,11 @@ and librdkafka versions:
 
 To upload binary packages to test.pypi.org, use:
 
-    $ twine upload -r test dl-v0.11.5rc1/*
+    $ twine upload -r test dl-v0.11.4rc1/*
 
 To upload binary packages to the proper pypi.org (WARNING!), use:
 
-    $ twine upload dl-v0.11.5rc1/*
+    $ twine upload dl-v0.11.4rc1/*
 
 For upload source packages make sure to have checked out the correct tag.
 
@@ -153,7 +153,7 @@ In the same virtualenv as created above:
 
     # For final releases no --pre or version-pinning, pay
     # attention to the version being picked up, should be the
-    # final v0.11.5 release:
+    # final v0.11.4 release:
 
     $ pip install confluent_kafka
 
@@ -168,7 +168,7 @@ Verify that the package works and prints the expected version:
 
 If this was the final release, go to
 [github releases](https://github.com/confluentinc/confluent-kafka-python/releases)
-and create a new release with the same name as the final release tag (`v0.11.5`).
+and create a new release with the same name as the final release tag (`v0.11.4`).
 
 Add three sections (with markdown `# New features`) to the description:
  * New features
@@ -179,7 +179,7 @@ Print the git commit log and copy-paste relevant commits to
 the release description, reformatting them as necessary to look nice in
 the changelog, put the commits in the appropriate section.
 
-    $ git log --oneline v0.11.4..v0.11.5
+    $ git log --oneline v0.11.3..v0.11.4
 
 Create the release.
 
