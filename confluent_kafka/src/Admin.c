@@ -75,7 +75,6 @@ struct Admin_options {
         float request_timeout;    /* parser: f */
         float operation_timeout;  /* parser: f */
         int   broker;             /* parser: i */
-        int   incremental;        /* needs special bool parsing */
 };
 
 /**@brief "unset" value initializers for Admin_options
@@ -83,7 +82,6 @@ struct Admin_options {
 #define Admin_options_INITIALIZER {                                     \
                 Admin_options_def_int, Admin_options_def_float,         \
                         Admin_options_def_float, Admin_options_def_int, \
-                        Admin_options_def_int,                          \
                         }
 
 #define Admin_options_is_set_int(v) ((v) != Admin_options_def_int)
@@ -140,12 +138,6 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->broker) &&
             (err = rd_kafka_AdminOptions_set_broker(
                     c_options, (int32_t)options->broker,
-                    errstr, sizeof(errstr))))
-                goto err;
-
-        if (Admin_options_is_set_int(options->incremental) &&
-            (err = rd_kafka_AdminOptions_set_incremental(
-                    c_options, options->incremental,
                     errstr, sizeof(errstr))))
                 goto err;
 
@@ -250,7 +242,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 }
 
 /**
- * @brief Translate a dict to ConfigResource {set,add,delete}_config() calls,
+ * @brief Translate a dict to ConfigResource set_config() calls,
  *        or to NewTopic_add_config() calls.
  *
  *
@@ -276,52 +268,44 @@ Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
 
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-                if (!strcmp(op_name, "del_config")) {
-                        err = rd_kafka_ConfigResource_delete_config(
-                                (rd_kafka_ConfigResource_t *)c_obj, k);
-                } else {
-                        PyObject *vs = NULL, *vs8 = NULL;
-                        if (!(vs = cfl_PyObject_Unistr(vo)) ||
-                            !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
-                                PyErr_Format(PyExc_ValueError,
-                                             "expect %s config value for %s "
-                                             "to be unicode string",
-                                             op_name, k);
-                                Py_XDECREF(vs);
-                                Py_XDECREF(vs8);
-                                Py_DECREF(ks);
-                                Py_XDECREF(ks8);
-                                return 0;
-                        }
 
-                        if (!strcmp(op_name, "add_config"))
-                                err = rd_kafka_ConfigResource_add_config(
-                                        (rd_kafka_ConfigResource_t *)c_obj,
-                                        k, v);
-                        else if (!strcmp(op_name, "set_config"))
-                                err = rd_kafka_ConfigResource_set_config(
-                                        (rd_kafka_ConfigResource_t *)c_obj,
-                                        k, v);
-                        else if (!strcmp(op_name, "newtopic_set_config"))
-                                err = rd_kafka_NewTopic_set_config(
-                                        (rd_kafka_NewTopic_t *)c_obj, k, v);
-                        else
-                                err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
-
-                        if (err) {
-                                PyErr_Format(PyExc_ValueError,
-                                             "%s config %s failed: %s",
-                                             op_name, k, rd_kafka_err2str(err));
-                                Py_XDECREF(vs);
-                                Py_XDECREF(vs8);
-                                Py_DECREF(ks);
-                                Py_XDECREF(ks8);
-                                return 0;
-                        }
-
+                PyObject *vs = NULL, *vs8 = NULL;
+                if (!(vs = cfl_PyObject_Unistr(vo)) ||
+                    !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "expect %s config value for %s "
+                                     "to be unicode string",
+                                     op_name, k);
                         Py_XDECREF(vs);
                         Py_XDECREF(vs8);
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
+                        return 0;
                 }
+
+                if (!strcmp(op_name, "set_config"))
+                        err = rd_kafka_ConfigResource_set_config(
+                                (rd_kafka_ConfigResource_t *)c_obj,
+                                k, v);
+                else if (!strcmp(op_name, "newtopic_set_config"))
+                        err = rd_kafka_NewTopic_set_config(
+                                (rd_kafka_NewTopic_t *)c_obj, k, v);
+                else
+                        err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
+
+                if (err) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "%s config %s failed: %s",
+                                     op_name, k, rd_kafka_err2str(err));
+                        Py_XDECREF(vs);
+                        Py_XDECREF(vs8);
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
+                        return 0;
+                }
+
+                Py_XDECREF(vs);
+                Py_XDECREF(vs8);
                 Py_DECREF(ks);
                 Py_XDECREF(ks8);
         }
@@ -835,14 +819,13 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                                          PyObject *kwargs) {
         PyObject *resources, *future;
-        PyObject *validate_only_obj = NULL, *incremental_obj = NULL;
+        PyObject *validate_only_obj = NULL;
         static char *kws[] = { "resources",
                                "future",
                                /* options */
                                "validate_only",
                                "request_timeout",
                                "broker",
-                               "incremental",
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -853,12 +836,11 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         CallState cs;
 
         /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|OfiO", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
                                          &resources, &future,
                                          &validate_only_obj,
                                          &options.request_timeout,
-                                         &options.broker,
-                                         &incremental_obj))
+                                         &options.broker))
                 return NULL;
 
         if (!PyList_Check(resources) ||
@@ -873,12 +855,6 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
             !cfl_PyBool_get(validate_only_obj, "validate_only",
                             &options.validate_only))
                 return NULL;
-
-        if (incremental_obj &&
-            !cfl_PyBool_get(incremental_obj, "incremental",
-                            &options.incremental))
-                return NULL;
-
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
                                        &options, future);
@@ -950,30 +926,6 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                         goto err;
                 }
                 if (!Admin_config_dict_to_c(c_objs[i], dict, "set_config")) {
-                        Py_DECREF(dict);
-                        i++;
-                        goto err;
-                }
-                Py_DECREF(dict);
-
-                if (!cfl_PyObject_GetAttr(res, "add_config_dict", &dict,
-                                          &PyDict_Type, 1)) {
-                        i++;
-                        goto err;
-                }
-                if (!Admin_config_dict_to_c(c_objs[i], dict, "add_config")) {
-                        Py_DECREF(dict);
-                        i++;
-                        goto err;
-                }
-                Py_DECREF(dict);
-
-                if (!cfl_PyObject_GetAttr(res, "del_config_dict", &dict,
-                                          &PyDict_Type, 1)) {
-                        i++;
-                        goto err;
-                }
-                if (!Admin_config_dict_to_c(c_objs[i], dict, "del_config")) {
                         Py_DECREF(dict);
                         i++;
                         goto err;
