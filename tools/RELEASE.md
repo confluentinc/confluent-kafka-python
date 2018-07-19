@@ -27,7 +27,7 @@ final release.
 
 ## 1. Update OpenSSL version if necessary
 
-As of v0.11.5 OpenSSL is packaged with the python client. It's important
+As of v0.11.4 OpenSSL is packaged with the python client. It's important
 that the OpenSSL version is kept up to date with the latest release.
 
 Update `OPENSSL_VERSION` in `tools/build-openssl.sh` with the latest 1.0.x version
