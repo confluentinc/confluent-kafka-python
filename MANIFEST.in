@@ -1,3 +1,4 @@
 include README.md
 include LICENSE.txt
+include test-requirements.txt
 include confluent_kafka/src/*.[ch]
