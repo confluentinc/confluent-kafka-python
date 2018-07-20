@@ -143,11 +143,8 @@ def example_alter_configs(a, args):
 
 def example_delta_alter_configs(a, args):
     """
-    Alter only supplied configs (pre incremental/KIP-248)
-
-    The pre incremental/KIP-248 AlterConfigs Kafka API requires all
-    configuration to be passed, any left out configuration properties will
-    revert to their default settings.
+    The AlterConfigs Kafka API requires all configuration to be passed,
+    any left out configuration properties will revert to their default settings.
 
     This example shows how to just modify the supplied configuration entries
     by first reading the configuration from the broker, updating the supplied

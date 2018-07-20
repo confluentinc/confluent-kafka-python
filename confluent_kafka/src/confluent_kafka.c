@@ -1434,8 +1434,6 @@ static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
 static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
-	PyObject *vs;
-	const char *val;
 
 	if (!strcasecmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
@@ -1448,70 +1446,6 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 
 		self->u.Producer.default_dr_cb = valobj;
 		Py_INCREF(self->u.Producer.default_dr_cb);
-
-		return 1;
-
-	} else if (!strcasecmp(name, "partitioner") ||
-		   !strcasecmp(name, "partitioner_callback")) {
-
-		if ((vs = cfl_PyObject_Unistr(valobj))) {
-			/* Use built-in C partitioners,
-			 * based on their name. */
-                        PyObject *vs8;
-			val = cfl_PyUnistr_AsUTF8(vs, &vs8);
-
-			if (!strcmp(val, "random"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_random);
-			else if (!strcmp(val, "consistent"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_consistent);
-			else if (!strcmp(val, "consistent_random"))
-				rd_kafka_topic_conf_set_partitioner_cb(
-					tconf, rd_kafka_msg_partitioner_consistent_random);
-			else {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__INVALID_ARG,
-					"unknown builtin partitioner: %s "
-					"(available: random, consistent, consistent_random)",
-					val);
-                                Py_XDECREF(vs8);
-				Py_DECREF(vs);
-				return -1;
-			}
-
-                        Py_XDECREF(vs8);
-			Py_DECREF(vs);
-
-		} else {
-			/* Custom partitioner (Python callback) */
-
-			if (!PyCallable_Check(valobj)) {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__INVALID_ARG,
-					"%s requires a callable "
-					"object", name);
-				return -1;
-			}
-
-			 /* FIXME: Error out until GIL+rdkafka lock-ordering is fixed. */
-			if (1) {
-				cfl_PyErr_Format(
-					RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
-					"custom partitioner support not yet implemented");
-				return -1;
-			}
-
-			if (self->u.Producer.partitioner_cb)
-				Py_DECREF(self->u.Producer.partitioner_cb);
-
-			self->u.Producer.partitioner_cb = valobj;
-			Py_INCREF(self->u.Producer.partitioner_cb);
-
-			/* Use trampoline to call Python code. */
-			rd_kafka_topic_conf_set_partitioner_cb(tconf,
-							       Producer_partitioner_cb);
-		}
 
 		return 1;
 
@@ -1577,9 +1511,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
-	int32_t (*partitioner_cb) (const rd_kafka_topic_t *,
-				   const void *, size_t, int32_t,
-				   void *, void *) = partitioner_cb;
 
         if (rd_kafka_version() < MIN_RD_KAFKA_VERSION) {
                 PyErr_Format(PyExc_RuntimeError,
@@ -1596,8 +1527,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
          * When both args and kwargs are present the kwargs take
          * precedence in case of duplicate keys.
          * All keys map to configuration properties.
+         *
+         * Copy configuration dict to avoid manipulating application config.
          */
-        if (args) {
+        if (args && PyTuple_Size(args)) {
                 if (!PyTuple_Check(args) ||
                     PyTuple_Size(args) > 1) {
                         PyErr_SetString(PyExc_TypeError,
@@ -1609,6 +1542,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "expected configuration dict");
                                 return NULL;
                 }
+                confdict = PyDict_Copy(confdict);
         }
 
         if (!confdict) {
@@ -1618,7 +1552,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         return NULL;
                 }
 
-                confdict = kwargs;
+                confdict = PyDict_Copy(kwargs);
 
         } else if (kwargs) {
                 /* Update confdict with kwargs */
@@ -1635,6 +1569,50 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         /* Enable valid offsets in delivery reports */
         rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
 
+        /*
+         * Plugins must be configured prior to handling any of their configuration properties.
+         * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
+         * This ensures plugin configuration properties are handled in the correct order.
+         */
+        if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
+                const char *v;
+                char errstr[256];
+                PyObject *vs = NULL, *vs8 = NULL;
+
+                if (!(vs = cfl_PyObject_Unistr(vo))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                "expected configuration property name "
+                                "as type unicode string");
+                        rd_kafka_topic_conf_destroy(tconf);
+                        rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
+                        return NULL;
+                }
+
+                v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+
+                if (rd_kafka_conf_set(conf, "plugin.library.paths", v, errstr, sizeof(errstr))
+                   != RD_KAFKA_CONF_OK) {
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "%s", errstr);
+
+                        rd_kafka_topic_conf_destroy(tconf);
+                        rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
+                        Py_XDECREF(vs8);
+                        Py_XDECREF(vs);
+
+                        return NULL;
+                }
+
+                Py_XDECREF(vs8);
+                Py_DECREF(vs);
+
+                PyDict_DelItemString(confdict, "plugin.library.paths");
+        }
+
 	/* Convert config dict to config key-value pairs. */
 	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
@@ -1650,6 +1628,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					"as type unicode string");
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
 			return NULL;
 		}
 
@@ -1659,6 +1639,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				Py_DECREF(ks);
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
 				return NULL;
 			}
                         Py_XDECREF(ks8);
@@ -1672,8 +1653,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
 				Py_DECREF(ks);
+
 				return NULL;
                         }
 			if (h->error_cb) {
@@ -1694,8 +1678,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                         "as a callable function");
                                 rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
                                 Py_DECREF(ks);
+
                                 return NULL;
                         }
                         if (h->throttle_cb) {
@@ -1716,8 +1703,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 						"as a callable function");
 				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
 				Py_DECREF(ks);
+
 				return NULL;
                         }
 
@@ -1758,6 +1748,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			Py_DECREF(ks);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
 			return NULL;
 
 		} else if (r == 1) {
@@ -1779,8 +1771,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "unicode string");
                                 rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
+                                Py_DECREF(confdict);
+
                                 Py_XDECREF(ks8);
                                 Py_DECREF(ks);
+
                                 return NULL;
                         }
                         v = cfl_PyUnistr_AsUTF8(vs, &vs8);
@@ -1792,10 +1787,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 					  "%s", errstr);
 			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+
                         Py_XDECREF(vs8);
                         Py_XDECREF(vs);
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
+
 			return NULL;
 		}
 
@@ -1804,6 +1802,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 Py_XDECREF(ks8);
 		Py_DECREF(ks);
 	}
+
+        Py_DECREF(confdict);
 
 	if (h->error_cb)
 		rd_kafka_conf_set_error_cb(conf, error_cb);
@@ -2156,7 +2156,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.11.5rc0", 0x000b0500);
+	return Py_BuildValue("si", "0.11.5", 0x000b0500);
 }
 
 static PyMethodDef cimpl_methods[] = {

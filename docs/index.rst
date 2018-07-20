@@ -135,7 +135,7 @@ The Python bindings also provide some additional configuration properties:
   had headers set. This callback is served upon calling ``producer.poll()`` or ``producer.flush()``.
 
 * ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
-  of commit requests. This callback is served upon calling ``consumer.poll()``.
+  of asynchronous and automatic commit requests. This callback is served upon calling ``consumer.poll()``. Is not triggered for synchronous commits.
 
 * ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
   provided ``logging.Handler`` instance.

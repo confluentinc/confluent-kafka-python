@@ -4,8 +4,12 @@ import os
 from setuptools import setup, find_packages
 from distutils.core import Extension
 import sys
+
+INSTALL_REQUIRES = list()
+
 if sys.version_info[0] < 3:
     avro = 'avro'
+    INSTALL_REQUIRES.extend(['futures', 'enum34'])
 else:
     avro = 'avro-python3'
 
@@ -29,7 +33,7 @@ def get_install_requirements(path):
 
 
 setup(name='confluent-kafka',
-      version='0.11.5rc0',
+      version='0.11.5',
       description='Confluent\'s Apache Kafka client for Python',
       author='Confluent Inc',
       author_email='support@confluent.io',
@@ -37,10 +41,7 @@ setup(name='confluent-kafka',
       ext_modules=[module],
       packages=find_packages(exclude=("tests", "tests.*")),
       data_files=[('', ['LICENSE.txt'])],
-      install_requires=[
-          'futures;python_version<"3.0"',
-          'enum34;python_version<"3.0"'
-      ],
+      install_requires=INSTALL_REQUIRES,
       extras_require={
           'avro': ['fastavro', 'requests', avro],
           'dev': get_install_requirements("test-requirements.txt")

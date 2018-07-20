@@ -3,6 +3,7 @@
 import confluent_kafka
 import json
 import pytest
+import os
 
 
 def test_version():
@@ -123,3 +124,23 @@ def test_throttle_event_types():
     assert isinstance(throttle_event.broker_id, int) and throttle_event.broker_id == 0
     assert isinstance(throttle_event.throttle_time, float) and throttle_event.throttle_time == 10.0
     assert str(throttle_event) == "broker/0 throttled for 10000 ms"
+
+
+@pytest.mark.skipif(len([True for x in (".so", ".dylib", ".dll")
+                         if os.path.exists("monitoring-interceptor" + x)]) == 0,
+                    reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
+@pytest.mark.parametrize("init_func", [
+    confluent_kafka.Consumer,
+    confluent_kafka.Producer,
+    confluent_kafka.admin.AdminClient,
+])
+def test_unordered_dict(init_func):
+    """
+    Interceptor configs can only be handled after the plugin has been loaded not before.
+    """
+    init_func({'confluent.monitoring.interceptor.publishMs': 1000,
+               'confluent.monitoring.interceptor.sessionDurationMs': 1000,
+               'plugin.library.paths': 'monitoring-interceptor',
+               'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
+               'confluent.monitoring.interceptor.icdebug': False
+               })

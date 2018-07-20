@@ -45,6 +45,9 @@ try:
 except ImportError as e:
     with_progress = False
 
+# Default test conf location
+testconf = "tests/testconf.json"
+
 # Kafka bootstrap server(s)
 bootstrap_servers = None
 
@@ -52,7 +55,7 @@ bootstrap_servers = None
 schema_registry_url = None
 
 # Topic prefix to use
-topic = 'test'
+topic = None
 
 # API version requests are only implemented in Kafka broker >=0.10
 # but the client handles failed API version requests gracefully for older
@@ -371,6 +374,96 @@ def verify_avro():
 
         # Close consumer
         c.close()
+
+
+def verify_avro_https():
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request}
+
+    conf.update(testconf.get('schema_registry_https', {}))
+
+    p = avro.AvroProducer(conf)
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.0
+
+    combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0.0, key_schema=prim_float),
+        dict(value=0.0, value_schema=prim_float, key='', key_schema=prim_string),
+    ]
+
+    for i, combo in enumerate(combinations):
+        combo['topic'] = str(uuid.uuid4())
+        combo['headers'] = [('index', str(i))]
+        p.produce(**combo)
+    p.flush()
+
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'group.id': generate_group_id(),
+            'session.timeout.ms': 6000,
+            'enable.auto.commit': False,
+            'api.version.request': api_version_request,
+            'on_commit': print_commit_result,
+            'error_cb': error_cb,
+            'default.topic.config': {
+                'auto.offset.reset': 'earliest'
+            }}
+
+    conf.update(testconf.get('schema_registry_https', {}))
+
+    c = avro.AvroConsumer(conf)
+    c.subscribe([(t['topic']) for t in combinations])
+
+    msgcount = 0
+    while msgcount < len(combinations):
+        msg = c.poll(0)
+
+        if msg is None or msg.error():
+            continue
+
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
+
+        # omit empty Avro fields from payload for comparison
+        record_key = msg.key()
+        record_value = msg.value()
+        index = int(dict(msg.headers())['index'])
+
+        if isinstance(msg.key(), dict):
+            record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+        if isinstance(msg.value(), dict):
+            record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+        assert combinations[index].get('key') == record_key
+        assert combinations[index].get('value') == record_value
+
+        c.commit()
+        msgcount += 1
+
+    # Close consumer
+    c.close()
 
 
 def verify_producer_performance(with_dr_cb=True):
@@ -1226,6 +1319,7 @@ def verify_explicit_read():
 # default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 default_modes = ['consumer', 'producer', 'performance', 'explicit-read']
 all_modes = default_modes + ['throttle', 'none']
+
 """All test modes"""
 
 
@@ -1240,6 +1334,21 @@ def print_usage(exitcode, reason=None):
     sys.exit(exitcode)
 
 
+def generate_group_id():
+    return str(uuid.uuid1())
+
+
+def resolve_envs(_conf):
+    """Resolve environment variables"""
+
+    for k, v in _conf.items():
+        if isinstance(v, dict):
+            resolve_envs(v)
+
+        if str(v).startswith('$'):
+            _conf[k] = os.getenv(v[1:])
+
+
 if __name__ == '__main__':
     """Run test suites"""
 
@@ -1252,21 +1361,29 @@ if __name__ == '__main__':
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
+
+        if opt == 'conf':
+            testconf = sys.argv.pop(1)
+            continue
+
         if opt not in all_modes:
             print_usage(1, 'unknown option --' + opt)
         modes.append(opt)
 
-    if len(sys.argv) > 1:
-        bootstrap_servers = sys.argv[1]
-        if len(sys.argv) > 2:
-            topic = sys.argv[2]
-        if len(sys.argv) > 3:
-            schema_registry_url = sys.argv[3]
-    else:
-        print_usage(1)
+    with open(testconf) as f:
+        testconf = json.load(f)
+        resolve_envs(testconf)
+
+    bootstrap_servers = testconf.get('bootstrap.servers', None)
+    topic = testconf.get('topic', None)
+    schema_registry_url = testconf.get('schema.registry.url', None)
 
     if len(modes) == 0:
         modes = default_modes
+
+    if bootstrap_servers is None or topic is None:
+        print_usage(1, "Properties bootstrap.servers and topic must be set. "
+                       "Use tests/testconf-example.json as a template when creating a new conf file.")
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
@@ -1312,6 +1429,10 @@ if __name__ == '__main__':
     if 'avro' in modes:
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
+
+    if 'avro-https' in modes:
+        print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
+        verify_avro_https()
 
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)
