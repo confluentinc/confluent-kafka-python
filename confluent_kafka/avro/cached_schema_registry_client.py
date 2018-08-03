@@ -21,6 +21,7 @@
 #
 import json
 import logging
+import warnings
 from collections import defaultdict
 
 import requests
@@ -42,17 +43,46 @@ class CachedSchemaRegistryClient(object):
 
     See http://confluent.io/docs/current/schema-registry/docs/intro.html
 
+    .. deprecated::
+    Use CachedSchemaRegistryClient(dict: config) instead.
+    Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
+    `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
+
     Errors communicating to the server will result in a ClientError being raised.
 
-    @:param: url: url to schema registry
+    :param: str|dict url: url(deprecated) to schema registry or dictionary containing client configuration
+    :param: str ca_location: File or directory path to CA certificate(s) for verifying the Schema Registry key
+    :param: str cert_location: Path to client's public key used for authentication.
+    :param: str key_location: Path to client's private key used for authentication.
+
     """
 
     def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
-        """Construct a client by passing in the base URL of the schema registry server"""
+        # In order to maintain comparability the url(conf in future versions) param has been preserved for now.
+        conf = url
+        if isinstance(url, str):
+            conf = {
+                'url': url,
+                'ssl.ca.location': ca_location,
+                'ssl.certificate.location': cert_location,
+                'ssl.key.location': key_location
+            }
+            warnings.simplefilter('always', DeprecationWarning)  # Deprecation warnings are suppressed by default
+            warnings.warn(
+                "CachedSchemaRegistry constructor is being deprecated. "
+                "Use CachedSchemaRegistryClient(dict: config) instead. "
+                "Existing params ca_location, cert_location and key_location will be replaced with their "
+                "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location` and "
+                "`ssl.key.location` respectively",
+                category=DeprecationWarning, stacklevel=2)
+            warnings.simplefilter('default', DeprecationWarning)  # reset filter
 
-        self.url = url.rstrip('/')
+        """Construct a Schema Registry client"""
 
-        self.max_schemas_per_subject = max_schemas_per_subject
+        # Ensure URL valid scheme is included; http[s]
+        if not conf.get('url', '').startswith("http"):
+            raise ValueError("Invalid URL provided for Schema Registry")
+
         # subj => { schema => id }
         self.subject_to_schema_ids = defaultdict(dict)
         # id => avro_schema
@@ -61,14 +91,10 @@ class CachedSchemaRegistryClient(object):
         self.subject_to_schema_versions = defaultdict(dict)
 
         s = requests.Session()
-        if ca_location is not None:
-            s.verify = ca_location
-        if cert_location is not None or key_location is not None:
-            if cert_location is None or key_location is None:
-                raise ValueError(
-                    "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
-            s.cert = (cert_location, key_location)
+        s.verify = conf.get('ssl.ca.location', None)
+        s.cert = self._configure_client_tls(conf)
 
+        self.url = conf['url']
         self._session = s
 
     def __del__(self):
@@ -83,6 +109,15 @@ class CachedSchemaRegistryClient(object):
     def close(self):
         self._session.close()
 
+    @staticmethod
+    def _configure_client_tls(conf):
+        cert = conf.get('ssl.certificate.location', None), conf.get('ssl.key.location', None)
+        # Both values can be None or no values can be None
+        if sum(x is None for x in cert) == 1:
+            raise ValueError(
+                "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
+        return cert
+
     def _send_request(self, url, method='GET', body=None, headers={}):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
@@ -96,7 +131,8 @@ class CachedSchemaRegistryClient(object):
         response = self._session.request(method, url, headers=_headers, json=body)
         return response.json(), response.status_code
 
-    def _add_to_cache(self, cache, subject, schema, value):
+    @staticmethod
+    def _add_to_cache(cache, subject, schema, value):
         sub_cache = cache[subject]
         sub_cache[schema] = value
 
