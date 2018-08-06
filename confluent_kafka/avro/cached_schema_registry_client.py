@@ -31,6 +31,7 @@ from . import loads
 
 VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
+VALID_AUTH_PROVIDERS = ['URL', 'USERINFO', 'SASL_INHERIT']
 
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
@@ -93,6 +94,7 @@ class CachedSchemaRegistryClient(object):
         s = requests.Session()
         s.verify = conf.get('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
+        s.auth = self._configure_basic_auth(conf)
 
         self.url = conf['url']
         self._session = s
@@ -108,6 +110,26 @@ class CachedSchemaRegistryClient(object):
 
     def close(self):
         self._session.close()
+
+    @staticmethod
+    def _configure_basic_auth(conf):
+        url = conf['url']
+        auth_provider = conf.get('basic.auth.credentials.source', 'URL').upper()
+        if auth_provider not in VALID_AUTH_PROVIDERS:
+            raise ValueError("basic.auth.credentials.source must be one of {}"
+                             .format(auth_provider, VALID_AUTH_PROVIDERS))
+
+        if auth_provider == 'SASL_INHERIT':
+            if conf.get('sasl.mechanisms', '').upper() == 'GSSAPI':
+                raise ValueError("SASL_INHERIT supports SASL mechanisms PLAIN and SCRAM only")
+            auth = (conf.get('sasl.username', None), conf.get('sasl.password'))
+        elif auth_provider == 'USERINFO':
+            auth = tuple(conf.get('basic.auth.user.info', None).split(':'))
+        else:
+            auth = requests.utils.get_auth_from_url(url)
+
+        conf['url'] = requests.utils.urldefragauth(url)
+        return auth
 
     @staticmethod
     def _configure_client_tls(conf):
