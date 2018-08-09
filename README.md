@@ -1,3 +1,5 @@
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fconfluentinc%2Fconfluent-kafka-python.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fconfluentinc%2Fconfluent-kafka-python?ref=badge_shield)
+
 Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
@@ -298,3 +300,7 @@ or:
     $ python setup.py build_sphinx
 
 Documentation will be generated in `docs/_build/`.
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fconfluentinc%2Fconfluent-kafka-python.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fconfluentinc%2Fconfluent-kafka-python?ref=badge_large)
