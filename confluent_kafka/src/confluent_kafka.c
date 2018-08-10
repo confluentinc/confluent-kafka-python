@@ -1324,16 +1324,25 @@ static void log_cb (const rd_kafka_t *rk, int level,
  * Clear Python object references in Handle
  */
 void Handle_clear (Handle *h) {
-	if (h->error_cb)
-		Py_DECREF(h->error_cb);
+        if (h->error_cb) {
+                Py_DECREF(h->error_cb);
+                h->error_cb = NULL;
+        }
 
-        if (h->throttle_cb)
+        if (h->throttle_cb) {
                 Py_DECREF(h->throttle_cb);
+                h->throttle_cb = NULL;
+        }
 
-	if (h->stats_cb)
-		Py_DECREF(h->stats_cb);
+        if (h->stats_cb) {
+                Py_DECREF(h->stats_cb);
+                h->stats_cb = NULL;
+        }
 
-        Py_XDECREF(h->logger);
+        if (h->logger) {
+                Py_DECREF(h->logger);
+                h->logger = NULL;
+        }
 
         if (h->initiated) {
 #ifdef WITH_PY_TSS
