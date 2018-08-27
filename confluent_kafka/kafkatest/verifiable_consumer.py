@@ -248,7 +248,7 @@ if __name__ == '__main__':
     parser.add_argument('--enable-autocommit', action='store_true', dest='conf_enable.auto.commit', default=False)
     parser.add_argument('--max-messages', type=int, dest='max_messages', default=-1)
     parser.add_argument('--assignment-strategy', dest='conf_partition.assignment.strategy')
-    parser.add_argument('--reset-policy', dest='conf_auto.offset.reset', default='earliest')
+    parser.add_argument('--reset-policy', dest='topicconf_auto.offset.reset', default='earliest')
     parser.add_argument('--consumer.config', dest='consumer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
