@@ -1,0 +1,4 @@
+SchemaRegistry {
+    org.eclipse.jetty.jaas.spi.PropertyFileLoginModule required
+    file="/conf/schema-registry/login.properties";
+};

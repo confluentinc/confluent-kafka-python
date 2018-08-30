@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+source $SOURCE/../.env
+export SOURCE="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+export TLS=$SOURCE/../conf/tls
+
+# Clean up old certs
+for file in $(ls $TLS);do 
+	rm $TLS/$file
+done
+
+echo "Creating ca-cert..."
+$SOURCE/gen-ssl-certs.sh ca $TLS/ca-cert $(hostname -f) 
+echo "Creating server cert..."
+$SOURCE/gen-ssl-certs.sh -k server $TLS/ca-cert  $TLS/ $(hostname -f) $(hostname -f)
+echo "Creating client cert..."
+$SOURCE/gen-ssl-certs.sh client $TLS/ca-cert $TLS/ $(hostname -f) $(hostname -f)
+
+echo "Creating key ..."
+openssl rsa -in $TLS/client.key -out $TLS/client.key  -passin pass:abcdefgh
+
