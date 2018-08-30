@@ -386,7 +386,7 @@ def verify_avro_https():
             'error_cb': error_cb,
             'api.version.request': api_version_request}
 
-    conf.update(testconf.get('schema_registry_https', {}))
+    conf.update(testconf.get('avro-https'))
 
     p = avro.AvroProducer(conf)
 
@@ -429,7 +429,7 @@ def verify_avro_https():
                 'auto.offset.reset': 'earliest'
             }}
 
-    conf.update(testconf.get('schema_registry_https', {}))
+    conf.update(testconf.get('avro-https'))
 
     c = avro.AvroConsumer(conf)
     c.subscribe([(t['topic']) for t in combinations])
