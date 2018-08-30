@@ -30,7 +30,13 @@ class AvroProducer(Producer):
                  default_value_schema=None, schema_registry=None):
 
         sr_conf = {key.replace("schema.registry.", ""): value
-                   for key, value in config.items() if key.startswith("schema.registry.") or key.startswith("sasl")}
+                   for key, value in config.items() if key.startswith("schema.registry.")}
+
+        if config.get("schema.registry.basic.auth.credentials.source") == 'SASL_INHERIT':
+            sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
+            sr_conf['sasl.username'] = config.get('sasl.username', '')
+            sr_conf['sasl.password'] = config.get('sasl.password', '')
+
         ap_conf = {key: value
                    for key, value in config.items() if not key.startswith("schema.registry")}
 

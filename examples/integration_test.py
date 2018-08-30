@@ -467,6 +467,51 @@ def verify_avro_https():
     c.close()
 
 
+def verify_avro_basic_auth(mode_conf):
+
+    if mode_conf is None:
+        raise ValueError("Misisng configuration")
+
+    url = {
+        'schema.registry.basic.auth.credentials.source': 'URL'
+    }
+
+    user_info = {
+        'schema.registry.basic.auth.credentials.source': 'USER_INFO',
+        'schema.registry.basic.auth.user.info': mode_conf.get('schema.registry.basic.auth.user.info')
+    }
+
+    sasl_inherit = {
+        'schema.registry.basic.auth.credentials.source': 'sasl_inherit',
+        'schema.registry.sasl.username': mode_conf.get('sasl.username', None),
+        'schema.registry.sasl.password': mode_conf.get('sasl.password', None)
+    }
+
+    base_conf = {
+            'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'schema.registry.url': schema_registry_url
+            }
+
+    consumer_conf = {'group.id': generate_group_id(),
+                     'session.timeout.ms': 6000,
+                     'enable.auto.commit': False,
+                     'default.topic.config': {
+                         'auto.offset.reset': 'earliest'
+                     }}
+    consumer_conf.update(base_conf)
+
+    print('-' * 10, 'Verifying basic auth source USER_INFO', '-' * 10)
+    run_avro_loop(dict(base_conf, **user_info), dict(consumer_conf, **user_info))
+
+    print('-' * 10, 'Verifying basic auth source SASL_INHERIT', '-' * 10)
+    run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
+
+    print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
+    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
+
+
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
@@ -1218,7 +1263,7 @@ def verify_admin():
 
 # Exclude throttle since from default list
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'avro-https', 'none']
+all_modes = default_modes + ['throttle', 'avro-https', 'avro-basic-auth', 'none']
 """All test modes"""
 
 
@@ -1231,6 +1276,76 @@ def print_usage(exitcode, reason=None):
     print(' %s - limit to matching tests' % ', '.join(['--' + x for x in all_modes]))
 
     sys.exit(exitcode)
+
+
+def run_avro_loop(producer_conf, consumer_conf):
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    p = avro.AvroProducer(producer_conf)
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.0
+
+    combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0.0, key_schema=prim_float),
+        dict(value=0.0, value_schema=prim_float, key='', key_schema=prim_string),
+    ]
+
+    for i, combo in enumerate(combinations):
+        combo['topic'] = str(uuid.uuid4())
+        combo['headers'] = [('index', str(i))]
+        p.produce(**combo)
+    p.flush()
+
+    c = avro.AvroConsumer(consumer_conf)
+    c.subscribe([(t['topic']) for t in combinations])
+
+    msgcount = 0
+    while msgcount < len(combinations):
+        msg = c.poll(0)
+
+        if msg is None or msg.error():
+            continue
+
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
+
+        # omit empty Avro fields from payload for comparison
+        record_key = msg.key()
+        record_value = msg.value()
+        index = int(dict(msg.headers())['index'])
+
+        if isinstance(msg.key(), dict):
+            record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+        if isinstance(msg.value(), dict):
+            record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+        assert combinations[index].get('key') == record_key
+        assert combinations[index].get('value') == record_value
+
+        c.commit()
+        msgcount += 1
+
+    # Close consumer
+    c.close()
 
 
 def generate_group_id():
@@ -1332,6 +1447,10 @@ if __name__ == '__main__':
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https()
+
+    if 'avro-basic-auth' in modes:
+        print("=" * 30, 'Verifying AVRO with Basic Auth', '=' * 30)
+        verify_avro_basic_auth(testconf.get('avro-basic-auth', None))
 
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)

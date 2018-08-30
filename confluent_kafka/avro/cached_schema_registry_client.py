@@ -31,7 +31,7 @@ from . import loads
 
 VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
-VALID_AUTH_PROVIDERS = ['URL', 'USERINFO', 'SASL_INHERIT']
+VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
@@ -40,9 +40,9 @@ log = logging.getLogger(__name__)
 
 class CachedSchemaRegistryClient(object):
     """
-    A client that talks to a Schema Registry over HTTP
+    A client that talks to a Schema Registry over HTTP.
 
-    See http://confluent.io/docs/current/schema-registry/docs/intro.html
+    See http://confluent.io/docs/current/schema-registry/docs/intro.html for more information.
 
     .. deprecated::
     Use CachedSchemaRegistryClient(dict: config) instead.
@@ -51,24 +51,23 @@ class CachedSchemaRegistryClient(object):
 
     Errors communicating to the server will result in a ClientError being raised.
 
-    :param: str|dict url: url(deprecated) to schema registry or dictionary containing client configuration
-    :param: str ca_location: File or directory path to CA certificate(s) for verifying the Schema Registry key
+    :param: str|dict url: url(deprecated) to schema registry or dictionary containing client configuration.
+    :param: str ca_location: File or directory path to CA certificate(s) for verifying the Schema Registry key.
     :param: str cert_location: Path to client's public key used for authentication.
     :param: str key_location: Path to client's private key used for authentication.
 
     """
 
     def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
-        # In order to maintain comparability the url(conf in future versions) param has been preserved for now.
+        # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.
         conf = url
-        if isinstance(url, str):
+        if not isinstance(url, dict):
             conf = {
                 'url': url,
                 'ssl.ca.location': ca_location,
                 'ssl.certificate.location': cert_location,
                 'ssl.key.location': key_location
             }
-            warnings.simplefilter('always', DeprecationWarning)  # Deprecation warnings are suppressed by default
             warnings.warn(
                 "CachedSchemaRegistry constructor is being deprecated. "
                 "Use CachedSchemaRegistryClient(dict: config) instead. "
@@ -76,12 +75,11 @@ class CachedSchemaRegistryClient(object):
                 "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location` and "
                 "`ssl.key.location` respectively",
                 category=DeprecationWarning, stacklevel=2)
-            warnings.simplefilter('default', DeprecationWarning)  # reset filter
 
         """Construct a Schema Registry client"""
 
         # Ensure URL valid scheme is included; http[s]
-        if not conf.get('url', '').startswith("http"):
+        if not conf.get('url', '').startswith('http'):
             raise ValueError("Invalid URL provided for Schema Registry")
 
         # subj => { schema => id }
@@ -92,12 +90,15 @@ class CachedSchemaRegistryClient(object):
         self.subject_to_schema_versions = defaultdict(dict)
 
         s = requests.Session()
-        s.verify = conf.get('ssl.ca.location', None)
+        s.verify = conf.pop('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(conf)
 
-        self.url = conf['url']
+        self.url = conf.pop('url')
         self._session = s
+
+        if len(conf) > 0:
+            raise ValueError("Unrecognized configuration key(s): {}".format(conf.keys()))
 
     def __del__(self):
         self.close()
@@ -114,17 +115,17 @@ class CachedSchemaRegistryClient(object):
     @staticmethod
     def _configure_basic_auth(conf):
         url = conf['url']
-        auth_provider = conf.get('basic.auth.credentials.source', 'URL').upper()
+        auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
         if auth_provider not in VALID_AUTH_PROVIDERS:
-            raise ValueError("basic.auth.credentials.source must be one of {}"
+            raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
                              .format(auth_provider, VALID_AUTH_PROVIDERS))
 
         if auth_provider == 'SASL_INHERIT':
-            if conf.get('sasl.mechanisms', '').upper() == 'GSSAPI':
+            if conf.pop('sasl.mechanisms', '').upper() == 'GSSAPI':
                 raise ValueError("SASL_INHERIT supports SASL mechanisms PLAIN and SCRAM only")
-            auth = (conf.get('sasl.username', None), conf.get('sasl.password'))
-        elif auth_provider == 'USERINFO':
-            auth = tuple(conf.get('basic.auth.user.info', None).split(':'))
+            auth = (conf.pop('sasl.username', ''), conf.pop('sasl.password', ''))
+        elif auth_provider == 'USER_INFO':
+            auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
         else:
             auth = requests.utils.get_auth_from_url(url)
 
@@ -133,7 +134,7 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _configure_client_tls(conf):
-        cert = conf.get('ssl.certificate.location', None), conf.get('ssl.key.location', None)
+        cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)
         # Both values can be None or no values can be None
         if sum(x is None for x in cert) == 1:
             raise ValueError(
@@ -151,6 +152,11 @@ class CachedSchemaRegistryClient(object):
         _headers.update(headers)
 
         response = self._session.request(method, url, headers=_headers, json=body)
+
+        # Returned by Jetty not SR so the payload is not json encoded
+        if response.status_code == 401 or response.status_code == 403:
+            raise ClientError(response.text)
+
         return response.json(), response.status_code
 
     @staticmethod
