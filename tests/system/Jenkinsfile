@@ -1,6 +1,6 @@
 def config = jobConfig {
     cron = '@midnight'
-    nodeLabel = 'docker-oraclejdk7'
+    nodeLabel = 'docker-oraclejdk8'
     realJobPrefixes = ['system-test-python-client']
     owner = 'client'
     timeoutHours = 3
