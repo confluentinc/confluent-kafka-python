@@ -29,7 +29,6 @@ import sys
 import json
 import gc
 import struct
-from copy import copy
 
 try:
     # Memory tracker
@@ -66,8 +65,11 @@ api_version_request = True
 # global variable to be set by stats_cb call back function
 good_stats_cb_result = False
 
-# global variable to be incremented by throttle_cb call back function
+# global counter to be incremented by throttle_cb call back function
 throttled_requests = 0
+
+# global variable to track garbage collection of suppressed on_delivery callbacks
+DrOnlyTestSuccess_gced = 0
 
 # Shared between producer and consumer tests and used to verify
 # that consumed headers are what was actually produced.
@@ -105,18 +107,15 @@ def throttle_cb(throttle_event):
     print(throttle_event)
 
 
-class InMemorySchemaRegistry(object):
+def print_commit_result(err, partitions):
+    if err is not None:
+        print('# Failed to commit offsets: %s: %s' % (err, partitions))
+    else:
+        print('# Committed offsets for: %s' % partitions)
 
-    schemas = {}
-    next_idx = 0
 
-    def register(self, subject, schema):
-        self.next_idx += 1
-        self.schemas[self.next_idx] = schema
-        return self.next_idx
-
-    def get_by_id(self, idx):
-        return self.schemas.get(idx)
+def abort_on_missing_configuration(name):
+    raise ValueError("{} configuration not provided. Aborting test...".format(name))
 
 
 class MyTestDr(object):
@@ -162,7 +161,7 @@ def verify_producer():
             'default.topic.config': {'produce.offset.report': True}}
 
     # Create producer
-    p = confluent_kafka.Producer(**conf)
+    p = confluent_kafka.Producer(conf)
     print('producer at %s' % p)
 
     headers = produce_headers
@@ -206,312 +205,6 @@ def verify_producer():
     test_producer_dr_only_error()
 
 
-# Global variable to track garbage collection of suppressed on_delivery callbacks
-DrOnlyTestSuccess_gced = 0
-
-
-def test_producer_dr_only_error():
-    """
-    The C delivery.report.only.error configuration property
-    can't be used with the Python client since the Python client
-    allocates a msgstate for each produced message that has a callback,
-    and on success (with delivery.report.only.error=true) the delivery report
-    will not be called and the msgstate will thus never be freed.
-
-    Since a proper broker is required for messages to be succesfully sent
-    this test must be run from the integration tests rather than
-    the unit tests.
-    """
-    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
-                                  'broker.address.family': 'v4',
-                                  "delivery.report.only.error": True})
-
-    class DrOnlyTestErr(object):
-        def __init__(self):
-            self.remaining = 1
-
-        def handle_err(self, err, msg):
-            """ This delivery handler should only get called for errored msgs """
-            assert "BAD:" in msg.value().decode('utf-8')
-            assert err is not None
-            self.remaining -= 1
-
-    class DrOnlyTestSuccess(object):
-        def handle_success(self, err, msg):
-            """ This delivery handler should never get called """
-            # FIXME: Can we verify that it is actually garbage collected?
-            assert "GOOD:" in msg.value().decode('utf-8')
-            assert err is None
-            assert False, "should never come here"
-
-        def __del__(self):
-            # Indicate that gc has hit this object.
-            global DrOnlyTestSuccess_gced
-            DrOnlyTestSuccess_gced = 1
-
-    print('only.error: Verifying delivery.report.only.error')
-
-    state = DrOnlyTestErr()
-    p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
-              partition=99, on_delivery=state.handle_err)
-
-    not_called_state = DrOnlyTestSuccess()
-    p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
-              on_delivery=not_called_state.handle_success)
-
-    # Garbage collection should not kick in yet for not_called_state
-    # since there is a on_delivery reference to it.
-    not_called_state = None
-    gc.collect()
-    global DrOnlyTestSuccess_gced
-    assert DrOnlyTestSuccess_gced == 0
-
-    print('only.error: Waiting for flush of %d messages' % len(p))
-    p.flush(10000)
-
-    print('only.error: Remaining messages now %d' % state.remaining)
-    assert state.remaining == 0
-
-    # Now with all messages flushed the reference to not_called_state should be gone.
-    gc.collect()
-    assert DrOnlyTestSuccess_gced == 1
-
-
-def verify_avro():
-    from confluent_kafka import avro
-    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
-
-    # Producer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'default.topic.config': {'produce.offset.report': True}}
-
-    # Create producer
-    if schema_registry_url:
-        conf['schema.registry.url'] = schema_registry_url
-        p = avro.AvroProducer(conf)
-    else:
-        p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
-
-    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-    str_value = 'abc'
-    float_value = 32.
-
-    combinations = [
-        dict(key=float_value, key_schema=prim_float),
-        dict(value=float_value, value_schema=prim_float),
-        dict(key={'name': 'abc'}, key_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
-        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
-        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
-        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
-        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
-        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
-        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
-        dict(value='', value_schema=prim_string, key=0., key_schema=prim_float),
-        dict(value=0., value_schema=prim_float, key='', key_schema=prim_string),
-    ]
-
-    # Consumer config
-    cons_conf = {'bootstrap.servers': bootstrap_servers,
-                 'group.id': 'test.py',
-                 'session.timeout.ms': 6000,
-                 'enable.auto.commit': False,
-                 'api.version.request': api_version_request,
-                 'on_commit': print_commit_result,
-                 'error_cb': error_cb,
-                 'default.topic.config': {
-                     'auto.offset.reset': 'earliest'
-                 }}
-
-    for i, combo in enumerate(combinations):
-        combo['topic'] = str(uuid.uuid4())
-        p.produce(**combo)
-        p.poll(0)
-        p.flush()
-
-        # Create consumer
-        conf = copy(cons_conf)
-        if schema_registry_url:
-            conf['schema.registry.url'] = schema_registry_url
-            c = avro.AvroConsumer(conf)
-        else:
-            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry())
-        c.subscribe([combo['topic']])
-
-        while True:
-            msg = c.poll(0)
-            if msg is None:
-                continue
-
-            if msg.error():
-                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                    break
-                else:
-                    continue
-
-            tstype, timestamp = msg.timestamp()
-            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value(), tstype, timestamp))
-
-            # omit empty Avro fields from payload for comparison
-            record_key = msg.key()
-            record_value = msg.value()
-            if isinstance(msg.key(), dict):
-                record_key = {k: v for k, v in msg.key().items() if v is not None}
-
-            if isinstance(msg.value(), dict):
-                record_value = {k: v for k, v in msg.value().items() if v is not None}
-
-            assert combo.get('key') == record_key
-            assert combo.get('value') == record_value
-
-            c.commit(msg, asynchronous=False)
-
-        # Close consumer
-        c.close()
-
-
-def verify_avro_https():
-    from confluent_kafka import avro
-    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
-
-    # Producer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb,
-            'api.version.request': api_version_request}
-
-    conf.update(testconf.get('avro-https'))
-
-    p = avro.AvroProducer(conf)
-
-    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-    str_value = 'abc'
-    float_value = 32.0
-
-    combinations = [
-        dict(key=float_value, key_schema=prim_float),
-        dict(value=float_value, value_schema=prim_float),
-        dict(key={'name': 'abc'}, key_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
-        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
-        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
-        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
-        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
-        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
-        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
-        dict(value='', value_schema=prim_string, key=0.0, key_schema=prim_float),
-        dict(value=0.0, value_schema=prim_float, key='', key_schema=prim_string),
-    ]
-
-    for i, combo in enumerate(combinations):
-        combo['topic'] = str(uuid.uuid4())
-        combo['headers'] = [('index', str(i))]
-        p.produce(**combo)
-    p.flush()
-
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'group.id': generate_group_id(),
-            'session.timeout.ms': 6000,
-            'enable.auto.commit': False,
-            'api.version.request': api_version_request,
-            'on_commit': print_commit_result,
-            'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
-
-    conf.update(testconf.get('avro-https'))
-
-    c = avro.AvroConsumer(conf)
-    c.subscribe([(t['topic']) for t in combinations])
-
-    msgcount = 0
-    while msgcount < len(combinations):
-        msg = c.poll(0)
-
-        if msg is None or msg.error():
-            continue
-
-        tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-              (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp))
-
-        # omit empty Avro fields from payload for comparison
-        record_key = msg.key()
-        record_value = msg.value()
-        index = int(dict(msg.headers())['index'])
-
-        if isinstance(msg.key(), dict):
-            record_key = {k: v for k, v in msg.key().items() if v is not None}
-
-        if isinstance(msg.value(), dict):
-            record_value = {k: v for k, v in msg.value().items() if v is not None}
-
-        assert combinations[index].get('key') == record_key
-        assert combinations[index].get('value') == record_value
-
-        c.commit()
-        msgcount += 1
-
-    # Close consumer
-    c.close()
-
-
-def verify_avro_basic_auth(mode_conf):
-
-    if mode_conf is None:
-        raise ValueError("Misisng configuration")
-
-    url = {
-        'schema.registry.basic.auth.credentials.source': 'URL'
-    }
-
-    user_info = {
-        'schema.registry.basic.auth.credentials.source': 'USER_INFO',
-        'schema.registry.basic.auth.user.info': mode_conf.get('schema.registry.basic.auth.user.info')
-    }
-
-    sasl_inherit = {
-        'schema.registry.basic.auth.credentials.source': 'sasl_inherit',
-        'schema.registry.sasl.username': mode_conf.get('sasl.username', None),
-        'schema.registry.sasl.password': mode_conf.get('sasl.password', None)
-    }
-
-    base_conf = {
-            'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'schema.registry.url': schema_registry_url
-            }
-
-    consumer_conf = {'group.id': generate_group_id(),
-                     'session.timeout.ms': 6000,
-                     'enable.auto.commit': False,
-                     'default.topic.config': {
-                         'auto.offset.reset': 'earliest'
-                     }}
-    consumer_conf.update(base_conf)
-
-    print('-' * 10, 'Verifying basic auth source USER_INFO', '-' * 10)
-    run_avro_loop(dict(base_conf, **user_info), dict(consumer_conf, **user_info))
-
-    print('-' * 10, 'Verifying basic auth source SASL_INHERIT', '-' * 10)
-    run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
-
-    print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
-    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
-
-
 def verify_producer_performance(with_dr_cb=True):
     """ Time how long it takes to produce and delivery X messages """
     conf = {'bootstrap.servers': bootstrap_servers,
@@ -519,7 +212,7 @@ def verify_producer_performance(with_dr_cb=True):
             'linger.ms': 500,
             'error_cb': error_cb}
 
-    p = confluent_kafka.Producer(**conf)
+    p = confluent_kafka.Producer(conf)
 
     msgcnt = 1000000
     msgsize = 100
@@ -596,37 +289,71 @@ def verify_producer_performance(with_dr_cb=True):
           (t_delivery_spent - t_produce_spent))
 
 
-def print_commit_result(err, partitions):
-    if err is not None:
-        print('# Failed to commit offsets: %s: %s' % (err, partitions))
-    else:
-        print('# Committed offsets for: %s' % partitions)
+def test_producer_dr_only_error():
+    """
+    The C delivery.report.only.error configuration property
+    can't be used with the Python client since the Python client
+    allocates a msgstate for each produced message that has a callback,
+    and on success (with delivery.report.only.error=true) the delivery report
+    will not be called and the msgstate will thus never be freed.
 
+    Since a proper broker is required for messages to be successfully sent
+    this test must be run from the integration tests rather than
+    the unit tests.
+    """
+    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers,
+                                  'broker.address.family': 'v4',
+                                  "delivery.report.only.error": True})
 
-def verify_consumer_seek(c, seek_to_msg):
-    """ Seek to message and verify the next consumed message matches.
-        Must only be performed on an actively consuming consumer. """
+    class DrOnlyTestErr(object):
+        def __init__(self):
+            self.remaining = 1
 
-    tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
-                                        seek_to_msg.partition(),
-                                        seek_to_msg.offset())
-    print('seek: Seeking to %s' % tp)
-    c.seek(tp)
+        def handle_err(self, err, msg):
+            """ This delivery handler should only get called for errored msgs """
+            assert "BAD:" in msg.value().decode('utf-8')
+            assert err is not None
+            self.remaining -= 1
 
-    while True:
-        msg = c.poll()
-        assert msg is not None
-        if msg.error():
-            print('seek: Ignoring non-message: %s' % msg.error())
-            continue
+    class DrOnlyTestSuccess(object):
+        def handle_success(self, err, msg):
+            """ This delivery handler should never get called """
+            # FIXME: Can we verify that it is actually garbage collected?
+            assert "GOOD:" in msg.value().decode('utf-8')
+            assert err is None
+            assert False, "should never come here"
 
-        if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
-            continue
+        def __del__(self):
+            # Indicate that gc has hit this object.
+            global DrOnlyTestSuccess_gced
+            DrOnlyTestSuccess_gced = 1
 
-        print('seek: message at offset %d' % msg.offset())
-        assert msg.offset() == seek_to_msg.offset(), \
-            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
-        break
+    print('only.error: Verifying delivery.report.only.error')
+
+    state = DrOnlyTestErr()
+    p.produce(topic, "BAD: This message will make not make it".encode('utf-8'),
+              partition=99, on_delivery=state.handle_err)
+
+    not_called_state = DrOnlyTestSuccess()
+    p.produce(topic, "GOOD: This message will make make it".encode('utf-8'),
+              on_delivery=not_called_state.handle_success)
+
+    # Garbage collection should not kick in yet for not_called_state
+    # since there is a on_delivery reference to it.
+    not_called_state = None
+    gc.collect()
+    global DrOnlyTestSuccess_gced
+    assert DrOnlyTestSuccess_gced == 0
+
+    print('only.error: Waiting for flush of %d messages' % len(p))
+    p.flush(10000)
+
+    print('only.error: Remaining messages now %d' % state.remaining)
+    assert state.remaining == 0
+
+    # Now with all messages flushed the reference to not_called_state should be gone.
+    gc.collect()
+    assert DrOnlyTestSuccess_gced == 1
 
 
 def verify_consumer():
@@ -645,13 +372,13 @@ def verify_consumer():
             }}
 
     # Create consumer
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
 
-    def print_wmark(consumer, parts):
+    def print_wmark(consumer, topic_parts):
         # Verify #294: get_watermark_offsets() should not fail on the first call
         #              This is really a librdkafka issue.
-        for p in parts:
-            wmarks = consumer.get_watermark_offsets(parts[0])
+        for p in topic_parts:
+            wmarks = consumer.get_watermark_offsets(topic_parts[0])
             print('Watermarks for %s: %s' % (p, wmarks))
 
     # Subscribe to a list of topics
@@ -755,7 +482,7 @@ def verify_consumer():
     c.close()
 
     # Start a new client and get the committed offsets
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
     offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
@@ -774,7 +501,7 @@ def verify_consumer_performance():
                 'auto.offset.reset': 'earliest'
             }}
 
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -841,6 +568,32 @@ def verify_consumer_performance():
     c.close()
 
 
+def verify_consumer_seek(c, seek_to_msg):
+    """ Seek to message and verify the next consumed message matches.
+        Must only be performed on an actively consuming consumer. """
+
+    tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
+                                        seek_to_msg.partition(),
+                                        seek_to_msg.offset())
+    print('seek: Seeking to %s' % tp)
+    c.seek(tp)
+
+    while True:
+        msg = c.poll()
+        assert msg is not None
+        if msg.error():
+            print('seek: Ignoring non-message: %s' % msg.error())
+            continue
+
+        if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
+            continue
+
+        print('seek: message at offset %d' % msg.offset())
+        assert msg.offset() == seek_to_msg.offset(), \
+            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        break
+
+
 def verify_batch_consumer():
     """ Verify basic batch Consumer functionality """
 
@@ -857,7 +610,7 @@ def verify_batch_consumer():
             }}
 
     # Create consumer
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
 
     # Subscribe to a list of topics
     c.subscribe([topic])
@@ -914,7 +667,7 @@ def verify_batch_consumer():
     c.close()
 
     # Start a new client and get the committed offsets
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
     offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
@@ -933,7 +686,7 @@ def verify_batch_consumer_performance():
                 'auto.offset.reset': 'earliest'
             }}
 
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -997,6 +750,164 @@ def verify_batch_consumer_performance():
     c.close()
 
 
+def verify_avro():
+    base_conf = {'bootstrap.servers': bootstrap_servers,
+                 'error_cb': error_cb,
+                 'api.version.request': api_version_request,
+                 'api.version.fallback.ms': 0,
+                 'broker.version.fallback': '0.11.0.0',
+                 'schema.registry.url': schema_registry_url,
+                 'default.topic.config': {
+                     'produce.offset.report': True
+                 }}
+
+    consumer_conf = dict(base_conf, **{
+        'group.id': 'test.py',
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'on_commit': print_commit_result,
+        'default.topic.config': {
+            'auto.offset.reset': 'earliest'
+        }})
+
+    run_avro_loop(base_conf, consumer_conf)
+
+
+def verify_avro_https(mode_conf):
+    if mode_conf is None:
+        abort_on_missing_configuration('avro-https')
+
+    base_conf = dict({'bootstrap.servers': bootstrap_servers,
+                      'error_cb': error_cb,
+                      'api.version.request': api_version_request},
+                     **mode_conf)
+
+    consumer_conf = dict({
+        'group.id': generate_group_id(),
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'api.version.request': api_version_request,
+        'on_commit': print_commit_result,
+        'default.topic.config': {
+            'auto.offset.reset': 'earliest'
+        }}, **base_conf)
+
+    run_avro_loop(base_conf, consumer_conf)
+
+
+def verify_avro_basic_auth(mode_conf):
+    if mode_conf is None:
+        abort_on_missing_configuration('avro-basic-auth')
+
+    url = {
+        'schema.registry.basic.auth.credentials.source': 'URL'
+    }
+
+    user_info = {
+        'schema.registry.basic.auth.credentials.source': 'USER_INFO',
+        'schema.registry.basic.auth.user.info': mode_conf.get('schema.registry.basic.auth.user.info')
+    }
+
+    sasl_inherit = {
+        'schema.registry.basic.auth.credentials.source': 'sasl_inherit',
+        'schema.registry.sasl.username': mode_conf.get('sasl.username'),
+        'schema.registry.sasl.password': mode_conf.get('sasl.password')
+    }
+
+    base_conf = {
+            'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'schema.registry.url': schema_registry_url
+            }
+
+    consumer_conf = dict({'group.id': generate_group_id(),
+                          'session.timeout.ms': 6000,
+                          'enable.auto.commit': False,
+                          'default.topic.config': {
+                              'auto.offset.reset': 'earliest'
+                          }}, **base_conf)
+
+    print('-' * 10, 'Verifying basic auth source USER_INFO', '-' * 10)
+    run_avro_loop(dict(base_conf, **user_info), dict(consumer_conf, **user_info))
+
+    print('-' * 10, 'Verifying basic auth source SASL_INHERIT', '-' * 10)
+    run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
+
+    print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
+    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
+
+
+def run_avro_loop(producer_conf, consumer_conf):
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    p = avro.AvroProducer(producer_conf)
+
+    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
+    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
+    str_value = 'abc'
+    float_value = 32.0
+
+    combinations = [
+        dict(key=float_value, key_schema=prim_float),
+        dict(value=float_value, value_schema=prim_float),
+        dict(key={'name': 'abc'}, key_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic),
+        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
+        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
+        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
+        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
+        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
+        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
+        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
+        dict(value='', value_schema=prim_string, key=0.0, key_schema=prim_float),
+        dict(value=0.0, value_schema=prim_float, key='', key_schema=prim_string),
+    ]
+
+    for i, combo in enumerate(combinations):
+        combo['topic'] = str(uuid.uuid4())
+        combo['headers'] = [('index', str(i))]
+        p.produce(**combo)
+    p.flush()
+
+    c = avro.AvroConsumer(consumer_conf)
+    c.subscribe([(t['topic']) for t in combinations])
+
+    msgcount = 0
+    while msgcount < len(combinations):
+        msg = c.poll(0)
+
+        if msg is None or msg.error():
+            continue
+
+        tstype, timestamp = msg.timestamp()
+        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+              (msg.topic(), msg.partition(), msg.offset(),
+               msg.key(), msg.value(), tstype, timestamp))
+
+        # omit empty Avro fields from payload for comparison
+        record_key = msg.key()
+        record_value = msg.value()
+        index = int(dict(msg.headers())['index'])
+
+        if isinstance(msg.key(), dict):
+            record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+        if isinstance(msg.value(), dict):
+            record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+        assert combinations[index].get('key') == record_key
+        assert combinations[index].get('value') == record_value
+
+        c.commit()
+        msgcount += 1
+
+    # Close consumer
+    c.close()
+
+
 def verify_throttle_cb():
     """ Verify throttle_cb is invoked
         This test requires client quotas be configured.
@@ -1046,7 +957,7 @@ def verify_throttle_cb():
         bar.finish()
 
     p.flush()
-    print('# %d of %d produce requests were throttled' % (throttled_requests, msgs_produced))
+    print('# {} of {} produce requests were throttled'.format(throttled_requests, msgs_produced))
     assert throttled_requests >= 1
 
 
@@ -1073,7 +984,7 @@ def verify_stats_cb():
                 'auto.offset.reset': 'earliest'
             }}
 
-    c = confluent_kafka.Consumer(**conf)
+    c = confluent_kafka.Consumer(conf)
     c.subscribe([topic])
 
     max_msgcnt = 1000000
@@ -1261,93 +1172,6 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
-# Exclude throttle since from default list
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'avro-https', 'avro-basic-auth', 'none']
-"""All test modes"""
-
-
-def print_usage(exitcode, reason=None):
-    """ Print usage and exit with exitcode """
-    if reason is not None:
-        print('Error: %s' % reason)
-    print('Usage: %s [options] <broker> [<topic>] [<schema_registry>]' % sys.argv[0])
-    print('Options:')
-    print(' %s - limit to matching tests' % ', '.join(['--' + x for x in all_modes]))
-
-    sys.exit(exitcode)
-
-
-def run_avro_loop(producer_conf, consumer_conf):
-    from confluent_kafka import avro
-    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
-
-    p = avro.AvroProducer(producer_conf)
-
-    prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-    prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-    basic = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-    str_value = 'abc'
-    float_value = 32.0
-
-    combinations = [
-        dict(key=float_value, key_schema=prim_float),
-        dict(value=float_value, value_schema=prim_float),
-        dict(key={'name': 'abc'}, key_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic),
-        dict(value={'name': 'abc'}, value_schema=basic, key=float_value, key_schema=prim_float),
-        dict(value={'name': 'abc'}, value_schema=basic, key=str_value, key_schema=prim_string),
-        dict(value=float_value, value_schema=prim_float, key={'name': 'abc'}, key_schema=basic),
-        dict(value=float_value, value_schema=prim_float, key=str_value, key_schema=prim_string),
-        dict(value=str_value, value_schema=prim_string, key={'name': 'abc'}, key_schema=basic),
-        dict(value=str_value, value_schema=prim_string, key=float_value, key_schema=prim_float),
-        # Verify identity check allows Falsy object values(e.g., 0, empty string) to be handled properly (issue #342)
-        dict(value='', value_schema=prim_string, key=0.0, key_schema=prim_float),
-        dict(value=0.0, value_schema=prim_float, key='', key_schema=prim_string),
-    ]
-
-    for i, combo in enumerate(combinations):
-        combo['topic'] = str(uuid.uuid4())
-        combo['headers'] = [('index', str(i))]
-        p.produce(**combo)
-    p.flush()
-
-    c = avro.AvroConsumer(consumer_conf)
-    c.subscribe([(t['topic']) for t in combinations])
-
-    msgcount = 0
-    while msgcount < len(combinations):
-        msg = c.poll(0)
-
-        if msg is None or msg.error():
-            continue
-
-        tstype, timestamp = msg.timestamp()
-        print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-              (msg.topic(), msg.partition(), msg.offset(),
-               msg.key(), msg.value(), tstype, timestamp))
-
-        # omit empty Avro fields from payload for comparison
-        record_key = msg.key()
-        record_value = msg.value()
-        index = int(dict(msg.headers())['index'])
-
-        if isinstance(msg.key(), dict):
-            record_key = {k: v for k, v in msg.key().items() if v is not None}
-
-        if isinstance(msg.value(), dict):
-            record_value = {k: v for k, v in msg.value().items() if v is not None}
-
-        assert combinations[index].get('key') == record_key
-        assert combinations[index].get('value') == record_value
-
-        c.commit()
-        msgcount += 1
-
-    # Close consumer
-    c.close()
-
-
 def generate_group_id():
     return str(uuid.uuid1())
 
@@ -1363,12 +1187,28 @@ def resolve_envs(_conf):
             _conf[k] = os.getenv(v[1:])
 
 
+test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-https', 'avro-basic-auth', 'throttle']
+
+
+def print_usage(exitcode, reason=None):
+    """ Print usage and exit with exitcode """
+    if reason is not None:
+        print('Error: %s' % reason)
+    print('Usage: %s [options] <testconf>' % sys.argv[0])
+    print('Options:')
+    print(' %s - limit to matching tests' % ', '.join(['--' + x for x in test_modes]))
+
+    sys.exit(exitcode)
+
+
 if __name__ == '__main__':
     """Run test suites"""
+    if len(sys.argv) < 1:
+        print_usage(1, "test configuration required")
 
     if with_pympler:
         tr = tracker.SummaryTracker()
-        print('Running with pympler memory tracker')
+        print("Running with pympler memory tracker")
 
     modes = list()
 
@@ -1376,28 +1216,24 @@ if __name__ == '__main__':
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
 
-        if opt == 'conf':
-            testconf = sys.argv.pop(1)
-            continue
-
-        if opt not in all_modes:
+        if opt not in test_modes:
             print_usage(1, 'unknown option --' + opt)
         modes.append(opt)
 
-    with open(testconf) as f:
+    with open(sys.argv.pop(1)) as f:
         testconf = json.load(f)
         resolve_envs(testconf)
 
-    bootstrap_servers = testconf.get('bootstrap.servers', None)
-    topic = testconf.get('topic', None)
-    schema_registry_url = testconf.get('schema.registry.url', None)
+    bootstrap_servers = testconf.get('bootstrap.servers')
+    topic = testconf.get('topic')
+    schema_registry_url = testconf.get('schema.registry.url')
 
     if len(modes) == 0:
-        modes = default_modes
+        modes = test_modes
 
     if bootstrap_servers is None or topic is None:
         print_usage(1, "Properties bootstrap.servers and topic must be set. "
-                       "Use tests/testconf-example.json as a template when creating a new conf file.")
+                       "Use docker/conf/testconf.json as a template when creating a new conf file.")
 
     print('Using confluent_kafka module version %s (0x%x)' % confluent_kafka.version())
     print('Using librdkafka version %s (0x%x)' % confluent_kafka.libversion())
@@ -1446,7 +1282,7 @@ if __name__ == '__main__':
 
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
-        verify_avro_https()
+        verify_avro_https(testconf.get('avro-https', None))
 
     if 'avro-basic-auth' in modes:
         print("=" * 30, 'Verifying AVRO with Basic Auth', '=' * 30)

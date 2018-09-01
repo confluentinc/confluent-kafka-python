@@ -24,7 +24,9 @@ import logging
 import warnings
 from collections import defaultdict
 
-import requests
+from requests import Session, utils
+from requests.adapters import HTTPAdapter
+from requests.packages.urllib3.util.retry import Retry
 
 from .error import ClientError
 from . import loads
@@ -89,10 +91,14 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
-        s = requests.Session()
+        s = Session()
         s.verify = conf.pop('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(conf)
+
+        retries = Retry(connect=10, read=10, backoff_factor=.5)
+        s.mount('http://', HTTPAdapter(max_retries=retries))
+        s.mount('https://', HTTPAdapter(max_retries=retries))
 
         self.url = conf.pop('url')
         self._session = s
@@ -127,9 +133,9 @@ class CachedSchemaRegistryClient(object):
         elif auth_provider == 'USER_INFO':
             auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
         else:
-            auth = requests.utils.get_auth_from_url(url)
+            auth = utils.get_auth_from_url(url)
 
-        conf['url'] = requests.utils.urldefragauth(url)
+        conf['url'] = utils.urldefragauth(url)
         return auth
 
     @staticmethod

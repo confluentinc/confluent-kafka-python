@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #
 # This scripts generates:
@@ -8,6 +8,8 @@
 #
 # https://cwiki.apache.org/confluence/display/KAFKA/Deploying+SSL+for+Kafka
 #
+
+DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 
 
 if [[ "$1" == "-k" ]]; then
@@ -28,10 +30,6 @@ L=NN
 O=NN
 OU=NN
 CN="$HOST"
- 
-
-# Password
-PASS="abcdefgh"
 
 # Cert validity, in days
 VALIDITY=10000
@@ -83,7 +81,6 @@ EOF
 
     echo "############ Sign certificate"
     openssl x509 -req -CA $CA_CERT -CAkey ${CA_CERT}.key -in ${PFX}cert-file -out ${PFX}cert-signed -days $VALIDITY -CAcreateserial -passin "pass:$PASS"
-    mv $SOURCE/.srl $TLS/ca-cert.srl 
     
     echo "############ Import CA"
     keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.keystore.jks -alias CARoot -import -file $CA_CERT <<EOF
@@ -119,7 +116,6 @@ EOF
 
 	echo "########### Sign certificate"
 	openssl x509 -req -CA ${CA_CERT} -CAkey ${CA_CERT}.key -in ${PFX}cert-file -out ${PFX}cert-signed -days $VALIDITY -CAcreateserial -passin pass:$PASS	
-	mv $SOURCE/.srl $TLS/ca-cert.srl
 
 	echo "########### Import CA"
 	keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}client.keystore.jks -alias CARoot -import -file ${CA_CERT} <<EOF
