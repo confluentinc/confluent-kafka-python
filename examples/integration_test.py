@@ -1187,7 +1187,9 @@ def resolve_envs(_conf):
             _conf[k] = os.getenv(v[1:])
 
 
-test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-https', 'avro-basic-auth', 'throttle']
+test_modes = ['consumer', 'producer', 'performance', 'admin',
+              'avro', 'avro-https', 'avro-basic-auth',
+              'throttle']
 
 
 def print_usage(exitcode, reason=None):
@@ -1215,6 +1217,9 @@ if __name__ == '__main__':
     # Parse options
     while len(sys.argv) > 1 and sys.argv[1].startswith('--'):
         opt = sys.argv.pop(1)[2:]
+
+        if opt == "help":
+            print_usage(0, None)
 
         if opt not in test_modes:
             print_usage(1, 'unknown option --' + opt)

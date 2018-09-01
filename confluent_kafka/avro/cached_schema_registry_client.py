@@ -25,8 +25,6 @@ import warnings
 from collections import defaultdict
 
 from requests import Session, utils
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
 from .error import ClientError
 from . import loads
@@ -95,10 +93,6 @@ class CachedSchemaRegistryClient(object):
         s.verify = conf.pop('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(conf)
-
-        retries = Retry(connect=10, read=10, backoff_factor=.5)
-        s.mount('http://', HTTPAdapter(max_retries=retries))
-        s.mount('https://', HTTPAdapter(max_retries=retries))
 
         self.url = conf.pop('url')
         self._session = s

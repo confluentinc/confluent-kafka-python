@@ -25,12 +25,12 @@ Integration tests
 ### Cluster setup
 **Note** Manual cluster set up is not required when using ./tests/run_all.sh
 
-    ./tests/cluster_up.sh
+    ./docker/bin/cluster_up.sh
 
 ### Cluster teardown
 **Note** Manual cluster teardown is not required when using ./tests/run_all.sh
 
-    ./tests/cluster_down.sh
+    ./docker/bin/cluster_down.sh
 
 ### Configuration
 Tests are configured with a JSON encoded file referred to as a `testconf` to be provided as the last argument upon test execution.
@@ -39,29 +39,25 @@ Advanced users can reference the provided configuration file, [testconf.json](..
 Most developers however should just use the defaults.
 
 ### Running tests
-To run all test `modes` uncomment the following line from `tox.ini`
+To run the entire test suite:
 
 - With tox installed (will run against all supported interpreters)
   1. Uncomment the following line from [tox.ini](../tox.ini)
     - ```#python examples/integration_test.py ./docker/conf/testconf.json```
   2. Execute the following script
-    - ```./tests/run_all_tox.sh```
+    - ```./tests/run.sh tox [options]```
 
 - Without tox (will run against current interpreter)
   - ```./tests/run_all.sh```
 
-To run the full test-suite manually execute the following
+To run a specific `mode` or set of `modes` use the following syntax
 
-    python examples/integration_test.py ./docker/conf/testconf.json
-
-To run a specific test `mode` or set of test `modes` use the following syntax
-
-    python examples/integration_test.py [--test mode 1] [--test mode n...] <testconf>
+    ./tests/run.sh [test mode 1] [test mode n...]
 
 For example:
 
-    python examples/integration_test.py --producer --consumer ./docker/conf/testconf.json
+    ./tests/run.sh producer consumer
 
-To get a list of `modes` you can run the integration test manually with the `--help` flag
+To get a list of `modes` simply supply the `help` option
 
-    python examples/integration_tests.py --help
+    ./tests/run.sh help
