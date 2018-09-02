@@ -6,18 +6,19 @@ source ${DOCKER_BIN}/../.env
 await_http() {
     local exit_code
     local attempt=0
+
     curl -s "$2" > /dev/null; exit_code=$?
-
-    while [ ${attempt} -lt 5 ]; do
-        echo "awaiting $1 ..."
+    while [ "${exit_code}" -ne 0 ] && [ "${attempt}" -lt 5 ]; do
+        echo "awaiting $1..."
         curl -s "$2" > /dev/null; exit_code=$?
-
-        if [ ${exit_code} -eq "0" ]; then
-            return
-        fi
         let "attempt+=1"
         sleep 5
     done
+
+    if [ ${exit_code} -eq "0" ]; then
+        return
+    fi
+
     echo "$1 readiness test failed aborting..."
     exit 1
 }
