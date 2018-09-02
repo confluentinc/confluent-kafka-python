@@ -38,5 +38,5 @@ docker-compose -f ${DOCKER_CONTEXT} exec kafka sh -c "
                 --alter --add-config 'producer_byte_rate=1,consumer_byte_rate=1,request_percentage=001' \
                 --entity-name throttled_client --entity-type clients"
 
-await_http "schema-registry" "http://localhost:8081"
-await_http "schema-registry-basic-auth" "http://localhost:8083"
+await_http "schema-registry" "http://127.0.0.1:8081"
+await_http "schema-registry-basic-auth" "http://127.0.0.1:8083"
