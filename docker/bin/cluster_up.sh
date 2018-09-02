@@ -7,10 +7,10 @@ await_http() {
     local exit_code
     local attempt=0
 
-    curl -s "$2" > /dev/null; exit_code=$?
-    while [ "${exit_code}" -ne 0 ] && [ "${attempt}" -lt 5 ]; do
+    curl "$2" ; exit_code=$?
+    while [ "${exit_code}" -ne 0 ] && [ "${attempt}" -lt 10 ]; do
         echo "awaiting $1..."
-        curl -s "$2" > /dev/null; exit_code=$?
+        curl "$2" ; exit_code=$?
         let "attempt+=1"
         sleep 5
     done
