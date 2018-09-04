@@ -303,7 +303,7 @@ class CachedSchemaRegistryClient(object):
         if code >= 200 and code <= 299:
             return result['compatibility']
         else:
-            raise ClientError("Unable to update level: %s. Error code: %d" % (str(level)), code)
+            raise ClientError("Unable to update level: %s. Error code: %d" % (str(level), code))
 
     def get_compatibility(self, subject=None):
         """
@@ -323,7 +323,7 @@ class CachedSchemaRegistryClient(object):
         if not is_successful_request:
             raise ClientError('Unable to fetch compatibility level. Error code: %d' % code)
 
-        compatibility = result.get('compatibility', None)
+        compatibility = result.get('compatibilityLevel', None)
         if compatibility not in VALID_LEVELS:
             if compatibility is None:
                 error_msg_suffix = 'No compatibility was returned'
