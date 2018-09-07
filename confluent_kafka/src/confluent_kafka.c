@@ -1542,13 +1542,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         }
 
         if ((vo = PyDict_GetItemString(confdict, "default.topic.config"))) {
+        /* TODO: uncomment for 1.0 release
                 PyErr_Warn(PyExc_DeprecationWarning,
                              "default.topic.config has being deprecated, "
                              "set default topic configuration values in the global dict");
-
-                if ((PyDict_Update(confdict, vo) == -1)) {
-                        PyErr_SetString(PyExc_TypeError,
-                                "unable to process default.topic.config");
+        */
+                if (PyDict_Update(confdict, vo) == -1) {
                         rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
                         return NULL;

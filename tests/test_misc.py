@@ -152,22 +152,30 @@ seen_delivery_cb = False
 
 
 def test_topic_config_update():
+    confs = [{"message.timeout.ms": 600000, "default.topic.config": {"message.timeout.ms": 1000}},
+             {"message.timeout.ms": 1000}, {"default.topic.config": {"message.timeout.ms": 1000}}]
+
     def on_delivery(err, msg):
         # Since there is no broker, produced messages should time out.
         global seen_delivery_cb
         seen_delivery_cb = True
         assert err.code() == confluent_kafka.KafkaError._MSG_TIMED_OUT
 
-    p = confluent_kafka.Producer({
-        "message.timeout.ms": 600000,
-        "default.topic.config": {
-            "message.timeout.ms": 1000}})
+    for conf in confs[:]:
+        p = confluent_kafka.Producer(conf)
 
-    timeout = time.time() + 5000
-    while not seen_delivery_cb:
-        if time.time() > timeout:
-            if os.environ.get("on_ci") == 'CI':
+        start = time.time()
+
+        timeout = start + 1
+
+        p.produce('mytopic', value='somedata', key='a key', on_delivery=on_delivery)
+        while time.time() < timeout:
+            if seen_delivery_cb:
+                break
+            p.poll(1)
+
+        duration = time.time() - start
+        if 1.02 >= duration <= .98:
+            if "CI" in os.environ:
                 pytest.xfail("Timeout exceeded")
             pytest.fail("Timeout exceeded")
-        p.produce('mytopic', value='somedata', key='a key', on_delivery=on_delivery)
-        p.poll(1)
