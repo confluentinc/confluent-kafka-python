@@ -17,6 +17,7 @@ matrix:
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
     before_install:
+        - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
         - pyenv install -f 2.7.15
         - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
@@ -26,6 +27,7 @@ matrix:
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
     before_install:
+        - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
         - pyenv install -f 3.6.5
         - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
