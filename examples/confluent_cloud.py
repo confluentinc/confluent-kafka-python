@@ -87,7 +87,7 @@ c = Consumer({
     'sasl.username': '<ccloud key>',
     'sasl.password': '<ccloud secret>',
     'group.id': str(uuid.uuid1()),  # this will create a new consumer group on each invocation.
-    'auto.offset.reset': 'smallest'
+    'auto.offset.reset': 'earliest'
 })
 
 c.subscribe(['python-test-topic'])

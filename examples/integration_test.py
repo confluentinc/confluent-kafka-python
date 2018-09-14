@@ -158,8 +158,7 @@ def verify_producer():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'produce.offset.report': True}
+            'api.version.request': api_version_request}
 
     # Create producer
     p = confluent_kafka.Producer(**conf)
@@ -284,8 +283,7 @@ def verify_avro():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'produce.offset.report': True}
+            'api.version.request': api_version_request}
 
     # Create producer
     if schema_registry_url:
