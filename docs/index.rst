@@ -110,9 +110,9 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
 The Python bindings also provide some additional configuration properties:
 
-* ``default.topic.config``:value is a dict of client topic-level configuration
-  properties that are applied to all used topics for the instance. **DEPRECATED:**
-  topic configuration should now be specified in the global top-level configuration
+* ``default.topic.config``: value is a dict of client topic-level configuration
+  properties that are applied to all used topics for the instance. **DEPRECATED: **
+  topic configuration should now be specified in the global top-level configuration.
 
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served upon calling
   ``client.poll()`` or ``producer.flush()``.
