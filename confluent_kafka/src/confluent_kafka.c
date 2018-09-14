@@ -62,8 +62,11 @@ typedef struct {
 	char *str;   /* Human readable representation of error, if one
 		      * was provided by librdkafka.
 		      * Else falls back on err2str(). */
+        int   fatal; /**< Set to true if a fatal error. */
 } KafkaError;
 
+
+static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason);
 
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
 	return cfl_PyInt_FromInt(self->code);
@@ -79,6 +82,20 @@ static PyObject *KafkaError_str (KafkaError *self, PyObject *ignore) {
 static PyObject *KafkaError_name (KafkaError *self, PyObject *ignore) {
 	/* FIXME: Pre-create name objects */
 	return cfl_PyUnistr(_FromString(rd_kafka_err2name(self->code)));
+}
+
+static PyObject *KafkaError_fatal (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->fatal ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+
+static PyObject *KafkaError_test_raise_fatal (KafkaError *null,
+                                              PyObject *ignore) {
+        cfl_PyErr_Fatal(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                        "This is a fatal exception for testing purposes");
+        return NULL;
 }
 
 
@@ -105,6 +122,14 @@ static PyMethodDef KafkaError_methods[] = {
 	  "  :rtype: str\n"
 	  "\n"
 	},
+        { "fatal", (PyCFunction)KafkaError_fatal, METH_NOARGS,
+          "  :returns: True if this a fatal error, else False.\n"
+          "  :rtype: bool\n"
+          "\n"
+        },
+        { "_test_raise_fatal", (PyCFunction)KafkaError_test_raise_fatal,
+          METH_NOARGS|METH_STATIC
+        },
 
 	{ NULL }
 };
@@ -133,7 +158,8 @@ static int KafkaError_traverse (KafkaError *self,
 }
 
 static PyObject *KafkaError_str0 (KafkaError *self) {
-	return cfl_PyUnistr(_FromFormat("KafkaError{code=%s,val=%d,str=\"%s\"}",
+	return cfl_PyUnistr(_FromFormat("KafkaError{%scode=%s,val=%d,str=\"%s\"}",
+                                        self->fatal?"FATAL,":"",
 					 rd_kafka_err2name(self->code),
 					 self->code,
 					 self->str ? self->str :
@@ -247,6 +273,7 @@ static PyTypeObject KafkaErrorType = {
 static void KafkaError_init (KafkaError *self,
 			     rd_kafka_resp_err_t code, const char *str) {
 	self->code = code;
+        self->fatal = 0;
 	if (str)
 		self->str = strdup(str);
 	else
@@ -290,6 +317,17 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
         else
                 return KafkaError_new0(err, NULL);
 }
+
+
+/**
+ * @brief Raise exception from fatal error.
+ */
+static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
+        PyObject *eo = KafkaError_new0(err, "%s", reason);
+        ((KafkaError *)eo)->fatal = 1;
+        PyErr_SetObject(KafkaException, eo);
+}
+
 
 
 
@@ -1162,6 +1200,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 }
 #endif
 
+
 /****************************************************************************
  *
  *
@@ -1177,6 +1216,16 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	CallState *cs;
 
 	cs = CallState_get(h);
+
+        /* If the client raised a fatal error we'll raise an exception
+         * rather than calling the error callback. */
+        if (err == RD_KAFKA_RESP_ERR__FATAL) {
+                char errstr[512];
+                err = rd_kafka_fatal_error(rk, errstr, sizeof(errstr));
+                cfl_PyErr_Fatal(err, errstr);
+                goto crash;
+        }
+
 	if (!h->error_cb) {
 		/* No callback defined */
 		goto done;
@@ -1189,6 +1238,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result)
 		Py_DECREF(result);
 	else {
+        crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1766,8 +1816,7 @@ inner_err:
 
         Py_DECREF(confdict);
 
-	if (h->error_cb)
-		rd_kafka_conf_set_error_cb(conf, error_cb);
+        rd_kafka_conf_set_error_cb(conf, error_cb);
 
         if (h->throttle_cb)
                 rd_kafka_conf_set_throttle_cb(conf, throttle_cb);

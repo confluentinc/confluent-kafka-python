@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import pytest
 from confluent_kafka import Producer, KafkaError, KafkaException
 import time
 
@@ -8,6 +9,7 @@ seen_all_brokers_down = False
 
 def error_cb(err):
     print('error_cb', err)
+    assert err.fatal() is False
     if err.code() == KafkaError._ALL_BROKERS_DOWN:
         global seen_all_brokers_down
         seen_all_brokers_down = True
@@ -29,6 +31,22 @@ def test_error_cb():
         p.poll(1)
 
     assert seen_all_brokers_down
+
+
+def test_fatal():
+    """ Test fatal exceptions """
+
+    # Configure an invalid broker and make sure the ALL_BROKERS_DOWN
+    # error is seen in the error callback.
+    p = Producer({'error_cb': error_cb})
+
+    with pytest.raises(KafkaException) as exc:
+        KafkaError._test_raise_fatal()
+    err = exc.value.args[0]
+    assert isinstance(err, KafkaError)
+    assert err.fatal() is True
+
+    p.poll(0)  # Need some p use to avoid flake8 unused warning
 
 
 def test_subclassing():
