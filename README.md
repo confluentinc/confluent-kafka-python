@@ -74,9 +74,7 @@ from confluent_kafka import Consumer, KafkaError
 c = Consumer({
     'bootstrap.servers': 'mybroker',
     'group.id': 'mygroup',
-    'default.topic.config': {
-        'auto.offset.reset': 'smallest'
-    }
+    'auto.offset.reset': 'smallest'
 })
 
 c.subscribe(['mytopic'])

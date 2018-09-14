@@ -100,7 +100,7 @@ providing a dict of configuration properties to the instance constructor, e.g.::
   conf = {'bootstrap.servers': 'mybroker.com',
           'group.id': 'mygroup', 'session.timeout.ms': 6000,
           'on_commit': my_commit_callback,
-          'default.topic.config': {'auto.offset.reset': 'smallest'}}
+          'auto.offset.reset': 'smallest'}
   consumer = confluent_kafka.Consumer(conf)
 
 The supported configuration values are dictated by the underlying
@@ -110,7 +110,7 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
 The Python bindings also provide some additional configuration properties:
 
-* ``default.topic.config``: value is a dict of client topic-level configuration
+* **DEPRECATED** ``default.topic.config``: value is a dict of client topic-level configuration
   properties that are applied to all used topics for the instance.
 
 * ``error_cb(kafka.KafkaError)``: Callback for generic/global error events. This callback is served upon calling
