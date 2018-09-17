@@ -193,7 +193,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                         return 0;
                 }
 
-                c_replicas = alloca(sizeof(*c_replicas) *
+                c_replicas = malloc(sizeof(*c_replicas) *
                                     replica_cnt);
 
                 for (ri = 0 ; ri < replica_cnt ; ri++) {
@@ -206,6 +206,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                                         "replica_assignment must be "
                                         "a list of int lists with an "
                                         "outer size of %s", err_count_desc);
+                                free(c_replicas);
                                 return 0;
                         }
 
@@ -231,6 +232,8 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
                                  "Unsupported forApi %s", forApi);
                 }
 
+                free(c_replicas);
+
                 if (err) {
                         PyErr_SetString(
                                 PyExc_ValueError, errstr);
@@ -255,6 +258,7 @@ Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
 
         while (PyDict_Next(dict, &pos, &ko, &vo)) {
                 PyObject *ks, *ks8;
+                PyObject *vs = NULL, *vs8 = NULL;
                 const char *k;
                 const char *v;
                 rd_kafka_resp_err_t err;
@@ -268,8 +272,6 @@ Admin_config_dict_to_c (void *c_obj, PyObject *dict, const char *op_name) {
 
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-
-                PyObject *vs = NULL, *vs8 = NULL;
                 if (!(vs = cfl_PyObject_Unistr(vo)) ||
                     !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
                         PyErr_Format(PyExc_ValueError,
@@ -367,7 +369,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         /*
          * Parse the list of NewTopics and convert to corresponding C types.
          */
-        c_objs = alloca(sizeof(*c_objs) * tcnt);
+        c_objs = malloc(sizeof(*c_objs) * tcnt);
 
         for (i = 0 ; i < tcnt ; i++) {
                 NewTopic *newt = (NewTopic *)PyList_GET_ITEM(topics, i);
@@ -443,6 +445,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
 
         rd_kafka_NewTopic_destroy_array(c_objs, tcnt);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_RETURN_NONE;
@@ -450,6 +453,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
  err:
         rd_kafka_NewTopic_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
         return NULL;
@@ -503,7 +507,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         /*
          * Parse the list of strings and convert to corresponding C types.
          */
-        c_objs = alloca(sizeof(*c_objs) * tcnt);
+        c_objs = malloc(sizeof(*c_objs) * tcnt);
 
         for (i = 0 ; i < tcnt ; i++) {
                 PyObject *topic = PyList_GET_ITEM(topics, i);
@@ -544,6 +548,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
 
         rd_kafka_DeleteTopic_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_RETURN_NONE;
@@ -551,6 +556,7 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
  err:
         rd_kafka_DeleteTopic_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
         return NULL;
@@ -611,7 +617,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
         /*
          * Parse the list of NewPartitions and convert to corresponding C types.
          */
-        c_objs = alloca(sizeof(*c_objs) * tcnt);
+        c_objs = malloc(sizeof(*c_objs) * tcnt);
 
         for (i = 0 ; i < tcnt ; i++) {
                 NewPartitions *newp = (NewPartitions *)PyList_GET_ITEM(topics,
@@ -669,6 +675,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
 
         rd_kafka_NewPartitions_destroy_array(c_objs, tcnt);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_RETURN_NONE;
@@ -676,6 +683,7 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
  err:
         rd_kafka_NewPartitions_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         Py_DECREF(future); /* from options_to_c() */
 
         return NULL;
@@ -742,7 +750,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
          * Parse the list of ConfigResources and convert to
          * corresponding C types.
          */
-        c_objs = alloca(sizeof(*c_objs) * cnt);
+        c_objs = malloc(sizeof(*c_objs) * cnt);
 
         for (i = 0 ; i < cnt ; i++) {
                 PyObject *res = PyList_GET_ITEM(resources, i);
@@ -795,6 +803,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
 
         rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
@@ -804,6 +813,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
  err:
         rd_kafka_ConfigResource_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         Py_DECREF(ConfigResource_type); /* from lookup() */
         Py_DECREF(future); /* from options_to_c() */
 
@@ -881,7 +891,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
          * Parse the list of ConfigResources and convert to
          * corresponding C types.
          */
-        c_objs = alloca(sizeof(*c_objs) * cnt);
+        c_objs = malloc(sizeof(*c_objs) * cnt);
 
         for (i = 0 ; i < cnt ; i++) {
                 PyObject *res = PyList_GET_ITEM(resources, i);
@@ -950,6 +960,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
 
         rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
@@ -959,6 +970,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
  err:
         rd_kafka_ConfigResource_destroy_array(c_objs, i);
         rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
         Py_DECREF(ConfigResource_type); /* from lookup() */
         Py_DECREF(future); /* from options_to_c() */
 
