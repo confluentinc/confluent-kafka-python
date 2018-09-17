@@ -747,7 +747,7 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
 
         if (err) {
                 cfl_PyErr_Format(err,
-                                 "Failed to seek to offset %"PRId64": %s",
+                                 "Failed to seek to offset %"CFL_PRId64": %s",
                                  tp->offset, rd_kafka_err2str(err));
                 return NULL;
         }
@@ -917,7 +917,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         PyObject *msglist;
         rd_kafka_queue_t *rkqu = self->u.Consumer.rkqu;
         CallState cs;
-        Py_ssize_t i;
+        Py_ssize_t i, n;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -939,7 +939,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
 
-        Py_ssize_t n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
+        n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
                 rkmessages,
                 num_messages);
