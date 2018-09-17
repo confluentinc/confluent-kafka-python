@@ -25,7 +25,23 @@ replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
 
-## 1. Update OpenSSL version if necessary
+## 1. Update librdkafka and OpenSSL versions
+
+### 1.1 Update librdkafka version
+
+Change to the latest librdkafka version in the following files:
+
+ * `.travis.yml`
+ * `.appveyor.yml` - this is the librdkafka.redist NuGet version,
+                     make sure to strip the leading "v" from the version.
+                     E.g., `0.11.6` rather than `v0.11.6`
+
+Commit this change:
+
+    $ git commit -m "librdkafka version bump to v0.11.6" .travis.yml .appveyor.yml
+
+
+### 1.2 Update OpenSSL version if necessary
 
 As of v0.11.4 OpenSSL is packaged with the python client. It's important
 that the OpenSSL version is kept up to date with the latest release.

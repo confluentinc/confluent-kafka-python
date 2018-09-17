@@ -18,7 +18,20 @@
 #include <structmember.h>
 #include <pythread.h>
 
+#include <stdint.h>
 #include <librdkafka/rdkafka.h>
+
+#ifdef _MSC_VER
+/* Windows */
+#define CFL_PRId64 "I64d"
+#define CFL_PRId32 "I32d"
+
+#else
+/* C99 */
+#include <inttypes.h>
+#define CFL_PRId64 PRId64
+#define CFL_PRId32 PRId32
+#endif
 
 
 /**

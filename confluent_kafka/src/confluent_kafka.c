@@ -756,7 +756,7 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
 	PyObject *ret;
 	char offset_str[40];
 
-	snprintf(offset_str, sizeof(offset_str), "%"PRId64"", self->offset);
+	snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
 
         if (self->error != Py_None) {
                 errstr = cfl_PyObject_Unistr(self->error);
@@ -764,7 +764,7 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
         }
 
 	ret = cfl_PyUnistr(
-		_FromFormat("TopicPartition{topic=%s,partition=%"PRId32
+		_FromFormat("TopicPartition{topic=%s,partition=%"CFL_PRId32
 			    ",offset=%s,error=%s}",
 			    self->topic, self->partition,
 			    offset_str,
@@ -1282,14 +1282,14 @@ static void log_cb (const rd_kafka_t *rk, int level,
         CallState *cs;
         static const int level_map[8] = {
                 /* Map syslog levels to python logging levels */
-                [0] = 50, /* LOG_EMERG   -> logging.CRITICAL */
-                [1] = 50, /* LOG_ALERT   -> logging.CRITICAL */
-                [2] = 50, /* LOG_CRIT    -> logging.CRITICAL */
-                [3] = 40, /* LOG_ERR     -> logging.ERROR */
-                [4] = 30, /* LOG_WARNING -> logging.WARNING */
-                [5] = 20, /* LOG_NOTICE  -> logging.INFO */
-                [6] = 20, /* LOG_INFO    -> logging.INFO */
-                [7] = 10, /* LOG_DEBUG   -> logging.DEBUG */
+                /* [0] = */ 50, /* LOG_EMERG   -> logging.CRITICAL */
+                /* [1] = */ 50, /* LOG_ALERT   -> logging.CRITICAL */
+                /* [2] = */ 50, /* LOG_CRIT    -> logging.CRITICAL */
+                /* [3] = */ 40, /* LOG_ERR     -> logging.ERROR */
+                /* [4] = */ 30, /* LOG_WARNING -> logging.WARNING */
+                /* [5] = */ 20, /* LOG_NOTICE  -> logging.INFO */
+                /* [6] = */ 20, /* LOG_INFO    -> logging.INFO */
+                /* [7] = */ 10, /* LOG_DEBUG   -> logging.DEBUG */
         };
 
         cs = CallState_get(h);
@@ -1444,7 +1444,7 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
-	if (!strcasecmp(name, "on_delivery")) {
+	if (!strcmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -1486,7 +1486,7 @@ static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
-	if (!strcasecmp(name, "on_commit")) {
+	if (!strcmp(name, "on_commit")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
