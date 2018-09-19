@@ -59,6 +59,13 @@ class ContextStringIO(io.BytesIO):
         return False
 
 
+class AvroRecord(dict):
+    """
+    Wraps a decoded Avro message dictionary to make able to add schema
+    """
+    pass
+
+
 class MessageSerializer(object):
     """
     A helper class that can serialize and deserialize messages
@@ -213,4 +220,6 @@ class MessageSerializer(object):
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
             decoder_func = self._get_decoder_func(schema_id, payload)
-            return decoder_func(payload)
+            decoded_message = AvroRecord(decoder_func(payload))
+            decoded_message._schema = self.registry_client.get_by_id(schema_id)
+            return decoded_message
