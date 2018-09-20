@@ -59,11 +59,24 @@ class ContextStringIO(io.BytesIO):
         return False
 
 
-class AvroRecord(dict):
+class HasSchemaMixin:
     """
     Wraps a decoded Avro message dictionary to make able to add schema
     """
-    pass
+    def schema(self):
+        return self._schema
+
+
+def _wrap(value, schema):
+    klass = type(
+        "{namespace}.{name}".format(namespace=schema.namespace, name=schema.name),
+        (value.__class__, HasSchemaMixin),
+        {}
+    )
+
+    wrapped = klass(value)
+    wrapped._schema = schema
+    return wrapped
 
 
 class MessageSerializer(object):
@@ -220,6 +233,5 @@ class MessageSerializer(object):
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
             decoder_func = self._get_decoder_func(schema_id, payload)
-            decoded_message = AvroRecord(decoder_func(payload))
-            decoded_message._schema = self.registry_client.get_by_id(schema_id)
+            decoded_message = _wrap(decoder_func(payload), self.registry_client.get_by_id(schema_id))
             return decoded_message
