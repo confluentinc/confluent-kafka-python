@@ -68,11 +68,15 @@ class HasSchemaMixin:
 
 
 def _wrap(value, schema):
-    klass = type(
-        "{namespace}.{name}".format(namespace=schema.namespace, name=schema.name),
-        (value.__class__, HasSchemaMixin),
-        {}
-    )
+    if hasattr(schema, 'namespace'):
+        name = "{namespace}.{name}".format(namespace=schema.namespace,
+                                           name=schema.name)
+    elif hasattr(schema, 'name'):
+        name = schema.name
+    else:
+        name = schema.type
+
+    klass = type(str(name), (value.__class__, HasSchemaMixin), {})
 
     wrapped = klass(value)
     wrapped._schema = schema
