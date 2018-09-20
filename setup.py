@@ -4,6 +4,7 @@ import os
 from setuptools import setup, find_packages
 from distutils.core import Extension
 import sys
+import platform
 
 INSTALL_REQUIRES = list()
 
@@ -13,8 +14,15 @@ if sys.version_info[0] < 3:
 else:
     avro = 'avro-python3'
 
+# On Un*x the library is linked as -lrdkafka,
+# while on windows we need the full librdkafka name.
+if platform.system() == 'Windows':
+    librdkafka_libname = 'librdkafka'
+else:
+    librdkafka_libname = 'rdkafka'
+
 module = Extension('confluent_kafka.cimpl',
-                   libraries=['rdkafka'],
+                   libraries=[librdkafka_libname],
                    sources=['confluent_kafka/src/confluent_kafka.c',
                             'confluent_kafka/src/Producer.c',
                             'confluent_kafka/src/Consumer.c',
