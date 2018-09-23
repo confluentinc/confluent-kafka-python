@@ -21,13 +21,14 @@
 #
 
 import struct
-
 import unittest
 
-from tests.avro import data_gen
-from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
+from confluent_kafka.avro.serializer.message_serializer import (
+    MessageSerializer, _wrap, HasSchemaMixin
+)
+from tests.avro import data_gen
+from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 
 
 class TestMessageSerializer(unittest.TestCase):
@@ -82,3 +83,14 @@ class TestMessageSerializer(unittest.TestCase):
 
     def hash_func(self):
         return hash(str(self))
+
+    def test_schema_mixin_wrapper(self):
+        schema = avro.loads(data_gen.BASIC_SCHEMA)
+        for kls in (int, float, dict, list):
+            val = kls()
+            wrapped = _wrap(val, schema)
+            assert val == wrapped
+            assert isinstance(wrapped, kls)
+            assert isinstance(wrapped, HasSchemaMixin)
+            assert wrapped.schema() is schema
+            assert wrapped.__class__.__name__ == 'python.test.basic.basic'
