@@ -21,7 +21,7 @@ def test_basic_api():
 
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
-                  'default.topic.config': {'message.timeout.ms': 10}})
+                  'message.timeout.ms': 10})
 
     p.produce('mytopic')
     p.produce('mytopic', value='somedata', key='a key')
@@ -49,7 +49,7 @@ def test_produce_timestamp():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
-                  'default.topic.config': {'message.timeout.ms': 10}})
+                  'message.timeout.ms': 10})
 
     # Requires librdkafka >=v0.9.4
 
@@ -70,7 +70,7 @@ def test_produce_headers():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
-                  'default.topic.config': {'message.timeout.ms': 10}})
+                  'message.timeout.ms': 10})
 
     binval = pack('hhl', 1, 2, 3)
 
@@ -116,7 +116,7 @@ def test_produce_headers_should_fail():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
-                  'default.topic.config': {'message.timeout.ms': 10}})
+                  'message.timeout.ms': 10})
 
     with pytest.raises(NotImplementedError) as e:
         p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
@@ -153,7 +153,7 @@ def test_dr_msg_errstr():
     for error value on Consumer messages, but on Producer messages the
     payload is the original payload and no rich error string exists.
     """
-    p = Producer({"default.topic.config": {"message.timeout.ms": 10}})
+    p = Producer({"message.timeout.ms": 10})
 
     def handle_dr(err, msg):
         # Neither message payloads must not affect the error string.

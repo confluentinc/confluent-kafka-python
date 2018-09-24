@@ -4,6 +4,7 @@ import confluent_kafka
 import json
 import pytest
 import os
+import time
 
 
 def test_version():
@@ -144,3 +145,36 @@ def test_unordered_dict(init_func):
                'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
                'confluent.monitoring.interceptor.icdebug': False
                })
+
+
+# global variable for on_delivery call back function
+seen_delivery_cb = False
+
+
+def test_topic_config_update():
+    confs = [{"message.timeout.ms": 600000, "default.topic.config": {"message.timeout.ms": 1000}},
+             {"message.timeout.ms": 1000},
+             {"default.topic.config": {"message.timeout.ms": 1000}}]
+
+    def on_delivery(err, msg):
+        # Since there is no broker, produced messages should time out.
+        global seen_delivery_cb
+        seen_delivery_cb = True
+        assert err.code() == confluent_kafka.KafkaError._MSG_TIMED_OUT
+
+    for conf in confs:
+        p = confluent_kafka.Producer(conf)
+
+        start = time.time()
+
+        timeout = start + 10.0
+
+        p.produce('mytopic', value='somedata', key='a key', on_delivery=on_delivery)
+        while time.time() < timeout:
+            if seen_delivery_cb:
+                return
+            p.poll(1.0)
+
+        if "CI" in os.environ:
+            pytest.xfail("Timeout exceeded")
+        pytest.fail("Timeout exceeded")

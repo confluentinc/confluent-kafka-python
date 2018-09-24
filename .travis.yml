@@ -17,6 +17,7 @@ matrix:
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
     before_install:
+        - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
         - pyenv install -f 2.7.15
         - pip install virtualenv
@@ -27,6 +28,7 @@ matrix:
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.5
     before_install:
+        - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
         - pyenv install -f 3.6.5
         - pip install virtualenv
@@ -48,8 +50,8 @@ matrix:
     services: docker
 
 install:
+ - pip install -U pip && pip install virtualenv
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - pip install -U pip
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel; fi

@@ -1369,79 +1369,12 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	return 0;
 }
 
-
-
-/**
- * Populate topic conf from provided dict.
- *
- * Will raise an exception on error and return -1, or returns 0 on success.
- */
-static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
-				PyObject *dict) {
-	Py_ssize_t pos = 0;
-	PyObject *ko, *vo;
-
-	if (!PyDict_Check(dict)) {
-		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-				 "%s: requires a dict", what);
-		return -1;
-	}
-
-	while (PyDict_Next(dict, &pos, &ko, &vo)) {
-		PyObject *ks, *ks8;
-		PyObject *vs, *vs8;
-		const char *k;
-		const char *v;
-		char errstr[256];
-
-		if (!(ks = cfl_PyObject_Unistr(ko))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property "
-					"value as type unicode string");
-			return -1;
-		}
-
-		if (!(vs = cfl_PyObject_Unistr(vo))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property "
-					"value as type unicode string");
-			Py_DECREF(ks);
-			return -1;
-		}
-
-		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		v = cfl_PyUnistr_AsUTF8(vs, &vs8);
-
-		if (rd_kafka_topic_conf_set(tconf, k, v,
-					    errstr, sizeof(errstr)) !=
-		    RD_KAFKA_CONF_OK) {
-			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-					 "%s: %s", what, errstr);
-                        Py_XDECREF(ks8);
-                        Py_XDECREF(vs8);
-			Py_DECREF(ks);
-			Py_DECREF(vs);
-			return -1;
-		}
-
-                Py_XDECREF(ks8);
-                Py_XDECREF(vs8);
-		Py_DECREF(ks);
-		Py_DECREF(vs);
-	}
-
-	return 0;
-}
-
-
-
 /**
  * @brief Set single special producer config value.
  *
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
 	if (!strcmp(name, "on_delivery")) {
@@ -1483,7 +1416,6 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
 	if (!strcmp(name, "on_commit")) {
@@ -1516,7 +1448,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *args,
 				    PyObject *kwargs) {
 	rd_kafka_conf_t *conf;
-	rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
@@ -1569,14 +1500,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         }
 
 	conf = rd_kafka_conf_new();
-	tconf = rd_kafka_topic_conf_new();
 
         /*
          * Default config (overridable by user)
          */
 
         /* Enable valid offsets in delivery reports */
-        rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
+        rd_kafka_conf_set(conf, "produce.offset.report", "true", NULL, 0);
 
         /*
          * Plugins must be configured prior to handling any of their configuration properties.
@@ -1592,7 +1522,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         PyErr_SetString(PyExc_TypeError,
                                 "expected configuration property name "
                                 "as type unicode string");
-                        rd_kafka_topic_conf_destroy(tconf);
                         rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
@@ -1606,7 +1535,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
                                 "%s", errstr);
 
-                        rd_kafka_topic_conf_destroy(tconf);
                         rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
@@ -1622,6 +1550,20 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 PyDict_DelItemString(confdict, "plugin.library.paths");
         }
 
+        if ((vo = PyDict_GetItemString(confdict, "default.topic.config"))) {
+        /* TODO: uncomment for 1.0 release
+                PyErr_Warn(PyExc_DeprecationWarning,
+                             "default.topic.config has being deprecated, "
+                             "set default topic configuration values in the global dict");
+        */
+                if (PyDict_Update(confdict, vo) == -1) {
+                        rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+                        return NULL;
+                }
+                PyDict_DelItemString(confdict, "default.topic.config");
+        }
+
 	/* Convert config dict to config key-value pairs. */
 	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
 		PyObject *ks, *ks8;
@@ -1632,10 +1574,9 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 int r = 0;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property name "
-					"as type unicode string");
-			rd_kafka_topic_conf_destroy(tconf);
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected configuration property name "
+                                        "as type unicode string");
 			rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
@@ -1643,24 +1584,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		}
 
 		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		if (!strcmp(k, "default.topic.config")) {
-			if (populate_topic_conf(tconf, k, vo) == -1) {
-				Py_DECREF(ks);
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-				return NULL;
-			}
-                        Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			continue;
-
-		} else if (!strcmp(k, "error_cb")) {
+		if (!strcmp(k, "error_cb")) {
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
 						"expected error_cb property "
 						"as a callable function");
-				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
                                 Py_DECREF(confdict);
 
@@ -1685,7 +1613,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                 PyErr_SetString(PyExc_ValueError,
                                         "expected throttle_cb property "
                                         "as a callable function");
-                                rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
                                 Py_DECREF(confdict);
 
@@ -1710,7 +1637,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				PyErr_SetString(PyExc_TypeError,
 						"expected stats_cb property "
 						"as a callable function");
-				rd_kafka_topic_conf_destroy(tconf);
 				rd_kafka_conf_destroy(conf);
                                 Py_DECREF(confdict);
 
@@ -1748,14 +1674,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
-			r = producer_conf_set_special(h, conf, tconf, k, vo);
+			r = producer_conf_set_special(h, conf, k, vo);
 		else if (ktype == RD_KAFKA_CONSUMER)
-			r = consumer_conf_set_special(h, conf, tconf, k, vo);
+			r = consumer_conf_set_special(h, conf, k, vo);
 		if (r == -1) {
 			/* Error */
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
-			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
@@ -1778,7 +1703,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "expected configuration "
                                                 "property value as type "
                                                 "unicode string");
-                                rd_kafka_topic_conf_destroy(tconf);
                                 rd_kafka_conf_destroy(conf);
                                 Py_DECREF(confdict);
 
@@ -1794,7 +1718,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		    RD_KAFKA_CONF_OK) {
 			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
 					  "%s", errstr);
-			rd_kafka_topic_conf_destroy(tconf);
 			rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
@@ -1829,9 +1752,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 rd_kafka_conf_set(conf, "log.queue", "true", NULL, 0);
                 rd_kafka_conf_set_log_cb(conf, log_cb);
         }
-
-	rd_kafka_topic_conf_set_opaque(tconf, h);
-	rd_kafka_conf_set_default_topic_conf(conf, tconf);
 
 	rd_kafka_conf_set_opaque(conf, h);
 

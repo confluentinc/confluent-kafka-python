@@ -158,8 +158,7 @@ def verify_producer():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'default.topic.config': {'produce.offset.report': True}}
+            'api.version.request': api_version_request}
 
     # Create producer
     p = confluent_kafka.Producer(**conf)
@@ -284,8 +283,7 @@ def verify_avro():
     # Producer config
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
-            'api.version.request': api_version_request,
-            'default.topic.config': {'produce.offset.report': True}}
+            'api.version.request': api_version_request}
 
     # Create producer
     if schema_registry_url:
@@ -324,9 +322,8 @@ def verify_avro():
                  'api.version.request': api_version_request,
                  'on_commit': print_commit_result,
                  'error_cb': error_cb,
-                 'default.topic.config': {
-                     'auto.offset.reset': 'earliest'
-                 }}
+                 'auto.offset.reset': 'earliest'
+                 }
 
     for i, combo in enumerate(combinations):
         combo['topic'] = str(uuid.uuid4())
@@ -425,9 +422,8 @@ def verify_avro_https():
             'api.version.request': api_version_request,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'
+            }
 
     conf.update(testconf.get('schema_registry_https', {}))
 
@@ -595,9 +591,7 @@ def verify_consumer():
             'api.version.request': api_version_request,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'}
 
     # Create consumer
     c = confluent_kafka.Consumer(**conf)
@@ -725,9 +719,7 @@ def verify_consumer_performance():
             'group.id': uuid.uuid1(),
             'session.timeout.ms': 6000,
             'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'}
 
     c = confluent_kafka.Consumer(**conf)
 
@@ -807,9 +799,7 @@ def verify_batch_consumer():
             'api.version.request': api_version_request,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'}
 
     # Create consumer
     c = confluent_kafka.Consumer(**conf)
@@ -884,9 +874,7 @@ def verify_batch_consumer_performance():
             'group.id': uuid.uuid1(),
             'session.timeout.ms': 6000,
             'error_cb': error_cb,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'}
 
     c = confluent_kafka.Consumer(**conf)
 
@@ -1024,9 +1012,7 @@ def verify_stats_cb():
             'error_cb': error_cb,
             'stats_cb': stats_cb,
             'statistics.interval.ms': 200,
-            'default.topic.config': {
-                'auto.offset.reset': 'earliest'
-            }}
+            'auto.offset.reset': 'earliest'}
 
     c = confluent_kafka.Consumer(**conf)
     c.subscribe([topic])
