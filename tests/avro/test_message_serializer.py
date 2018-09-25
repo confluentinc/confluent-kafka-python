@@ -86,11 +86,11 @@ class TestMessageSerializer(unittest.TestCase):
 
     def test_schema_mixin_wrapper(self):
         schema = avro.loads(data_gen.BASIC_SCHEMA)
-        for kls in (int, float, dict, list):
-            val = kls()
+        for base_class in (int, float, dict, list):
+            val = base_class()
             wrapped = _wrap(val, schema)
             assert val == wrapped
-            assert isinstance(wrapped, kls)
+            assert isinstance(wrapped, base_class)
             assert isinstance(wrapped, HasSchemaMixin)
             assert wrapped.schema() is schema
             assert wrapped.__class__.__name__ == 'python.test.basic.basic'
