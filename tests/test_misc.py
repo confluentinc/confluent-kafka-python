@@ -144,7 +144,9 @@ def skip_interceptors():
     # Skip interceptor tests
     return True
 
-@pytest.mark.skipif(skip_interceptors(), reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
+
+@pytest.mark.skipif(skip_interceptors(),
+                    reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
 @pytest.mark.parametrize("init_func", [
     Consumer,
     Producer,
