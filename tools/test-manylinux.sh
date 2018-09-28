@@ -50,6 +50,9 @@ function run_single_in_docker {
         echo "WARNING: Don't know what platform I'm on: $(uname -a)"
     fi
 
+    # Install monitoring interceptors
+    $(dirname $0)/install-interceptors.sh
+
     # Make sure pip itself is up to date
     pip install -U pip
     hash -r # let go of previous 'pip'
