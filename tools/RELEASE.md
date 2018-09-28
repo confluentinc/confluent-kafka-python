@@ -36,9 +36,14 @@ Change to the latest librdkafka version in the following files:
                      make sure to strip the leading "v" from the version.
                      E.g., `0.11.6` rather than `v0.11.6`
 
-Commit this change:
+Change to the latest version of the confluent-librdkafka-plugins in:
 
-    $ git commit -m "librdkafka version bump to v0.11.6" .travis.yml .appveyor.yml
+ * `tools/install-interceptors.sh` - edit and change version
+
+Commit these changes as necessary:
+
+    $ git commit -m "librdkafka version v0.11.6" .travis.yml .appveyor.yml
+    $ git commit -m "confluent-librdkafka-plugins version v0.11.0" tools/install-interceptors.sh
 
 
 ### 1.2 Update OpenSSL version if necessary
