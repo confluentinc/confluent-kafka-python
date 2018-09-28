@@ -66,12 +66,19 @@ function run_single_in_docker {
     # https://github.com/pypa/pip/issues/5247
     pip install pytest --ignore-installed six
 
-    # Verify that OpenSSL and zlib are properly linked
+    echo "Verifying OpenSSL and zlib are properly linked"
     python -c '
 import confluent_kafka
 
 p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
                               "compression.codec":"gzip"})
+'
+
+    echo "Verifying Interceptor installation"
+    python -c '
+from confluent_kafka import Consumer
+
+c = Consumer({"plugin.library.paths": "monitoring-interceptor"})
 '
 
     pushd /io/tests
