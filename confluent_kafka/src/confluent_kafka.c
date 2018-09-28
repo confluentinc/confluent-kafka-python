@@ -1001,6 +1001,7 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                         if (cfl_PyBin(_AsStringAndSize(value, (char **)&v,
                                                        &vsize)) == -1) {
                                 Py_DECREF(ks);
+                                Py_XDECREF(ks8);
                                 return 0;
                         }
                 } else if (cfl_PyUnistr(_Check(value))) {
@@ -1008,6 +1009,7 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                         v = cfl_PyUnistr_AsUTF8(value, &vo8);
                         if (!v) {
                                 Py_DECREF(ks);
+                                Py_XDECREF(ks8);
                                 return 0;
                         }
                         vsize = (Py_ssize_t)strlen(v);
@@ -1017,6 +1019,8 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                                      "None, binary, or unicode string, not %s",
                                      ((PyTypeObject *)PyObject_Type(value))->
                                      tp_name);
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
                         return 0;
                 }
         }
@@ -1027,11 +1031,13 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                                  "%s",
                                  k, rd_kafka_err2str(err));
                 Py_DECREF(ks);
+                Py_XDECREF(ks8);
                 Py_XDECREF(vo8);
                 return 0;
         }
 
         Py_DECREF(ks);
+        Py_XDECREF(ks8);
         Py_XDECREF(vo8);
 
         return 1;
