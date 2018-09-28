@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import confluent_kafka
+from confluent_kafka import Consumer, Producer
+from confluent_kafka.admin import AdminClient
 import json
 import pytest
 import os
@@ -127,24 +129,36 @@ def test_throttle_event_types():
     assert str(throttle_event) == "broker/0 throttled for 10000 ms"
 
 
-@pytest.mark.skipif(len([True for x in (".so", ".dylib", ".dll")
-                         if os.path.exists("monitoring-interceptor" + x)]) == 0,
+def skip_interceptors():
+    # Run interceptor test if monitoring-interceptor is found
+    for path in ["/usr/lib", "/usr/local/lib", "staging/libs", "."]:
+        for ext in [".so", ".dylib", ".dll"]:
+            f = os.path.join(path, "monitoring-interceptor" + ext)
+            if os.path.exists(f):
+                return False
+
+    # Skip interceptor tests
+    return True
+
+
+@pytest.mark.skipif(skip_interceptors(),
                     reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
 @pytest.mark.parametrize("init_func", [
-    confluent_kafka.Consumer,
-    confluent_kafka.Producer,
-    confluent_kafka.admin.AdminClient,
+    Consumer,
+    Producer,
+    AdminClient,
 ])
 def test_unordered_dict(init_func):
     """
     Interceptor configs can only be handled after the plugin has been loaded not before.
     """
-    init_func({'confluent.monitoring.interceptor.publishMs': 1000,
-               'confluent.monitoring.interceptor.sessionDurationMs': 1000,
-               'plugin.library.paths': 'monitoring-interceptor',
-               'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
-               'confluent.monitoring.interceptor.icdebug': False
-               })
+    client = init_func({'confluent.monitoring.interceptor.publishMs': 1000,
+                        'confluent.monitoring.interceptor.sessionDurationMs': 1000,
+                        'plugin.library.paths': 'monitoring-interceptor',
+                        'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
+                        'confluent.monitoring.interceptor.icdebug': False})
+
+    client.poll(0)
 
 
 # global variable for on_delivery call back function
