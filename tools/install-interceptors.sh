@@ -81,10 +81,18 @@ elif [[ $pkgtype == deb ]]; then
     apt-get update
     apt-get install -y confluent-librdkafka-plugins
 
+    ldd /usr/lib/monitoring-interceptor.so.1
+
 elif [[ $pkgtype == osx ]]; then
 
     wget -O monitoring.zip http://packages.confluent.io/archive/${CPVER}/confluent-librdkafka-plugins-0.11.0.zip
     unzip monitoring.zip monitoring-interceptor.dylib
+    echo "Before change:"
+    otool -L monitoring-interceptor.dylib
+    install_name_tool -change /usr/local/lib/librdkafka.1.dylib librdkafka.1.dylib monitoring-interceptor.dylib
+    echo "After change:"
+    otool -L monitoring-interceptor.dylib
     cp monitoring-interceptor.dylib /usr/local/lib
+
 
 fi
