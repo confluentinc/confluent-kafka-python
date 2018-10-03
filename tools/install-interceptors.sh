@@ -18,6 +18,9 @@ pkgtype=$1
 # Confluent Platform release version
 CPVER=5.0
 
+# confluent-librdkafka-plugins version
+PLUGINVER=0.11.0
+
 # Stage directory for wheels
 stagedir=staging/libs
 
@@ -96,7 +99,7 @@ elif [[ $pkgtype == deb ]]; then
 
 elif [[ $pkgtype == osx ]]; then
 
-    wget -O monitoring.zip http://packages.confluent.io/archive/${CPVER}/confluent-librdkafka-plugins-0.11.0.zip
+    wget -O monitoring.zip http://packages.confluent.io/archive/${CPVER}/confluent-librdkafka-plugins-${PLUGINVER}.zip
     unzip monitoring.zip monitoring-interceptor.dylib
 
     # Remove path from librdkafka dependency
