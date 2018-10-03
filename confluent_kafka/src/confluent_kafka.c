@@ -1550,9 +1550,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
          * Default config (overridable by user)
          */
 
-        /* Enable valid offsets in delivery reports */
-        rd_kafka_conf_set(conf, "produce.offset.report", "true", NULL, 0);
-
         /*
          * Plugins must be configured prior to handling any of their
          * configuration properties.
