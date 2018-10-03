@@ -1442,6 +1442,45 @@ static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 	return 0;
 }
 
+/**
+ * @brief Call out to __init__.py _resolve_plugins() to see if any
+ *        of the specified `plugin.library.paths` are found in the
+ *        wheel's embedded library directory, and if so change the
+ *        path to use these libraries.
+ *
+ * @returns a possibly updated plugin.library.paths string object which
+ *          must be DECREF:ed, or NULL if an exception was raised.
+ */
+static PyObject *resolve_plugins (PyObject *plugins) {
+        PyObject *resolved;
+        PyObject *module, *function;
+
+        module = PyImport_ImportModule("confluent_kafka");
+        if (!module)
+                return NULL;
+
+        function = PyObject_GetAttrString(module, "_resolve_plugins");
+        if (!function) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "confluent_kafka._resolve_plugins() not found");
+                Py_DECREF(module);
+                return NULL;
+        }
+
+        resolved = PyObject_CallFunctionObjArgs(function, plugins, NULL);
+
+        Py_DECREF(function);
+        Py_DECREF(module);
+
+        if (!resolved) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "confluent_kafka._resolve_plugins() failed");
+                return NULL;
+        }
+
+        return resolved;
+}
+
 
 /**
  * Common config setup for Kafka client handles.
@@ -1515,24 +1554,39 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         rd_kafka_conf_set(conf, "produce.offset.report", "true", NULL, 0);
 
         /*
-         * Plugins must be configured prior to handling any of their configuration properties.
-         * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
-         * This ensures plugin configuration properties are handled in the correct order.
+         * Plugins must be configured prior to handling any of their
+         * configuration properties.
+         * Dicts are unordered so we explicitly check for, set, and delete the
+         * plugin paths here.
+         * This ensures plugin configuration properties are handled in the
+         * correct order.
          */
         if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
                 const char *v;
                 char errstr[256];
+                PyObject *resolved;
                 PyObject *vs = NULL, *vs8 = NULL;
 
-                if (!(vs = cfl_PyObject_Unistr(vo))) {
+                /* Resolve plugin paths */
+                resolved = resolve_plugins(vo);
+                if (!resolved) {
+                        rd_kafka_conf_destroy(conf);
+                        Py_DECREF(confdict);
+                        return NULL;
+                }
+
+                if (!(vs = cfl_PyObject_Unistr(resolved))) {
                         PyErr_SetString(PyExc_TypeError,
-                                "expected configuration property name "
-                                "as type unicode string");
+                                        "expected plugins.library.paths "
+                                        "as type unicode string");
+                        Py_DECREF(resolved);
                         rd_kafka_conf_destroy(conf);
                         Py_DECREF(confdict);
 
                         return NULL;
                 }
+
+                Py_DECREF(resolved);
 
                 v = cfl_PyUnistr_AsUTF8(vs, &vs8);
 

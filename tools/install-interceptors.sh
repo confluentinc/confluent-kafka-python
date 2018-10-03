@@ -81,7 +81,8 @@ elif [[ $pkgtype == deb ]]; then
     apt-get update
     apt-get install -y confluent-librdkafka-plugins
 
-    ldd /usr/lib/monitoring-interceptor.so.1
+    dpkg -L confluent-librdkafka-plugins
+    ldd $(dpkg -L confluent-librdkafka-plugins | grep monitoring-interceptor.so)
 
 elif [[ $pkgtype == osx ]]; then
 
