@@ -3,7 +3,8 @@
 
 #
 # Install the Confluent Control Center Monitoring Interceptors
-# Primarily for CI use.
+# Primarily for CI use and populating the binary wheels.
+#
 # Requires sudo.
 #
 # Usage: $0 tools/install-interceptors.sh
@@ -16,6 +17,11 @@ pkgtype=$1
 
 # Confluent Platform release version
 CPVER=5.0
+
+# Stage directory for wheels
+stagedir=staging/libs
+
+[[ -d $stagedir ]] || mkdir -p $stagedir
 
 if [[ -z $pkgtype ]]; then
     # Automatic platform detection
@@ -53,6 +59,8 @@ enabled=1
 " > /etc/yum.repos.d/confluent.repo
 
     yum install -y confluent-librdkafka-plugins
+    cp /usr/lib64/monitoring-interceptor.so.1 $stagedir/monitoring-interceptor.so
+    yum erase -y confluent-librdkafka-plugins
 
 elif [[ $pkgtype == deb ]]; then
     need_pkgs=""
@@ -81,19 +89,23 @@ elif [[ $pkgtype == deb ]]; then
     apt-get update
     apt-get install -y confluent-librdkafka-plugins
 
-    dpkg -L confluent-librdkafka-plugins
-    ldd $(dpkg -L confluent-librdkafka-plugins | grep monitoring-interceptor.so)
+    # Copy library to staging dir
+    cp $(dpkg -L confluent-librdkafka-plugins | grep monitoring-interceptor.so.1) $stagedir/monitoring-interceptor.so
+
+    apt-get purge -y confluent-librdkafka-plugins
 
 elif [[ $pkgtype == osx ]]; then
 
     wget -O monitoring.zip http://packages.confluent.io/archive/${CPVER}/confluent-librdkafka-plugins-0.11.0.zip
     unzip monitoring.zip monitoring-interceptor.dylib
-    echo "Before change:"
-    otool -L monitoring-interceptor.dylib
+
+    # Remove path from librdkafka dependency
     install_name_tool -change /usr/local/lib/librdkafka.1.dylib librdkafka.1.dylib monitoring-interceptor.dylib
-    echo "After change:"
     otool -L monitoring-interceptor.dylib
-    cp monitoring-interceptor.dylib /usr/local/lib
 
-
+    mv monitoring-interceptor.dylib $stagedir/
 fi
+
+
+echo "Staging dir $stagedir content:"
+ls -la $stagedir

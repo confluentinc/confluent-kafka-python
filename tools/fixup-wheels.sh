@@ -21,6 +21,8 @@ wheelhouse=$1
 fixed_wheelhouse=$2
 platform=$(uname -s)
 
+stagedir=$PWD/staging
+
 if [[ ! -d $wheelhouse || -z $fixed_wheelhouse ]]; then
     echo "Usage: $0 <wheelhouse-directory> <fixed-wheelhouse-directory>"
     exit 1
@@ -33,17 +35,15 @@ fi
 mkdir -p $fixed_wheelhouse
 
 fixup_wheel_linux () {
-    local whl="$1"
-    local fixed_whl="$fixed_wheelhouse/$(basename $whl)"
-    local tmpdir=$(mktemp -d)
 
-    echo "Patching $whl"
-    unzip $whl -d $tmpdir
-    pushd $tmpdir
     pushd confluent_kafka
 
-    # Find mangled librdkafka name
     pushd .libs
+
+    echo "Copying additional libs and plugins"
+    cp -v $stagedir/libs/* .
+
+    # Find mangled librdkafka name
     local mangled=$(echo librdkafka-*.so.1)
     if [[ ! -f $mangled ]]; then
         echo "Failed to find mangled librdkafka:"
@@ -54,6 +54,7 @@ fixup_wheel_linux () {
     patchelf --print-soname $mangled
     patchelf --set-soname librdkafka.so.1 $mangled
     mv $mangled librdkafka.so.1
+
     popd # .libs
 
     patchelf --replace-needed $mangled librdkafka.so.1 cimpl*.so
@@ -61,6 +62,35 @@ fixup_wheel_linux () {
     patchelf --print-needed cimpl*.so
 
     popd # confluent_kafka
+}
+
+
+fixup_wheel_macosx () {
+
+    pushd confluent_kafka/.dylibs
+
+    echo "Copying additional libs and plugins"
+    cp -v staging/libs/* .
+
+    popd # confluent_kafka
+}
+
+
+
+fixup_wheel () {
+    local whl="$1"
+    local fixed_whl="$fixed_wheelhouse/$(basename $whl)"
+    local tmpdir=$(mktemp -d)
+
+    echo "Patching $whl"
+    unzip $whl -d $tmpdir
+
+    pushd $tmpdir
+    if [[ $platform == "Linux" ]]; then
+        fixup_wheel_linux
+    elif [[ $platform == "Darwin" ]]; then
+        fixup_wheel_macosx
+    fi
 
     zip -r $fixed_whl .
 
@@ -71,24 +101,22 @@ fixup_wheel_linux () {
 }
 
 
+
 if [[ $platform == "Linux" ]]; then
     if ! which patchelf >/dev/null 2>&1; then
         echo "Need to install patchelf to continue"
         sudo apt-get install -y patchelf
     fi
 
-    for wheel in $wheelhouse/*linux*.whl ; do
-        fixup_wheel_linux "$wheel"
-    done
+    wheelmatch=linux
 
 elif [[ $platform == "Darwin" ]]; then
-    exit 0 # No action needed
     if ! which install_name_tool >/dev/null 2>&1; then
         echo "Requires install_name_tool, but not found"
         exit 1
     fi
 
-
+    wheelmatch=macosx
 
 else
     echo "Unsupported platform: $platform"
@@ -96,6 +124,10 @@ else
 fi
 
 
+
+for wheel in $wheelhouse/*${wheelmatch}*.whl ; do
+    fixup_wheel "$wheel"
+done
 
 
 

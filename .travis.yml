@@ -15,7 +15,7 @@ matrix:
   # Source package verification with Python 2.7 and librdkafka v0.11.6-RC3
   - os: osx
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -26,7 +26,7 @@ matrix:
   # Source package verification with Python 3.6 and librdkafka v0.11.6-RC3
   - os: osx
     python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -61,6 +61,8 @@ install:
 script:
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
+ # Make plugins available for tests
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then cp -v staging/libs/* . ; ldd staging/libs/* || true ; otool -L staging/libs/* || true ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi

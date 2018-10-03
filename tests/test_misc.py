@@ -130,9 +130,6 @@ def test_throttle_event_types():
 
 
 def skip_interceptors():
-    # Always run interceptor test on Travis
-    if os.environ.get("TRAVIS", None) is not None:
-        return False
     # Run interceptor test if monitoring-interceptor is found
     for path in ["/usr/lib", "/usr/local/lib", "."]:
         for ext in [".so", ".dylib", ".dll"]:
@@ -158,7 +155,7 @@ def test_unordered_dict(init_func):
     """
     client = init_func({'confluent.monitoring.interceptor.publishMs': 1000,
                         'confluent.monitoring.interceptor.sessionDurationMs': 1000,
-                        'plugin.library.paths': 'monitoring-interceptor',
+                        'plugin.library.paths': './monitoring-interceptor',
                         'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
                         'confluent.monitoring.interceptor.icdebug': False})
 
