@@ -42,3 +42,61 @@ class ThrottleEvent (object):
 
     def __str__(self):
         return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id, int(self.throttle_time * 1000))
+
+
+def _resolve_plugins(plugins):
+    """ Resolve embedded plugins from the wheel's library directory.
+
+        For internal module use only.
+
+        :param str plugins: The plugin.library.paths value
+    """
+    import os
+    from sys import platform
+
+    # Location of __init__.py and the embedded library directory
+    basedir = os.path.dirname(__file__)
+
+    if platform in ('win32', 'cygwin'):
+        paths_sep = ';'
+        ext = '.dll'
+        libdir = basedir
+    elif platform in ('linux', 'linux2'):
+        paths_sep = ':'
+        ext = '.so'
+        libdir = os.path.join(basedir, '.libs')
+    elif platform == 'darwin':
+        paths_sep = ':'
+        ext = '.dylib'
+        libdir = os.path.join(basedir, '.dylibs')
+    else:
+        # Unknown platform, there are probably no embedded plugins.
+        return plugins
+
+    if not os.path.isdir(libdir):
+        # No embedded library directory, probably not a wheel installation.
+        return plugins
+
+    resolved = []
+    for plugin in plugins.split(paths_sep):
+        if '/' in plugin or '\\' in plugin:
+            # Path specified, leave unchanged
+            resolved.append(plugin)
+            continue
+
+        # See if the plugin can be found in the wheel's
+        # embedded library directory.
+        # The user might not have supplied a file extension, so try both.
+        good = None
+        for file in [plugin, plugin + ext]:
+            fpath = os.path.join(libdir, file)
+            if os.path.isfile(fpath):
+                good = fpath
+                break
+
+        if good is not None:
+            resolved.append(good)
+        else:
+            resolved.append(plugin)
+
+    return paths_sep.join(resolved)
