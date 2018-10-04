@@ -101,12 +101,24 @@ fixup_wheel () {
 }
 
 
+build_patchelf () {
+    # Download, build and install patchelf from source.
+
+    curl -l https://codeload.github.com/NixOS/patchelf/tar.gz/master | tar xzf -
+    pushd patchelf-master
+    ./configure
+    make -j
+    sudo make install
+    popd # patchelf-master
+}
 
 if [[ $platform == "Linux" ]]; then
     if ! which patchelf >/dev/null 2>&1; then
         echo "Need to install patchelf to continue"
-        sudo apt-get install -y patchelf
+        sudo apt-get install -y patchelf || build_patchelf
     fi
+
+    patchelf --version
 
     wheelmatch=linux
 
