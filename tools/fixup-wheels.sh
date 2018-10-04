@@ -70,7 +70,7 @@ fixup_wheel_macosx () {
     pushd confluent_kafka/.dylibs
 
     echo "Copying additional libs and plugins"
-    cp -v staging/libs/* .
+    cp -v $stagedir/libs/* .
 
     popd # confluent_kafka
 }
@@ -104,12 +104,12 @@ fixup_wheel () {
 build_patchelf () {
     # Download, build and install patchelf from source.
 
-    curl -l https://codeload.github.com/NixOS/patchelf/tar.gz/master | tar xzf -
-    pushd patchelf-master
+    curl -l https://nixos.org/releases/patchelf/patchelf-0.9/patchelf-0.9.tar.gz | tar xzf -
+    pushd patchelf-0.9
     ./configure
     make -j
     sudo make install
-    popd # patchelf-master
+    popd # patchelf-..
 }
 
 if [[ $platform == "Linux" ]]; then
