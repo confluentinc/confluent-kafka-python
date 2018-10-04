@@ -43,7 +43,7 @@ if [[ -z $pkgtype ]]; then
     fi
 
 elif [[ $pkgtype == rpm ]]; then
-    rpm --import https://packages.confluent.io/rpm/${CPVER}/archive.key
+    sudo rpm --import https://packages.confluent.io/rpm/${CPVER}/archive.key
 
     echo "
 [Confluent.dist]
@@ -59,11 +59,11 @@ baseurl=https://packages.confluent.io/rpm/${CPVER}
 gpgcheck=1
 gpgkey=https://packages.confluent.io/rpm/${CPVER}/archive.key
 enabled=1
-" > /etc/yum.repos.d/confluent.repo
+" | sudo tee /etc/yum.repos.d/confluent.repo
 
-    yum install -y confluent-librdkafka-plugins
+    sudo yum install -y confluent-librdkafka-plugins
     cp /usr/lib64/monitoring-interceptor.so.1 $stagedir/monitoring-interceptor.so
-    yum erase -y confluent-librdkafka-plugins
+    sudo yum erase -y confluent-librdkafka-plugins
 
 elif [[ $pkgtype == deb ]]; then
     need_pkgs=""
@@ -82,20 +82,20 @@ elif [[ $pkgtype == deb ]]; then
 
     if [[ -n $need_pkgs ]]; then
         echo "Installing $need_pkgs"
-        apt-get update
-        apt-get install -y $need_pkgs
+        sudo apt-get update
+        sudo apt-get install -y $need_pkgs
     fi
 
 
-    wget -qO - https://packages.confluent.io/deb/${CPVER}/archive.key | apt-key add -
-    add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/${CPVER} stable main"
-    apt-get update
-    apt-get install -y confluent-librdkafka-plugins
+    wget -qO - https://packages.confluent.io/deb/${CPVER}/archive.key | sudo apt-key add -
+    sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/${CPVER} stable main"
+    sudo apt-get update
+    sudo apt-get install -y confluent-librdkafka-plugins
 
     # Copy library to staging dir
     cp $(dpkg -L confluent-librdkafka-plugins | grep monitoring-interceptor.so.1) $stagedir/monitoring-interceptor.so
 
-    apt-get purge -y confluent-librdkafka-plugins
+    sudo apt-get purge -y confluent-librdkafka-plugins
 
 elif [[ $pkgtype == osx ]]; then
 

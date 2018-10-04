@@ -50,7 +50,7 @@ matrix:
     services: docker
 
 install:
- - sudo tools/install-interceptors.sh
+ - tools/install-interceptors.sh
  - pip install -U pip && pip install virtualenv
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then rvm get stable; fi
