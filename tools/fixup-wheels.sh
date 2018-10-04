@@ -70,7 +70,17 @@ fixup_wheel_macosx () {
     pushd confluent_kafka/.dylibs
 
     echo "Copying additional libs and plugins"
-    cp -v $stagedir/libs/* .
+    for lib in $stagedir/libs/*.dylib ; do
+        # Change the name to be local
+        install_name_tool -id "$(basename $lib)" $lib
+        if otool -L $lib | grep -q /usr/local/lib/librdkafka.1.dylib ; then
+            # Change the librdkafka reference to load from the same
+            # directory as the plugin
+            install_name_tool -change /usr/local/lib/librdkafka.1.dylib '@loader_path/librdkafka.1.dylib' $lib
+            otool -L $lib
+            cp -v $lib .
+        fi
+    done
 
     popd # confluent_kafka
 }
