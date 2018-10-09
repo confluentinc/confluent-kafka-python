@@ -155,7 +155,7 @@ def test_unordered_dict(init_func):
     """
     client = init_func({'confluent.monitoring.interceptor.publishMs': 1000,
                         'confluent.monitoring.interceptor.sessionDurationMs': 1000,
-                        'plugin.library.paths': './monitoring-interceptor',
+                        'plugin.library.paths': 'monitoring-interceptor',
                         'confluent.monitoring.interceptor.topic': 'confluent-kafka-testing',
                         'confluent.monitoring.interceptor.icdebug': False})
 
