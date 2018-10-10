@@ -131,7 +131,7 @@ def test_throttle_event_types():
 
 def skip_interceptors():
     # Run interceptor test if monitoring-interceptor is found
-    for path in ["/usr/lib", "/usr/local/lib", "."]:
+    for path in ["/usr/lib", "/usr/local/lib", "staging/libs", "."]:
         for ext in [".so", ".dylib", ".dll"]:
             f = os.path.join(path, "monitoring-interceptor" + ext)
             if os.path.exists(f):
