@@ -11,9 +11,7 @@ if [[ ! -f tools/$(basename $0) ]]; then
 fi
 
 # clean up pytest_cache if it exists 
-if [[ -f .pytest_cache ]]; then
-	rm .pytest_cache
-fi 
+rm -f .pytest_cache
 
 WHEELHOUSE=${1-wheelhouse} 
 
