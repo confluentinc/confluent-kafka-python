@@ -102,7 +102,7 @@ class AvroConsumer(Consumer):
     :param optional a read schema for the messages
     """
     def __init__(self, config, schema_registry=None, read_schema=None):
-        
+
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
         schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
