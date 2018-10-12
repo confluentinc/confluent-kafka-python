@@ -1,37 +1,58 @@
 matrix:
  include:
-  # Source package verification with Python 2.7 and librdkafka v0.11.5
+  # Source package verification with Python 2.7 and librdkafka v0.11.6-RC3
   - os: linux
     language: python
     dist: trusty
     python: "2.7"
-    services: docker
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
-  # Source package verification with Python 3.6 and librdkafka master
-
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+  # Source package verification with Python 3.6 and librdkafka v0.11.6-RC3
   - os: linux
     language: python
     dist: trusty
     python: "3.6"
-    services: docker
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=master
-
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+  # Source package verification with Python 2.7 and librdkafka v0.11.6-RC3
+  - os: osx
+    python: "2.7"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    before_install:
+        - pip install -U pip && pip install virtualenv
+        - brew update && brew upgrade pyenv
+        - pyenv install -f 2.7.15
+        - pip install virtualenv
+        - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
+        - source env/bin/activate
+  # Source package verification with Python 3.6 and librdkafka v0.11.6-RC3
+  - os: osx
+    python: "3.6"
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    before_install:
+        - pip install -U pip && pip install virtualenv
+        - brew update && brew upgrade pyenv
+        - pyenv install -f 3.6.5
+        - pip install virtualenv
+        - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
+        - source env/bin/activate
+  # cibuildwheel for osx
+  - os: osx
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.6-RC3 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    before_install:
+        - brew update && brew upgrade pyenv
+        - pip install virtualenv
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.5"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.6-RC3"
     language: python
     python: "2.7"
     services: docker
 
-before_install:
- - docker pull landoop/fast-data-dev
- - docker run -d -p 2181:2181 -p 3030:3030 -p 8081:8081 -p 8082:8082 -p 8083:8083 -p 9092:9092 -e ADV_HOST=127.0.0.1 landoop/fast-data-dev
-
 install:
+ - pip install -U pip && pip install virtualenv
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - pip install -U pip
+ - if [[ $TRAVIS_OS_NAME == "osx" ]]; then rvm get stable; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel; fi
@@ -41,9 +62,9 @@ script:
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then python examples/integration_test.py localhost:9092 confluent-kafka-testing http://localhost:8081; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse ; ls -la wheelhouse/ ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
+
 
 deploy:
  provider: s3
@@ -58,6 +79,6 @@ deploy:
  acl: public_read
  skip_cleanup: true
  on:
-  repo: martintaraz/confluent-kafka-python
+  repo: confluentinc/confluent-kafka-python
   tags: true
   condition: "-n $CIBW_BEFORE_BUILD"
