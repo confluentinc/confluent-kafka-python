@@ -1202,9 +1202,105 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
-# Exclude throttle since from default list
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
+def verify_explicit_read():
+    """ verify that the explicit reading schema works"""
+    from confluent_kafka import avro
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers,
+            'error_cb': error_cb,
+            'api.version.request': api_version_request,
+            'default.topic.config': {'produce.offset.report': True}}
+
+    # Create producer
+    if schema_registry_url:
+        conf['schema.registry.url'] = schema_registry_url
+        p = avro.AvroProducer(conf)
+    else:
+        p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
+
+    key_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+    schema1 = avro.load(os.path.join(avsc_dir, "read_test_schema.avsc"))
+    schema2 = avro.load(os.path.join(avsc_dir, "incremented_read_test_schema.avsc"))
+    float_value = 32.
+    val = {
+        "name": "abc",
+        "favorite_number": 42,
+        "favorite_colo": "orange"
+    }
+    val1 = {
+        "name": "abc"
+    }
+
+    combinations = [
+        dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
+             read_schema=schema1),
+        dict(value=val1, value_schema=schema1, key=float_value, key_schema=key_schema,
+             read_schema=schema2),
+    ]
+
+    # Consumer config
+    cons_conf = {'bootstrap.servers': bootstrap_servers,
+                 'group.id': 'test.py',
+                 'session.timeout.ms': 6000,
+                 'enable.auto.commit': False,
+                 'api.version.request': api_version_request,
+                 'on_commit': print_commit_result,
+                 'error_cb': error_cb,
+                 'default.topic.config': {
+                     'auto.offset.reset': 'earliest'
+                 }}
+
+        combo['topic'] = str(uuid.uuid4())
+        p.produce(**combo)
+        p.poll(0)
+        p.flush()
+
+        # Create consumer
+        conf = copy(cons_conf)
+        if schema_registry_url:
+            conf['schema.registry.url'] = schema_registry_url
+            c = avro.AvroConsumer(conf, read_schema=read_schema)
+        else:
+            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry(), read_schema=read_schema)
+
+        c.subscribe([combo['topic']])
+
+        while True:
+            msg = c.poll(0)
+            if msg is None:
+                continue
+
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    break
+                else:
+                    continue
+
+            tstype, timestamp = msg.timestamp()
+            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.key(), msg.value(), tstype, timestamp))
+
+            # omit empty Avro fields from payload for comparison
+            record_key = msg.key()
+            record_value = msg.value()
+            if isinstance(msg.key(), dict):
+                record_key = {k: v for k, v in msg.key().items() if v is not None}
+
+            if isinstance(msg.value(), dict):
+                record_value = {k: v for k, v in msg.value().items() if v is not None}
+
+            assert combo.get('key') == record_key
+            c.commit(msg, asynchronous=False)
+        # Close consumer
+        c.close()
+    pass
+
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 all_modes = default_modes + ['throttle', 'avro-https', 'none']
+
 """All test modes"""
 
 
@@ -1322,6 +1418,10 @@ if __name__ == '__main__':
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)
         verify_admin()
+
+    if 'explicit-read' in modes:
+        print('=' * 30, 'Verifying Explicit Reading Schema', '=' * 30)
+        verify_explicit_read()
 
     print('=' * 30, 'Done', '=' * 30)
 

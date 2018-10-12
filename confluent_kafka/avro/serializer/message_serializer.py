@@ -68,10 +68,11 @@ class MessageSerializer(object):
     All decode_* methods expect a buffer received from kafka.
     """
 
-    def __init__(self, registry_client):
+    def __init__(self, registry_client, read_schema=None):
         self.registry_client = registry_client
         self.id_to_decoder_func = {}
         self.id_to_writers = {}
+        self.read_schema = read_schema
 
     '''
 
@@ -169,6 +170,7 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 schema_dict = schema.to_json()
+                reader_schema_dict = schema.to_json()
                 schemaless_reader(payload, schema_dict)
 
                 # If we reach this point, this means we have fastavro and it can
@@ -177,7 +179,8 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict,
+                                                                                 reader_schema=reader_schema_dict)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
                 # Fast avro failed, fall thru to standard avro below.
@@ -186,7 +189,7 @@ class MessageSerializer(object):
         # here means we should just delegate to slow avro
         # rewind
         payload.seek(curr_pos)
-        avro_reader = avro.io.DatumReader(schema)
+        avro_reader = avro.io.DatumReader(writers_schema=schema, readers_schema=self.read_schema)
 
         def decoder(p):
             bin_decoder = avro.io.BinaryDecoder(p)
