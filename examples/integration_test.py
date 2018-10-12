@@ -1252,6 +1252,8 @@ def verify_explicit_read():
                      'auto.offset.reset': 'earliest'
                  }}
 
+    for i, combo in enumerate(combinations):
+        read_schema = combo.pop("read_schema")
         combo['topic'] = str(uuid.uuid4())
         p.produce(**combo)
         p.poll(0)
@@ -1293,6 +1295,7 @@ def verify_explicit_read():
                 record_value = {k: v for k, v in msg.value().items() if v is not None}
 
             assert combo.get('key') == record_key
+            assert combo.get('value')['name'] == record_value['name']
             c.commit(msg, asynchronous=False)
         # Close consumer
         c.close()
