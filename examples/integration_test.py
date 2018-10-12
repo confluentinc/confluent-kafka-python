@@ -1298,6 +1298,7 @@ def verify_explicit_read():
         c.close()
     pass
 
+
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
 all_modes = default_modes + ['throttle', 'avro-https', 'none']
 
