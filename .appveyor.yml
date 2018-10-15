@@ -1,6 +1,7 @@
 environment:
   global:
-    LIBRDKAFKA_NUGET_VERSION: 0.11.6-RC3
+    # Note: NuGet version is without the "v" prefix
+    LIBRDKAFKA_NUGET_VERSION: 1.0.0-PRE1
     CIBW_SKIP: cp33-* cp34-*
     CIBW_TEST_REQUIRES: pytest requests avro
     # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
