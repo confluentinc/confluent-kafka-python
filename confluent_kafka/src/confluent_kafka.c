@@ -1585,8 +1585,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         /*
          * Set debug contexts first to capture all events including plugin loading
          */
-         if ((vo = PyDict_GetItemString(confdict, "debug")))
-                if (!common_conf_set_special(confdict, conf, "debug", vo))
+         if ((vo = PyDict_GetItemString(confdict, "debug")) &&
+              !common_conf_set_special(confdict, conf, "debug", vo))
                         goto outer_err;
 
         /*
@@ -1625,7 +1625,8 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 	/* Convert config dict to config key-value pairs. */
 	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
-		PyObject *ks = NULL, *ks8 = NULL;
+		PyObject *ks;
+		PyObject *ks8 = NULL;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k;
 		const char *v;
