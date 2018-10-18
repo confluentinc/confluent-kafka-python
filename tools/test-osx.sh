@@ -44,7 +44,7 @@ p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
 
 echo "Verifying Interceptor installation"
 (cd .. && python -c '
-from confluent_kafka import Consumer;
+from confluent_kafka import Consumer
 
 Consumer({"plugin.library.paths": "monitoring-interceptor"})
 ')
