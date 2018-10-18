@@ -1221,8 +1221,8 @@ def verify_explicit_read():
         p = avro.AvroProducer(conf, schema_registry=InMemorySchemaRegistry())
 
     key_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-    schema1 = avro.load(os.path.join(avsc_dir, "read_test_schema.avsc"))
-    schema2 = avro.load(os.path.join(avsc_dir, "incremented_read_test_schema.avsc"))
+    schema1 = avro.load(os.path.join(avsc_dir, "user_v1.avsc"))
+    schema2 = avro.load(os.path.join(avsc_dir, "user_v2.avsc"))
     float_value = 32.
     val = {
         "name": "abc",
