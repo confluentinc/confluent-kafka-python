@@ -1253,7 +1253,8 @@ def verify_explicit_read():
                  }}
 
     for i, combo in enumerate(combinations):
-        read_schema = combo.pop("read_schema")
+        reader_key_schema = combo.pop("reader_key_schema")
+        reader_value_schema = combo.pop("reader_value_schema")
         combo['topic'] = str(uuid.uuid4())
         p.produce(**combo)
         p.poll(0)
@@ -1263,11 +1264,13 @@ def verify_explicit_read():
         conf = copy(cons_conf)
         if schema_registry_url:
             conf['schema.registry.url'] = schema_registry_url
-            c = avro.AvroConsumer(conf,
-                reader_key_schema=reader_key_schema,
-                reader_value_schema=reader_value_schema)
+            c = avro.AvroConsumer(
+                        conf,
+                        reader_key_schema=reader_key_schema,
+                        reader_value_schema=reader_value_schema)
         else:
-            c = avro.AvroConsumer(conf,
+            c = avro.AvroConsumer(
+                conf,
                 schema_registry=InMemorySchemaRegistry(),
                 reader_key_schema=reader_key_schema,
                 reader_value_schema=reader_value_schema)
