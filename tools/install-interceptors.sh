@@ -102,8 +102,6 @@ elif [[ $pkgtype == osx ]]; then
     wget -O monitoring.zip http://packages.confluent.io/archive/${CPVER}/confluent-librdkafka-plugins-${PLUGINVER}.zip
     unzip monitoring.zip monitoring-interceptor.dylib
 
-    # Remove path from librdkafka dependency
-    install_name_tool -change /usr/local/lib/librdkafka.1.dylib librdkafka.1.dylib monitoring-interceptor.dylib
     otool -L monitoring-interceptor.dylib
 
     mv monitoring-interceptor.dylib $stagedir/
