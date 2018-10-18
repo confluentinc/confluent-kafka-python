@@ -169,9 +169,9 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                schema_dict = schema.to_json()
-                reader_schema_dict = self.read_schema.to_json()
-                schemaless_reader(payload, schema_dict)
+                writer_schema = schema.to_json()
+                reader_schema = self.read_schema.to_json()
+                schemaless_reader(payload, writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines
@@ -179,8 +179,8 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict,
-                                                                                 reader_schema=reader_schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(
+                    p, writer_schema, reader_schema)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
                 # Fast avro failed, fall thru to standard avro below.
