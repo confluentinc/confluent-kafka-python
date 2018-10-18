@@ -170,7 +170,6 @@ class MessageSerializer(object):
 
         reader_schema_obj = self.reader_key_schema if is_key else self.reader_value_schema
 
-
         if HAS_FAST:
             # try to use fast avro
             try:
