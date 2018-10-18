@@ -35,12 +35,12 @@ pip install confluent_kafka --no-cache-dir --no-index -f $WHEELHOUSE
 pip install pytest pytest-timeout --ignore-installed six
 
 echo "Verifying OpenSSL and zlib are properly linked"
-python -c '
+(cd .. && python -c '
 import confluent_kafka
 
 p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
                              "compression.codec":"gzip"})
-'
+')
 
 echo "Verifying Interceptor installation"
 (cd .. && python -c '
