@@ -38,7 +38,7 @@ Change to the latest librdkafka version in the following files:
 
 Change to the latest version of the confluent-librdkafka-plugins in:
 
- * `tools/install-interceptors.sh`
+ * `tools/install-interceptors.sh` - edit and change version
 
 Commit these changes as necessary:
 

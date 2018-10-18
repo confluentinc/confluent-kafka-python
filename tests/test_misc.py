@@ -136,7 +136,6 @@ def skip_interceptors():
             f = os.path.join(path, "monitoring-interceptor" + ext)
             if os.path.exists(f):
                 return False
-            print('Not found: {}'.format(f))
 
     # Skip interceptor tests
     return True

@@ -74,6 +74,13 @@ p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
                               "compression.codec":"gzip"})
 '
 
+    # Verify interceptors can be properly loaded
+    python -c '
+from confluent_kafka import Consumer
+
+c = Consumer({"plugin.library.paths": "monitoring-interceptor"})
+'
+
     pushd /io/tests
     # Remove cached files from previous runs
     rm -rf __pycache__ *.pyc

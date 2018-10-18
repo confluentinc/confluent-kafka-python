@@ -42,5 +42,12 @@ p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
                              "compression.codec":"gzip"})
 '
 
+# Verify interceptors can be properly loaded
+python -c '
+from confluent_kafka import Consumer;
+
+Consumer({"plugin.library.paths": "monitoring-interceptor"})
+'
+
 # Bump out of the source root and execute tests
 (cd .. && pytest -v --timeout 20 --ignore=tmp-build --import-mode append --ignore=avro confluent-kafka-python/tests)
