@@ -1235,9 +1235,9 @@ def verify_explicit_read():
 
     combinations = [
         dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
-             read_schema=schema1),
+             reader_value_schema=schema1, reader_key_schema=key_schema),
         dict(value=val1, value_schema=schema1, key=float_value, key_schema=key_schema,
-             read_schema=schema2),
+             reader_value_schema=schema2, reader_key_schema=key_schema),
     ]
 
     # Consumer config
@@ -1263,9 +1263,14 @@ def verify_explicit_read():
         conf = copy(cons_conf)
         if schema_registry_url:
             conf['schema.registry.url'] = schema_registry_url
-            c = avro.AvroConsumer(conf, read_schema=read_schema)
+            c = avro.AvroConsumer(conf,
+                reader_key_schema=reader_key_schema,
+                reader_value_schema=reader_value_schema)
         else:
-            c = avro.AvroConsumer(conf, schema_registry=InMemorySchemaRegistry(), read_schema=read_schema)
+            c = avro.AvroConsumer(conf,
+                schema_registry=InMemorySchemaRegistry(),
+                reader_key_schema=reader_key_schema,
+                reader_value_schema=reader_value_schema)
 
         c.subscribe([combo['topic']])
 

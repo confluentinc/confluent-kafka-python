@@ -68,11 +68,12 @@ class MessageSerializer(object):
     All decode_* methods expect a buffer received from kafka.
     """
 
-    def __init__(self, registry_client, read_schema=None):
+    def __init__(self, registry_client, reader_key_schema=None, reader_value_schema=None):
         self.registry_client = registry_client
         self.id_to_decoder_func = {}
         self.id_to_writers = {}
-        self.read_schema = read_schema
+        self.reader_key_schema = reader_key_schema
+        self.reader_value_schema = reader_value_schema
 
     '''
 
@@ -152,7 +153,7 @@ class MessageSerializer(object):
             return outf.getvalue()
 
     # Decoder support
-    def _get_decoder_func(self, schema_id, payload):
+    def _get_decoder_func(self, schema_id, payload, is_key=False):
         if schema_id in self.id_to_decoder_func:
             return self.id_to_decoder_func[schema_id]
 
@@ -166,11 +167,15 @@ class MessageSerializer(object):
             raise SerializerError("unable to fetch schema with id %d" % (schema_id))
 
         curr_pos = payload.tell()
+
+        reader_schema_obj = self.reader_key_schema if is_key else self.reader_value_schema
+
+
         if HAS_FAST:
             # try to use fast avro
             try:
                 writer_schema = schema.to_json()
-                reader_schema = self.read_schema.to_json()
+                reader_schema = reader_schema_obj.to_json()
                 schemaless_reader(payload, writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
@@ -189,7 +194,7 @@ class MessageSerializer(object):
         # here means we should just delegate to slow avro
         # rewind
         payload.seek(curr_pos)
-        avro_reader = avro.io.DatumReader(writers_schema=schema, readers_schema=self.read_schema)
+        avro_reader = avro.io.DatumReader(writers_schema=schema, readers_schema=reader_schema_obj)
 
         def decoder(p):
             bin_decoder = avro.io.BinaryDecoder(p)
@@ -198,7 +203,7 @@ class MessageSerializer(object):
         self.id_to_decoder_func[schema_id] = decoder
         return self.id_to_decoder_func[schema_id]
 
-    def decode_message(self, message):
+    def decode_message(self, message, is_key=False):
         """
         Decode a message from kafka that has been encoded for use with
         the schema registry.
@@ -215,5 +220,5 @@ class MessageSerializer(object):
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
-            decoder_func = self._get_decoder_func(schema_id, payload)
+            decoder_func = self._get_decoder_func(schema_id, payload, is_key)
             return decoder_func(payload)
