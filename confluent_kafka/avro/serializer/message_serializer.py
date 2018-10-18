@@ -170,7 +170,7 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 schema_dict = schema.to_json()
-                reader_schema_dict = schema.to_json()
+                reader_schema_dict = self.read_schema.to_json()
                 schemaless_reader(payload, schema_dict)
 
                 # If we reach this point, this means we have fastavro and it can
