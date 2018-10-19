@@ -90,6 +90,7 @@ def _resolve_plugins(plugins):
         good = None
         for file in [plugin, plugin + ext]:
             fpath = os.path.join(libdir, file)
+            print('Plugins: try {} (exists={})'.format(fpath, os.path.isfile(fpath)))
             if os.path.isfile(fpath):
                 good = fpath
                 break
@@ -99,4 +100,5 @@ def _resolve_plugins(plugins):
         else:
             resolved.append(plugin)
 
+    print('Returning plugins: {}'.format(resolved))
     return paths_sep.join(resolved)
