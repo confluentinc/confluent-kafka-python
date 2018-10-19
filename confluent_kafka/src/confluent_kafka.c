@@ -1599,11 +1599,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
                 /* Resolve plugin paths */
                 PyObject *resolved;
+
                 resolved = resolve_plugins(vo);
                 if (!resolved)
                         goto outer_err;
 
-                if (!common_conf_set_special(confdict, conf, "plugin.library.paths", vo)) {
+                if (!common_conf_set_special(confdict, conf,
+                                             "plugin.library.paths",
+                                             resolved)) {
                         Py_DECREF(resolved);
                         goto outer_err;
                 }
