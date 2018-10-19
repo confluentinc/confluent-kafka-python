@@ -193,7 +193,13 @@ class MessageSerializer(object):
         # here means we should just delegate to slow avro
         # rewind
         payload.seek(curr_pos)
-        avro_reader = avro.io.DatumReader(writers_schema=schema, readers_schema=reader_schema_obj)
+        # Avro DatumReader py2/py3 inconsistency, hence no param keywords
+        # should be revisited later
+        # https://github.com/apache/avro/blob/master/lang/py3/avro/io.py#L459
+        # https://github.com/apache/avro/blob/master/lang/py/src/avro/io.py#L423
+        # def __init__(self, writers_schema=None, readers_schema=None)
+        # def __init__(self, writer_schema=None, reader_schema=None)
+        avro_reader = avro.io.DatumReader(schema, reader_schema_obj)
 
         def decoder(p):
             bin_decoder = avro.io.BinaryDecoder(p)
