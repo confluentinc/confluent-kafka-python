@@ -74,6 +74,7 @@ class MessageSerializer(object):
         self.id_to_writers = {}
         self.reader_key_schema = reader_key_schema
         self.reader_value_schema = reader_value_schema
+        self.last_decode_schema_id = None
 
     # Encoder support
     def _get_encoder_func(self, writer_schema):
@@ -224,4 +225,5 @@ class MessageSerializer(object):
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
             decoder_func = self._get_decoder_func(schema_id, payload, is_key)
+            self.last_decode_schema_id = schema_id
             return decoder_func(payload)

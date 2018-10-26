@@ -124,6 +124,7 @@ class AvroConsumer(Consumer):
 
         super(AvroConsumer, self).__init__(ap_conf)
         self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
+        self.last_decode_schema_ids = (None, None)
 
     def poll(self, timeout=None):
         """
@@ -142,12 +143,16 @@ class AvroConsumer(Consumer):
 
         if not message.error():
             try:
+                last_value_schema_id = last_key_schema_id = None
                 if message.value() is not None:
                     decoded_value = self._serializer.decode_message(message.value(), is_key=False)
+                    last_value_schema_id = self._serializer.last_decode_schema_id
                     message.set_value(decoded_value)
                 if message.key() is not None:
                     decoded_key = self._serializer.decode_message(message.key(), is_key=True)
+                    last_key_schema_id = self._serializer.last_decode_schema_id
                     message.set_key(decoded_key)
+                self.last_decode_schema_ids = (last_key_schema_id, last_value_schema_id)
             except SerializerError as e:
                 raise SerializerError("Message deserialization failed for message at {} [{}] offset {}: {}".format(
                     message.topic(),
@@ -155,3 +160,13 @@ class AvroConsumer(Consumer):
                     message.offset(),
                     e))
         return message
+
+    def last_decode_schemas(self):
+        """
+        Get the (key and value) schemas used for last decoded message
+        :return: tuple with key and value Avro schemas (either can be None if no schema is used)
+        """
+        return tuple(
+            self._serializer.registry_client.get_by_id(sid) if sid else None
+            for sid in self.last_decode_schema_ids
+        )
