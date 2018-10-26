@@ -157,13 +157,13 @@ class MessageSerializer(object):
         if schema_id in self.id_to_decoder_func:
             return self.id_to_decoder_func[schema_id]
 
-        # fetch from schema reg
+        # fetch writer schema from schema reg
         try:
-            schema = self.registry_client.get_by_id(schema_id)
+            writer_schema_obj = self.registry_client.get_by_id(schema_id)
         except ClientError as e:
             raise SerializerError("unable to fetch schema with id %d: %s" % (schema_id, str(e)))
 
-        if schema is None:
+        if writer_schema_obj is None:
             raise SerializerError("unable to fetch schema with id %d" % (schema_id))
 
         curr_pos = payload.tell()
@@ -173,7 +173,7 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                writer_schema = schema.to_json()
+                writer_schema = writer_schema_obj.to_json()
                 reader_schema = reader_schema_obj.to_json()
                 schemaless_reader(payload, writer_schema)
 
@@ -199,7 +199,7 @@ class MessageSerializer(object):
         # https://github.com/apache/avro/blob/master/lang/py/src/avro/io.py#L423
         # def __init__(self, writers_schema=None, readers_schema=None)
         # def __init__(self, writer_schema=None, reader_schema=None)
-        avro_reader = avro.io.DatumReader(schema, reader_schema_obj)
+        avro_reader = avro.io.DatumReader(writer_schema_obj, reader_schema_obj)
 
         def decoder(p):
             bin_decoder = avro.io.BinaryDecoder(p)
