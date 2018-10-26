@@ -1,21 +1,21 @@
 matrix:
  include:
-  # Source package verification with Python 2.7 and librdkafka v0.11.6-RC3
+  # Source package verification with Python 2.7 and librdkafka v0.11.6
   - os: linux
     language: python
     dist: trusty
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
-  # Source package verification with Python 3.6 and librdkafka v0.11.6-RC3
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
+  # Source package verification with Python 3.6 and librdkafka v0.11.6
   - os: linux
     language: python
     dist: trusty
     python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
-  # Source package verification with Python 2.7 and librdkafka v0.11.6-RC3
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
+  # Source package verification with Python 2.7 and librdkafka v0.11.6
   - os: osx
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -23,10 +23,10 @@ matrix:
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
         - source env/bin/activate
-  # Source package verification with Python 3.6 and librdkafka v0.11.6-RC3
+  # Source package verification with Python 3.6 and librdkafka v0.11.6
   - os: osx
     python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6-RC3
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -36,7 +36,7 @@ matrix:
         - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.6-RC3 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.6 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
     before_install:
         - brew update && brew upgrade pyenv
         - pip install virtualenv
@@ -44,27 +44,30 @@ matrix:
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.6-RC3"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.6"
     language: python
     python: "2.7"
     services: docker
 
 install:
+ - tools/install-interceptors.sh
  - pip install -U pip && pip install virtualenv
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - if [[ $TRAVIS_OS_NAME == "osx" ]]; then rvm get stable; fi 
+ - if [[ $TRAVIS_OS_NAME == "osx" ]]; then rvm get stable; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel; fi
 
-
 script:
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -v --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] ; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
- - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse ; ls -la wheelhouse/ ; fi
+ # Make plugins available for tests
+ - ldd staging/libs/* || otool -L staging/libs/* || true
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
+ - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
-
+ - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-osx.sh; fi 
 
 deploy:
  provider: s3
