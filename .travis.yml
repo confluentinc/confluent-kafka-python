@@ -1,21 +1,21 @@
 matrix:
  include:
-  # Source package verification with Python 2.7 and librdkafka v0.11.6
+  # Source package verification with Python 2.7 and librdkafka v1.0.0-RC2
   - os: linux
     language: python
     dist: trusty
     python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
-  # Source package verification with Python 3.6 and librdkafka v0.11.6
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v1.0.0-RC2
+  # Source package verification with Python 3.6 and librdkafka v1.0.0-RC2
   - os: linux
     language: python
     dist: trusty
     python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
-  # Source package verification with Python 2.7 and librdkafka v0.11.6
+    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v1.0.0-RC2
+  # Source package verification with Python 2.7 and librdkafka v1.0.0-RC2
   - os: osx
     python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v1.0.0-RC2
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -23,10 +23,10 @@ matrix:
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
         - source env/bin/activate
-  # Source package verification with Python 3.6 and librdkafka v0.11.6
+  # Source package verification with Python 3.6 and librdkafka v1.0.0-RC2
   - os: osx
     python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v0.11.6
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" LIBRDKAFKA_VERSION=v1.0.0-RC2
     before_install:
         - pip install -U pip && pip install virtualenv
         - brew update && brew upgrade pyenv
@@ -36,7 +36,7 @@ matrix:
         - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.6 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v1.0.0-RC2 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
     before_install:
         - brew update && brew upgrade pyenv
         - pip install virtualenv
@@ -44,7 +44,7 @@ matrix:
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v0.11.6"
+    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh v1.0.0-RC2"
     language: python
     python: "2.7"
     services: docker
