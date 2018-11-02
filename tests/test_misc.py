@@ -7,6 +7,7 @@ import json
 import pytest
 import os
 import time
+import sys
 
 
 def test_version():
@@ -141,6 +142,8 @@ def skip_interceptors():
     return True
 
 
+@pytest.mark.xfail(sys.platform in ('linux2', 'linux'),
+                   reason="confluent-librdkafka-plugins packaging issues")
 @pytest.mark.skipif(skip_interceptors(),
                     reason="requires confluent-librdkafka-plugins be installed and copied to the current directory")
 @pytest.mark.parametrize("init_func", [
