@@ -79,6 +79,20 @@ Commit these changes with a commit-message containing the version:
 
 ## 3. Create a tag
 
+### 3.1 Create a test tag
+
+Packaging is fragile and is only triggered when a tag is pushed. To avoid
+finding out about packaging problems on the RC tag, it is strongly recommended
+to first push a test tag to trigger the packaging builds. This tag should
+be removed after the build passes.
+
+    $ git tag v0.11.4rc1-test1
+
+Follow the steps in step 4 to push the test tag. When the build is successful,
+remove the tag and follow the steps in 3.2 to create a proper tag.
+
+### 3.2 Create proper tag
+
 The tag should be created right after the commit and be named the same as
 the version.
 
