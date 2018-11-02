@@ -2,18 +2,10 @@
 #
 #
 
-# The binary wheels contain librdkafka, but has its library name
-# mangled to librdkafka-<random>.so.1 to avoid collission with
-# system installed libraries.
-# This causes problems for plugin libraries since they will not be able
-# to load symbols from the same library as the client runs, which either
-# causes a link failure (if librdkafka is not installed) or
-# linking to another librdkafka library (if librdkafka is installed) which
-# most likely is not internally binary compatible with the wheel librdkafka.
 #
-# The solution is to unpack each wheel and rename the mangled librdkafka
-# back to librdkafka.so.1 and change the reference in cimpl.so.
-#
+# Modify libraries included in the wheel to find the wheel-included
+# librdkafka, including plugins such as the monitoring-interceptor.
+
 
 set -e
 
@@ -36,12 +28,7 @@ mkdir -p $fixed_wheelhouse
 
 fixup_wheel_linux () {
 
-    pushd confluent_kafka
-
-    pushd .libs
-
-    echo "Copying additional libs and plugins"
-    cp -v $stagedir/libs/* .
+    pushd confluent_kafka/.libs
 
     # Find mangled librdkafka name
     local mangled=$(echo librdkafka-*.so.1)
@@ -50,18 +37,34 @@ fixup_wheel_linux () {
         ls -la
         exit 1
     fi
-    echo "Patching $PWD/$mangled with current soname: "
-    patchelf --print-soname $mangled
-    patchelf --set-soname librdkafka.so.1 $mangled
-    mv $mangled librdkafka.so.1
 
-    popd # .libs
+    echo "Copying additional libs and plugins"
+    for extlib in $stagedir/libs/*.so ; do
+        echo "Fixing $extlib"
 
-    patchelf --replace-needed $mangled librdkafka.so.1 cimpl*.so
-    echo "Needed libraries now:"
-    patchelf --print-needed cimpl*.so
+        # Copy file to wheel's libdir
+        local lib=$(basename $extlib)
+        cp -v "$extlib" "$lib"
 
-    popd # confluent_kafka
+        # Change the name to be local
+        patchelf --print-soname $lib
+        patchelf --set-soname $lib $lib
+
+        local curr_lrk=$(ldd $lib | grep librdkafka.so | awk '{print $1}')
+        if [[ -n $curr_lrk ]]; then
+            # Change the librdkafka reference to load from the same
+            # directory as the plugin
+            patchelf --replace-needed "$curr_lrk" "$mangled" $lib
+        elif [[ $lib == monitoring-interceptor* ]]; then
+            # Some versions of the monitoring interceptor is not
+            # properly linked to librdkafka (CP 5.0.1), fix it.
+            patchelf --add-needed "$mangled" $lib
+        fi
+        echo "$lib dependencies:"
+        ldd $lib
+    done
+
+    popd # confluent_kafka/.libs
 }
 
 
