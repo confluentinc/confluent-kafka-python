@@ -114,7 +114,7 @@ def example_describe_configs(a, args):
 
         except KafkaException as e:
             print("Failed to describe {}: {}".format(res, e))
-        except Exception as e:
+        except Exception:
             raise
 
 

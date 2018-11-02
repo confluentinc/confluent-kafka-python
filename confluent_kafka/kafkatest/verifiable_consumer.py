@@ -29,7 +29,7 @@ class VerifiableConsumer(VerifiableClient):
     """
     def __init__(self, conf):
         """
-        \p conf is a config dict passed to confluent_kafka.Consumer()
+        conf is a config dict passed to confluent_kafka.Consumer()
         """
         super(VerifiableConsumer, self).__init__(conf)
         self.conf['on_commit'] = self.on_commit
@@ -44,7 +44,7 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = dict()
 
     def find_assignment(self, topic, partition):
-        """ Find and return existing assignment based on \p topic and \p partition,
+        """ Find and return existing assignment based on topic and partition,
         or None on miss. """
         skey = '%s %d' % (topic, partition)
         return self.assignment_dict.get(skey)
@@ -74,7 +74,7 @@ class VerifiableConsumer(VerifiableClient):
         self.consumed_msgs_last_reported = self.consumed_msgs
 
     def send_assignment(self, evtype, partitions):
-        """ Send assignment update, \p evtype is either 'assigned' or 'revoked' """
+        """ Send assignment update, evtype is either 'assigned' or 'revoked' """
         d = {'name': 'partitions_' + evtype,
              'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
         self.send(d)
