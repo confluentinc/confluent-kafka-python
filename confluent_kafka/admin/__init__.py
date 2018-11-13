@@ -556,7 +556,7 @@ class PartitionMetadata (object):
               of a broker id in the brokers dict.
     """
     def __init__(self):
-        self.partition = -1
+        self.id = -1
         self.leader = -1
         self.replicas = []
         self.isrs = []
@@ -564,9 +564,9 @@ class PartitionMetadata (object):
 
     def __repr__(self):
         if self.error is not None:
-            return "PartitionMetadata({}, {})".format(self.partition, self.error)
+            return "PartitionMetadata({}, {})".format(self.id, self.error)
         else:
-            return "PartitionMetadata({})".format(self.partition)
+            return "PartitionMetadata({})".format(self.id)
 
     def __str__(self):
-        return "{}".format(self.partition)
+        return "{}".format(self.id)
