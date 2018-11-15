@@ -1201,8 +1201,8 @@ def verify_admin():
     print("Topic {} marked for deletion".format(our_topic))
 
 
-def verify_explicit_read():
-    """ verify that the explicit reading schema works"""
+def verify_avro_explicit_read_schema():
+    """ verify that reading Avro with explicit reader schema works"""
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'tests', 'avro')
 
@@ -1309,7 +1309,7 @@ def verify_explicit_read():
     pass
 
 
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'explicit-read']
+default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
 all_modes = default_modes + ['throttle', 'avro-https', 'none']
 
 """All test modes"""
@@ -1422,6 +1422,9 @@ if __name__ == '__main__':
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
 
+        print('=' * 30, 'Verifying AVRO with explicit reader schema', '=' * 30)
+        verify_avro_explicit_read_schema()
+
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https()
@@ -1429,10 +1432,6 @@ if __name__ == '__main__':
     if 'admin' in modes:
         print('=' * 30, 'Verifying Admin API', '=' * 30)
         verify_admin()
-
-    if 'explicit-read' in modes:
-        print('=' * 30, 'Verifying Explicit Reading Schema', '=' * 30)
-        verify_explicit_read()
 
     print('=' * 30, 'Done', '=' * 30)
 
