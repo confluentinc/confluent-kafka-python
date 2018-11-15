@@ -328,7 +328,6 @@ def verify_avro():
     for i, combo in enumerate(combinations):
         combo['topic'] = str(uuid.uuid4())
         p.produce(**combo)
-        p.poll(0)
         p.flush()
 
         # Create consumer
