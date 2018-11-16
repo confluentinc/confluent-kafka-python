@@ -98,9 +98,11 @@ class AvroConsumer(Consumer):
     Constructor takes below parameters
 
     :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
-                        and the standard Kafka client configuration (``bootstrap.servers`` et.al).
+                        and the standard Kafka client configuration (``bootstrap.servers`` et.al)
+    :param optional a reader schema for the message key
+    :param optional a reader schema for the message value
     """
-    def __init__(self, config, schema_registry=None):
+    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
 
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
@@ -119,7 +121,7 @@ class AvroConsumer(Consumer):
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
         super(AvroConsumer, self).__init__(config)
-        self._serializer = MessageSerializer(schema_registry)
+        self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
 
     def poll(self, timeout=None):
         """
@@ -139,9 +141,9 @@ class AvroConsumer(Consumer):
             return message
         if not message.error():
             if message.value() is not None:
-                decoded_value = self._serializer.decode_message(message.value())
+                decoded_value = self._serializer.decode_message(message.value(), is_key=False)
                 message.set_value(decoded_value)
             if message.key() is not None:
-                decoded_key = self._serializer.decode_message(message.key())
+                decoded_key = self._serializer.decode_message(message.key(), is_key=True)
                 message.set_key(decoded_key)
         return message

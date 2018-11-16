@@ -68,10 +68,12 @@ class MessageSerializer(object):
     All decode_* methods expect a buffer received from kafka.
     """
 
-    def __init__(self, registry_client):
+    def __init__(self, registry_client, reader_key_schema=None, reader_value_schema=None):
         self.registry_client = registry_client
         self.id_to_decoder_func = {}
         self.id_to_writers = {}
+        self.reader_key_schema = reader_key_schema
+        self.reader_value_schema = reader_value_schema
 
     '''
 
@@ -151,25 +153,29 @@ class MessageSerializer(object):
             return outf.getvalue()
 
     # Decoder support
-    def _get_decoder_func(self, schema_id, payload):
+    def _get_decoder_func(self, schema_id, payload, is_key=False):
         if schema_id in self.id_to_decoder_func:
             return self.id_to_decoder_func[schema_id]
 
-        # fetch from schema reg
+        # fetch writer schema from schema reg
         try:
-            schema = self.registry_client.get_by_id(schema_id)
+            writer_schema_obj = self.registry_client.get_by_id(schema_id)
         except ClientError as e:
             raise SerializerError("unable to fetch schema with id %d: %s" % (schema_id, str(e)))
 
-        if schema is None:
+        if writer_schema_obj is None:
             raise SerializerError("unable to fetch schema with id %d" % (schema_id))
 
         curr_pos = payload.tell()
+
+        reader_schema_obj = self.reader_key_schema if is_key else self.reader_value_schema
+
         if HAS_FAST:
             # try to use fast avro
             try:
-                schema_dict = schema.to_json()
-                schemaless_reader(payload, schema_dict)
+                writer_schema = writer_schema_obj.to_json()
+                reader_schema = reader_schema_obj.to_json()
+                schemaless_reader(payload, writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines
@@ -177,7 +183,8 @@ class MessageSerializer(object):
                 # normal path.
                 payload.seek(curr_pos)
 
-                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(p, schema_dict)
+                self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(
+                    p, writer_schema, reader_schema)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
                 # Fast avro failed, fall thru to standard avro below.
@@ -186,7 +193,13 @@ class MessageSerializer(object):
         # here means we should just delegate to slow avro
         # rewind
         payload.seek(curr_pos)
-        avro_reader = avro.io.DatumReader(schema)
+        # Avro DatumReader py2/py3 inconsistency, hence no param keywords
+        # should be revisited later
+        # https://github.com/apache/avro/blob/master/lang/py3/avro/io.py#L459
+        # https://github.com/apache/avro/blob/master/lang/py/src/avro/io.py#L423
+        # def __init__(self, writers_schema=None, readers_schema=None)
+        # def __init__(self, writer_schema=None, reader_schema=None)
+        avro_reader = avro.io.DatumReader(writer_schema_obj, reader_schema_obj)
 
         def decoder(p):
             bin_decoder = avro.io.BinaryDecoder(p)
@@ -195,7 +208,7 @@ class MessageSerializer(object):
         self.id_to_decoder_func[schema_id] = decoder
         return self.id_to_decoder_func[schema_id]
 
-    def decode_message(self, message):
+    def decode_message(self, message, is_key=False):
         """
         Decode a message from kafka that has been encoded for use with
         the schema registry.
@@ -212,5 +225,5 @@ class MessageSerializer(object):
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
-            decoder_func = self._get_decoder_func(schema_id, payload)
+            decoder_func = self._get_decoder_func(schema_id, payload, is_key)
             return decoder_func(payload)
