@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.0.0-RC2
+  - LIBRDKAFKA_VERSION=v1.0.0-RC3
 matrix:
  include:
   # Source package verification with Python 2.7
