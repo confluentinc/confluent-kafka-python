@@ -43,7 +43,7 @@ fi
 
 make -j
 
-if [[ $INSTALLDIR == /usr ]]; then
+if [[ $INSTALLDIR == /usr && $(whoami) != root ]]; then
     sudo make install
 else
     make install
