@@ -39,7 +39,7 @@ MAGIC_BYTE = 0
 
 HAS_FAST = False
 try:
-    from fastavro import schemaless_reader
+    from fastavro import schemaless_reader, schemaless_writer
 
     HAS_FAST = True
 except ImportError:
@@ -75,9 +75,13 @@ class MessageSerializer(object):
         self.reader_key_schema = reader_key_schema
         self.reader_value_schema = reader_value_schema
 
-    '''
-
-    '''
+    # Encoder support
+    def _get_encoder_func(self, writer_schema):
+        if HAS_FAST:
+            schema = writer_schema.to_json()
+            return lambda record, fp: schemaless_writer(fp, schema, record)
+        writer = avro.io.DatumWriter(writer_schema)
+        return lambda record, fp: writer.write(record, avro.io.BinaryEncoder(fp))
 
     def encode_record_with_schema(self, topic, schema, record, is_key=False):
         """
@@ -103,7 +107,7 @@ class MessageSerializer(object):
             raise serialize_err(message)
 
         # cache writer
-        self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
+        self.id_to_writers[schema_id] = self._get_encoder_func(schema)
 
         return self.encode_record_with_schema_id(schema_id, record, is_key=is_key)
 
@@ -126,7 +130,7 @@ class MessageSerializer(object):
                 schema = self.registry_client.get_by_id(schema_id)
                 if not schema:
                     raise serialize_err("Schema does not exist")
-                self.id_to_writers[schema_id] = avro.io.DatumWriter(schema)
+                self.id_to_writers[schema_id] = self._get_encoder_func(schema)
             except ClientError:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
                 raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
@@ -136,19 +140,14 @@ class MessageSerializer(object):
         with ContextStringIO() as outf:
             # write the header
             # magic byte
-
             outf.write(struct.pack('b', MAGIC_BYTE))
 
             # write the schema ID in network byte order (big end)
-
             outf.write(struct.pack('>I', schema_id))
 
-            # write the record to the rest of it
+            # write the record to the rest of the buffer
             # Create an encoder that we'll write to
-            encoder = avro.io.BinaryEncoder(outf)
-            # write the magic byte
-            # write the object in 'obj' as Avro to the fake file...
-            writer.write(record, encoder)
+            writer(record, outf)
 
             return outf.getvalue()
 
