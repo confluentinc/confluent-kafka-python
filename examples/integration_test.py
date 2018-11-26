@@ -1210,7 +1210,8 @@ def verify_avro_explicit_read_schema():
     conf = {'bootstrap.servers': bootstrap_servers,
             'error_cb': error_cb,
             'api.version.request': api_version_request,
-            'default.topic.config': {'produce.offset.report': True}}
+            'produce.offset.report': True
+            }
 
     # Create producer
     if schema_registry_url:
@@ -1247,9 +1248,8 @@ def verify_avro_explicit_read_schema():
                  'api.version.request': api_version_request,
                  'on_commit': print_commit_result,
                  'error_cb': error_cb,
-                 'default.topic.config': {
-                     'auto.offset.reset': 'earliest'
-                 }}
+                 'auto.offset.reset': 'earliest'
+                 }
 
     for i, combo in enumerate(combinations):
         reader_key_schema = combo.pop("reader_key_schema")
