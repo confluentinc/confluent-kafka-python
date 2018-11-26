@@ -43,7 +43,7 @@ class TestAvroProducer(unittest.TestCase):
         self.assertTrue(isinstance(obj, AvroProducer))
         self.assertNotEqual(obj, None)
 
-    def test_produce_no_key(self):
+    def test_produce_bad_registry(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema)
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
@@ -51,8 +51,7 @@ class TestAvroProducer(unittest.TestCase):
 
     def test_produce_no_value(self):
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', key={"name": 'abc"'})
+        producer.produce(topic='test', key=str({"name": 'abc"'}))
 
     def test_produce_no_value_schema(self):
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
@@ -62,28 +61,20 @@ class TestAvroProducer(unittest.TestCase):
 
     def test_produce_no_key_schema(self):
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(KeySerializerError):
-            # If the key is provided as a dict an avro schema must also be provided
-            producer.produce(topic='test', key={"name": 'abc"'})
+        producer.produce(topic='test', key=str({"name": 'abc"'}))
 
     def test_produce_value_and_key_schemas(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema,
                                 )
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
+            producer.produce(topic='test', value={"name": 'abc"'}, key=str({"name": 'abc"'}))
 
     def test_produce_primitive_string_key(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
             producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey')
-
-    def test_produce_primitive_key_and_value(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey')
 
     def test_produce_with_custom_registry(self):
         schema_registry = MockSchemaRegistryClient()
@@ -102,17 +93,9 @@ class TestAvroProducer(unittest.TestCase):
         with self.assertRaises(ValueSerializerError):
             producer.produce(topic='test', value='', key='not empty')
 
-    def test_produce_with_empty_key_no_schema(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        schema_registry = MockSchemaRegistryClient()
-        producer = AvroProducer({}, schema_registry=schema_registry,
-                                default_value_schema=value_schema)
-        with self.assertRaises(KeySerializerError):
-            producer.produce(topic='test', value=0.0, key='')
-
     def test_produce_with_empty_key_value_with_schema(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
+        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         schema_registry = MockSchemaRegistryClient()
         producer = AvroProducer({}, schema_registry=schema_registry,
                                 default_value_schema=value_schema)
-        producer.produce(topic='test', value=0.0, key='')
+        producer.produce(topic='test', value={'name': 'abc'}, key='')
