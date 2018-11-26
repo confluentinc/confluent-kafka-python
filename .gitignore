@@ -21,3 +21,4 @@ dl-*
 *.whl
 .pytest_cache
 staging
+env

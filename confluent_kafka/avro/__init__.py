@@ -22,12 +22,10 @@ class AvroProducer(Producer):
 
         :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
                             and the standard Kafka client configuration (``bootstrap.servers`` et.al).
-        :param str default_key_schema: Optional default avro schema for key
         :param str default_value_schema: Optional default avro schema for value
     """
 
-    def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None):
+    def __init__(self, config, default_value_schema=None, schema_registry=None):
 
         schema_registry_url = config.pop("schema.registry.url", None)
         schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
@@ -47,7 +45,6 @@ class AvroProducer(Producer):
 
         super(AvroProducer, self).__init__(config)
         self._serializer = MessageSerializer(schema_registry)
-        self._key_schema = default_key_schema
         self._value_schema = default_value_schema
 
     def produce(self, **kwargs):
@@ -67,27 +64,19 @@ class AvroProducer(Producer):
             :raises KafkaException: For other produce failures.
         """
         # get schemas from  kwargs if defined
-        key_schema = kwargs.pop('key_schema', self._key_schema)
         value_schema = kwargs.pop('value_schema', self._value_schema)
         topic = kwargs.pop('topic', None)
         if not topic:
             raise ClientError("Topic name not specified.")
         value = kwargs.pop('value', None)
-        key = kwargs.pop('key', None)
 
         if value is not None:
             if value_schema:
-                value = self._serializer.encode_record_with_schema(topic, value_schema, value)
+                value = self._serializer.encode_record_with_schema(value_schema, value)
             else:
                 raise ValueSerializerError("Avro schema required for values")
 
-        if key is not None:
-            if key_schema:
-                key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
-            else:
-                raise KeySerializerError("Avro schema required for key")
-
-        super(AvroProducer, self).produce(topic, value, key, **kwargs)
+        super(AvroProducer, self).produce(topic, value, **kwargs)
 
 
 class AvroConsumer(Consumer):

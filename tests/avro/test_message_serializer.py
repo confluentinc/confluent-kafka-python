@@ -72,7 +72,7 @@ class TestMessageSerializer(unittest.TestCase):
         schema_id = self.client.register(subject, basic)
         records = data_gen.BASIC_ITEMS
         for record in records:
-            message = self.ms.encode_record_with_schema(topic, basic, record)
+            message = self.ms.encode_record_with_schema(basic, record)
             self.assertMessageIsSame(message, record, schema_id)
 
     def test_decode_none(self):

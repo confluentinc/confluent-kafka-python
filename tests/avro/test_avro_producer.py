@@ -70,7 +70,7 @@ class TestAvroProducer(unittest.TestCase):
     def test_produce_value_and_key_schemas(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema,
-                                default_key_schema=value_schema)
+                                )
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
             producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
 
@@ -121,6 +121,5 @@ class TestAvroProducer(unittest.TestCase):
         value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
         schema_registry = MockSchemaRegistryClient()
         producer = AvroProducer({}, schema_registry=schema_registry,
-                                default_key_schema=key_schema,
                                 default_value_schema=value_schema)
         producer.produce(topic='test', value=0.0, key='')

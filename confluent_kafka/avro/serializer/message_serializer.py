@@ -79,13 +79,12 @@ class MessageSerializer(object):
 
     '''
 
-    def encode_record_with_schema(self, topic, schema, record, is_key=False):
+    def encode_record_with_schema(self, schema, record, is_key=False):
         """
-        Given a parsed avro schema, encode a record for the given topic.  The
+        Given a parsed avro schema, encode a record.  The
         record is expected to be a dictionary.
 
-        The schema is registered with the subject of 'topic-value'
-        @:param topic : Topic name
+        The schema is registered with the subject of 'namespace.name'
         @:param schema : Avro Schema
         @:param record : An object to serialize
         @:param is_key : If the record is a key
@@ -93,9 +92,8 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        subject_suffix = ('-key' if is_key else '-value')
-        # get the latest schema for the subject
-        subject = topic + subject_suffix
+        subject = schema.namespace + '.' + schema.name
+
         # register it
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:
