@@ -10,7 +10,7 @@ INSTALL_REQUIRES = list()
 
 if sys.version_info[0] < 3:
     avro = 'avro'
-    INSTALL_REQUIRES.extend(['futures', 'enum34'])
+    INSTALL_REQUIRES.extend(['futures', 'enum34', 'requests'])
 else:
     avro = 'avro-python3'
 
