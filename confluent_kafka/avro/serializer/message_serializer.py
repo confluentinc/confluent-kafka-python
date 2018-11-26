@@ -140,13 +140,9 @@ class MessageSerializer(object):
         with ContextStringIO() as outf:
             # write the header
             # magic byte
-            outf.write(struct.pack('b', MAGIC_BYTE))
-
-            # write the schema ID in network byte order (big end)
-            outf.write(struct.pack('>I', schema_id))
+            outf.write(struct.pack('>bI', MAGIC_BYTE, schema_id))
 
             # write the record to the rest of the buffer
-            # Create an encoder that we'll write to
             writer(record, outf)
 
             return outf.getvalue()
