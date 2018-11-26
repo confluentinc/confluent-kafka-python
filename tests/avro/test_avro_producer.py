@@ -50,8 +50,7 @@ class TestAvroProducer(unittest.TestCase):
             producer.produce(topic='test', value={"name": 'abc"'})
 
     def test_produce_no_value(self):
-        key_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_key_schema=key_schema)
+        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
             producer.produce(topic='test', key={"name": 'abc"'})
 
@@ -76,26 +75,21 @@ class TestAvroProducer(unittest.TestCase):
 
     def test_produce_primitive_string_key(self):
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
-                             key_schema=key_schema)
+            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey')
 
     def test_produce_primitive_key_and_value(self):
         value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
         with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey', key_schema=key_schema)
+            producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey')
 
     def test_produce_with_custom_registry(self):
         schema_registry = MockSchemaRegistryClient()
         value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         producer = AvroProducer({}, schema_registry=schema_registry)
-        producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
-                         key_schema=key_schema)
+        producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey')
 
     def test_produce_with_custom_registry_and_registry_url(self):
         schema_registry = MockSchemaRegistryClient()
@@ -117,7 +111,6 @@ class TestAvroProducer(unittest.TestCase):
             producer.produce(topic='test', value=0.0, key='')
 
     def test_produce_with_empty_key_value_with_schema(self):
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
         value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
         schema_registry = MockSchemaRegistryClient()
         producer = AvroProducer({}, schema_registry=schema_registry,

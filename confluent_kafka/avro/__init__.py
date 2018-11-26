@@ -55,7 +55,6 @@ class AvroProducer(Producer):
             :param object value: An object to serialize
             :param str value_schema: Avro schema for value
             :param object key: An object to serialize
-            :param str key_schema: Avro schema for key
 
             Plus any other parameters accepted by confluent_kafka.Producer.produce
 
