@@ -148,3 +148,34 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
                 schema_id = c.register('test', parsed)
                 self.assertTrue(schema_id > 0)
                 self.assertEqual(len(c.id_to_schema), 1)
+
+    def test_init_with_dict(self):
+        self.client = CachedSchemaRegistryClient({
+            'url': 'https://127.0.0.1:65534',
+            'ssl.certificate.location': '/path/to/cert',
+            'ssl.key.location': '/path/to/key'
+        })
+        self.assertEqual('https://127.0.0.1:65534', self.client.url)
+
+    def test_empty_url(self):
+        with self.assertRaises(ValueError):
+            self.client = CachedSchemaRegistryClient({
+                'url': ''
+            })
+
+    def test_invalid_type_url(self):
+        with self.assertRaises(TypeError):
+            self.client = CachedSchemaRegistryClient(
+                url=1)
+
+    def test_invalid_type_url_dict(self):
+        with self.assertRaises(TypeError):
+            self.client = CachedSchemaRegistryClient({
+                "url": 1
+                })
+
+    def test_invalid_url(self):
+        with self.assertRaises(ValueError):
+            self.client = CachedSchemaRegistryClient({
+                'url': 'example.com:65534'
+            })
