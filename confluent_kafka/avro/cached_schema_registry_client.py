@@ -104,6 +104,7 @@ class CachedSchemaRegistryClient(object):
         s = Session()
         s.verify = conf.pop('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
+        s.auth = self._configure_basic_auth(conf)
         self.url = conf.pop('url')
 
         self._session = s
@@ -122,6 +123,24 @@ class CachedSchemaRegistryClient(object):
 
     def close(self):
         self._session.close()
+
+    @staticmethod
+    def _configure_basic_auth(conf):
+        url = conf['url']
+        auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
+        if auth_provider not in VALID_AUTH_PROVIDERS:
+            raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
+                             .format(VALID_AUTH_PROVIDERS))
+        if auth_provider == 'SASL_INHERIT':
+            if conf.pop('sasl.mechanism', '').upper() is ['GSSAPI']:
+                raise ValueError("SASL_INHERIT does not support SASL mechanisms GSSAPI")
+            auth = (conf.pop('sasl.username', ''), conf.pop('sasl.password', ''))
+        elif auth_provider == 'USER_INFO':
+            auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
+        else:
+            auth = utils.get_auth_from_url(url)
+        conf['url'] = utils.urldefragauth(url)
+        return auth
 
     @staticmethod
     def _configure_client_tls(conf):
