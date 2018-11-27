@@ -93,7 +93,6 @@ class CachedSchemaRegistryClient(object):
 
         self.url = url.rstrip('/')
 
-        self.max_schemas_per_subject = max_schemas_per_subject
         # subj => { schema => id }
         self.subject_to_schema_ids = defaultdict(dict)
         # id => avro_schema
@@ -105,6 +104,7 @@ class CachedSchemaRegistryClient(object):
         s.verify = conf.pop('ssl.ca.location', None)
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(conf)
+
         self.url = conf.pop('url')
 
         self._session = s
@@ -239,7 +239,7 @@ class CachedSchemaRegistryClient(object):
 
         result, code = self._send_request(url, method="DELETE")
         if not (code >= 200 and code <= 299):
-            raise ClientError('Unable to delete subject: %d' % result)
+            raise ClientError('Unable to delete subject: {}'.format(result))
         return result
 
     def get_by_id(self, schema_id):
