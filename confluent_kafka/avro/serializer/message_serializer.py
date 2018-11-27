@@ -85,11 +85,12 @@ class MessageSerializer(object):
         record is expected to be a dictionary.
 
         The schema is registered with the subject of 'topic-value'
-        @:param topic : Topic name
-        @:param schema : Avro Schema
-        @:param record : An object to serialize
-        @:param is_key : If the record is a key
-        @:returns : Encoded record with schema ID as bytes
+        :param str topic: Topic name
+        :param schema schema: Avro Schema
+        :param dict record: An object to serialize
+        :param bool is_key: If the record is a key
+        :returns: Encoded record with schema ID as bytes
+        :rtype: bytes
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
@@ -111,10 +112,11 @@ class MessageSerializer(object):
         """
         Encode a record with a given schema id.  The record must
         be a python dictionary.
-        @:param: schema_id : integer ID
-        @:param: record : An object to serialize
-        @:param is_key : If the record is a key
-        @:returns: decoder function
+        :param int schema_id: integer ID
+        :param dict record: An object to serialize
+        :param bool is_key: If the record is a key
+        :returns: decoder function
+        :rtype: func
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
@@ -212,7 +214,9 @@ class MessageSerializer(object):
         """
         Decode a message from kafka that has been encoded for use with
         the schema registry.
-        @:param: message
+        :param str|bytes or None message: message key or value to be decoded 
+        :returns: Decoded message contents.
+        :rtype dict:
         """
 
         if message is None:

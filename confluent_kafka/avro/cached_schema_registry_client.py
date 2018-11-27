@@ -57,10 +57,10 @@ class CachedSchemaRegistryClient(object):
 
     Errors communicating to the server will result in a ClientError being raised.
 
-    :param: str|dict url: url(deprecated) to schema registry or dictionary containing client configuration.
-    :param: str ca_location: File or directory path to CA certificate(s) for verifying the Schema Registry key.
-    :param: str cert_location: Path to client's public key used for authentication.
-    :param: str key_location: Path to client's private key used for authentication.
+    :param str|dict url: url(deprecated) to schema registry or dictionary containing client configuration.
+    :param str ca_location: File or directory path to CA certificate(s) for verifying the Schema Registry key.
+    :param str cert_location: Path to client's public key used for authentication.
+    :param str key_location: Path to client's private key used for authentication.
     """
 
     def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
@@ -197,9 +197,10 @@ class CachedSchemaRegistryClient(object):
 
         Multiple instances of the same schema will result in cache misses.
 
-        @:param: subject: subject name
-        @:param: avro_schema: Avro schema to be registered
-        @:returns: schema_id: int value
+        :param str subject: subject name
+        :param schema avro_schema: Avro schema to be registered
+        :returns: schema_id
+        :rtype: int
         """
 
         schemas_to_id = self.subject_to_schema_ids[subject]
@@ -231,8 +232,9 @@ class CachedSchemaRegistryClient(object):
         DELETE /subjects/(string: subject)
         Deletes the specified subject and its associated compatibility level if registered.
         It is recommended to use this API only when a topic needs to be recycled or in development environments.
-        @:param: subject: subject name
-        @:returns: version (int) - version of the schema deleted under this subject
+        :param subject: subject name
+        :returns: version of the schema deleted under this subject
+        :rtype: (int)
         """
 
         url = '/'.join([self.url, 'subjects', subject])
@@ -246,8 +248,9 @@ class CachedSchemaRegistryClient(object):
         """
         GET /schemas/ids/{int: id}
         Retrieve a parsed avro schema by id or None if not found
-        @:param: schema_id: int value
-        @:returns: Avro schema
+        :param int schema_id: int value
+        :returns: Avro schema
+        :rtype: schema
         """
         if schema_id in self.id_to_schema:
             return self.id_to_schema[schema_id]
@@ -284,8 +287,9 @@ class CachedSchemaRegistryClient(object):
         This call always contacts the registry.
 
         If the subject is not found, (None,None,None) is returned.
-        @:param: subject: subject name
-        @:returns: (schema_id, schema, version)
+        :param str subject: subject name
+        :returns: (schema_id, schema, version)
+        :rtype: (string, schema, int)
         """
         url = '/'.join([self.url, 'subjects', subject, 'versions', 'latest'])
 
@@ -319,9 +323,10 @@ class CachedSchemaRegistryClient(object):
         Get the version of a schema for a given subject.
 
         Returns None if not found.
-        @:param: subject: subject name
-        @:param: avro_schema: Avro schema
-        @:returns: version
+        :param str subject: subject name
+        :param: schema avro_schema: Avro schema
+        :returns: version
+        :rtype: int
         """
         schemas_to_version = self.subject_to_schema_versions[subject]
         version = schemas_to_version.get(avro_schema, None)
@@ -350,9 +355,10 @@ class CachedSchemaRegistryClient(object):
         Test the compatibility of a candidate parsed schema for a given subject.
 
         By default the latest version is checked against.
-        @:param: subject: subject name
-        @:param: avro_schema: Avro schema
-        @:return: True if compatible, False if not compatible
+        :param: str subject: subject name
+        :param: schema avro_schema: Avro schema
+        :return: True if compatible, False if not compatible
+        :rtype: bool
         """
         url = '/'.join([self.url, 'compatibility', 'subjects', subject,
                         'versions', str(version)])
@@ -380,7 +386,7 @@ class CachedSchemaRegistryClient(object):
 
         Update the compatibility level for a subject.  Level must be one of:
 
-        @:param: level: ex: 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :param str level: ex: 'NONE','FULL','FORWARD', or 'BACKWARD'
         """
         if level not in VALID_LEVELS:
             raise ClientError("Invalid level specified: %s" % (str(level)))
@@ -401,9 +407,10 @@ class CachedSchemaRegistryClient(object):
         GET /config
         Get the current compatibility level for a subject.  Result will be one of:
 
-        @:param: subject: subject name
-        @:raises: ClientError: if the request was unsuccessful or an invalid compatibility level was returned
-        @:return: 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :param str subject: subject name
+        :raises ClientError: if the request was unsuccessful or an invalid compatibility level was returned
+        :returns: one of 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :rtype: bool
         """
         url = '/'.join([self.url, 'config'])
         if subject:

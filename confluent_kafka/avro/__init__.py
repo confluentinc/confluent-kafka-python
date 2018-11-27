@@ -99,8 +99,9 @@ class AvroConsumer(Consumer):
 
     :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
                         and the standard Kafka client configuration (``bootstrap.servers`` et.al)
-    :param optional a reader schema for the message key
-    :param optional a reader schema for the message value
+    :param schema reader_key_schema: a reader schema for the message key
+    :param schema reader_value_schema: a reader schema for the message value
+    :raises ValueError: For invalid configurations
     """
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
 
