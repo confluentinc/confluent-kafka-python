@@ -407,14 +407,14 @@ class CachedSchemaRegistryClient(object):
         """
         url = '/'.join([self.url, 'config'])
         if subject:
-            url += '/' + subject
+            url = '/'.join([url, subject])
 
         result, code = self._send_request(url)
         is_successful_request = code >= 200 and code <= 299
         if not is_successful_request:
             raise ClientError('Unable to fetch compatibility level. Error code: %d' % code)
 
-        compatibility = result.get('compatibility', None)
+        compatibility = result.get('compatibilityLevel', None)
         if compatibility not in VALID_LEVELS:
             if compatibility is None:
                 error_msg_suffix = 'No compatibility was returned'
