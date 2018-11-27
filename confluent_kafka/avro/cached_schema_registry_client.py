@@ -226,6 +226,22 @@ class CachedSchemaRegistryClient(object):
         self._cache_schema(avro_schema, schema_id, subject)
         return schema_id
 
+    def delete_subject(self, subject):
+        """
+        DELETE /subjects/(string: subject)
+        Deletes the specified subject and its associated compatibility level if registered.
+        It is recommended to use this API only when a topic needs to be recycled or in development environments.
+        @:param: subject: subject name
+        @:returns: version (int) - version of the schema deleted under this subject
+        """
+
+        url = '/'.join([self.url, 'subjects', subject])
+
+        result, code = self._send_request(url, method="DELETE")
+        if not (code >= 200 and code <= 299):
+            raise ClientError('Unable to delete subject: %d' % result)
+        return result
+
     def get_by_id(self, schema_id):
         """
         GET /schemas/ids/{int: id}
