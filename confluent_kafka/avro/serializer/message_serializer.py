@@ -138,9 +138,7 @@ class MessageSerializer(object):
         # get the writer
         writer = self.id_to_writers[schema_id]
         with ContextStringIO() as outf:
-            # write the header
-            # magic byte
-            # write the schema ID in network byte order (big end)
+            # Write the magic byte and schema ID in network byte order (big end)
             outf.write(struct.pack('>bI', MAGIC_BYTE, schema_id))
 
             # write the record to the rest of the buffer
