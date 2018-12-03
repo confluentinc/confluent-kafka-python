@@ -19,7 +19,7 @@
 # Example Admin clients.
 #
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigEntry
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -89,11 +89,10 @@ def example_create_partitions(a, topics):
 
 def print_config(config, depth):
     print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s]' %
-          ((' ' * depth) + config.name, config.value,
-           ConfigEntry.config_source_to_str(config.source),
+          ((' ' * depth) + config.name, config.value, ConfigSource(config.source),
            config.is_read_only, config.is_default,
            config.is_sensitive, config.is_synonym,
-           ["%s:%s" % (x.name, ConfigEntry.config_source_to_str(x.source))
+           ["%s:%s" % (x.name, ConfigSource(x.source))
             for x in iter(config.synonyms.values())]))
 
 
