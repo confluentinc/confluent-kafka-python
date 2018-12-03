@@ -18,9 +18,9 @@ artifacts:
 deploy:
 - provider: S3
   access_key_id:
-    secure: RIuhB6QPQeCdchBMSmaY/7aSrrdih+HJu443UaKsH/I=
+    secure: cckgDsJxukFnB9Ud9E+MatbtFq0KvjsePN9gefZKbZA=
   secret_access_key:
-    secure: YrPW943StN3C9o9enGGpfMns7wxD7+lArRgEavjeWlO2uy2jLPKkCnSQ60qe1ffB
+    secure: KLJDHRP3Gna/PTPKZcwCvEAHmLhu7PY/jHBzduVTr404ZY4yTAyNj/XgmP7kymDz
   region: us-west-1
   bucket: librdkafka-ci-packages
   folder: confluent-kafka-python/p-confluent-kafka-python__bld-appveyor__plat-windows__bldtype-release__tag-$(APPVEYOR_REPO_TAG_NAME)__sha-$(APPVEYOR_REPO_COMMIT)__bid-$(APPVEYOR_BUILD_ID)
