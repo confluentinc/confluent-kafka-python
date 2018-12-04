@@ -29,7 +29,6 @@ import sys
 import json
 import gc
 import struct
-from copy import copy
 
 try:
     # Memory tracker
@@ -1162,101 +1161,67 @@ def verify_admin():
 
 
 def verify_avro_explicit_read_schema():
-    """ verify that reading Avro with explicit reader schema works"""
     from confluent_kafka import avro
+
+    """ verify that reading Avro with explicit reader schema works"""
+    base_conf = {'bootstrap.servers': bootstrap_servers,
+                 'error_cb': error_cb,
+                 'schema.registry.url': schema_registry_url}
+
+    consumer_conf = dict(base_conf, **{
+        'group.id': 'test.py',
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'on_commit': print_commit_result,
+        'auto.offset.reset': 'earliest',
+        'schema.registry.url': schema_registry_url})
+
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
+    writer_schema = avro.load(os.path.join(avsc_dir, "user_v1.avsc"))
+    reader_schema = avro.load(os.path.join(avsc_dir, "user_v2.avsc"))
 
-    # Producer config
-    conf = {'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb}
-
-    # Create producer
-    if schema_registry_url:
-        conf['schema.registry.url'] = schema_registry_url
-        p = avro.AvroProducer(conf)
-
-    key_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-    schema1 = avro.load(os.path.join(avsc_dir, "user_v1.avsc"))
-    schema2 = avro.load(os.path.join(avsc_dir, "user_v2.avsc"))
-    float_value = 32.
-    val = {
-        "name": "abc",
-        "favorite_number": 42,
-        "favorite_colo": "orange"
+    user_value1 = {
+        "name": " Rogers Nelson"
     }
-    val1 = {
-        "name": "abc"
+
+    user_value2 = {
+        "name": "Kenny Loggins"
     }
 
     combinations = [
-        dict(value=val, value_schema=schema2, key=float_value, key_schema=key_schema,
-             reader_value_schema=schema1, reader_key_schema=key_schema),
-        dict(value=val1, value_schema=schema1, key=float_value, key_schema=key_schema,
-             reader_value_schema=schema2, reader_key_schema=key_schema),
+        dict(key=user_value1, key_schema=writer_schema, value=user_value2, value_schema=writer_schema),
+        dict(key=user_value2, key_schema=writer_schema, value=user_value1, value_schema=writer_schema)
     ]
+    avro_topic = topic + str(uuid.uuid4())
 
-    # Consumer config
-    cons_conf = {'bootstrap.servers': bootstrap_servers,
-                 'group.id': 'test.py',
-                 'session.timeout.ms': 6000,
-                 'enable.auto.commit': False,
-                 'on_commit': print_commit_result,
-                 'error_cb': error_cb,
-                 'auto.offset.reset': 'earliest'}
-
+    p = avro.AvroProducer(base_conf)
     for i, combo in enumerate(combinations):
-        reader_key_schema = combo.pop("reader_key_schema")
-        reader_value_schema = combo.pop("reader_value_schema")
-        combo['topic'] = str(uuid.uuid4())
-        p.produce(**combo)
-        p.poll(0)
-        p.flush()
+        p.produce(topic=avro_topic, **combo)
+    p.flush()
 
-        # Create consumer
-        conf = copy(cons_conf)
-        if schema_registry_url:
-            conf['schema.registry.url'] = schema_registry_url
-            conf['enable.partition.eof'] = True
-            c = avro.AvroConsumer(
-                        conf,
-                        reader_key_schema=reader_key_schema,
-                        reader_value_schema=reader_value_schema)
-        else:
-            raise ValueError("Property schema.registry.url must be set to run this test")
+    c = avro.AvroConsumer(consumer_conf, reader_key_schema=reader_schema, reader_value_schema=reader_schema)
+    c.subscribe([avro_topic])
 
-        c.subscribe([combo['topic']])
+    msgcount = 0
+    while msgcount < len(combinations):
+        msg = c.poll(1)
 
-        while True:
-            msg = c.poll(0)
-            if msg is None:
-                continue
+        if msg is None:
+            continue
+        if msg.error():
+            print("Consumer error {}".format(msg.error()))
+            continue
 
-            if msg.error():
-                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                    break
-                else:
-                    continue
-
-            tstype, timestamp = msg.timestamp()
-            print('%s[%d]@%d: key=%s, value=%s, tstype=%d, timestamp=%s' %
-                  (msg.topic(), msg.partition(), msg.offset(),
-                   msg.key(), msg.value(), tstype, timestamp))
-
-            # omit empty Avro fields from payload for comparison
-            record_key = msg.key()
-            record_value = msg.value()
-            if isinstance(msg.key(), dict):
-                record_key = {k: v for k, v in msg.key().items() if v is not None}
-
-            if isinstance(msg.value(), dict):
-                record_value = {k: v for k, v in msg.value().items() if v is not None}
-
-            assert combo.get('key') == record_key
-            assert combo.get('value')['name'] == record_value['name']
-            c.commit(msg, asynchronous=False)
-        # Close consumer
-        c.close()
-    pass
+        msgcount += 1
+        # Avro schema projection should return the two fields not present in the writer schema
+        try:
+            assert(msg.key().get('favorite_number') == 42)
+            assert(msg.key().get('favorite_color') == "purple")
+            assert(msg.value().get('favorite_number') == 42)
+            assert(msg.value().get('favorite_color') == "purple")
+            print("success: schema projection worked for explicit reader schema")
+        except KeyError:
+            raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
 
 
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
