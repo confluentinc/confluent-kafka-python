@@ -85,11 +85,8 @@ while True:
     if msg is None:
         continue
     if msg.error():
-        if msg.error().code() == KafkaError._PARTITION_EOF:
-            continue
-        else:
-            print(msg.error())
-            break
+        print("Consumer error: {}".format(msg.error()))
+        continue
 
     print('Received message: {}'.format(msg.value().decode('utf-8')))
 
@@ -172,11 +169,8 @@ while True:
         continue
 
     if msg.error():
-        if msg.error().code() == KafkaError._PARTITION_EOF:
-            continue
-        else:
-            print(msg.error())
-            break
+        print("AvroConsumer error: {}".format(msg.error()))
+        continue
 
     print(msg.value())
 

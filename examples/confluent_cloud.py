@@ -48,7 +48,7 @@
 
 import uuid
 
-from confluent_kafka import Producer, Consumer, KafkaError
+from confluent_kafka import Producer, Consumer
 
 
 p = Producer({
@@ -98,14 +98,14 @@ try:
         if msg is None:
             # No message available within timeout.
             # Initial message consumption may take up to `session.timeout.ms` for
-            #   the group to rebalance and start consuming
+            #   the group to rebalance and start consuming.
             continue
-        elif not msg.error():
-            print('consumed: {0}'.format(msg.value()))
-        elif msg.error().code() == KafkaError._PARTITION_EOF:
-            print('end of partition: {0} [{1}] @ {2}'.format(msg.topic(), msg.partition(), msg.offset()))
-        else:
-            print('error: {0}'.format(msg.error().str()))
+        if msg.error():
+            # Most error message are typically temporary log error and continue.
+            print("Consumer error: {}".format(msg.error()))
+            continue
+
+        print('consumed: {0}'.format(msg.value()))
 
 except KeyboardInterrupt:
     pass
