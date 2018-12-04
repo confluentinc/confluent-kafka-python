@@ -72,10 +72,7 @@ class VerifiableClient(object):
                 continue
 
             if n.startswith('topicconf_'):
-                # Apply topicconf_ properties on default.topic.config
-                if 'default.topic.config' not in conf:
-                    conf['default.topic.config'] = dict()
-                conf['default.topic.config'][n[10:]] = v
+                conf[n[10:]] = v
                 continue
 
             if not n.startswith('conf_'):
