@@ -169,6 +169,8 @@ seen_delivery_cb = False
 
 
 def test_topic_config_update():
+    # *NOTE* default.topic.config has been deprecated.
+    # This example remains to ensure backward-compatibility until its removal.
     confs = [{"message.timeout.ms": 600000, "default.topic.config": {"message.timeout.ms": 1000}},
              {"message.timeout.ms": 1000},
              {"default.topic.config": {"message.timeout.ms": 1000}}]
