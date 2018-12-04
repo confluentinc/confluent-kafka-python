@@ -368,7 +368,8 @@ def verify_consumer():
             'enable.auto.commit': False,
             'on_commit': print_commit_result,
             'error_cb': error_cb,
-            'auto.offset.reset': 'earliest'}
+            'auto.offset.reset': 'earliest',
+            'enable.partition.eof': True}
 
     # Create consumer
     c = confluent_kafka.Consumer(conf)
@@ -535,11 +536,7 @@ def verify_consumer_performance():
                             (msgcnt, max_msgcnt))
 
         if msg.error():
-            if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                # Reached EOF for a partition, ignore.
-                continue
-            else:
-                raise confluent_kafka.KafkaException(msg.error())
+            raise confluent_kafka.KafkaException(msg.error())
 
         bytecnt += len(msg)
         msgcnt += 1
@@ -714,11 +711,7 @@ def verify_batch_consumer_performance():
 
         for msg in msglist:
             if msg.error():
-                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                    # Reached EOF for a partition, ignore.
-                    continue
-                else:
-                    raise confluent_kafka.KafkaException(msg.error())
+                raise confluent_kafka.KafkaException(msg.error())
 
             bytecnt += len(msg)
             msgcnt += 1
@@ -1008,11 +1001,7 @@ def verify_stats_cb():
                             (msgcnt, max_msgcnt))
 
         if msg.error():
-            if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                # Reached EOF for a partition, ignore.
-                continue
-            else:
-                raise confluent_kafka.KafkaException(msg.error())
+            raise confluent_kafka.KafkaException(msg.error())
 
         bytecnt += len(msg)
         msgcnt += 1
@@ -1227,6 +1216,7 @@ def verify_avro_explicit_read_schema():
         conf = copy(cons_conf)
         if schema_registry_url:
             conf['schema.registry.url'] = schema_registry_url
+            conf['enable.partition.eof'] = True
             c = avro.AvroConsumer(
                         conf,
                         reader_key_schema=reader_key_schema,

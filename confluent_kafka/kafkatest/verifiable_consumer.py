@@ -188,11 +188,7 @@ class VerifiableConsumer(VerifiableClient):
     def msg_consume(self, msg):
         """ Handle consumed message (or error event) """
         if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                # ignore EOF
-                pass
-            else:
-                self.err('Consume failed: %s' % msg.error(), term=False)
+            self.err('Consume failed: %s' % msg.error(), term=False)
             return
 
         if False:
