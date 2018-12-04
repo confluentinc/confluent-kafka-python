@@ -214,7 +214,7 @@ class MessageSerializer(object):
         """
         Decode a message from kafka that has been encoded for use with
         the schema registry.
-        :param str|bytes or None message: message key or value to be decoded 
+        :param str|bytes or None message: message key or value to be decoded
         :returns: Decoded message contents.
         :rtype dict:
         """
