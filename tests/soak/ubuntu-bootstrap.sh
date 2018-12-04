@@ -48,6 +48,8 @@ pip install -U pip
 
 pip install -v .
 
+pip install -r tests/soak/requirements.txt
+
 popd # ..python
 
 echo "Verifying python client installation"
