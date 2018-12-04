@@ -103,6 +103,7 @@ class AvroConsumer(Consumer):
     :param schema reader_value_schema: a reader schema for the message value
     :raises ValueError: For invalid configurations
     """
+
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
 
         sr_conf = {key.replace("schema.registry.", ""): value
@@ -138,13 +139,19 @@ class AvroConsumer(Consumer):
         message = super(AvroConsumer, self).poll(timeout)
         if message is None:
             return None
-        if not message.value() and not message.key():
-            return message
+
         if not message.error():
-            if message.value() is not None:
-                decoded_value = self._serializer.decode_message(message.value(), is_key=False)
-                message.set_value(decoded_value)
-            if message.key() is not None:
-                decoded_key = self._serializer.decode_message(message.key(), is_key=True)
-                message.set_key(decoded_key)
+            try:
+                if message.value() is not None:
+                    decoded_value = self._serializer.decode_message(message.value(), is_key=False)
+                    message.set_value(decoded_value)
+                if message.key() is not None:
+                    decoded_key = self._serializer.decode_message(message.key(), is_key=True)
+                    message.set_key(decoded_key)
+            except SerializerError as e:
+                raise SerializerError("Message deserialization failed for message at {} [{}] offset {}: {}".format(
+                    message.topic(),
+                    message.partition(),
+                    message.offset(),
+                    e))
         return message
