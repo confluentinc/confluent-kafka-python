@@ -39,7 +39,6 @@ def test_thread_safety():
 
     q = Queue()
     p = Producer({'socket.timeout.ms': 10,
-                  'socket.blocking.max.ms': 10,
                   'message.timeout.ms': 10})
 
     threads = list()
