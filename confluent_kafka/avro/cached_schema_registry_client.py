@@ -276,7 +276,10 @@ class CachedSchemaRegistryClient(object):
                 # bad schema - should not happen
                 raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
 
-    def get_latest_schema(self, subject):
+
+    
+    
+    def get_schema_by_version(self, subject, version):
         """
         GET /subjects/(string: subject)/versions/(versionId: version)
 
@@ -291,7 +294,7 @@ class CachedSchemaRegistryClient(object):
         :returns: (schema_id, schema, version)
         :rtype: (string, schema, int)
         """
-        url = '/'.join([self.url, 'subjects', subject, 'versions', 'latest'])
+        url = '/'.join([self.url, 'subjects', subject, 'versions', version])
 
         result, code = self._send_request(url)
         if code == 404:
@@ -315,6 +318,25 @@ class CachedSchemaRegistryClient(object):
 
         self._cache_schema(schema, schema_id, subject, version)
         return (schema_id, schema, version)
+    
+
+    def get_latest_schema(self, subject):
+        """
+        GET /subjects/(string: subject)/versions/(versionId: version)
+
+        Return the latest 3-tuple of:
+        (the schema id, the parsed avro schema, the schema version)
+        for a particular subject.
+
+        This call always contacts the registry.
+
+        If the subject is not found, (None,None,None) is returned.
+        :param str subject: subject name
+        :returns: (schema_id, schema, version)
+        :rtype: (string, schema, int)
+        """
+        return self.get_schema_by_version(subject, 'latest')
+    
 
     def get_version(self, subject, avro_schema):
         """
