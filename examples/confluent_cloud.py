@@ -65,9 +65,9 @@ p = Producer({
 def acked(err, msg):
     """Delivery report callback called (from flush()) on successful or failed delivery of the message."""
     if err is not None:
-        print("failed to deliver message: {0}".format(err.str()))
+        print("failed to deliver message: {}".format(err.str()))
     else:
-        print("produced to: {0} [{1}] @ {2}".format(msg.topic(), msg.partition(), msg.offset()))
+        print("produced to: {} [{}] @ {}".format(msg.topic(), msg.partition(), msg.offset()))
 
 
 p.produce('python-test-topic', value='python test value', callback=acked)
@@ -101,11 +101,11 @@ try:
             #   the group to rebalance and start consuming.
             continue
         if msg.error():
-            # Most error message are typically temporary log error and continue.
+            # Errors are typically temporary, print error and continue.
             print("Consumer error: {}".format(msg.error()))
             continue
 
-        print('consumed: {0}'.format(msg.value()))
+        print('consumed: {}'.format(msg.value()))
 
 except KeyboardInterrupt:
     pass
