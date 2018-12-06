@@ -1215,7 +1215,13 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	PyObject *eo, *result;
 	CallState *cs;
 
-	cs = CallState_get(h);
+        /* Avoid grabbing the GIL if it's not needed */
+        if (!h->error_cb && err != RD_KAFKA_RESP_ERR__FATAL) {
+                /* No callback defined */
+                return;
+        }
+
+        cs = CallState_get(h);
 
         /* If the client raised a fatal error we'll raise an exception
          * rather than calling the error callback. */
@@ -1225,11 +1231,6 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
                 cfl_PyErr_Fatal(err, errstr);
                 goto crash;
         }
-
-	if (!h->error_cb) {
-		/* No callback defined */
-		goto done;
-	}
 
 	eo = KafkaError_new0(err, "%s", reason);
 	result = PyObject_CallFunctionObjArgs(h->error_cb, eo, NULL);
@@ -1243,7 +1244,6 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 		rd_kafka_yield(h->rk);
 	}
 
- done:
 	CallState_resume(cs);
 }
 
@@ -1258,11 +1258,13 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
         PyObject *result, *args;
         CallState *cs;
 
-        cs = CallState_get(h);
+        /* Avoid grabbing the GIL if it's not needed */
         if (!h->throttle_cb) {
                 /* No callback defined */
-                goto done;
+                return;
         }
+
+        cs = CallState_get(h);
 
         ThrottleEvent_type = cfl_PyObject_lookup("confluent_kafka",
                                                  "ThrottleEvent");
@@ -1309,11 +1311,12 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	PyObject *eo = NULL, *result = NULL;
 	CallState *cs = NULL;
 
+        /* Avoid calling the GIL if it's not needed */
+        if (json_len == 0) {
+                /* No data returned*/
+                goto done;
+        }
 	cs = CallState_get(h);
-	if (json_len == 0) {
-		/* No data returned*/
-		goto done;
-	}
 
 	eo = Py_BuildValue("s", json);
 	result = PyObject_CallFunctionObjArgs(h->stats_cb, eo, NULL);
