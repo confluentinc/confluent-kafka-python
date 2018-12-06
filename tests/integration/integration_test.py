@@ -1224,6 +1224,108 @@ def verify_avro_explicit_read_schema():
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
 
 
+def verify_serializer():
+    from base64 import standard_b64encode as b64encode
+    from base64 import standard_b64decode as b64decode
+    from base64 import b16encode, b16decode
+
+    # base64 deserializer for converting message contents back to a string
+    def b64_decoder(topic, data):
+        if data is None:
+            return None
+        return b64decode(data)
+
+    # base16 deserializer for converting message contents back to a string
+    def b16_decoder(topic, data):
+        if data is None:
+            return None
+        return b16decode(data)
+
+    # Test matrix fo use when evaluating alternative kv serialization strategies.
+    combinations = [
+        # Test default serializers, use encode for python 2 and 3 compatibility.
+        dict(key="b64encode".encode('utf-8'), value="b64encode".encode('utf-8'),
+             key_decoder=b64_decoder, value_decoder=b64_decoder),
+        # Test default key_serializer with value_serializer override
+        dict(key="b64encode".encode('utf-8'), value="b16encode".encode('utf-8'),
+             value_encoder=lambda topic, value: b16encode(value),
+             key_decoder=b64_decoder, value_decoder=b16_decoder),
+        # Test key_serializer override with default value_serializer
+        dict(key="b16encode".encode('utf-8'), value="b64encode".encode('utf-8'),
+             key_encoder=lambda topic, key: b16encode(key),
+             key_decoder=b16_decoder, value_decoder=b64_decoder),
+        # Test key_serializer and value_serializer overrides
+        dict(key="b16encode".encode('utf-8'), value="b16encode".encode('utf-8'),
+             key_encoder=lambda topic, key: b16encode(key),
+             value_encoder=lambda topic, value: b16encode(value),
+             key_decoder=b16_decoder, value_decoder=b16_decoder),
+    ]
+
+    # Test Producer serializer
+    def assert_cb(err, msg, conf):
+        if err:
+            print("Producer error %s" % err)
+            return
+
+        topic = msg.topic()
+        deserialized_key = conf['key_decoder'](topic, msg.key())
+        deserialzed_value = conf['value_decoder'](topic, msg.value())
+
+        print("Serializer Test: raw: key={}, value ={}, decoded: key={}, value={}".format(
+            msg.key(), msg.key(), deserialized_key, deserialzed_value))
+        # Test original key/value against it's deserialized counterpart
+        assert(conf['key'] == deserialized_key)
+        assert(conf['value'] == deserialzed_value)
+
+    serializer_topic = topic + str(uuid.uuid4())
+
+    common_conf = {
+        'bootstrap.servers': bootstrap_servers,
+        'error_cb': error_cb
+    }
+
+    consumer_conf = dict({
+        'group.id': generate_group_id(),
+        'auto.offset.reset': "earliest"
+    }, **common_conf)
+
+    p = confluent_kafka.Producer(common_conf,
+                                 key_serializer=lambda topic, key: b64encode(key),
+                                 value_serializer=lambda topic, value: b64encode(value))
+
+    c = confluent_kafka.Consumer(consumer_conf,
+                                 key_deserializer=lambda topic, key: b64decode(key),
+                                 value_deserializer=lambda topic, value: b64decode(value))
+    c.subscribe([serializer_topic])
+
+    for i, combo in enumerate(combinations):
+        p.produce(serializer_topic, key=combo['key'], value=combo['value'], headers=[('index', str(i))],
+                  on_delivery=lambda err, msg, conf=combo: assert_cb(err, msg, conf),
+                  key_serializer=combo.get('key_encoder', None), value_serializer=combo.get('value_encoder', None))
+
+        p.flush()
+
+        # Test Consumer deserialization
+        consumed = 0
+        while consumed < 1:
+            msg = c.poll(1.0, key_deserializer=combo.get('key_decoder', None),
+                         value_deserializer=combo.get('value_decoder', None))
+
+            if msg is None:
+                continue
+
+            if msg.error():
+                print("Consumer error {}", msg.error())
+                continue
+
+            consumed += 1
+            print("Deserializer Test: raw: key={}, value={}, decoded: key={}, value={}".format(
+                combo['key'], combo['value'], msg.key(), msg.value()))
+
+            assert(msg.key() == combo['key'])
+            assert(msg.value() == combo['value'])
+
+
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
 all_modes = default_modes + ['throttle', 'avro-https', 'avro-basic-auth', 'none']
 
@@ -1305,6 +1407,8 @@ if __name__ == '__main__':
     if 'producer' in modes:
         print('=' * 30, 'Verifying Producer', '=' * 30)
         verify_producer()
+        print('=' * 30, 'Verifying SerDes', '=' * 30)
+        verify_serializer()
 
         if 'performance' in modes:
             print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)

@@ -1,9 +1,7 @@
 __all__ = ['cimpl', 'admin', 'avro', 'kafkatest']
-from .cimpl import (Consumer,  # noqa
-                    KafkaError,
+from .cimpl import (KafkaError, # noqa
                     KafkaException,
                     Message,
-                    Producer,
                     TopicPartition,
                     libversion,
                     version,
@@ -14,6 +12,10 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_END,
                     OFFSET_STORED,
                     OFFSET_INVALID)
+
+# High-level client wrappers used for extending cimpl.[Producer|Consumer] client functionality.
+from .producer import Producer # noqa
+from .consumer import Consumer # noqa
 
 __version__ = version()[0]
 
