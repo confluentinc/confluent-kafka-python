@@ -68,6 +68,9 @@ def test_verify_docs():
                 # Ignore doc-less BaseException inheritance
                 err = None
             elif doc is None:
+                # Set level to WARN for private/internal objects
+                if shortname.startswith('_'):
+                    level = 'WARN'
                 err = 'Missing __doc__ for: %s (type %s)' % (n, type(o))
             elif not re.search(r':', doc):
                 err = 'Missing Doxygen tag for: %s (type %s):\n---\n%s\n---' % (n, type(o), doc)
