@@ -1701,6 +1701,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         goto inner_err;
 		}
 
+                /* Treat key=Py_None as if it were never set */
+                if (vo == Py_None) {
+                        PyDict_DelItem(confdict, ko);
+                        Py_DECREF(ks);
+                        continue;
+                }
 		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 		if (!strcmp(k, "error_cb")) {
 			if (!PyCallable_Check(vo)) {
@@ -1713,10 +1719,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				Py_DECREF(h->error_cb);
 				h->error_cb = NULL;
 			}
-			if (vo != Py_None) {
-				h->error_cb = vo;
-				Py_INCREF(h->error_cb);
-			}
+
+                        h->error_cb = vo;
+                        Py_INCREF(h->error_cb);
+
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
@@ -1731,10 +1737,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                 Py_DECREF(h->throttle_cb);
                                 h->throttle_cb = NULL;
                         }
-                        if (vo != Py_None) {
-                                h->throttle_cb = vo;
-                                Py_INCREF(h->throttle_cb);
-                        }
+
+                        h->throttle_cb = vo;
+                        Py_INCREF(h->throttle_cb);
+
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
                         continue;
@@ -1750,10 +1756,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				Py_DECREF(h->stats_cb);
 				h->stats_cb = NULL;
 			}
-			if (vo != Py_None) {
-				h->stats_cb = vo;
-				Py_INCREF(h->stats_cb);
-			}
+
+                        h->stats_cb = vo;
+                        Py_INCREF(h->stats_cb);
+
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
@@ -1763,10 +1769,9 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                 h->logger = NULL;
                         }
 
-                        if (vo != Py_None) {
-                                h->logger = vo;
-                                Py_INCREF(h->logger);
-                        }
+                        h->logger = vo;
+                        Py_INCREF(h->logger);
+
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
                         continue;
@@ -1789,18 +1794,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		/*
 		 * Pass configuration property through to librdkafka.
 		 */
-                if (vo == Py_None) {
-                        v = NULL;
-                } else {
-                        if (!(vs = cfl_PyObject_Unistr(vo))) {
-                                PyErr_SetString(PyExc_TypeError,
-                                                "expected configuration "
-                                                "property value as type "
-                                                "unicode string");
-                                goto inner_err;
-                        }
-                        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+                if (!(vs = cfl_PyObject_Unistr(vo))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected configuration "
+                                        "property value as type "
+                                        "unicode string");
+                        goto inner_err;
                 }
+                v = cfl_PyUnistr_AsUTF8(vs, &vs8);
 
 		if (rd_kafka_conf_set(conf, k, v, errstr, sizeof(errstr)) !=
 		    RD_KAFKA_CONF_OK) {
@@ -2361,7 +2362,7 @@ static PyObject *_init_cimpl (void) {
         PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
-
+        PyModule_AddIntConstant(m, "PARTITION_UA", RD_KAFKA_PARTITION_UA);
 	return m;
 }
 
