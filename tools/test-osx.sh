@@ -26,7 +26,7 @@ hash -r # let go of previous 'pip'
 
 # Install modules
 # TODO: revisit to avoid hardcoding dependencies
-pip install "futures;python_version=='2.7'" "enum34;python_version=='2.7'"
+pip install "futures;python_version=='2.7'" "enum34;python_version=='2.7'" requests avro
 
 pip install confluent_kafka --no-cache-dir --no-index -f $WHEELHOUSE
 
