@@ -78,7 +78,7 @@ done
 echo "# Installing wheels"
 for PYBIN in /opt/python/*/bin/; do
     echo "## Installing $PYBIN"
-    "${PYBIN}/pip" install confluent_kafka --no-index -f /io/wheelhouse
+    "${PYBIN}/pip" install confluent_kafka -f /io/wheelhouse
     "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
     echo "## Uninstalling $PYBIN"
     "${PYBIN}/pip" uninstall -y confluent_kafka

@@ -1,74 +1,73 @@
+# Conventions Used in This Document
+Unless otherwise noted all commands, file and directory references are relative to the *source root* directory.
+
+## Terminology
+ - modes: Collection of integration tests to be run
+ - testconf: [JSON](https://tools.ietf.org/html/rfc8259) formatted configuration file.
+        Example: [tests/testconf-example.json](./tests/testconf-example.json) for formatting.
+
 Unit tests
 ==========
-
 From top-level directory run:
 
-    $ tox
+    $ ./tests/run.sh tox
 
 **NOTE**: This requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
+
+If tox is not installed:
+
+    $ ./tests/run.sh unit
 
 Integration tests
 =================
 
-**NOTE**: Integration tests require an existing Kafka cluster and a `testconf.json` configuration file. Any value provided
-in `testconf.json` prefixed with '$' will be treated as an environment variable and automatically resolved.
+### Requirements
+ 1. docker-compose 3.0 +
+ 2. docker-engine 1.13.0+
+ 3. **Optional:** tox (enables testing against multiple interpreter versions)
 
-At a minimum you must specify `bootstrap.servers` and `topic` within `testconf.json`. Please reference [tests/testconf-example.json](tests/testconf-example.json) for formatting.
+### Cluster setup
+**Note** Manual cluster set up is not required when using ./tests/run.sh
 
-**WARNING**: These tests will create new topics and consumer groups.
+    $ ./tests/docker/bin/cluster_up.sh
 
-To run all of the integration test `modes` uncomment the following line from `tox.ini` and provide the location to your `testconf.json`
+### Cluster teardown
+**Note** Manual cluster teardown is not required when using ./tests/run.sh
 
-    #python examples/integration_test.py --conf <testconf.json>
+    $ ./tests/docker/bin/cluster_down.sh
 
-You can also run the integration tests outside of `tox` by running this command from the source root directory
+### Configuration
+Tests are configured with a JSON configuration file referred to as `testconf.json` to be provided as the last argument upon test execution.
 
-    python examples/integration_test.py --conf <testconf.json>
+Advanced users can reference the provided configuration file, [testconf.json](integration/testconf.json), if modification is required.
+Most developers however should use the defaults.
 
-To run individual integration test `modes` use the following syntax
+### Running tests
+To run the entire test suite:
 
-    python examples/integration_test.py --<test mode> --conf <testconf.json>
+From the source root directory ...
+
+- With tox installed (will run against all supported interpreters)
+  1. Uncomment the following line from [tox.ini](../tox.ini)
+    - ```#python tests/integration/integration_test.py```
+  2. Execute the following script
+    - ```$ ./tests/run.sh tox```
+
+- Without tox (will run against current interpreter)
+  - ```$ ./tests/run.sh all```
+
+To run just the unit tests
+
+    $ ./tests/run.sh unit
+
+To run a specific integration test `mode` or set of `modes` use the following syntax
+
+    $ ./tests/run.sh <test mode 1> <test mode 2>..
 
 For example:
 
-    python examples/integration_test.py --producer --conf testconf.json
+    $ ./tests/run.sh --producer --consumer
 
-To get a list of modes you can run the integration test manually with the `--help` flag
+To get a list of integration test `modes` simply supply the `help` option
 
-    python examples/integration_tests.py --help
-
-
-Throttle Callback test
-======================
-The throttle_cb integration test requires an additional step and as such is not included in the default test modes.
-In order to execute the throttle_cb test you must first set a throttle for the client 'throttled_client' with the command below:
-
-    kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
-        --alter --add-config 'request_percentage=01' \
-        --entity-name throttled_client --entity-type clients
-
-Once the throttle has been set you can proceed with the following command:
-
-    python examples/integration_test.py --throttle --conf testconf.json
-
-
-To remove the throttle you can execute the following
-
-    kafka-configs  --zookeeper <zookeeper host>:<zookeeper port> \
-        --alter --delete-config 'request_percentage' \
-        --entity-name throttled_client --entity-type clients
-
-
-HTTPS Schema Registry test
-==========================
-
-HTTPS tests require access to a Schema Registry instance configured to with at least one HTTPS listener.
-
-For instructions on how to configure the Schema Registry please see the Confluent documentation:
-
-[Schema Registry documentation](https://docs.confluent.io/current/schema-registry/docs/security.html#configuring-the-rest-api-for-http-or-https)
-
-If client authentication has been enabled you will need to provide both the client certificate, `schema.registry.ssl.certificate.location`,
-and the client's private key, `schema.registry.ssl.key.location`
-
-    python examples/integration_test.py --avro-https --conf testconf.json
+    $ ./tests/run.sh --help

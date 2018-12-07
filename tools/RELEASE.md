@@ -25,7 +25,28 @@ replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
 
-## 1. Update OpenSSL version if necessary
+## 1. Update librdkafka and OpenSSL versions
+
+### 1.1 Update librdkafka version
+
+Change to the latest librdkafka version in the following files:
+
+ * `.travis.yml`
+ * `.appveyor.yml` - this is the librdkafka.redist NuGet version,
+                     make sure to strip the leading "v" from the version.
+                     E.g., `0.11.6` rather than `v0.11.6`
+
+Change to the latest version of the confluent-librdkafka-plugins in:
+
+ * `tools/install-interceptors.sh` - edit and change version
+
+Commit these changes as necessary:
+
+    $ git commit -m "librdkafka version v0.11.6" .travis.yml .appveyor.yml
+    $ git commit -m "confluent-librdkafka-plugins version v0.11.0" tools/install-interceptors.sh
+
+
+### 1.2 Update OpenSSL version if necessary
 
 As of v0.11.4 OpenSSL is packaged with the python client. It's important
 that the OpenSSL version is kept up to date with the latest release.
@@ -57,6 +78,20 @@ Commit these changes with a commit-message containing the version:
 
 
 ## 3. Create a tag
+
+### 3.1 Create a test tag
+
+Packaging is fragile and is only triggered when a tag is pushed. To avoid
+finding out about packaging problems on the RC tag, it is strongly recommended
+to first push a test tag to trigger the packaging builds. This tag should
+be removed after the build passes.
+
+    $ git tag v0.11.4rc1-test1
+
+Follow the steps in step 4 to push the test tag. When the build is successful,
+remove the tag and follow the steps in 3.2 to create a proper tag.
+
+### 3.2 Create proper tag
 
 The tag should be created right after the commit and be named the same as
 the version.

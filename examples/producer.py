@@ -54,7 +54,7 @@ if __name__ == '__main__':
             # Produce line (without newline)
             p.produce(topic, line.rstrip(), callback=delivery_callback)
 
-        except BufferError as e:
+        except BufferError:
             sys.stderr.write('%% Local producer queue is full (%d messages awaiting delivery): try again\n' %
                              len(p))
 

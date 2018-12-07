@@ -6,7 +6,7 @@
 
 # NOTE: Keep this updated to make sure we always build the latest
 #       version of OpenSSL in the 1.0 release train.
-OPENSSL_VERSION=1.0.2o
+OPENSSL_VERSION=1.0.2q
 
 PREFIX=$1
 if [[ -z $PREFIX ]]; then

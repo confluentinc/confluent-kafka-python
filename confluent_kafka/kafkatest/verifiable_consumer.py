@@ -29,7 +29,7 @@ class VerifiableConsumer(VerifiableClient):
     """
     def __init__(self, conf):
         """
-        \p conf is a config dict passed to confluent_kafka.Consumer()
+        conf is a config dict passed to confluent_kafka.Consumer()
         """
         super(VerifiableConsumer, self).__init__(conf)
         self.conf['on_commit'] = self.on_commit
@@ -44,7 +44,7 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = dict()
 
     def find_assignment(self, topic, partition):
-        """ Find and return existing assignment based on \p topic and \p partition,
+        """ Find and return existing assignment based on topic and partition,
         or None on miss. """
         skey = '%s %d' % (topic, partition)
         return self.assignment_dict.get(skey)
@@ -74,7 +74,7 @@ class VerifiableConsumer(VerifiableClient):
         self.consumed_msgs_last_reported = self.consumed_msgs
 
     def send_assignment(self, evtype, partitions):
-        """ Send assignment update, \p evtype is either 'assigned' or 'revoked' """
+        """ Send assignment update, evtype is either 'assigned' or 'revoked' """
         d = {'name': 'partitions_' + evtype,
              'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
         self.send(d)
@@ -188,11 +188,7 @@ class VerifiableConsumer(VerifiableClient):
     def msg_consume(self, msg):
         """ Handle consumed message (or error event) """
         if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                # ignore EOF
-                pass
-            else:
-                self.err('Consume failed: %s' % msg.error(), term=False)
+            self.err('Consume failed: %s' % msg.error(), term=False)
             return
 
         if False:
@@ -248,7 +244,7 @@ if __name__ == '__main__':
     parser.add_argument('--enable-autocommit', action='store_true', dest='conf_enable.auto.commit', default=False)
     parser.add_argument('--max-messages', type=int, dest='max_messages', default=-1)
     parser.add_argument('--assignment-strategy', dest='conf_partition.assignment.strategy')
-    parser.add_argument('--reset-policy', dest='conf_auto.offset.reset', default='earliest')
+    parser.add_argument('--reset-policy', dest='topicconf_auto.offset.reset', default='earliest')
     parser.add_argument('--consumer.config', dest='consumer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())

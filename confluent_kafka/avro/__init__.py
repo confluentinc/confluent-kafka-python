@@ -30,24 +30,23 @@ class AvroProducer(Producer):
                  default_value_schema=None, schema_registry=None,
                  value_subject_name_strategy=topic_name_strategy, key_subject_name_strategy=topic_name_strategy):
 
-        schema_registry_url = config.pop("schema.registry.url", None)
-        schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
-        schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
-        schema_registry_key_location = config.pop("schema.registry.ssl.key.location", None)
+        sr_conf = {key.replace("schema.registry.", ""): value
+                   for key, value in config.items() if key.startswith("schema.registry")}
+
+        if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
+            sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
+            sr_conf['sasl.username'] = config.get('sasl.username', '')
+            sr_conf['sasl.password'] = config.get('sasl.password', '')
+
+        ap_conf = {key: value
+                   for key, value in config.items() if not key.startswith("schema.registry")}
 
         if schema_registry is None:
-            if schema_registry_url is None:
-                raise ValueError("Missing parameter: schema.registry.url")
-
-            schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
-                                                         ca_location=schema_registry_ca_location,
-                                                         cert_location=schema_registry_certificate_location,
-                                                         key_location=schema_registry_key_location)
-        elif schema_registry_url is not None:
+            schema_registry = CachedSchemaRegistryClient(sr_conf)
+        elif sr_conf.get("url", None) is not None:
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
-        super(AvroProducer, self).__init__(config)
-
+        super(AvroProducer, self).__init__(ap_conf)
         self._serializer = MessageSerializer(schema_registry,
                                              key_subject_name_strategy=key_subject_name_strategy,
                                              value_subject_name_strategy=value_subject_name_strategy)
@@ -102,28 +101,32 @@ class AvroConsumer(Consumer):
     Constructor takes below parameters
 
     :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
-                        and the standard Kafka client configuration (``bootstrap.servers`` et.al).
+                        and the standard Kafka client configuration (``bootstrap.servers`` et.al)
+    :param schema reader_key_schema: a reader schema for the message key
+    :param schema reader_value_schema: a reader schema for the message value
+    :raises ValueError: For invalid configurations
     """
-    def __init__(self, config, schema_registry=None):
 
-        schema_registry_url = config.pop("schema.registry.url", None)
-        schema_registry_ca_location = config.pop("schema.registry.ssl.ca.location", None)
-        schema_registry_certificate_location = config.pop("schema.registry.ssl.certificate.location", None)
-        schema_registry_key_location = config.pop("schema.registry.ssl.key.location", None)
+    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
+
+        sr_conf = {key.replace("schema.registry.", ""): value
+                   for key, value in config.items() if key.startswith("schema.registry")}
+
+        if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
+            sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
+            sr_conf['sasl.username'] = config.get('sasl.username', '')
+            sr_conf['sasl.password'] = config.get('sasl.password', '')
+
+        ap_conf = {key: value
+                   for key, value in config.items() if not key.startswith("schema.registry")}
 
         if schema_registry is None:
-            if schema_registry_url is None:
-                raise ValueError("Missing parameter: schema.registry.url")
-
-            schema_registry = CachedSchemaRegistryClient(url=schema_registry_url,
-                                                         ca_location=schema_registry_ca_location,
-                                                         cert_location=schema_registry_certificate_location,
-                                                         key_location=schema_registry_key_location)
-        elif schema_registry_url is not None:
+            schema_registry = CachedSchemaRegistryClient(sr_conf)
+        elif sr_conf.get("url", None) is not None:
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
-        super(AvroConsumer, self).__init__(config)
-        self._serializer = MessageSerializer(schema_registry)
+        super(AvroConsumer, self).__init__(ap_conf)
+        self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
 
     def poll(self, timeout=None):
         """
@@ -139,13 +142,19 @@ class AvroConsumer(Consumer):
         message = super(AvroConsumer, self).poll(timeout)
         if message is None:
             return None
-        if not message.value() and not message.key():
-            return message
+
         if not message.error():
-            if message.value() is not None:
-                decoded_value = self._serializer.decode_message(message.value())
-                message.set_value(decoded_value)
-            if message.key() is not None:
-                decoded_key = self._serializer.decode_message(message.key())
-                message.set_key(decoded_key)
+            try:
+                if message.value() is not None:
+                    decoded_value = self._serializer.decode_message(message.value(), is_key=False)
+                    message.set_value(decoded_value)
+                if message.key() is not None:
+                    decoded_key = self._serializer.decode_message(message.key(), is_key=True)
+                    message.set_key(decoded_key)
+            except SerializerError as e:
+                raise SerializerError("Message deserialization failed for message at {} [{}] offset {}: {}".format(
+                    message.topic(),
+                    message.partition(),
+                    message.offset(),
+                    e))
         return message

@@ -28,7 +28,7 @@ class VerifiableProducer(VerifiableClient):
     """
     def __init__(self, conf):
         """
-        \p conf is a config dict passed to confluent_kafka.Producer()
+        conf is a config dict passed to confluent_kafka.Producer()
         """
         super(VerifiableProducer, self).__init__(conf)
         self.conf['on_delivery'] = self.dr_cb
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
     parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000)  # avoid infinite
     parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
-    parser.add_argument('--acks', type=int, dest='conf_request.required.acks', default=-1)
+    parser.add_argument('--acks', type=int, dest='topicconf_request.required.acks', default=-1)
     parser.add_argument('--message-create-time', type=int, dest='create_time', default=0)
     parser.add_argument('--producer.config', dest='producer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])

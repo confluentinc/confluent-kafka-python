@@ -10,7 +10,8 @@ if [[ $1 == "--require-ssl" ]]; then
 fi
 
 VERSION=$1
-PREFIXDIR=$2
+INSTALLDIR=$2
+BUILDDIR=$PWD/tmp-build
 
 set -ex
 set -o pipefail
@@ -20,16 +21,12 @@ if [[ -z "$VERSION" ]]; then
     exit 1
 fi
 
-if [[ -z "$PREFIXDIR" ]]; then
-    PREFIXDIR=tmp-build
+if [[ $INSTALLDIR != /* ]]; then
+    INSTALLDIR="$PWD/$INSTALLDIR"
 fi
 
-if [[ $PREFIXDIR != /* ]]; then
-    PREFIXDIR="$PWD/$PREFIXDIR"
-fi
-
-mkdir -p "$PREFIXDIR/librdkafka"
-pushd "$PREFIXDIR/librdkafka"
+mkdir -p "$BUILDDIR/librdkafka"
+pushd "$BUILDDIR/librdkafka"
 
 test -f configure ||
 curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
@@ -37,7 +34,7 @@ curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | 
 
 ./configure --clean
 make clean
-./configure --prefix="$PREFIXDIR"
+./configure --prefix="$INSTALLDIR"
 
 if [[ $REQUIRE_SSL == 1 ]]; then
     grep '^#define WITH_SSL 1$' config.h || \
@@ -45,6 +42,11 @@ if [[ $REQUIRE_SSL == 1 ]]; then
 fi
 
 make -j
-make install
+
+if [[ $INSTALLDIR == /usr && $(whoami) != root ]]; then
+    sudo make install
+else
+    make install
+fi
 popd
 

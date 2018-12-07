@@ -48,7 +48,7 @@
 
 import uuid
 
-from confluent_kafka import Producer, Consumer, KafkaError
+from confluent_kafka import Producer, Consumer
 
 
 p = Producer({
@@ -65,9 +65,9 @@ p = Producer({
 def acked(err, msg):
     """Delivery report callback called (from flush()) on successful or failed delivery of the message."""
     if err is not None:
-        print("failed to deliver message: {0}".format(err.str()))
+        print("failed to deliver message: {}".format(err.str()))
     else:
-        print("produced to: {0} [{1}] @ {2}".format(msg.topic(), msg.partition(), msg.offset()))
+        print("produced to: {} [{}] @ {}".format(msg.topic(), msg.partition(), msg.offset()))
 
 
 p.produce('python-test-topic', value='python test value', callback=acked)
@@ -87,7 +87,7 @@ c = Consumer({
     'sasl.username': '<ccloud key>',
     'sasl.password': '<ccloud secret>',
     'group.id': str(uuid.uuid1()),  # this will create a new consumer group on each invocation.
-    'default.topic.config': {'auto.offset.reset': 'smallest'}
+    'auto.offset.reset': 'earliest'
 })
 
 c.subscribe(['python-test-topic'])
@@ -98,14 +98,14 @@ try:
         if msg is None:
             # No message available within timeout.
             # Initial message consumption may take up to `session.timeout.ms` for
-            #   the group to rebalance and start consuming
+            #   the group to rebalance and start consuming.
             continue
-        elif not msg.error():
-            print('consumed: {0}'.format(msg.value()))
-        elif msg.error().code() == KafkaError._PARTITION_EOF:
-            print('end of partition: {0} [{1}] @ {2}'.format(msg.topic(), msg.partition(), msg.offset()))
-        else:
-            print('error: {0}'.format(msg.error().str()))
+        if msg.error():
+            # Errors are typically temporary, print error and continue.
+            print("Consumer error: {}".format(msg.error()))
+            continue
+
+        print('consumed: {}'.format(msg.value()))
 
 except KeyboardInterrupt:
     pass

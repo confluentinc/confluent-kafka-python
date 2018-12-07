@@ -103,27 +103,14 @@ class ConfigResource(object):
         BROKER = RESOURCE_BROKER  #: Broker resource. Resource name is broker id
 
     def __init__(self, restype, name,
-                 set_config=None, add_config=None, del_config=None,
-                 described_configs=None, error=None):
+                 set_config=None, described_configs=None, error=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: Resource name, depending on restype.
                           For RESOURCE_BROKER the resource name is the broker id.
         :param dict set_config: Configuration to set/overwrite. Dict of str, str.
-        :param dict add_config: Configuration to add/append. Dict of str, str.
-                                Requires broker version with KIP-248 support.
-        :param list del_config: Configuration to delete/revert to default. List of str.
-                                Requires broker version with KIP-248 support.
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
-
-        When alter_configs(incremental=False) only set_config is permitted,
-        and any configuration parameter not specified will be reverted to
-        its default value.
-
-        With alter_configs(incremental=True) (requires broker version with KIP-248 support)
-        only the configuration parameters specified through set, add or del
-        will be modified.
         """
         super(ConfigResource, self).__init__()
 
@@ -150,16 +137,6 @@ class ConfigResource(object):
         else:
             self.set_config_dict = dict()
 
-        if add_config is not None:
-            self.add_config_dict = add_config.copy()
-        else:
-            self.add_config_dict = dict()
-
-        if del_config is not None:
-            self.del_config_dict = dict((k, None) for k in del_config)
-        else:
-            self.del_config_dict = dict()
-
         self.configs = described_configs
         self.error = error
 
@@ -185,16 +162,15 @@ class ConfigResource(object):
         :rtype: int
         :returns: number of configuration entries/operations
         """
-        return len(self.add_config_dict) + len(self.set_config_dict) + len(self.del_config_dict)
+        return len(self.set_config_dict)
 
     def set_config(self, name, value, overwrite=True):
         """
         Set/Overwrite configuration entry
 
-        Unless alter_configs() is called with `incremental=True` any configuration properties
-        that are not included will be reverted to their default values.
-        As a workaround use describe_configs() to retrieve the current
-        configuration and overwrite the settings you want to change.
+        Any configuration properties that are not included will be reverted to their default values.
+        As a workaround use describe_configs() to retrieve the current configuration and
+        overwrite the settings you want to change.
 
         :param str name: Configuration property name
         :param str value: Configuration value
@@ -204,27 +180,6 @@ class ConfigResource(object):
         if not overwrite and name in self.set_config_dict:
             return
         self.set_config_dict[name] = value
-
-    def add_config(self, name, value):
-        """
-        Append value to configuration entry.
-
-        Requires broker version with KIP-248 support and alter_configs(.., incremental=True).
-
-        :param str name: Configuration property name
-        :param str value: Configuration value
-        """
-        self.add_config_dict[name] = value
-
-    def del_config(self, name):
-        """
-        Delete configuration entry, reverting it to the default value.
-
-        Requires broker version with KIP-248 support and alter_configs(.., incremental=True).
-
-        :param str name: Configuration property name
-        """
-        self.del_config_dict[name] = None
 
 
 class AdminClient (_AdminClientImpl):
@@ -478,8 +433,6 @@ class AdminClient (_AdminClientImpl):
                   the provided resources with the new configuration given,
                   reverting all other configuration for the resource back
                   to their default values.
-                  Use incremental=True to change the behaviour so that only the
-                  passed configuration is modified, requires broker version with KIP-248 support.
 
         :warning: Multiple resources and resource types may be specified,
                   but at most one resource of type RESOURCE_BROKER is allowed
@@ -492,9 +445,6 @@ class AdminClient (_AdminClientImpl):
                   on broker, and response. Default: `socket.timeout.ms*1000.0`.
         :param bool validate_only: Tell broker to only validate the request,
                   without altering the configuration. Default: False
-        :param bool incremental: If true, only update the specified configuration
-                  entries, not reverting unspecified configuration.
-                  This requires broker version with KIP-248 support. Default: False
 
         :returns: a dict of futures for each resource, keyed by the ConfigResource.
         :rtype: dict(<ConfigResource, future>)
@@ -606,7 +556,7 @@ class PartitionMetadata (object):
               of a broker id in the brokers dict.
     """
     def __init__(self):
-        self.partition = -1
+        self.id = -1
         self.leader = -1
         self.replicas = []
         self.isrs = []
@@ -614,9 +564,9 @@ class PartitionMetadata (object):
 
     def __repr__(self):
         if self.error is not None:
-            return "PartitionMetadata({}, {})".format(self.partition, self.error)
+            return "PartitionMetadata({}, {})".format(self.id, self.error)
         else:
-            return "PartitionMetadata({})".format(self.partition)
+            return "PartitionMetadata({})".format(self.id)
 
     def __str__(self):
-        return "{}".format(self.partition)
+        return "{}".format(self.id)

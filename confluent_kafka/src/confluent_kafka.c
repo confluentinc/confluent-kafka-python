@@ -62,8 +62,11 @@ typedef struct {
 	char *str;   /* Human readable representation of error, if one
 		      * was provided by librdkafka.
 		      * Else falls back on err2str(). */
+        int   fatal; /**< Set to true if a fatal error. */
 } KafkaError;
 
+
+static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason);
 
 static PyObject *KafkaError_code (KafkaError *self, PyObject *ignore) {
 	return cfl_PyInt_FromInt(self->code);
@@ -79,6 +82,20 @@ static PyObject *KafkaError_str (KafkaError *self, PyObject *ignore) {
 static PyObject *KafkaError_name (KafkaError *self, PyObject *ignore) {
 	/* FIXME: Pre-create name objects */
 	return cfl_PyUnistr(_FromString(rd_kafka_err2name(self->code)));
+}
+
+static PyObject *KafkaError_fatal (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->fatal ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+
+static PyObject *KafkaError_test_raise_fatal (KafkaError *null,
+                                              PyObject *ignore) {
+        cfl_PyErr_Fatal(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                        "This is a fatal exception for testing purposes");
+        return NULL;
 }
 
 
@@ -105,6 +122,14 @@ static PyMethodDef KafkaError_methods[] = {
 	  "  :rtype: str\n"
 	  "\n"
 	},
+        { "fatal", (PyCFunction)KafkaError_fatal, METH_NOARGS,
+          "  :returns: True if this a fatal error, else False.\n"
+          "  :rtype: bool\n"
+          "\n"
+        },
+        { "_test_raise_fatal", (PyCFunction)KafkaError_test_raise_fatal,
+          METH_NOARGS|METH_STATIC
+        },
 
 	{ NULL }
 };
@@ -133,7 +158,8 @@ static int KafkaError_traverse (KafkaError *self,
 }
 
 static PyObject *KafkaError_str0 (KafkaError *self) {
-	return cfl_PyUnistr(_FromFormat("KafkaError{code=%s,val=%d,str=\"%s\"}",
+	return cfl_PyUnistr(_FromFormat("KafkaError{%scode=%s,val=%d,str=\"%s\"}",
+                                        self->fatal?"FATAL,":"",
 					 rd_kafka_err2name(self->code),
 					 self->code,
 					 self->str ? self->str :
@@ -247,6 +273,7 @@ static PyTypeObject KafkaErrorType = {
 static void KafkaError_init (KafkaError *self,
 			     rd_kafka_resp_err_t code, const char *str) {
 	self->code = code;
+        self->fatal = 0;
 	if (str)
 		self->str = strdup(str);
 	else
@@ -290,6 +317,17 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
         else
                 return KafkaError_new0(err, NULL);
 }
+
+
+/**
+ * @brief Raise exception from fatal error.
+ */
+static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
+        PyObject *eo = KafkaError_new0(err, "%s", reason);
+        ((KafkaError *)eo)->fatal = 1;
+        PyErr_SetObject(KafkaException, eo);
+}
+
 
 
 
@@ -756,7 +794,7 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
 	PyObject *ret;
 	char offset_str[40];
 
-	snprintf(offset_str, sizeof(offset_str), "%"PRId64"", self->offset);
+	snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
 
         if (self->error != Py_None) {
                 errstr = cfl_PyObject_Unistr(self->error);
@@ -764,7 +802,7 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
         }
 
 	ret = cfl_PyUnistr(
-		_FromFormat("TopicPartition{topic=%s,partition=%"PRId32
+		_FromFormat("TopicPartition{topic=%s,partition=%"CFL_PRId32
 			    ",offset=%s,error=%s}",
 			    self->topic, self->partition,
 			    offset_str,
@@ -1001,6 +1039,7 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                         if (cfl_PyBin(_AsStringAndSize(value, (char **)&v,
                                                        &vsize)) == -1) {
                                 Py_DECREF(ks);
+                                Py_XDECREF(ks8);
                                 return 0;
                         }
                 } else if (cfl_PyUnistr(_Check(value))) {
@@ -1008,6 +1047,7 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                         v = cfl_PyUnistr_AsUTF8(value, &vo8);
                         if (!v) {
                                 Py_DECREF(ks);
+                                Py_XDECREF(ks8);
                                 return 0;
                         }
                         vsize = (Py_ssize_t)strlen(v);
@@ -1017,6 +1057,8 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                                      "None, binary, or unicode string, not %s",
                                      ((PyTypeObject *)PyObject_Type(value))->
                                      tp_name);
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
                         return 0;
                 }
         }
@@ -1027,11 +1069,13 @@ static int py_header_to_c (rd_kafka_headers_t *rd_headers,
                                  "%s",
                                  k, rd_kafka_err2str(err));
                 Py_DECREF(ks);
+                Py_XDECREF(ks8);
                 Py_XDECREF(vo8);
                 return 0;
         }
 
         Py_DECREF(ks);
+        Py_XDECREF(ks8);
         Py_XDECREF(vo8);
 
         return 1;
@@ -1156,6 +1200,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 }
 #endif
 
+
 /****************************************************************************
  *
  *
@@ -1171,6 +1216,16 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	CallState *cs;
 
 	cs = CallState_get(h);
+
+        /* If the client raised a fatal error we'll raise an exception
+         * rather than calling the error callback. */
+        if (err == RD_KAFKA_RESP_ERR__FATAL) {
+                char errstr[512];
+                err = rd_kafka_fatal_error(rk, errstr, sizeof(errstr));
+                cfl_PyErr_Fatal(err, errstr);
+                goto crash;
+        }
+
 	if (!h->error_cb) {
 		/* No callback defined */
 		goto done;
@@ -1183,6 +1238,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result)
 		Py_DECREF(result);
 	else {
+        crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1282,14 +1338,14 @@ static void log_cb (const rd_kafka_t *rk, int level,
         CallState *cs;
         static const int level_map[8] = {
                 /* Map syslog levels to python logging levels */
-                [0] = 50, /* LOG_EMERG   -> logging.CRITICAL */
-                [1] = 50, /* LOG_ALERT   -> logging.CRITICAL */
-                [2] = 50, /* LOG_CRIT    -> logging.CRITICAL */
-                [3] = 40, /* LOG_ERR     -> logging.ERROR */
-                [4] = 30, /* LOG_WARNING -> logging.WARNING */
-                [5] = 20, /* LOG_NOTICE  -> logging.INFO */
-                [6] = 20, /* LOG_INFO    -> logging.INFO */
-                [7] = 10, /* LOG_DEBUG   -> logging.DEBUG */
+                50, /* LOG_EMERG   -> logging.CRITICAL */
+                50, /* LOG_ALERT   -> logging.CRITICAL */
+                50, /* LOG_CRIT    -> logging.CRITICAL */
+                40, /* LOG_ERR     -> logging.ERROR */
+                30, /* LOG_WARNING -> logging.WARNING */
+                20, /* LOG_NOTICE  -> logging.INFO */
+                20, /* LOG_INFO    -> logging.INFO */
+                10, /* LOG_DEBUG   -> logging.DEBUG */
         };
 
         cs = CallState_get(h);
@@ -1324,16 +1380,25 @@ static void log_cb (const rd_kafka_t *rk, int level,
  * Clear Python object references in Handle
  */
 void Handle_clear (Handle *h) {
-	if (h->error_cb)
-		Py_DECREF(h->error_cb);
+        if (h->error_cb) {
+                Py_DECREF(h->error_cb);
+                h->error_cb = NULL;
+        }
 
-        if (h->throttle_cb)
+        if (h->throttle_cb) {
                 Py_DECREF(h->throttle_cb);
+                h->throttle_cb = NULL;
+        }
 
-	if (h->stats_cb)
-		Py_DECREF(h->stats_cb);
+        if (h->stats_cb) {
+                Py_DECREF(h->stats_cb);
+                h->stats_cb = NULL;
+        }
 
-        Py_XDECREF(h->logger);
+        if (h->logger) {
+                Py_DECREF(h->logger);
+                h->logger = NULL;
+        }
 
         if (h->initiated) {
 #ifdef WITH_PY_TSS
@@ -1360,82 +1425,15 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	return 0;
 }
 
-
-
-/**
- * Populate topic conf from provided dict.
- *
- * Will raise an exception on error and return -1, or returns 0 on success.
- */
-static int populate_topic_conf (rd_kafka_topic_conf_t *tconf, const char *what,
-				PyObject *dict) {
-	Py_ssize_t pos = 0;
-	PyObject *ko, *vo;
-
-	if (!PyDict_Check(dict)) {
-		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-				 "%s: requires a dict", what);
-		return -1;
-	}
-
-	while (PyDict_Next(dict, &pos, &ko, &vo)) {
-		PyObject *ks, *ks8;
-		PyObject *vs, *vs8;
-		const char *k;
-		const char *v;
-		char errstr[256];
-
-		if (!(ks = cfl_PyObject_Unistr(ko))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property "
-					"value as type unicode string");
-			return -1;
-		}
-
-		if (!(vs = cfl_PyObject_Unistr(vo))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property "
-					"value as type unicode string");
-			Py_DECREF(ks);
-			return -1;
-		}
-
-		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		v = cfl_PyUnistr_AsUTF8(vs, &vs8);
-
-		if (rd_kafka_topic_conf_set(tconf, k, v,
-					    errstr, sizeof(errstr)) !=
-		    RD_KAFKA_CONF_OK) {
-			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-					 "%s: %s", what, errstr);
-                        Py_XDECREF(ks8);
-                        Py_XDECREF(vs8);
-			Py_DECREF(ks);
-			Py_DECREF(vs);
-			return -1;
-		}
-
-                Py_XDECREF(ks8);
-                Py_XDECREF(vs8);
-		Py_DECREF(ks);
-		Py_DECREF(vs);
-	}
-
-	return 0;
-}
-
-
-
 /**
  * @brief Set single special producer config value.
  *
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
-	if (!strcasecmp(name, "on_delivery")) {
+	if (!strcmp(name, "on_delivery")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -1474,10 +1472,9 @@ static int producer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
  * @returns 1 if handled, 0 if unknown, or -1 on failure (exception raised).
  */
 static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
-				      rd_kafka_topic_conf_t *tconf,
 				      const char *name, PyObject *valobj) {
 
-	if (!strcasecmp(name, "on_commit")) {
+	if (!strcmp(name, "on_commit")) {
 		if (!PyCallable_Check(valobj)) {
 			cfl_PyErr_Format(
 				RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -1495,6 +1492,80 @@ static int consumer_conf_set_special (Handle *self, rd_kafka_conf_t *conf,
 	return 0;
 }
 
+/**
+ * @brief Call out to __init__.py _resolve_plugins() to see if any
+ *        of the specified `plugin.library.paths` are found in the
+ *        wheel's embedded library directory, and if so change the
+ *        path to use these libraries.
+ *
+ * @returns a possibly updated plugin.library.paths string object which
+ *          must be DECREF:ed, or NULL if an exception was raised.
+ */
+static PyObject *resolve_plugins (PyObject *plugins) {
+        PyObject *resolved;
+        PyObject *module, *function;
+
+        module = PyImport_ImportModule("confluent_kafka");
+        if (!module)
+                return NULL;
+
+        function = PyObject_GetAttrString(module, "_resolve_plugins");
+        if (!function) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "confluent_kafka._resolve_plugins() not found");
+                Py_DECREF(module);
+                return NULL;
+        }
+
+        resolved = PyObject_CallFunctionObjArgs(function, plugins, NULL);
+
+        Py_DECREF(function);
+        Py_DECREF(module);
+
+        if (!resolved) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "confluent_kafka._resolve_plugins() failed");
+                return NULL;
+        }
+
+        return resolved;
+}
+
+/**
+ * @brief Remove property from confidct and set rd_kafka_conf with its value
+ *
+ * @param vo The property value object
+ *
+ * @returns 1 on success or 0 on failure (exception raised).
+ */
+static int common_conf_set_special(PyObject *confdict, rd_kafka_conf_t *conf,
+                                   const char *name, PyObject *vo) {
+        const char *v;
+        char errstr[256];
+        PyObject *vs;
+        PyObject *vs8 = NULL;
+
+        if (!(vs = cfl_PyObject_Unistr(vo))) {
+                PyErr_Format(PyExc_TypeError, "expected configuration property %s "
+                             "as type unicode string", name);
+                return 0;
+        }
+
+        v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+        if (rd_kafka_conf_set(conf, name, v, errstr, sizeof(errstr))
+            != RD_KAFKA_CONF_OK) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                 "%s", errstr);
+                Py_DECREF(vs);
+                Py_XDECREF(vs8);
+                return 0;
+        }
+
+        Py_DECREF(vs);
+        Py_XDECREF(vs8);
+        PyDict_DelItemString(confdict, name);
+        return 1;
+}
 
 /**
  * Common config setup for Kafka client handles.
@@ -1507,7 +1578,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *args,
 				    PyObject *kwargs) {
 	rd_kafka_conf_t *conf;
-	rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
@@ -1560,62 +1630,55 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         }
 
 	conf = rd_kafka_conf_new();
-	tconf = rd_kafka_topic_conf_new();
 
         /*
-         * Default config (overridable by user)
+         * Set debug contexts first to capture all events including plugin loading
          */
-
-        /* Enable valid offsets in delivery reports */
-        rd_kafka_topic_conf_set(tconf, "produce.offset.report", "true", NULL, 0);
+         if ((vo = PyDict_GetItemString(confdict, "debug")) &&
+              !common_conf_set_special(confdict, conf, "debug", vo))
+                        goto outer_err;
 
         /*
-         * Plugins must be configured prior to handling any of their configuration properties.
-         * Dicts are unordered so we explicitly check for, set, and delete the plugin paths here.
-         * This ensures plugin configuration properties are handled in the correct order.
+         * Plugins must be configured prior to handling any of their
+         * configuration properties.
+         * Dicts are unordered so we explicitly check for, set, and delete the
+         * plugin paths here.
+         * This ensures plugin configuration properties are handled in the
+         * correct order.
          */
         if ((vo = PyDict_GetItemString(confdict, "plugin.library.paths"))) {
-                const char *v;
-                char errstr[256];
-                PyObject *vs = NULL, *vs8 = NULL;
+                /* Resolve plugin paths */
+                PyObject *resolved;
 
-                if (!(vs = cfl_PyObject_Unistr(vo))) {
-                        PyErr_SetString(PyExc_TypeError,
-                                "expected configuration property name "
-                                "as type unicode string");
-                        rd_kafka_topic_conf_destroy(tconf);
-                        rd_kafka_conf_destroy(conf);
-                        Py_DECREF(confdict);
+                resolved = resolve_plugins(vo);
+                if (!resolved)
+                        goto outer_err;
 
-                        return NULL;
+                if (!common_conf_set_special(confdict, conf,
+                                             "plugin.library.paths",
+                                             resolved)) {
+                        Py_DECREF(resolved);
+                        goto outer_err;
                 }
+                Py_DECREF(resolved);
+        }
 
-                v = cfl_PyUnistr_AsUTF8(vs, &vs8);
-
-                if (rd_kafka_conf_set(conf, "plugin.library.paths", v, errstr, sizeof(errstr))
-                   != RD_KAFKA_CONF_OK) {
-                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-                                "%s", errstr);
-
-                        rd_kafka_topic_conf_destroy(tconf);
-                        rd_kafka_conf_destroy(conf);
-                        Py_DECREF(confdict);
-
-                        Py_XDECREF(vs8);
-                        Py_XDECREF(vs);
-
-                        return NULL;
+        if ((vo = PyDict_GetItemString(confdict, "default.topic.config"))) {
+        /* TODO: uncomment for 1.0 release
+                PyErr_Warn(PyExc_DeprecationWarning,
+                             "default.topic.config has being deprecated, "
+                             "set default topic configuration values in the global dict");
+        */
+                if (PyDict_Update(confdict, vo) == -1) {
+                        goto outer_err;
                 }
-
-                Py_XDECREF(vs8);
-                Py_DECREF(vs);
-
-                PyDict_DelItemString(confdict, "plugin.library.paths");
+                PyDict_DelItemString(confdict, "default.topic.config");
         }
 
 	/* Convert config dict to config key-value pairs. */
 	while (PyDict_Next(confdict, &pos, &ko, &vo)) {
-		PyObject *ks, *ks8;
+		PyObject *ks;
+		PyObject *ks8 = NULL;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k;
 		const char *v;
@@ -1623,42 +1686,19 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 int r = 0;
 
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
-			PyErr_SetString(PyExc_TypeError,
-					"expected configuration property name "
-					"as type unicode string");
-			rd_kafka_topic_conf_destroy(tconf);
-			rd_kafka_conf_destroy(conf);
-                        Py_DECREF(confdict);
-
-			return NULL;
+                        PyErr_SetString(PyExc_TypeError,
+                                        "expected configuration property name "
+                                        "as type unicode string");
+                        goto inner_err;
 		}
 
 		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		if (!strcmp(k, "default.topic.config")) {
-			if (populate_topic_conf(tconf, k, vo) == -1) {
-				Py_DECREF(ks);
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-				return NULL;
-			}
-                        Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			continue;
-
-		} else if (!strcmp(k, "error_cb")) {
+		if (!strcmp(k, "error_cb")) {
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
 						"expected error_cb property "
 						"as a callable function");
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-
-                                Py_XDECREF(ks8);
-				Py_DECREF(ks);
-
-				return NULL;
+                                goto inner_err;
                         }
 			if (h->error_cb) {
 				Py_DECREF(h->error_cb);
@@ -1676,14 +1716,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                 PyErr_SetString(PyExc_ValueError,
                                         "expected throttle_cb property "
                                         "as a callable function");
-                                rd_kafka_topic_conf_destroy(tconf);
-                                rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-
-                                Py_XDECREF(ks8);
-                                Py_DECREF(ks);
-
-                                return NULL;
+                                goto inner_err;
                         }
                         if (h->throttle_cb) {
                                 Py_DECREF(h->throttle_cb);
@@ -1701,14 +1734,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				PyErr_SetString(PyExc_TypeError,
 						"expected stats_cb property "
 						"as a callable function");
-				rd_kafka_topic_conf_destroy(tconf);
-				rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-
-                                Py_XDECREF(ks8);
-				Py_DECREF(ks);
-
-				return NULL;
+                                goto inner_err;
                         }
 
 			if (h->stats_cb) {
@@ -1739,19 +1765,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 
 		/* Special handling for certain config keys. */
 		if (ktype == RD_KAFKA_PRODUCER)
-			r = producer_conf_set_special(h, conf, tconf, k, vo);
+			r = producer_conf_set_special(h, conf, k, vo);
 		else if (ktype == RD_KAFKA_CONSUMER)
-			r = consumer_conf_set_special(h, conf, tconf, k, vo);
+			r = consumer_conf_set_special(h, conf, k, vo);
 		if (r == -1) {
 			/* Error */
-                        Py_XDECREF(ks8);
-			Py_DECREF(ks);
-			rd_kafka_topic_conf_destroy(tconf);
-			rd_kafka_conf_destroy(conf);
-                        Py_DECREF(confdict);
-
-			return NULL;
-
+                        goto inner_err;
 		} else if (r == 1) {
 			/* Handled */
 			continue;
@@ -1769,14 +1788,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                                                 "expected configuration "
                                                 "property value as type "
                                                 "unicode string");
-                                rd_kafka_topic_conf_destroy(tconf);
-                                rd_kafka_conf_destroy(conf);
-                                Py_DECREF(confdict);
-
-                                Py_XDECREF(ks8);
-                                Py_DECREF(ks);
-
-                                return NULL;
+                                goto inner_err;
                         }
                         v = cfl_PyUnistr_AsUTF8(vs, &vs8);
                 }
@@ -1785,28 +1797,26 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		    RD_KAFKA_CONF_OK) {
 			cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
 					  "%s", errstr);
-			rd_kafka_topic_conf_destroy(tconf);
-			rd_kafka_conf_destroy(conf);
-                        Py_DECREF(confdict);
-
-                        Py_XDECREF(vs8);
-                        Py_XDECREF(vs);
-                        Py_XDECREF(ks8);
-			Py_DECREF(ks);
-
-			return NULL;
+                        goto inner_err;
 		}
 
                 Py_XDECREF(vs8);
                 Py_XDECREF(vs);
                 Py_XDECREF(ks8);
 		Py_DECREF(ks);
-	}
+                continue;
+
+inner_err:
+                Py_XDECREF(vs8);
+                Py_XDECREF(vs);
+                Py_XDECREF(ks8);
+                Py_XDECREF(ks);
+                goto outer_err;
+        }
 
         Py_DECREF(confdict);
 
-	if (h->error_cb)
-		rd_kafka_conf_set_error_cb(conf, error_cb);
+        rd_kafka_conf_set_error_cb(conf, error_cb);
 
         if (h->throttle_cb)
                 rd_kafka_conf_set_throttle_cb(conf, throttle_cb);
@@ -1820,9 +1830,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 rd_kafka_conf_set(conf, "log.queue", "true", NULL, 0);
                 rd_kafka_conf_set_log_cb(conf, log_cb);
         }
-
-	rd_kafka_topic_conf_set_opaque(tconf, h);
-	rd_kafka_conf_set_default_topic_conf(conf, tconf);
 
 	rd_kafka_conf_set_opaque(conf, h);
 
@@ -1840,6 +1847,12 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         h->initiated = 1;
 
 	return conf;
+
+outer_err:
+        Py_DECREF(confdict);
+        rd_kafka_conf_destroy(conf);
+
+        return NULL;
 }
 
 
@@ -2156,7 +2169,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "0.11.5rc5", 0x000b0500);
+	return Py_BuildValue("si", "1.0.0", 0x00100000);
 }
 
 static PyMethodDef cimpl_methods[] = {

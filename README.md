@@ -74,9 +74,7 @@ from confluent_kafka import Consumer, KafkaError
 c = Consumer({
     'bootstrap.servers': 'mybroker',
     'group.id': 'mygroup',
-    'default.topic.config': {
-        'auto.offset.reset': 'smallest'
-    }
+    'auto.offset.reset': 'earliest'
 })
 
 c.subscribe(['mytopic'])
@@ -87,11 +85,8 @@ while True:
     if msg is None:
         continue
     if msg.error():
-        if msg.error().code() == KafkaError._PARTITION_EOF:
-            continue
-        else:
-            print(msg.error())
-            break
+        print("Consumer error: {}".format(msg.error()))
+        continue
 
     print('Received message: {}'.format(msg.value().decode('utf-8')))
 
@@ -174,11 +169,8 @@ while True:
         continue
 
     if msg.error():
-        if msg.error().code() == KafkaError._PARTITION_EOF:
-            continue
-        else:
-            print(msg.error())
-            break
+        print("AvroConsumer error: {}".format(msg.error()))
+        continue
 
     print(msg.value())
 
@@ -195,7 +187,8 @@ Install
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
-          confluent-kafka from source.
+          confluent-kafka  using the command in the "Install from
+          source from PyPi" section below.
 
 **Install self-contained binary wheels for OSX and Linux from PyPi:**
 

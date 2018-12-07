@@ -97,7 +97,7 @@ function install_librdkafka {
 
 function install_client {
     pip uninstall -y confluent_kafka || true
-    pip install -U --only-binary confluent_kafka --no-index -f /vagrant/$REL_DIR confluent_kafka
+    pip install -U --only-binary confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
 }
 
 function verify_client {

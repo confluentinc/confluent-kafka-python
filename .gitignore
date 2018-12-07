@@ -20,4 +20,6 @@ wheelhouse
 dl-*
 *.whl
 .pytest_cache
+staging
+tests/docker/conf/tls/*
 librdkafka-tmp

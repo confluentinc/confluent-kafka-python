@@ -71,6 +71,10 @@ class VerifiableClient(object):
             if v is None:
                 continue
 
+            if n.startswith('topicconf_'):
+                conf[n[10:]] = v
+                continue
+
             if not n.startswith('conf_'):
                 # App config, skip
                 continue
@@ -84,10 +88,6 @@ class VerifiableClient(object):
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
                 conf[n] = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
                                  lambda x: x.group(1).lower(), v)
-
-            elif n == 'enable.idempotence':
-                # Ignore idempotence for now, best-effortly.
-                sys.stderr.write('%% WARN: Ignoring unsupported %s=%s\n' % (n, v))
             else:
                 conf[n] = v
 
