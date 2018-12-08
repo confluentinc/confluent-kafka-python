@@ -2268,7 +2268,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 static struct PyModuleDef cimpl_moduledef = {
 	PyModuleDef_HEAD_INIT,
 	"cimpl",                                  /* m_name */
-	"Confluent's Apache Kafka Python client (C implementation)", /* m_doc */
+	"Confluent's Python client for Apache Kafka (C implementation)", /* m_doc */
 	-1,                                       /* m_size */
 	cimpl_methods,                            /* m_methods */
 };
@@ -2299,7 +2299,7 @@ static PyObject *_init_cimpl (void) {
 	m = PyModule_Create(&cimpl_moduledef);
 #else
 	m = Py_InitModule3("cimpl", cimpl_methods,
-			   "Confluent's Apache Kafka Python client (C implementation)");
+			   "Confluent's Python client for Apache Kafka (C implementation)");
 #endif
 	if (!m)
 		return NULL;
