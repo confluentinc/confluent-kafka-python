@@ -1,16 +1,16 @@
-Welcome to Confluent's Apache Kafka Python client documentation
-===============================================================
+Welcome to Confluent's Python client for Apache Kafka documentation
+===================================================================
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
 
-:mod:`confluent_kafka` --- Confluent's Apache Kafka Python client
-*****************************************************************
+:mod:`confluent_kafka` --- Confluent's Python client for Apache Kafka
+*********************************************************************
 
 .. automodule:: confluent_kafka
-   :synopsis: Confluent's Apache Kafka Python client.
+   :synopsis: Confluent's Python client for Apache Kafka.
    :members:
 
 ********
