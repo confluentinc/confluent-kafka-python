@@ -1387,6 +1387,7 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         rd_kafka_poll_set_consumer(self->rk);
 
         self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
+        assert(self->u.Consumer.rkqu);
 
         return 0;
 }
@@ -1423,8 +1424,8 @@ PyTypeObject ConsumerType = {
         "\n"
         ".. py:function:: Consumer(config)\n"
         "\n"
-        "  :param dict config: Configuration properties. At a minimum ``bootstrap.servers`` and "
-        "``group.id`` **should** be set"
+        "  :param dict config: Configuration properties. At a minimum ``group.id`` **must** be set,"
+                " ``bootstrap.servers`` **should** be set"
         "\n"
         "Create new Consumer instance using provided configuration dict.\n"
         "\n"

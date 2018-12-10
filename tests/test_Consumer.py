@@ -313,3 +313,11 @@ def test_calling_store_offsets_after_close_throws_erro():
     with pytest.raises(RuntimeError) as ex:
         c.offsets_for_times([TopicPartition("test", 0)])
     assert 'Consumer closed' == str(ex.value)
+
+
+def test_consumer_withot_groupid():
+    """ Consumer should raise exception if group.id is not set """
+
+    with pytest.raises(ValueError) as ex:
+        Consumer({'bootstrap.servers': "mybroker:9092"})
+    assert 'group.id must be set' in str(ex)
