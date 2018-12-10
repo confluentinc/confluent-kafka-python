@@ -1629,13 +1629,16 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 PyDict_Update(confdict, kwargs);
         }
 
-        if (ktype == RD_KAFKA_CONSUMER &&
-                PyDict_Contains(confdict,  cfl_PyUnistr(_FromString("group.id"))) != 1) {
-
-                PyErr_SetString(PyExc_ValueError,
+        if (ktype == RD_KAFKA_CONSUMER) {
+                ko = cfl_PyUnistr(_FromString("group.id"));
+                if (PyDict_Contains(confdict, ko) != 1) {
+                        PyErr_SetString(PyExc_ValueError,
                                         "Failed to create consumer: group.id must be set");
-                Py_DECREF(confdict);
-                return NULL;
+                        Py_DECREF(ko);
+                        Py_DECREF(confdict);
+                        return NULL;
+                }
+                Py_DECREF(ko);
         }
 
 	conf = rd_kafka_conf_new();
