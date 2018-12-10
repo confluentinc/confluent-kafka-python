@@ -155,7 +155,7 @@ def test_unordered_dict(init_func):
     """
     Interceptor configs can only be handled after the plugin has been loaded not before.
     """
-    client = init_func({'group.id': "test-group",
+    client = init_func({'group.id': 'test-group',
                         'confluent.monitoring.interceptor.publishMs': 1000,
                         'confluent.monitoring.interceptor.sessionDurationMs': 1000,
                         'plugin.library.paths': 'monitoring-interceptor',

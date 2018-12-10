@@ -316,7 +316,7 @@ def test_calling_store_offsets_after_close_throws_erro():
 
 
 def test_consumer_withot_groupid():
-    """ consumer should raise exception if group.id is not set """
+    """ Consumer should raise exception if group.id is not set """
 
     with pytest.raises(ValueError) as ex:
         Consumer({'bootstrap.servers': "mybroker:9092"})

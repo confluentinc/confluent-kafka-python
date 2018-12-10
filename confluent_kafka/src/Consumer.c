@@ -1386,11 +1386,8 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
         rd_kafka_poll_set_consumer(self->rk);
 
-        if (!(self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk))) {
-                PyErr_SetString(PyExc_ValueError,
-                                "Failed to initialize consumer: group.id must be set.");
-                return -1;
-        }
+        self->u.Consumer.rkqu = rd_kafka_queue_get_consumer(self->rk);
+        assert(self->u.Consumer.rkqu);
 
         return 0;
 }
