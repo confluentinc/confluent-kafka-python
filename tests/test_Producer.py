@@ -3,6 +3,7 @@
 import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, libversion
+from confluent_kafka.producer import SerializingProducer
 from struct import pack
 
 
@@ -191,3 +192,19 @@ def test_set_invalid_partitioner_murmur():
     with pytest.raises(KafkaException) as e:
         Producer({'partitioner': 'murmur'})
     assert 'Invalid value for configuration property "partitioner": murmur' in str(e)
+
+
+@pytest.mark.parametrize("test_param", [
+    ({"key_serializer": lambda key: key}, SerializingProducer),
+    ({"value_serializer": lambda value: value}, SerializingProducer),
+    ({"key_serializer": lambda key: key,
+      "value_serializer": lambda value: value}, SerializingProducer),
+    ({}, Producer)
+])
+def test_producer_factory(test_param):
+    """
+    Assert Producer factory returns the correct class
+    """
+
+    p = Producer(**test_param[0])
+    assert(type(p) is test_param[1])

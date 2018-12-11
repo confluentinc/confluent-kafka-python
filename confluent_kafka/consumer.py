@@ -23,6 +23,34 @@ from warnings import warn
 
 class Consumer(_impl):
     """
+        Create a new Kafka Consumer instance with or without serializer support.
+
+        To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
+        calling ```client.poll()``` or ```client.flush()```.
+
+        :param dict conf: Configuration properties.
+            See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for more information.
+        :param func key_deserializer(topic, key): Converts message key bytes to object.
+            **note** deserializers are responsible for handling NULL keys
+        :param func value_deserializer(topic, value): Converts message value bytes to object.
+            **note** deserializers are responsible for handling NULL values
+        :param func on_commit(err, [partitions]): Callback used to indicate success or failure
+            of an offset commit.
+        :param func stats_cb(json_str): Callback for statistics emitted every ``statistics.interval.ms``.
+            See https://github.com/edenhill/librdkafka/wiki/Statistics” for more information.
+        :param func throttle_cb(confluent_kafka.ThrottleEvent): Callback for throttled request reporting.
+        :param logging.handlers logger: Forwards logs from the Kafka client to the provided handler instance.
+            Log messages will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
+        :raises TypeError: If conf is not a dict.
+    """
+    def __new__(cls, *args, **kwargs):
+        if 'key_deserializer' in kwargs or 'value_deserializer' in kwargs:
+            return super(Consumer, cls).__new__(DeserializingConsumer, *args, **kwargs)
+        return super(Consumer, cls).__new__(cls, *args, **kwargs)
+
+
+class DeserializingConsumer(Consumer):
+    """
         Create a new Kafka Consumer instance.
 
         To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
@@ -78,10 +106,11 @@ class Consumer(_impl):
 
         if not logger:
             logger = conf.get('logger', None)
-        super(Consumer, self).__init__(conf, on_commit=on_commit, stats_cb=stats_cb,
-                                       throttle_cb=throttle_cb, logger=logger)
 
-    def poll(self, timeout=-1.0, key_deserializer=None, value_deserializer=None):
+        super(DeserializingConsumer, self).__init__(conf, on_commit=on_commit, stats_cb=stats_cb,
+                                                    throttle_cb=throttle_cb, logger=logger)
+
+    def poll(self, timeout=-1.0):
         """
             Consumes a message, triggers callbacks, returns an event.
 
@@ -97,25 +126,15 @@ class Consumer(_impl):
             :raises RuntimeError: If called on a closed consumer.
         """
 
-        msg = super(Consumer, self).poll(timeout)
+        msg = super(DeserializingConsumer, self).poll(timeout)
 
-        if not msg or msg.error():
+        if msg is None or msg.error():
             return msg
 
         topic = msg.topic()
 
-        # parameter overrides take precedence over instance functions
-        if not key_deserializer:
-            key_deserializer = self._key_deserializer
-
-        if key_deserializer:
-            msg.set_key(key_deserializer(topic, msg.key()))
-
-        if not value_deserializer:
-            value_deserializer = self._value_deserializer
-
-        if value_deserializer:
-            msg.set_value(value_deserializer(topic, msg.value()))
+        msg.set_key(self._key_deserializer(topic, msg.key()))
+        msg.set_value(self._value_deserializer(topic, msg.value()))
 
         return msg
 
@@ -138,8 +157,12 @@ class Consumer(_impl):
             :raises ValueError: If num_messages > 1M.
         """
 
-        # Disable consume() method when serializers are in use.
-        if self._key_deserializer or self._value_deserializer:
-            raise(NotImplementedError, "Batch consumption does not support the use of deserializers")
+        msgset = super(DeserializingConsumer, self).consume(num_messages, timeout)
+        for msg in msgset:
+            if msg.error():
+                continue
 
-        return super(Consumer, self).consume(num_messages, timeout)
+            msg.set_key(self._key_deserializer(topic, msg.key()))
+            msg.set_value(self._value_deserializer(topic, msg.value()))
+
+        return msgset

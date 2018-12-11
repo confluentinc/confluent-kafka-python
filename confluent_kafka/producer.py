@@ -23,7 +23,35 @@ from warnings import warn
 
 class Producer(_impl):
     """
-        Create a new Kafka Producer instance.
+        Create a new Kafka Producer instance with or without serializer support.
+
+        To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
+            calling ```client.poll()``` or ```client.flush()```.
+
+        :param dict conf: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set.
+            See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for more information.
+        :param func key_serializer(topic, key): Converts key to bytes.
+            **note** serializers are responsible for handling NULL keys
+        :param func value_serializer(topic, value): Converts value to bytes.
+            **note** serializers are responsible for handling NULL keys
+        :param func error_cb(kafka.KafkaError): Callback for generic/global error events.
+        :param func stats_cb(json_str): Callback for statistics emitted every ``statistics.interval.ms``.
+            See https://github.com/edenhill/librdkafka/wiki/Statistics” for more information.
+        :param func throttle_cb(confluent_kafka.ThrottleEvent): Callback for throttled request reporting.
+        :param logging.handlers logger: Forwards logs from the Kafka client to the provided handler instance.
+            Log messages will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
+        :raises TypeError: If conf is not a dict object.
+    """
+
+    def __new__(cls, *args, **kwargs):
+        if 'key_serializer' in kwargs or 'value_serializer' in kwargs:
+            return super(Producer, cls).__new__(SerializingProducer, *args, **kwargs)
+        return super(Producer, cls).__new__(cls, *args, **kwargs)
+
+
+class SerializingProducer(Producer):
+    """
+        Create a new Kafka Producer instance with custom serialization support.
 
         To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
             calling ```client.poll()``` or ```client.flush()```.
@@ -78,12 +106,11 @@ class Producer(_impl):
         if not logger:
             logger = conf.get('logger', None)
 
-        super(Producer, self).__init__(conf, error_cb=error_cb, stats_cb=stats_cb,
-                                       throttle_cb=throttle_cb, logger=logger)
+        super(SerializingProducer, self).__init__(conf, error_cb=error_cb, stats_cb=stats_cb,
+                                                  throttle_cb=throttle_cb, logger=logger)
 
     def produce(self, topic, value=None, key=None, partition=PARTITION_UA,
-                on_delivery=None, callback=None, timestamp=0, headers=None,
-                key_serializer=None, value_serializer=None):
+                on_delivery=None, callback=None, timestamp=0, headers=None):
         """
             Produces message to Kafka
 
@@ -109,22 +136,8 @@ class Producer(_impl):
 
         """
 
-        # on_delivery is an alias for callback and take precedence
-        if callback and not on_delivery:
-            on_delivery = callback
+        key = self._key_serializer(topic, key)
+        value = self._value_serializer(topic, value)
 
-        # parameter overrides take precedence over instance functions
-        if not key_serializer:
-            key_serializer = self._key_serializer
-
-        if key_serializer:
-            key = key_serializer(topic, key)
-
-        if not value_serializer:
-            value_serializer = self._value_serializer
-
-        if value_serializer:
-            value = value_serializer(topic, value)
-
-        super(Producer, self).produce(topic, value, key, partition, on_delivery=on_delivery,
-                                      timestamp=timestamp, headers=headers)
+        super(SerializingProducer, self).produce(topic, value, key, partition, on_delivery=on_delivery,
+                                                 callback=callback, timestamp=timestamp, headers=headers)

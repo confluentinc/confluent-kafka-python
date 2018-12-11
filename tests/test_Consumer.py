@@ -3,6 +3,7 @@
 from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
+from confluent_kafka.consumer import DeserializingConsumer
 import pytest
 
 
@@ -321,3 +322,19 @@ def test_consumer_withot_groupid():
     with pytest.raises(ValueError) as ex:
         Consumer({'bootstrap.servers': "mybroker:9092"})
     assert 'group.id must be set' in str(ex)
+
+
+@pytest.mark.parametrize("test_param", [
+    ({"key_deserializer": lambda key: key}, DeserializingConsumer),
+    ({"value_deserializer": lambda value: value}, DeserializingConsumer),
+    ({"key_deserializer": lambda key: key,
+      "value_deserializer": lambda value: value}, DeserializingConsumer),
+    ({}, Consumer)
+])
+def test_producer_factory(test_param):
+    """
+    Assert Consumer factory returns the correct class
+    """
+
+    c = Consumer({'group.id': 'wrapper'}, **test_param[0])
+    assert(type(c) is test_param[1])
