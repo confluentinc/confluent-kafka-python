@@ -275,8 +275,6 @@ class CachedSchemaRegistryClient(object):
             except ClientError as e:
                 # bad schema - should not happen
                 raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
-
-
     
     
     def get_schema_by_version(self, subject, version):
