@@ -60,7 +60,7 @@ setup(name='confluent-kafka',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
-      packages=find_packages(exclude=("tests", "tests.*")),
+      packages=find_packages(),
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
