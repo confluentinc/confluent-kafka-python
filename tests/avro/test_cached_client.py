@@ -87,7 +87,9 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         self.assertEqual(schema, None)
         latest = client.get_latest_schema(subject)
         self.assertEqual(latest, (None, None, None))
-
+        xversion = client.get_schema_by_version(version)
+        self.assertEqual(xversion, version)
+        
         # register
         schema_id = client.register(subject, parsed)
         latest = client.get_latest_schema(subject)
