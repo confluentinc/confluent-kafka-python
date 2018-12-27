@@ -208,3 +208,12 @@ def test_producer_factory(test_param):
 
     p = Producer(**test_param[0])
     assert(type(p) is test_param[1])
+
+
+def test_serializing_producer_instantiation():
+    """
+    Assert SerializingProducer instances cannot be created directly
+    """
+    with pytest.raises(TypeError) as e:
+        SerializingProducer()
+    assert 'SerializingProducer is a non user-instantiable class' in str(e)

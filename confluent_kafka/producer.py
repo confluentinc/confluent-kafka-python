@@ -21,6 +21,14 @@ from .cimpl import Producer as _impl, PARTITION_UA
 from warnings import warn
 
 
+def byteSerializer(topic, payload):
+    """
+        byteSerializer returns an unaltered payload to the caller
+    """
+
+    return payload
+
+
 class Producer(_impl):
     """
         Create a new Kafka Producer instance with or without serializer support.
@@ -51,30 +59,27 @@ class Producer(_impl):
 
 class SerializingProducer(Producer):
     """
-        Create a new Kafka Producer instance with custom serialization support.
+        SerializingProducer extends Producer with configurable key and value serializer.
 
         To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
             calling ```client.poll()``` or ```client.flush()```.
 
-        :param dict conf: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set.
-            See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for more information.
-        :param func key_serializer(topic, key): Converts key to bytes.
-            **note** serializers are responsible for handling NULL keys
-        :param func value_serializer(topic, value): Converts value to bytes.
-            **note** serializers are responsible for handling NULL keys
-        :param func error_cb(kafka.KafkaError): Callback for generic/global error events.
-        :param func stats_cb(json_str): Callback for statistics emitted every ``statistics.interval.ms``.
-            See https://github.com/edenhill/librdkafka/wiki/Statistics” for more information.
-        :param func throttle_cb(confluent_kafka.ThrottleEvent): Callback for throttled request reporting.
-        :param logging.handlers logger: Forwards logs from the Kafka client to the provided handler instance.
-            Log messages will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
-        :raises TypeError: If conf is not a dict object.
+        Instances of SerializingProducer cannot be created directly.
+        To obtain an instance of this class instantiate a Consumer with a key and/or value deserializer.
+
+        Duplicate params have been omitted for brevity. See Consumer for class documentation.
+
+        :raises TypeError: If conf is not a dict.
+        :raises TypeError: If instantiated directly.
     """
 
     __slots__ = ["_key_serializer", "_value_serializer"]
 
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("SerializingProducer is a non user-instantiable class")
+
     # conf must remain optional as long as kwargs are supported
-    def __init__(self, conf={}, key_serializer=None, value_serializer=None,
+    def __init__(self, conf={}, key_serializer=byteSerializer, value_serializer=byteSerializer,
                  error_cb=None, stats_cb=None, throttle_cb=None, logger=None, **kwargs):
 
         if not isinstance(conf, dict):

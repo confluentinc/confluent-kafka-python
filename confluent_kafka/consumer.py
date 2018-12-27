@@ -21,9 +21,17 @@ from .cimpl import Consumer as _impl
 from warnings import warn
 
 
+def byteDeserializer(topic, payload):
+    """
+        byteDeserializer returns an unaltered payload to the caller
+    """
+
+    return payload
+
+
 class Consumer(_impl):
     """
-        Create a new Kafka Consumer instance with or without serializer support.
+        Create a new Kafka Consumer instance.
 
         To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
         calling ```client.poll()``` or ```client.flush()```.
@@ -51,31 +59,24 @@ class Consumer(_impl):
 
 class DeserializingConsumer(Consumer):
     """
-        Create a new Kafka Consumer instance.
+        DeserializingConsumer extends Consumer with configurable key and value deserializer.
 
-        To avoid spontaneous calls from non-Python threads all callbacks will only be served upon
-        calling ```client.poll()``` or ```client.flush()```.
+        Instances of DeserializingConsumer cannot be created directly.
+        To obtain an instance of this class instantiate a Consumer with a key and/or value deserializer.
 
-        :param dict conf: Configuration properties.
-            See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md for more information.
-        :param func key_deserializer(topic, key): Converts message key bytes to object.
-            **note** deserializers are responsible for handling NULL keys
-        :param func value_deserializer(topic, value): Converts message value bytes to object.
-            **note** deserializers are responsible for handling NULL values
-        :param func on_commit(err, [partitions]): Callback used to indicate success or failure
-            of an offset commit.
-        :param func stats_cb(json_str): Callback for statistics emitted every ``statistics.interval.ms``.
-            See https://github.com/edenhill/librdkafka/wiki/Statistics” for more information.
-        :param func throttle_cb(confluent_kafka.ThrottleEvent): Callback for throttled request reporting.
-        :param logging.handlers logger: Forwards logs from the Kafka client to the provided handler instance.
-            Log messages will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
+        Duplicate params have been omitted for brevity. See Consumer for class documentation.
+
         :raises TypeError: If conf is not a dict.
+        :raises TypeError: If instantiated directly.
     """
 
     __slots__ = ["_key_deserializer", "_value_deserializer"]
 
+    def __new__(cls, *args, **kwargs):
+        raise TypeError("DeserializingConsumer is a non user-instantiable class")
+
     # conf must remain optional as long as kwargs are supported
-    def __init__(self, conf={}, key_deserializer=None, value_deserializer=None,
+    def __init__(self, conf={}, key_deserializer=byteDeserializer, value_deserializer=byteDeserializer,
                  on_commit=None, stats_cb=None, throttle_cb=None, logger=None, **kwargs):
 
         if not isinstance(conf, dict):
@@ -143,7 +144,7 @@ class DeserializingConsumer(Consumer):
             Consume messages, calls callbacks and returns a list of messages. (possibly empty on timeout)
 
             The application must check Message.error() to distinguish between
-                proper messages, an error(see error().code() for specifics), or an event. for each
+                proper messages, an error(see error().code() for specifics), or an event for each
                 Message in the list.
 
             :param int num_messages: Maximum number of messages to return (default: 1)
@@ -151,7 +152,6 @@ class DeserializingConsumer(Consumer):
                 (default: infinite (-1))
             :returns: A list of Message objects (possibly empty on timeout)
             :rtype: list(Message)
-            :raises NotImplementedError: If used with key/value serializers.
             :raises RuntimeError: If called on a closed consumer.
             :raises KafkaError: In case of internal error.
             :raises ValueError: If num_messages > 1M.
@@ -162,7 +162,7 @@ class DeserializingConsumer(Consumer):
             if msg.error():
                 continue
 
-            msg.set_key(self._key_deserializer(topic, msg.key()))
-            msg.set_value(self._value_deserializer(topic, msg.value()))
+            msg.set_key(self._key_deserializer(msg.topic(), msg.key()))
+            msg.set_value(self._value_deserializer(msg.topic(), msg.value()))
 
         return msgset

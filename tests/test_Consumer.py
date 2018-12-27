@@ -338,3 +338,12 @@ def test_producer_factory(test_param):
 
     c = Consumer({'group.id': 'wrapper'}, **test_param[0])
     assert(type(c) is test_param[1])
+
+
+def test_deserializing_consumer_instantiation():
+    """
+    Assert DeserializingConsumer instances cannot be created directly
+    """
+    with pytest.raises(TypeError) as e:
+        DeserializingConsumer()
+    assert 'DeserializingConsumer is a non user-instantiable class' in str(e)
