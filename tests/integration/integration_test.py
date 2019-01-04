@@ -757,6 +757,8 @@ def verify_schema_registry_client():
 
 
 def verify_avro():
+    from confluent_kafka.avro import AvroProducer, AvroConsumer
+
     base_conf = {'bootstrap.servers': bootstrap_servers,
                  'error_cb': error_cb,
                  'api.version.fallback.ms': 0,
@@ -770,10 +772,12 @@ def verify_avro():
         'on_commit': print_commit_result,
         'auto.offset.reset': 'earliest'})
 
-    run_avro_loop(base_conf, consumer_conf)
+    run_avro_loop(AvroProducer(base_conf), AvroConsumer(consumer_conf))
 
 
 def verify_avro_https(mode_conf):
+    from confluent_kafka.avro import AvroProducer, AvroConsumer
+
     if mode_conf is None:
         abort_on_missing_configuration('avro-https')
 
@@ -786,10 +790,12 @@ def verify_avro_https(mode_conf):
                                        'on_commit': print_commit_result,
                                        'auto.offset.reset': 'earliest'})
 
-    run_avro_loop(base_conf, consumer_conf)
+    run_avro_loop(AvroProducer(base_conf), AvroConsumer(consumer_conf))
 
 
 def verify_avro_basic_auth(mode_conf):
+    from confluent_kafka.avro import AvroProducer, AvroConsumer
+
     if mode_conf is None:
         abort_on_missing_configuration('avro-basic-auth')
 
@@ -809,10 +815,10 @@ def verify_avro_basic_auth(mode_conf):
     }
 
     base_conf = {
-            'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb,
-            'schema.registry.url': schema_registry_url
-            }
+        'bootstrap.servers': bootstrap_servers,
+        'error_cb': error_cb,
+        'schema.registry.url': schema_registry_url
+    }
 
     consumer_conf = dict({'group.id': generate_group_id(),
                           'session.timeout.ms': 6000,
@@ -821,20 +827,18 @@ def verify_avro_basic_auth(mode_conf):
                           }, **base_conf)
 
     print('-' * 10, 'Verifying basic auth source USER_INFO', '-' * 10)
-    run_avro_loop(dict(base_conf, **user_info), dict(consumer_conf, **user_info))
+    run_avro_loop(AvroProducer(dict(base_conf, **user_info)), AvroConsumer(dict(consumer_conf, **user_info)))
 
     print('-' * 10, 'Verifying basic auth source SASL_INHERIT', '-' * 10)
-    run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
+    run_avro_loop(AvroProducer(dict(base_conf, **sasl_inherit)), AvroConsumer(dict(consumer_conf, **sasl_inherit)))
 
     print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
-    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
+    run_avro_loop(AvroProducer(dict(base_conf, **url)), AvroConsumer(dict(consumer_conf, **url)))
 
 
-def run_avro_loop(producer_conf, consumer_conf):
+def run_avro_loop(p, c):
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
-
-    p = avro.AvroProducer(producer_conf)
 
     prim_float = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
     prim_string = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
@@ -864,7 +868,6 @@ def run_avro_loop(producer_conf, consumer_conf):
         p.produce(**combo)
     p.flush()
 
-    c = avro.AvroConsumer(consumer_conf)
     c.subscribe([(t['topic']) for t in combinations])
 
     msgcount = 0
@@ -1225,105 +1228,74 @@ def verify_avro_explicit_read_schema():
 
 
 def verify_serializer():
+    """ Verify new Avro Serializers/Deserializer work along with new Serializing Producer/Consumer types """
     from base64 import standard_b64encode as b64encode
     from base64 import standard_b64decode as b64decode
-    from base64 import b16encode, b16decode
 
-    # base64 deserializer for converting message contents back to a string
+    from confluent_kafka.avro.serializer import AvroSerializer, AvroDeserializer
+    from confluent_kafka.avro.schema import GenericAvroRecord
+    from confluent_kafka import avro
+
     def b64_decoder(topic, data):
         if data is None:
             return None
         return b64decode(data)
 
-    # base16 deserializer for converting message contents back to a string
-    def b16_decoder(topic, data):
-        if data is None:
-            return None
-        return b16decode(data)
+    avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
+    schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
 
-    # Test matrix fo use when evaluating alternative kv serialization strategies.
+    base_conf = {'bootstrap.servers': bootstrap_servers}
+
+    consumer_conf = dict(base_conf, **{
+        'group.id': 'serde-test',
+        'session.timeout.ms': 6000,
+        'enable.auto.commit': False,
+        'auto.offset.reset': 'earliest'})
+
+    sr = avro.CachedSchemaRegistryClient({'url': schema_registry_url})
+
+    # Test single serializer, dual-serializers and mismatched serializers
     combinations = [
-        # Test default serializers, use encode for python 2 and 3 compatibility.
-        dict(key="b64encode".encode('utf-8'), value="b64encode".encode('utf-8'),
-             key_decoder=b64_decoder, value_decoder=b64_decoder),
-        # Test default key_serializer with value_serializer override
-        dict(key="b64encode".encode('utf-8'), value="b16encode".encode('utf-8'),
-             value_encoder=lambda topic, value: b16encode(value),
-             key_decoder=b64_decoder, value_decoder=b16_decoder),
-        # Test key_serializer override with default value_serializer
-        dict(key="b16encode".encode('utf-8'), value="b64encode".encode('utf-8'),
-             key_encoder=lambda topic, key: b16encode(key),
-             key_decoder=b16_decoder, value_decoder=b64_decoder),
-        # Test key_serializer and value_serializer overrides
-        dict(key="b16encode".encode('utf-8'), value="b16encode".encode('utf-8'),
-             key_encoder=lambda topic, key: b16encode(key),
-             value_encoder=lambda topic, value: b16encode(value),
-             key_decoder=b16_decoder, value_decoder=b16_decoder),
+        dict(key=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 1}), value=b'string serializer',
+             key_serializer=AvroSerializer(sr, is_key=True), key_deserializer=AvroDeserializer(sr, is_key=True)),
+        dict(key=b'string serializer', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 2}),
+             value_serializer=AvroSerializer(sr, is_key=False), value_deserializer=AvroDeserializer(sr, is_key=False)),
+        dict(key=b'base64 encoder', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 3}),
+             key_serializer=lambda topic, key: b64encode(key), value_serializer=AvroSerializer(sr),
+             key_deserializer=b64_decoder, value_deserializer=AvroDeserializer(sr))
     ]
 
-    # Test Producer serializer
-    def assert_cb(err, msg, conf):
-        if err:
-            print("Producer error %s" % err)
-            return
-
-        topic = msg.topic()
-        deserialized_key = conf['key_decoder'](topic, msg.key())
-        deserialzed_value = conf['value_decoder'](topic, msg.value())
-
-        print("Serializer Test: raw: key={}, value ={}, decoded: key={}, value={}".format(
-            msg.key(), msg.key(), deserialized_key, deserialzed_value))
-        # Test original key/value against it's deserialized counterpart
-        assert(conf['key'] == deserialized_key)
-        assert(conf['value'] == deserialzed_value)
-
-    serializer_topic = topic + str(uuid.uuid4())
-
-    common_conf = {
-        'bootstrap.servers': bootstrap_servers,
-        'error_cb': error_cb
-    }
-
-    consumer_conf = dict({
-        'group.id': generate_group_id(),
-        'auto.offset.reset': "earliest"
-    }, **common_conf)
-
-    p = confluent_kafka.Producer(common_conf,
-                                 key_serializer=lambda topic, key: b64encode(key),
-                                 value_serializer=lambda topic, value: b64encode(value))
-
-    c = confluent_kafka.Consumer(consumer_conf,
-                                 key_deserializer=lambda topic, key: b64decode(key),
-                                 value_deserializer=lambda topic, value: b64decode(value))
-    c.subscribe([serializer_topic])
-
     for i, combo in enumerate(combinations):
-        p.produce(serializer_topic, key=combo['key'], value=combo['value'], headers=[('index', str(i))],
-                  on_delivery=lambda err, msg, conf=combo: assert_cb(err, msg, conf),
-                  key_serializer=combo.get('key_encoder', None), value_serializer=combo.get('value_encoder', None))
+        topic = str(uuid.uuid4())
+
+        p = confluent_kafka.Producer(base_conf, logger=2, key_serializer=combo.get('key_serializer', None),
+                                     value_serializer=combo.get('value_serializer', None))
+
+        p.produce(topic, key=combo.get('key'), value=combo.get('value'), callback=MyTestDr._delivery)
 
         p.flush()
 
-        # Test Consumer deserialization
-        consumed = 0
-        while consumed < 1:
-            msg = c.poll(1.0, key_deserializer=combo.get('key_decoder', None),
-                         value_deserializer=combo.get('value_decoder', None))
+        c = confluent_kafka.Consumer(consumer_conf,
+                                     key_deserializer=combo.get('key_deserializer', None),
+                                     value_deserializer=combo.get('value_deserializer', None))
+
+        c.subscribe([topic])
+
+        while True:
+            msg = c.poll(1)
 
             if msg is None:
                 continue
-
             if msg.error():
-                print("Consumer error {}", msg.error())
+                print(msg.error())
                 continue
 
-            consumed += 1
-            print("Deserializer Test: raw: key={}, value={}, decoded: key={}, value={}".format(
-                combo['key'], combo['value'], msg.key(), msg.value()))
+            assert combo.get('key') == msg.key()
+            assert combo.get('value') == msg.value()
 
-            assert(msg.key() == combo['key'])
-            assert(msg.value() == combo['value'])
+            break
+
+        c.close()
 
 
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
@@ -1407,8 +1379,6 @@ if __name__ == '__main__':
     if 'producer' in modes:
         print('=' * 30, 'Verifying Producer', '=' * 30)
         verify_producer()
-        print('=' * 30, 'Verifying SerDes', '=' * 30)
-        verify_serializer()
 
         if 'performance' in modes:
             print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)
@@ -1446,9 +1416,10 @@ if __name__ == '__main__':
         verify_schema_registry_client()
         print('=' * 30, 'Verifying AVRO', '=' * 30)
         verify_avro()
-
         print('=' * 30, 'Verifying AVRO with explicit reader schema', '=' * 30)
         verify_avro_explicit_read_schema()
+        print('=' * 30, 'Verifying Client SerDes', '=' * 30)
+        verify_serializer()
 
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
