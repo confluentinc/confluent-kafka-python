@@ -1,4 +1,4 @@
-__all__ = ['cimpl', 'admin', 'avro', 'kafkatest']
+__all__ = ['cimpl', 'admin', 'avro', 'kafkatest', 'producer', 'consumer']
 from .cimpl import (KafkaError, # noqa
                     KafkaException,
                     Message,

@@ -21,14 +21,6 @@ from .cimpl import Producer as _impl, PARTITION_UA
 from warnings import warn
 
 
-def byteSerializer(topic, payload):
-    """
-        byteSerializer returns an unaltered payload to the caller
-    """
-
-    return payload
-
-
 class Producer(_impl):
     """
         Create a new Kafka Producer instance with or without serializer support.
@@ -78,8 +70,13 @@ class SerializingProducer(Producer):
     def __new__(cls, *args, **kwargs):
         raise TypeError("SerializingProducer is a non user-instantiable class")
 
+    @staticmethod
+    def byteSerializer(topic, data):
+        """ Pass-through serializer """
+        return data
+
     # conf must remain optional as long as kwargs are supported
-    def __init__(self, conf={}, key_serializer=byteSerializer, value_serializer=byteSerializer,
+    def __init__(self, conf={}, key_serializer=None, value_serializer=None,
                  error_cb=None, stats_cb=None, throttle_cb=None, logger=None, **kwargs):
 
         if not isinstance(conf, dict):
@@ -93,23 +90,24 @@ class SerializingProducer(Producer):
                  "all keyword arguments must match the constructor signature explicitly.",
                  category=DeprecationWarning, stacklevel=2)
 
+        # Ensure the default serializer cannot be overwritten with None on instantiation
+        if key_serializer is None:
+            key_serializer = SerializingProducer.byteSerializer
+
+        if value_serializer is None:
+            value_serializer = SerializingProducer.byteSerializer
+
         self._key_serializer = key_serializer
         self._value_serializer = value_serializer
 
         # Callbacks can be set in the conf dict or *ideally* as parameters.
-        # Handle both cases prior to passing along to _impl
-        # If callbacks are configured in both places parameter values take precedence.
-        if not error_cb:
-            error_cb = conf.get('error_cb', None)
-
-        if not stats_cb:
-            stats_cb = conf.get('stats_cb', None)
-
-        if not throttle_cb:
-            throttle_cb = conf.get('throttle_cb', None)
-
-        if not logger:
-            logger = conf.get('logger', None)
+        # Raise a SyntaxError if a callback is set in both places.
+        for var, name in [(logger, 'logger'), (error_cb, 'error_cb'),
+                          (stats_cb, 'stats_cb'), (throttle_cb, 'throttle_cb')]:
+            if all([var, conf.get(name, None)]):
+                raise SyntaxError("{} parameter repeated".format(name))
+            if var is None:
+                var = conf.get(name, None)
 
         super(SerializingProducer, self).__init__(conf, error_cb=error_cb, stats_cb=stats_cb,
                                                   throttle_cb=throttle_cb, logger=logger)
@@ -141,8 +139,5 @@ class SerializingProducer(Producer):
 
         """
 
-        key = self._key_serializer(topic, key)
-        value = self._value_serializer(topic, value)
-
-        super(SerializingProducer, self).produce(topic, value, key, partition, on_delivery=on_delivery,
+        super(SerializingProducer, self).produce(topic, self._value_serializer(topic, value), self._key_serializer(topic, key), partition, on_delivery=on_delivery,
                                                  callback=callback, timestamp=timestamp, headers=headers)
