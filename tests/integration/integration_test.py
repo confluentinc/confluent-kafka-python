@@ -1232,7 +1232,7 @@ def verify_serializer():
     from base64 import standard_b64encode as b64encode
     from base64 import standard_b64decode as b64decode
 
-    from confluent_kafka.avro.serializer import AvroSerializer, AvroDeserializer
+    from confluent_kafka.avro.serializer import AvroSerializer, AvroDeserializer, RecordNameStrategy, TopicRecordNameStrategy
     from confluent_kafka.avro.schema import GenericAvroRecord
     from confluent_kafka import avro
 
@@ -1257,11 +1257,14 @@ def verify_serializer():
     # Test single serializer, dual-serializers and mismatched serializers
     combinations = [
         dict(key=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 1}), value=b'string serializer',
-             key_serializer=AvroSerializer(sr, is_key=True), key_deserializer=AvroDeserializer(sr, is_key=True)),
+             key_serializer=AvroSerializer(sr, is_key=True, subject_strategy=RecordNameStrategy),
+             key_deserializer=AvroDeserializer(sr, is_key=True)),
         dict(key=b'string serializer', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 2}),
-             value_serializer=AvroSerializer(sr, is_key=False), value_deserializer=AvroDeserializer(sr, is_key=False)),
+             value_serializer=AvroSerializer(sr, is_key=False,
+             value_deserializer=AvroDeserializer(sr, is_key=False))),
         dict(key=b'base64 encoder', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 3}),
-             key_serializer=lambda topic, key: b64encode(key), value_serializer=AvroSerializer(sr),
+             key_serializer=lambda topic, key: b64encode(key),
+             value_serializer=AvroSerializer(sr, subject_strategy=TopicRecordNameStrategy),
              key_deserializer=b64_decoder, value_deserializer=AvroDeserializer(sr))
     ]
 

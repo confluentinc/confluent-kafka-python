@@ -29,9 +29,7 @@ import avro
 import avro.io
 
 from confluent_kafka.avro import ClientError
-from confluent_kafka.avro.serializer import (SerializerError,
-                                             KeySerializerError,
-                                             ValueSerializerError)
+from confluent_kafka.avro.serializer import SerializerError
 
 log = logging.getLogger(__name__)
 
@@ -96,7 +94,6 @@ class MessageSerializer(object):
         :returns: Encoded record with schema ID as bytes
         :rtype: bytes
         """
-        serialize_err = KeySerializerError if is_key else ValueSerializerError
 
         subject_suffix = ('-key' if is_key else '-value')
         # get the latest schema for the subject
@@ -105,7 +102,7 @@ class MessageSerializer(object):
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:
             message = "Unable to retrieve schema id for subject %s" % (subject)
-            raise serialize_err(message)
+            raise SerializerError(message, is_key)
 
         # cache writer
         self.id_to_writers[schema_id] = self._get_encoder_func(schema)
@@ -122,7 +119,6 @@ class MessageSerializer(object):
         :returns: decoder function
         :rtype: func
         """
-        serialize_err = KeySerializerError if is_key else ValueSerializerError
 
         # use slow avro
         if schema_id not in self.id_to_writers:
@@ -131,11 +127,11 @@ class MessageSerializer(object):
             try:
                 schema = self.registry_client.get_by_id(schema_id)
                 if not schema:
-                    raise serialize_err("Schema does not exist")
+                    raise SerializerError("Schema does not exist", is_key)
                 self.id_to_writers[schema_id] = self._get_encoder_func(schema)
             except ClientError:
                 exc_type, exc_value, exc_traceback = sys.exc_info()
-                raise serialize_err(repr(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+                raise SerializerError(repr(traceback.format_exception(exc_type, exc_value, exc_traceback), is_key))
 
         # get the writer
         writer = self.id_to_writers[schema_id]

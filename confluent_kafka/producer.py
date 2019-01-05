@@ -33,7 +33,7 @@ class Producer(_impl):
         :param func key_serializer(topic, key): Converts key to bytes.
             **note** serializers are responsible for handling NULL keys
         :param func value_serializer(topic, value): Converts value to bytes.
-            **note** serializers are responsible for handling NULL keys
+            **note** serializers are responsible for handling NULL values
         :param func error_cb(kafka.KafkaError): Callback for generic/global error events.
         :param func stats_cb(json_str): Callback for statistics emitted every ``statistics.interval.ms``.
             See https://github.com/edenhill/librdkafka/wiki/Statistics” for more information.

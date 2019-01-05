@@ -24,7 +24,7 @@ import sys
 import traceback
 
 from confluent_kafka.avro.schema import GenericAvroRecord, get_schema
-from confluent_kafka.avro import ClientError
+from confluent_kafka.avro.error import ClientError
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ class SerializerError(Exception):
             return super(SerializerError, cls).__new__(KeySerializerError, message)
         return super(SerializerError, cls).__new__(ValueSerializerError, message)
 
-    def __init__(self, message):
+    def __init__(self, message, is_key=False):
         self.message = message
 
         def __repr__(self):
@@ -81,31 +81,101 @@ class ContextStringIO(io.BytesIO):
         return False
 
 
+def TopicNameStrategy(topic=None, is_key=False, schema=None):
+    """
+    Constructs the subject name under which a schema is registered with the Confluent Schema Registry.
+
+    TopicNameStrategy returns the schema's subject in the form of <topic>-key or <topic>-value.
+
+    :param str topic: Topic name.
+    :param is_key: True if subject is being registered for a message key.
+    :param schema schema: Parsed Avro schema. *Note* Not used by TopicNameStrategy
+    :raises ValueError: If topic is unset.
+    :returns: The subject name with which to register the schema.
+    :rtype: str
+    """
+    if topic is None:
+        raise ValueError("Topic must be set when using TopicNameStrategy")
+
+    return "-".join([topic, '-key' if is_key else '-value'])
+
+
+def RecordNameStrategy(topic=None, is_key=False, schema=None):
+    """
+    Constructs the subject name under which a schema is registered with the Confluent Schema Registry.
+
+    RecordNameStrategy returns the fully-qualified record name regardless of the topic.
+
+    Compatibility checks of the same record name across all topics.
+    This strategy allows a topic to contain a mixture of different record types.
+
+    :param str topic: Topic name.  *Note* Not used by RecordNameStrategy
+    :param is_key: True if subject is being registered for a message key. *Note* Not used by RecordNameStrategy.
+    :param schema schema: Parsed Avro schema.
+    :raises ValueError: If schema is not set.
+    :returns: The subject name with which to register the schema.
+    :rtype: str
+    """
+    if schema is None:
+        raise ValueError("Schema must be set when using RecordNameStategy")
+
+    return schema.fullname
+
+
+def TopicRecordNameStrategy(topic=None, is_key=False, schema=None):
+    """
+    Constructs the subject name under which a schema is registered with the Confluent Schema Registry.
+
+    TopicRecordNameStrategy returns the topic name appended by the fully-qualified record name.
+
+    Compatibility checks are performed against all records of the same name within the same topic.
+    Like the RecordNameStrategy mixed record types are allowed within a topic.
+    This strategy is more flexible in that records needn't be complaint across the cluster.
+
+    :param str topic: Topic name.
+    :param schema schema: Parsed Avro schema.
+    :param is_key: True if used by a key_serializer.
+    :raises ValueError: If topic and schema are not set.
+    :returns: The subject name with which to register the schema.
+    :rtype: str
+    """
+    if not any([topic, schema]):
+        raise ValueError("Both Topic and Schema must be set when using TopicRecordNameStrategy")
+    return "-".join([topic, schema.fullname])
+
+
 class AvroSerializer(object):
+    """
+    Encodes kafka messages as Avro; registering the schema with the Confluent Schema Registry.
 
-    __slots__ = ["registry_client", "codec_cache", "is_key"]
+    :param registry_client CachedSchemaRegistryClient: Instance of CachedSchemaRegistryClient.
+    :param bool is_key: True if configured as a key_serializer.
+    :param func(str, bool, schema): Returns the subject name used when registering schemas.
+    """
 
-    def __init__(self, registry_client, is_key=False):
+    __slots__ = ["registry_client", "codec_cache", "is_key", "subject_strategy"]
+
+    def __init__(self, registry_client, is_key=False, subject_strategy=TopicNameStrategy):
         self.registry_client = registry_client
         self.codec_cache = {}
         self.is_key = is_key
+        self.subject_strategy = subject_strategy
 
     def __call__(self, topic, record):
         """
         Given a parsed avro schema, encode a record for the given topic.
 
-        The schema is registered with the subject of 'topic-value'
-        :param str topic: Topic name
-        :param GenericAvroRecord record: An object to serialize
-        :returns: Encoded record with schema ID as bytes
+        The schema is registered with the subject of 'topic-value'.
+        :param str topic: Topic name.
+        :param GenericAvroRecord record: An object to serialize.
+        :returns: Encoded record with schema ID as bytes.
         :rtype: bytes
         """
 
         if record is None:
             return None
 
-        subject_suffix = '-key' if self.is_key else '-value'
-        subject = topic + subject_suffix
+        subject = self.subject_strategy(topic, self.is_key, get_schema(record))
 
         schema_id = self.registry_client.register(subject, get_schema(record))
         if not schema_id:
@@ -115,7 +185,7 @@ class AvroSerializer(object):
         if schema_id not in self.codec_cache:
             self.codec_cache[schema_id] = self._get_encoder_func(get_schema(record))
 
-        return self._encode_record_with_schema_id(schema_id, record)
+        return self._encode(schema_id, record)
 
     def _get_encoder_func(self, writer_schema):
         if HAS_FAST:
@@ -123,12 +193,11 @@ class AvroSerializer(object):
         writer = avro.io.DatumWriter(writer_schema)
         return lambda record, fp: writer.write(record, avro.io.BinaryEncoder(fp))
 
-    def _encode_record_with_schema_id(self, schema_id, record):
+    def _encode(self, schema_id, datum):
         """
-        Encode a record with a given schema id.  The record must
-        be a python dictionary.
+        Encode a datum with a given schema id.
         :param int schema_id: integer ID
-        :param dict record: An object to serialize
+        :param object datum: An object to serialize
         :param bool is_key: If the record is a key
         :param SerializerErr err_type: Error type to raise on serialization exception
         :returns: decoder function
@@ -154,12 +223,18 @@ class AvroSerializer(object):
             outf.write(struct.pack('>bI', MAGIC_BYTE, schema_id))
 
             # write the record to the rest of the buffer
-            writer(record, outf)
+            writer(datum, outf)
             return outf.getvalue()
 
 
 class AvroDeserializer(object):
+    """
+    Decodes Kafka messages encoded by Confluent Schema Registry compliant Avro Serializers.
 
+    :param registry_client CachedSchemaRegistryClient: Instance of CachedSchemaRegistryClient.
+    :param bool is_key: True if configured as a key_serializer.
+    :param schema reader_schema: Optional reader schema to be used during deserialization.
+    """
     __slots__ = ["registry_client", "codec_cache", "is_key", "reader_schema"]
 
     def __init__(self, registry_client, is_key=False, reader_schema=None):
@@ -168,22 +243,21 @@ class AvroDeserializer(object):
         self.is_key = is_key
         self.reader_schema = reader_schema
 
-    def __call__(self, topic, message):
+    def __call__(self, topic, datum):
         """
-        Decode a message from kafka that has been encoded for use with
-        the schema registry.
-        :param str|bytes or None message: message key or value to be decoded
-        :returns: Decoded message contents.
+        Decode a datum from kafka that has been encoded for use with the Confluent Schema Registry.
+        :param str|bytes or None datum: message key or value to be decoded.
+        :returns: Decoded message key or value contents.
         :rtype GenericAvroRecord:
         """
 
-        if message is None:
+        if datum is None:
             return None
 
-        if len(message) <= 5:
+        if len(datum) <= 5:
             raise SerializerError("message is too small to decode")
 
-        with ContextStringIO(message) as payload:
+        with ContextStringIO(datum) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte", self.is_key)
@@ -247,7 +321,7 @@ class AvroDeserializer(object):
             bin_decoder = avro.io.BinaryDecoder(p)
             return avro_reader.read(bin_decoder)
 
-        if writer_schema.get_prop('type') is 'record':
+        if writer_schema.type is 'record':
             self.codec_cache[schema_id] = record_decoder
         else:
             self.codec_cache[schema_id] = decoder
