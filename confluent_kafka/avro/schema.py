@@ -26,18 +26,18 @@ except NameError:
 
 class GenericAvroRecord(dict):
     """
-    Pairs a AvroRecord with it's schema
+    Pairs an AvroRecord with it's schema
 
     :param schema schema: A parsed Avro schema.
-    :param dict record: Wraps existing dict in GenericAvroRecord
-    :raises ValueError: If schema is None
-    :returns: Avro record with its schema 
+    :param dict record: Wraps existing dict in GenericAvroRecord.
+    :raises ValueError: If schema is None.
+    :returns: Avro record with its schema.
     :rtype: GenericAvroRecord
     """
     __slots__ = ['schema']
 
     def __init__(self, schema, record=None):
-        if schema is None: 
+        if schema is None:
             raise ValueError("schema must not be None")
         self.schema = schema
         if record is not None:

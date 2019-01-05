@@ -1232,7 +1232,10 @@ def verify_serializer():
     from base64 import standard_b64encode as b64encode
     from base64 import standard_b64decode as b64decode
 
-    from confluent_kafka.avro.serializer import AvroSerializer, AvroDeserializer, RecordNameStrategy, TopicRecordNameStrategy
+    from confluent_kafka.avro.serializer import (AvroSerializer,
+                                                 AvroDeserializer,
+                                                 RecordNameStrategy,
+                                                 TopicRecordNameStrategy)
     from confluent_kafka.avro.schema import GenericAvroRecord
     from confluent_kafka import avro
 
@@ -1261,7 +1264,7 @@ def verify_serializer():
              key_deserializer=AvroDeserializer(sr, is_key=True)),
         dict(key=b'string serializer', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 2}),
              value_serializer=AvroSerializer(sr, is_key=False,
-             value_deserializer=AvroDeserializer(sr, is_key=False))),
+                                             value_deserializer=AvroDeserializer(sr, is_key=False))),
         dict(key=b'base64 encoder', value=GenericAvroRecord(schema, {'name': 'avro serializer', 'number': 3}),
              key_serializer=lambda topic, key: b64encode(key),
              value_serializer=AvroSerializer(sr, subject_strategy=TopicRecordNameStrategy),

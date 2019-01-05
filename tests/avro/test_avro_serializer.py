@@ -81,4 +81,3 @@ class TestAvroSerializer(unittest.TestCase):
         """"null/None messages should decode to None"""
 
         self.assertIsNone(self.deserializer(None, None))
-

@@ -139,5 +139,6 @@ class SerializingProducer(Producer):
 
         """
 
-        super(SerializingProducer, self).produce(topic, self._value_serializer(topic, value), self._key_serializer(topic, key), partition, on_delivery=on_delivery,
+        super(SerializingProducer, self).produce(topic, self._value_serializer(topic, value),
+                                                 self._key_serializer(topic, key), partition, on_delivery=on_delivery,
                                                  callback=callback, timestamp=timestamp, headers=headers)
