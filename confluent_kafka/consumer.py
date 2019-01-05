@@ -117,10 +117,6 @@ class SerializingConsumer(Consumer):
             between proper messages, an error(see error().code() for specifics), or an event.
 
             :param float timeout:  Maximum time in seconds to block waiting for message, event or callback.
-            :param func key_deserializer(topic, key): Converts message key bytes to object.
-                **note** deserializers are responsible for handling NULL keys
-            :param func value_deserializer(topic, value): Converts message value bytes to object.
-                **note** deserializers are responsible for handling NULL values
             :returns: A confluent_kafka.Message or None on timeout.
             :raises RuntimeError: If called on a closed consumer.
         """

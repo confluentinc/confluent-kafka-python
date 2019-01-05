@@ -132,11 +132,6 @@ class SerializingProducer(Producer):
             :param dict|list headers: Message headers to set on the message. The header key must be a string while
                 the value must be binary, unicode or None. Accepts a list of (key,value) or a dict.
                 (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)
-            :param func key_serializer(topic, key): Producer key_serializer override;
-                Converts message key to bytes. **note** serializers are responsible for handling NULL keys
-            :param func value_serializer(topic, value): Producer value_serializer override;
-                Converts message value to bytes. **note** serializers are responsible for handling NULL values
-
         """
 
         super(SerializingProducer, self).produce(topic, self._value_serializer(topic, value),
