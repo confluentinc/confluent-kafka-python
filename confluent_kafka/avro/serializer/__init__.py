@@ -61,7 +61,8 @@ class SerializerError(Exception):
 
 
 class KeySerializerError(SerializerError):
-    pass
+    def __new__(cls, message):
+        return super(KeySerializerError, cls).__new__(SerializerError, message, True)
 
 
 class ValueSerializerError(SerializerError):
