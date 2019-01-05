@@ -750,9 +750,10 @@ def verify_schema_registry_client():
     latest_id, latest_schema, latest_version = sr.get_latest_schema(subject)
     assert schema == latest_schema
     assert sr.get_version(subject, schema) == latest_version
-    sr.update_compatibility("FULL", subject)
-    assert sr.get_compatibility(subject) == "FULL"
-    assert sr.test_compatibility(subject, schema)
+    new_compatibility = sr.update_compatibility("FULL")
+    assert new_compatibility == "FULL"
+    assert sr.get_compatibility() == "FULL"
+    assert sr.test_compatibility(subject, schema, latest_version)
     assert sr.delete_subject(subject) == [1]
 
 

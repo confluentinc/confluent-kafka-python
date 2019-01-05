@@ -142,8 +142,8 @@ class MockSchemaRegistryClient(object):
     def test_compatibility(self, subject, avro_schema, version='latest'):
         raise ClientError("not implemented")
 
-    def update_compatibility(self, level, subject=None):
+    def update_compatibility(self, level):
         raise ClientError("not implemented")
 
-    def get_compatibility(self, subject=None):
+    def get_compatibility(self):
         raise ClientError("not implemented")

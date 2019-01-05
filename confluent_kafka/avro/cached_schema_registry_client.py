@@ -199,6 +199,7 @@ class CachedSchemaRegistryClient(object):
 
         :param str subject: subject name
         :param schema avro_schema: Avro schema to be registered
+        :raises ClientError: if the schema is incapable of being registered
         :returns: schema_id
         :rtype: int
         """
@@ -213,14 +214,14 @@ class CachedSchemaRegistryClient(object):
 
         body = {'schema': json.dumps(avro_schema.to_json())}
         result, code = self._send_request(url, method='POST', body=body)
-        if (code == 401 or code == 403):
-            raise ClientError("Unauthorized access. Error code:" + str(code))
+        if code == 401 or code == 403:
+            raise ClientError("Unauthorized access", code)
         elif code == 409:
-            raise ClientError("Incompatible Avro schema:" + str(code))
+            raise ClientError("Incompatible Avro schema", code)
         elif code == 422:
-            raise ClientError("Invalid Avro schema:" + str(code))
-        elif not (code >= 200 and code <= 299):
-            raise ClientError("Unable to register schema. Error code:" + str(code))
+            raise ClientError("Invalid Avro schema", code)
+        elif not (200 <= code <= 299):
+            raise ClientError("Unable to register schema", code)
         # result is a dict
         schema_id = result['id']
         # cache it
@@ -232,7 +233,9 @@ class CachedSchemaRegistryClient(object):
         DELETE /subjects/(string: subject)
         Deletes the specified subject and its associated compatibility level if registered.
         It is recommended to use this API only when a topic needs to be recycled or in development environments.
+
         :param subject: subject name
+        :raises ClientError: if the subject is unable to be deleted
         :returns: version of the schema deleted under this subject
         :rtype: (int)
         """
@@ -240,15 +243,17 @@ class CachedSchemaRegistryClient(object):
         url = '/'.join([self.url, 'subjects', subject])
 
         result, code = self._send_request(url, method="DELETE")
-        if not (code >= 200 and code <= 299):
-            raise ClientError('Unable to delete subject: {}'.format(result))
+        if not (200 <= code <= 299):
+            raise ClientError('Unable to delete subject: {}'.format(result), code)
         return result
 
     def get_by_id(self, schema_id):
         """
-        GET /schemas/ids/{int: id}
+        GET /schemas/ids/(int: id)
         Retrieve a parsed avro schema by id or None if not found
+
         :param int schema_id: int value
+        :raises ClientError: if schema is invalid
         :returns: Avro schema
         :rtype: schema
         """
@@ -259,10 +264,10 @@ class CachedSchemaRegistryClient(object):
 
         result, code = self._send_request(url)
         if code == 404:
-            log.error("Schema not found:" + str(code))
+            log.error("Schema not found. Error code: {}".format(code))
             return None
-        elif not (code >= 200 and code <= 299):
-            log.error("Unable to get schema for the specific ID:" + str(code))
+        elif not (200 <= code <= 299):
+            log.error("Unable to get schema with an ID of {}. Error code: {}".format(schema_id, code))
             return None
         else:
             # need to parse the schema
@@ -274,11 +279,11 @@ class CachedSchemaRegistryClient(object):
                 return result
             except ClientError as e:
                 # bad schema - should not happen
-                raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
+                raise ClientError("Received bad schema (id {}) from registry: {}".format(schema_id, e), code)
 
     def get_latest_schema(self, subject):
         """
-        GET /subjects/(string: subject)/versions/(versionId: version)
+        GET /subjects/(string: subject)/versions/latest
 
         Return the latest 3-tuple of:
         (the schema id, the parsed avro schema, the schema version)
@@ -286,22 +291,23 @@ class CachedSchemaRegistryClient(object):
 
         This call always contacts the registry.
 
-        If the subject is not found, (None,None,None) is returned.
+        If the subject is not found, (None, None, None) is returned.
         :param str subject: subject name
+        :raises ClientError: if the schema is invalid
         :returns: (schema_id, schema, version)
-        :rtype: (string, schema, int)
+        :rtype: (string, schema, int) | (None, None, None)
         """
         url = '/'.join([self.url, 'subjects', subject, 'versions', 'latest'])
 
         result, code = self._send_request(url)
         if code == 404:
-            log.error("Schema not found:" + str(code))
-            return (None, None, None)
+            log.error("Schema not found. Error code: {}".format(code))
+            return None, None, None
         elif code == 422:
-            log.error("Invalid version:" + str(code))
-            return (None, None, None)
-        elif not (code >= 200 and code <= 299):
-            return (None, None, None)
+            log.error("Invalid version. Error code: {}".format(code))
+            return None, None, None
+        elif not (200 <= code <= 299):
+            return None, None, None
         schema_id = result['id']
         version = result['version']
         if schema_id in self.id_to_schema:
@@ -309,12 +315,11 @@ class CachedSchemaRegistryClient(object):
         else:
             try:
                 schema = loads(result['schema'])
-            except ClientError:
-                # bad schema - should not happen
-                raise
+            except ClientError as e:
+                raise ClientError("Received bad schema (id {}) from registry: {}".format(schema_id, e), code)
 
         self._cache_schema(schema, schema_id, subject, version)
-        return (schema_id, schema, version)
+        return schema_id, schema, version
 
     def get_version(self, subject, avro_schema):
         """
@@ -324,7 +329,7 @@ class CachedSchemaRegistryClient(object):
 
         Returns None if not found.
         :param str subject: subject name
-        :param: schema avro_schema: Avro schema
+        :param schema avro_schema: Avro schema
         :returns: version
         :rtype: int
         """
@@ -338,10 +343,10 @@ class CachedSchemaRegistryClient(object):
 
         result, code = self._send_request(url, method='POST', body=body)
         if code == 404:
-            log.error("Not found:" + str(code))
+            log.error("Schema for {} Not found. Error code: {}".format(subject, code))
             return None
-        elif not (code >= 200 and code <= 299):
-            log.error("Unable to get version of a schema:" + str(code))
+        elif not (200 <= code <= 299):
+            log.error("Unable to get version of the {} schema. Error code: ".format(subject, code))
             return None
         schema_id = result['id']
         version = result['version']
@@ -350,13 +355,14 @@ class CachedSchemaRegistryClient(object):
 
     def test_compatibility(self, subject, avro_schema, version='latest'):
         """
-        POST /compatibility/subjects/(string: subject)/versions/(versionId: version)
+        POST /compatibility/subjects/(string: subject)/versions/(int | string: version)
 
         Test the compatibility of a candidate parsed schema for a given subject.
 
         By default the latest version is checked against.
-        :param: str subject: subject name
-        :param: schema avro_schema: Avro schema
+        :param str subject: subject name
+        :param schema avro_schema: Avro schema
+        :param string | int version: version of the schema to test
         :return: True if compatible, False if not compatible
         :rtype: bool
         """
@@ -366,67 +372,62 @@ class CachedSchemaRegistryClient(object):
         try:
             result, code = self._send_request(url, method='POST', body=body)
             if code == 404:
-                log.error(("Subject or version not found:" + str(code)))
+                log.error("Subject or version not found. Error code: {}".format(code))
                 return False
             elif code == 422:
-                log.error(("Invalid subject or schema:" + str(code)))
+                log.error("Invalid subject or schema. Error code: {}".format(code))
                 return False
-            elif code >= 200 and code <= 299:
+            elif 200 <= code <= 299:
                 return result.get('is_compatible')
             else:
-                log.error("Unable to check the compatibility: " + str(code))
+                log.error("Unable to check the compatibility. Error code: {}".format(code))
                 return False
         except Exception as e:
             log.error("_send_request() failed: %s", e)
             return False
 
-    def update_compatibility(self, level, subject=None):
+    def update_compatibility(self, level):
         """
-        PUT /config/(string: subject)
+        PUT /config
 
-        Update the compatibility level for a subject.  Level must be one of:
+        Update the compatibility level for a subject.
 
         :param str level: ex: 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :raises: ClientError: if request was unsuccessful or an invalid compatibility level was provided
+        :returns: new compatibility level, one of 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :rtype: str
         """
         if level not in VALID_LEVELS:
-            raise ClientError("Invalid level specified: %s" % (str(level)))
+            raise ClientError("Invalid level specified: {}".format(level))
 
         url = '/'.join([self.url, 'config'])
-        if subject:
-            url += '/' + subject
 
         body = {"compatibility": level}
         result, code = self._send_request(url, method='PUT', body=body)
-        if code >= 200 and code <= 299:
+        if 200 <= code <= 299:
             return result['compatibility']
         else:
-            raise ClientError("Unable to update level: %s. Error code: %d" % (str(level)), code)
+            raise ClientError("Unable to update level: {}".format(level), code)
 
-    def get_compatibility(self, subject=None):
+    def get_compatibility(self):
         """
         GET /config
-        Get the current compatibility level for a subject.  Result will be one of:
+        Get the current global compatibility level for the schema registry.
 
-        :param str subject: subject name
-        :raises ClientError: if the request was unsuccessful or an invalid compatibility level was returned
+        :raises: ClientError: if the request was unsuccessful or an invalid compatibility level was returned
         :returns: one of 'NONE','FULL','FORWARD', or 'BACKWARD'
-        :rtype: bool
+        :rtype: str
         """
         url = '/'.join([self.url, 'config'])
-        if subject:
-            url = '/'.join([url, subject])
 
         result, code = self._send_request(url)
-        is_successful_request = code >= 200 and code <= 299
-        if not is_successful_request:
-            raise ClientError('Unable to fetch compatibility level. Error code: %d' % code)
+
+        if not 200 <= code <= 299:
+            raise ClientError('Unable to fetch compatibility level', code)
 
         compatibility = result.get('compatibilityLevel', None)
         if compatibility not in VALID_LEVELS:
-            if compatibility is None:
-                error_msg_suffix = 'No compatibility was returned'
-            else:
-                error_msg_suffix = str(compatibility)
-            raise ClientError('Invalid compatibility level received: %s' % error_msg_suffix)
+            raise ClientError('Invalid compatibility level received: {}'.format(
+                compatibility if compatibility else 'No compatibility was returned'), code)
 
         return compatibility
