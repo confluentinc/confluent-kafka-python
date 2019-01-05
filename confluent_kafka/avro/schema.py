@@ -52,7 +52,7 @@ def get_schema(datum):
         return datum.schema
     elif (datum is None):
         return PrimitiveSchema("null")
-    elif isinstance(datum, basestring):
+    elif isinstance(datum, string_type):
         return PrimitiveSchema('string')
     elif isinstance(datum, bool):
         return PrimitiveSchema('boolean')
