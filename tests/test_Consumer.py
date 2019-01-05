@@ -3,7 +3,7 @@
 from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
-from confluent_kafka.consumer import DeserializingConsumer
+from confluent_kafka.consumer import SerializingConsumer
 import pytest
 
 
@@ -325,13 +325,13 @@ def test_consumer_withot_groupid():
 
 
 @pytest.mark.parametrize("test_param", [
-    ({"key_deserializer": lambda key: key}, DeserializingConsumer),
-    ({"value_deserializer": lambda value: value}, DeserializingConsumer),
+    ({"key_deserializer": lambda key: key}, SerializingConsumer),
+    ({"value_deserializer": lambda value: value}, SerializingConsumer),
     ({"key_deserializer": lambda key: key,
-      "value_deserializer": lambda value: value}, DeserializingConsumer),
+      "value_deserializer": lambda value: value}, SerializingConsumer),
     ({}, Consumer)
 ])
-def test_producer_factory(test_param):
+def test_consumer_factory(test_param):
     """
     Assert Consumer factory returns the correct class
     """
@@ -340,10 +340,10 @@ def test_producer_factory(test_param):
     assert(type(c) is test_param[1])
 
 
-def test_deserializing_consumer_instantiation():
+def test_serializing_consumer_instantiation():
     """
-    Assert DeserializingConsumer instances cannot be created directly
+    Assert SerializingConsumer instances cannot be created directly
     """
     with pytest.raises(TypeError) as e:
-        DeserializingConsumer()
-    assert 'DeserializingConsumer is a non user-instantiable class' in str(e)
+        SerializingConsumer()
+    assert 'SerializingConsumer is a non user-instantiable class' in str(e)
