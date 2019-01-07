@@ -40,6 +40,13 @@ matrix:
     before_install:
         - brew update && brew upgrade pyenv
         - pip install virtualenv
+    # cibuildwheel for osx with legacy x-code
+  - os: osx
+    osx_image: xcode8.3
+    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl v0.11.6 tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
+    before_install:
+        - brew update && brew upgrade pyenv
+        - pip install virtualenv
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
