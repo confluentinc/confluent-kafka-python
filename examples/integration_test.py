@@ -35,14 +35,14 @@ try:
     # Memory tracker
     from pympler import tracker
     with_pympler = True
-except Exception as e:
+except Exception:
     with_pympler = False
 
 
 try:
     from progress.bar import Bar
     with_progress = True
-except ImportError as e:
+except ImportError:
     with_progress = False
 
 # Default test conf location

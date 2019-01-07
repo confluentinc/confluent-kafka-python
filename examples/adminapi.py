@@ -112,9 +112,9 @@ def example_describe_configs(a, args):
             for config in iter(configs.values()):
                 print_config(config, 1)
 
-        except KafkaException as e:
+        except KafkaException:
             print("Failed to describe {}: {}".format(res, e))
-        except Exception as e:
+        except Exception:
             raise
 
 
