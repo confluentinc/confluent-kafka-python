@@ -28,7 +28,7 @@ class VerifiableProducer(VerifiableClient):
     """
     def __init__(self, conf):
         """
-        \p conf is a config dict passed to confluent_kafka.Producer()
+         conf is a config dict passed to confluent_kafka.Producer()
         """
         super(VerifiableProducer, self).__init__(conf)
         self.conf['on_delivery'] = self.dr_cb
