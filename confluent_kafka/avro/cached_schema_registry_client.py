@@ -343,10 +343,10 @@ class CachedSchemaRegistryClient(object):
 
         result, code = self._send_request(url, method='POST', body=body)
         if code == 404:
-            log.error("Schema for {} Not found. Error code: {}".format(subject, code))
+            log.error("Schema for subject '{}' not found. Error code: {}".format(subject, code))
             return None
         elif not (200 <= code <= 299):
-            log.error("Unable to get version of the {} schema. Error code: ".format(subject, code))
+            log.error("Unable to get version for the '{}' schema. Error code: ".format(subject, code))
             return None
         schema_id = result['id']
         version = result['version']
@@ -386,11 +386,12 @@ class CachedSchemaRegistryClient(object):
             log.error("_send_request() failed: %s", e)
             return False
 
-    def update_compatibility(self, level):
+    def update_compatibility(self, level, subject=None):
         """
-        PUT /config
+        PUT /config/(string: subject)
 
-        Update the compatibility level for a subject.
+        Update the subject-level compatibility level if subject is specified. Otherwise, update the global
+        compatibility level.
 
         :param str level: ex: 'NONE','FULL','FORWARD', or 'BACKWARD'
         :raises: ClientError: if request was unsuccessful or an invalid compatibility level was provided
@@ -409,10 +410,11 @@ class CachedSchemaRegistryClient(object):
         else:
             raise ClientError("Unable to update level: {}".format(level), code)
 
-    def get_compatibility(self):
+    def get_compatibility(self, subject=None):
         """
-        GET /config
-        Get the current global compatibility level for the schema registry.
+        GET /config/(string: subject)
+        Get the current subject-level compatibility level if subject is specified. Otherwise, get the current global
+        compatibility level for the schema registry.
 
         :raises: ClientError: if the request was unsuccessful or an invalid compatibility level was returned
         :returns: one of 'NONE','FULL','FORWARD', or 'BACKWARD'
