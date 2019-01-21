@@ -343,6 +343,10 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
  ****************************************************************************/
 
 
+/**
+ * @returns a Message's error object, if any, else None.
+ * @remark The error object refcount is increased by this function.
+ */
 PyObject *Message_error (Message *self, PyObject *ignore) {
 	if (self->error) {
 		Py_INCREF(self->error);
