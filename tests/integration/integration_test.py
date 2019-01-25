@@ -203,6 +203,45 @@ def verify_producer():
     test_producer_dr_only_error()
 
 
+def verify_message_status():
+    """ Verify Message persistence status functionality """
+
+    # Producer config
+    conf = {'bootstrap.servers': bootstrap_servers}
+    p = confluent_kafka.Producer(conf)
+
+    # Python 2 closures can read non-local vars but not rebind them.
+    results = {'persisted': 0,
+               'not_persisted': 0}
+
+    def handle_dr(_, msg):
+        if msg.status() is confluent_kafka.MessageStatus.STATUS_PERSISTED:
+            results['persisted'] += 1
+            return
+        results['not_persisted'] += 1
+
+    my_topic = create_topic()
+
+    i = 0
+    while i < 10:
+        # Produce a message expect to exceed
+        p.produce(my_topic, 'Hello Python!', callback=handle_dr)
+        try:
+            p.produce("fake_topic", partition=12, key="stuff", value="more stuff", on_delivery=handle_dr)
+        except confluent_kafka.KafkaException:
+            pass
+
+        p.poll(1.0)
+        i += 1
+
+    # Block until all messages are delivered/failed
+    p.flush()
+
+    print(results)
+    # Avoid failures which may arise from cluster noise
+    assert results['success'] >= i * .9 <= results['failure']
+
+
 # Global variable to track garbage collection of suppressed on_delivery callbacks
 DrOnlyTestSuccess_gced = 0
 
@@ -1227,7 +1266,18 @@ def verify_avro_explicit_read_schema():
 default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
 all_modes = default_modes + ['throttle', 'avro-https', 'avro-basic-auth', 'none']
 
-"""All test modes"""
+
+def create_topic(num_partitions=1, replication_factor=1):
+    topic_name = topic + str(uuid.uuid4())
+
+    conf = {'bootstrap.servers': bootstrap_servers}
+    admin = confluent_kafka.admin.AdminClient(conf)
+
+    fs = admin.create_topics([confluent_kafka.admin.NewTopic(topic_name, num_partitions=replication_factor,
+                                                             replication_factor=replication_factor)])
+
+    fs[topic_name].result()
+    return topic_name
 
 
 def generate_group_id():
@@ -1245,6 +1295,7 @@ def resolve_envs(_conf):
             _conf[k] = os.getenv(v[1:])
 
 
+"""All test modes"""
 test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-https', 'avro-basic-auth', 'throttle']
 
 
@@ -1305,6 +1356,8 @@ if __name__ == '__main__':
     if 'producer' in modes:
         print('=' * 30, 'Verifying Producer', '=' * 30)
         verify_producer()
+        print('=' * 30, 'Verifying message persistence status', '=' * 30)
+        verify_message_status()
 
         if 'performance' in modes:
             print('=' * 30, 'Verifying Producer performance (with dr_cb)', '=' * 30)

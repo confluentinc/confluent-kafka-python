@@ -4,6 +4,7 @@ import re
 import sys
 from collections import defaultdict
 from types import ModuleType
+from enum import EnumMeta
 
 import confluent_kafka
 
@@ -28,7 +29,15 @@ def build_doctree(tree, prefix, parent):
             # Skip imported modules
             continue
 
+        if isinstance(o, EnumMeta):
+            # Skip Enum derived class
+            continue
+
+        if n.startswith("MSG_"):
+            continue
+
         full = prefix + n
+
         tree[full].append(o)
 
         if hasattr(o, '__dict__'):

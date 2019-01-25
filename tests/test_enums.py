@@ -23,3 +23,10 @@ def test_offset_consts():
     assert confluent_kafka.OFFSET_END == -1
     assert confluent_kafka.OFFSET_STORED == -1000
     assert confluent_kafka.OFFSET_INVALID == -1001
+
+
+def test_message_status():
+    """ Make sure librdkafka's message statuses  are available. """
+    print(confluent_kafka.MessageStatus.NOT_PERSISTED)
+    print(confluent_kafka.MessageStatus.POSSIBLY_PERSISTED)
+    print(confluent_kafka.MessageStatus.STATUS_PERSISTED)

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from confluent_kafka import Producer, KafkaError, KafkaException, libversion
+from confluent_kafka import Producer, KafkaError, KafkaException, libversion, MessageStatus
 from struct import pack
 
 
@@ -191,3 +191,18 @@ def test_set_invalid_partitioner_murmur():
     with pytest.raises(KafkaException) as e:
         Producer({'partitioner': 'murmur'})
     assert 'Invalid value for configuration property "partitioner": murmur' in str(e)
+
+
+def test_dr_msg_status():
+    """
+    Test that message status is set and accessible from python.
+    """
+    p = Producer({"message.timeout.ms": 10})
+
+    def handle_dr(_, msg):
+        """ Message will timeout on the queue without actually being transmitted"""
+        assert msg.status() == MessageStatus.NOT_PERSISTED
+
+    p.produce('mytopic', "This is the message payload", on_delivery=handle_dr)
+
+    p.flush()

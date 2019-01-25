@@ -13,7 +13,12 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_BEGINNING,
                     OFFSET_END,
                     OFFSET_STORED,
-                    OFFSET_INVALID)
+                    OFFSET_INVALID,
+                    MSG_STATUS_NOT_PERSISTED,
+                    MSG_STATUS_POSSIBLY_PERSISTED,
+                    MSG_STATUS_PERSISTED)
+
+from enum import Enum
 
 __version__ = version()[0]
 
@@ -100,3 +105,25 @@ def _resolve_plugins(plugins):
             resolved.append(plugin)
 
     return paths_sep.join(resolved)
+
+
+class MessageStatus(Enum):
+    """
+        Returns the message's persistence status in the topic log.
+
+        See message-persistence-status for additional info:
+        https://github.com/edenhill/librdkafka/blob/master/INTRODUCTION.md#message-persistance-status
+
+        NOT_PERSISTED:
+            Message has never been transmitted, or failed with an error indicating it was not written to the log.
+                Application retries risk ordering, but not duplication.
+        POSSIBLY_PERSISTED:
+            Message was transmitted to the broker, but no acknowledgements were received.
+                Application retries risk ordering and duplication.
+        STATUS_PERSISTED:
+            Message was transmitted and acknowledged by the broker.
+    """
+
+    NOT_PERSISTED = MSG_STATUS_NOT_PERSISTED  #:
+    POSSIBLY_PERSISTED = MSG_STATUS_POSSIBLY_PERSISTED  #:
+    STATUS_PERSISTED = MSG_STATUS_PERSISTED  #:

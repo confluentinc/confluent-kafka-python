@@ -355,6 +355,29 @@ PyObject *Message_error (Message *self, PyObject *ignore) {
 		Py_RETURN_NONE;
 }
 
+
+/* Returns the message's persistence status in the topic log. */
+static PyObject *Message_status (Message *self, PyObject *ignore) {
+        PyObject *MessageStatus_Type, *message_status, *args;
+
+        MessageStatus_Type = cfl_PyObject_lookup("confluent_kafka",
+                                                 "MessageStatus");
+
+        if (!MessageStatus_Type) {
+                /* class not found */
+                PyErr_SetString(PyExc_ImportError, "failed to create MessageStatus");
+                Py_RETURN_NONE;
+        }
+
+       args = Py_BuildValue("(i)", self->status);
+       message_status = PyObject_Call(MessageStatus_Type, args, NULL);
+
+        Py_DECREF(MessageStatus_Type);
+        Py_DECREF(args);
+
+        return message_status;
+}
+
 static PyObject *Message_value (Message *self, PyObject *ignore) {
 	if (self->value) {
 		Py_INCREF(self->value);
@@ -538,7 +561,12 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
-	{ NULL }
+        { "status", (PyCFunction)Message_status, METH_NOARGS,
+          "  :returns: message persistence status.\n"
+          "  :rtype: MessageStatus\n"
+          "\n"
+        },
+        { NULL }
 };
 
 static int Message_clear (Message *self) {
@@ -688,6 +716,7 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
+        self->status = rd_kafka_message_status(rkm);
 	return (PyObject *)self;
 }
 
@@ -2365,6 +2394,10 @@ static PyObject *_init_cimpl (void) {
         PyModule_AddIntConstant(m, "OFFSET_END", RD_KAFKA_OFFSET_END);
         PyModule_AddIntConstant(m, "OFFSET_STORED", RD_KAFKA_OFFSET_STORED);
         PyModule_AddIntConstant(m, "OFFSET_INVALID", RD_KAFKA_OFFSET_INVALID);
+
+        PyModule_AddIntConstant(m, "MSG_STATUS_NOT_PERSISTED", RD_KAFKA_MSG_STATUS_NOT_PERSISTED);
+        PyModule_AddIntConstant(m, "MSG_STATUS_POSSIBLY_PERSISTED", RD_KAFKA_MSG_STATUS_POSSIBLY_PERSISTED);
+        PyModule_AddIntConstant(m, "MSG_STATUS_PERSISTED", RD_KAFKA_MSG_STATUS_PERSISTED);
 
 	return m;
 }
