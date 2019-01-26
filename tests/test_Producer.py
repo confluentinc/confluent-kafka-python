@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from confluent_kafka import Producer, KafkaError, KafkaException, libversion, MessageStatus
+from confluent_kafka import Producer, KafkaError, KafkaException, libversion, PersistenceStatus
 from struct import pack
 
 
@@ -201,7 +201,7 @@ def test_dr_msg_status():
 
     def handle_dr(_, msg):
         """ Message will timeout on the queue without actually being transmitted"""
-        assert msg.status() == MessageStatus.NOT_PERSISTED
+        assert msg.status() == PersistenceStatus.NOT_PERSISTED
 
     p.produce('mytopic', "This is the message payload", on_delivery=handle_dr)
 

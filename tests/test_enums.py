@@ -27,6 +27,6 @@ def test_offset_consts():
 
 def test_message_status():
     """ Make sure librdkafka's message statuses  are available. """
-    print(confluent_kafka.MessageStatus.NOT_PERSISTED)
-    print(confluent_kafka.MessageStatus.POSSIBLY_PERSISTED)
-    print(confluent_kafka.MessageStatus.STATUS_PERSISTED)
+    print(confluent_kafka.PersistenceStatus.NOT_PERSISTED)
+    print(confluent_kafka.PersistenceStatus.POSSIBLY_PERSISTED)
+    print(confluent_kafka.PersistenceStatus.STATUS_PERSISTED)

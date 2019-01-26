@@ -361,7 +361,7 @@ static PyObject *Message_status (Message *self, PyObject *ignore) {
         PyObject *MessageStatus_Type, *message_status, *args;
 
         MessageStatus_Type = cfl_PyObject_lookup("confluent_kafka",
-                                                 "MessageStatus");
+                                                 "PersistenceStatus");
 
         if (!MessageStatus_Type) {
                 /* class not found */

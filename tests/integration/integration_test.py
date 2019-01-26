@@ -215,7 +215,7 @@ def verify_message_status():
                'not_persisted': 0}
 
     def handle_dr(_, msg):
-        if msg.status() is confluent_kafka.MessageStatus.STATUS_PERSISTED:
+        if msg.status() is confluent_kafka.PersistenceStatus.STATUS_PERSISTED:
             results['persisted'] += 1
             return
         results['not_persisted'] += 1

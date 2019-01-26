@@ -33,7 +33,7 @@ def build_doctree(tree, prefix, parent):
             # Skip Enum derived class
             continue
 
-        if n.startswith("MSG_"):
+        if n.startswith("MSG_STATUS"):
             continue
 
         full = prefix + n

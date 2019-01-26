@@ -107,7 +107,7 @@ def _resolve_plugins(plugins):
     return paths_sep.join(resolved)
 
 
-class MessageStatus(Enum):
+class PersistenceStatus(Enum):
     """
         Returns the message's persistence status in the topic log.
 
