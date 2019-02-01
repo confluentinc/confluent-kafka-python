@@ -295,7 +295,7 @@ class CachedSchemaRegistryClient(object):
         :param str subject: subject name
         :raises ClientError: if the schema is invalid
         :returns: (schema_id, schema, version)
-        :rtype: (string, schema, int) | (None, None, None)
+        :rtype: (str, schema, int) | (None, None, None)
         """
         url = '/'.join([self.url, 'subjects', subject, 'versions', 'latest'])
 
@@ -362,7 +362,7 @@ class CachedSchemaRegistryClient(object):
         By default the latest version is checked against.
         :param str subject: subject name
         :param schema avro_schema: Avro schema
-        :param string | int version: version of the schema to test
+        :param str | int version: version of the schema to test
         :return: True if compatible, False if not compatible
         :rtype: bool
         """
@@ -394,14 +394,18 @@ class CachedSchemaRegistryClient(object):
         compatibility level.
 
         :param str level: ex: 'NONE','FULL','FORWARD', or 'BACKWARD'
+        :param str subject: subject of the schema whose compatibility is to be updated (optional)
         :raises: ClientError: if request was unsuccessful or an invalid compatibility level was provided
         :returns: new compatibility level, one of 'NONE','FULL','FORWARD', or 'BACKWARD'
         :rtype: str
         """
         if level not in VALID_LEVELS:
-            raise ClientError("Invalid level specified: {}".format(level))
+            raise ClientError("Invalid compatibility level specified: {}".format(level))
 
-        url = '/'.join([self.url, 'config'])
+        if subject:
+            url = '/'.join([self.url, 'config', subject])
+        else:
+            url = '/'.join([self.url, 'config'])
 
         body = {"compatibility": level}
         result, code = self._send_request(url, method='PUT', body=body)
@@ -416,11 +420,15 @@ class CachedSchemaRegistryClient(object):
         Get the current subject-level compatibility level if subject is specified. Otherwise, get the current global
         compatibility level for the schema registry.
 
+        :param str subject: subject of the schema whose compatibility is to be retrieved (optional)
         :raises: ClientError: if the request was unsuccessful or an invalid compatibility level was returned
         :returns: one of 'NONE','FULL','FORWARD', or 'BACKWARD'
         :rtype: str
         """
-        url = '/'.join([self.url, 'config'])
+        if subject:
+            url = '/'.join([self.url, 'config', subject])
+        else:
+            url = '/'.join([self.url, 'config'])
 
         result, code = self._send_request(url)
 
@@ -429,7 +437,10 @@ class CachedSchemaRegistryClient(object):
 
         compatibility = result.get('compatibilityLevel', None)
         if compatibility not in VALID_LEVELS:
-            raise ClientError('Invalid compatibility level received: {}'.format(
-                compatibility if compatibility else 'No compatibility was returned'), code)
+            if compatibility is None:
+                error_msg_suffix = 'No compatibility was returned'
+            else:
+                error_msg_suffix = str(compatibility)
+            raise ClientError('Invalid compatibility level received: {}'.format(error_msg_suffix), code)
 
         return compatibility

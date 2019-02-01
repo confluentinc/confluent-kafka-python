@@ -21,7 +21,7 @@ class ClientError(Exception):
 
     def __init__(self, message, http_code=None):
         self.message = message
-        if http_code:
+        if http_code is not None:
             self.message += '. Error code: {}'.format(str(http_code))
 
         self.http_code = http_code
