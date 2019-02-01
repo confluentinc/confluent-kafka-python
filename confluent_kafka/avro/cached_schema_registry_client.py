@@ -26,8 +26,8 @@ from collections import defaultdict
 
 from requests import Session, utils
 
-from .error import ClientError
 from . import loads
+from .error import ClientError
 
 # Python 2 considers int an instance of str
 try:
@@ -343,7 +343,8 @@ class CachedSchemaRegistryClient(object):
 
         result, code = self._send_request(url, method='POST', body=body)
         if code == 404:
-            log.error("Schema for subject '{}' not found. Error code: {}".format(subject, code))
+            log.error(
+                "Either subject itself or schema for subject '{}' not found. Error code: {}".format(subject, code))
             return None
         elif not (200 <= code <= 299):
             log.error("Unable to get version for the '{}' schema. Error code: ".format(subject, code))
