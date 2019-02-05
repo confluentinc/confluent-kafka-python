@@ -138,16 +138,16 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         self.assertTupleEqual(('/path/to/cert', '/path/to/key'), self.client._session.cert)
 
     def test_cert_path(self):
-            self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:65534',
-                                                     ca_location='/path/to/ca')
-            self.assertEqual('/path/to/ca', self.client._session.verify)
+        self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:65534',
+                                                 ca_location='/path/to/ca')
+        self.assertEqual('/path/to/ca', self.client._session.verify)
 
     def test_context(self):
-            with self.client as c:
-                parsed = avro.loads(data_gen.BASIC_SCHEMA)
-                schema_id = c.register('test', parsed)
-                self.assertTrue(schema_id > 0)
-                self.assertEqual(len(c.id_to_schema), 1)
+        with self.client as c:
+            parsed = avro.loads(data_gen.BASIC_SCHEMA)
+            schema_id = c.register('test', parsed)
+            self.assertTrue(schema_id > 0)
+            self.assertEqual(len(c.id_to_schema), 1)
 
     def test_init_with_dict(self):
         self.client = CachedSchemaRegistryClient({
