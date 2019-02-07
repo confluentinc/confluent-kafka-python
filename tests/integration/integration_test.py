@@ -1224,10 +1224,6 @@ def verify_avro_explicit_read_schema():
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
 
 
-default_modes = ['consumer', 'producer', 'avro', 'performance', 'admin']
-all_modes = default_modes + ['throttle', 'avro-https', 'avro-basic-auth', 'none']
-
-"""All test modes"""
 
 
 def generate_group_id():
