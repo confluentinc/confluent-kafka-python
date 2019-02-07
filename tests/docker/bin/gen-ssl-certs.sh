@@ -1,4 +1,4 @@
-#!/usr/bin/env bash -eu
+#!/bin/bash
 #
 #
 # This scripts generates:
@@ -8,6 +8,8 @@
 #
 # https://cwiki.apache.org/confluence/display/KAFKA/Deploying+SSL+for+Kafka
 #
+
+set -eu
 
 if [[ "$1" == "-k" ]]; then
     USE_KEYTOOL=1
