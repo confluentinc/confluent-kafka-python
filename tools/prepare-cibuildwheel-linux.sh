@@ -15,7 +15,7 @@ set -ex
 echo "# Installing basic system dependencies"
 yum install -y zlib-devel gcc-c++
 
-# Build OpenSSL (argument is DESTDIR, not PREFIX (/usr/lib))
+# Build OpenSSL (argument is DESTDIR, not PREFIX (/usr))
 $(dirname $0)/build-openssl.sh /
 
 # Build librdkafka (argument is PREFIX(/usr))

@@ -35,7 +35,7 @@ if [[ $OPENSSL_VERSION == 1.0.* ]]; then
     extra_conf_args="no-krb5 shared"
 fi
 
-./config --prefix=/usr/lib --openssldir=/usr/lib/ssl zlib shared $extra_conf_args
+./config --prefix=/usr --openssldir=/usr/lib/ssl zlib shared $extra_conf_args
 
 echo "## building openssl"
 if ! make -j 2>&1 | tail -100 ; then
