@@ -8,9 +8,9 @@
 #       version of OpenSSL in the 1.0 release train.
 OPENSSL_VERSION=1.0.2q
 
-PREFIX=$1
-if [[ -z $PREFIX ]]; then
-    echo "Usage: $0 <installation-prefix>"
+export DESTDIR=$1
+if [[ -z $DESTDIR ]]; then
+    echo "Usage: $0 <installation-destdir>"
 fi
 
 set -ex
@@ -30,23 +30,29 @@ else
     pushd build-openssl
 fi
 
-./config --prefix=${PREFIX} zlib no-krb5 zlib shared
+extra_conf_args=
+if [[ $OPENSSL_VERSION == 1.0.* ]]; then
+    extra_conf_args="no-krb5 shared"
+fi
+
+./config --prefix=/usr/lib --openssldir=/usr/lib/ssl zlib shared $extra_conf_args
+
 echo "## building openssl"
-if ! make -j 2>&1 | tail -20 ; then
+if ! make -j 2>&1 | tail -100 ; then
     echo "## Make failed, cleaning up and retrying"
     time make clean 2>&1 | tail -20
     rm -f test/PASSED
     echo "## building openssl (retry)"
-    time make -j 2>&1 | tail -20
+    time make -j 2>&1 | tail -100
 fi
 
 if [[ ! -f test/PASSED ]]; then
     echo "## testing openssl"
-    time make test 2>&1 | tail -20
+    #time make test 2>&1 | tail -100
     touch test/PASSED
 fi
-echo "## installing openssl"
-time make install 2>&1 | tail -20
+echo "## installing openssl to $DESTDIR"
+make DESTDIR=$DESTDIR install 2>&1 | tail -100
 popd
 
 
