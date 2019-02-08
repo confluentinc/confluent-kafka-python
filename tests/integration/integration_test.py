@@ -1224,8 +1224,6 @@ def verify_avro_explicit_read_schema():
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
 
 
-
-
 def generate_group_id():
     return str(uuid.uuid1())
 
