@@ -145,7 +145,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
                 goto done;
 
 	msgobj = Message_new0(self, rkm);
-	
+
         args = Py_BuildValue("(OO)", ((Message *)msgobj)->error, msgobj);
 
 	Py_DECREF(msgobj);
@@ -532,6 +532,21 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Producer_purge (Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
+	int blocking = 0;
+        static char *kws[] = { "blocking", NULL };
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", kws, &blocking))
+			return NULL;
+	if (blocking==1)
+		rd_kafka_purge(rk, RD_KAFKA_PURGE_F_QUEUE)
+	else
+		rd_kafka_purge(rk, RD_KAFKA_PURGE_F_QUEUE|RD_KAFKA_PURGE_F_NON_BLOCKING)
+
+}
+
+
 static PyMethodDef Producer_methods[] = {
 	{ "produce", (PyCFunction)Producer_produce,
 	  METH_VARARGS|METH_KEYWORDS,
@@ -595,6 +610,17 @@ static PyMethodDef Producer_methods[] = {
           "\n"
 	  ".. note:: See :py:func:`poll()` for a description on what "
 	  "callbacks may be triggered.\n"
+	  "\n"
+	},
+	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: purge([blocking])\n"
+          "\n"
+	  "   Purge messages in internal queues currently handled by producer instance.\n"
+	  "   The application will need to call poll() or flush() "
+	  "afterwards to serve the delivery report callbacks of the purged messages."
+	  "\n"
+          "  :param: bool blocking: If set to False, will not wait on background thread queue)\n"
+	  "purging to finish. By default, this method will block."
 	  "\n"
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
