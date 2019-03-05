@@ -11,6 +11,9 @@ from ..cimpl import (KafkaException, # noqa
                      CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG,
                      CONFIG_SOURCE_STATIC_BROKER_CONFIG,
                      CONFIG_SOURCE_DEFAULT_CONFIG,
+                     PURGE_F_QUEUE,
+                     PURGE_F_INFLIGHT,
+                     PURGE_ALL,
                      RESOURCE_UNKNOWN,
                      RESOURCE_ANY,
                      RESOURCE_TOPIC,
@@ -33,6 +36,15 @@ class ConfigSource(Enum):
     DYNAMIC_DEFAULT_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG  #:
     STATIC_BROKER_CONFIG = CONFIG_SOURCE_STATIC_BROKER_CONFIG  #:
     DEFAULT_CONFIG = CONFIG_SOURCE_DEFAULT_CONFIG  #:
+
+
+class PurgeStrategy(Enum):
+    """
+    Purge strategies for the Kafka producer.
+    """
+    PURGE_INTERNAL_QUEUES = PURGE_F_QUEUE  #:
+    PURGE_INFLIGHT = PURGE_F_INFLIGHT  #:
+    PURGE_ALL = PURGE_ALL  #:
 
 
 class ConfigEntry(object):

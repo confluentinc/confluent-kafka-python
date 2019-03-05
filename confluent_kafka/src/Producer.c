@@ -534,15 +534,16 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
 
 static PyObject *Producer_purge (Handle *self, PyObject *args,
                                  PyObject *kwargs) {
+	int purge_strategy;
 	int blocking = 0;
-        static char *kws[] = { "blocking", NULL };
+        static char *kws[] = { "purge_strategy", "blocking", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|p", kws, &blocking))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|p", kws, &blocking))
 			return NULL;
 	if (blocking==1)
-		rd_kafka_purge(rk, RD_KAFKA_PURGE_F_QUEUE)
+		rd_kafka_purge(rk, purge_strategy)
 	else
-		rd_kafka_purge(rk, RD_KAFKA_PURGE_F_QUEUE|RD_KAFKA_PURGE_F_NON_BLOCKING)
+		rd_kafka_purge(rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING)
 
 }
 
@@ -613,12 +614,16 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: purge([blocking])\n"
+          ".. py:function:: purge(purge_strategy, [blocking])\n"
           "\n"
-	  "   Purge messages in internal queues currently handled by producer instance.\n"
+	  "   Purge messages currently handled by producer instance with specified purge strategy.\n"
 	  "   The application will need to call poll() or flush() "
 	  "afterwards to serve the delivery report callbacks of the purged messages."
 	  "\n"
+	  "  :param: PurgeStrategy purge_strategy: One of three options.\n"
+	  "- `PURGE_INTERNAL_QUEUES`: Purge messages from internal queues.\n"
+	  "- `PURGE_INFLIGHT`: Purge messages in flight to or from the broker.\n"
+	  "- `PURGE_ALL`: Purge messages from internal queues and those in flight.\n"
           "  :param: bool blocking: If set to False, will not wait on background thread queue)\n"
 	  "purging to finish. By default, this method will block."
 	  "\n"
