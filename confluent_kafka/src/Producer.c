@@ -541,10 +541,20 @@ static PyObject *Producer_purge (Handle *self, PyObject *args,
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|p", kws, &blocking))
 			return NULL;
 	if (blocking==1)
-		rd_kafka_purge(rk, purge_strategy)
+		err = rd_kafka_purge(rk, purge_strategy)
 	else
-		rd_kafka_purge(rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING)
-
+		err = rd_kafka_purge(rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING)
+	if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
+		Py_RETURN_NONE;
+	}
+	if (err == RD_KAFKA_RESP_ERR__INVALID_ARG) {
+		cfl_PyErr_Format(err,
+				 "Purge strategy invalid or unknown.");
+	}
+	if (err == RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED) {
+		cfl_PyErr_Format(err,
+				 "purge() should be called on a producer client instance.");
+	}
 }
 
 
