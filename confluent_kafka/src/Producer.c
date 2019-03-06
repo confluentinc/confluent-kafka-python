@@ -532,18 +532,19 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         Py_RETURN_NONE;
 }
 
-static PyObject *Producer_purge (Handle *self, PyObject *args,
+static void *Producer_purge (Handle *self, PyObject *args,
                                  PyObject *kwargs) {
 	int purge_strategy;
 	int blocking = 0;
+	rd_kafka_resp_err_t err;
         static char *kws[] = { "purge_strategy", "blocking", NULL};
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|p", kws, &blocking))
 			return NULL;
 	if (blocking==1)
-		err = rd_kafka_purge(rk, purge_strategy)
+		err = rd_kafka_purge(self->rk, purge_strategy);
 	else
-		err = rd_kafka_purge(rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING)
+		err = rd_kafka_purge(self->rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING);
 	if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
 		Py_RETURN_NONE;
 	}
