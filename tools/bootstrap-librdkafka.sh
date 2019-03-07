@@ -34,7 +34,7 @@ curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | 
 
 ./configure --clean
 make clean
-./configure --prefix="$INSTALLDIR"
+./configure --install-deps --source-deps-only --disable-gssapi --disable-lz4-ext --enable-static --prefix="$INSTALLDIR"
 
 if [[ $REQUIRE_SSL == 1 ]]; then
     grep '^#define WITH_SSL 1$' config.h || \
@@ -42,6 +42,7 @@ if [[ $REQUIRE_SSL == 1 ]]; then
 fi
 
 make -j
+examples/rdkafka_example -X builtin.features
 
 if [[ $INSTALLDIR == /usr && $(whoami) != root ]]; then
     sudo make install
