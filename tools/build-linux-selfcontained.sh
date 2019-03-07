@@ -78,13 +78,9 @@ LIBRDKAFKA_VERSION=$1
 function install_deps {
     echo "# Installing basic system dependencies"
     if which apt-get >/dev/null 2>&1; then
-        sudo apt-get -y install gcc g++ zlib1g-dev libssl-dev
+        sudo apt-get -y install gcc g++ zlib1g-dev
     else
         yum install -y zlib-devel gcc gcc-c++ libstdc++-devel
-
-        # Build OpenSSL
-        tools/build-openssl.sh /usr
-
     fi
 }
 
