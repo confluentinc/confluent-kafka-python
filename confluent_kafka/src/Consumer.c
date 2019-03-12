@@ -1144,7 +1144,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "The consumer relies on your use of this method if you have set 'enable.auto.commit' to False\n"
 	  "\n"
 	  "  :param confluent_kafka.Message message: Commit message's offset+1.\n"
-	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
+	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets (offset+1 for each topic+partition) to commit.\n"
 	  "  :param bool asynchronous: Asynchronous commit, return None immediately. "
           "If False the commit() call will block until the commit succeeds or "
           "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition will need to be checked for success.\n"
