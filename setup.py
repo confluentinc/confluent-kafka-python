@@ -3,12 +3,11 @@
 import os
 from setuptools import setup, find_packages
 from distutils.core import Extension
-import sys
 import platform
 
-INSTALL_REQUIRES = ["futures; python_version<'3.3'", 
-                    "enum34; python_version<'3.5'", 
-                    'requests'] 
+INSTALL_REQUIRES = ["futures; python_version<'3.3'",
+                    "enum34; python_version<'3.5'",
+                    'requests']
 
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
@@ -34,6 +33,7 @@ def get_install_requirements(path):
         for req in content.split("\n")
         if req != '' and not req.startswith('#')
     ]
+
 
 setup(name='confluent-kafka',
       version='1.0.0rc7',
