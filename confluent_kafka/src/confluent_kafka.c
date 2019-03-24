@@ -47,6 +47,14 @@ PyObject *KafkaException;
  *        a new object if a rich error string is provided.
  *
  ****************************************************************************/
+
+#ifndef PyException_HEAD
+#define PyException_HEAD PyObject_HEAD PyObject *dict;\
+             PyObject *args; PyObject *traceback;\
+             PyObject *context; PyObject *cause;\
+             char suppress_context;
+#endif
+
 typedef struct {
 #ifdef PY3
         PyException_HEAD
