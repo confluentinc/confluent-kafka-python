@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import array
 import re
 import sys
 import json
@@ -107,6 +107,23 @@ def create_topic(admin_conn, topic_name, topic):
             raise ex
 
 
+def get_payload_generator(spec, defaultGenerator = None):
+    if "type" not in spec:
+        return defaultGenerator
+    if spec["type"] == "constant":
+        if "size" not in spec:
+            return defaultGenerator
+        if "value" in spec:
+            return ConstGenerator(spec["size"], spec["value"])
+        else:
+            return ConstGenerator(spec["size"], 0x0)
+    elif spec["type"] is "sequential":
+        if "size" not in spec or "startOffset" not in spec:
+            return defaultGenerator
+        return SeqGenerator(spec["size"], spec["startOffset"])
+    else:
+        return defaultGenerator
+
 # msg is a JSON string {"status":status, "error":error, "log":log}
 def output_trogdor_message(msg):
     print(msg)
@@ -138,7 +155,16 @@ class SeqGenerator:
 class ConstGenerator:
     def __init__(self, size, val):
         self.size = size
-        self.const_bytes = val.to_bytes(self.size, byteorder='little')
+        if type(val) is int:
+            self.const_bytes = val.to_bytes(self.size, byteorder='little')
+        elif type(val) is list:
+            list_p = []
+            for i in range(0, size):
+                val = val[i] if len(val) > i else 0
+                list_p[i] = val % 0x100
+            self.const_bytes = array.array('B', list_p)
+        else:
+            raise Exception("Unrecognized type of ConstGenerator value: " + type(val))
 
     def generate(self, position):
         return self.const_bytes

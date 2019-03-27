@@ -48,14 +48,30 @@
 # "bootstrapServers": #string#
 # "targetMessagePerSec": #Java int#
 # "maxMessages": #Java long#
-# "keyGenerator": #Option, sequential generator by default# { "type": "constant" | "sequential" | "uniformRandom" | "null" }
-# "valueGenerator"#Same as the keyGenerator#"
-# "transactionGenerator":#Option, by default empty# {"type":"uniform"}
+# "keyGenerator": #payloadGenerator, optional, sequential generator (default)# { "type": "constant" | "sequential" | "uniformRandom" | "null" }
+# "valueGenerator"#payloadGenerator, optional, constant generator (default)#" {"type": "constant" | "sequential" | "uniformRandom" | "null" }
+# "transactionGenerator":#Object, optional, empty (default)# {"type":"uniform"}
 # "producerConf": #a JSON object#
 # "commonClientConf": "a JSON object"
 # "adminClientConf": "a JSON object"
 # "activeTopics" : "a JSON object"
 # "inactiveTopics": "a JSON object"
+#
+# PayloadGenerator:
+# ConstantPayLoadGenerator:
+# "type": #string, "constant"
+# "size": #Java Int, "size of the value"
+# "value": #Java byte array, optional, "constant value"
+# SequentialPayloadGenerator:
+# "type": "sequential"
+# "size": #Java Int, "size of the value"
+# "startOffset": #Java Long, "start value of the increasing value"
+# uniformRandomPayloadGenerator:
+# "type": "uniformRandom"
+# "size": #Java Int", "size of the value"
+# "seed": #Java Long", "seed of the value"
+# "padding" #Java Long", #padding size of the value, size - padding is the size of random bytes"
+
 import threading
 import time
 
@@ -63,7 +79,7 @@ from hdrh.histogram import HdrHistogram
 
 from trogdor_utils import expand_topics, trogdor_log, update_trogdor_error, merge_topics, create_topics, \
     update_trogdor_status, create_admin_conn, partition_set, PayloadGenerator, SeqGenerator, ConstGenerator, \
-    create_kafka_conf, create_producer_conn
+    create_kafka_conf, create_producer_conn, get_payload_generator
 
 
 def execute_produce_spec(spec):
@@ -177,8 +193,12 @@ class ProduceSpecRunner:
         self.report_status_interval = 10
         self.start_timestamp = time.time()
         self.create_spec_topics(self.producer_spec)
-        self.key_generator = PayloadGenerator(SeqGenerator(4, 0))
-        self.val_generator = PayloadGenerator(ConstGenerator(4,0xabcd))
+        self.key_generator_spec = self.producer_spec.get("keyGenerator", {"type":"sequential", "size":4, "startOffset":0})
+        self.value_generator_spec = self.producer_spec.get("valueGenerator", {"type": "constant", "size": 512})
+        key_payload_generator = get_payload_generator(self.key_generator_spec)
+        value_payload_generator = get_payload_generator(self.value_generator_spec)
+        self.key_generator = PayloadGenerator(key_payload_generator)
+        self.val_generator = PayloadGenerator(value_payload_generator)
         self.qps = self.producer_spec.get("targetMessagePerSec", 10000)
         self.max_messages = self.producer_spec.get("maxMessages", 100000)
         self.nr_finished_messages = 0
