@@ -16,10 +16,10 @@ set -e
 pkgtype=$1
 
 # Confluent Platform release version
-CPVER=5.3
+CPVER=5.0
 
 # confluent-librdkafka-plugins version
-PLUGINVER=0.11.1
+PLUGINVER=0.11.0
 
 # Stage directory for wheels
 stagedir=staging/libs
