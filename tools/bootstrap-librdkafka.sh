@@ -35,7 +35,7 @@ curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | 
 ./configure --clean
 make clean
 
-if [[ uname -s  != "Darwin" ]]; then
+if [[ "$OSTYPE" == "linux"* ]]; then
   MKL_OPTS="--disable-gssapi"  
 fi
 
