@@ -34,7 +34,12 @@ curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | 
 
 ./configure --clean
 make clean
-./configure --install-deps --source-deps-only --prefix="$INSTALLDIR"
+
+if [[ uname -s  != "Darwin" ]]; then
+  MKL_OPTS="--disable-gssapi"  
+fi
+
+./configure --install-deps --source-deps-only $MKL_OPTS --prefix="$INSTALLDIR"
 
 if [[ $REQUIRE_SSL == 1 ]]; then
     grep '^#define WITH_SSL 1$' config.h || \
