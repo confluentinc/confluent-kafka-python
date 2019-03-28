@@ -44,7 +44,7 @@ fi
 #
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++ libsasl2-dev
+yum install -y zlib-devel gcc-c++ cyrus-sasl-devel
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr

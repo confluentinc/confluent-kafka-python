@@ -80,7 +80,7 @@ function install_deps {
     if which apt-get >/dev/null 2>&1; then
         sudo apt-get -y install gcc g++ zlib1g-dev libsasl2-dev
     else
-        yum install -y zlib-devel gcc gcc-c++ libstdc++-devel libsasl2-dev
+        yum install -y zlib-devel gcc gcc-c++ libstdc++-devel cyrus-sasl-devel
     fi
 }
 
