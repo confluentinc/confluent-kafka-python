@@ -13,7 +13,7 @@ fi
 set -ex
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++ cyrus-sasl-devel
+yum install -y zlib-devel gcc-c++
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
