@@ -58,11 +58,13 @@ def merge_topics(active_topics, inactive_topics):
     all_topics.update(inactive_topics)
     return all_topics
 
+
 def create_kafka_conf(bootstrap_servers, *args):
     k_conf = {"bootstrap.servers": bootstrap_servers}
     for conf in args:
         k_conf.update(conf)
     return k_conf
+
 
 def create_admin_conf(bootstrap_servers, common_client_config, admin_client_config):
     # Refer Java Trogdor tools/src/main/java/org/apache/kafka/trogdor/common/WorkerUtils.java#L305
@@ -72,15 +74,19 @@ def create_admin_conf(bootstrap_servers, common_client_config, admin_client_conf
     admin_conf["socket.timeout.ms"] = admin_request_timeout_ms
     return admin_conf
 
+
 def create_producer_conn(bootstrap_servers, common_client_config, producer_config):
     producer_conf = create_kafka_conf(bootstrap_servers, common_client_config, producer_config)
     return Producer(**producer_conf)
+
 
 def record_on_delivery(err, msg):
     if err is not None:
         trogdor_log("ProduceSpecRunner: delivery failed: {} [{}]: {}".format(msg.topic(), msg.partition(), err))
     else:
         trogdor_log("ProduceSpecRunner: delivery successed: {}".format(str(msg)))
+
+
 def create_admin_conn(bootstrap_servers, common_client_config, admin_client_config):
     admin_conf = create_admin_conf(bootstrap_servers, common_client_config, admin_client_config)
     admin_conn = AdminClient(admin_conf)

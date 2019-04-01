@@ -27,6 +27,12 @@ run_tox() {
     tox -r "$@"
 }
 
+run_trogdor() {
+    start_cluster
+    echo "Executing Trogdor"
+    python ${TEST_SOURCE}/trogdor/trogdor_runner.py --spec ${TEST_SOURCE}/trogdor/example-produce-spec.json
+}
+
 run_native() {
     pip install -v .[avro]
     start_cluster
@@ -55,6 +61,10 @@ case ${1:-} in
         shift
         run_unit $@
         run_native $@
+        ;;
+    "trogdor")
+        shift
+        run_trogdor $@
         ;;
     *)
         run_native $@

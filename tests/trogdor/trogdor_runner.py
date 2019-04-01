@@ -55,8 +55,8 @@ from trogdor_utils import update_trogdor_status
 from trogdor_utils import update_trogdor_error
 from trogdor_utils import trogdor_log
 
-# if passed with --spec spec.json, TrogdorProducer directly executes the task,
-# otherwise, TrogdorProduder waits on the task start command.
+# if the task is passed with the --spec spec.json parameter, TrogdorProducer directly executes the task,
+# otherwise, TrogdorProduder waits for the task on the stdin.
 parser = argparse.ArgumentParser(description='Python Trogdor Producer.');
 parser.add_argument('--spec', dest='spec', required=False);
 args = parser.parse_args()
