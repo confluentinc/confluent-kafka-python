@@ -1,11 +1,11 @@
 {
     "class": "org.apache.kafka.trogdor.workload.ExternalCommandSpec",
     "command": [
-	"python",
-	"./tests/trogdor/trogdor-runner.py"
+	    "python",
+	    "./tests/trogdor/trogdor-runner.py"
     ],
     "durationMs": 10000000,
-    "producerNode": "node0",
+    "commandNode": "node0",
     "workload": {
 		"class": "org.apache.kafka.trogdor.workload.ProduceBenchSpec",
 		"bootstrapServers": "localhost:29092",

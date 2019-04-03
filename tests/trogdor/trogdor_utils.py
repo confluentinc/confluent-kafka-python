@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import array
 import re
 import sys
@@ -22,7 +23,16 @@ from confluent_kafka.admin import AdminClient, NewTopic
 
 
 def partition_set(topics):
-    """ Return a set of TopicPartition """
+    """
+    Return an array of TopicPartition set, so we can send messages to them one by one.
+    For example, for topics
+    {
+      "foo" : { "numPartitions": 3 }
+      "bar" : { "numPartitions": 2 }
+    }
+    return
+    [("foo", 0), ("foo", 1), ("foo", 2), ("bar", 0), ("bar", 1)]
+    """
     topic_partitions = []
     for t_name in topics:
         t = topics[t_name]
@@ -33,11 +43,15 @@ def partition_set(topics):
 
 
 def expand_topics(topics):
+    """
+    Return extended topics.
+    For example, for topics { "foo[1-3]" : {} }, return { "foo1" : {}, "foo2" : {}, "foo3" : {}}
+    """
     topic_expand_matter = re.compile(r'(.*?)\[([0-9]*)\-([0-9]*)\](.*)')
     expanded = {}
     for topicName in topics:
         match = topic_expand_matter.match(topicName)
-        if (match):
+        if match:
             pre = match.group(1)
             start = int(match.group(2))
             end = int(match.group(3))
@@ -70,7 +84,7 @@ def create_admin_conf(bootstrap_servers, common_client_config, admin_client_conf
     # Refer Java Trogdor tools/src/main/java/org/apache/kafka/trogdor/common/WorkerUtils.java#L305
     admin_request_timeout_ms = 25000
     create_kafka_conf(bootstrap_servers, common_client_config, admin_client_config)
-    admin_conf = create_kafka_conf(bootstrap_servers, common_client_config, admin_client_config);
+    admin_conf = create_kafka_conf(bootstrap_servers, common_client_config, admin_client_config)
     admin_conf["socket.timeout.ms"] = admin_request_timeout_ms
     return admin_conf
 
@@ -78,13 +92,6 @@ def create_admin_conf(bootstrap_servers, common_client_config, admin_client_conf
 def create_producer_conn(bootstrap_servers, common_client_config, producer_config):
     producer_conf = create_kafka_conf(bootstrap_servers, common_client_config, producer_config)
     return Producer(**producer_conf)
-
-
-def record_on_delivery(err, msg):
-    if err is not None:
-        trogdor_log("ProduceSpecRunner: delivery failed: {} [{}]: {}".format(msg.topic(), msg.partition(), err))
-    else:
-        trogdor_log("ProduceSpecRunner: delivery successed: {}".format(str(msg)))
 
 
 def create_admin_conn(bootstrap_servers, common_client_config, admin_client_config):
@@ -105,7 +112,7 @@ def create_topic(admin_conn, topic_name, topic):
     fs = admin_conn.create_topics([NewTopic(topic_name, num_partitions, replication_factor)])
     fs = fs[topic_name]
     try:
-        res = fs.result()
+        return fs.result()
     except KafkaException as ex:
         if ex.args[0].code() == KafkaError.TOPIC_ALREADY_EXISTS:
             trogdor_log("Topic %s already exists" % (topic_name))
@@ -113,22 +120,23 @@ def create_topic(admin_conn, topic_name, topic):
             raise ex
 
 
-def get_payload_generator(spec, defaultGenerator = None):
+def get_payload_generator(spec, default_generator=None):
     if "type" not in spec:
-        return defaultGenerator
+        return default_generator
     if spec["type"] == "constant":
         if "size" not in spec:
-            return defaultGenerator
+            return default_generator
         if "value" in spec:
             return ConstGenerator(spec["size"], spec["value"])
         else:
             return ConstGenerator(spec["size"], 0x0)
-    elif spec["type"] is "sequential":
+    elif spec["type"] == "sequential":
         if "size" not in spec or "startOffset" not in spec:
-            return defaultGenerator
+            return default_generator
         return SeqGenerator(spec["size"], spec["startOffset"])
     else:
-        return defaultGenerator
+        return default_generator
+
 
 # msg is a JSON string {"status":status, "error":error, "log":log}
 def output_trogdor_message(msg):
@@ -150,6 +158,7 @@ def trogdor_log(log):
     msg = json.dumps({"log": log})
     output_trogdor_message(msg)
 
+
 class SeqGenerator:
     def __init__(self, size, start_offset):
         self.size = size
@@ -157,6 +166,7 @@ class SeqGenerator:
 
     def generate(self, position):
         return (self.start_offset + position).to_bytes(self.size, byteorder='little')
+
 
 class ConstGenerator:
     def __init__(self, size, val):
@@ -174,6 +184,7 @@ class ConstGenerator:
 
     def generate(self, position):
         return self.const_bytes
+
 
 class PayloadGenerator:
     def __init__(self, pyload_generator):

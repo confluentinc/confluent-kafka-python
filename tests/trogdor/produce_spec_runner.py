@@ -48,8 +48,10 @@
 # "bootstrapServers": #string#
 # "targetMessagePerSec": #Java int#
 # "maxMessages": #Java long#
-# "keyGenerator": #payloadGenerator, optional, sequential generator (default)# { "type": "constant" | "sequential" | "uniformRandom" | "null" }
-# "valueGenerator"#payloadGenerator, optional, constant generator (default)#" {"type": "constant" | "sequential" | "uniformRandom" | "null" }
+# "keyGenerator": #payloadGenerator, optional, sequential generator (default)#
+#  { "type": "constant" | "sequential" | "uniformRandom" | "null" }
+# "valueGenerator"#payloadGenerator, optional, constant generator (default)#"
+#  {"type": "constant" | "sequential" | "uniformRandom" | "null" }
 # "transactionGenerator":#Object, optional, empty (default)# {"type":"uniform"}
 # "producerConf": #a JSON object#
 # "commonClientConf": "a JSON object"
@@ -71,7 +73,7 @@
 # "size": #Java Int", "size of the value"
 # "seed": #Java Long", "seed of the value"
 # "padding" #Java Long", #padding size of the value, size - padding is the size of random bytes"
-
+import math
 import threading
 import time
 
@@ -82,26 +84,28 @@ from trogdor_utils import expand_topics, trogdor_log, merge_topics, create_topic
     get_payload_generator
 
 
-def execute_produce_spec(spec):
-    runner = ProduceSpecRunner(spec)
+def execute_produce_spec(workload):
+    """ Return after finishing the workload """
+    update_trogdor_status("running")
+    runner = ProduceSpecRunner(workload)
     runner.monitor()
 
 
 class ProduceSpecRunner:
-    def report_status(self, realQPS = None):
+    def report_status(self, realQPS=None):
         """ Report Histogram Latency"""
         exp_status = {"totalSent": self.nr_finished_messages,
                       "totalRecorded": self.latency_histogram.get_total_count(),
                       "totalError": self.nr_failed_messages,
-                      "planQPS": self.qps,
-                      "averageLatencyMs": self.latency_histogram.get_mean_value(),
-                      "p50LatencyMs": self.latency_histogram.get_value_at_percentile(59),
-                      "p95LatencyMs": self.latency_histogram.get_value_at_percentile(95),
-                      "p99LatencyMs": self.latency_histogram.get_value_at_percentile(99),
-                      "maxLatencyMs": self.latency_histogram.get_max_value()
+                      "planMPS": self.qps,
+                      "averageLatencyMs": self.latency_histogram.get_mean_value()/100.0,
+                      "p50LatencyMs": self.latency_histogram.get_value_at_percentile(50)/100.0,
+                      "p95LatencyMs": self.latency_histogram.get_value_at_percentile(95)/100.0,
+                      "p99LatencyMs": self.latency_histogram.get_value_at_percentile(99)/100.0,
+                      "maxLatencyMs": self.latency_histogram.get_max_value()/100.0
                       }
         if realQPS:
-            exp_status["realQPS"] = realQPS
+            exp_status["realMPS"] = realQPS
         update_trogdor_status(exp_status)
 
     def message_on_delivery(self, err, msg, sent_time):
@@ -110,23 +114,24 @@ class ProduceSpecRunner:
             self.nr_failed_messages += 1
         now = time.time()
         latency = now - sent_time
-        self.latency_histogram.record_value(latency * 1000)
+        self.latency_histogram.record_value(math.ceil(latency * 100000))
+        self.totalLatency += latency
         self.nr_finished_messages += 1
 
     def get_msg_callback(self):
         product_time = time.time()
-        return lambda err,msg : self.message_on_delivery(err, msg, product_time)
+        return lambda err, msg: self.message_on_delivery(err, msg, product_time)
 
     def create_spec_topics(self, producer_spec):
         active_spec_topics = producer_spec.get("activeTopics", {})
         if len(active_spec_topics.keys()) == 0:
             raise Exception("You must specify at least one active topic.")
-        inactive_spec_topics = producer_spec.get("inactiveTopics", {})
-        self.active_topics = expand_topics(active_spec_topics)
-        self.inactive_topics = expand_topics(inactive_spec_topics)
         self.bootstrap_servers = producer_spec.get("bootstrapServers", "")
         if self.bootstrap_servers == "":
             raise Exception("You must specify the bootstrap servers")
+        inactive_spec_topics = producer_spec.get("inactiveTopics", {})
+        self.active_topics = expand_topics(active_spec_topics)
+        self.inactive_topics = expand_topics(inactive_spec_topics)
         self.producer_conf = producer_spec.get("producerConf", {})
         self.common_client_conf = producer_spec.get("commonClientConf", {})
         self.admin_client_conf = producer_spec.get("adminClientConf", {})
@@ -137,8 +142,7 @@ class ProduceSpecRunner:
         self.topic_partitions = partition_set(self.active_topics)
 
     def monitor(self):
-        """ Called by the main thread """
-        # report status every 10 seconds
+        """ Executed in the context of the main (polling) thread """
         start_monitoring = time.time()
         last_report_time = time.time()
         while self.status == "running" or self.nr_finished_messages != self.max_messages:
@@ -165,6 +169,7 @@ class ProduceSpecRunner:
             self.status = "exception"
 
     def execute_spec(self):
+        """ Executed in the context of the producer thread"""
         start_produce_time = time.time()
         nr_topics = len(self.topic_partitions)
         nr_message = 0
@@ -182,7 +187,7 @@ class ProduceSpecRunner:
                 try:
                     self.producer.produce(topic, self.val_generator.nextVal(),
                                           self.key_generator.nextVal(), partition,
-                                          on_delivery = self.get_msg_callback())
+                                          on_delivery=self.get_msg_callback())
                     break
                 except BufferError:
                     trogdor_log("Producer BufferError, retry")
@@ -190,29 +195,28 @@ class ProduceSpecRunner:
                     continue
             nr_message += 1
 
-
-
-    def __init__(self, spec):
-        self.spec = spec
-        self.producer_spec = spec["workload"]
+    def __init__(self, workload):
+        self.produce_workload = workload
         self.status = "running"
-        # between (0.000ms, 50000.000ms)
-        self.latency_histogram = HdrHistogram(1, 50000, 3)
+        self.totalLatency = 0
+        # Record latencies between (0.000ms, 50000.00ms)
+        self.latency_histogram = HdrHistogram(1, 5000000, 3)
         self.report_status_interval = 10
         self.start_timestamp = time.time()
-        self.create_spec_topics(self.producer_spec)
-        self.key_generator_spec = self.producer_spec.get("keyGenerator", {"type":"sequential", "size":4, "startOffset":0})
-        self.value_generator_spec = self.producer_spec.get("valueGenerator", {"type": "constant", "size": 512})
+        self.create_spec_topics(self.produce_workload)
+        self.key_generator_spec = self.produce_workload.get("keyGenerator", {"type": "sequential",
+                                                                             "size": 4,
+                                                                             "startOffset": 0})
+        self.value_generator_spec = self.produce_workload.get("valueGenerator", {"type": "constant", "size": 512})
         key_payload_generator = get_payload_generator(self.key_generator_spec)
         value_payload_generator = get_payload_generator(self.value_generator_spec)
         self.key_generator = PayloadGenerator(key_payload_generator)
         self.val_generator = PayloadGenerator(value_payload_generator)
-        self.qps = self.producer_spec.get("targetMessagePerSec", 10000)
-        self.max_messages = self.producer_spec.get("maxMessages", 100000)
+        self.qps = self.produce_workload.get("targetMessagePerSec", 10000)
+        self.max_messages = self.produce_workload.get("maxMessages", 100000)
         self.nr_finished_messages = 0
         self.nr_failed_messages = 0
         self.producer = create_producer_conn(self.bootstrap_servers, self.common_client_conf, self.producer_conf)
-        trogdor_log("Topics:{}".format(str(self.producer.list_topics())))
         trogdor_log("Produce {} at message-per-sec {}".format(self.max_messages, self.qps))
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
         self.producer_thread.start()
