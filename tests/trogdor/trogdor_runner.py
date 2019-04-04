@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2016 Confluent Inc.
+# Copyright 2019 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -41,8 +41,6 @@ def execute_task(workload):
 def get_task_from_specfile(specFile):
     """
     :param specFile: One Trogdor ExternalCommandSpec JSON file
-     One example of the ExternalCommandSpec spec:
-
     :return specFile["spec"]["workload"] or None
     """
     specString = ""
@@ -52,19 +50,17 @@ def get_task_from_specfile(specFile):
             if line.startswith('#'):
                 continue
             specString += line
-        f.close()
     if (specString == ""):
         return None
     task = json.loads(specString)
-    if "class" in task and "workload" in task and \
-            task["class"] == "org.apache.kafka.trogdor.workload.ExternalCommandSpec":
+    if task.get("class", "") == "org.apache.kafka.trogdor.workload.ExternalCommandSpec" and "workload" in task:
         workload = task["workload"]
     return workload
 
 
 def get_task_from_input():
     """
-    Waiting for a new task on stdin, formatted in {"id":<task ID string>, "workload":<configured workload JSON object>}
+    Waiting for a new task on stdin, formatted as {"id":<task ID string>, "workload":<configured workload JSON object>}
     :return: spec["workload"]
     """
     for line in sys.stdin:

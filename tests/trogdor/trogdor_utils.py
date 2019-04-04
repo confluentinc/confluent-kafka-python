@@ -1,4 +1,6 @@
-# Copyright 2016 Confluent Inc.
+#!/usr/bin/env python
+#
+# Copyright 2019 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License")
 # you may not use this file except in compliance with the License.
@@ -47,7 +49,7 @@ def expand_topics(topics):
     Return extended topics.
     For example, for topics { "foo[1-3]" : {} }, return { "foo1" : {}, "foo2" : {}, "foo3" : {}}
     """
-    topic_expand_matter = re.compile(r'(.*?)\[([0-9]*)\-([0-9]*)\](.*)')
+    topic_expand_matter = re.compile(r'(.*?)\[([0-9]+)-([0-9]+)\](.*)')
     expanded = {}
     for topicName in topics:
         match = topic_expand_matter.match(topicName)
