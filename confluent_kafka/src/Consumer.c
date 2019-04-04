@@ -1009,7 +1009,7 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
 static PyMethodDef Consumer_methods[] = {
 	{ "subscribe", (PyCFunction)Consumer_subscribe,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: subscribe(topics, [listener=None])\n"
+	  ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None])\n"
 	  "\n"
 	  "  Set subscription to supplied list of topics\n"
 	  "  This replaces a previous subscription.\n"
