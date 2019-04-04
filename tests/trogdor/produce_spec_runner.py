@@ -80,7 +80,7 @@ import time
 from hdrh.histogram import HdrHistogram
 
 from trogdor_utils import expand_topics, trogdor_log, merge_topics, create_topics, \
-    update_trogdor_status, create_admin_conn, partition_set, PayloadGenerator, create_producer_conn, \
+    update_trogdor_status, create_admin_client, partition_set, PayloadGenerator, create_producer_conn, \
     get_payload_generator
 
 
@@ -92,20 +92,20 @@ def execute_produce_spec(workload):
 
 
 class ProduceSpecRunner:
-    def report_status(self, realQPS=None):
+    def report_status(self, realMPS=None):
         """ Report Histogram Latency"""
         exp_status = {"totalSent": self.nr_finished_messages,
                       "totalRecorded": self.latency_histogram.get_total_count(),
                       "totalError": self.nr_failed_messages,
-                      "planMPS": self.qps,
+                      "planMPS": self.mps,
                       "averageLatencyMs": self.latency_histogram.get_mean_value()/100.0,
                       "p50LatencyMs": self.latency_histogram.get_value_at_percentile(50)/100.0,
                       "p95LatencyMs": self.latency_histogram.get_value_at_percentile(95)/100.0,
                       "p99LatencyMs": self.latency_histogram.get_value_at_percentile(99)/100.0,
                       "maxLatencyMs": self.latency_histogram.get_max_value()/100.0
                       }
-        if realQPS:
-            exp_status["realMPS"] = realQPS
+        if realMPS is not None:
+            exp_status["realMPS"] = realMPS
         update_trogdor_status(exp_status)
 
     def message_on_delivery(self, err, msg, sent_time):
@@ -119,8 +119,8 @@ class ProduceSpecRunner:
         self.nr_finished_messages += 1
 
     def get_msg_callback(self):
-        product_time = time.time()
-        return lambda err, msg: self.message_on_delivery(err, msg, product_time)
+        sent_time = time.time()
+        return lambda err, msg: self.message_on_delivery(err, msg, sent_time)
 
     def create_spec_topics(self, producer_spec):
         active_spec_topics = producer_spec.get("activeTopics", {})
@@ -137,8 +137,8 @@ class ProduceSpecRunner:
         self.admin_client_conf = producer_spec.get("adminClientConf", {})
         all_topics = merge_topics(self.active_topics, self.inactive_topics)
         update_trogdor_status("Creating {} topic(s)".format(len(all_topics.keys())))
-        admin_conn = create_admin_conn(self.bootstrap_servers, self.common_client_conf, self.admin_client_conf)
-        create_topics(admin_conn, all_topics)
+        admin_client = create_admin_client(self.bootstrap_servers, self.common_client_conf, self.admin_client_conf)
+        create_topics(admin_client, all_topics)
         self.topic_partitions = partition_set(self.active_topics)
 
     def monitor(self):
@@ -152,9 +152,9 @@ class ProduceSpecRunner:
                 self.report_status()
             self.producer.poll(self.report_status_interval)
         end_monitoring = time.time()
-        real_qps = int(self.nr_finished_messages / (end_monitoring - start_monitoring))
+        real_mps = int(self.nr_finished_messages / (end_monitoring - start_monitoring))
         trogdor_log("Finished all {} messages".format(self.max_messages))
-        self.report_status(realQPS=real_qps)
+        self.report_status(realMPS=real_mps)
 
     def producer_thread_main(self):
         """ Producer thread """
@@ -173,7 +173,7 @@ class ProduceSpecRunner:
         start_produce_time = time.time()
         nr_topics = len(self.topic_partitions)
         nr_message = 0
-        pause = 1.0 / self.qps
+        pause = 1.0 / self.mps
         next_fire_time = start_produce_time + pause
         while nr_message < self.max_messages:
             delta = next_fire_time - time.time()
@@ -212,11 +212,11 @@ class ProduceSpecRunner:
         value_payload_generator = get_payload_generator(self.value_generator_spec)
         self.key_generator = PayloadGenerator(key_payload_generator)
         self.val_generator = PayloadGenerator(value_payload_generator)
-        self.qps = self.produce_workload.get("targetMessagePerSec", 10000)
+        self.mps = self.produce_workload.get("targetMessagePerSec", 10000)
         self.max_messages = self.produce_workload.get("maxMessages", 100000)
         self.nr_finished_messages = 0
         self.nr_failed_messages = 0
         self.producer = create_producer_conn(self.bootstrap_servers, self.common_client_conf, self.producer_conf)
-        trogdor_log("Produce {} at message-per-sec {}".format(self.max_messages, self.qps))
+        trogdor_log("Produce {} at message-per-sec {}".format(self.max_messages, self.mps))
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
         self.producer_thread.start()

@@ -52,13 +52,13 @@ def expand_topics(topics):
     for topicName in topics:
         match = topic_expand_matter.match(topicName)
         if match:
-            pre = match.group(1)
-            start = int(match.group(2))
-            end = int(match.group(3))
-            last = match.group(4)
-            if end >= start:
-                for t in range(start, end + 1):
-                    newTopicName = "%s%d%s" % (pre, t, last)
+            pre_name = match.group(1)
+            start_index = int(match.group(2))
+            end_index = int(match.group(3))
+            last_name = match.group(4)
+            if end_index >= start_index:
+                for t in range(start_index, end_index + 1):
+                    newTopicName = "%s%d%s" % (pre_name, t, last_name)
                     expanded[newTopicName] = topics[topicName]
             else:
                 raise Exception('Invalid range in the topic name %s' % (topicName))
@@ -91,25 +91,25 @@ def create_admin_conf(bootstrap_servers, common_client_config, admin_client_conf
 
 def create_producer_conn(bootstrap_servers, common_client_config, producer_config):
     producer_conf = create_kafka_conf(bootstrap_servers, common_client_config, producer_config)
-    return Producer(**producer_conf)
+    return Producer(producer_conf)
 
 
-def create_admin_conn(bootstrap_servers, common_client_config, admin_client_config):
+def create_admin_client(bootstrap_servers, common_client_config, admin_client_config):
     admin_conf = create_admin_conf(bootstrap_servers, common_client_config, admin_client_config)
-    admin_conn = AdminClient(admin_conf)
-    return admin_conn
+    admin_client = AdminClient(admin_conf)
+    return admin_client
 
 
-def create_topics(admin_conn, topics):
+def create_topics(admin_client, topics):
     for topic_name in topics:
         topic = topics[topic_name]
-        create_topic(admin_conn, topic_name, topic)
+        create_topic(admin_client, topic_name, topic)
 
 
-def create_topic(admin_conn, topic_name, topic):
+def create_topic(admin_client, topic_name, topic):
     num_partitions = topic["numPartitions"]
     replication_factor = topic["replicationFactor"]
-    fs = admin_conn.create_topics([NewTopic(topic_name, num_partitions, replication_factor)])
+    fs = admin_client.create_topics([NewTopic(topic_name, num_partitions, replication_factor)])
     fs = fs[topic_name]
     try:
         return fs.result()
