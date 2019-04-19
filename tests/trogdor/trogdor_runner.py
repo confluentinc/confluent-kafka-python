@@ -35,7 +35,7 @@ def execute_task(workload):
         else:
             update_trogdor_error(spec_class + " is not supported.")
     except Exception as exp:
-        update_trogdor_error("Exception: " + exp)
+        update_trogdor_error("Exception:{}".format(exp))
 
 
 def get_task_from_specfile(specFile):
