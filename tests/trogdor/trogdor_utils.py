@@ -16,6 +16,7 @@
 
 import array
 import re
+import struct
 import sys
 import json
 
@@ -163,18 +164,18 @@ def trogdor_log(log):
 
 class SeqGenerator:
     def __init__(self, size, start_offset):
-        self.size = size
+        self.size = size if size < 8 else 8
         self.start_offset = start_offset
 
     def generate(self, position):
-        return (self.start_offset + position).to_bytes(self.size, byteorder='little')
+        return struct.pack("<Q", self.start_offset + position)[0:self.size]
 
 
 class ConstGenerator:
     def __init__(self, size, val):
-        self.size = size
+        self.size = size if size < 8 else 8
         if type(val) is int:
-            self.const_bytes = val.to_bytes(self.size, byteorder='little')
+            self.const_bytes = struct.pack("<Q", val)[0:self.size]
         elif type(val) is list:
             list_p = []
             for i in range(0, size):
