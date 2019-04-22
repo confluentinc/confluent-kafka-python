@@ -212,7 +212,7 @@ class ProduceSpecRunner:
         value_payload_generator = get_payload_generator(self.value_generator_spec)
         self.key_generator = PayloadGenerator(key_payload_generator)
         self.val_generator = PayloadGenerator(value_payload_generator)
-        self.mps = self.produce_workload.get("targetMessagePerSec", 10000)
+        self.mps = self.produce_workload.get("targetMessagesPerSec", 10000)
         self.max_messages = self.produce_workload.get("maxMessages", 100000)
         self.nr_finished_messages = 0
         self.nr_failed_messages = 0
