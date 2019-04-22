@@ -101,7 +101,9 @@ class CachedSchemaRegistryClient(object):
         self.subject_to_schema_versions = defaultdict(dict)
 
         s = Session()
-        s.verify = conf.pop('ssl.ca.location', None)
+        ca_path = conf.pop('ssl.ca.location', None)
+        if ca_path is not None:
+            s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(conf)
 
