@@ -3,6 +3,7 @@ def config = jobConfig {
     nodeLabel = 'docker-oraclejdk8'
     realJobPrefixes = ['system-test-python-client']
     owner = 'client'
+    slackChannel = 'clients-eng'
     timeoutHours = 3
 }
 
