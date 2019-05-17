@@ -169,9 +169,13 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                writer_schema = writer_schema_obj.to_json()
-                reader_schema = reader_schema_obj.to_json()
-                schemaless_reader(payload, writer_schema)
+                writer_schema = self.registry_client.get_by_id_fast(schema_id)
+                if writer_schema is None:
+                    writer_schema = writer_schema_obj.to_json()
+                reader_schema = None
+                if reader_schema_obj is not None:
+                    reader_schema = reader_schema_obj.to_json()
+                schemaless_reader(payload, writer_schema, reader_schema)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines

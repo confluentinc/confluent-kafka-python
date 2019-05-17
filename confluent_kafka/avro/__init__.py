@@ -5,7 +5,7 @@
 
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
-from confluent_kafka.avro.load import load, loads  # noqa
+from confluent_kafka.avro.load import load, loads, loads_fast  # noqa
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from confluent_kafka.avro.serializer import (SerializerError,  # noqa
                                              KeySerializerError,
@@ -101,10 +101,12 @@ class AvroConsumer(Consumer):
                         and the standard Kafka client configuration (``bootstrap.servers`` et.al)
     :param schema reader_key_schema: a reader schema for the message key
     :param schema reader_value_schema: a reader schema for the message value
+    :param bool decode_key: optionally disable key decoding (i.e. only decode values)
     :raises ValueError: For invalid configurations
     """
 
-    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
+    def __init__(self, config, schema_registry=None, reader_key_schema=None,
+                 reader_value_schema=None, decode_key=True):
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}
@@ -124,6 +126,8 @@ class AvroConsumer(Consumer):
 
         super(AvroConsumer, self).__init__(ap_conf)
         self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
+
+        self._decode_key = decode_key
 
     def poll(self, timeout=None):
         """
@@ -145,7 +149,7 @@ class AvroConsumer(Consumer):
                 if message.value() is not None:
                     decoded_value = self._serializer.decode_message(message.value(), is_key=False)
                     message.set_value(decoded_value)
-                if message.key() is not None:
+                if self._decode_key and message.key() is not None:
                     decoded_key = self._serializer.decode_message(message.key(), is_key=True)
                     message.set_key(decoded_key)
             except SerializerError as e:

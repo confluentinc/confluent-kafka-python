@@ -52,3 +52,21 @@ try:
 
 except ImportError:
     schema = None
+
+
+HAS_FAST = False
+try:
+    import fastavro
+    import json
+    HAS_FAST = True
+except ImportError:
+    pass
+
+
+def loads_fast(schema_str):
+    if HAS_FAST:
+        try:
+            return fastavro.parse_schema(json.loads(schema_str))
+        except Exception:
+            pass
+    return None

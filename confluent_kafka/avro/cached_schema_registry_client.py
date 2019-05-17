@@ -27,7 +27,7 @@ from collections import defaultdict
 from requests import Session, utils
 
 from .error import ClientError
-from . import loads
+from . import loads, loads_fast
 
 # Python 2 considers int an instance of str
 try:
@@ -97,6 +97,8 @@ class CachedSchemaRegistryClient(object):
         self.subject_to_schema_ids = defaultdict(dict)
         # id => avro_schema
         self.id_to_schema = defaultdict(dict)
+        # id => fastavro schema
+        self._id_to_fast_schema = dict()
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
@@ -175,12 +177,17 @@ class CachedSchemaRegistryClient(object):
         sub_cache = cache[subject]
         sub_cache[schema] = value
 
-    def _cache_schema(self, schema, schema_id, subject=None, version=None):
+    def _cache_schema(self, schema, schema_id, subject=None, version=None, schema_str=None):
         # don't overwrite anything
         if schema_id in self.id_to_schema:
             schema = self.id_to_schema[schema_id]
         else:
             self.id_to_schema[schema_id] = schema
+
+        if schema_str is not None and schema_id not in self._id_to_fast_schema:
+            fast_schema = loads_fast(schema_str)
+            if fast_schema is not None:
+                self._id_to_fast_schema[schema_id] = fast_schema
 
         if subject:
             self._add_to_cache(self.subject_to_schema_ids,
@@ -213,7 +220,8 @@ class CachedSchemaRegistryClient(object):
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
         # body is { schema : json_string }
 
-        body = {'schema': json.dumps(avro_schema.to_json())}
+        schema_str = json.dumps(avro_schema.to_json())
+        body = {'schema': schema_str}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
             raise ClientError("Unauthorized access. Error code:" + str(code))
@@ -226,7 +234,7 @@ class CachedSchemaRegistryClient(object):
         # result is a dict
         schema_id = result['id']
         # cache it
-        self._cache_schema(avro_schema, schema_id, subject)
+        self._cache_schema(avro_schema, schema_id, subject, schema_str=schema_str)
         return schema_id
 
     def delete_subject(self, subject):
@@ -272,11 +280,21 @@ class CachedSchemaRegistryClient(object):
             try:
                 result = loads(schema_str)
                 # cache it
-                self._cache_schema(result, schema_id)
+                self._cache_schema(result, schema_id, schema_str=schema_str)
                 return result
             except ClientError as e:
                 # bad schema - should not happen
                 raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
+
+    def get_by_id_fast(self, schema_id):
+        """
+        Retrieves a fastavro-parsed schema by id, if possible
+        :param int schema_id: int value
+        :returns: A fastavro schema, or None
+        """
+        if self.get_by_id(schema_id) is not None and schema_id in self._id_to_fast_schema:
+            return self._id_to_fast_schema[schema_id]
+        return None
 
     def get_latest_schema(self, subject):
         """
@@ -306,16 +324,18 @@ class CachedSchemaRegistryClient(object):
             return (None, None, None)
         schema_id = result['id']
         version = result['version']
+        schema_str = None
         if schema_id in self.id_to_schema:
             schema = self.id_to_schema[schema_id]
         else:
             try:
-                schema = loads(result['schema'])
+                schema_str = result['schema']
+                schema = loads(schema_str)
             except ClientError:
                 # bad schema - should not happen
                 raise
 
-        self._cache_schema(schema, schema_id, subject, version)
+        self._cache_schema(schema, schema_id, subject, version, schema_str)
         return (schema_id, schema, version)
 
     def get_version(self, subject, avro_schema):
@@ -336,7 +356,8 @@ class CachedSchemaRegistryClient(object):
             return version
 
         url = '/'.join([self.url, 'subjects', subject])
-        body = {'schema': json.dumps(avro_schema.to_json())}
+        schema_str = json.dumps(avro_schema.to_json())
+        body = {'schema': schema_str}
 
         result, code = self._send_request(url, method='POST', body=body)
         if code == 404:
@@ -347,7 +368,7 @@ class CachedSchemaRegistryClient(object):
             return None
         schema_id = result['id']
         version = result['version']
-        self._cache_schema(avro_schema, schema_id, subject, version)
+        self._cache_schema(avro_schema, schema_id, subject, version, schema_str)
         return version
 
     def test_compatibility(self, subject, avro_schema, version='latest'):
