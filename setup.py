@@ -61,6 +61,16 @@ def get_install_requirements(path):
     ]
 
 
+trove_classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: Apache Software License',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 2.7',
+    'Programming Language :: Python :: 3',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version and release in docs/conf.py.
@@ -74,6 +84,7 @@ setup(name='confluent-kafka',
       package_dir={'': 'src'},
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
+      classifiers=trove_classifiers,
       extras_require={
           'schema-registry': SCHEMA_REGISTRY_REQUIRES,
           'avro': AVRO_REQUIRES,
