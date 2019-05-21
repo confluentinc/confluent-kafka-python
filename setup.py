@@ -37,6 +37,16 @@ def get_install_requirements(path):
     ]
 
 
+trove_classifiers = [
+    'Development Status :: 5 - Production/Stable',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: Apache Software License',
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 2.7',
+    'Programming Language :: Python :: 3',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+]
+
 setup(name='confluent-kafka',
       version='1.0.0',
       description='Confluent\'s Python client for Apache Kafka',
@@ -47,6 +57,7 @@ setup(name='confluent-kafka',
       packages=find_packages(exclude=("tests", "tests.*")),
       data_files=[('', ['LICENSE.txt'])],
       install_requires=INSTALL_REQUIRES,
+      classifiers=trove_classifiers,
       extras_require={
           'avro': [
               'fastavro',
