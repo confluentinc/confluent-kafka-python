@@ -38,7 +38,7 @@ def get_install_requirements(path):
 
 
 setup(name='confluent-kafka',
-      version='1.0.0',
+      version='1.0.1rc1',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',

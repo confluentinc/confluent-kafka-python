@@ -2188,7 +2188,7 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 }
 
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "1.0.0", 0x00100000);
+	return Py_BuildValue("si", "1.0.1", 0x00100100);
 }
 
 static PyMethodDef cimpl_methods[] = {
