@@ -2187,8 +2187,13 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 			     rd_kafka_version());
 }
 
+/*
+ * Version hex representation
+ * 0xMMmmRRPP
+ * MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+ */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "1.0.1", 0x00100100);
+	return Py_BuildValue("si", "1.0.1", 0x01000100);
 }
 
 static PyMethodDef cimpl_methods[] = {
