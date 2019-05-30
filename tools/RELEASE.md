@@ -24,9 +24,9 @@ The following guide uses `v0.11.4rc1` as version for a release candidate,
 replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
-## 1. Create a rc branch
+## 1. Create a RC branch
 
-    git checkout -b v0.11.6rc
+    git checkout -b v0.11.4rc
 
 ## 2. Update librdkafka and OpenSSL versions
 
@@ -37,7 +37,7 @@ Change to the latest librdkafka version in the following files:
  * `.travis.yml`
  * `.appveyor.yml` - this is the librdkafka.redist NuGet version,
                      make sure to strip the leading "v" from the version.
-                     E.g., `0.11.6` rather than `v0.11.6`
+                     E.g., `0.11.4` rather than `v0.11.4`
 
 Change to the latest version of the confluent-librdkafka-plugins in:
 
@@ -45,7 +45,7 @@ Change to the latest version of the confluent-librdkafka-plugins in:
 
 Commit these changes as necessary:
 
-    $ git commit -m "librdkafka version v0.11.6" .travis.yml .appveyor.yml
+    $ git commit -m "librdkafka version v0.11.4" .travis.yml .appveyor.yml
     $ git commit -m "confluent-librdkafka-plugins version v0.11.0" tools/install-interceptors.sh
 
 
@@ -120,7 +120,7 @@ An alternative is to push branch and tags separately:
 ## 6. Wait for CI builds
 
 Monitor travis-ci builds by looking atthe *tag* build at
-[travis-ci]https://travis-ci.org/confluentinc/confluent-kafka-python
+[travis-ci](https://travis-ci.org/confluentinc/confluent-kafka-python)
 
 
 ## 7. Download build artifacts from S3
@@ -155,13 +155,18 @@ and librdkafka versions:
     $ python -c 'import confluent_kafka as ck ; print "py:", ck.version(), "c:", ck.libversion()'
     py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
+## 10. Open a release PR
 
-## 9. Merge RC branch into master
+Once all builds are successful and artifacts have been validated proceed with opening a PR.
+This PR will need to approved by a team member prior to proceeding with the release.
 
-Once all builds are successful and artifacts have been validated proceed with merging the changes into Master. 
-Be sure to squash any unrelated commits (typos, build errors) to keep the master commit log clean. 
+## 11. Merge RC branch into master
 
-## 10. Upload packages to PyPi
+Once all builds are successful, artifacts have been validated and a team member has approved the PR
+proceed with merging the changes into Master. Be sure to tidy up the commit log in the PR branch by
+squashing related commits (typos, build fixes, etc)
+
+## 12. Upload packages to PyPi
 
 To upload binary packages to test.pypi.org, use:
 
@@ -182,7 +187,7 @@ Upload source packages to the proper pypi.org (WARNING!):
     $ python setup.py sdist upload
 
 
-## 11. Verify installation from PyPi
+## 13. Verify installation from PyPi
 
 In the same virtualenv as created above:
 
@@ -206,7 +211,7 @@ Verify that the package works and prints the expected version:
 
 
 
-## 12. Create github release
+## 14. Create github release
 
 If this was the final release, go to
 [github releases](https://github.com/confluentinc/confluent-kafka-python/releases)
