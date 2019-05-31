@@ -157,13 +157,10 @@ and librdkafka versions:
 
 ## 10. Open a release PR
 
-Once all builds are successful and artifacts have been validated proceed with opening a PR.
-This PR will need to approved by a team member prior to proceeding with the release.
-
 ## 11. Merge RC branch into master
 
 Once all builds are successful, artifacts have been validated and a team member has approved the PR
-proceed with merging the changes into Master. Be sure to tidy up the commit log in the PR branch by
+proceed with merging the changes into master. Be sure to tidy up the commit log in the PR branch by
 squashing related commits (typos, build fixes, etc)
 
 ## 12. Upload packages to PyPi
