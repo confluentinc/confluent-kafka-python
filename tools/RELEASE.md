@@ -24,17 +24,20 @@ The following guide uses `v0.11.4rc1` as version for a release candidate,
 replace as necessary with your version or remove `rc..` suffix for the
 final release.
 
+## 1. Create a RC branch
 
-## 1. Update librdkafka and OpenSSL versions
+    git checkout -b v0.11.4rc
 
-### 1.1 Update librdkafka version
+## 2. Update librdkafka and OpenSSL versions
+
+### 2.1 Update librdkafka version
 
 Change to the latest librdkafka version in the following files:
 
  * `.travis.yml`
  * `.appveyor.yml` - this is the librdkafka.redist NuGet version,
                      make sure to strip the leading "v" from the version.
-                     E.g., `0.11.6` rather than `v0.11.6`
+                     E.g., `0.11.4` rather than `v0.11.4`
 
 Change to the latest version of the confluent-librdkafka-plugins in:
 
@@ -42,11 +45,11 @@ Change to the latest version of the confluent-librdkafka-plugins in:
 
 Commit these changes as necessary:
 
-    $ git commit -m "librdkafka version v0.11.6" .travis.yml .appveyor.yml
+    $ git commit -m "librdkafka version v0.11.4" .travis.yml .appveyor.yml
     $ git commit -m "confluent-librdkafka-plugins version v0.11.0" tools/install-interceptors.sh
 
 
-### 1.2 Update OpenSSL version if necessary
+### 2.2 Update OpenSSL version if necessary
 
 As of v0.11.4 OpenSSL is packaged with the python client. It's important
 that the OpenSSL version is kept up to date with the latest release.
@@ -59,7 +62,7 @@ Commit this change with a commit-message mentioning the version bump:
     $ git commit -m "OpenSSL version bump to 1.0.2o" tools/build-openssl.sh
 
 
-## 2. Update in-source versions
+## 3. Update in-source versions
 
 There are a number of source files that needs to be updated with the
 new version number, the easiest way to find these is to search for the
@@ -77,9 +80,9 @@ Commit these changes with a commit-message containing the version:
     $ git commit -m "Version v0.11.4rc1" confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
 
 
-## 3. Create a tag
+## 4. Create a tag
 
-### 3.1 Create a test tag
+### 4.1 Create a test tag
 
 Packaging is fragile and is only triggered when a tag is pushed. To avoid
 finding out about packaging problems on the RC tag, it is strongly recommended
@@ -88,10 +91,10 @@ be removed after the build passes.
 
     $ git tag v0.11.4rc1-test1
 
-Follow the steps in step 4 to push the test tag. When the build is successful,
-remove the tag and follow the steps in 3.2 to create a proper tag.
+Follow the steps in step 5 to push the test tag. When the build is successful,
+remove the tag and follow the steps in 4.2 to create a proper tag.
 
-### 3.2 Create proper tag
+### 4.2 Create proper tag
 
 The tag should be created right after the commit and be named the same as
 the version.
@@ -99,7 +102,7 @@ the version.
     $ git tag v0.11.4rc1
 
 
-## 4. Push tag and commits
+## 5. Push tag and commits
 
 Perform a dry-run push first to make sure the correct branch and only our tag
 is pushed.
@@ -114,13 +117,13 @@ An alternative is to push branch and tags separately:
     $ git push --dry-run --tags origin v0.11.4rc1
 
 
-## 5. Wait for CI builds
+## 6. Wait for CI builds
 
 Monitor travis-ci builds by looking atthe *tag* build at
-[travis-ci]https://travis-ci.org/confluentinc/confluent-kafka-python
+[travis-ci](https://travis-ci.org/confluentinc/confluent-kafka-python)
 
 
-## 6. Download build artifacts from S3
+## 7. Download build artifacts from S3
 
 *Note*: You will need set up your AWS credentials in `~/.aws/credentials` to
         gain access to the S3 bucket.
@@ -134,8 +137,7 @@ artifacts from S3 using:
 The artifacts will be downloaded to `dl-<tag>/`.
 
 
-
-## 7. Verify packages
+## 8. Verify packages
 
 Create a new virtualenv:
 
@@ -153,8 +155,15 @@ and librdkafka versions:
     $ python -c 'import confluent_kafka as ck ; print "py:", ck.version(), "c:", ck.libversion()'
     py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
+## 10. Open a release PR
 
-## 8. Upload packages to PyPi
+## 11. Merge RC branch into master
+
+Once all builds are successful, artifacts have been validated and a team member has approved the PR
+proceed with merging the changes into master. Be sure to tidy up the commit log in the PR branch by
+squashing related commits (typos, build fixes, etc)
+
+## 12. Upload packages to PyPi
 
 To upload binary packages to test.pypi.org, use:
 
@@ -175,7 +184,7 @@ Upload source packages to the proper pypi.org (WARNING!):
     $ python setup.py sdist upload
 
 
-## 9. Verify installation from PyPi
+## 13. Verify installation from PyPi
 
 In the same virtualenv as created above:
 
@@ -199,7 +208,7 @@ Verify that the package works and prints the expected version:
 
 
 
-## 10. Create github release
+## 14. Create github release
 
 If this was the final release, go to
 [github releases](https://github.com/confluentinc/confluent-kafka-python/releases)
