@@ -29,6 +29,11 @@ from requests import Session, utils
 from .error import ClientError
 from . import loads
 
+try:
+    from types import MappingProxyType
+except ImportError:
+    MappingProxyType = None
+
 # Python 2 considers int an instance of str
 try:
     string_type = basestring  # noqa
@@ -42,6 +47,17 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
+
+
+class MappingProxyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if MappingProxyType and isinstance(obj, MappingProxyType):
+            return dict(obj.copy())
+        return json.JSONEncoder.default(self, obj)
+
+
+def _schema_to_json(avro_schema):
+    return json.dumps(avro_schema.to_json(), cls=MappingProxyEncoder)
 
 
 class CachedSchemaRegistryClient(object):
@@ -213,7 +229,7 @@ class CachedSchemaRegistryClient(object):
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
         # body is { schema : json_string }
 
-        body = {'schema': json.dumps(avro_schema.to_json())}
+        body = {'schema': _schema_to_json(avro_schema)}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
             raise ClientError("Unauthorized access. Error code:" + str(code))
