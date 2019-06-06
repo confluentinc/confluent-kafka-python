@@ -40,6 +40,7 @@ MAGIC_BYTE = 0
 HAS_FAST = False
 try:
     from fastavro import schemaless_reader, schemaless_writer
+    from fastavro.schema import parse_schema
 
     HAS_FAST = True
 except ImportError:
@@ -79,7 +80,8 @@ class MessageSerializer(object):
     def _get_encoder_func(self, writer_schema):
         if HAS_FAST:
             schema = writer_schema.to_json()
-            return lambda record, fp: schemaless_writer(fp, schema, record)
+            parsed_schema = parse_schema(schema)
+            return lambda record, fp: schemaless_writer(fp, parsed_schema, record)
         writer = avro.io.DatumWriter(writer_schema)
         return lambda record, fp: writer.write(record, avro.io.BinaryEncoder(fp))
 
@@ -169,9 +171,9 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                writer_schema = writer_schema_obj.to_json()
-                reader_schema = reader_schema_obj.to_json()
-                schemaless_reader(payload, writer_schema)
+                fast_avro_writer_schema = parse_schema(writer_schema_obj.to_json())
+                fast_avro_reader_schema = parse_schema(reader_schema_obj.to_json())
+                schemaless_reader(payload, fast_avro_writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
                 # do this deserialization. Rewind since this method just determines
@@ -180,7 +182,7 @@ class MessageSerializer(object):
                 payload.seek(curr_pos)
 
                 self.id_to_decoder_func[schema_id] = lambda p: schemaless_reader(
-                    p, writer_schema, reader_schema)
+                    p, fast_avro_writer_schema, fast_avro_reader_schema)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
                 # Fast avro failed, fall thru to standard avro below.
