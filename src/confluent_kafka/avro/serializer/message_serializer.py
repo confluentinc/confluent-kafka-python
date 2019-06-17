@@ -189,8 +189,7 @@ class MessageSerializer(object):
                     p, fast_avro_writer_schema, fast_avro_reader_schema)
                 return self.id_to_decoder_func[schema_id]
             except Exception:
-                # Fast avro failed, fall thru to standard avro below.
-                pass
+                log.warning("Fast avro failed for schema with id %d, falling thru to standard avro" % (schema_id))
 
         # here means we should just delegate to slow avro
         # rewind
