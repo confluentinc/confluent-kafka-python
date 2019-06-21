@@ -59,6 +59,7 @@ function run_single_in_docker {
     # TODO: revisit to avoid hardcoding dependencies
     pip install "futures;python_version=='2.7'"
     pip install "enum34;python_version=='2.7'"
+    pip install requests avro
 
     pip install confluent_kafka --no-index -f $wheelhouse
 
@@ -78,7 +79,7 @@ p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
     python -c '
 from confluent_kafka import Consumer
 
-c = Consumer({"plugin.library.paths": "monitoring-interceptor"})
+c = Consumer({"group.id": "test-linux", "plugin.library.paths": "monitoring-interceptor"})
 '
 
     pushd /io/tests

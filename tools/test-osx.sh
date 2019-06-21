@@ -48,7 +48,7 @@ echo "Verifying Interceptor installation"
 python -c '
 from confluent_kafka import Consumer
 
-Consumer({"plugin.library.paths": "monitoring-interceptor"})
+Consumer({"group.id": "test-osx", "plugin.library.paths": "monitoring-interceptor"})
 '
 
 echo "Running tests"

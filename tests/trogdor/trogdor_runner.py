@@ -63,8 +63,11 @@ def get_task_from_input():
     Waiting for a new task on stdin, formatted as {"id":<task ID string>, "workload":<configured workload JSON object>}
     :return: spec["workload"]
     """
-    for line in sys.stdin:
+    trogdor_log("Python Trogdor Runner is Ready.")
+    while True:
+        line = sys.stdin.readline()
         try:
+            trogdor_log("Input line " + line)
             comm = json.loads(line)
             if "workload" in comm and "id" in comm:
                 trogdor_log("Received one workload:{}".format(comm))

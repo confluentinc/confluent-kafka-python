@@ -343,6 +343,10 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
  ****************************************************************************/
 
 
+/**
+ * @returns a Message's error object, if any, else None.
+ * @remark The error object refcount is increased by this function.
+ */
 PyObject *Message_error (Message *self, PyObject *ignore) {
 	if (self->error) {
 		Py_INCREF(self->error);
@@ -2000,6 +2004,9 @@ int cfl_PyObject_SetInt (PyObject *o, const char *name, int val) {
  * @brief Get attribute \p attr_name from \p object and verify it is
  *        of type \p py_type.
  *
+ * @param py_type the value type of \p attr_name must match \p py_type, unless
+ *                \p py_type is NULL.
+ *
  * @returns 1 if \p valp was updated with the object (new reference) or NULL
  *          if not matched and not required, or
  *          0 if an exception was raised.
@@ -2021,7 +2028,7 @@ int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
                 return 0;
         }
 
-        if (Py_TYPE(o) != py_type) {
+        if (py_type && Py_TYPE(o) != py_type) {
                 Py_DECREF(o);
                 PyErr_Format(PyExc_TypeError,
                              "Expected .%s to be %s type, not %s",
@@ -2105,7 +2112,10 @@ int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
 #ifdef PY3
                                   &PyUnicode_Type,
 #else
-                                  &PyString_Type,
+                                  /* Python 2: support both str and unicode
+                                   *           let PyObject_Unistr() do the
+                                   *           proper conversion below. */
+                                  NULL,
 #endif
                                   required))
                 return 0;

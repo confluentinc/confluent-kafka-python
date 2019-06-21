@@ -142,7 +142,9 @@ The Python bindings also provide some additional configuration properties:
   provided ``logging.Handler`` instance.
   To avoid spontaneous calls from non-Python threads the log messages
   will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
+  For example::
 
-  mylogger = logging.getLogger()
-  mylogger.addHandler(logging.StreamHandler())
-  producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
+    mylogger = logging.getLogger()
+    mylogger.addHandler(logging.StreamHandler())
+    producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
+
