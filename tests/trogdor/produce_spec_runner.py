@@ -26,6 +26,7 @@
 #             "class": "org.apache.kafka.trogdor.workload.ProduceBenchSpec",
 #             "bootstrapServers": "localhost:9092",
 #             "targetMessagesPerSec": 10000,
+#             "iterations": 2,
 #             "maxMessages": 50000,
 #             "activeTopics": {
 #                 "foo[1-3]": {
@@ -88,25 +89,30 @@ def execute_produce_spec(workload):
     """ Return after finishing the workload """
     update_trogdor_status("running")
     runner = ProduceSpecRunner(workload)
-    runner.monitor()
-
+    runner.execute_spec()
 
 class ProduceSpecRunner:
     def report_status(self, realMPS=None):
         """ Report Histogram Latency"""
-        exp_status = {"totalSent": self.nr_finished_messages,
-                      "totalRecorded": self.latency_histogram.get_total_count(),
-                      "totalError": self.nr_failed_messages,
-                      "planMPS": self.mps,
-                      "averageLatencyMs": self.latency_histogram.get_mean_value()/100.0,
-                      "p50LatencyMs": self.latency_histogram.get_value_at_percentile(50)/100.0,
-                      "p95LatencyMs": self.latency_histogram.get_value_at_percentile(95)/100.0,
-                      "p99LatencyMs": self.latency_histogram.get_value_at_percentile(99)/100.0,
-                      "maxLatencyMs": self.latency_histogram.get_max_value()/100.0
-                      }
-        if realMPS is not None:
+        exp_status = self.get_perf_report()
+        if realMPS:
             exp_status["realMPS"] = realMPS
         update_trogdor_status(exp_status)
+
+    def get_perf_report(self, stat=None):
+        totalSent = stat[0] if stat else self.nr_finished_messages
+        totalError = stat[1] if stat else self.nr_failed_messages
+        hist = stat[2] if stat else self.latency_histogram
+        return {"totalSent": totalSent,
+         "totalRecorded": hist.get_total_count(),
+         "totalError": totalError,
+         "planMPS": self.mps,
+         "averageLatencyMs": hist.get_mean_value() / 100.0,
+         "p50LatencyMs": hist.get_value_at_percentile(50) / 100.0,
+         "p95LatencyMs": hist.get_value_at_percentile(95) / 100.0,
+         "p99LatencyMs": hist.get_value_at_percentile(99) / 100.0,
+         "maxLatencyMs": hist.get_max_value() / 100.0
+         }
 
     def message_on_delivery(self, err, msg, sent_time):
         if err is not None:
@@ -115,7 +121,6 @@ class ProduceSpecRunner:
         now = time.time()
         latency = now - sent_time
         self.latency_histogram.record_value(math.ceil(latency * 100000))
-        self.totalLatency += latency
         self.nr_finished_messages += 1
 
     def get_msg_callback(self):
@@ -145,7 +150,7 @@ class ProduceSpecRunner:
         """ Executed in the context of the main (polling) thread """
         start_monitoring = time.time()
         last_report_time = time.time()
-        while self.status == "running" or self.nr_finished_messages != self.max_messages:
+        while self.status == "running" and self.nr_finished_messages != self.max_messages:
             now = time.time()
             if now - last_report_time > self.report_status_interval:
                 last_report_time = now
@@ -159,8 +164,7 @@ class ProduceSpecRunner:
     def producer_thread_main(self):
         """ Producer thread """
         try:
-            self.execute_spec()
-            self.status = "stopped"
+            self.execute_iteration()
         except KeyboardInterrupt:
             update_trogdor_status("The producer is interrupted.")
             self.status = "abort"
@@ -168,7 +172,7 @@ class ProduceSpecRunner:
             update_trogdor_status("The producer has a fatal exception: " + str(ex))
             self.status = "exception"
 
-    def execute_spec(self):
+    def execute_iteration(self):
         """ Executed in the context of the producer thread"""
         start_produce_time = time.time()
         nr_topics = len(self.topic_partitions)
@@ -195,12 +199,30 @@ class ProduceSpecRunner:
                     continue
             nr_message += 1
 
+    def execute_spec(self):
+        iterations = []
+        for i in range(0,self.nr_iterations):
+            trogdor_log('Iteration {}'.format(self.curr_iterations))
+            self.status = "running"
+            # Record latencies between (0.000ms, 50000.00ms)
+            self.latency_histogram = HdrHistogram(1, 5000000, 3)
+            self.nr_finished_messages = 0
+            self.nr_failed_messages = 0
+            self.producer_thread = threading.Thread(target=self.producer_thread_main)
+            self.producer_thread.start()
+            self.monitor()
+            self.curr_iterations += 1
+            iterations.append((self.nr_finished_messages, self.nr_failed_messages, self.latency_histogram))
+        if self.nr_iterations > 1:
+            report = []
+            for r in iterations:
+                report.append(self.get_perf_report(stat=r))
+            update_trogdor_status(report)
+
+
+
     def __init__(self, workload):
         self.produce_workload = workload
-        self.status = "running"
-        self.totalLatency = 0
-        # Record latencies between (0.000ms, 50000.00ms)
-        self.latency_histogram = HdrHistogram(1, 5000000, 3)
         self.report_status_interval = 10
         self.start_timestamp = time.time()
         self.create_spec_topics(self.produce_workload)
@@ -214,9 +236,9 @@ class ProduceSpecRunner:
         self.val_generator = PayloadGenerator(value_payload_generator)
         self.mps = self.produce_workload.get("targetMessagePerSec", 10000)
         self.max_messages = self.produce_workload.get("maxMessages", 100000)
-        self.nr_finished_messages = 0
-        self.nr_failed_messages = 0
+        self.nr_iterations = self.produce_workload.get("iterations", 1)
+        self.curr_iterations = 1
+
         self.producer = create_producer_conn(self.bootstrap_servers, self.common_client_conf, self.producer_conf)
-        trogdor_log("Produce {} at message-per-sec {}".format(self.max_messages, self.mps))
-        self.producer_thread = threading.Thread(target=self.producer_thread_main)
-        self.producer_thread.start()
+        trogdor_log("Produce {} messages at message-per-sec {}".format(self.max_messages, self.mps))
+

@@ -84,10 +84,8 @@ def create_kafka_conf(bootstrap_servers, *args):
 
 def create_admin_conf(bootstrap_servers, common_client_config, admin_client_config):
     # Refer Java Trogdor tools/src/main/java/org/apache/kafka/trogdor/common/WorkerUtils.java#L305
-    admin_request_timeout_ms = 25000
     create_kafka_conf(bootstrap_servers, common_client_config, admin_client_config)
     admin_conf = create_kafka_conf(bootstrap_servers, common_client_config, admin_client_config)
-    admin_conf["socket.timeout.ms"] = admin_request_timeout_ms
     return admin_conf
 
 
