@@ -91,6 +91,7 @@ def execute_produce_spec(workload):
     runner = ProduceSpecRunner(workload)
     runner.execute_spec()
 
+
 class ProduceSpecRunner:
     def report_status(self, realMPS=None):
         """ Report Histogram Latency"""
@@ -104,15 +105,15 @@ class ProduceSpecRunner:
         totalError = stat[1] if stat else self.nr_failed_messages
         hist = stat[2] if stat else self.latency_histogram
         return {"totalSent": totalSent,
-         "totalRecorded": hist.get_total_count(),
-         "totalError": totalError,
-         "planMPS": self.mps,
-         "averageLatencyMs": hist.get_mean_value() / 100.0,
-         "p50LatencyMs": hist.get_value_at_percentile(50) / 100.0,
-         "p95LatencyMs": hist.get_value_at_percentile(95) / 100.0,
-         "p99LatencyMs": hist.get_value_at_percentile(99) / 100.0,
-         "maxLatencyMs": hist.get_max_value() / 100.0
-         }
+                "totalRecorded": hist.get_total_count(),
+                "totalError": totalError,
+                "planMPS": self.mps,
+                "averageLatencyMs": hist.get_mean_value() / 100.0,
+                "p50LatencyMs": hist.get_value_at_percentile(50) / 100.0,
+                "p95LatencyMs": hist.get_value_at_percentile(95) / 100.0,
+                "p99LatencyMs": hist.get_value_at_percentile(99) / 100.0,
+                "maxLatencyMs": hist.get_max_value() / 100.0
+                }
 
     def message_on_delivery(self, err, msg, sent_time):
         if err is not None:
@@ -201,7 +202,7 @@ class ProduceSpecRunner:
 
     def execute_spec(self):
         iterations = []
-        for i in range(0,self.nr_iterations):
+        for i in range(0, self.nr_iterations):
             trogdor_log('Iteration {}'.format(self.curr_iterations))
             self.status = "running"
             # Record latencies between (0.000ms, 50000.00ms)
@@ -218,8 +219,6 @@ class ProduceSpecRunner:
             for r in iterations:
                 report.append(self.get_perf_report(stat=r))
             update_trogdor_status(report)
-
-
 
     def __init__(self, workload):
         self.produce_workload = workload
@@ -241,4 +240,3 @@ class ProduceSpecRunner:
 
         self.producer = create_producer_conn(self.bootstrap_servers, self.common_client_conf, self.producer_conf)
         trogdor_log("Produce {} messages at message-per-sec {}".format(self.max_messages, self.mps))
-
