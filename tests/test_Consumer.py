@@ -226,7 +226,7 @@ def test_multiple_close_throw_exception():
 
     with pytest.raises(RuntimeError) as ex:
         c.close()
-    assert 'Consumer already closed' == str(ex.value)
+    assert ex.match('Consumer already closed')
 
 
 def test_any_method_after_close_throws_exception():
@@ -244,51 +244,51 @@ def test_any_method_after_close_throws_exception():
 
     with pytest.raises(RuntimeError) as ex:
         c.subscribe(['test'])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.unsubscribe()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.poll()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.consume()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.assign([TopicPartition('test', 0)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.unassign()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.assignment()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.commit()
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.committed([TopicPartition("test", 0)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.position([TopicPartition("test", 0)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.seek([TopicPartition("test", 0, 0)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         lo, hi = c.get_watermark_offsets(TopicPartition("test", 0))
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
 
 @pytest.mark.skipif(libversion()[1] < 0x000b0000,
@@ -308,11 +308,11 @@ def test_calling_store_offsets_after_close_throws_erro():
 
     with pytest.raises(RuntimeError) as ex:
         c.store_offsets(offsets=[TopicPartition("test", 0, 42)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
         c.offsets_for_times([TopicPartition("test", 0)])
-    assert 'Consumer closed' == str(ex.value)
+    assert ex.match('Consumer closed')
 
 
 def test_consumer_withot_groupid():
@@ -320,4 +320,4 @@ def test_consumer_withot_groupid():
 
     with pytest.raises(ValueError) as ex:
         Consumer({'bootstrap.servers': "mybroker:9092"})
-    assert 'group.id must be set' in str(ex)
+    assert ex.match('group.id must be set')
