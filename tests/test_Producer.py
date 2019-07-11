@@ -118,9 +118,9 @@ def test_produce_headers_should_fail():
                   'error_cb': error_cb,
                   'message.timeout.ms': 10})
 
-    with pytest.raises(NotImplementedError) as e:
+    with pytest.raises(NotImplementedError) as ex:
         p.produce('mytopic', value='somedata', key='a key', headers=[('headerkey', 'headervalue')])
-    assert 'Producer message headers requires confluent-kafka-python built for librdkafka version >=v0.11.4' in str(e)
+    assert ex.match('Producer message headers requires confluent-kafka-python built for librdkafka version >=v0.11.4')
 
 
 def test_subclassing():
@@ -188,6 +188,6 @@ def test_set_invalid_partitioner_murmur():
     """
     Assert invalid partitioner raises KafkaException
     """
-    with pytest.raises(KafkaException) as e:
+    with pytest.raises(KafkaException) as ex:
         Producer({'partitioner': 'murmur'})
-    assert 'Invalid value for configuration property "partitioner": murmur' in str(e)
+    assert ex.match('Invalid value for configuration property "partitioner": murmur')
