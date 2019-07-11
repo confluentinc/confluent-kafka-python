@@ -82,10 +82,12 @@ fixup_wheel_macosx () {
 
         # Change the name to be local
         install_name_tool -id "$lib" $lib
-        if otool -L $lib | grep -q /usr/local/lib/librdkafka.1.dylib ; then
+        # Extract existing(old) reference
+        old=$(otool -L $lib | grep -o '.*librdkafka.1.dylib' | xargs)
+        if [[ ! -z "$old" ]]; then
             # Change the librdkafka reference to load from the same
             # directory as the plugin
-            install_name_tool -change /usr/local/lib/librdkafka.1.dylib '@loader_path/librdkafka.1.dylib' $lib
+            install_name_tool -change "$old" '@loader_path/librdkafka.1.dylib' $lib
             otool -L $lib
         else
             echo "WARNING: couldn't find librdkafka reference in $lib"
