@@ -1170,7 +1170,7 @@ static PyMethodDef Consumer_methods[] = {
 	},
 	{ "position", (PyCFunction)Consumer_position,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: position(partitions, [timeout=None])\n"
+	  ".. py:function:: position(partitions)\n"
 	  "\n"
 	  "  Retrieve current positions (offsets) for the list of partitions.\n"
 	  "\n"
