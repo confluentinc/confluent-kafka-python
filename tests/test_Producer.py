@@ -14,10 +14,9 @@ def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
         broker configured. """
 
-    try:
+    with pytest.raises(TypeError) as ex:
         p = Producer()
-    except TypeError as e:
-        assert str(e) == "expected configuration dict"
+    assert ex.match('expected configuration dict')
 
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
@@ -136,10 +135,8 @@ def test_subclassing():
     assert type(sp) == SubProducer
 
     # Invalid config should fail
-    try:
+    with pytest.raises(KafkaException):
         sp = SubProducer({'should.fail': False}, 'mytopic')
-    except KafkaException:
-        pass
 
     sp = SubProducer({'log.thread.name': True}, 'mytopic')
     sp.produce('someother', value='not hello')
