@@ -1437,7 +1437,6 @@ PyTypeObject ConsumerType = {
         "\n"
         ".. py:function:: on_commit(err, partitions)\n"
         "\n"
-        "  :param Consumer consumer: Consumer instance.\n"
         "  :param KafkaError err: Commit error object, or None on success.\n"
         "  :param list(TopicPartition) partitions: List of partitions with "
         "their committed offsets or per-partition errors.\n"
