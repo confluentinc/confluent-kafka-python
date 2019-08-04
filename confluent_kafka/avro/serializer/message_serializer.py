@@ -216,12 +216,18 @@ class MessageSerializer(object):
         if message is None:
             return None
 
-        if len(message) <= 5:
+        if len(message) <= 5 and not is_key:
             raise SerializerError("message is too small to decode")
 
         with ContextStringIO(message) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != MAGIC_BYTE:
-                raise SerializerError("message does not start with magic byte")
+                if not is_key:
+                    raise SerializerError("message does not start with magic byte")
+                key_str = payload.getvalue().decode('utf-8')
+                print('Warning: decoding key as string', key_str)
+                return key_str
             decoder_func = self._get_decoder_func(schema_id, payload, is_key)
             return decoder_func(payload)
+
+
