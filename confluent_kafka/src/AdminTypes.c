@@ -437,7 +437,7 @@ PyTypeObject NewPartitionsType = {
         "NewPartitions specifies per-topic settings for passing to "
         "passed to AdminClient.create_partitions().\n"
         "\n"
-        ".. py:function:: NewPartitions(topic, new_total_count, [replication_factor], [replica_assignment])\n"
+        ".. py:function:: NewPartitions(topic, new_total_count, [replica_assignment])\n"
         "\n"
         "  Instantiate a NewPartitions object.\n"
         "\n"
