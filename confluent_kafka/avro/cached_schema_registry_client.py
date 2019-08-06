@@ -50,7 +50,8 @@ class CachedSchemaRegistryClient(object):
 
     See http://confluent.io/docs/current/schema-registry/docs/intro.html for more information.
 
-    .. deprecated::
+    .. deprecated:: 1.1.0
+
     Use CachedSchemaRegistryClient(dict: config) instead.
     Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
