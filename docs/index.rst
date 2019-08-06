@@ -44,8 +44,8 @@ Avro
 .. automodule:: confluent_kafka.avro
    :members:
 
-   .. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
-      :members:
+.. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
+   :members:
 
 *******
 Message
