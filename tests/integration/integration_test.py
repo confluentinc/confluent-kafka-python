@@ -45,7 +45,7 @@ except ImportError:
     with_progress = False
 
 # Default test conf location
-testconf_file = "tests/integration/testconf.json"
+testconf_file = "integration/testconf.json"
 
 # Kafka bootstrap server(s)
 bootstrap_servers = None
@@ -282,7 +282,7 @@ def verify_producer_performance(with_dr_cb=True):
 
     p = confluent_kafka.Producer(conf)
 
-    msgcnt = 1000000
+    msgcnt = 10000
     msgsize = 100
     msg_pattern = 'test.py performance'
     msg_payload = (msg_pattern * int(msgsize / len(msg_pattern)))[0:msgsize]
@@ -514,7 +514,7 @@ def verify_consumer_performance():
 
     c.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
 
-    max_msgcnt = 1000000
+    max_msgcnt = 10000
     bytecnt = 0
     msgcnt = 0
 
@@ -690,7 +690,7 @@ def verify_batch_consumer_performance():
 
     c.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
 
-    max_msgcnt = 1000000
+    max_msgcnt = 10000
     bytecnt = 0
     msgcnt = 0
     batch_size = 1000

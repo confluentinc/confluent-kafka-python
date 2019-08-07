@@ -9,7 +9,7 @@
             "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_LOCATION_ENV"
     },
     "avro-basic-auth": {
-        "schema.registry.url": "http://localhost:8083",
+        "schema.registry.url": "http://127.0.0.1:8083",
         "schema.registry.basic.auth.user.info": "ckp_tester:test_secret",
         "sasl.username": "ckp_tester",
         "sasl.password": "test_secret"
