@@ -44,6 +44,8 @@ Avro
 .. automodule:: confluent_kafka.avro
    :members:
 
+.. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
+   :members:
 
 *******
 Message
@@ -147,4 +149,3 @@ The Python bindings also provide some additional configuration properties:
     mylogger = logging.getLogger()
     mylogger.addHandler(logging.StreamHandler())
     producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
-
