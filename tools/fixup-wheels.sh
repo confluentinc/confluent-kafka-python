@@ -12,6 +12,7 @@ set -e
 wheelhouse=$1
 fixed_wheelhouse=$2
 platform=$(uname -s)
+gen_record_row=$(dirname $(readlink -f $0))/generate-record-row.py
 
 stagedir=$PWD/staging
 
@@ -25,6 +26,10 @@ if [[ $fixed_wheelhouse != "/*" ]]; then
 fi
 
 mkdir -p $fixed_wheelhouse
+
+find_record_file () {
+  find . -name RECORD -type f | head -1
+}
 
 fixup_wheel_linux () {
 
@@ -63,6 +68,8 @@ fixup_wheel_linux () {
         fi
         echo "$lib dependencies:"
         ldd $lib
+
+        $gen_record_row $lib confluent_kafka/.libs/ >> ../../$record_path
     done
 
     popd # confluent_kafka/.libs or confluent_kafka.libs
@@ -70,6 +77,8 @@ fixup_wheel_linux () {
 
 
 fixup_wheel_macosx () {
+
+    local record_path=$(find_record_file)
 
     pushd confluent_kafka/.dylibs
 
@@ -94,6 +103,8 @@ fixup_wheel_macosx () {
             echo "WARNING: couldn't find librdkafka reference in $lib"
             otool -L $lib
         fi
+
+        $gen_record_row $lib confluent_kafka/.dylibs/ >> ../../$record_path
 
     done
 
@@ -165,6 +176,3 @@ fi
 for wheel in $wheelhouse/*${wheelmatch}*.whl ; do
     fixup_wheel "$wheel"
 done
-
-
-
