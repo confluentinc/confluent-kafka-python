@@ -11,6 +11,20 @@ INSTALL_REQUIRES = [
     'requests;python_version<"3.2"'
 ]
 
+AVRO_REQUIRES = [
+    'fastavro',
+    'requests',
+    'avro;python_version<"3.0"',
+    'avro-python3;python_version>"3.0"'
+]
+
+TEST_REQUIRES = [
+    'pytest==4.6.4;python_version<"3.0"',
+    'pytest;python_version>="3.0"',
+    'pytest-timeout',
+    'flake8'
+]
+
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
 if platform.system() == 'Windows':
@@ -38,7 +52,7 @@ def get_install_requirements(path):
 
 
 setup(name='confluent-kafka',
-      version='1.1.0',
+      version='1.2.0rc1',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
@@ -48,11 +62,6 @@ setup(name='confluent-kafka',
       data_files=[('', ['LICENSE.txt'])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
-          'avro': [
-              'fastavro',
-              'requests',
-              'avro;python_version<"3.0"',
-              'avro-python3;python_version>"3.0"'
-          ],
-          'dev': get_install_requirements("test-requirements.txt")
+          'avro': AVRO_REQUIRES,
+          'dev': TEST_REQUIRES + AVRO_REQUIRES
       })
