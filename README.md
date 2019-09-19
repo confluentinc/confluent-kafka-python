@@ -189,7 +189,7 @@ Install
           its dependencies using the repositories below and then build
           confluent-kafka  using the command in the "Install from
           source from PyPi" section below.
-          
+
 **Install self-contained binary wheels for OSX and Linux from PyPi:**
 
     $ pip install confluent-kafka
