@@ -196,7 +196,7 @@ Install
 
 **Install AvroProducer and AvroConsumer:**
 
-    $ pip install confluent-kafka[avro]
+    $ pip install "confluent-kafka[avro]"
 
 **Install from source from PyPi** *(requires librdkafka + dependencies to be installed separately)*:
 
@@ -204,10 +204,6 @@ Install
 
 
 For source install, see *Prerequisites* below.   
-
-To avoid error in installation like *no matches found: confluent-kafka[avro]*, use double quotes. As an example:
-
-    $ pip install "confluent-kafka[avro]"
 
 
 Broker Compatibility
