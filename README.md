@@ -203,7 +203,7 @@ Install
     $ pip install --no-binary :all: confluent-kafka
 
 
-For source install, see *Prerequisites* below.   
+For source install, see *Prerequisites* below.
 
 
 Broker Compatibility
