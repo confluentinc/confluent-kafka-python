@@ -196,7 +196,7 @@ Install
 
 **Install AvroProducer and AvroConsumer:**
 
-    $ pip install confluent-kafka[avro]
+    $ pip install "confluent-kafka[avro]"
 
 **Install from source from PyPi** *(requires librdkafka + dependencies to be installed separately)*:
 
