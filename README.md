@@ -189,7 +189,7 @@ Install
           its dependencies using the repositories below and then build
           confluent-kafka  using the command in the "Install from
           source from PyPi" section below.
-
+          
 **Install self-contained binary wheels for OSX and Linux from PyPi:**
 
     $ pip install confluent-kafka
@@ -203,7 +203,11 @@ Install
     $ pip install --no-binary :all: confluent-kafka
 
 
-For source install, see *Prerequisites* below.
+For source install, see *Prerequisites* below.   
+
+To avoid error in installation like *no matches found: confluent-kafka[avro]*, use double quotes. As an example:
+
+    $ pip install "confluent-kafka[avro]"
 
 
 Broker Compatibility
