@@ -53,8 +53,6 @@ from confluent_kafka import Producer, Consumer
 
 p = Producer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
-    'broker.version.fallback': '0.10.0.0',
-    'api.version.fallback.ms': 0,
     'sasl.mechanisms': 'PLAIN',
     'security.protocol': 'SASL_SSL',
     'sasl.username': '<ccloud key>',
@@ -80,8 +78,6 @@ p.flush(10)
 
 c = Consumer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
-    'broker.version.fallback': '0.10.0.0',
-    'api.version.fallback.ms': 0,
     'sasl.mechanisms': 'PLAIN',
     'security.protocol': 'SASL_SSL',
     'sasl.username': '<ccloud key>',
