@@ -217,13 +217,17 @@ class CachedSchemaRegistryClient(object):
         body = {'schema': json.dumps(avro_schema.to_json())}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
-            raise ClientError("Unauthorized access. Error code:" + str(code))
+            raise ClientError("Unauthorized access. Error code:" + str(code)
+                              + " message:" + str(result))
         elif code == 409:
-            raise ClientError("Incompatible Avro schema:" + str(code))
+            raise ClientError("Incompatible Avro schema:" + str(code)
+                              + " message:" + str(result))
         elif code == 422:
-            raise ClientError("Invalid Avro schema:" + str(code))
+            raise ClientError("Invalid Avro schema:" + str(code)
+                              + " message:" + str(result))
         elif not (code >= 200 and code <= 299):
-            raise ClientError("Unable to register schema. Error code:" + str(code))
+            raise ClientError("Unable to register schema. Error code:" + str(code)
+                              + " message:" + str(result))
         # result is a dict
         schema_id = result['id']
         # cache it
