@@ -1,4 +1,3 @@
-
 Welcome to Confluent's Python client for Apache Kafka documentation
 ===================================================================
 
@@ -12,28 +11,28 @@ Indices and tables
 
 .. automodule:: confluent_kafka
    :synopsis: Confluent's Python client for Apache Kafka.
-
+   :members:
 
 ********
 Consumer
 ********
 
 .. autoclass:: confluent_kafka.Consumer
-
+   :members:
 
 ********
 Producer
 ********
 
 .. autoclass:: confluent_kafka.Producer
-
+   :members:
 
 *****
 Admin
 *****
 
 .. automodule:: confluent_kafka.admin
-
+   :members:
 
 .. autoclass:: confluent_kafka.admin.NewTopic
 .. autoclass:: confluent_kafka.admin.NewPartitions
@@ -43,38 +42,38 @@ Avro
 ****
 
 .. automodule:: confluent_kafka.avro
-
+   :members:
 
 .. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
-
+   :members:
 
 *******
 Message
 *******
 
 .. autoclass:: confluent_kafka.Message
-
+   :members:
 
 **************
 TopicPartition
 **************
 
 .. autoclass:: confluent_kafka.TopicPartition
-
+   :members:
 
 **********
 KafkaError
 **********
 
 .. autoclass:: confluent_kafka.KafkaError
-
+   :members:
 
 **************
 KafkaException
 **************
 
 .. autoclass:: confluent_kafka.KafkaException
-
+   :members:
 
 ******
 Offset
@@ -92,7 +91,7 @@ ThrottleEvent
 *************
 
 .. autoclass:: confluent_kafka.ThrottleEvent
-
+   :members:
 
 
 Configuration
