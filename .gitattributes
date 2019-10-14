@@ -1,0 +1,2 @@
+# "Hide" .c files from github's language detection so the repository shows up as Python, not C 
+ *.c linguist-vendored=true
