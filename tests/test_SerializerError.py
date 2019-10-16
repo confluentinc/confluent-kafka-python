@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import unittest
-
 from confluent_kafka.avro.serializer import SerializerError
+
 
 class SerializerErrorTest(unittest.TestCase):
 
