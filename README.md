@@ -2,15 +2,15 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
 **confluent-kafka-python** is Confluent's Python client for [Apache Kafka](http://kafka.apache.org/) and the
-[Confluent Platform](https://www.confluent.io/product/compare/).
-
-We provide high-level Producer, Consumer and AdminClient classes analogous to the Java client. These are backwards and forwards compatible with all Kafka brokers from version 0.8.
+[Confluent Platform](https://www.confluent.io/product/compare/). It provides a high-level Producer, Consumer
+and AdminClient analogous to the Java client which are backwards and forwards compatible with all
+Kafka brokers from version 0.8.
 
 Characteristics:
 
-- **Reliability** - The Python client is a lightweight wrapper around [librdkafka](https://github.com/edenhill/librdkafka) which is widely deployed in a diverse set of demanding production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
+- **Reliable** - The Python client is a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) which is widely deployed in a diverse set of demanding production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
 
-- **Performance** - Performance is a key design consideration. Maximum throughput is comparable to the Java client for larger message sizes (where the overhead of the Python interpreter has less impact).
+- **Performant** - Performance is a key design consideration. Latency is on par with the Java client. Maximum throughput is too for larger message sizes (where the overhead of the Python interpreter has less impact).
 
 - **Future proof** - Confluent, founded by the
 creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
