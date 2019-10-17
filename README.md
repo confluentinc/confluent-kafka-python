@@ -4,27 +4,19 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 **confluent-kafka-python** is Confluent's Python client for [Apache Kafka](http://kafka.apache.org/) and the
 [Confluent Platform](https://www.confluent.io/product/compare/).
 
-Features:
+We provide high-level Producer, Consumer and AdminClient classes analogous to the Java client. These are backwards and forwards compatible with all Kafka brokers from version 0.8.
 
-- **High performance** - confluent-kafka-python is a lightweight wrapper around
-[librdkafka](https://github.com/edenhill/librdkafka), a finely tuned C
-client.
+Characteristics:
 
-- **Reliability** - There are a lot of details to get right when writing an Apache Kafka
-client. We get them right in one place (librdkafka) and leverage this work
-across all of our clients (also [confluent-kafka-go](https://github.com/confluentinc/confluent-kafka-go)
-and [confluent-kafka-dotnet](https://github.com/confluentinc/confluent-kafka-dotnet)).
+- **Reliability** - The Python client is a lightweight wrapper around [librdkafka](https://github.com/edenhill/librdkafka) which is widely deployed in a diverse set of demanding production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
 
-- **Supported** - Commercial support is offered by
-[Confluent](https://confluent.io/).
+- **Performance** - Performance is a key design consideration. Maximum throughput is comparable to the Java client for larger message sizes (where the overhead of the Python interpreter has less impact).
 
 - **Future proof** - Confluent, founded by the
 creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
 with Apache Kafka at its core. It's high priority for us that client features keep
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
-The Python bindings provides a high-level Producer and Consumer with support
-for the balanced consumer groups of Apache Kafka &gt;= 0.9.
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
 
@@ -33,6 +25,9 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 
 Usage
 =====
+
+Below are some examples of typical usage. For more examples, including [how to configure](examples/confluent_cloud.py) the python client for use with
+[Confluent Cloud](https://www.confluent.io/confluent-cloud/), see the [examples](examples) directory.
 
 **Producer:**
 
@@ -177,8 +172,31 @@ while True:
 c.close()
 ```
 
-See the [examples](examples) directory for more examples, including [how to configure](examples/confluent_cloud.py) the python client for use with
-[Confluent Cloud](https://www.confluent.io/confluent-cloud/).
+**AdminClient**
+
+Create topics:
+
+```python
+    new_topics = [NewTopic(topic, num_partitions=3, replication_factor=1) for topic in topics]
+    # Call create_topics to asynchronously create topics, a dict
+    # of <topic,future> is returned.
+    fs = a.create_topics(new_topics)
+
+    # Wait for each operation to finish.
+    for topic, f in fs.items():
+        try:
+            f.result()  # The result itself is None
+            print("Topic {} created".format(topic))
+        except Exception as e:
+            print("Failed to create topic {}: {}".format(topic, e))
+```
+
+
+
+Thread Safety
+-------------
+
+The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 
 Install
