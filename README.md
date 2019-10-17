@@ -8,7 +8,7 @@ Kafka brokers from version 0.8.
 
 Characteristics:
 
-- **Reliable** - The Python client is a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) which is widely deployed in a diverse set of demanding production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
+- **Reliable** - The Python client is a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
 
 - **Performant** - Performance is a key design consideration. Latency is on par with the Java client. Maximum throughput is too for larger message sizes (where the overhead of the Python interpreter has less impact).
 
