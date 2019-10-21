@@ -44,7 +44,7 @@ class AvroProducer(Producer):
     """
 
     def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None):
+                 default_value_schema=None, schema_registry=None, **kwargs):
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}
@@ -64,7 +64,7 @@ class AvroProducer(Producer):
         elif sr_conf.get("url", None) is not None:
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
-        super(AvroProducer, self).__init__(ap_conf)
+        super(AvroProducer, self).__init__(ap_conf, **kwargs)
         self._serializer = MessageSerializer(schema_registry)
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
@@ -123,7 +123,7 @@ class AvroConsumer(Consumer):
     :raises ValueError: For invalid configurations
     """
 
-    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None):
+    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}
@@ -142,7 +142,7 @@ class AvroConsumer(Consumer):
         elif sr_conf.get("url", None) is not None:
             raise ValueError("Cannot pass schema_registry along with schema.registry.url config")
 
-        super(AvroConsumer, self).__init__(ap_conf)
+        super(AvroConsumer, self).__init__(ap_conf, **kwargs)
         self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
 
     def poll(self, timeout=None):

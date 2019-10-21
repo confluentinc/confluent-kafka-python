@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import confluent_kafka
+import confluent_kafka.avro
 import logging
 
 
@@ -34,6 +35,26 @@ def test_logging_consumer():
     kc.close()
 
 
+def test_logging_avro_consumer():
+    """ Tests that logging works """
+
+    logger = logging.getLogger('avroconsumer')
+    logger.setLevel(logging.DEBUG)
+    f = CountingFilter('avroconsumer')
+    logger.addFilter(f)
+
+    kc = confluent_kafka.avro.AvroConsumer({'schema.registry.url': 'http://example.com',
+                                            'group.id': 'test',
+                                            'debug': 'all'},
+                                           logger=logger)
+    while f.cnt == 0:
+        kc.poll(timeout=0.5)
+
+    print('%s: %d log messages seen' % (f.name, f.cnt))
+
+    kc.close()
+
+
 def test_logging_producer():
     """ Tests that logging works """
 
@@ -43,6 +64,24 @@ def test_logging_producer():
     logger.addFilter(f)
 
     p = confluent_kafka.Producer({'debug': 'all'}, logger=logger)
+
+    while f.cnt == 0:
+        p.poll(timeout=0.5)
+
+    print('%s: %d log messages seen' % (f.name, f.cnt))
+
+
+def test_logging_avro_producer():
+    """ Tests that logging works """
+
+    logger = logging.getLogger('avroproducer')
+    logger.setLevel(logging.DEBUG)
+    f = CountingFilter('avroproducer')
+    logger.addFilter(f)
+
+    p = confluent_kafka.avro.AvroProducer({'schema.registry.url': 'http://example.com',
+                                           'debug': 'all'},
+                                          logger=logger)
 
     while f.cnt == 0:
         p.poll(timeout=0.5)
