@@ -229,6 +229,26 @@ More info here:
 https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 
 
+SSL certificates
+================
+If you're connecting to a Kafka cluster through SSL you will need to configure
+the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
+authentication is used).
+
+The client will use CA certificates to verify the broker's certificate.
+The embedded OpenSSL library will look for CA certificates in `/usr/lib/ssl/certs/`
+or `/usr/lib/ssl/cacert.pem`. CA certificates are typically provided by the
+Linux distribution's `ca-certificates` package which needs to be installed
+through `apt`, `yum`, et.al.
+
+If your system stores CA certificates in another location you will need to
+configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`. 
+
+Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
+Python package. To use certifi, add an `import certifi` line and configure the
+client's CA location with `'ssl.ca.location': certifi.where()`.
+
+
 Prerequisites
 =============
 
