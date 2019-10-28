@@ -37,6 +37,7 @@ import json
 import logging
 import sys
 import traceback
+import resource
 import datadog
 
 
@@ -355,6 +356,9 @@ class SoakClient (object):
         self.stats_cnt = {'producer': 0, 'consumer': 0}
         self.start_time = time.time()
 
+        self.last_rusage = None
+        self.last_rusage_time = None
+
         self.logger = logging.getLogger('soakclient')
         self.logger.setLevel(logging.DEBUG)
         handler = logging.StreamHandler()
@@ -430,6 +434,9 @@ class SoakClient (object):
         self.producer_thread.join()
         self.consumer_thread.join()
 
+        # Final resource usage
+        soak.get_rusage()
+
     def init_datadog(self, options):
         """ Initialize datadog agent """
         datadog.initialize(**options)
@@ -444,6 +451,36 @@ class SoakClient (object):
     def dd_gauge(self, metric_name, val):
         """ Set datadog metric gauge to val """
         self.dd.gauge(self.DD_PFX + metric_name, val, host=self.hostname)
+
+    def calc_rusage_deltas(self, curr, prev, elapsed):
+        """ Calculate deltas between previous and current resource usage """
+
+        # User CPU %
+        user_cpu = ((curr.ru_utime - prev.ru_utime) / elapsed) * 100.0
+        self.dd_gauge("cpu.user", user_cpu)
+
+        # System CPU %
+        sys_cpu = ((curr.ru_stime - prev.ru_stime) / elapsed) * 100.0
+        self.dd_gauge("cpu.system", sys_cpu)
+
+        # Max RSS memory (monotonic)
+        max_rss = curr.ru_maxrss / 1024.0
+        self.dd_gauge("memory.rss.max", max_rss)
+
+        self.logger.info("User CPU: {:.1f}%, System CPU: {:.1f}%, MaxRSS {:.3f}MiB".format(
+            user_cpu, sys_cpu, max_rss))
+
+    def get_rusage(self):
+        """ Get resource usage and calculate CPU load, etc """
+        ru = resource.getrusage(resource.RUSAGE_SELF)
+        now = time.time()
+
+        if self.last_rusage is not None:
+            self.calc_rusage_deltas(ru, self.last_rusage,
+                                    now - self.last_rusage_time)
+
+        self.last_rusage = ru
+        self.last_rusage_time = now
 
 
 if __name__ == '__main__':
@@ -486,10 +523,14 @@ if __name__ == '__main__':
     # Create SoakClient
     soak = SoakClient(args.topic, args.rate, conf)
 
+    # Get initial resource usage
+    soak.get_rusage()
+
     # Run until interrupted
     try:
         while soak.run:
             time.sleep(10)
+            soak.get_rusage()
 
         soak.logger.info("Soak client aborted")
 
