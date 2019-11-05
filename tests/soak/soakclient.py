@@ -38,6 +38,8 @@ import logging
 import sys
 import traceback
 import resource
+import os
+import psutil
 import datadog
 
 
@@ -358,6 +360,7 @@ class SoakClient (object):
 
         self.last_rusage = None
         self.last_rusage_time = None
+        self.proc = psutil.Process(os.getpid())
 
         self.logger = logging.getLogger('soakclient')
         self.logger.setLevel(logging.DEBUG)
@@ -481,6 +484,10 @@ class SoakClient (object):
 
         self.last_rusage = ru
         self.last_rusage_time = now
+
+        # Current RSS memory
+        rss = float(self.proc.memory_info().rss) / (1024.0*1024.0)
+        self.dd_gauge("memory.rss", rss)
 
 
 if __name__ == '__main__':
