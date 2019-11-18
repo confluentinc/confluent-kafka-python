@@ -36,6 +36,7 @@ class AvroProducer(Producer):
             sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
             sr_conf['sasl.username'] = config.get('sasl.username', '')
             sr_conf['sasl.password'] = config.get('sasl.password', '')
+            sr_conf['auto.register.schemas'] = config.get('auto.register.schemas', True)
 
         ap_conf = {key: value
                    for key, value in config.items() if not key.startswith("schema.registry")}

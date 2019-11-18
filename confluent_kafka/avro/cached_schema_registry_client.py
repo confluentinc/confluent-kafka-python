@@ -112,6 +112,8 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
 
+        self.auto_register_schemas = conf.pop("auto.register.schemas", True)
+
         if len(conf) > 0:
             raise ValueError("Unrecognized configuration properties: {}".format(conf.keys()))
 
@@ -224,6 +226,44 @@ class CachedSchemaRegistryClient(object):
             raise ClientError("Invalid Avro schema:" + str(code))
         elif not (code >= 200 and code <= 299):
             raise ClientError("Unable to register schema. Error code:" + str(code))
+        # result is a dict
+        schema_id = result['id']
+        # cache it
+        self._cache_schema(avro_schema, schema_id, subject)
+        return schema_id
+
+    def check_registration(self, subject, avro_schema):
+        """
+        POST /subjects/(string: subject)
+        Check if a schema has already been registered under the specified subject.
+        If so, returns the schema id. Otherwise, raises a ClientError.
+
+        avro_schema must be a parsed schema from the python avro library
+
+        Multiple instances of the same schema will result in inconsistencies.
+
+        :param str subject: subject name
+        :param schema avro_schema: Avro schema to be checked
+        :returns: schema_id
+        :rtype: int
+        """
+
+        schemas_to_id = self.subject_to_schema_ids[subject]
+        schema_id = schemas_to_id.get(avro_schema, None)
+        if schema_id is not None:
+            return schema_id
+        # send it up
+        url = '/'.join([self.url, 'subjects', subject])
+        # body is { schema : json_string }
+
+        body = {'schema': json.dumps(avro_schema.to_json())}
+        result, code = self._send_request(url, method='POST', body=body)
+        if code == 401 or code == 403:
+            raise ClientError("Unauthorized access. Error code:" + str(code))
+        elif code == 404:
+            raise ClientError("Schema or subject not found:" + str(code))
+        elif not 200 <= code <= 299:
+            raise ClientError("Unable to check schema registration. Error code:" + str(code))
         # result is a dict
         schema_id = result['id']
         # cache it
