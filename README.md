@@ -3,14 +3,13 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 
 **confluent-kafka-python** is Confluent's Python client for [Apache Kafka](http://kafka.apache.org/) and the
 [Confluent Platform](https://www.confluent.io/product/compare/). It provides a high-level Producer, Consumer
-and AdminClient analogous to the Java client which are backwards and forwards compatible with all
-Kafka brokers from version 0.8.
+and AdminClient which are backwards and forwards compatible with all Kafka brokers from version 0.8.
 
 Characteristics:
 
 - **Reliable** - The Python client is a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io). 
 
-- **Performant** - Performance is a key design consideration. Latency is on par with the Java client, as is maximum throughput for larger message sizes (where the overhead of the Python interpreter has less impact).
+- **Performant** - Performance is a key design consideration. Maximum throughput is on par with the Java client for larger message sizes (where the overhead of the Python interpreter has less impact). Latency is on par with the Java client.
 
 - **Future proof** - Confluent, founded by the
 creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
@@ -29,7 +28,7 @@ Usage
 Below are some examples of typical usage. For more examples, including [how to configure](examples/confluent_cloud.py) the python client for use with
 [Confluent Cloud](https://www.confluent.io/confluent-cloud/), see the [examples](examples) directory.
 
-**Producer:**
+**Producer**
 
 ```python
 from confluent_kafka import Producer
@@ -60,7 +59,7 @@ p.flush()
 ```
 
 
-**High-level Consumer:**
+**High-level Consumer**
 
 ```python
 from confluent_kafka import Consumer, KafkaError
@@ -182,7 +181,9 @@ from confluent_kafka.admin import AdminClient, NewTopic
 a = AdminClient({'bootstrap.servers': 'mybroker'})
 
 new_topics = [NewTopic(topic, num_partitions=3, replication_factor=1) for topic in ["topic1", "topic2"]]
-# Call create_topics to asynchronously create topics, a dict
+# Note: In a multi-cluster production scenario, it is more typical to use a replication_factor of 3 for durability.
+
+# Call create_topics to asynchronously create topics. A dict
 # of <topic,future> is returned.
 fs = a.create_topics(new_topics)
 
@@ -212,11 +213,11 @@ Install
           confluent-kafka  using the command in the "Install from
           source from PyPi" section below.
 
-**Install self-contained binary wheels for OSX and Linux from PyPi:**
+**Install self-contained binary wheels for OSX and Linux from PyPi**
 
     $ pip install confluent-kafka
 
-**Install AvroProducer and AvroConsumer:**
+**Install AvroProducer and AvroConsumer**
 
     $ pip install "confluent-kafka[avro]"
 
@@ -283,7 +284,7 @@ Tests
 =====
 
 
-**Run unit-tests:**
+**Run unit-tests**
 
 In order to run full test suite, simply execute:
 
@@ -292,7 +293,7 @@ In order to run full test suite, simply execute:
 **NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](tools/bootstrap-librdkafka.sh) into `tmp-build`.
 
 
-**Integration tests:**
+**Integration tests**
 
 See [tests/README.md](tests/README.md) for instructions on how to run integration tests.
 
