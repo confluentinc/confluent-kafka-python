@@ -89,9 +89,11 @@ class SoakClient (object):
         else:
             self.dr_cnt += 1
             self.dd_incr("producer.drok", 1)
+            self.dd_gauge("producer.latency", msg.latency(),
+                          tags=["partition:{}".format(msg.partition())])
             if (self.dr_cnt % self.disprate) == 0:
-                self.logger.debug("producer: delivered message to {} [{}] at offset {}".format(
-                    msg.topic(), msg.partition(), msg.offset()))
+                self.logger.debug("producer: delivered message to {} [{}] at offset {} in {}s".format(
+                    msg.topic(), msg.partition(), msg.offset(), msg.latency()))
 
     def produce_record(self):
         """ Asynchronously produce a single record, but block and
@@ -236,7 +238,8 @@ class SoakClient (object):
             txtime = headers.get('time', None)
             if txtime is not None:
                 latency = time.time() - float(txtime)
-                self.dd_gauge("consumer.e2e_latency", latency)
+                self.dd_gauge("consumer.e2e_latency", latency,
+                              tags=["partition:{}".format(msg.partition())])
             else:
                 latency = None
 
@@ -310,6 +313,25 @@ class SoakClient (object):
         self.producer_error_cb_cnt += 1
         self.dd_incr("producer.errorcb", 1)
 
+    def rtt_stats(self, d):
+        """ Extract broker rtt statistics from the stats dict in @param d """
+
+        # Get leader RTT stats
+        for broker in d['brokers'].values():
+            if broker['toppars'] is None:
+                continue
+
+            parts = ','.join([str(x['partition']) for x in broker['toppars'].values()])
+
+            tags = ["broker:{}".format(broker['nodeid']),
+                    "partitions:{}".format(parts),
+                    "type:{}".format(d['type'])]
+
+            self.dd_gauge("broker.rtt.p99",
+                          float(broker['rtt']['p99']) / 1000000.0, tags=tags)
+            self.dd_gauge("broker.rtt.avg",
+                          float(broker['rtt']['avg']) / 1000000.0, tags=tags)
+
     def stats_cb(self, json_str):
         """ Common statistics callback. """
         d = json.loads(json_str)
@@ -331,6 +353,8 @@ class SoakClient (object):
         self.stats_cnt[d['type']] += 1
         if (self.stats_cnt[d['type']] % 11) == 0:
             self.logger.info("{} raw stats: {}".format(d['name'], json_str))
+
+        self.rtt_stats(d)
 
         # Sample the producer queue length
         if d['type'] == 'producer':
@@ -451,9 +475,10 @@ class SoakClient (object):
         """ Increment datadog metric counter by incrval """
         self.dd.increment(self.DD_PFX + metric_name, incrval, host=self.hostname)
 
-    def dd_gauge(self, metric_name, val):
+    def dd_gauge(self, metric_name, val, tags=None):
         """ Set datadog metric gauge to val """
-        self.dd.gauge(self.DD_PFX + metric_name, val, host=self.hostname)
+        self.dd.gauge(self.DD_PFX + metric_name, val,
+                      tags=tags, host=self.hostname)
 
     def calc_rusage_deltas(self, curr, prev, elapsed):
         """ Calculate deltas between previous and current resource usage """
