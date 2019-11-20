@@ -27,9 +27,10 @@ def test_basic_api():
     p.produce('mytopic', value='somedata', key='a key')
 
     def on_delivery(err, msg):
-        print('delivery', str)
+        print('delivery', err, msg)
         # Since there is no broker, produced messages should time out.
         assert err.code() == KafkaError._MSG_TIMED_OUT
+        print('message latency', msg.latency())
 
     p.produce(topic='another_topic', value='testing', partition=9,
               callback=on_delivery)

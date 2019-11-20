@@ -483,6 +483,12 @@ static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 			     self->timestamp);
 }
 
+static PyObject *Message_latency (Message *self, PyObject *ignore) {
+        if (self->latency == -1)
+                Py_RETURN_NONE;
+	return PyFloat_FromDouble((double)self->latency / 1000000.0);
+}
+
 static PyObject *Message_headers (Message *self, PyObject *ignore) {
 #ifdef RD_KAFKA_V_HEADERS
 	if (self->headers) {
@@ -585,6 +591,18 @@ static PyMethodDef Message_methods[] = {
           "\n"
 	  "  :returns: tuple of message timestamp type, and timestamp.\n"
 	  "  :rtype: (int, int)\n"
+	  "\n"
+	},
+	{ "latency", (PyCFunction)Message_latency, METH_NOARGS,
+          "Retrieve the time it took to produce the message, from calling "
+          "produce() to the time the acknowledgement was received from "
+          "the broker.\n"
+          "Must only be used with the producer for successfully produced "
+          "messages.\n"
+          "\n"
+	  "  :returns: latency as float seconds, or None if latency "
+          "information is not available (such as for errored messages).\n"
+	  "  :rtype: float or None\n"
 	  "\n"
 	},
 	{ "headers", (PyCFunction)Message_headers, METH_NOARGS,
@@ -768,6 +786,11 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 	self->offset = rkm->offset;
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
+
+        if (handle->type == RD_KAFKA_PRODUCER)
+                self->latency = rd_kafka_message_latency(rkm);
+        else
+                self->latency = -1;
 
 	return (PyObject *)self;
 }

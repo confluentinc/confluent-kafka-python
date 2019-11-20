@@ -417,6 +417,7 @@ typedef struct {
 	int64_t offset;
 	int64_t timestamp;
 	rd_kafka_timestamp_type_t tstype;
+        int64_t latency;  /**< Producer: time it took to produce message */
 } Message;
 
 extern PyTypeObject MessageType;
