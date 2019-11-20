@@ -135,8 +135,9 @@ class MyTestDr(object):
             return 0
         else:
             if not silent:
-                print('Message delivered to %s [%s] at offset [%s]: %s' %
-                      (msg.topic(), msg.partition(), msg.offset(), msg.value()))
+                print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
+                      (msg.topic(), msg.partition(), msg.offset(),
+                       msg.latency(), msg.value()))
             return 1
 
     def delivery(self, err, msg):
@@ -145,8 +146,9 @@ class MyTestDr(object):
                   (msg.topic(), str(msg.partition()), err))
             return
         elif not self.silent:
-            print('Message delivered to %s [%s] at offset [%s]: %s' %
-                  (msg.topic(), msg.partition(), msg.offset(), msg.value()))
+            print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.latency(), msg.value()))
         self.msgs_delivered += 1
         self.bytes_delivered += len(msg)
 
