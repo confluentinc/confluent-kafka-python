@@ -1,7 +1,7 @@
-Confluent's Kafka Python Client
-===============================
+Confluent's Python Client for Apache Kafka<sup>TM</sup>
+=======================================================
 
-**confluent-kafka-python** provides high-level Producer, Consumer and AdminClient classes compatible with all
+**confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
 [Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
 and the [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
@@ -23,8 +23,8 @@ See the [API documentation](http://docs.confluent.io/current/clients/confluent-k
 Usage
 =====
 
-Below are some examples of typical usage. For more examples, including [how to configure](examples/confluent_cloud.py) the python client for use with
-[Confluent Cloud](https://www.confluent.io/confluent-cloud/), see the [examples](examples) directory.
+Below are some examples of typical usage. For more examples, see the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo for a [Confluent Cloud](https://www.confluent.io/confluent-cloud/) example.
+
 
 **Producer**
 
@@ -205,21 +205,22 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 Install
 =======
 
+**Install self-contained binary wheels**
+
+    $ pip install confluent-kafka
+
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
           confluent-kafka  using the command in the "Install from
           source from PyPi" section below.
 
-**Install self-contained binary wheels for OSX and Linux from PyPi**
-
-    $ pip install confluent-kafka
-
 **Install AvroProducer and AvroConsumer**
 
     $ pip install "confluent-kafka[avro]"
 
-**Install from source from PyPi** *(requires librdkafka + dependencies to be installed separately)*:
+**Install from source from PyPi**
+*(requires librdkafka + dependencies to be installed separately)*:
 
     $ pip install --no-binary :all: confluent-kafka
 
@@ -268,47 +269,7 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
 
-Build
-=====
+Developer Notes
+===============
 
-    $ python setup.py build
-
-If librdkafka is installed in a non-standard location provide the include and library directories with:
-
-    $ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python setup.py ...
-
-
-Tests
-=====
-
-
-**Run unit-tests**
-
-In order to run full test suite, simply execute:
-
-    $ tox -r
-
-**NOTE**: Requires `tox` (please install with `pip install tox`), several supported versions of Python on your path, and `librdkafka` [installed](tools/bootstrap-librdkafka.sh) into `tmp-build`.
-
-
-**Integration tests**
-
-See [tests/README.md](tests/README.md) for instructions on how to run integration tests.
-
-
-
-Generate Documentation
-======================
-Install sphinx and sphinx_rtd_theme packages:
-
-    $ pip install sphinx sphinx_rtd_theme
-
-Build HTML docs:
-
-    $ make docs
-
-or:
-
-    $ python setup.py build_sphinx
-
-Documentation will be generated in `docs/_build/`.
+Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
