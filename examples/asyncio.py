@@ -108,7 +108,7 @@ producer = None
 @app.on_event("startup")
 async def startup_event():
     global producer, aio_producer
-    aio_producer = AIOProducer(config, asyncio.get_event_loop())
+    aio_producer = AIOProducer(config)
     producer = Producer(config)
 
 
