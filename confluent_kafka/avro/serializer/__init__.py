@@ -22,14 +22,14 @@ class SerializerError(Exception):
     def __init__(self, message):
         self.message = message
 
-        def __repr__(self):
-            return '{klass}(error={error})'.format(
-                klass=self.__class__.__name__,
-                error=self.message
-            )
+    def __repr__(self):
+        return '{klass}(error={error})'.format(
+            klass=self.__class__.__name__,
+            error=self.message
+        )
 
-        def __str__(self):
-            return self.message
+    def __str__(self):
+        return self.message
 
 
 class KeySerializerError(SerializerError):
