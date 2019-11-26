@@ -394,7 +394,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         PyErr_Format(PyExc_ValueError,
                                      "Invalid NewTopic(%s): %s",
                                      newt->topic, errstr);
-                        i++;
                         goto err;
                 }
 
