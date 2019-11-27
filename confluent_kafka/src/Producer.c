@@ -552,7 +552,7 @@ PyTypeObject ProducerType = {
         "\n"
         "  :param dict config: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set\n"
         "\n"
-        "  Create new Producer instance using provided configuration dict.\n"
+        "  Create a new Producer instance using the provided configuration dict.\n"
         "\n"
         "\n"
         ".. py:function:: len()\n"

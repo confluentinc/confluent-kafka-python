@@ -1540,7 +1540,7 @@ PyTypeObject AdminType = {
         "\n"
         ".. py:function:: Admin(**kwargs)\n"
         "\n"
-        "  Create new AdminClient instance using provided configuration dict.\n"
+        "  Create a new AdminClient instance using the provided configuration dict.\n"
         "\n"
         "This class should not be used directly, use confluent_kafka.AdminClient\n."
         "\n"

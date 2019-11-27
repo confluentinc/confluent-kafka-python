@@ -184,8 +184,8 @@ class ConfigResource(object):
 
 class AdminClient (_AdminClientImpl):
     """
-    The Kafka AdminClient provides admin operations for Kafka brokers,
-    topics, groups, and other resource types supported by the broker.
+    AdminClient provides admin operations for Kafka brokers, topics, groups,
+    and other resource types supported by the broker.
 
     The Admin API methods are asynchronous and returns a dict of
     concurrent.futures.Future objects keyed by the entity.

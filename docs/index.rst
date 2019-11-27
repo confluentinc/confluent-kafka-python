@@ -1,79 +1,106 @@
+The confluent_kafka API
+=======================
 
-Welcome to Confluent's Python client for Apache Kafka documentation
-===================================================================
+A reliable, performant and feature rich Python client for Apache Kafka v0.8 and above.
 
-Indices and tables
-==================
-
-* :ref:`genindex`
-
-:mod:`confluent_kafka` --- Confluent's Python client for Apache Kafka
-*********************************************************************
-
-.. automodule:: confluent_kafka
-   :synopsis: Confluent's Python client for Apache Kafka.
+Clients:
+   - :ref:`Consumer <pythonclient_consumer>`
+   - :ref:`Producer <pythonclient_producer>`
+   - :ref:`AdminClient <pythonclient_adminclient>`
 
 
-********
+Supporting classes:
+    - :ref:`Message <pythonclient_message>`
+    - :ref:`TopicPartition <pythonclient_topicpartition>`
+    - :ref:`KafkaError <pythonclient_kafkaerror>`
+    - :ref:`KafkaException <pythonclient_kafkaexception>`
+    - :ref:`ThrottleEvent <pythonclient_throttleevent>`
+    - :ref:`Avro <pythonclient_avro>`
+
+
+:ref:`genindex`
+
+
+.. _pythonclient_consumer:
+
 Consumer
-********
+========
 
 .. autoclass:: confluent_kafka.Consumer
+   :members:
 
+.. _pythonclient_producer:
 
-********
 Producer
-********
+========
 
 .. autoclass:: confluent_kafka.Producer
+   :members:
 
+.. _pythonclient_adminclient:
 
-*****
-Admin
-*****
+AdminClient
+===========
 
-.. automodule:: confluent_kafka.admin
-
+.. autoclass:: confluent_kafka.admin.AdminClient
+   :members:
 
 .. autoclass:: confluent_kafka.admin.NewTopic
 .. autoclass:: confluent_kafka.admin.NewPartitions
 
-****
+.. _pythonclient_avro:
+
 Avro
-****
+====
 
 .. automodule:: confluent_kafka.avro
-
+   :members:
 
 .. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
+   :members:
 
+
+Supporting Classes
+==================
+
+.. _pythonclient_message:
 
 *******
 Message
 *******
 
 .. autoclass:: confluent_kafka.Message
+   :members:
 
+
+.. _pythonclient_topicpartition:
 
 **************
 TopicPartition
 **************
 
 .. autoclass:: confluent_kafka.TopicPartition
+   :members:
 
+
+.. _pythonclient_kafkaerror:
 
 **********
 KafkaError
 **********
 
 .. autoclass:: confluent_kafka.KafkaError
+   :members:
 
+
+.. _pythonclient_kafkaexception:
 
 **************
 KafkaException
 **************
 
 .. autoclass:: confluent_kafka.KafkaException
+   :members:
 
 
 ******
@@ -87,16 +114,22 @@ Logical offset constants:
  * :py:const:`OFFSET_STORED` - Use stored/committed offset
  * :py:const:`OFFSET_INVALID` - Invalid/Default offset
 
+
+.. _pythonclient_throttleevent:
+
 *************
 ThrottleEvent
 *************
 
 .. autoclass:: confluent_kafka.ThrottleEvent
+   :members:
 
 
+.. _pythonclient_configuration:
 
 Configuration
 =============
+
 Configuration of producer and consumer instances is performed by
 providing a dict of configuration properties to the instance constructor, e.g.::
 
@@ -138,8 +171,11 @@ The Python bindings also provide some additional configuration properties:
   callback. The ``msg.headers()`` will return None even if the original message
   had headers set. This callback is served upon calling ``producer.poll()`` or ``producer.flush()``.
 
-* ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate success or failure
-  of asynchronous and automatic commit requests. This callback is served upon calling ``consumer.poll()``. Is not triggered for synchronous commits.
+* ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate
+  success or failure of asynchronous and automatic commit requests. This callback is served upon calling
+  ``consumer.poll()``. Is not triggered for synchronous commits. Callback arguments: *KafkaError* is the
+  commit error, or None on success. *list(TopicPartition)* is the list of partitions with their committed
+  offsets or per-partition errors.
 
 * ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
   provided ``logging.Handler`` instance.
