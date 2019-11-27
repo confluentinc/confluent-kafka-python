@@ -50,6 +50,8 @@ import uuid
 
 from confluent_kafka import Producer, Consumer
 
+def error_cb(err):
+    print(err.str())
 
 p = Producer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
@@ -57,7 +59,7 @@ p = Producer({
     'security.protocol': 'SASL_SSL',
     'sasl.username': '<ccloud key>',
     'sasl.password': '<ccloud secret>'
-})
+}, error_cb=error_cb)
 
 
 def acked(err, msg):
@@ -84,7 +86,7 @@ c = Consumer({
     'sasl.password': '<ccloud secret>',
     'group.id': str(uuid.uuid1()),  # this will create a new consumer group on each invocation.
     'auto.offset.reset': 'earliest'
-})
+}, error_cb=error_cb)
 
 c.subscribe(['python-test-topic'])
 
