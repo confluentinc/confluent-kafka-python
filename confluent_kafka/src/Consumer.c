@@ -1421,27 +1421,16 @@ PyTypeObject ConsumerType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-        "High-level Kafka Consumer\n"
+        "A high-level Apache Kafka Consumer\n"
         "\n"
         ".. py:function:: Consumer(config)\n"
         "\n"
-        "  :param dict config: Configuration properties. "
-        "At a minimum ``group.id`` **must** be set,"
-        " ``bootstrap.servers`` **should** be set."
-        "\n"
-        "Create new Consumer instance using provided configuration dict.\n"
-        "\n"
-        " Special configuration properties:\n"
-        "   ``on_commit``: Optional callback will be called when a commit "
-        "request has succeeded or failed.\n"
-        "\n"
-        "\n"
-        ".. py:function:: on_commit(err, partitions)\n"
-        "\n"
-        "  :param KafkaError err: Commit error object, or None on success.\n"
-        "  :param list(TopicPartition) partitions: List of partitions with "
-        "their committed offsets or per-partition errors.\n"
-        "\n"
+        "Create a new Consumer instance using the provided configuration *dict* ("
+        "including properties and callback functions). "
+        "See :ref:`pythonclient_configuration` for more information."
+        "\n\n"
+        ":param dict config: Configuration properties. At a minimum "
+        "``group.id`` **must** be set, ``bootstrap.servers`` **should** be set."
         "\n", /*tp_doc*/
 	(traverseproc)Consumer_traverse, /* tp_traverse */
 	(inquiry)Consumer_clear, /* tp_clear */
