@@ -519,10 +519,13 @@ class TopicMetadata (object):
 
     This class is typically not user instantiated.
 
-    :ivar str topic: Topic name.
+    :ivar str -topic: Topic name.
     :ivar dict partitions: Map of partitions indexed by partition id. Value is PartitionMetadata object.
-    :ivar KafkaError error: Topic error, or None. Value is a KafkaError object.
+    :ivar KafkaError -error: Topic error, or None. Value is a KafkaError object.
     """
+    # The dash in "-topic" and "-error" is needed to circumvent a
+    # Sphinx issue where it tries to reference the same instance variable
+    # on other classes.
     def __init__(self):
         self.topic = None
         self.partitions = {}
@@ -548,7 +551,7 @@ class PartitionMetadata (object):
     :ivar int leader: Current leader broker for this partition, or -1.
     :ivar list(int) replicas: List of replica broker ids for this partition.
     :ivar list(int) isrs: List of in-sync-replica broker ids for this partition.
-    :ivar KafkaError error: Partition error, or None. Value is a KafkaError object.
+    :ivar KafkaError -error: Partition error, or None. Value is a KafkaError object.
 
     :warning: Depending on cluster state the broker ids referenced in
               leader, replicas and isrs may temporarily not be reported

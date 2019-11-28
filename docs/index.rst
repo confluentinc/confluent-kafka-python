@@ -19,62 +19,56 @@ Consumer
 ********
 
 .. autoclass:: confluent_kafka.Consumer
-
+   :members:
 
 ********
 Producer
 ********
 
 .. autoclass:: confluent_kafka.Producer
-
+   :members:
 
 *****
 Admin
 *****
 
 .. automodule:: confluent_kafka.admin
-
-
-.. autoclass:: confluent_kafka.admin.NewTopic
-.. autoclass:: confluent_kafka.admin.NewPartitions
+   :members:
 
 ****
 Avro
 ****
 
 .. automodule:: confluent_kafka.avro
-
-
-.. autoclass:: confluent_kafka.avro.CachedSchemaRegistryClient
-
+   :members:
 
 *******
 Message
 *******
 
 .. autoclass:: confluent_kafka.Message
-
+   :members:
 
 **************
 TopicPartition
 **************
 
 .. autoclass:: confluent_kafka.TopicPartition
-
+   :members:
 
 **********
 KafkaError
 **********
 
 .. autoclass:: confluent_kafka.KafkaError
-
+   :members:
 
 **************
 KafkaException
 **************
 
 .. autoclass:: confluent_kafka.KafkaException
-
+   :members:
 
 ******
 Offset
