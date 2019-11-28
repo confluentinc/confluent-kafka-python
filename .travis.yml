@@ -21,7 +21,6 @@ matrix:
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib"
     before_install:
         - pip install -U pip && pip install virtualenv
-        - brew update && brew upgrade pyenv
         - pyenv install -f 2.7.15
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
@@ -32,7 +31,6 @@ matrix:
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" EXTRA_PKGS="sphinx sphinx_rtd_theme avro-python3"
     before_install:
         - pip install -U pip && pip install virtualenv
-        - brew update && brew upgrade pyenv
         - pyenv install -f 3.6.5
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
@@ -41,7 +39,6 @@ matrix:
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
     before_install:
-        - brew update && brew upgrade pyenv
         - pip install virtualenv
   # cibuildwheel for manylinux
   - os: linux
