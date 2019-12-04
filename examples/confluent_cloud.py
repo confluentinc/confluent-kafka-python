@@ -53,10 +53,15 @@ from confluent_kafka import Producer, Consumer
 
 p = Producer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
-    'sasl.mechanisms': 'PLAIN',
+    'sasl.mechanism': 'PLAIN',
     'security.protocol': 'SASL_SSL',
     'sasl.username': '<ccloud key>',
-    'sasl.password': '<ccloud secret>'
+    'sasl.password': '<ccloud secret>',
+    # (Optional) Schema Registry
+    # Note: SchemaRegistry has separate credentials.
+    'schema.registry.url': '<ccloud schema registry endpoint>',
+    'schema.registry.basic.auth.credentials.source': 'USER_INFO',
+    'schema.registry.basic.auth.user.info': '<ccloud registry key>:<ccloud registry secret>'
 })
 
 
@@ -78,12 +83,16 @@ p.flush(10)
 
 c = Consumer({
     'bootstrap.servers': '<ccloud bootstrap servers>',
-    'sasl.mechanisms': 'PLAIN',
+    'sasl.mechanism': 'PLAIN',
     'security.protocol': 'SASL_SSL',
     'sasl.username': '<ccloud key>',
     'sasl.password': '<ccloud secret>',
     'group.id': str(uuid.uuid1()),  # this will create a new consumer group on each invocation.
-    'auto.offset.reset': 'earliest'
+    'auto.offset.reset': 'earliest',
+    # (Optional) Schema Registry (separate credentials).
+    'schema.registry.url': '<ccloud schema registry endpoint>',
+    'schema.registry.basic.auth.credentials.source': 'USER_INFO',
+    'schema.registry.basic.auth.user.info': '<ccloud registry key>:<ccloud registry secret>',
 })
 
 c.subscribe(['python-test-topic'])
