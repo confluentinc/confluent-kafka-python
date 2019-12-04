@@ -135,8 +135,8 @@ class CachedSchemaRegistryClient(object):
             raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
                              .format(VALID_AUTH_PROVIDERS))
         if auth_provider == 'SASL_INHERIT':
-            if conf.pop('sasl.mechanism', '').upper() is ['GSSAPI']:
-                raise ValueError("SASL_INHERIT does not support SASL mechanisms GSSAPI")
+            if conf.pop('sasl.mechanism', '').upper() == 'GSSAPI':
+                raise ValueError("SASL_INHERIT does not support SASL mechanism GSSAPI")
             auth = (conf.pop('sasl.username', ''), conf.pop('sasl.password', ''))
         elif auth_provider == 'USER_INFO':
             auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
