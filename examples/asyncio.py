@@ -17,7 +17,7 @@
 # https://www.confluent.io/blog/[path-to-blog-post]
 
 # Example Siege [https://github.com/JoeDog/siege] test:
-# siege -c 400 -r 200 'http://localhost:8000/items1 POST {"name":"testuser"}'
+# $ siege -c 400 -r 200 'http://localhost:8000/items1 POST {"name":"testuser"}'
 
 import asyncio
 import confluent_kafka
@@ -46,6 +46,9 @@ class AIOProducer:
         self._poll_thread.join()
 
     def produce(self, topic, value):
+        """
+        An awaitable produce method.
+        """
         result = self._loop.create_future()
 
         def ack(err, msg):
@@ -57,6 +60,10 @@ class AIOProducer:
         return result
 
     def produce2(self, topic, value, on_delivery):
+        """
+        A produce method in which delivery notifications are made available
+        via both the returned future and on_delivery callback (if specified).
+        """
         result = self._loop.create_future()
 
         def ack(err, msg):
@@ -167,4 +174,4 @@ async def create_item5(item: Item):
 
 
 if __name__ == '__main__':
-    uvicorn.run(app, host='0.0.0.0', port=8000)
+    uvicorn.run(app, host='127.0.0.1', port=8000)
