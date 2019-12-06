@@ -15,7 +15,7 @@ matrix:
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-  # Source package verification with Python 3.6
+  # Source package verification with Python 3.8
   - os: linux
     language: python
     dist: trusty
@@ -41,7 +41,7 @@ matrix:
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
         - source env/bin/activate
-   # Source package verification with Python 3.6
+   # Source package verification with Python 3.8
   - os: osx
     python: "3.8"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" EXTRA_PKGS="sphinx sphinx_rtd_theme avro-python3"
@@ -49,7 +49,7 @@ matrix:
       - pip install -U pip && pip install virtualenv
       - pyenv install -f 3.8.0
       - pip install virtualenv
-      - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
+      - virtualenv -p ~/.pyenv/versions/3.8.0/bin/python ./env
       - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
