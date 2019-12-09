@@ -65,14 +65,15 @@ class Artifacts (object):
             if not dry_run:
                 os.makedirs(self.dlpath, 0o755)
 
-    def collect_single_s3(self, path):
+    def collect_single_s3(self, path, p_match=None):
         """ Collect single S3 artifact
          :param: path string: S3 path
+         :param: p_match string: Optional p (project) tag to match
         """
 
-        # The S3 folder contains the tokens needed to perform
-        # matching of project, gitref, etc.
-        folder = os.path.dirname(path)
+        # The S3 folder (confluent-kafka-python/p-...__bld-../..) contains
+        # the tokens needed to perform matching of project, gitref, etc.
+        folder = path.split('/')[1]
 
         rinfo = re.findall(r'(?P<tag>[^-]+)-(?P<val>.*?)__', folder)
         if rinfo is None or len(rinfo) == 0:
@@ -80,6 +81,10 @@ class Artifacts (object):
             return None
 
         info = dict(rinfo)
+
+        # Match project
+        if p_match is not None and info.get('p', '') != p_match:
+            return None
 
         # Ignore AppVeyor Debug builds
         if info.get('bldtype', '').lower() == 'debug':
@@ -101,14 +106,33 @@ class Artifacts (object):
 
         return None
 
-    def collect_s3(self):
+    def collect_s3(self, s3_prefix, p_match=None):
         """ Collect and download build-artifacts from S3 based on git reference """
-        print('Collecting artifacts matching tag/sha %s from S3 bucket %s' % (self.gitref, s3_bucket))
+        print('Collecting artifacts matching %s from S3 bucket %s' % (self.gitref, s3_bucket))
         self.s3 = boto3.resource('s3')
         self.s3_bucket = self.s3.Bucket(s3_bucket)
-        self.s3.meta.client.head_bucket(Bucket=s3_bucket)
-        for key in self.s3_bucket.objects.all():
-            self.collect_single_s3(key.key)
+        self.s3_client = boto3.client('s3')
+
+        # note: list_objects will return at most 1000 objects per call,
+        #       use continuation token to read full list.
+        cont_token = None
+        more = True
+        while more:
+            if cont_token is not None:
+                res = self.s3_client.list_objects_v2(Bucket=s3_bucket,
+                                                     Prefix=s3_prefix,
+                                                     ContinuationToken=cont_token)
+            else:
+                res = self.s3_client.list_objects_v2(Bucket=s3_bucket,
+                                                     Prefix=s3_prefix)
+
+            if res.get('IsTruncated') is True:
+                cont_token = res.get('NextContinuationToken')
+            else:
+                more = False
+
+            for item in res.get('Contents'):
+                self.collect_single_s3(item.get('Key'), p_match=p_match)
 
         for a in self.artifacts:
             a.download(self.dlpath)
@@ -142,7 +166,7 @@ if __name__ == '__main__':
     arts = Artifacts(gitref, args.directory)
 
     if not args.no_s3:
-        arts.collect_s3()
+        arts.collect_s3('confluent-kafka-python/', 'confluent-kafka-python')
     else:
         arts.collect_local(arts.dlpath)
 
