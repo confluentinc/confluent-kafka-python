@@ -5,6 +5,7 @@ dist
 *~
 \#*
 MANIFEST
+.idea
 core
 vgcore*
 __pycache__
