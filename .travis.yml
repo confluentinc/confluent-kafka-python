@@ -15,12 +15,6 @@ matrix:
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-  # Source package verification with Python 3.6
-  - os: linux
-    language: python
-    dist: trusty
-    python: "3.8"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
   # Source package verification with Python 2.7
   - os: osx
     python: "2.7"
@@ -41,16 +35,6 @@ matrix:
         - pip install virtualenv
         - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
         - source env/bin/activate
-   # Source package verification with Python 3.6
-  - os: osx
-    python: "3.8"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" EXTRA_PKGS="sphinx sphinx_rtd_theme avro-python3"
-    before_install:
-      - pip install -U pip && pip install virtualenv
-      - pyenv install -f 3.8.0
-      - pip install virtualenv
-      - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
-      - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
