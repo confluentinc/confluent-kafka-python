@@ -82,7 +82,7 @@ class TestMessageSerializer(unittest.TestCase):
         subject = 'test-value'
         self.client.register(subject, basic)
         records = data_gen.BASIC_ITEMS
-        with patch.object(self, "_get_encoder_func") as encoder_func_mock:
+        with patch.object(self.ms, "_get_encoder_func") as encoder_func_mock:
             for record in records:
                 self.ms.encode_record_with_schema(topic, basic, record)
         encoder_func_mock.assert_called_once_with(basic)
