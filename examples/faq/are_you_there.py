@@ -83,7 +83,7 @@ if __name__ == "__main__":
                   'error_cb': dr.error})
 
     try:
-        for data in some_data_source:
+        for data in some_data_source:  # noqa: F821
             p.poll(0)
             p.produce('mytopic', data.encode('utf-8'), on_delivery=dr)
     except ConfluentException:
