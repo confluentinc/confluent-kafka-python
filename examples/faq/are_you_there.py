@@ -63,4 +63,3 @@ if __name__ == "__main__":
                   'retries': 0,
                   'error_cb': dr.error})
     p.poll(1.0)
-
