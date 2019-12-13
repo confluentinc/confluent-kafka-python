@@ -22,3 +22,4 @@ dl-*
 .pytest_cache
 staging
 tests/docker/conf/tls/*
+.idea
