@@ -1,24 +1,41 @@
-__all__ = ['cimpl', 'admin', 'avro', 'kafkatest']
-from .cimpl import (Consumer,  # noqa
-                    KafkaError,
-                    KafkaException,
-                    Message,
-                    Producer,
-                    TopicPartition,
-                    libversion,
-                    version,
-                    TIMESTAMP_NOT_AVAILABLE,
-                    TIMESTAMP_CREATE_TIME,
-                    TIMESTAMP_LOG_APPEND_TIME,
-                    OFFSET_BEGINNING,
-                    OFFSET_END,
-                    OFFSET_STORED,
-                    OFFSET_INVALID)
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+#
+# Copyright 2019 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+__all__ = ['Consumer', 'Producer',
+           'version', 'libversion',
+           'KafkaError', 'KafkaException',
+           'TopicPartition', 'Message',
+           'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',
+           'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME', 'TIMESTAMP_NOT_AVAILABLE',
+           'ThrottleEvent', 'admin', 'kafkatest']
+
+from .cimpl import (Consumer, Producer,
+                    version, libversion,
+                    KafkaError, KafkaException,
+                    TopicPartition, Message,
+                    TIMESTAMP_CREATE_TIME, TIMESTAMP_LOG_APPEND_TIME, TIMESTAMP_NOT_AVAILABLE,
+                    OFFSET_BEGINNING, OFFSET_END, OFFSET_INVALID, OFFSET_STORED)
 
 __version__ = version()[0]
 
 
-class ThrottleEvent (object):
+class ThrottleEvent(object):
     """
     ThrottleEvent contains details about a throttled request.
     Set up a throttle callback by setting the ``throttle_cb`` configuration
