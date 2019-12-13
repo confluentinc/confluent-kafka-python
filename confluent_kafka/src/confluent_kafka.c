@@ -2187,25 +2187,10 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 			     rd_kafka_version());
 }
 
-/*
- * Version hex representation
- * 0xMMmmRRPP
- * MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
- */
-static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "1.3.0", 0x01030000);
-}
 
 static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
-	 "\n"
-	 "  :returns: (version_string, version_int) tuple\n"
-	 "  :rtype: tuple(str,int)\n"
-	 "\n"
-	},
-	{"version", version, METH_NOARGS,
-	 "  Retrieve module version string and integer\n"
 	 "\n"
 	 "  :returns: (version_string, version_int) tuple\n"
 	 "  :rtype: tuple(str,int)\n"

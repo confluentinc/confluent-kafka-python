@@ -6,7 +6,6 @@ from .cimpl import (Consumer,  # noqa
                     Producer,
                     TopicPartition,
                     libversion,
-                    version,
                     TIMESTAMP_NOT_AVAILABLE,
                     TIMESTAMP_CREATE_TIME,
                     TIMESTAMP_LOG_APPEND_TIME,
@@ -15,7 +14,18 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_STORED,
                     OFFSET_INVALID)
 
-__version__ = version()[0]
+__version__ = '1.3.0'
+
+
+def version():
+    """
+     Version hex representation
+     0xMMmmRRPP
+     MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+    """
+    int_ver = map(int, __version__.split('.'))
+    return (__version__,
+            "{0:#04x}{1:02x}{2:02x}00".format(*int_ver))
 
 
 class ThrottleEvent (object):

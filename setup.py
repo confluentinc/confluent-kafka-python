@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 
-import os
-from setuptools import setup, find_packages
 from distutils.core import Extension
 import platform
+import os
+from setuptools import setup, find_packages
+
+from confluent_kafka import __version__
 
 INSTALL_REQUIRES = [
     'futures;python_version<"3.2"',
@@ -52,7 +54,7 @@ def get_install_requirements(path):
 
 
 setup(name='confluent-kafka',
-      version='1.3.0',
+      version=__version__,
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
