@@ -85,7 +85,7 @@ if __name__ == "__main__":
     try:
         for data in some_data_source:
             p.poll(0)
-            p.produce('mytopic', data.encode('utf-8'), callback=dr)
+            p.produce('mytopic', data.encode('utf-8'), on_delivery=dr)
     except ConfluentException:
         print("Failed to successfully send any messages prior to socket.timeout.ms")
         # Custom logic to handle retry, reporting, etc
