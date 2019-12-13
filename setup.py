@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from distutils.core import Extension
-import platform
 import os
 from setuptools import setup, find_packages
+from distutils.core import Extension
+import platform
 
 from confluent_kafka import __version__
 
