@@ -1,40 +1,43 @@
 # Conventions Used in This Document
 Unless otherwise noted all commands, file and directory references are relative to the *source root* directory.
 
-## Terminology
- - modes: Collection of integration tests to be run
- - testconf: [JSON](https://tools.ietf.org/html/rfc8259) formatted configuration file.
-        Example: [tests/testconf-example.json](./tests/testconf-example.json) for formatting.
-
 Unit tests
 ==========
-From top-level directory run:
 
-    $ ./tests/run.sh tox
+Execute tests with each configured interpreter(must be installed on local system). 
+
+    $ tox
+
+Execute a specific test with each configured interpreter.  
+
+    $ tox -- tests/confluent_kafka/test_producer.py
+
+
+Execute tests with a single interpreter(must be present in tox.ini)
+
+    $ tox -e py27
+
+Execute a specific test with a specific interpreter. 
+
+    $ tox -e py27 -- tests/confluent_kafka/test_producer.py
 
 **NOTE**: This requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
 
 If tox is not installed:
 
-    $ ./tests/run.sh unit
+    $ pytest
 
 Integration tests
 =================
 
 ### Requirements
- 1. docker-compose 3.0 +
- 2. docker-engine 1.13.0+
- 3. **Optional:** tox (enables testing against multiple interpreter versions)
+ - docker
 
-### Cluster setup
-**Note** Manual cluster set up is not required when using ./tests/run.sh
+Execute integration tests with each configured interpreter. 
 
-    $ ./tests/docker/bin/cluster_up.sh
+    $ tox -- tests/integration/
 
-### Cluster teardown
-**Note** Manual cluster teardown is not required when using ./tests/run.sh
 
-    $ ./tests/docker/bin/cluster_down.sh
 
 ### Configuration
 Tests are configured with a JSON configuration file referred to as `testconf.json` to be provided as the last argument upon test execution.

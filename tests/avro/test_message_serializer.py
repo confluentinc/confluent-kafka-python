@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
-# Copyright 2016 Confluent Inc.
+#
+# Copyright 2019 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,70 +17,71 @@
 # limitations under the License.
 #
 
-
 #
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 
 import struct
 
-import unittest
-
 from tests.avro import data_gen
-from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
-from confluent_kafka import avro
 
 
-class TestMessageSerializer(unittest.TestCase):
-    def setUp(self):
-        # need to set up the serializer
-        self.client = MockSchemaRegistryClient()
-        self.ms = MessageSerializer(self.client)
+def assert_message_equals(serializer, message, expected, schema_id):
+    assert message
+    assert len(message) > 5
+    magic, sid = struct.unpack('>bI', message[0:5])
+    assert magic == 0
+    assert sid == schema_id
+    decoded = serializer.decode_message(message)
+    assert decoded
+    assert decoded == expected
 
-    def assertMessageIsSame(self, message, expected, schema_id):
-        self.assertTrue(message)
-        self.assertTrue(len(message) > 5)
-        magic, sid = struct.unpack('>bI', message[0:5])
-        self.assertEqual(magic, 0)
-        self.assertEqual(sid, schema_id)
-        decoded = self.ms.decode_message(message)
-        self.assertTrue(decoded)
-        self.assertEqual(decoded, expected)
 
-    def test_encode_with_schema_id(self):
-        adv = avro.loads(data_gen.ADVANCED_SCHEMA)
-        basic = avro.loads(data_gen.BASIC_SCHEMA)
-        subject = 'test'
-        schema_id = self.client.register(subject, basic)
+def test_encode_with_schema_id(mock_schema_registry_client_fixture,
+                               message_serializer_fixture,
+                               schema_fixture):
+    client = mock_schema_registry_client_fixture
+    serializer = message_serializer_fixture(client)
 
-        records = data_gen.BASIC_ITEMS
-        for record in records:
-            message = self.ms.encode_record_with_schema_id(schema_id, record)
-            self.assertMessageIsSame(message, record, schema_id)
+    adv = schema_fixture("adv_schema")
+    basic = schema_fixture("basic_schema")
+    subject = 'test'
+    schema_id = client.register(subject, basic)
 
-        subject = 'test_adv'
-        adv_schema_id = self.client.register(subject, adv)
-        self.assertNotEqual(adv_schema_id, schema_id)
-        records = data_gen.ADVANCED_ITEMS
-        for record in records:
-            message = self.ms.encode_record_with_schema_id(adv_schema_id, record)
-            self.assertMessageIsSame(message, record, adv_schema_id)
+    records = data_gen.BASIC_ITEMS
+    for record in records:
+        message = serializer.encode_record_with_schema_id(schema_id, record)
+        assert_message_equals(serializer, message, record, schema_id)
 
-    def test_encode_record_with_schema(self):
-        topic = 'test'
-        basic = avro.loads(data_gen.BASIC_SCHEMA)
-        subject = 'test-value'
-        schema_id = self.client.register(subject, basic)
-        records = data_gen.BASIC_ITEMS
-        for record in records:
-            message = self.ms.encode_record_with_schema(topic, basic, record)
-            self.assertMessageIsSame(message, record, schema_id)
+    subject = 'test_adv'
+    adv_schema_id = client.register(subject, adv)
+    assert adv_schema_id != schema_id
+    records = data_gen.ADVANCED_ITEMS
+    for record in records:
+        message = serializer.encode_record_with_schema_id(adv_schema_id, record)
+        assert_message_equals(serializer, message, record, adv_schema_id)
 
-    def test_decode_none(self):
-        """"null/None messages should decode to None"""
 
-        self.assertIsNone(self.ms.decode_message(None))
+def test_encode_record_with_schema(mock_schema_registry_client_fixture,
+                                   message_serializer_fixture,
+                                   schema_fixture):
+    client = mock_schema_registry_client_fixture
+    serializer = message_serializer_fixture(client)
 
-    def hash_func(self):
-        return hash(str(self))
+    topic = 'test'
+    basic = schema_fixture("basic_schema")
+    subject = 'test-value'
+    schema_id = client.register(subject, basic)
+    records = data_gen.BASIC_ITEMS
+    for record in records:
+        message = serializer.encode_record_with_schema(topic, basic, record)
+        assert_message_equals(serializer, message, record, schema_id)
+
+
+def test_decode_none(mock_schema_registry_client_fixture,
+                     message_serializer_fixture):
+    """"null/None messages should decode to None"""
+    client = mock_schema_registry_client_fixture
+    serializer = message_serializer_fixture(client)
+
+    assert serializer.decode_message(None) is None

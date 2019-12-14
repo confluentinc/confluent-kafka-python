@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
-# Copyright 2016 Confluent Inc.
+#
+# Copyright 2019 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,106 +23,112 @@
 #
 import os
 
-from confluent_kafka import avro
-
 from requests.exceptions import ConnectionError
+import pytest
 
-import unittest
 from confluent_kafka.avro import AvroProducer
 from confluent_kafka.avro.serializer import (KeySerializerError,
                                              ValueSerializerError)
-
-from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 
 
 avsc_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-class TestAvroProducer(unittest.TestCase):
+def test_instantiation():
+    obj = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'})
+    assert isinstance(obj, AvroProducer)
+    assert obj is not None
 
-    def test_instantiation(self):
-        obj = AvroProducer({'schema.registry.url': 'http://127.0.0.1:0'})
-        self.assertTrue(isinstance(obj, AvroProducer))
-        self.assertNotEqual(obj, None)
 
-    def test_produce_no_key(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema)
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'})
+def test_produce_no_key(schema_fixture):
+    value_schema = schema_fixture("basic_schema")
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema)
+    with pytest.raises(ConnectionError):
+        producer.produce(topic='test', value={"name": 'abc"'})
 
-    def test_produce_no_value(self):
-        key_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_key_schema=key_schema)
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', key={"name": 'abc"'})
 
-    def test_produce_no_value_schema(self):
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(ValueSerializerError):
-            # Producer should not accept a value with no schema
-            producer.produce(topic='test', value={"name": 'abc"'})
+def test_produce_no_value(schema_fixture):
+    key_schema = schema_fixture("basic_schema")
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_key_schema=key_schema)
+    with pytest.raises(ConnectionError):
+        producer.produce(topic='test', key={"name": 'abc"'})
 
-    def test_produce_no_key_schema(self):
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(KeySerializerError):
-            # If the key is provided as a dict an avro schema must also be provided
-            producer.produce(topic='test', key={"name": 'abc"'})
 
-    def test_produce_value_and_key_schemas(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema,
-                                default_key_schema=value_schema)
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
+def test_produce_no_value_schema():
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+    with pytest.raises(ValueSerializerError):
+        # Producer should not accept a value with no schema
+        producer.produce(topic='test', value={"name": 'abc"'})
 
-    def test_produce_primitive_string_key(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
-                             key_schema=key_schema)
 
-    def test_produce_primitive_key_and_value(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-        producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
-        with self.assertRaises(ConnectionError):  # Unexistent schema-registry
-            producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey', key_schema=key_schema)
+def test_produce_no_key_schema():
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+    with pytest.raises(KeySerializerError):
+        # If the key is provided as a dict an avro schema must also be provided
+        producer.produce(topic='test', key={"name": 'abc"'})
 
-    def test_produce_with_custom_registry(self):
-        schema_registry = MockSchemaRegistryClient()
-        value_schema = avro.load(os.path.join(avsc_dir, "basic_schema.avsc"))
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-        producer = AvroProducer({}, schema_registry=schema_registry)
+
+def test_produce_value_and_key_schemas(schema_fixture):
+    value_schema = schema_fixture("basic_schema")
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, default_value_schema=value_schema,
+                            default_key_schema=value_schema)
+    with pytest.raises(ConnectionError):
+        producer.produce(topic='test', value={"name": 'abc"'}, key={"name": 'abc"'})
+
+
+def test_produce_primitive_string_key(schema_fixture):
+    value_schema = schema_fixture("basic_schema")
+    key_schema = schema_fixture("primitive_string")
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+    with pytest.raises(ConnectionError):
         producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
                          key_schema=key_schema)
 
-    def test_produce_with_custom_registry_and_registry_url(self):
-        schema_registry = MockSchemaRegistryClient()
-        with self.assertRaises(ValueError):
-            AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)
 
-    def test_produce_with_empty_value_no_schema(self):
-        schema_registry = MockSchemaRegistryClient()
-        producer = AvroProducer({}, schema_registry=schema_registry)
-        with self.assertRaises(ValueSerializerError):
-            producer.produce(topic='test', value='', key='not empty')
+def test_produce_primitive_key_and_value(schema_fixture):
+    value_schema = schema_fixture("primitive_float")
+    key_schema = schema_fixture("primitive_string")
+    producer = AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'})
+    with pytest.raises(ConnectionError):
+        producer.produce(topic='test', value=32., value_schema=value_schema, key='mykey', key_schema=key_schema)
 
-    def test_produce_with_empty_key_no_schema(self):
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        schema_registry = MockSchemaRegistryClient()
-        producer = AvroProducer({}, schema_registry=schema_registry,
-                                default_value_schema=value_schema)
-        with self.assertRaises(KeySerializerError):
-            producer.produce(topic='test', value=0.0, key='')
 
-    def test_produce_with_empty_key_value_with_schema(self):
-        key_schema = avro.load(os.path.join(avsc_dir, "primitive_string.avsc"))
-        value_schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
-        schema_registry = MockSchemaRegistryClient()
-        producer = AvroProducer({}, schema_registry=schema_registry,
-                                default_key_schema=key_schema,
-                                default_value_schema=value_schema)
+def test_produce_with_custom_registry(mock_schema_registry_client_fixture, schema_fixture):
+    schema_registry = mock_schema_registry_client_fixture
+    value_schema = schema_fixture("basic_schema")
+    key_schema = schema_fixture("primitive_string")
+    producer = AvroProducer({}, schema_registry=schema_registry)
+    producer.produce(topic='test', value={"name": 'abc"'}, value_schema=value_schema, key='mykey',
+                     key_schema=key_schema)
+
+
+def test_produce_with_custom_registry_and_registry_url(mock_schema_registry_client_fixture):
+    schema_registry = mock_schema_registry_client_fixture
+    with pytest.raises(ValueError):
+        AvroProducer({'schema.registry.url': 'http://127.0.0.1:9001'}, schema_registry=schema_registry)
+
+
+def test_produce_with_empty_value_no_schema(mock_schema_registry_client_fixture):
+    schema_registry = mock_schema_registry_client_fixture
+    producer = AvroProducer({}, schema_registry=schema_registry)
+    with pytest.raises(ValueSerializerError):
+        producer.produce(topic='test', value='', key='not empty')
+
+
+def test_produce_with_empty_key_no_schema(mock_schema_registry_client_fixture, schema_fixture):
+    value_schema = schema_fixture("primitive_float")
+    schema_registry = mock_schema_registry_client_fixture
+    producer = AvroProducer({}, schema_registry=schema_registry,
+                            default_value_schema=value_schema)
+    with pytest.raises(KeySerializerError):
         producer.produce(topic='test', value=0.0, key='')
+
+
+def test_produce_with_empty_key_value_with_schema(mock_schema_registry_client_fixture, schema_fixture):
+    key_schema = schema_fixture("primitive_string")
+    value_schema = schema_fixture("primitive_float")
+    schema_registry = mock_schema_registry_client_fixture
+    producer = AvroProducer({}, schema_registry=schema_registry,
+                            default_key_schema=key_schema,
+                            default_value_schema=value_schema)
+    producer.produce(topic='test', value=0.0, key='')
