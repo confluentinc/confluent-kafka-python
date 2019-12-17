@@ -37,6 +37,7 @@ matrix:
         - source env/bin/activate
   # cibuildwheel for osx
   - os: osx
+    osx_image: xcode9.2
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
     before_install:
         - pip install virtualenv
