@@ -143,7 +143,7 @@ class MessageSerializer(object):
         writer = self.id_to_writers[schema_id]
         with ContextStringIO() as outf:
             # Write the magic byte and schema ID in network byte order (big endian)
-            outf.write(struct.pack('>bI', MAGIC_BYTE, schema_id))
+            outf.write(struct.pack('>bi', MAGIC_BYTE, schema_id))
 
             # write the record to the rest of the buffer
             writer(record, outf)
@@ -222,7 +222,7 @@ class MessageSerializer(object):
             raise SerializerError("message is too small to decode")
 
         with ContextStringIO(message) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
+            magic, schema_id = struct.unpack('>bi', payload.read(5))
             if magic != MAGIC_BYTE:
                 raise SerializerError("message does not start with magic byte")
             decoder_func = self._get_decoder_func(schema_id, payload, is_key)
