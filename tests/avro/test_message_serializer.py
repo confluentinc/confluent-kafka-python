@@ -23,6 +23,7 @@
 import struct
 
 import unittest
+from unittest.mock import patch
 
 from tests.avro import data_gen
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
@@ -75,8 +76,19 @@ class TestMessageSerializer(unittest.TestCase):
             message = self.ms.encode_record_with_schema(topic, basic, record)
             self.assertMessageIsSame(message, record, schema_id)
 
+    def test_encode_record_with_schema_sets_writers_cache_once(self):
+        topic = 'test'
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        subject = 'test-value'
+        self.client.register(subject, basic)
+        records = data_gen.BASIC_ITEMS
+        with patch.object(self.ms, "_get_encoder_func") as encoder_func_mock:
+            for record in records:
+                self.ms.encode_record_with_schema(topic, basic, record)
+        encoder_func_mock.assert_called_once_with(basic)
+
     def test_decode_none(self):
-        """"null/None messages should decode to None"""
+        """null/None messages should decode to None"""
 
         self.assertIsNone(self.ms.decode_message(None))
 

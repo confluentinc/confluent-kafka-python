@@ -54,7 +54,7 @@ def create_basic_item(i):
     }
 
 
-BASIC_ITEMS = map(create_basic_item, range(1, 20))
+BASIC_ITEMS = list(map(create_basic_item, range(1, 20)))
 
 ADVANCED_SCHEMA = load_schema_file(os.path.join(avsc_dir, 'adv_schema.avsc'))
 
@@ -68,7 +68,7 @@ def create_adv_item(i):
     return basic
 
 
-ADVANCED_ITEMS = map(create_adv_item, range(1, 20))
+ADVANCED_ITEMS = list(map(create_adv_item, range(1, 20)))
 
 
 def _write_items(base_name, schema_str, items):
