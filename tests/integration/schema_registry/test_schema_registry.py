@@ -27,13 +27,11 @@ from .test_avro import run_avro_loop
 @pytest.mark.parametrize("schema_def", ['basic_schema', 'adv_schema',
                                         'primitive_float', 'primitive_string',
                                         'user_v1', 'user_v2'])
-def test_schema_registry_client(schema_registry_cluster_fixture,
+def test_schema_registry_client(sr_fixture,
                                 schema_fixture, schema_def):
     from confluent_kafka import avro
 
-    sr_app = schema_registry_cluster_fixture.sr
-    sr_conf = {'url': sr_app.get('url')}
-    sr = avro.CachedSchemaRegistryClient(sr_conf)
+    sr = avro.CachedSchemaRegistryClient({'url': sr_fixture.schema_registry})
 
     subject = str(uuid4())
 
@@ -52,9 +50,10 @@ def test_schema_registry_client(schema_registry_cluster_fixture,
 
 # TODO: Add SSL support to trivup. Until then this is a manual setup
 @pytest.mark.xfail
-def test_avro_https(schema_registry_cluster_fixture,
+def test_avro_https(sr_fixture,
                     error_cb_fixture, print_commit_callback_fixture):
-    base_conf = schema_registry_cluster_fixture.client_conf()
+    base_conf = sr_fixture.client_conf
+
     base_conf.update({'error_cb': error_cb_fixture})
 
     consumer_conf = dict(base_conf, **{'group.id': uuid4(),
@@ -79,8 +78,8 @@ def test_avro_https(schema_registry_cluster_fixture,
                                            'schema.registry.sasl.password': 'secret'
                                        }
                                        ])
-def test_avro_basic_auth(schema_registry_cluster_fixture, schema_fixture, error_cb_fixture, auth_conf):
-    base_conf = schema_registry_cluster_fixture.client_conf()
+def test_avro_basic_auth(sr_fixture, schema_fixture, error_cb_fixture, auth_conf):
+    base_conf = sr_fixture.client_conf
     base_conf.update({'error_cb': error_cb_fixture})
 
     consumer_conf = dict({'group.id': uuid4(),

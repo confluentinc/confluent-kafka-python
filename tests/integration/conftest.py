@@ -18,31 +18,15 @@
 #
 
 import struct
-import threading
-from uuid import uuid4
 
 import pytest
 
-from confluent_kafka import Producer
-from trivup.clusters.KafkaCluster import KafkaCluster
-
-topic = "confluent_kafka" + str(uuid4())
-kafka_cluster = None
-
-
-@pytest.fixture(scope="module")
-def topic_fixture():
-    return topic
+from .cluster_fixture import ClusterFixture
 
 
 @pytest.fixture(scope="package")
-def kafka_cluster_fixture():
-    global kafka_cluster
-
-    kafka_cluster = KafkaCluster()
-    yield kafka_cluster
-
-    kafka_cluster.stop(force=False, timeout=60)
+def cluster_fixture():
+    return ClusterFixture(with_sr=False)
 
 
 @pytest.fixture(scope="session")
@@ -125,38 +109,3 @@ def expected_headers_fixture():
             ('nullheader', None),
             ('empty', b''),
             ('foobin', struct.pack('hhl', 10, 20, 30))]
-
-
-@pytest.fixture(scope="session")
-def cluster_producer_fixture():
-    """ pre-populate topic with some data for consumer tests"""
-
-    def _produce_decorator(num_messages, headers=dict()):
-        produce_thread = threading.Thread(target=_produce,
-                                          args=(num_messages, headers))
-        produce_thread.daemon = True
-        produce_thread.start()
-
-    return _produce_decorator
-
-
-def _produce(num_messages, headers=dict()):
-    conf = kafka_cluster.client_conf()
-    conf.update({'linger.ms': 500})
-    p = Producer(conf)
-
-    print('# priming cluster with %d messages to topic %s' % (num_messages, topic))
-    for i in range(0, num_messages):
-        while True:
-            try:
-                p.produce(topic, value="test-data", headers=headers)
-                break
-            except Exception:
-                # Local queue is full (slow broker connection?)
-                p.poll(0.1)
-            continue
-        p.poll(0.0)
-
-    p.flush(10.0)
-
-    print('# finished producing %d messages to topic %s' % (num_messages, topic))

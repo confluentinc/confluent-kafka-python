@@ -23,15 +23,14 @@ import pytest
 
 
 @pytest.mark.timeout(40)
-def test_avro(schema_registry_cluster_fixture, schema_fixture,
+def test_avro(sr_fixture, schema_fixture,
               error_cb_fixture, print_commit_callback_fixture):
-    base_conf = schema_registry_cluster_fixture.client_conf()
-    sr_app = schema_registry_cluster_fixture.sr
+    base_conf = sr_fixture.client_conf
 
     base_conf.update({'error_cb': error_cb_fixture,
                       'api.version.fallback.ms': 0,
                       'broker.version.fallback': '0.11.0.0',
-                      'schema.registry.url': sr_app.get('url')})
+                      'schema.registry.url': sr_fixture.schema_registry})
 
     consumer_conf = dict(base_conf, **{
         'group.id': 'test.py',

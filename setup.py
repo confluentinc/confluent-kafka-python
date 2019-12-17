@@ -22,6 +22,7 @@ TEST_REQUIRES = [
     'pytest==4.6.4;python_version<"3.0"',
     'pytest;python_version>="3.0"',
     'pytest-timeout',
+    'pytest-env',
     'flake8'
 ]
 

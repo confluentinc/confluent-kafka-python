@@ -26,9 +26,9 @@ from confluent_kafka import Consumer, KafkaException
 good_stats_cb_result = False
 
 
-def test_stats_cb(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture, error_cb_fixture):
+def test_stats_cb(cluster_fixture, error_cb_fixture):
     """ Verify stats_cb """
-    topic = topic_fixture
+    topic = cluster_fixture.topic
 
     def stats_cb(stats_json_str):
         global good_stats_cb_result
@@ -40,7 +40,7 @@ def test_stats_cb(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
                       (topic, app_offset))
                 good_stats_cb_result = True
 
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
     conf.update({'group.id': uuid1(),
                  'session.timeout.ms': 6000,
                  'error_cb': error_cb_fixture,
@@ -48,19 +48,20 @@ def test_stats_cb(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
                  'statistics.interval.ms': 200,
                  'auto.offset.reset': 'earliest'})
 
-    c = Consumer(conf)
-    c.subscribe([topic])
+    consumer = Consumer(conf)
+    consumer.subscribe([topic])
 
     max_msgcnt = 1000000
     bytecnt = 0
     msgcnt = 0
 
-    cluster_producer_fixture(max_msgcnt)
+    cluster_fixture.produce(max_msgcnt)
+
     print('Will now consume %d messages' % max_msgcnt)
     while not good_stats_cb_result:
         # Consume until EOF or error
 
-        msg = c.poll(timeout=20.0)
+        msg = consumer.poll(timeout=20.0)
         if msg is None:
             raise Exception('Stalled at %d/%d message, no new messages for 20s' %
                             (msgcnt, max_msgcnt))
@@ -83,4 +84,4 @@ def test_stats_cb(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
                (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
-    c.close()
+    consumer.close()

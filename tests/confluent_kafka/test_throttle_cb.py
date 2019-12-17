@@ -25,7 +25,7 @@ throttled_requests = 0
 
 
 @pytest.mark.xfail
-def test_throttle_cb(kafka_cluster_fixture, topic_fixture):
+def test_throttle_cb(cluster_fixture):
     """ Verify throttle_cb is invoked
         This test requires client quotas be configured.
         See tests/README.md for more information
@@ -40,14 +40,14 @@ def test_throttle_cb(kafka_cluster_fixture, topic_fixture):
                 --entity-name throttled_client --entity-type clients"
     """
 
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
     conf.update({'linger.ms': 500,
                  'client.id': 'throttled_client',
                  'throttle_cb': throttle_cb})
 
     p = Producer(conf)
 
-    topic = topic_fixture
+    topic = cluster_fixture.topic
 
     msgcnt = 1000
     msgsize = 100

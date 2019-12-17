@@ -25,11 +25,11 @@ from confluent_kafka.cimpl import RESOURCE_TOPIC
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource
 
 
-def test_admin(kafka_cluster_fixture, topic_fixture):
+def test_admin(cluster_fixture):
     """ Verify Admin API """
 
-    a = AdminClient(kafka_cluster_fixture.client_conf())
-    our_topic = topic_fixture + '_admin_' + str(uuid4())
+    a = AdminClient(cluster_fixture.client_conf)
+    our_topic = cluster_fixture.topic + '_admin_' + str(uuid4())
     num_partitions = 2
 
     topic_config = {"compression.type": "gzip"}

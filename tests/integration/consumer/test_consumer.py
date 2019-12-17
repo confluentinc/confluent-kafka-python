@@ -22,13 +22,13 @@ from uuid import uuid1
 from confluent_kafka import Consumer, KafkaError, TopicPartition
 
 
-def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture,
+def test_consumer(cluster_fixture,
                   produce_headers_fixture, expected_headers_fixture,
                   print_commit_callback_fixture, error_cb_fixture):
     """ Verify basic Consumer functionality """
 
     # Create consumer
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
 
     conf.update({
         'group.id': 'test.py',
@@ -40,7 +40,8 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
         'enable.partition.eof': True}
     )
 
-    c = Consumer(conf)
+    consumer = Consumer(conf)
+    topic = cluster_fixture.topic
     expected_headers = expected_headers_fixture
 
     def print_wmark(consumer, topic_parts):
@@ -51,7 +52,7 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
             print('Watermarks for %s: %s' % (p, wmarks))
 
     # Subscribe to a list of topics
-    c.subscribe([topic_fixture], on_assign=print_wmark)
+    consumer.subscribe([topic], on_assign=print_wmark)
 
     msgcnt = 0
 
@@ -62,12 +63,14 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
     eof_reached = dict()
 
     max_msgcnt = 100
-    cluster_producer_fixture(max_msgcnt, produce_headers_fixture)
+
+    cluster_fixture.produce(max_msgcnt, headers=produce_headers_fixture)
+
     while True:
         # Consume until EOF or error
 
         # Consume message (error()==0) or event (error()!=0)
-        msg = c.poll()
+        msg = consumer.poll()
         if msg is None:
             raise Exception('Got timeout from poll() without a timeout set: %s' % msg)
 
@@ -76,7 +79,7 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
                 print('Reached end of %s [%d] at offset %d' %
                       (msg.topic(), msg.partition(), msg.offset()))
                 eof_reached[(msg.topic(), msg.partition())] = True
-                if len(eof_reached) == len(c.assignment()):
+                if len(eof_reached) == len(consumer.assignment()):
                     print('EOF reached for all assigned partitions: exiting')
                     break
             else:
@@ -99,19 +102,19 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
             first_msg = msg
 
         if (msgcnt == 11):
-            parts = c.assignment()
+            parts = consumer.assignment()
             print('Pausing partitions briefly')
-            c.pause(parts)
-            exp_None = c.poll(timeout=2.0)
+            consumer.pause(parts)
+            exp_None = consumer.poll(timeout=2.0)
             assert exp_None is None, "expected no messages during pause, got %s" % exp_None
             print('Resuming partitions')
-            c.resume(parts)
+            consumer.resume(parts)
 
         if (msg.offset() % 5) == 0:
             # Async commit
-            c.commit(msg, asynchronous=True)
+            consumer.commit(msg, asynchronous=True)
         elif (msg.offset() % 4) == 0:
-            offsets = c.commit(msg, asynchronous=False)
+            offsets = consumer.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
             assert offsets[0].offset == msg.offset() + 1, \
                 'expected offset %d to be committed, not %s' % \
@@ -128,36 +131,36 @@ def test_consumer(kafka_cluster_fixture, cluster_producer_fixture, topic_fixture
         "example header mismatch:\n{}\nexpected:\n{}".format(example_headers, expected_headers)
 
     # Get current assignment
-    assignment = c.assignment()
+    assignment = consumer.assignment()
 
     # Get cached watermark offsets
     # Since we're not making use of statistics the low offset is not known so ignore it.
-    lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
+    lo, hi = consumer.get_watermark_offsets(assignment[0], cached=True)
     print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
     # Query broker for offsets
-    lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    lo, hi = consumer.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
     # Query offsets for timestamps by setting the topic partition offset to a timestamp. 123456789000 + 1
-    topic_partions_to_search = list(map(lambda p: TopicPartition(topic_fixture, p, 123456789001), range(0, 3)))
+    topic_partions_to_search = list(map(lambda p: TopicPartition(topic, p, 123456789001), range(0, 3)))
     print("Searching for offsets with %s" % topic_partions_to_search)
 
-    offsets = c.offsets_for_times(topic_partions_to_search, timeout=1.0)
+    offsets = consumer.offsets_for_times(topic_partions_to_search, timeout=1.0)
     print("offsets_for_times results: %s" % offsets)
 
-    verify_consumer_seek(c, first_msg)
+    verify_consumer_seek(consumer, first_msg)
 
     # Close consumer
-    c.close()
+    consumer.close()
 
     # Start a new client and get the committed offsets
-    c = Consumer(conf)
-    offsets = c.committed(list(map(lambda p: TopicPartition(topic_fixture, p), range(0, 3))))
+    consumer = Consumer(conf)
+    offsets = consumer.committed(list(map(lambda p: TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
 
-    c.close()
+    consumer.close()
 
 
 def verify_consumer_seek(c, seek_to_msg):
@@ -187,11 +190,11 @@ def verify_consumer_seek(c, seek_to_msg):
         break
 
 
-def test_batch_consumer(kafka_cluster_fixture, topic_fixture, cluster_producer_fixture, error_cb_fixture):
+def test_batch_consumer(cluster_fixture, error_cb_fixture):
     """ Verify basic batch Consumer functionality """
 
     # Consumer config
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
 
     conf.update({
         'group.id': uuid1(),
@@ -200,21 +203,21 @@ def test_batch_consumer(kafka_cluster_fixture, topic_fixture, cluster_producer_f
         'auto.offset.reset': 'earliest'})
 
     # Create consumer
-    c = Consumer(conf)
-
+    consumer = Consumer(conf)
+    topic = cluster_fixture.topic
     # Subscribe to a list of topics
-    c.subscribe([topic_fixture])
+    consumer.subscribe([topic])
 
     max_msgcnt = 1000
     batch_cnt = 100
     msgcnt = 0
 
-    cluster_producer_fixture(max_msgcnt)
+    cluster_fixture.produce(max_msgcnt)
     while msgcnt < max_msgcnt:
         # Consume until we hit max_msgcnt
 
         # Consume messages (error()==0) or event (error()!=0)
-        msglist = c.consume(batch_cnt, 10.0)
+        msglist = consumer.consume(batch_cnt, 10.0)
         assert len(msglist) == batch_cnt, 'expected %d messages, not %d' % (batch_cnt, len(msglist))
 
         for msg in msglist:
@@ -229,9 +232,9 @@ def test_batch_consumer(kafka_cluster_fixture, topic_fixture, cluster_producer_f
 
             if (msg.offset() % 5) == 0:
                 # Async commit
-                c.commit(msg, asynchronous=True)
+                consumer.commit(msg, asynchronous=True)
             elif (msg.offset() % 4) == 0:
-                offsets = c.commit(msg, asynchronous=False)
+                offsets = consumer.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
                 assert offsets[0].offset == msg.offset() + 1, \
                     'expected offset %d to be committed, not %s' % \
@@ -243,24 +246,24 @@ def test_batch_consumer(kafka_cluster_fixture, topic_fixture, cluster_producer_f
     print('max_msgcnt %d reached' % msgcnt)
 
     # Get current assignment
-    assignment = c.assignment()
+    assignment = consumer.assignment()
 
     # Get cached watermark offsets
     # Since we're not making use of statistics the low offset is not known so ignore it.
-    lo, hi = c.get_watermark_offsets(assignment[0], cached=True)
+    lo, hi = consumer.get_watermark_offsets(assignment[0], cached=True)
     print('Cached offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
     # Query broker for offsets
-    lo, hi = c.get_watermark_offsets(assignment[0], timeout=1.0)
+    lo, hi = consumer.get_watermark_offsets(assignment[0], timeout=1.0)
     print('Queried offsets for %s: %d - %d' % (assignment[0], lo, hi))
 
     # Close consumer
-    c.close()
+    consumer.close()
 
     # Start a new client and get the committed offsets
-    c = Consumer(conf)
-    offsets = c.committed(list(map(lambda p: TopicPartition(topic_fixture, p), range(0, 3))))
+    consumer = Consumer(conf)
+    offsets = consumer.committed(list(map(lambda p: TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
 
-    c.close()
+    consumer.close()

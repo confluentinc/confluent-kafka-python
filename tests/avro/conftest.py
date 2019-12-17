@@ -21,24 +21,11 @@ import os
 import random
 
 import pytest
-from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import avro
 from confluent_kafka.avro import MessageSerializer
 from tests.avro.mock_registry import MockServer
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
-
-
-@pytest.fixture(scope="package")
-def schema_registry_cluster_fixture():
-    global kafka_cluster
-
-    kafka_cluster = KafkaCluster(with_sr=True)
-    kafka_cluster.sr.wait_operational()
-
-    yield kafka_cluster
-
-    kafka_cluster.stop(force=False, timeout=60)
 
 
 @pytest.fixture(scope="module")

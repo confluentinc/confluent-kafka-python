@@ -20,22 +20,15 @@
 import os
 
 import pytest
-from trivup.clusters.KafkaCluster import KafkaCluster
+from ..cluster_fixture import ClusterFixture
+
 
 from confluent_kafka import avro
 
 
 @pytest.fixture(scope="package")
-def schema_registry_cluster_fixture():
-    global kafka_cluster
-
-    kafka_cluster = KafkaCluster(with_sr=True)
-    kafka_cluster.sr.wait_operational()
-    kafka_cluster._client_conf['schema.registry.url'] = kafka_cluster.sr.get('url')
-
-    yield kafka_cluster
-
-    kafka_cluster.stop(force=False, timeout=60)
+def sr_fixture():
+    return ClusterFixture(with_sr=True)
 
 
 @pytest.fixture(scope="package")

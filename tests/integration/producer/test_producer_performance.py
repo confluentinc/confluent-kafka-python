@@ -25,15 +25,16 @@ import pytest
 
 
 @pytest.mark.parametrize("with_dr_cb", [True, False])
-def test_producer_performance(kafka_cluster_fixture, topic_fixture, delivery_report_fixture, error_cb_fixture,
+def test_producer_performance(cluster_fixture, delivery_report_fixture, error_cb_fixture,
                               with_dr_cb):
     """ Time how long it takes to produce and delivery X messages """
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
 
     conf.update({'linger.ms': 500,
                  'error_cb': error_cb_fixture})
 
-    p = Producer(conf)
+    producer = Producer(conf)
+    topic = cluster_fixture.topic
 
     msgcnt = 1000000
     msgsize = 100
@@ -45,24 +46,24 @@ def test_producer_performance(kafka_cluster_fixture, topic_fixture, delivery_rep
     t_produce_start = time.time()
     msgs_produced = 0
     msgs_backpressure = 0
-    print('# producing %d messages to topic %s' % (msgcnt, topic_fixture))
+    print('# producing %d messages to topic %s' % (msgcnt, topic))
 
     for i in range(0, msgcnt):
         while True:
             try:
                 if with_dr_cb:
-                    p.produce(topic_fixture, value=msg_payload, callback=dr.delivery)
+                    producer.produce(topic, value=msg_payload, callback=dr.delivery)
                 else:
-                    p.produce(topic_fixture, value=msg_payload)
+                    producer.produce(topic, value=msg_payload)
                 break
             except BufferError:
                 # Local queue is full (slow broker connection?)
                 msgs_backpressure += 1
-                p.poll(100)
+                producer.poll(100)
             continue
 
         msgs_produced += 1
-        p.poll(0)
+        producer.poll(0)
 
     t_produce_spent = time.time() - t_produce_start
 
@@ -74,9 +75,9 @@ def test_producer_performance(kafka_cluster_fixture, topic_fixture, delivery_rep
            (bytecnt / t_produce_spent) / (1024 * 1024)))
     print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
-    print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
+    print('waiting for %d/%d deliveries' % (len(producer), msgs_produced))
     # Wait for deliveries
-    p.flush()
+    producer.flush()
     t_delivery_spent = time.time() - t_produce_start
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %

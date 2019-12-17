@@ -24,18 +24,19 @@ from confluent_kafka import Consumer, KafkaException
 
 
 @pytest.mark.timeout(80)
-def test_consumer_performance(kafka_cluster_fixture, cluster_producer_fixture,
-                              topic_fixture, error_cb_fixture):
+def test_consumer_performance(cluster_fixture,
+                              error_cb_fixture):
     """ Verify Consumer performance """
 
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
 
     conf.update({'group.id': uuid1(),
                  'session.timeout.ms': 6000,
                  'error_cb': error_cb_fixture,
                  'auto.offset.reset': 'earliest'})
 
-    c = Consumer(conf)
+    consumer = Consumer(conf)
+    topic = cluster_fixture.topic
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -49,18 +50,18 @@ def test_consumer_performance(kafka_cluster_fixture, cluster_producer_fixture,
             print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
         consumer.unassign()
 
-    c.subscribe([topic_fixture], on_assign=my_on_assign, on_revoke=my_on_revoke)
+    consumer.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
 
     max_msgcnt = 1000000
     bytecnt = 0
     msgcnt = 0
 
-    cluster_producer_fixture(max_msgcnt)
+    cluster_fixture.produce(max_msgcnt)
     print('Will now consume %d messages' % max_msgcnt)
     while True:
         # Consume until EOF or error
 
-        msg = c.poll(timeout=20.0)
+        msg = consumer.poll(timeout=20.0)
         if msg is None:
             raise Exception('Stalled at %d/%d message, no new messages for 20s' %
                             (msgcnt, max_msgcnt))
@@ -83,20 +84,21 @@ def test_consumer_performance(kafka_cluster_fixture, cluster_producer_fixture,
                (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
-    c.close()
+    consumer.close()
 
 
-def test_batch_consumer_performance(kafka_cluster_fixture, cluster_producer_fixture,
-                                    topic_fixture, error_cb_fixture):
+def test_batch_consumer_performance(cluster_fixture,
+                                    error_cb_fixture):
     """ Verify batch Consumer performance """
 
-    conf = kafka_cluster_fixture.client_conf()
+    conf = cluster_fixture.client_conf
     conf.update({'group.id': uuid1(),
                  'session.timeout.ms': 6000,
                  'error_cb': error_cb_fixture,
                  'auto.offset.reset': 'earliest'})
 
-    c = Consumer(conf)
+    consumer = Consumer(conf)
+    topic = cluster_fixture.topic
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -110,19 +112,19 @@ def test_batch_consumer_performance(kafka_cluster_fixture, cluster_producer_fixt
             print(' %s [%d] @ %d' % (p.topic, p.partition, p.offset))
         consumer.unassign()
 
-    c.subscribe([topic_fixture], on_assign=my_on_assign, on_revoke=my_on_revoke)
+    consumer.subscribe([topic], on_assign=my_on_assign, on_revoke=my_on_revoke)
 
     max_msgcnt = 1000000
     bytecnt = 0
     msgcnt = 0
     batch_size = 1000
 
-    cluster_producer_fixture(max_msgcnt)
+    cluster_fixture.produce(max_msgcnt)
     print('Will now consume %d messages' % max_msgcnt)
     while msgcnt < max_msgcnt:
         # Consume until we hit max_msgcnt
 
-        msglist = c.consume(num_messages=batch_size, timeout=20.0)
+        msglist = consumer.consume(num_messages=batch_size, timeout=20.0)
 
         for msg in msglist:
             if msg.error():
@@ -141,4 +143,4 @@ def test_batch_consumer_performance(kafka_cluster_fixture, cluster_producer_fixt
                (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
-    c.close()
+    consumer.close()
