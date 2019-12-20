@@ -4,6 +4,7 @@ The scripts in this directory provide code examples using Confluent's Python cli
 * [avro-cli.py](avro-cli.py): produces Avro messages with Confluent Schema Registry and then reads them back again 
 * [consumer.py](consumer.py): reads messages from a Kafka topic
 * [producer.py](producer.py): reads lines from stdin and sends them to Kafka
+* [sasl-gssapi](sasl-gssapi.py): produce and consume to Kerberized cluster with TLS
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 
