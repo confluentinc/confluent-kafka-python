@@ -44,7 +44,7 @@ matrix:
   - os: linux
     dist: trusty
     sudo: required
-    env: CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}" CIBW_MANYLINUX_X86_64_IMAGE="manylinux1" CIBW_MANYLINUX_I686_IMAGE="manylinux1"
+    env: PYTHON_CONFIGURE_OPTS=--enable-unicode=ucs4 --with-wide-uniode CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}" CIBW_MANYLINUX_X86_64_IMAGE="manylinux1" CIBW_MANYLINUX_I686_IMAGE="manylinux1"
     language: python
     python: "2.7"
     services: docker
