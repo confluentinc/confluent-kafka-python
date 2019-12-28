@@ -85,7 +85,7 @@ class CachedSchemaRegistryClient(object):
             """Construct a Schema Registry client"""
 
         # Ensure URL valid scheme is included; http[s]
-        url = conf.get('url', '')
+        url = conf.pop('url', '')
         if not isinstance(url, string_type):
             raise TypeError("URL must be of type str")
 
@@ -106,9 +106,8 @@ class CachedSchemaRegistryClient(object):
         if ca_path is not None:
             s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
-        s.auth = self._configure_basic_auth(conf)
-
-        self.url = conf.pop('url')
+        s.auth = self._configure_basic_auth(self.url, conf)
+        self.url = utils.urldefragauth(self.url)
 
         self._session = s
 
@@ -128,8 +127,7 @@ class CachedSchemaRegistryClient(object):
         self._session.close()
 
     @staticmethod
-    def _configure_basic_auth(conf):
-        url = conf['url']
+    def _configure_basic_auth(url, conf):
         auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
         if auth_provider not in VALID_AUTH_PROVIDERS:
             raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
@@ -142,7 +140,6 @@ class CachedSchemaRegistryClient(object):
             auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
         else:
             auth = utils.get_auth_from_url(url)
-        conf['url'] = utils.urldefragauth(url)
         return auth
 
     @staticmethod

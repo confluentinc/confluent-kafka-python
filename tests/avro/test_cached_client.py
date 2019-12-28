@@ -180,6 +180,12 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
                 'url': 'example.com:65534'
             })
 
+    def test_trailing_slash_removal(self):
+        self.client = CachedSchemaRegistryClient({
+            'url': 'http://127.0.0.1:65534/'
+        })
+        self.assertEqual(self.client.url, "http://127.0.0.1:65534")
+
     def test_basic_auth_url(self):
         self.client = CachedSchemaRegistryClient({
             'url': 'https://user_url:secret_url@127.0.0.1:65534',
