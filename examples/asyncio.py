@@ -15,7 +15,7 @@
 
 # Companion code to the blog post "Integrating Kafka With Python
 # Asyncio Web Applications"
-# https://www.confluent.io/blog/[path-to-blog-post]
+# https://www.confluent.io/blog/kafka-python-asyncio-integration/
 
 # Example Siege [https://github.com/JoeDog/siege] test:
 # $ siege -c 400 -r 200 'http://localhost:8000/items1 POST {"name":"testuser"}'
