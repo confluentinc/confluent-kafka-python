@@ -21,6 +21,8 @@ from glob import glob
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 sys.path[:0] = [os.path.abspath(x) for x in glob('../build/lib.*')]
 
+autodoc_mock_imports = ['cimpl']
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
