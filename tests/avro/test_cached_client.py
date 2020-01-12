@@ -24,7 +24,13 @@ import unittest
 
 from tests.avro import mock_registry
 from tests.avro import data_gen
-from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
+from confluent_kafka.avro.cached_schema_registry_client import (
+    CachedSchemaRegistryClient,
+
+    topic_name_strategy,
+    record_name_strategy,
+    topic_record_name_strategy,
+)
 from confluent_kafka import avro
 
 
@@ -227,3 +233,85 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
                 'invalid.conf': 1,
                 'invalid.conf2': 2
             })
+
+    def test_default_key_subject_name_strategy(self):
+        client = CachedSchemaRegistryClient({
+            'url': 'https://user_url:secret_url@127.0.0.1:65534',
+        })
+
+        expected = topic_name_strategy
+
+        self.assertEqual(expected, client.key_subject_name_strategy_func)
+
+    def test_invalid_key_subject_name_strategy(self):
+        with self.assertRaises(ValueError):
+            CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'key.subject.name.strategy': "InvalidNameStrategy",
+            })
+
+    def test_key_subject_name_strategies(self):
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'key.subject.name.strategy': "TopicNameStrategy",
+        })
+
+        expected = topic_name_strategy
+        self.assertEqual(expected, client.key_subject_name_strategy_func)
+
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'key.subject.name.strategy': "RecordNameStrategy",
+        })
+
+        expected = record_name_strategy
+        self.assertEqual(expected, client.key_subject_name_strategy_func)
+
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'key.subject.name.strategy': "TopicRecordNameStrategy",
+        })
+
+        expected = topic_record_name_strategy
+        self.assertEqual(expected, client.key_subject_name_strategy_func)
+
+    def test_default_value_subject_name_strategy(self):
+        client = CachedSchemaRegistryClient({
+            'url': 'https://user_url:secret_url@127.0.0.1:65534',
+        })
+
+        expected = topic_name_strategy
+
+        self.assertEqual(expected, client.value_subject_name_strategy_func)
+
+    def test_invalid_value_subject_name_strategy(self):
+        with self.assertRaises(ValueError):
+            CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'value.subject.name.strategy': "InvalidNameStrategy",
+            })
+
+    def test_value_subject_name_strategies(self):
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'value.subject.name.strategy': "TopicNameStrategy",
+        })
+
+        expected = topic_name_strategy
+        self.assertEqual(expected, client.value_subject_name_strategy_func)
+
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'value.subject.name.strategy': "RecordNameStrategy",
+        })
+
+        expected = record_name_strategy
+        self.assertEqual(expected, client.value_subject_name_strategy_func)
+
+        client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'value.subject.name.strategy': "TopicRecordNameStrategy",
+        })
+
+        expected = topic_record_name_strategy
+        self.assertEqual(expected, client.value_subject_name_strategy_func)
