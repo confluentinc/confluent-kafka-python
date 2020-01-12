@@ -100,9 +100,14 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        subject_suffix = ('-key' if is_key else '-value')
-        # get the latest schema for the subject
-        subject = topic + subject_suffix
+        if is_key:
+            subject_suffix = '-key'
+            # get the latest schema for the subject
+            subject = self.registry_client.key_subject_name_strategy_func(topic, record) + subject_suffix  # noqa
+        else:
+            subject_suffix = '-value'
+            subject = self.registry_client.value_subject_name_strategy_func(topic, record) + subject_suffix  # noqa
+
         # register it
         schema_id = self.registry_client.register(subject, schema)
         if not schema_id:

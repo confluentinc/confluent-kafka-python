@@ -39,6 +39,25 @@ VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 
+
+def topic_name_strategy(topic, record):
+    return topic
+
+
+def record_name_strategy(topic, record):
+    return record.type
+
+
+def topic_record_name_strategy(topic, record):
+    return "%s-%s" % (topic, record.type)
+
+
+SUBJECT_NAME_STRATEGIES = {
+    'TopicNameStrategy': topic_name_strategy,
+    'RecordNameStrategy': record_name_strategy,
+    'TopicRecordNameStrategy': topic_record_name_strategy,
+}
+
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
@@ -108,6 +127,22 @@ class CachedSchemaRegistryClient(object):
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
         self.url = utils.urldefragauth(self.url)
+
+        key_subject_name_strategy = conf.pop(
+            'key.subject.name.strategy',
+            'TopicNameStrategy'
+        )
+        if key_subject_name_strategy not in SUBJECT_NAME_STRATEGIES:
+            raise ValueError("Invalid Key Subject Name Strategy")
+        self.key_subject_name_strategy_func = SUBJECT_NAME_STRATEGIES[key_subject_name_strategy]  # noqa
+
+        value_subject_name_strategy = conf.pop(
+            'value.subject.name.strategy',
+            'TopicNameStrategy'
+        )
+        if value_subject_name_strategy not in SUBJECT_NAME_STRATEGIES:
+            raise ValueError("Invalid Value Subject Name Strategy")
+        self.value_subject_name_strategy_func = SUBJECT_NAME_STRATEGIES[key_subject_name_strategy]  # noqa
 
         self._session = s
 
