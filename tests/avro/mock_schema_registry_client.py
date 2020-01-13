@@ -21,6 +21,7 @@
 #
 
 from confluent_kafka.avro import ClientError
+from confluent_kafka.avro.cached_schema_registry_client import topic_name_strategy
 
 
 class MockSchemaRegistryClient(object):
@@ -44,6 +45,9 @@ class MockSchemaRegistryClient(object):
         # counters
         self.next_id = 1
         self.schema_to_id = {}
+
+        self.key_subject_name_strategy_func = topic_name_strategy
+        self.value_subject_name_strategy_func = topic_name_strategy
 
     def _get_next_id(self, schema):
         if schema in self.schema_to_id:
