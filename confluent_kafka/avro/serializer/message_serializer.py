@@ -85,6 +85,16 @@ class MessageSerializer(object):
         writer = avro.io.DatumWriter(writer_schema)
         return lambda record, fp: writer.write(record, avro.io.BinaryEncoder(fp))
 
+    def _get_subject(self, topic, schema, is_key):
+        if is_key:
+            subject_suffix = '-key'
+            # get the latest schema for the subject
+            subject = self.registry_client.key_subject_name_strategy_func(topic, schema) + subject_suffix  # noqa
+        else:
+            subject_suffix = '-value'
+            subject = self.registry_client.value_subject_name_strategy_func(topic, schema) + subject_suffix  # noqa
+        return subject
+
     def encode_record_with_schema(self, topic, schema, record, is_key=False):
         """
         Given a parsed avro schema, encode a record for the given topic.  The
@@ -100,13 +110,7 @@ class MessageSerializer(object):
         """
         serialize_err = KeySerializerError if is_key else ValueSerializerError
 
-        if is_key:
-            subject_suffix = '-key'
-            # get the latest schema for the subject
-            subject = self.registry_client.key_subject_name_strategy_func(topic, record) + subject_suffix  # noqa
-        else:
-            subject_suffix = '-value'
-            subject = self.registry_client.value_subject_name_strategy_func(topic, record) + subject_suffix  # noqa
+        subject = self._get_subject(topic, schema, is_key)
 
         # register it
         schema_id = self.registry_client.register(subject, schema)
