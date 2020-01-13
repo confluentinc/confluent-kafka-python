@@ -12,22 +12,22 @@ from tests.avro import data_gen
 
 class TestSubjectNameStrategies(unittest.TestCase):
     def setUp(self):
-        self.record = avro.loads(data_gen.ADVANCED_SCHEMA)
+        self.schema = avro.loads(data_gen.ADVANCED_SCHEMA)
 
     def test_topic_name_strategy(self):
-        subject = topic_name_strategy("topic", self.record)
+        subject = topic_name_strategy("topic", self.schema)
         expected = "topic"
 
         self.assertEqual(expected, subject)
 
     def test_record_name_strategy(self):
-        subject = record_name_strategy("topic", self.record)
-        expected = self.record.name
+        subject = record_name_strategy("topic", self.schema)
+        expected = self.schema.name
 
         self.assertEqual(expected, subject)
 
     def test_topic_record_name_strategy(self):
-        subject = topic_record_name_strategy("topic", self.record)
-        expected = "topic-%s" % self.record.name
+        subject = topic_record_name_strategy("topic", self.schema)
+        expected = "topic-%s" % self.schema.name
 
         self.assertEqual(expected, subject)
