@@ -80,5 +80,21 @@ class TestMessageSerializer(unittest.TestCase):
 
         self.assertIsNone(self.ms.decode_message(None))
 
+    def test__get_subject_for_key(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=True)
+
+        expected = "topic-key"
+        self.assertEqual(expected, subject)
+
+    def test__get_subject_for_value(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=False)
+
+        expected = "topic-value"
+        self.assertEqual(expected, subject)
+
     def hash_func(self):
         return hash(str(self))
