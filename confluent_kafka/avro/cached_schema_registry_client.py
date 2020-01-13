@@ -45,11 +45,11 @@ def topic_name_strategy(topic, record):
 
 
 def record_name_strategy(topic, record):
-    return record.type
+    return record.name
 
 
 def topic_record_name_strategy(topic, record):
-    return "%s-%s" % (topic, record.type)
+    return "%s-%s" % (topic, record.name)
 
 
 SUBJECT_NAME_STRATEGIES = {
