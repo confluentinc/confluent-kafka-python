@@ -142,7 +142,7 @@ class CachedSchemaRegistryClient(object):
         )
         if value_subject_name_strategy not in SUBJECT_NAME_STRATEGIES:
             raise ValueError("Invalid Value Subject Name Strategy")
-        self.value_subject_name_strategy_func = SUBJECT_NAME_STRATEGIES[key_subject_name_strategy]  # noqa
+        self.value_subject_name_strategy_func = SUBJECT_NAME_STRATEGIES[value_subject_name_strategy]  # noqa
 
         self._session = s
 
