@@ -1,8 +1,8 @@
-Confluent's Python Client for Apache Kafka<sup>TM</sup>
+Confluent's Python Client for Apache Kafka<sup>®</sup>
 =======================================================
 
 **confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
-[Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
+[Apache Kafka<sup>®<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
 and the [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
 - **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
