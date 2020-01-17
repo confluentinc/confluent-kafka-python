@@ -292,7 +292,7 @@ class CachedSchemaRegistryClient(object):
         :returns: (schema_id, schema, version)
         :rtype: (string, schema, int)
         """
-        url = '/'.join([self.url, 'subjects', subject, 'versions', version])
+        url = '/'.join([self.url, 'subjects', subject, 'versions', str(version)])
 
         result, code = self._send_request(url)
         if code == 404:
