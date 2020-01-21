@@ -5,7 +5,6 @@
 
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
-from confluent_kafka.avro.load import load, loads  # noqa
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from confluent_kafka.avro.serializer import (SerializerError,  # noqa
                                              KeySerializerError,
@@ -50,7 +49,7 @@ class AvroProducer(Producer):
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
 
-    def produce(self, **kwargs):
+    def produce(self, topic, value, **kwargs):
         """
             Asynchronously sends message to Kafka by encoding with specified or default avro schema.
 

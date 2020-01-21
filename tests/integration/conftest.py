@@ -1,6 +1,8 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
-# Copyright 2017 Confluent Inc.
+#
+# Copyright 2020 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,28 +17,16 @@
 # limitations under the License.
 #
 
-from fastavro.schema import parse_schema, load_schema
+import pytest
+
+from .cluster_fixture import ClusterFixture
 
 
-def loads(schema):
+@pytest.fixture(scope="package")
+def cluster_fixture():
     """
-    Returns an Avro Schema from a string
-
-    :param str schema: Schema string to be parsed
-    :returns: Parsed Avro Schema
-    :rtype: Dict
+    Starts a single node Kafka cluster to run integration tests against.
+    :returns: trivup.clusters.KafkaCluster
     """
-    """ Parse a schema given a schema string """
-    return parse_schema(schema)
-
-
-def load(avsc):
-    """
-    Returns an Avro Schema from a file path.
-
-    :param str avsc: Path to Avro Schema file
-    :returns: Parsed Schema
-    :rtype: dict
-    """
-    """ Parse a schema from a file path """
-    return load_schema(fp)
+    return ClusterFixture({'broker_cnt': 1, 'broker_conf': ['transaction.state.log.replication.factor=1',
+                                                            'transaction.state.log.min.isr=1']})

@@ -5,25 +5,14 @@ from setuptools import setup, find_packages
 from distutils.core import Extension
 import platform
 
-INSTALL_REQUIRES = [
-    'futures;python_version<"3.2"',
-    'enum34;python_version<"3.4"',
-    'requests;python_version<"3.2"'
-]
+with open('confluent_kafka/requirements.txt') as f:
+    INSTALL_REQUIRES = f.read().split()
 
-AVRO_REQUIRES = [
-    'fastavro',
-    'requests',
-    'avro;python_version<"3.0"',
-    'avro-python3;python_version>"3.0"'
-]
+with open('confluent_kafka/avro/requirements.txt') as f:
+    AVRO_REQUIRES = f.read().splitlines()
 
-TEST_REQUIRES = [
-    'pytest==4.6.4;python_version<"3.0"',
-    'pytest;python_version>="3.0"',
-    'pytest-timeout',
-    'flake8'
-]
+with open('tests/requirements.txt') as f:
+    TEST_REQUIRES = f.read().splitlines()
 
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
