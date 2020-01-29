@@ -133,6 +133,12 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema_id = self.registry.register(subject, avro_schema)
         return (200, {'id': schema_id})
 
+    def check_registration(self, req, groups):
+        avro_schema = self._get_schema_from_body(req)
+        subject = groups[0]
+        schema_id = self.registry.check_registration(subject, avro_schema)
+        return (200, {'id': schema_id})
+
     def get_version(self, req, groups):
         avro_schema = self._get_schema_from_body(req)
         if not avro_schema:
