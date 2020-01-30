@@ -175,7 +175,8 @@ class MessageSerializer(object):
             # try to use fast avro
             try:
                 fast_avro_writer_schema = parse_schema(writer_schema_obj.to_json())
-                fast_avro_reader_schema = parse_schema(reader_schema_obj.to_json())
+                fast_avro_reader_schema = None if reader_schema_obj is None \
+                    else parse_schema(reader_schema_obj.to_json())
                 schemaless_reader(payload, fast_avro_writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
