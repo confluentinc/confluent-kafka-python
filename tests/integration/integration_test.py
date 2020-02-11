@@ -746,6 +746,7 @@ def verify_schema_registry_client():
     schema = avro.load(os.path.join(avsc_dir, "primitive_float.avsc"))
 
     schema_id = sr.register(subject, schema)
+    assert schema_id == sr.check_registration(subject, schema)
     assert schema == sr.get_by_id(schema_id)
     latest_id, latest_schema, latest_version = sr.get_latest_schema(subject)
     assert schema == latest_schema

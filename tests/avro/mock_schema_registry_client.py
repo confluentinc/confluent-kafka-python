@@ -48,6 +48,7 @@ class MockSchemaRegistryClient(object):
 
         self.key_subject_name_strategy_func = topic_name_strategy
         self.value_subject_name_strategy_func = topic_name_strategy
+        self.auto_register_schemas = True
 
     def _get_next_id(self, schema):
         if schema in self.schema_to_id:
@@ -108,6 +109,26 @@ class MockSchemaRegistryClient(object):
         # add it
         version = self._get_next_version(subject)
         schema_id = self._get_next_id(avro_schema)
+
+        # cache it
+        self._cache_schema(avro_schema, schema_id, subject, version)
+        return schema_id
+
+    def check_registration(self, subject, avro_schema):
+        """
+        Check if a schema has already been registered under the specified subject.
+        If so, returns the schema id. Otherwise, raises a ClientError.
+
+        avro_schema must be a parsed schema from the python avro library
+
+        Multiple instances of the same schema will result in inconsistencies.
+        """
+        schemas_to_id = self.subject_to_schema_ids.get(subject, {})
+        schema_id = schemas_to_id.get(avro_schema, -1)
+        if schema_id != -1:
+            return schema_id
+
+        version = self._get_next_version(subject) - 1
 
         # cache it
         self._cache_schema(avro_schema, schema_id, subject, version)

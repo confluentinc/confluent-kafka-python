@@ -112,8 +112,12 @@ class MessageSerializer(object):
 
         subject = self._get_subject(topic, schema, is_key)
 
-        # register it
-        schema_id = self.registry_client.register(subject, schema)
+        if self.registry_client.auto_register_schemas:
+            # register it
+            schema_id = self.registry_client.register(subject, schema)
+        else:
+            schema_id = self.registry_client.check_registration(subject, schema)
+
         if not schema_id:
             message = "Unable to retrieve schema id for subject %s" % (subject)
             raise serialize_err(message)

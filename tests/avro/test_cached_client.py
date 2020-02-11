@@ -51,6 +51,12 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         self.assertTrue(schema_id > 0)
         self.assertEqual(len(client.id_to_schema), 1)
 
+    def test_check_registration(self):
+        parsed = avro.loads(data_gen.BASIC_SCHEMA)
+        client = self.client
+        schema_id = client.register('test', parsed)
+        self.assertEqual(schema_id, client.check_registration('test', parsed))
+
     def test_multi_subject_register(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
         client = self.client
