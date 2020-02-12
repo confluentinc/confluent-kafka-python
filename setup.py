@@ -8,7 +8,6 @@ import platform
 INSTALL_REQUIRES = [
     'futures;python_version<"3.2"',
     'enum34;python_version<"3.4"',
-    'requests;python_version<"3.2"'
 ]
 
 AVRO_REQUIRES = [
@@ -22,6 +21,7 @@ TEST_REQUIRES = [
     'pytest==4.6.4;python_version<"3.0"',
     'pytest;python_version>="3.0"',
     'pytest-timeout',
+    'trivup',
     'flake8'
 ]
 

@@ -66,6 +66,16 @@
  #endif
 #endif
 
+/**
+ * Avoid unused function warnings
+ */
+#if _WIN32
+#define CFL_UNUSED
+#define CFL_INLINE __inline
+#else
+#define CFL_UNUSED __attribute__((unused))
+#define CFL_INLINE __inline
+#endif
 
 /**
  * librdkafka feature detection
@@ -402,7 +412,11 @@ PyObject *Message_error (Message *self, PyObject *ignore);
 
 extern PyTypeObject ProducerType;
 
-
+static CFL_UNUSED CFL_INLINE int cfl_timeout_ms(double tmout) {
+        if (tmout < 0)
+                return -1;
+        return (int)(tmout * 1000);
+}
 /****************************************************************************
  *
  *
