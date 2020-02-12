@@ -87,12 +87,9 @@ class MessageSerializer(object):
 
     def _get_subject(self, topic, schema, is_key):
         if is_key:
-            subject_suffix = '-key'
-            # get the latest schema for the subject
-            subject = self.registry_client.key_subject_name_strategy_func(topic, schema) + subject_suffix  # noqa
+            subject = self.registry_client.key_subject_name_strategy_func(topic, schema, is_key)  # noqa
         else:
-            subject_suffix = '-value'
-            subject = self.registry_client.value_subject_name_strategy_func(topic, schema) + subject_suffix  # noqa
+            subject = self.registry_client.value_subject_name_strategy_func(topic, schema, is_key) # noqa
         return subject
 
     def encode_record_with_schema(self, topic, schema, record, is_key=False):
@@ -116,6 +113,7 @@ class MessageSerializer(object):
             # register it
             schema_id = self.registry_client.register(subject, schema)
         else:
+            # get the latest schema for the subject
             schema_id = self.registry_client.check_registration(subject, schema)
 
         if not schema_id:

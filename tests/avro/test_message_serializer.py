@@ -28,7 +28,11 @@ from tests.avro import data_gen
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
-from confluent_kafka.avro.cached_schema_registry_client import topic_record_name_strategy  # noqa
+from confluent_kafka.avro.cached_schema_registry_client import (
+    topic_name_strategy,
+    record_name_strategy,
+    topic_record_name_strategy,
+)
 
 
 class TestMessageSerializer(unittest.TestCase):
@@ -81,22 +85,58 @@ class TestMessageSerializer(unittest.TestCase):
 
         self.assertIsNone(self.ms.decode_message(None))
 
-    def test__get_subject_for_key(self):
+    def test__get_subject_for_key_with_topic_name_strategy(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        self.ms.registry_client.key_subject_name_strategy_func = topic_name_strategy  # noqa
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=True)
+
+        expected = "topic-key"
+        self.assertEqual(expected, subject)
+
+    def test__get_subject_for_key_with_record_name_strategy(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        self.ms.registry_client.key_subject_name_strategy_func = record_name_strategy  # noqa
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=True)
+
+        expected = "python.test.basic.basic"
+        self.assertEqual(expected, subject)
+
+    def test__get_subject_for_key_with_topic_record_name_strategy(self):
         basic = avro.loads(data_gen.BASIC_SCHEMA)
         topic = "topic"
         self.ms.registry_client.key_subject_name_strategy_func = topic_record_name_strategy  # noqa
         subject = self.ms._get_subject(topic=topic, schema=basic, is_key=True)
 
-        expected = "topic-basic-key"
+        expected = "topic-python.test.basic.basic"
         self.assertEqual(expected, subject)
 
-    def test__get_subject_for_value(self):
+    def test__get_subject_for_value_with_topic_name_strategy(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        self.ms.registry_client.value_subject_name_strategy_func = topic_name_strategy  # noqa
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=False)
+
+        expected = "topic-value"
+        self.assertEqual(expected, subject)
+
+    def test__get_subject_for_value_with_record_name_strategy(self):
+        basic = avro.loads(data_gen.BASIC_SCHEMA)
+        topic = "topic"
+        self.ms.registry_client.value_subject_name_strategy_func = record_name_strategy  # noqa
+        subject = self.ms._get_subject(topic=topic, schema=basic, is_key=False)
+
+        expected = "python.test.basic.basic"
+        self.assertEqual(expected, subject)
+
+    def test__get_subject_for_value_with_topic_record_name_strategy(self):
         basic = avro.loads(data_gen.BASIC_SCHEMA)
         topic = "topic"
         self.ms.registry_client.value_subject_name_strategy_func = topic_record_name_strategy  # noqa
         subject = self.ms._get_subject(topic=topic, schema=basic, is_key=False)
 
-        expected = "topic-basic-value"
+        expected = "topic-python.test.basic.basic"
         self.assertEqual(expected, subject)
 
     def hash_func(self):

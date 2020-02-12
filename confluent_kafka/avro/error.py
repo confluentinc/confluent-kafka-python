@@ -29,3 +29,14 @@ class ClientError(Exception):
 
     def __str__(self):
         return self.message
+
+
+class SubjectNameStrategyError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __repr__(self):
+        return "SubjectNameStrategyError(error={error})".format(error=self.message)  # noqa
+
+    def __str__(self):
+        return self.message

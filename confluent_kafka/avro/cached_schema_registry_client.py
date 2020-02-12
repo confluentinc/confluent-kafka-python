@@ -24,9 +24,10 @@ import logging
 import warnings
 from collections import defaultdict
 
+from avro.schema import RecordSchema
 from requests import Session, utils
 
-from .error import ClientError
+from .error import ClientError, SubjectNameStrategyError
 from . import loads
 
 # Python 2 considers int an instance of str
@@ -40,16 +41,22 @@ VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 
 
-def topic_name_strategy(topic, record):
-    return topic
+def topic_name_strategy(topic, schema, is_key):
+    return topic + ("-key" if is_key else "-value")
 
 
-def record_name_strategy(topic, record):
-    return record.name
+def record_name_strategy(topic, schema, is_key):
+    if isinstance(schema, RecordSchema) and schema.fullname:
+        return schema.fullname
+
+    if is_key:
+        raise SubjectNameStrategyError("the message key must have a name")
+    else:
+        raise SubjectNameStrategyError("the message value must have a name")
 
 
-def topic_record_name_strategy(topic, record):
-    return "%s-%s" % (topic, record.name)
+def topic_record_name_strategy(topic, schema, is_key):
+    return topic + "-" + record_name_strategy(topic, schema, is_key)
 
 
 SUBJECT_NAME_STRATEGIES = {
