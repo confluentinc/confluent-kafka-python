@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.3.0
+  - LIBRDKAFKA_VERSION=v1.4.0-RC1c
 matrix:
  include:
   # Source package verification with Python 2.7
@@ -57,7 +57,7 @@ install:
  - tools/install-interceptors.sh
  - pip install -U pip && pip install virtualenv
  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install pytest-timeout flake8 trivup; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel --force-reinstall; fi
  - if [[ ! -z $EXTRA_PKGS ]]; then pip install $(echo $EXTRA_PKGS) ; fi
@@ -67,8 +67,8 @@ script:
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
  # Make plugins available for tests
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test -v --timeout 20 --ignore=tmp-build --import-mode append ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test -v --timeout=60 --ignore=tmp-build --import-mode append ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test -v --timeout=60 --ignore=tmp-build --import-mode append ; fi
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-osx.sh; fi

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from confluent_kafka import Producer, KafkaError, KafkaException, libversion
+from confluent_kafka import Producer, Consumer, KafkaError, KafkaException, \
+    TopicPartition, libversion
 from struct import pack
 
 
@@ -188,3 +189,49 @@ def test_set_invalid_partitioner_murmur():
     with pytest.raises(KafkaException) as ex:
         Producer({'partitioner': 'murmur'})
     assert ex.match('Invalid value for configuration property "partitioner": murmur')
+
+
+def test_transaction_api():
+    """ Excercise the transactional API """
+    p = Producer({"transactional.id": "test"})
+
+    with pytest.raises(KafkaException) as ex:
+        p.init_transactions(0.5)
+    assert ex.value.args[0].code() == KafkaError._TIMED_OUT
+    assert ex.value.args[0].retriable() is True
+    assert ex.value.args[0].fatal() is False
+    assert ex.value.args[0].txn_abortable() is False
+
+    # Any subsequent APIs will fail since init did not succeed.
+    with pytest.raises(KafkaException) as ex:
+        p.begin_transaction()
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
+    assert ex.value.args[0].fatal() is False
+    assert ex.value.args[0].txn_abortable() is False
+
+    consumer = Consumer({"group.id": "testgroup"})
+    group_metadata = consumer.consumer_group_metadata()
+    consumer.close()
+
+    with pytest.raises(KafkaException) as ex:
+        p.send_offsets_to_transaction([TopicPartition("topic", 0, 123)],
+                                      group_metadata)
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
+    assert ex.value.args[0].fatal() is False
+    assert ex.value.args[0].txn_abortable() is False
+
+    with pytest.raises(KafkaException) as ex:
+        p.commit_transaction(0.5)
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
+    assert ex.value.args[0].fatal() is False
+    assert ex.value.args[0].txn_abortable() is False
+
+    with pytest.raises(KafkaException) as ex:
+        p.abort_transaction(0.5)
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
+    assert ex.value.args[0].fatal() is False
+    assert ex.value.args[0].txn_abortable() is False
