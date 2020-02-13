@@ -15,7 +15,7 @@ AVRO_REQUIRES = [
     'fastavro',
     'requests',
     'avro;python_version<"3.0"',
-    'avro-python3;python_version>"3.0"'
+    'avro-python3==1.9.1;python_version>"3.0"'
 ]
 
 TEST_REQUIRES = [
