@@ -15,26 +15,16 @@
 # limitations under the License.
 #
 
+import warnings
 
-class SerializerError(Exception):
-    """Generic error from serializer package"""
+from confluent_kafka.serialization.error import \
+    SerializerError, KeySerializerError, ValueSerializerError
 
-    def __init__(self, message):
-        self.message = message
-
-    def __repr__(self):
-        return '{klass}(error={error})'.format(
-            klass=self.__class__.__name__,
-            error=self.message
-        )
-
-    def __str__(self):
-        return self.message
+__all__ = ['SerializerError', 'KeySerializerError', 'ValueSerializerError']
 
 
-class KeySerializerError(SerializerError):
-    pass
-
-
-class ValueSerializerError(SerializerError):
-    pass
+warnings.warn(
+    "Exceptions SerializerError, KeySerializerError and ValueSerializerError "
+    "have been repackaged under confluent_kafka.serialization. "
+    "This package will be removed in a future version",
+    category=DeprecationWarning, stacklevel=2)

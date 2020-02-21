@@ -1,9 +1,9 @@
-__all__ = ['cimpl', 'admin', 'avro', 'kafkatest']
-from .cimpl import (Consumer,  # noqa
-                    KafkaError,
+from .producer import Producer
+from .consumer import Consumer
+
+from .cimpl import (KafkaError, # noqa
                     KafkaException,
                     Message,
-                    Producer,
                     TopicPartition,
                     libversion,
                     version,
@@ -14,6 +14,8 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_END,
                     OFFSET_STORED,
                     OFFSET_INVALID)
+
+__all__ = ['cimpl', 'admin', 'avro', 'kafkatest', 'Producer', 'Consumer']
 
 __version__ = version()[0]
 

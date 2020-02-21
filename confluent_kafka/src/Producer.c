@@ -280,7 +280,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
             return NULL;
     }
 #else
-    if (headers) {
+    if (headers && headers != Py_None) {
         if(!(rd_headers = py_headers_to_c(headers)))
             return NULL;
     }

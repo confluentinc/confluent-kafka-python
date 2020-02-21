@@ -89,26 +89,25 @@ class MockSchemaRegistryClient(object):
                 return
         self.subject_to_latest_schema[subject] = (schema_id, schema, version)
 
-    def register(self, subject, avro_schema):
+    def register(self, subject, schema):
         """
         Register a schema with the registry under the given subject
         and receive a schema id.
 
-        avro_schema must be a parsed schema from the python avro library
 
         Multiple instances of the same schema will result in inconsistencies.
         """
         schemas_to_id = self.subject_to_schema_ids.get(subject, {})
-        schema_id = schemas_to_id.get(avro_schema, -1)
+        schema_id = schemas_to_id.get(schema, -1)
         if schema_id != -1:
             return schema_id
 
         # add it
         version = self._get_next_version(subject)
-        schema_id = self._get_next_id(avro_schema)
+        schema_id = schema.id = self._get_next_id(schema)
 
         # cache it
-        self._cache_schema(avro_schema, schema_id, subject, version)
+        self._cache_schema(schema, schema_id, subject, version)
         return schema_id
 
     def check_registration(self, subject, avro_schema):

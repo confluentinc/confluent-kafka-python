@@ -22,3 +22,6 @@ dl-*
 .pytest_cache
 staging
 tests/docker/conf/tls/*
+.DS_Store
+.idea
+tmp-KafkaCluster

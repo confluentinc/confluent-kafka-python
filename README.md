@@ -148,9 +148,8 @@ avroProducer.flush()
 **AvroConsumer**
 
 ```python
-from confluent_kafka import KafkaError
 from confluent_kafka.avro import AvroConsumer
-from confluent_kafka.avro.serializer import SerializerError
+from confluent_kafka.serialization import SerializerError
 
 
 c = AvroConsumer({

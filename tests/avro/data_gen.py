@@ -23,9 +23,7 @@ import os
 import os.path
 import random
 
-from avro import schema
-from avro.datafile import DataFileWriter
-from avro.io import DatumWriter
+from fastavro import writer, parse_schema
 
 NAMES = ['stefan', 'melanie', 'nick', 'darrel', 'kent', 'simon']
 AGES = list(range(1, 10)) + [None]
@@ -72,13 +70,12 @@ ADVANCED_ITEMS = map(create_adv_item, range(1, 20))
 
 
 def _write_items(base_name, schema_str, items):
-    avro_schema = schema.Parse(schema_str)
+    avro_schema = parse_schema(schema_str)
     avro_file = base_name + '.avro'
-    with DataFileWriter(open(avro_file, "w"), DatumWriter(), avro_schema) as writer:
+    with open(avro_file, "w") as fo:
         for i in items:
-            writer.append(i)
-    writer.close
-    return (avro_file)
+            writer(fo, avro_schema, i)
+    return avro_file
 
 
 def write_basic_items(base_name):

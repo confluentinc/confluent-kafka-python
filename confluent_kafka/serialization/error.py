@@ -16,20 +16,26 @@
 # limitations under the License.
 #
 
-import warnings
 
-from .avro_consumer import AvroConsumer
-from .avro_producer import AvroProducer
-from .cached_schema_registry_client import CachedSchemaRegistryClient
-from .error import ClientError
-from .load import load, loads
+class SerializerError(Exception):
+    """Generic error from serializer package"""
 
-__all__ = ['AvroConsumer', 'AvroProducer',
-           'load', 'loads',
-           'ClientError', 'CachedSchemaRegistryClient']
+    def __init__(self, message):
+        self.message = message
 
-# TODO: Add reference to avro example
-warnings.warn(
-    "Package confluent_kafka.avro has been deprecated."
-    "This package will be removed in a future version",
-    category=DeprecationWarning, stacklevel=2)
+    def __repr__(self):
+        return '{klass}(error={error})'.format(
+            klass=self.__class__.__name__,
+            error=self.message
+        )
+
+    def __str__(self):
+        return self.message
+
+
+class KeySerializerError(SerializerError):
+    pass
+
+
+class ValueSerializerError(SerializerError):
+    pass

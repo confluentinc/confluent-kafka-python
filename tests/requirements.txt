@@ -1,0 +1,5 @@
+ flake8
+ pytest==4.6.9;python_version<"3.0"
+ pytest;python_version>="3.0"
+ pytest-timeout
+ trivup

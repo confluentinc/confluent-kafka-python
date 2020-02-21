@@ -16,27 +16,25 @@
 #
 
 
-#
-# derived from https://github.com/verisign/python-confluent-schemaregistry.git
-#
-
 import unittest
 import pytest
-from avro import schema
+from fastavro._validation import UnknownType
+
 from tests.avro import data_gen
 from confluent_kafka import avro
+from confluent_kafka.schema_registry.avro import AvroSchema
 
 
 class TestUtil(unittest.TestCase):
     def test_schema_from_string(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
-        self.assertTrue(isinstance(parsed, schema.Schema))
+        self.assertTrue(isinstance(parsed, AvroSchema))
 
     def test_schema_from_file(self):
         parsed = avro.load(data_gen.get_schema_path('adv_schema.avsc'))
-        self.assertTrue(isinstance(parsed, schema.Schema))
+        self.assertTrue(isinstance(parsed, AvroSchema))
 
     def test_schema_load_parse_error(self):
-        with pytest.raises(avro.ClientError) as excinfo:
+        with pytest.raises(UnknownType) as excinfo:
             avro.load(data_gen.get_schema_path("invalid_scema.avsc"))
-        assert 'Schema parse failed:' in str(excinfo.value)
+        assert "OrbitDbProducer.array" in str(excinfo.value)

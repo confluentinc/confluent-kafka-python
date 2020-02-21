@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2017 Confluent Inc.
+# Copyright 2016 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,14 +16,6 @@
 # limitations under the License.
 #
 
-import warnings
+from .schema import load, loads, AvroSchema
 
-from confluent_kafka.schema_registry.avro.schema import load, loads
-
-__all__ = ['load', 'loads']
-
-
-warnings.warn(
-    "Functions load and loads have been repackaged under confluent_kafka.schema_registry."
-    "This package will be removed in a future version",
-    category=DeprecationWarning, stacklevel=2)
+__all__ = ['load', 'loads', 'AvroSchema']

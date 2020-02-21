@@ -28,7 +28,7 @@ from threading import Thread, Event
 
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
-from confluent_kafka.avro.error import ClientError
+from confluent_kafka.schema_registry.error import ClientError
 
 
 if sys.version_info[0] < 3:
@@ -100,17 +100,17 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if not schema:
             return self._create_error("schema not found", 404)
         result = {
-            "schema": json.dumps(schema.to_json())
+            "schema": str(schema)
         }
-        return (200, result)
+        return 200, result
 
-    def _get_identity_schema(self, avro_schema):
+    def _get_identity_schema(self, schema):
         # normalized
-        schema_str = json.dumps(avro_schema.to_json())
+        schema_str = str(schema)
         if schema_str in self.schema_cache:
             return self.schema_cache[schema_str]
-        self.schema_cache[schema_str] = avro_schema
-        return avro_schema
+        self.schema_cache[schema_str] = schema
+        return schema
 
     def _get_schema_from_body(self, req):
         length = int(req.headers['content-length'])
@@ -120,17 +120,17 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if not schema:
             return None
         try:
-            avro_schema = avro.loads(schema)
-            return self._get_identity_schema(avro_schema)
+            schema = avro.loads(schema)
+            return self._get_identity_schema(schema)
         except ClientError:
             return None
 
     def register(self, req, groups):
-        avro_schema = self._get_schema_from_body(req)
-        if not avro_schema:
+        schema = self._get_schema_from_body(req)
+        if not schema:
             return self._create_error("Invalid avro schema", 422, 42201)
         subject = groups[0]
-        schema_id = self.registry.register(subject, avro_schema)
+        schema_id = self.registry.register(subject, schema)
         return (200, {'id': schema_id})
 
     def check_registration(self, req, groups):
@@ -140,17 +140,17 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         return (200, {'id': schema_id})
 
     def get_version(self, req, groups):
-        avro_schema = self._get_schema_from_body(req)
-        if not avro_schema:
+        schema = self._get_schema_from_body(req)
+        if not schema:
             return self._create_error("Invalid avro schema", 422, 42201)
         subject = groups[0]
-        version = self.registry.get_version(subject, avro_schema)
+        version = self.registry.get_version(subject, schema)
         if version == -1:
             return self._create_error("Not found", 404)
-        schema_id = self.registry.get_id_for_schema(subject, avro_schema)
+        schema_id = self.registry.get_id_for_schema(subject, schema)
 
         result = {
-            "schema": json.dumps(avro_schema.to_json()),
+            "schema": str(schema),
             "subject": subject,
             "id": schema_id,
             "version": version
@@ -159,11 +159,11 @@ class MockServer(HTTPSERVER.HTTPServer, object):
 
     def get_latest(self, req, groups):
         subject = groups[0]
-        schema_id, avro_schema, version = self.registry.get_latest_schema(subject)
+        schema_id, schema, version = self.registry.get_latest_schema(subject)
         if schema_id is None:
             return self._create_error("Not found", 404)
         result = {
-            "schema": json.dumps(avro_schema.to_json()),
+            "schema": str(schema),
             "subject": subject,
             "id": schema_id,
             "version": version

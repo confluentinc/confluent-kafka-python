@@ -43,7 +43,19 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         client = self.client
         schema_id = client.register('test', parsed)
         self.assertTrue(schema_id > 0)
-        self.assertEqual(len(client.id_to_schema), 1)
+        self.assertEqual(len(parsed.subjects), 1)
+
+    def test_register_caching(self):
+        topic = 'test'
+        counter_id = ('POST', '/subjects/{}/versions'.format(topic))
+        parsed = avro.loads(data_gen.BASIC_SCHEMA)
+        client = self.client
+
+        client.register(topic, parsed)
+        client.register(topic, parsed)
+        client.register(topic, parsed)
+        count = self.server.server.counts.get(counter_id, 0)
+        self.assertEqual(count, 1)
 
     def test_check_registration(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
@@ -60,7 +72,7 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         # register again under different subject
         dupe_id = client.register('other', parsed)
         self.assertEqual(schema_id, dupe_id)
-        self.assertEqual(len(client.id_to_schema), 1)
+        self.assertEqual(len(parsed.subjects), 2)
 
     def test_dupe_register(self):
         parsed = avro.loads(data_gen.BASIC_SCHEMA)
@@ -102,6 +114,21 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
 
         fetched = client.get_by_id(schema_id)
         self.assertEqual(fetched, parsed)
+
+    def test_get_caching(self):
+        client = self.client
+        topic = 'test'
+        parsed = avro.loads(data_gen.BASIC_SCHEMA)
+
+        schema_id = client.register(topic, parsed)
+        counter_id = ('GET', '/schemas/ids/{}'.format(schema_id))
+
+        client.get_by_id(1)
+        client.get_by_id(1)
+        client.get_by_id(1)
+
+        count = self.server.server.counts.get(counter_id, 0)
+        self.assertEqual(count, 1)
 
     def test_multi_register(self):
         basic = avro.loads(data_gen.BASIC_SCHEMA)
@@ -153,7 +180,7 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
             parsed = avro.loads(data_gen.BASIC_SCHEMA)
             schema_id = c.register('test', parsed)
             self.assertTrue(schema_id > 0)
-            self.assertEqual(len(c.id_to_schema), 1)
+            self.assertEqual(len(parsed.subjects), 1)
 
     def test_init_with_dict(self):
         self.client = CachedSchemaRegistryClient({

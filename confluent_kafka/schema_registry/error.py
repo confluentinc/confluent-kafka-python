@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 #
 # Copyright 2017 Confluent Inc.
 #
@@ -16,14 +15,17 @@
 # limitations under the License.
 #
 
-import warnings
 
-from confluent_kafka.schema_registry.avro.schema import load, loads
+class ClientError(Exception):
+    """ Error thrown by Schema Registry clients """
 
-__all__ = ['load', 'loads']
+    def __init__(self, message, http_code=None):
+        self.message = message
+        self.http_code = http_code
+        super(ClientError, self).__init__(self.__str__())
 
+    def __repr__(self):
+        return "ClientError(error={error})".format(error=self.message)
 
-warnings.warn(
-    "Functions load and loads have been repackaged under confluent_kafka.schema_registry."
-    "This package will be removed in a future version",
-    category=DeprecationWarning, stacklevel=2)
+    def __str__(self):
+        return self.message

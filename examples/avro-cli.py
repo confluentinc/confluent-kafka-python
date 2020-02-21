@@ -118,7 +118,7 @@ def consume(topic, conf):
         Consume User records
     """
     from confluent_kafka.avro import AvroConsumer
-    from confluent_kafka.avro.serializer import SerializerError
+    from confluent_kafka.serialization import SerializerError
 
     print("Consuming user records from topic {} with group {}. ^c to exit.".format(topic, conf["group.id"]))
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 #
 # Copyright 2017 Confluent Inc.
 #
@@ -15,17 +16,14 @@
 # limitations under the License.
 #
 
+import warnings
 
-class ClientError(Exception):
-    """ Error thrown by Schema Registry clients """
+from confluent_kafka.schema_registry.error import ClientError
 
-    def __init__(self, message, http_code=None):
-        self.message = message
-        self.http_code = http_code
-        super(ClientError, self).__init__(self.__str__())
+__all__ = ['ClientError']
 
-    def __repr__(self):
-        return "ClientError(error={error})".format(error=self.message)
 
-    def __str__(self):
-        return self.message
+warnings.warn(
+    "ClientError have been repackaged under confluent_kafka.schema_registry."
+    "This package will be removed in a future version",
+    category=DeprecationWarning, stacklevel=2)
