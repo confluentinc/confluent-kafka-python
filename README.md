@@ -275,7 +275,7 @@ Linux distribution's `ca-certificates` package which needs to be installed
 through `apt`, `yum`, et.al.
 
 If your system stores CA certificates in another location you will need to
-configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`. 
+configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.  On MacOS Mojave and later, this is usually ` '/private/etc/ssl/cert.pem'`.
 
 Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
 Python package. To use certifi, add an `import certifi` line and configure the
