@@ -206,5 +206,5 @@ class AvroSerializer(object):
             schema = self.registry_client.get_by_id(schema_id)
 
             if reader_schema:
-                return schemaless_reader(payload, schema.schema, reader_schema.schema)
-            return schemaless_reader(payload, schema.schema)
+                return schemaless_reader(payload, schema.schema, reader_schema.schema, True)
+            return schemaless_reader(payload, schema.schema, None, True)

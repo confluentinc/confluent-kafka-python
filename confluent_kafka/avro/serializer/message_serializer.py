@@ -155,8 +155,8 @@ class MessageSerializer(object):
         reader_schema = self.reader_key_schema if is_key else self.reader_value_schema
 
         if reader_schema:
-            return schemaless_reader(data, schema.schema, reader_schema.schema)
-        return schemaless_reader(data, schema.schema)
+            return schemaless_reader(data, schema.schema, reader_schema.schema, True)
+        return schemaless_reader(data, schema.schema, None, True)
 
     def decode_message(self, data, is_key=False):
         """
