@@ -1952,10 +1952,10 @@ PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
         PyObject *module = PyImport_ImportModule(modulename);
         PyObject *obj;
 
-        if (!modulename) {
-                PyErr_Format(PyExc_TypeError,
-                             "Module %s not found when looking up %s.%s",
-                             modulename, modulename, typename);
+        if (!module) {
+                PyErr_Format(PyExc_ImportError,
+                             "Module not found when looking up %s.%s",
+                             modulename, typename);
                 return NULL;
         }
 
