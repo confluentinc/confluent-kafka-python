@@ -343,11 +343,11 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
         const rd_kafka_metadata_t *metadata = NULL;
         rd_kafka_topic_t *only_rkt = NULL;
         const char *topic = NULL;
-        double timeout = -1.0f;
+        double tmout = -1.0f;
         static char *kws[] = {"topic", "timeout", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws,
-                                         &topic, &timeout))
+                                         &topic, &tmout))
                 return NULL;
 
         if (topic != NULL) {
@@ -364,7 +364,7 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
         CallState_begin(self, &cs);
 
         err = rd_kafka_metadata(self->rk, !only_rkt, only_rkt, &metadata,
-                                timeout >= 0 ? (int)(timeout * 1000.0f) : -1);
+                                cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
                 /* Exception raised */

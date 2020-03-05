@@ -596,8 +596,7 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 		return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
-        err = rd_kafka_committed(self->rk, c_parts,
-                                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        err = rd_kafka_committed(self->rk, c_parts, cfl_timeout_ms(tmout));
         Py_END_ALLOW_THREADS;
 
 	if (err) {
@@ -793,7 +792,7 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
                 err = rd_kafka_query_watermark_offsets(self->rk,
                                                        tp->topic, tp->partition,
                                                        &low, &high,
-                                                       tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+                                                       cfl_timeout_ms(tmout));
                 Py_END_ALLOW_THREADS;
         }
 
@@ -844,9 +843,8 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
                 return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
-        err = rd_kafka_offsets_for_times(self->rk,
-                                         c_parts,
-                                         tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        err = rd_kafka_offsets_for_times(self->rk, c_parts,
+                                         cfl_timeout_ms(tmout));
         Py_END_ALLOW_THREADS;
 
         if (err) {
@@ -884,8 +882,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         CallState_begin(self, &cs);
 
-        rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
-                                     (int)(tmout * 1000.0f) : -1);
+        rkm = rd_kafka_consumer_poll(self->rk, cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
                 if (rkm)
@@ -940,9 +937,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
 
         n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
-                tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
-                rkmessages,
-                num_messages);
+                                                     cfl_timeout_ms(tmout),
+                                                     rkmessages, num_messages);
 
         if (!CallState_end(self, &cs)) {
                 for (i = 0; i < n; i++) {
