@@ -363,7 +363,7 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-	r = Producer_poll0(self, (int)(tmout * 1000));
+	r = Producer_poll0(self, cfl_timeout_ms(tmout));
 	if (r == -1)
 		return NULL;
 
@@ -385,7 +385,7 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 
 #if RD_KAFKA_VERSION >= 0x00090300
         CallState_begin(self, &cs);
-        rd_kafka_flush(self->rk, tmout < 0 ? -1 : (int)(tmout * 1000));
+        rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
         if (!CallState_end(self, &cs))
                 return NULL;
         qlen = rd_kafka_outq_len(self->rk);
