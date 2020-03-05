@@ -286,7 +286,7 @@ Prerequisites
 =============
 
  * Python >= 2.7 or Python 3.x
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 0.11.5 (latest release is embedded in wheels)
+ * [librdkafka](https://github.com/edenhill/librdkafka) >= 1.4.0 (latest release is embedded in wheels)
 
 librdkafka is embedded in the macosx manylinux wheels, for other platforms, SASL Kerberos/GSSAPI support or
 when a specific version of librdkafka is desired, following these guidelines:
