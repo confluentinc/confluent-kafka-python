@@ -373,6 +373,10 @@ rd_kafka_headers_t *py_headers_to_c (PyObject *hdrs);
 PyObject *c_headers_to_py (rd_kafka_headers_t *headers);
 #endif
 
+PyObject *c_cgmd_to_py (const rd_kafka_consumer_group_metadata_t *cgmd);
+rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj);
+
+
 /****************************************************************************
  *
  *
