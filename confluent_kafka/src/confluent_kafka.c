@@ -1257,6 +1257,55 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 #endif
 
 
+/**
+ * @brief Convert C rd_kafka_consumer_group_metadata_t to Python binary string
+ *
+ * @returns The new Python object, or NULL and raises an exception failure.
+ */
+PyObject *c_cgmd_to_py (const rd_kafka_consumer_group_metadata_t *cgmd) {
+	PyObject *obj;
+        void *buffer;
+        size_t size;
+        rd_kafka_error_t *error;
+
+        error = rd_kafka_consumer_group_metadata_write(cgmd, &buffer, &size);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        obj = cfl_PyBin(_FromStringAndSize(buffer, (Py_ssize_t)size));
+        rd_kafka_mem_free(NULL, buffer);
+
+        return obj;
+}
+
+/**
+ * @brief Convert Python bytes object to C rd_kafka_consumer_group_metadata_t.
+ *
+ * @returns The new C object, or NULL and raises an exception on failure.
+ */
+rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj) {
+        rd_kafka_consumer_group_metadata_t *cgmd;
+        rd_kafka_error_t *error;
+        char *buffer;
+        Py_ssize_t size;
+
+        if (cfl_PyBin(_AsStringAndSize(obj, &buffer, &size)) == -1)
+                return NULL;
+
+        error = rd_kafka_consumer_group_metadata_read(&cgmd,
+                                                      (const void *)buffer,
+                                                      (size_t)size);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        return cgmd;
+}
+
+
 /****************************************************************************
  *
  *

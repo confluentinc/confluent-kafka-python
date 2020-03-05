@@ -1001,6 +1001,30 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         Py_RETURN_NONE;
 }
 
+static PyObject *
+Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
+        rd_kafka_consumer_group_metadata_t *cgmd;
+        PyObject *obj;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!(cgmd = rd_kafka_consumer_group_metadata(self->rk))) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer group metadata not available");
+                return NULL;
+        }
+
+        obj = c_cgmd_to_py(cgmd);
+
+        rd_kafka_consumer_group_metadata_destroy(cgmd);
+
+        return obj; /* Possibly NULL */
+}
+
 
 static PyMethodDef Consumer_methods[] = {
 	{ "subscribe", (PyCFunction)Consumer_subscribe,
@@ -1277,6 +1301,16 @@ static PyMethodDef Consumer_methods[] = {
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
         },
+        { "consumer_group_metadata",
+          (PyCFunction)Consumer_consumer_group_metadata, METH_NOARGS,
+          ".. py:function:: consumer_group_metadata()\n"
+          "\n"
+          " :returns: the consumer's current group metadata. "
+          "This object should be passed to the transactional producer's "
+          "send_offsets_to_transaction() API.\n"
+          "\n"
+        },
+
 
 	{ NULL }
 };
