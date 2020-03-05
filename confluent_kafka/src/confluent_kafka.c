@@ -63,6 +63,9 @@ typedef struct {
 		      * was provided by librdkafka.
 		      * Else falls back on err2str(). */
         int   fatal; /**< Set to true if a fatal error. */
+        int   retriable; /**< Set to true if operation is retriable. */
+        int   txn_abortable; /**< Set to true if this is an abortable
+                              *   transaction error. */
 } KafkaError;
 
 
@@ -86,6 +89,18 @@ static PyObject *KafkaError_name (KafkaError *self, PyObject *ignore) {
 
 static PyObject *KafkaError_fatal (KafkaError *self, PyObject *ignore) {
         PyObject *ret = self->fatal ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+static PyObject *KafkaError_retriable (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->retriable ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+static PyObject *KafkaError_txn_abortable (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->txn_abortable ? Py_True : Py_False;
         Py_INCREF(ret);
         return ret;
 }
@@ -129,6 +144,21 @@ static PyMethodDef KafkaError_methods[] = {
         },
         { "_test_raise_fatal", (PyCFunction)KafkaError_test_raise_fatal,
           METH_NOARGS|METH_STATIC
+        },
+        { "retriable", (PyCFunction)KafkaError_retriable, METH_NOARGS,
+          "  :returns: True if the operation that failed may be retried, "
+          "else False.\n"
+          "  :rtype: bool\n"
+          "\n"
+        },
+        { "txn_abortable", (PyCFunction)KafkaError_txn_abortable, METH_NOARGS,
+          "  :returns: True if the error is an abortable transaction error, "
+          "allowing the application to abort the current transaction with "
+          "abort_transaction() and start a new transaction with "
+          "begin_transaction(). This will only return true for errors from "
+          "the transactional producer API.\n"
+          "  :rtype: bool\n"
+          "\n"
         },
 
 	{ NULL }
@@ -274,6 +304,8 @@ static void KafkaError_init (KafkaError *self,
 			     rd_kafka_resp_err_t code, const char *str) {
 	self->code = code;
         self->fatal = 0;
+        self->retriable = 0;
+        self->txn_abortable = 0;
 	if (str)
 		self->str = strdup(str);
 	else
@@ -316,6 +348,26 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
                 return KafkaError_new0(err, "%s", str);
         else
                 return KafkaError_new0(err, NULL);
+}
+
+
+/**
+ * @brief Create a KafkaError object from  an rd_kafka_error_t *
+ *        and destroy the C object when done.
+ */
+PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error) {
+        KafkaError *kerr;
+
+        kerr = (KafkaError *)KafkaError_new0(rd_kafka_error_code(error),
+                                             "%s",
+                                             rd_kafka_error_string(error));
+
+        kerr->fatal = rd_kafka_error_is_fatal(error);
+        kerr->retriable = rd_kafka_error_is_retriable(error);
+        kerr->txn_abortable = rd_kafka_error_is_txn_abortable(error);
+        rd_kafka_error_destroy(error);
+
+        return (PyObject *)kerr;
 }
 
 

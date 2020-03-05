@@ -176,7 +176,7 @@ extern PyObject *KafkaException;
 
 PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
-
+PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
 
 /**
  * @brief Raise an exception using KafkaError.
@@ -188,6 +188,14 @@ PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
 		PyErr_SetObject(KafkaException, _eo);			\
 	} while (0)
 
+/**
+ * @brief Create a Python exception from an rd_kafka_error_t *
+ *        and destroy it the C object when done.
+ */
+#define cfl_PyErr_from_error_destroy(error) do {                        \
+		PyObject *_eo = KafkaError_new_from_error_destroy(error); \
+		PyErr_SetObject(KafkaException, _eo);			\
+	} while (0)
 
 
 /****************************************************************************
