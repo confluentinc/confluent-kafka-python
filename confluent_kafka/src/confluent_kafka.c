@@ -1672,6 +1672,24 @@ static int common_conf_set_special(PyObject *confdict, rd_kafka_conf_t *conf,
         return 1;
 }
 
+
+/**
+ * @brief KIP-511: Set client.software.name and .version which is reported
+ *          to the broker.
+ *          Errors are ignored here since this is best-effort.
+ */
+static void common_conf_set_software (rd_kafka_conf_t *conf) {
+        char version[128];
+
+        rd_kafka_conf_set(conf, "client.software.name",
+                          "confluent-kafka-python", NULL, 0);
+
+        snprintf(version, sizeof(version), "%s-rdkafka-%s",
+                 CFL_VERSION_STR, rd_kafka_version_str(), NULL, 0);
+        rd_kafka_conf_set(conf, "client.software.version", version, NULL, 0);
+}
+
+
 /**
  * Common config setup for Kafka client handles.
  *
@@ -1744,6 +1762,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         }
 
 	conf = rd_kafka_conf_new();
+
+        /* Set software name and verison prior to applying the confdict to
+         * allow even higher-level clients to override it. */
+        common_conf_set_software(conf);
 
         /*
          * Set debug contexts first to capture all events including plugin loading
@@ -2288,13 +2310,11 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 			     rd_kafka_version());
 }
 
-/*
- * Version hex representation
- * 0xMMmmRRPP
- * MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+/**
+ * @brief confluent-kafka-python version.
  */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "1.3.0", 0x01030000);
+	return Py_BuildValue("si", CFL_VERSION_STR, CFL_VERSION);
 }
 
 static PyMethodDef cimpl_methods[] = {

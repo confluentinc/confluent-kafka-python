@@ -35,6 +35,16 @@
 
 
 /**
+ * @brief confluent-kafka-python version, must match that of setup.py.
+ *
+ * Hex version representation:
+ *  0xMMmmRRPP
+ *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+ */
+#define CFL_VERSION     0x01040000
+#define CFL_VERSION_STR "1.4.0"
+
+/**
  * Minimum required librdkafka version. This is checked both during
  * build-time (just below) and runtime (see confluent_kafka.c).
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
