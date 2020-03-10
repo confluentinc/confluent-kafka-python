@@ -63,6 +63,9 @@ typedef struct {
 		      * was provided by librdkafka.
 		      * Else falls back on err2str(). */
         int   fatal; /**< Set to true if a fatal error. */
+        int   retriable; /**< Set to true if operation is retriable. */
+        int   txn_abortable; /**< Set to true if this is an abortable
+                              *   transaction error. */
 } KafkaError;
 
 
@@ -86,6 +89,18 @@ static PyObject *KafkaError_name (KafkaError *self, PyObject *ignore) {
 
 static PyObject *KafkaError_fatal (KafkaError *self, PyObject *ignore) {
         PyObject *ret = self->fatal ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+static PyObject *KafkaError_retriable (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->retriable ? Py_True : Py_False;
+        Py_INCREF(ret);
+        return ret;
+}
+
+static PyObject *KafkaError_txn_abortable (KafkaError *self, PyObject *ignore) {
+        PyObject *ret = self->txn_abortable ? Py_True : Py_False;
         Py_INCREF(ret);
         return ret;
 }
@@ -129,6 +144,21 @@ static PyMethodDef KafkaError_methods[] = {
         },
         { "_test_raise_fatal", (PyCFunction)KafkaError_test_raise_fatal,
           METH_NOARGS|METH_STATIC
+        },
+        { "retriable", (PyCFunction)KafkaError_retriable, METH_NOARGS,
+          "  :returns: True if the operation that failed may be retried, "
+          "else False.\n"
+          "  :rtype: bool\n"
+          "\n"
+        },
+        { "txn_abortable", (PyCFunction)KafkaError_txn_abortable, METH_NOARGS,
+          "  :returns: True if the error is an abortable transaction error, "
+          "allowing the application to abort the current transaction with "
+          "abort_transaction() and start a new transaction with "
+          "begin_transaction(). This will only return true for errors from "
+          "the transactional producer API.\n"
+          "  :rtype: bool\n"
+          "\n"
         },
 
 	{ NULL }
@@ -274,6 +304,8 @@ static void KafkaError_init (KafkaError *self,
 			     rd_kafka_resp_err_t code, const char *str) {
 	self->code = code;
         self->fatal = 0;
+        self->retriable = 0;
+        self->txn_abortable = 0;
 	if (str)
 		self->str = strdup(str);
 	else
@@ -316,6 +348,26 @@ PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...) {
                 return KafkaError_new0(err, "%s", str);
         else
                 return KafkaError_new0(err, NULL);
+}
+
+
+/**
+ * @brief Create a KafkaError object from  an rd_kafka_error_t *
+ *        and destroy the C object when done.
+ */
+PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error) {
+        KafkaError *kerr;
+
+        kerr = (KafkaError *)KafkaError_new0(rd_kafka_error_code(error),
+                                             "%s",
+                                             rd_kafka_error_string(error));
+
+        kerr->fatal = rd_kafka_error_is_fatal(error);
+        kerr->retriable = rd_kafka_error_is_retriable(error);
+        kerr->txn_abortable = rd_kafka_error_is_txn_abortable(error);
+        rd_kafka_error_destroy(error);
+
+        return (PyObject *)kerr;
 }
 
 
@@ -1205,6 +1257,55 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 #endif
 
 
+/**
+ * @brief Convert C rd_kafka_consumer_group_metadata_t to Python binary string
+ *
+ * @returns The new Python object, or NULL and raises an exception failure.
+ */
+PyObject *c_cgmd_to_py (const rd_kafka_consumer_group_metadata_t *cgmd) {
+	PyObject *obj;
+        void *buffer;
+        size_t size;
+        rd_kafka_error_t *error;
+
+        error = rd_kafka_consumer_group_metadata_write(cgmd, &buffer, &size);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        obj = cfl_PyBin(_FromStringAndSize(buffer, (Py_ssize_t)size));
+        rd_kafka_mem_free(NULL, buffer);
+
+        return obj;
+}
+
+/**
+ * @brief Convert Python bytes object to C rd_kafka_consumer_group_metadata_t.
+ *
+ * @returns The new C object, or NULL and raises an exception on failure.
+ */
+rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj) {
+        rd_kafka_consumer_group_metadata_t *cgmd;
+        rd_kafka_error_t *error;
+        char *buffer;
+        Py_ssize_t size;
+
+        if (cfl_PyBin(_AsStringAndSize(obj, &buffer, &size)) == -1)
+                return NULL;
+
+        error = rd_kafka_consumer_group_metadata_read(&cgmd,
+                                                      (const void *)buffer,
+                                                      (size_t)size);
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        return cgmd;
+}
+
+
 /****************************************************************************
  *
  *
@@ -1571,6 +1672,24 @@ static int common_conf_set_special(PyObject *confdict, rd_kafka_conf_t *conf,
         return 1;
 }
 
+
+/**
+ * @brief KIP-511: Set client.software.name and .version which is reported
+ *          to the broker.
+ *          Errors are ignored here since this is best-effort.
+ */
+static void common_conf_set_software (rd_kafka_conf_t *conf) {
+        char version[128];
+
+        rd_kafka_conf_set(conf, "client.software.name",
+                          "confluent-kafka-python", NULL, 0);
+
+        snprintf(version, sizeof(version), "%s-rdkafka-%s",
+                 CFL_VERSION_STR, rd_kafka_version_str(), NULL, 0);
+        rd_kafka_conf_set(conf, "client.software.version", version, NULL, 0);
+}
+
+
 /**
  * Common config setup for Kafka client handles.
  *
@@ -1643,6 +1762,10 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
         }
 
 	conf = rd_kafka_conf_new();
+
+        /* Set software name and verison prior to applying the confdict to
+         * allow even higher-level clients to override it. */
+        common_conf_set_software(conf);
 
         /*
          * Set debug contexts first to capture all events including plugin loading
@@ -2187,13 +2310,11 @@ static PyObject *libversion (PyObject *self, PyObject *args) {
 			     rd_kafka_version());
 }
 
-/*
- * Version hex representation
- * 0xMMmmRRPP
- * MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+/**
+ * @brief confluent-kafka-python version.
  */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", "1.3.0", 0x01030000);
+	return Py_BuildValue("si", CFL_VERSION_STR, CFL_VERSION);
 }
 
 static PyMethodDef cimpl_methods[] = {

@@ -35,24 +35,34 @@
 
 
 /**
+ * @brief confluent-kafka-python version, must match that of setup.py.
+ *
+ * Hex version representation:
+ *  0xMMmmRRPP
+ *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
+ */
+#define CFL_VERSION     0x01040000
+#define CFL_VERSION_STR "1.4.0"
+
+/**
  * Minimum required librdkafka version. This is checked both during
  * build-time (just below) and runtime (see confluent_kafka.c).
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x01000000
+#define MIN_RD_KAFKA_VERSION 0x01040000
 
 #ifdef __APPLE__
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.0.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.4.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.0.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.4.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
-#error "confluent-kafka-python requires librdkafka v1.0.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#error "confluent-kafka-python requires librdkafka v1.4.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#error "confluent-kafka-python requires librdkafka v1.0.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#error "confluent-kafka-python requires librdkafka v1.4.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -66,6 +76,16 @@
  #endif
 #endif
 
+/**
+ * Avoid unused function warnings
+ */
+#if _WIN32
+#define CFL_UNUSED
+#define CFL_INLINE __inline
+#else
+#define CFL_UNUSED __attribute__((unused))
+#define CFL_INLINE __inline
+#endif
 
 /**
  * librdkafka feature detection
@@ -166,7 +186,7 @@ extern PyObject *KafkaException;
 
 PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
-
+PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
 
 /**
  * @brief Raise an exception using KafkaError.
@@ -178,6 +198,14 @@ PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
 		PyErr_SetObject(KafkaException, _eo);			\
 	} while (0)
 
+/**
+ * @brief Create a Python exception from an rd_kafka_error_t *
+ *        and destroy it the C object when done.
+ */
+#define cfl_PyErr_from_error_destroy(error) do {                        \
+		PyObject *_eo = KafkaError_new_from_error_destroy(error); \
+		PyErr_SetObject(KafkaException, _eo);			\
+	} while (0)
 
 
 /****************************************************************************
@@ -355,6 +383,10 @@ rd_kafka_headers_t *py_headers_to_c (PyObject *hdrs);
 PyObject *c_headers_to_py (rd_kafka_headers_t *headers);
 #endif
 
+PyObject *c_cgmd_to_py (const rd_kafka_consumer_group_metadata_t *cgmd);
+rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj);
+
+
 /****************************************************************************
  *
  *
@@ -402,7 +434,11 @@ PyObject *Message_error (Message *self, PyObject *ignore);
 
 extern PyTypeObject ProducerType;
 
-
+static CFL_UNUSED CFL_INLINE int cfl_timeout_ms(double tmout) {
+        if (tmout < 0)
+                return -1;
+        return (int)(tmout * 1000);
+}
 /****************************************************************************
  *
  *

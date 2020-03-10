@@ -596,8 +596,7 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 		return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
-        err = rd_kafka_committed(self->rk, c_parts,
-                                 tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        err = rd_kafka_committed(self->rk, c_parts, cfl_timeout_ms(tmout));
         Py_END_ALLOW_THREADS;
 
 	if (err) {
@@ -793,7 +792,7 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
                 err = rd_kafka_query_watermark_offsets(self->rk,
                                                        tp->topic, tp->partition,
                                                        &low, &high,
-                                                       tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+                                                       cfl_timeout_ms(tmout));
                 Py_END_ALLOW_THREADS;
         }
 
@@ -844,9 +843,8 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
                 return NULL;
 
         Py_BEGIN_ALLOW_THREADS;
-        err = rd_kafka_offsets_for_times(self->rk,
-                                         c_parts,
-                                         tmout >= 0 ? (int)(tmout * 1000.0f) : -1);
+        err = rd_kafka_offsets_for_times(self->rk, c_parts,
+                                         cfl_timeout_ms(tmout));
         Py_END_ALLOW_THREADS;
 
         if (err) {
@@ -884,8 +882,7 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         CallState_begin(self, &cs);
 
-        rkm = rd_kafka_consumer_poll(self->rk, tmout >= 0 ?
-                                     (int)(tmout * 1000.0f) : -1);
+        rkm = rd_kafka_consumer_poll(self->rk, cfl_timeout_ms(tmout));
 
         if (!CallState_end(self, &cs)) {
                 if (rkm)
@@ -940,9 +937,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         rkmessages = malloc(num_messages * sizeof(rd_kafka_message_t *));
 
         n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu,
-                tmout >= 0 ? (int)(tmout * 1000.0f) : -1,
-                rkmessages,
-                num_messages);
+                                                     cfl_timeout_ms(tmout),
+                                                     rkmessages, num_messages);
 
         if (!CallState_end(self, &cs)) {
                 for (i = 0; i < n; i++) {
@@ -1003,6 +999,30 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
                 return NULL;
 
         Py_RETURN_NONE;
+}
+
+static PyObject *
+Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
+        rd_kafka_consumer_group_metadata_t *cgmd;
+        PyObject *obj;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!(cgmd = rd_kafka_consumer_group_metadata(self->rk))) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer group metadata not available");
+                return NULL;
+        }
+
+        obj = c_cgmd_to_py(cgmd);
+
+        rd_kafka_consumer_group_metadata_destroy(cgmd);
+
+        return obj; /* Possibly NULL */
 }
 
 
@@ -1281,6 +1301,16 @@ static PyMethodDef Consumer_methods[] = {
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
         },
+        { "consumer_group_metadata",
+          (PyCFunction)Consumer_consumer_group_metadata, METH_NOARGS,
+          ".. py:function:: consumer_group_metadata()\n"
+          "\n"
+          " :returns: the consumer's current group metadata. "
+          "This object should be passed to the transactional producer's "
+          "send_offsets_to_transaction() API.\n"
+          "\n"
+        },
+
 
 	{ NULL }
 };
