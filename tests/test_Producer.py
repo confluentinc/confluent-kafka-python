@@ -200,7 +200,7 @@ def test_transaction_api():
     assert ex.value.args[0].code() == KafkaError._TIMED_OUT
     assert ex.value.args[0].retriable() is True
     assert ex.value.args[0].fatal() is False
-    assert ex.value.args[0].txn_abortable() is False
+    assert ex.value.args[0].txn_requires_abort() is False
 
     # Any subsequent APIs will fail since init did not succeed.
     with pytest.raises(KafkaException) as ex:
@@ -208,7 +208,7 @@ def test_transaction_api():
     assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
-    assert ex.value.args[0].txn_abortable() is False
+    assert ex.value.args[0].txn_requires_abort() is False
 
     consumer = Consumer({"group.id": "testgroup"})
     group_metadata = consumer.consumer_group_metadata()
@@ -220,18 +220,18 @@ def test_transaction_api():
     assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
-    assert ex.value.args[0].txn_abortable() is False
+    assert ex.value.args[0].txn_requires_abort() is False
 
     with pytest.raises(KafkaException) as ex:
         p.commit_transaction(0.5)
     assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
-    assert ex.value.args[0].txn_abortable() is False
+    assert ex.value.args[0].txn_requires_abort() is False
 
     with pytest.raises(KafkaException) as ex:
         p.abort_transaction(0.5)
     assert ex.value.args[0].code() == KafkaError._STATE
     assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
-    assert ex.value.args[0].txn_abortable() is False
+    assert ex.value.args[0].txn_requires_abort() is False

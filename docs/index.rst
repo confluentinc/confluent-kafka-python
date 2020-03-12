@@ -257,7 +257,7 @@ using :py:meth:`confluent_kafka.Producer.abort_transaction()` and optionally
 start a new transaction by calling
 :py:meth:`confluent_kafka.Producer.begin_transaction()`.
 Whether an error is abortable or not is detected by calling
-:py:meth:`confluent_kafka.KafkaError.txn_abortable()`.
+:py:meth:`confluent_kafka.KafkaError.txn_requires_abort()`.
 
 **Fatal errors**
 
@@ -295,7 +295,7 @@ neither the retriable or abortable flags set, as fatal.
            if e.args[0].retriable():
               # retriable error, try again
               continue
-           elif e.args[0].txn_abortable():
+           elif e.args[0].txn_requires_abort():
               # abort current transaction, begin a new transaction,
               # and rewind the consumer to start over.
               producer.abort_transaction()
