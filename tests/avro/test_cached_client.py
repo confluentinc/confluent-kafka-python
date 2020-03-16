@@ -204,6 +204,15 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         })
         self.assertTupleEqual(('user_sasl', 'secret_sasl'), self.client._session.auth)
 
+    def test_basic_auth_sasl_inherit_invalid(self):
+        with self.assertRaises(ValueError) as e:
+            self.client = CachedSchemaRegistryClient({
+                'url': 'https://user_url:secret_url@127.0.0.1:65534',
+                'basic.auth.credentials.source': 'SASL_INHERIT',
+                'sasl.mechanism': 'gssapi'  # also test the .upper()
+            })
+        self.assertEqual(str(e.exception), "SASL_INHERIT does not support SASL mechanism GSSAPI")
+
     def test_basic_auth_invalid(self):
         with self.assertRaises(ValueError):
             self.client = CachedSchemaRegistryClient({
