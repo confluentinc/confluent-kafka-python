@@ -1689,7 +1689,7 @@ static void common_conf_set_software (rd_kafka_conf_t *conf) {
                           "confluent-kafka-python", NULL, 0);
 
         snprintf(version, sizeof(version), "%s-rdkafka-%s",
-                 CFL_VERSION_STR, rd_kafka_version_str(), NULL, 0);
+                 CFL_VERSION_STR, rd_kafka_version_str());
         rd_kafka_conf_set(conf, "client.software.version", version, NULL, 0);
 }
 
