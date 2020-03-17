@@ -20,16 +20,29 @@ import os
 
 import pytest
 
-from cluster_fixture import TrivupFixture, ExternalClusterFixture
+from confluent_kafka.schema_registry.schema import SchemaProvider
+from tests.integration.cluster_fixture import TrivupFixture
+
+work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 @pytest.fixture(scope="package")
 def kafka_cluster():
-    env_conf = {k[6:]: v for (k, v) in os.environ.items() if k.startswith('KAFKA')}
 
-    if bool(env_conf):
-        return ExternalClusterFixture(env_conf)
+    cluster = TrivupFixture({'broker_cnt': 1,
+                             'with_sr': True,
+                             'broker_conf': ['transaction.state.log.replication.factor=1',
+                                             'transaction.state.log.min.isr=1']})
+    try:
+        yield cluster
+    finally:
+        cluster.stop()
 
-    return TrivupFixture({'broker_cnt': 1,
-                          'broker_conf': ['transaction.state.log.replication.factor=1',
-                                          'transaction.state.log.min.isr=1']})
+
+@pytest.fixture()
+def load_avsc():
+    def get_handle(name):
+        with open(os.path.join(work_dir, 'schema_registry', 'data', name)) as fd:
+            return SchemaProvider(fd.read())
+
+    return get_handle

@@ -16,13 +16,15 @@
 # limitations under the License.
 #
 
-import copy
-from uuid import uuid4, uuid1
+from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Producer, Consumer
+from confluent_kafka import Consumer, Producer, SerializingConsumer, \
+    SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
+from confluent_kafka.config import ClientConfig
+from .java_fixutre import JavaProducer, JavaConsumer
 
 
 class KafkaClusterFixture(object):
@@ -31,8 +33,7 @@ class KafkaClusterFixture(object):
     def __init__(self, conf):
         raise NotImplementedError("KafkaCluster should never be instantiated directly")
 
-    @property
-    def schema_registry(self):
+    def schema_registry(self, conf=None):
         raise NotImplementedError("schema_registry has not been implemented")
 
     def client_conf(self, conf=None):
@@ -48,28 +49,87 @@ class KafkaClusterFixture(object):
 
         return topic_conf
 
-    def producer(self, conf=None):
+    def producer(self, conf=None, key_serializer=None, value_serializer=None):
         """
         Returns a producer bound to this cluster.
 
         :param dict conf: producer configuration overrides
+        :param Serializer value_serializer: serializer to apply to message key
+        :param Serializer key_serializer:  serializer to apply to message value
+
         :returns: a new producer instance.
         :rtype: confluent_kafka.Producer
         """
+
+        if key_serializer or value_serializer:
+            conf = self.client_conf({'key.serializer': key_serializer,
+                                     'value.serializer': value_serializer})
+            return SerializingProducer(ClientConfig(conf))
         return Producer(self.client_conf(conf))
 
-    def consumer(self, conf=None):
+    def java_producer(self, conf=None, key_serializer=None, value_serializer=None):
+        """
+        Returns a java producer handle.
+
+        :param conf:
+        :param key_serializer:
+        :param value_serializer:
+
+        :returns:
+        :return:
+        """
+        client_conf = self.client_conf(conf)
+        if key_serializer:
+            client_conf['key.serializer'] = \
+                "org.apache.kafka.common.serialization.{}".format(key_serializer)
+        if value_serializer:
+            client_conf['value.serializer'] = \
+                "org.apache.kafka.common.serialization.{}".format(value_serializer)
+
+        return JavaProducer(client_conf, self._cluster)
+
+    def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
         Returns a consumer bound to this cluster.
 
+        :param Serializer key_deserializer: serializer to apply on message key
+        :param Serializer value_deserializer: serializer to apply on message value
         :param dict conf: consumer configuration overrides
-        :returns: a new consumer instance.
-        :rtype: confluent_kafka.Consumer
-        """
-        if conf is None or 'group.id' not in conf:
-            conf.update({'group.id': uuid1()})
 
-        return Consumer(self.client_conf(conf))
+        :returns: a new consumer instance.
+        :rtype: Consumer
+        """
+        consumer_conf = self.client_conf({
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest'
+        })
+
+        if conf:
+            consumer_conf.update(conf)
+
+        if key_deserializer or value_deserializer:
+            consumer_conf.update({'key.deserializer': key_deserializer,
+                                  'value.deserializer': value_deserializer})
+            return SerializingConsumer(ClientConfig(consumer_conf))
+        return Consumer(consumer_conf)
+
+    def java_consumer(self, conf=None, key_serializer=None, value_serializer=None):
+        client_conf = self.client_conf({
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest'
+        })
+
+        if conf:
+            client_conf.update(conf)
+
+        if key_serializer:
+            client_conf['key.deserializer'] = \
+                "org.apache.kafka.common.serialization.{}".format(key_serializer)
+        if value_serializer:
+            client_conf['value.deserializer'] = \
+                "org.apache.kafka.common.serialization.{}".format(value_serializer)
+
+        return JavaConsumer(client_conf, self._cluster)
 
     def create_topic(self, prefix, conf=None):
         """
@@ -176,56 +236,27 @@ class TrivupFixture(KafkaClusterFixture):
         self._producer = None
         self._cluster.wait_operational()
 
-    @property
-    def schema_registry(self):
+    def schema_registry(self, conf=None):
         if hasattr(self._cluster, 'sr'):
-            return self._cluster.sr.get('url')
+            sr_conf = {'url': self._cluster.sr.get('url')}
+            if conf:
+                sr_conf.update(conf)
+            return sr_conf
         return None
 
     def client_conf(self, conf=None):
-        client_conf = self._cluster.client_conf()
+        """
+        Default client configuration
 
-        if self.schema_registry:
-            client_conf['schema.registry.url'] = self.schema_registry
+        :param dict conf: default client configuration overrides
+        :returns: client configuration
+        """
+        client_conf = self._cluster.client_conf()
 
         if conf is not None:
             client_conf.update(conf)
 
         return client_conf
 
-
-class ExternalClusterFixture(KafkaClusterFixture):
-    __slots__ = ['_topic']
-
-    """
-    Configures integration tests clients to communicate with external
-    (developer provided) cluster.
-
-    All client configuration values are valid after replacing '.', with "_".
-    """
-
-    OPTIONAL = ['TOPIC', 'SCHEMA_REGISTRY_URL']
-    REQUIRED = ['BOOTSTRAP_SERVERS']
-    PROPS = OPTIONAL + REQUIRED
-
-    def __init__(self, conf):
-
-        self._topic = conf.pop('TOPIC', "confluent_kafka_test{}".format(str(uuid4())))
-
-        for r in self.REQUIRED:
-            if r not in conf:
-                raise ValueError("{} is a required config".format(conf))
-
-        self._cluster = {k.lower().replace('_', '.'): v for (k, v) in conf.items()}
-
-    @property
-    def schema_registry(self):
-        return self._cluster.get('schema.registry.url', None)
-
-    def client_conf(self, conf=None):
-        cluster_conf = copy.deepcopy(self._cluster)
-
-        if conf is not None:
-            cluster_conf.update(conf)
-
-        return cluster_conf
+    def stop(self):
+        self._cluster.stop(cleanup=True)

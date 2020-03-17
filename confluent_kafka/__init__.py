@@ -1,9 +1,32 @@
-__all__ = ['cimpl', 'admin', 'avro', 'kafkatest']
-from .cimpl import (Consumer,  # noqa
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+from .consumer import SerializingConsumer
+from .producer import SerializingProducer
+from .serialization import DoubleSerializer, \
+    IntegerSerializer, \
+    StringDeserializer
+
+from .cimpl import (Producer,
+                    Consumer,
                     KafkaError,
                     KafkaException,
                     Message,
-                    Producer,
                     TopicPartition,
                     libversion,
                     version,
@@ -15,10 +38,19 @@ from .cimpl import (Consumer,  # noqa
                     OFFSET_STORED,
                     OFFSET_INVALID)
 
+__all__ = ['admin', 'avro', 'AvroSerializer', 'Consumer', 'DoubleSerializer',
+           'IntegerSerializer', 'KafkaError', 'KafkaException',
+           'kafkatest', 'libversion', 'Message',
+           'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',
+           'Producer', 'SerializingConsumer',
+           'SerializingProducer', 'StringDeserializer',
+           'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
+           'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition']
+
 __version__ = version()[0]
 
 
-class ThrottleEvent (object):
+class ThrottleEvent(object):
     """
     ThrottleEvent contains details about a throttled request.
     Set up a throttle callback by setting the ``throttle_cb`` configuration
@@ -32,16 +64,17 @@ class ThrottleEvent (object):
     :ivar int broker_id: The broker id
     :ivar float throttle_time: The amount of time (in seconds) the broker throttled (delayed) the request
     """
+
     def __init__(self, broker_name,
                  broker_id,
                  throttle_time):
-
         self.broker_name = broker_name
         self.broker_id = broker_id
         self.throttle_time = throttle_time
 
     def __str__(self):
-        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id, int(self.throttle_time * 1000))
+        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id,
+                                                  int(self.throttle_time * 1000))
 
 
 def _resolve_plugins(plugins):
