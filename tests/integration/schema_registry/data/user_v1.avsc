@@ -1,0 +1,8 @@
+{
+ "type": "record",
+ "name": "UserKey",
+ "aliases": ["User"],
+ "fields": [
+     {"name": "name", "type": "string"}
+ ]
+}
