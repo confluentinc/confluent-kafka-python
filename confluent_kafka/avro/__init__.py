@@ -33,7 +33,8 @@ class AvroProducer(Producer):
                    for key, value in config.items() if key.startswith("schema.registry")}
 
         if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
-            sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
+            # Fallback to plural 'mechanisms' for backward compatibility
+            sr_conf['sasl.mechanism'] = config.get('sasl.mechanism', config.get('sasl.mechanisms', ''))
             sr_conf['sasl.username'] = config.get('sasl.username', '')
             sr_conf['sasl.password'] = config.get('sasl.password', '')
             sr_conf['auto.register.schemas'] = config.get('auto.register.schemas', True)
@@ -111,7 +112,8 @@ class AvroConsumer(Consumer):
                    for key, value in config.items() if key.startswith("schema.registry")}
 
         if sr_conf.get("basic.auth.credentials.source") == 'SASL_INHERIT':
-            sr_conf['sasl.mechanisms'] = config.get('sasl.mechanisms', '')
+            # Fallback to plural 'mechanisms' for backward compatibility
+            sr_conf['sasl.mechanism'] = config.get('sasl.mechanism', config.get('sasl.mechanisms', ''))
             sr_conf['sasl.username'] = config.get('sasl.username', '')
             sr_conf['sasl.password'] = config.get('sasl.password', '')
 
