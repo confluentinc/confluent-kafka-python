@@ -16,22 +16,20 @@
 # limitations under the License.
 #
 
-import random
-
 import pytest
 
-from confluent_kafka.schema_registry.config import RegistrySerializerConfig
-from confluent_kafka.serialization import AvroDeserializer, AvroSerializer
-from confluent_kafka.serialization import MessageField, SerializationContext
+from confluent_kafka import TopicPartition
+from confluent_kafka.schema_registry import MessageField, SerializationContext
+from confluent_kafka.schema_registry.avro import AvroSerializer, AvroDeserializer
 
 
-@pytest.mark.parametrize("avsc, data",
-                         [('basic_schema.avsc', {'name': 'abc'}),
-                          ('primitive_string.avsc', u'Jämtland'),
-                          ('primitive_bool.avsc', True),
-                          ('primitive_float.avsc', random.uniform(-32768.0, 32768.0)),
-                          ('primitive_double.avsc', random.uniform(-32768.0, 32768.0))])
-def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data):
+@pytest.mark.parametrize("avsc, data, record_type",
+                         [('basic_schema.avsc', {'name': 'abc'}, "record"),
+                          ('primitive_string.avsc', u'Jämtland', "string"),
+                          ('primitive_bool.avsc', True, "bool"),
+                          ('primitive_float.avsc', 32768.2342, "float"),
+                          ('primitive_double.avsc', 68.032768, "float")])
+def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
@@ -45,43 +43,43 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data):
         AssertionError on test failure
 
     """
+    client_conf = kafka_cluster.client_conf()
     topic = kafka_cluster.create_topic("serialization-avro")
+    sr = kafka_cluster.schema_registry()
+
     schema = load_avsc(avsc)
-    sr_conf = kafka_cluster.schema_registry()
+    value_serializer = AvroSerializer(client_conf, sr,
+                                      schema=schema)
 
-    value_serializer = AvroSerializer(RegistrySerializerConfig(sr_conf),
-                                      schema=load_avsc(avsc))
-
-    value_deserializer = AvroDeserializer(RegistrySerializerConfig(sr_conf),
-                                          schema=load_avsc(avsc))
+    value_deserializer = AvroDeserializer(client_conf, sr,
+                                          schema=schema)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
-    producer.produce(topic, data)
+    producer.produce(topic, value=data, partition=0)
     producer.flush()
 
     consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
-    consumer.subscribe([topic])
-    msg = consumer.poll()
+    consumer.assign([TopicPartition(topic, 0)])
 
+    msg = consumer.poll()
     actual = msg.value()
-    # schema may include default which need not exist in the original
-    schema_type = schema.schema['type']
-    if schema_type == "record":
+
+    if record_type == 'record':
         assert [v == actual[k] for k, v in data.items()]
-    elif schema_type == 'float':
+    elif record_type == 'float':
         assert data == pytest.approx(actual)
     else:
         assert actual == data
 
 
-@pytest.mark.parametrize("avsc, data",
-                         [('basic_schema.avsc', {'name': 'abc'}),
-                          ('primitive_string.avsc', u'Jämtland'),
-                          ('primitive_bool.avsc', True),
-                          ('primitive_float.avsc', random.uniform(-32768.0, 32768.0)),
-                          ('primitive_double.avsc', random.uniform(-32768.0, 32768.0))])
-def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data):
+@pytest.mark.parametrize("avsc, data,record_type",
+                         [('basic_schema.avsc', {'name': 'abc'}, 'record'),
+                          ('primitive_string.avsc', u'Jämtland', 'string'),
+                          ('primitive_bool.avsc', True, 'bool'),
+                          ('primitive_float.avsc', 768.2340, 'float'),
+                          ('primitive_double.avsc', 6.868, 'float')])
+def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
@@ -95,15 +93,14 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data):
         AssertionError on test failure
 
     """
-    topic = kafka_cluster.create_topic("serialization-avro")
-    schema = load_avsc(avsc)
-    sr_conf = kafka_cluster.schema_registry()
-    serializer_conf = RegistrySerializerConfig(sr_conf)
+    client_conf = kafka_cluster.client_conf()
+    topic = kafka_cluster.create_topic("serialization-avro-dr")
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
-    value_serializer = AvroSerializer(serializer_conf,
+    value_serializer = AvroSerializer(client_conf, sr,
                                       schema=load_avsc(avsc))
 
-    value_deserializer = AvroDeserializer(serializer_conf,
+    value_deserializer = AvroDeserializer(client_conf, sr,
                                           schema=load_avsc(avsc))
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
@@ -115,27 +112,26 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data):
 
         assert type(actual) == type(data)
 
-        schema_type = schema.schema['type']
-        if schema_type == "record":
+        if record_type == "record":
             assert [v == actual[k] for k, v in data.items()]
-        elif schema_type == 'float':
+        elif record_type == 'float':
             assert data == pytest.approx(actual)
         else:
             assert actual == data
 
-    producer.produce(topic, data, on_delivery=assert_cb)
+    producer.produce(topic, value=data, partition=0, on_delivery=assert_cb)
     producer.flush()
 
     consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
-    consumer.subscribe([topic])
-    msg = consumer.poll()
+    consumer.assign([TopicPartition(topic, 0)])
 
+    msg = consumer.poll()
     actual = msg.value()
+
     # schema may include default which need not exist in the original
-    schema_type = schema.schema['type']
-    if schema_type == "record":
+    if record_type == 'record':
         assert [v == actual[k] for k, v in data.items()]
-    elif schema_type == 'float':
+    elif record_type == 'float':
         assert data == pytest.approx(actual)
     else:
         assert actual == data

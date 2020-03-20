@@ -315,7 +315,7 @@ class SchemaRegistryClient(object):
         if schema is not None:
             return schema
 
-        response = self._rest_client.GET('schemas/ids/{}'.format(schema_id))['schema']
+        response = self._rest_client.GET('schemas/ids/{}'.format(schema_id))
         schema = Schema.from_json(response)
 
         self.cache.add_schema(schema_id, schema)
