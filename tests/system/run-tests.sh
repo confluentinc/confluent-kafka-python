@@ -127,8 +127,7 @@ echo "Checking out $KAFKA_BRANCH ..."
 cd $KAFKA_DIR
 git pull
 git checkout $KAFKA_BRANCH
-gradle
-./gradlew clean systemTestLibs
+./gradlew clean assemble systemTestLibs
 
 # Cached vagrant data
 if [ -d $CACHE ]; then
