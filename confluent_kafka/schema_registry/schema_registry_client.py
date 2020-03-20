@@ -18,36 +18,222 @@
 
 import json
 import logging
+import sys
+import urllib
+from copy import deepcopy
+from threading import Lock
 
-from requests import Session
+from requests import Session, utils
 
-from .error import SchemaRegistryClientError
-from .schema import SchemaProvider
+from .schema import RegisteredSchema, Schema
+from ..serialization.error import SchemaRegistryError
+
+# TODO: use six or adopt compat file practicelike requests.
+if sys.version < '3':
+    def _urlencode(value):
+        return urllib.quote(value, safe='')
+else:
+    def _urlencode(value):
+        return urllib.parse.quote(value, safe='')
+
+VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 
 log = logging.getLogger(__name__)
 
-"""
-API Endpoint templates
-"""
-SCHEMAS = 'schemas/ids/{}?format=serialized'
-SUBJECT = 'subjects/{}'
-SUBJECTS = 'subjects'
-VERSION = 'subjects/{}/versions/{}'
-VERSIONS = 'subjects/{}/versions'
-CONFIG = 'config/{}'
-CONFIGS = 'config'
 
-
-def url_formatter(template, *args):
+class _RestClient(object):
     """
-    Constructs a url string from a template.
+    Manages SchemaRegistryClient HTTP communication
 
     Args:
-        template: url format string
-        args: args to use when resolving url string
-
+        src_conf (dict): Dictionary containing _RestClient configuration
     """
-    return template.format(*args)
+    default_headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
+                                 " application/vnd.schemaregistry+json,"
+                                 " application/json"}
+
+    def __init__(self, src_conf):
+        self.session = Session()
+        conf = self.handle_conf(src_conf)
+        self.base_url = conf['url']
+
+    def __del__(self):
+        self.session.close()
+
+    def handle_conf(self, src_conf):
+        """
+        Validates configuration
+
+        Args:
+            src_conf (dict): configuration dict
+        """
+        conf = deepcopy(src_conf)
+
+        base_url = conf.get('url', '').rstrip('/')
+        if not base_url.startswith('http'):
+            raise ValueError("Invalid URL provided for Schema Registry")
+
+        ca = conf.pop('ssl.ca.location', None)
+        if ca is not None:
+            self.session.verify = ca
+
+        key = conf.pop('ssl.key.location', None)
+        cert = conf.pop('ssl.certificate.location', None)
+        if cert is not None and key is not None:
+            self.session = (key, cert)
+
+        if cert is not None:
+            self.session = (key, cert)
+
+        if key is not None and cert is None:
+            raise ValueError("ssl.key.location may not be configured without"
+                             'setting ssl.certificate.location')
+
+        auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
+        if auth_provider not in VALID_AUTH_PROVIDERS:
+            raise ValueError("basic.auth.credentials.source must be one of"
+                             .format(VALID_AUTH_PROVIDERS))
+
+        if auth_provider == 'SASL_INHERIT':
+            if conf.pop('sasl.mechanism', '').upper() == 'GSSAPI':
+                raise ValueError("SASL_INHERIT does not support SASL mechanism GSSAPI")
+            self.session.auth = (conf.pop('sasl.username', ''),
+                                 conf.pop('sasl.password', ''))
+
+        if auth_provider == 'USER_INFO':
+            self.session.auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
+        else:
+            self.session.auth = utils.get_auth_from_url(base_url)
+
+        return conf
+
+    def close(self):
+        self.session.close()
+
+    def GET(self, url):
+        return self.send_request(url, method='GET')
+
+    def POST(self, url, body, **kwargs):
+
+        return self.send_request(url, method='POST',
+                                 body=body)
+
+    def DELETE(self, url):
+        return self.send_request(url, method='DELETE')
+
+    def PUT(self, url, body=None):
+        return self.send_request(url, method='PUT', body=body)
+
+    def send_request(self, url, method, body=None):
+
+        _headers = self.default_headers
+
+        if body is not None:
+            body = json.dumps(body, cls=self.JSONDuckEncoder)
+            _headers = {'Content-Length': str(len(body)),
+                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
+
+        response = self.session.request(
+            method, url="/".join([self.base_url, url]),
+            headers=_headers, data=body)
+
+        try:
+            if 200 <= response.status_code <= 299:
+                return response.json()
+            raise SchemaRegistryError(response.json().get('message', None),
+                                      response.json().get('error_code', None))
+        # Schema Registry may return HTML when it hits unexpected errors
+        except ValueError as e:
+            print(str(e))
+            raise SchemaRegistryError(response.status_code,
+                                      response.content)
+
+    class JSONDuckEncoder(json.JSONEncoder):
+        def default(self, obj):
+            """
+            Enables JSON encoding for any class with a to_json method.
+
+            Args:
+                - obj (object): object implementing ``to_json(self)``
+
+            Returns:
+                str: JSON encoded obj
+
+            """
+            return obj.to_json()
+
+
+class _SchemaCache(object):
+
+    def __init__(self):
+        self.lock = Lock()
+
+        self.schema_id_index = {}
+        self.schema_index = {}
+
+    def add_schema(self, schema_id, schema):
+        """
+        Add a Schema identified by schema_id to the cache.
+
+        Args:
+            schema_id (int): Schema's registration id
+            schema (Schema): Schema instance
+
+        Returns:
+            int: The schema_id
+        """
+        # Don't overwrite existing keys
+        schema = self.get_schema(schema_id)
+        if schema is not None:
+            return
+
+        with self.lock:
+            # Pessimistic
+            if schema_id not in self.schema_id_index:
+                self.schema_id_index[schema_id] = schema
+
+    def get_schema(self, schema_id):
+        """
+        Get the schema instance associated  with schema_id from the cache.
+
+        Args:
+            schema_id (int): Id used to identify a schema
+        Returns:
+            Schema: The schema if known; else None
+
+        """
+        return self.schema_id_index.get(schema_id, None)
+
+    def add_schema_id(self, schema, schema_id):
+        """
+        Add this Schema's id to the cache.
+
+        Args:
+            schema (Schema): Schema associated with schema_id
+            schema_id (int): schema_id to cache
+        """
+
+        schema_id = self.get_schema_id(schema)
+        if schema_id is not None:
+            return
+
+        with self.lock:
+            # Pessimistic
+            if schema not in self.schema_index:
+                self.schema_index[schema] = schema_id
+
+    def get_schema_id(self, schema):
+        """
+        Get the schema_id associated with this schema
+
+        Args:
+            schema (Schema): The schema associated with this schema_id
+
+        Returns:
+            int: Schema ID if known; else None
+
+        """
+        return self.schema_index.get(schema, None)
 
 
 class SchemaRegistryClient(object):
@@ -62,8 +248,8 @@ class SchemaRegistryClient(object):
     """
 
     def __init__(self, conf):
-        self._rest_client = self._RestClient(conf)
-        self.id_to_schema = {}
+        self._rest_client = _RestClient(conf)
+        self.cache = _SchemaCache()
 
     def __enter__(self):
         return self
@@ -72,79 +258,18 @@ class SchemaRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client.close()
 
-    class _RestClient(object):
-        default_headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
-                                     " application/vnd.schemaregistry+json,"
-                                     " application/json"}
-
-        def __init__(self, conf):
-            self.session = Session()
-            self.base_url = conf.Url.rstrip('/')
-
-            if conf.Certificate is not (None, None):
-                self.session.cert = conf.Certificate
-
-            if conf.CA is not None:
-                self.session.verify = conf.CA
-
-            if conf.Credentials:
-                self.session.auth = conf.Credentials
-
-        def __del__(self):
-            self.session.close()
-
-        def GET(self, url, decoder=None):
-            return self.send_request(url, method='GET', decoder=decoder)
-
-        def POST(self, url, body, encoder=None, decoder=None, **kwargs):
-            return self.send_request(url, method='POST',
-                                     body=body, encoder=encoder, decoder=decoder,
-                                     **kwargs)
-
-        def DELETE(self, url):
-            return self.send_request(url, method='DELETE')
-
-        def PUT(self, url, body=None, encoder=None, decoder=None):
-            return self.send_request(url, method='PUT', body=body,
-                                     encoder=encoder, decoder=decoder)
-
-        def send_request(self, url, method, body=None,
-                         encoder=None, decoder=None, **kwargs):
-
-            _headers = self.default_headers
-
-            if body is not None:
-                body = json.dumps(body, cls=encoder)
-                _headers = {'Content-Length': str(len(body)),
-                            'Content-Type': "application/vnd.schemaregistry.v1+json"}
-
-            response = self.session.request(
-                method, url="/".join([self.base_url, url]),
-                headers=_headers, data=body)
-
-            try:
-                if 200 <= response.status_code <= 299:
-                    return response.json(cls=decoder, **kwargs)
-                raise SchemaRegistryClientError(response.status_code,
-                                                response.json().get('message'))
-            except ValueError:
-                raise SchemaRegistryClientError(response.status_code,
-                                                response.content)
-
     def register_schema(self, subject_name, schema):
         """
-        POST /subjects/(string: subject)/versions
-
         Registers a schema under ``subject_name``.
         Results are cached in the ``schema`` so subsequent requests will not
         require another trip the Schema Registry.
 
         Args:
-            - subject_name (str): subject to register a schema under
-            - schema (Schema): Schema (in JSON string format) to register.
+            subject_name (str): subject to register a schema under
+            schema (Schema): Schema (in JSON string format) to register.
 
         Returns:
-            Version: Registration information
+            int: Registration id
 
         Raises:
             SchemaRegistryClientError: if Schema violates this subject's
@@ -154,30 +279,27 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions
 
         """  # noqa: E501
-        version = schema.subjects.get(subject_name, None)
-        if version:
-            return version
+        schema_id = self.cache.get_schema_id(schema)
+        if schema_id is not None:
+            return schema_id
 
-        self._rest_client.POST(
-            url_formatter(VERSIONS, subject_name),
-            body=schema, encoder=_SchemaJSONEncoder)
+        response = self._rest_client.POST(
+            'subjects/{}/versions'.format(_urlencode(subject_name)),
+            body=schema)
 
-        # get registration information
-        return self._rest_client.POST(
-            url_formatter(SUBJECT, subject_name),
-            body=schema, encoder=_SchemaJSONEncoder, decoder=_VersionJSONDecoder,
-            schema=schema)
+        schema_id = response['id']
+        self.cache.add_schema(schema_id, schema)
+
+        return schema_id
 
     def get_schema(self, schema_id):
         """
-        GET /schemas/ids/{int: schema_id}
-
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
         require an additional trip to the Schema Registry.
 
         Args:
-            - schema_id (int): Schema id
+            schema_id (int): Schema id
 
         Returns:
             Schema: Schema string identified by the ``schema_id``
@@ -186,32 +308,30 @@ class SchemaRegistryClient(object):
             SchemaRegistryClientError: If schema can't be found
 
         .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id
+            https://docs.confluent.io/current/schema-registry/develop/api.html#get--'schemas/ids/{}?format=serialized'-ids-int-%20id
 
         """  # noqa: E501
-        version = self.id_to_schema.get(schema_id, None)
+        schema = self.cache.get_schema(schema_id)
+        if schema is not None:
+            return schema
 
-        if version is not None:
-            return version
+        response = self._rest_client.GET('schemas/ids/{}'.format(schema_id))['schema']
+        schema = Schema.from_json(response)
 
-        url = url_formatter(SCHEMAS, schema_id)
-        schema = self._rest_client.GET(url, decoder=_SchemaJSONDecoder)
-        self.id_to_schema[schema_id] = schema
+        self.cache.add_schema(schema_id, schema)
 
         return schema
 
     def get_registration(self, subject_name, schema):
         """
-        POST /subjects/(string: subject)
-
         Returns ``schema`` registration information for ``subject``.
 
         Args:
-            - subject_name (str): Subject name the schema is registered under
-            - schema (Schema): Registered Schema
+            subject_name (str): Subject name the schema is registered under
+            schema (Schema): Registered Schema
 
         Returns:
-            Version: ``schema`` registration information for ``subject``
+            RegisteredSchema: Subject registration information for this schema.
 
         Raises:
             SchemaRegistryClientError: If schema or subject can't be found
@@ -220,20 +340,12 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)
 
         """  # noqa: E501
-        version = schema.subjects.get(subject_name, None)
-        if version:
-            return version
-
-        return self._rest_client.POST(
-            url_formatter(SUBJECT, subject_name),
-            encoder=_SchemaJSONEncoder,
-            decoder=_VersionJSONDecoder,
-            schema=schema)
+        response = self._rest_client.POST('subjects/' + _urlencode(subject_name),
+                                          body=schema)
+        return RegisteredSchema.from_json(response)
 
     def get_subjects(self):
         """
-        GET /subjects
-
         List all subjects registered with the Schema Registry
 
         Returns:
@@ -246,18 +358,16 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects
 
         """  # noqa: E501
-        return self._rest_client.GET(url_formatter(SUBJECTS))
+        return self._rest_client.GET('subjects')
 
     def delete_subject(self, subject):
         """
-        DELETE /subjects/(string: subject)
-
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
         to be recycled or in development environments.
 
         Args:
-            - subject (str): subject name
+            subject (str): subject name
         Returns:
             list(int): Versions deleted under this subject
 
@@ -268,25 +378,22 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)
 
         """  # noqa: E501
-        self._rest_client.DELETE(url_formatter(SUBJECT, subject))
+        return self._rest_client.DELETE('subjects/' + subject)
 
     def get_version(self, subject_name, version='latest'):
         """
-        GET /subjects/(string: subject)/versions/(versionId: version)
-
-        Retrieves a specific schema registered to ``subject_name``.
+        Retrieves a specific schema registered under ``subject_name``.
 
         .. _note:
             "latest” returns the last registered schema under the specified
-            subject. Note that there may be a new latest schema that gets
-            registered right after this request is served.
+            subject.
 
         Args:
-            - subject_name (str): Subject name.
-            - version (int, optional): version number. Defaults to "latest".
+            subject_name (str): Subject name.
+            version (int, optional): version number. Defaults to "latest".
 
         Returns:
-            Version: Registration information for this version.
+            RegisteredSchema: Registration information for this version.
 
         Raises:
             SchemaRegistryClientError if the version can't be found or
@@ -296,16 +403,16 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)
 
         """  # noqa: E501
-        return self._rest_client.GET(
-            url_formatter(VERSION, subject_name, version),
-            decoder=_VersionJSONDecoder)
+        response = self._rest_client.GET('subjects/{}/versions/{}'
+                                         .format(_urlencode(subject_name),
+                                                 version))
+
+        return RegisteredSchema.from_json(response)
 
     def list_versions(self, subject_name):
         """
-        GET /subjects/(string: subject)/versions
-
         Args:
-            - subject_name (str): Subject name.
+            subject_name (str): Subject name.
 
         Returns:
             [int]: Registered versions
@@ -317,21 +424,18 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions
 
         """  # noqa: E501
-        return self._rest_client.GET(url_formatter(VERSIONS,
-                                                   subject_name))
+        return self._rest_client.GET('subjects/{}/versions'.format(_urlencode(subject_name)))
 
     def delete_version(self, subject_name, version):
         """
-        DELETE /subjects/(string: subject)/versions/(versionId: version)
-
         Deletes a specific version registered to ``subject_name``.
 
         Args:
-            - subject_name (str) Subject name
-            - version (int): version number
+            subject_name (str) Subject name
+            version (int): Version number
 
         Returns
-            Version: Version of the deleted schema
+            int: Version number which was deleted
 
         Raises:
             SchemaRegistryClientError if the subject or version cannot be found.
@@ -340,23 +444,23 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)
 
         """  # noqa: E501
-        self._rest_client.DELETE(url_formatter(VERSION,
-                                               subject_name,
+        return self._rest_client.DELETE('subjects/{}/versions/{}'.
+                                        format(_urlencode(subject_name),
                                                version))
 
     def set_compatibility(self, subject_name=None, level=None):
         """
-        PUT /config/{subject_name}
-
         Update global or subject level compatibility policy.
 
         Args:
-            - level (CompatibilityType): Compatibility policy
-
-        Keywork Args:
-            - subject_name (str, optional): Subject name.
+            level (CompatibilityType): Compatibility policy
+            subject_name (str, optional): Subject name.
                 Sets global policy if not set.
-            - level  (CompatibilityType): Compatibility policy
+            level (CompatibilityType): Compatibility policy
+
+        Returns:
+            str: The new level
+
         Raises:
             SchemaRegistryClientError: if the compatibility level is invalid
 
@@ -364,27 +468,18 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#put--config
 
         """  # noqa: E501
-
         if level is None:
             raise ValueError("level must be set")
 
-        print(subject_name)
         if subject_name is None:
-            return self._rest_client.PUT(url_formatter(CONFIGS),
-                                         body=level,
-                                         encoder=_CompatibilityJSONEncoder,
-                                         decoder=_CompatibilityJSONDecoder)
+            return self._rest_client.PUT('config', body={"compatibility": level})
 
-        return self._rest_client.PUT(url_formatter(CONFIG,
-                                                   subject_name),
-                                     body=level,
-                                     encoder=_CompatibilityJSONEncoder,
-                                     decoder=_CompatibilityJSONDecoder)
+        return self._rest_client.PUT('config/{}'
+                                     .format(subject_name),
+                                     {"compatibility": level})
 
     def get_compatibility(self, subject_name=None):
         """
-        GET /config
-
         Get the current global Compatibility level.
 
         Args:
@@ -403,11 +498,11 @@ class SchemaRegistryClient(object):
 
         """  # noqa: E501
         if subject_name is not None:
-            url = url_formatter(CONFIG, subject_name)
+            url = 'config/{}'.format(subject_name)
         else:
-            url = url_formatter(CONFIGS)
+            url = 'config'
 
-        return self._rest_client.GET(url, decoder=_CompatibilityJSONDecoder)
+        return self._rest_client.GET(url)
 
 
 class CompatibilityType(object):
@@ -425,164 +520,3 @@ class CompatibilityType(object):
     FORWARD_TRANSITIVE = 'FORWARD_TRANSITIVE'
     FULL = 'FULL'
     FULL_TRANSITIVE = 'FULL_TRANSITIVE'
-
-
-class Version(object):
-    """
-    Represents a Schema's registration with the Schema Registry
-
-    Args:
-        - subject (Subject): Subject this Schema is registered under
-        - version (version): Version index(ID)
-        - schema (Schema): The registered Schema.
-
-    """
-    __slots__ = ['subject', 'version', 'schema', 'schema_id']
-
-    def __init__(self, subject, version, schema_id, schema):
-        # register self with schema
-        schema.subjects[subject] = self
-
-        self.subject = subject
-        self.version = version
-        self.schema_id = schema_id
-        self.schema = schema
-
-    def __str__(self):
-        return "{!s}[{!s}]".format(self.subject, self.version)
-
-    def __repr__(self):
-        return str(self)
-
-    def __eq__(self, other):
-        return str(self) == str(other)
-
-    def __hash__(self):
-        return hash(str(self))
-
-
-class _VersionJSONDecoder(json.JSONDecoder):
-    """
-    Decodes Version response JSON objects from the Schema Registry.
-
-    Keyword Args:
-        schema (Schema, optional): Schema associated with this version.
-
-    """
-
-    def __init__(self, schema=None, **kwargs):
-        self.schema = schema
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook)
-
-    def object_hook(self, version_dict):
-        """
-        Decodes Schema Registry response body.
-
-        Note:
-            This decoder alters the contents of ``obj``
-
-        Args:
-            - version_dict (dict): Schema Registry response body
-
-        Returns:
-            int, string or tuple depending on registry response type.
-
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html
-
-        """
-        if self.schema is None:
-            schema = SchemaProvider(version_dict.get('schema'),
-                                    version_dict.get('schemaType', 'AVRO'))
-        else:
-            schema = self.schema
-
-        subject = version_dict['subject']
-        schema_id = version_dict['id']
-        version = version_dict['version']
-
-        return Version(subject, version, schema_id, schema)
-
-
-class _SchemaJSONEncoder(json.JSONEncoder):
-    def default(self, schema):
-        """
-        Encodes Schema object to the Schema Registry request body format
-
-        Args:
-            - schema (Schema): Schema object
-
-        Returns:
-            str: Schema Registry request
-
-        """
-        # omit schema tag for compatibility with older SR instances.
-        if schema.schema_type == 'AVRO':
-            return {'schema': str(schema)}
-        else:
-            return {'schema': str(schema), 'schemaType': str(schema.schema_type)}
-
-
-class _SchemaJSONDecoder(json.JSONDecoder):
-    def __init__(self, *args, **kwargs):
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook,
-                                  *args, **kwargs)
-
-    def object_hook(self, response):
-        """
-        Instantiates Schema instance from Schema Registry response
-
-        Args:
-            - response (dict):
-
-        Returns:
-            Schema: A new Schema instance
-
-        """
-        return SchemaProvider(response.get('schema'),
-                              schema_type=response.get('schemaType', 'AVRO'))
-
-
-class _CompatibilityJSONEncoder(json.JSONEncoder):
-    def encode(self, level):
-        """
-        Encodes subject compatibility level to JSON
-
-        Args:
-            - level (int): Schema object
-
-        Returns:
-            dict: Encoded CompatibilityLevel
-
-        """
-        return super(_CompatibilityJSONEncoder, self).encode(
-            {'compatibility': level})
-
-
-class _CompatibilityJSONDecoder(json.JSONDecoder):
-    def __init__(self, *args, **kwargs):
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, response):
-        """
-        Decodes Schema Registry Compatibility response.
-
-        Note:
-            This decoder alters the contents of ``obj``
-
-        Args:
-            - response (dict): Schema Registry response body
-
-        Returns:
-            int, string or tuple depending on registry response type.
-
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html
-
-        """
-        level = response.get('compatibilityLevel', response.get('compatibility'))
-
-        if level:
-            return level
-
-        return response.get('is_compatible')

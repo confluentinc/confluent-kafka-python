@@ -16,13 +16,7 @@
 # limitations under the License.
 #
 
-from .config import SchemaRegistryConfig, RegistrySerializerConfig
-from .error import SchemaRegistryClientError
-from .schema_registry_client import SchemaRegistryClient, CompatibilityType
-from .serdes import RecordNameStrategy,\
-    TopicNameStrategy, TopicRecordNameStrategy
-
-__all__ = ['CompatibilityType',
-           'SchemaRegistryClient', 'SchemaRegistryClientError',
-           'SchemaRegistryConfig', 'RecordNameStrategy',
-           'RegistrySerializerConfig', 'TopicNameStrategy', 'TopicRecordNameStrategy']
+# from .schema_registry_client import SchemaRegistryClient, CompatibilityType
+# from confluent_kafka.serialization.serdes import RecordNameStrategy, \
+#     TopicNameStrategy, TopicRecordNameStrategy
+#

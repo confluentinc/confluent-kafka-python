@@ -17,21 +17,25 @@
 
 from fastavro.schema import SchemaParseException, UnknownType
 
-__all__ = ['SchemaRegistryClientError', 'SchemaParseException', 'UnknownType']
+__all__ = ['SchemaRegistryError', 'SchemaParseException', 'UnknownType']
 
 
-class SchemaRegistryClientError(BaseException):
+class SchemaRegistryError(BaseException):
     """
-        Error thrown by Schema Registry clients
+    Error thrown by Schema Registry clients
 
-        Args:
-            error_message (str) = description of th error
+    Args:
+        error_message (str) = description of th error
 
-        Keyword Args:
-            code (int, optional) = Error code
+    Keyword Args:
+        code (int, optional) = Schema Registry error code
 
-        See Also:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#errors
+    Note:
+        In the event the Schema Registry hits an unexpected error ``code`` will
+        be the HTTP code returnend from the server.
+
+    See Also:
+        https://docs.confluent.io/current/schema-registry/develop/api.html#errors
 
     """
     def __init__(self, error_message, code=None):
