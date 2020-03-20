@@ -24,8 +24,8 @@ export PYTHONUNBUFFERED=1
 TEST_PATH=tests/kafkatest/tests/client
 
 LIBRDKAFKA_BRANCH=master
-KAFKA_BRANCH=2.0
-REPO=https://github.com/apache/kafka.git
+KAFKA_BRANCH=verifclt_deploy
+REPO=https://github.com/edenhill/kafka.git
 
 CACHE=$WORKSPACE/cache  # Helps with reusing vagrant cluster
 RESULTS=$WORKSPACE/results
