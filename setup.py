@@ -12,6 +12,9 @@ ext_dir = os.path.join(mod_dir, 'src')
 with open(os.path.join(mod_dir, 'requirements.txt')) as f:
     INSTALL_REQUIRES = f.read().split()
 
+with open(os.path.join(mod_dir, 'schema_registry', 'requirements.txt')) as f:
+    INSTALL_REQUIRES += f.read().split()
+
 with open(os.path.join(mod_dir, 'avro', 'requirements.txt')) as f:
     AVRO_REQUIRES = f.read().splitlines()
 
