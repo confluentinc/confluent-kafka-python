@@ -22,26 +22,25 @@ __all__ = ['SchemaRegistryError', 'SchemaParseException', 'UnknownType']
 
 class SchemaRegistryError(BaseException):
     """
-    Error thrown by Schema Registry clients
+    Represents an error returned by the Confluent Schema Registry
 
     Args:
-        error_message (str) = description of th error
-
-    Keyword Args:
-        code (int, optional) = Schema Registry error code
-
-    Note:
-        In the event the Schema Registry hits an unexpected error ``code`` will
-        be the HTTP code returnend from the server.
+        http_status_code (int) = HTTP status code
+        error_code (int) = Schema Registry error code; -1 represents an unknown
+            error.
+        error_message (str) = Description of the error
 
     See Also:
         https://docs.confluent.io/current/schema-registry/develop/api.html#errors
 
     """
-    def __init__(self, error_message, code=None):
+    UNEXPECTED = -1
+
+    def __init__(self, http_status_code, error_code, error_message):
+        self.http_status_code = http_status_code
+        self.error_code = error_code
         self.error_message = error_message
-        self.code = code
-        print("{} {}".format(error_message, code))
+        print("{} {}".format(error_message, error_code))
 
     def __repr__(self):
         return self.error_message
