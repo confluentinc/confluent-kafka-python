@@ -15,12 +15,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import os
 
 import pytest
 
-from confluent_kafka.schema_registry.schema import SchemaProvider
+from confluent_kafka.schema_registry.schema import Schema
 from tests.integration.cluster_fixture import TrivupFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
@@ -43,6 +42,5 @@ def kafka_cluster():
 def load_avsc():
     def get_handle(name):
         with open(os.path.join(work_dir, 'schema_registry', 'data', name)) as fd:
-            return SchemaProvider(fd.read())
-
+            return Schema(schema_str=fd.read(), schema_type='AVRO')
     return get_handle

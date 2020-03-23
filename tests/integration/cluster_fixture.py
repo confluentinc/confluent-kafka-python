@@ -20,11 +20,10 @@ from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Consumer, Producer, SerializingConsumer, \
+from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
     SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
-from confluent_kafka.config import ClientConfig
-from .java_fixutre import JavaProducer, JavaConsumer
+from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 
 
 class KafkaClusterFixture(object):
@@ -49,44 +48,32 @@ class KafkaClusterFixture(object):
 
         return topic_conf
 
-    def producer(self, conf=None, key_serializer=None, value_serializer=None):
+    def producer(self, conf={}, key_serializer=None, value_serializer=None):
         """
         Returns a producer bound to this cluster.
 
-        :param dict conf: producer configuration overrides
-        :param Serializer value_serializer: serializer to apply to message key
-        :param Serializer key_serializer:  serializer to apply to message value
+        Args:
+            conf (dict): Producer configuration overrides
+            key_serializer: serializer to apply to message key
+            value_serializer: serializer to apply to message value
 
-        :returns: a new producer instance.
-        :rtype: confluent_kafka.Producer
+        Returns:
+            Producer: A new Producer instance
+
         """
+        if key_serializer is not None:
+            conf['key.serializer'] = key_serializer
 
-        if key_serializer or value_serializer:
-            conf = self.client_conf({'key.serializer': key_serializer,
-                                     'value.serializer': value_serializer})
-            return SerializingProducer(ClientConfig(conf))
-        return Producer(self.client_conf(conf))
+        if value_serializer is not None:
+            conf['value.serializer'] = value_serializer
 
-    def java_producer(self, conf=None, key_serializer=None, value_serializer=None):
-        """
-        Returns a java producer handle.
-
-        :param conf:
-        :param key_serializer:
-        :param value_serializer:
-
-        :returns:
-        :return:
-        """
         client_conf = self.client_conf(conf)
-        if key_serializer:
-            client_conf['key.serializer'] = \
-                "org.apache.kafka.common.serialization.{}".format(key_serializer)
-        if value_serializer:
-            client_conf['value.serializer'] = \
-                "org.apache.kafka.common.serialization.{}".format(value_serializer)
 
-        return JavaProducer(client_conf, self._cluster)
+        if key_serializer is not None \
+                or value_serializer is not None:
+            return SerializingProducer(client_conf)
+
+        return Producer(client_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -104,32 +91,19 @@ class KafkaClusterFixture(object):
             'auto.offset.reset': 'earliest'
         })
 
-        if conf:
+        if conf is not None:
             consumer_conf.update(conf)
 
-        if key_deserializer or value_deserializer:
-            consumer_conf.update({'key.deserializer': key_deserializer,
-                                  'value.deserializer': value_deserializer})
-            return SerializingConsumer(ClientConfig(consumer_conf))
+        if key_deserializer is not None:
+            consumer_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            consumer_conf['value.deserializer'] = value_deserializer
+
+        if key_deserializer is not None \
+                or value_deserializer is not None:
+            return DeserializingConsumer(consumer_conf)
         return Consumer(consumer_conf)
-
-    def java_consumer(self, conf=None, key_serializer=None, value_serializer=None):
-        client_conf = self.client_conf({
-            'group.id': str(uuid1()),
-            'auto.offset.reset': 'earliest'
-        })
-
-        if conf:
-            client_conf.update(conf)
-
-        if key_serializer:
-            client_conf['key.deserializer'] = \
-                "org.apache.kafka.common.serialization.{}".format(key_serializer)
-        if value_serializer:
-            client_conf['value.deserializer'] = \
-                "org.apache.kafka.common.serialization.{}".format(value_serializer)
-
-        return JavaConsumer(client_conf, self._cluster)
 
     def create_topic(self, prefix, conf=None):
         """
@@ -241,7 +215,7 @@ class TrivupFixture(KafkaClusterFixture):
             sr_conf = {'url': self._cluster.sr.get('url')}
             if conf:
                 sr_conf.update(conf)
-            return sr_conf
+            return SchemaRegistryClient(sr_conf)
         return None
 
     def client_conf(self, conf=None):

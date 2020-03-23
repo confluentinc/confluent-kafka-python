@@ -16,11 +16,12 @@
 # limitations under the License.
 #
 
-from .consumer import SerializingConsumer
+from .consumer import DeserializingConsumer
 from .producer import SerializingProducer
-from .serialization import DoubleSerializer, \
-    IntegerSerializer, \
-    StringDeserializer
+from .serialization import \
+    DoubleSerializer, DoubleDeserializer,\
+    IntegerSerializer, IntegerDeserializer, \
+    StringSerializer, StringDeserializer
 
 from .cimpl import (Producer,
                     Consumer,
@@ -38,11 +39,14 @@ from .cimpl import (Producer,
                     OFFSET_STORED,
                     OFFSET_INVALID)
 
-__all__ = ['admin', 'avro', 'AvroSerializer', 'Consumer', 'DoubleSerializer',
-           'IntegerSerializer', 'KafkaError', 'KafkaException',
+__all__ = ['admin', 'AvroSerializer', 'Consumer',
+           'DoubleSerializer', 'DoubleDeserializer',
+           'IntegerSerializer', 'IntegerDeserializer',
+           'KafkaError', 'KafkaException',
            'kafkatest', 'libversion', 'Message',
            'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',
-           'Producer', 'SerializingConsumer',
+           'Producer', 'DeserializingConsumer',
+           'StringSerializer', 'StringDeserializer',
            'SerializingProducer', 'StringDeserializer',
            'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition']
