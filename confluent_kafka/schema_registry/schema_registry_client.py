@@ -329,9 +329,13 @@ class SchemaRegistryClient(object):
         if schema_id is not None:
             return schema_id
 
+        request = {'schema': schema.schema_str,
+                   'schemaType': schema.schema_type,
+                   'references': schema.references}
+
         response = self._rest_client.post(
             'subjects/{}/versions'.format(_urlencode(subject_name)),
-            body={'schema': schema.schema_str})
+            body=request)
 
         schema_id = response['id']
         self.cache.set(schema_id, schema)
@@ -396,7 +400,9 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
         response = self._rest_client.post('subjects/{}'
                                           .format(_urlencode(subject_name)),
-                                          body={'schema': schema.schema_str})
+                                          body={'schema': schema.schema_str,
+                                                'schemaType': schema.schema_type,
+                                                'references': schema.references})
 
         schema_type = response.get('schemaType', 'AVRO')
 
@@ -545,11 +551,11 @@ class SchemaRegistryClient(object):
 
         if subject_name is None:
             return self._rest_client.put('config',
-                                         body={"compatibility": level.upper()})
+                                         body={'compatibility': level.upper()})
 
         return self._rest_client.put('config/{}'
                                      .format(_urlencode(subject_name)),
-                                     body={"compatibility": level.upper()})
+                                     body={'compatibility': level.upper()})
 
     def get_compatibility(self, subject_name=None):
         """
