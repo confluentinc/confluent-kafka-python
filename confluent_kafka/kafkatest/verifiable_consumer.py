@@ -275,6 +275,8 @@ if __name__ == '__main__':
     vc.consumer.subscribe(args['topic'],
                           on_assign=vc.on_assign, on_revoke=vc.on_revoke)
 
+    failed = False
+
     try:
         while vc.run:
             msg = vc.consumer.poll(timeout=1.0)
@@ -295,13 +297,22 @@ if __name__ == '__main__':
         vc.run = False
         pass
 
+    except Exception as e:
+        vc.dbg('Terminating on exception: %s' % str(e))
+        failed = True
+
     vc.dbg('Closing consumer')
     vc.send_records_consumed(immediate=True)
-    if not vc.use_auto_commit:
-        vc.do_commit(immediate=True, asynchronous=False)
 
-    vc.consumer.close()
+    if not failed:
+        try:
+            if not vc.use_auto_commit:
+                vc.do_commit(immediate=True, asynchronous=False)
+            vc.consumer.close()
+        except Exception as e:
+            vc.dbg('Ignoring exception while closing: %s' % str(e))
+            failed = True
 
-    vc.send({'name': 'shutdown_complete'})
+    vc.send({'name': 'shutdown_complete', 'failed': failed})
 
     vc.dbg('All done')
