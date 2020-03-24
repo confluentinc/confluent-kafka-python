@@ -64,10 +64,12 @@ if __name__ == '__main__':
     parser.add_argument('--topic', type=str, required=True)
     parser.add_argument('--throughput', type=int, default=0)
     parser.add_argument('--broker-list', dest='conf_bootstrap.servers', required=True)
+    parser.add_argument('--bootstrap-server', dest='conf_bootstrap.servers')
     parser.add_argument('--max-messages', type=int, dest='max_msgs', default=1000000)  # avoid infinite
     parser.add_argument('--value-prefix', dest='value_prefix', type=str, default=None)
     parser.add_argument('--acks', type=int, dest='topicconf_request.required.acks', default=-1)
     parser.add_argument('--message-create-time', type=int, dest='create_time', default=0)
+    parser.add_argument('--repeating-keys', type=int, dest='repeating_keys', default=0)
     parser.add_argument('--producer.config', dest='producer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
@@ -92,6 +94,9 @@ if __name__ == '__main__':
     else:
         value_fmt = '%d'
 
+    repeating_keys = args['repeating_keys']
+    key_counter = 0
+
     if throughput > 0:
         delay = 1.0/throughput
     else:
@@ -106,8 +111,14 @@ if __name__ == '__main__':
 
             t_end = time.time() + delay
             while vp.run:
+                if repeating_keys != 0:
+                    key = '%d' % key_counter
+                    key_counter = (key_counter + 1) % repeating_keys
+                else:
+                    key = None
+
                 try:
-                    vp.producer.produce(topic, value=(value_fmt % i),
+                    vp.producer.produce(topic, value=(value_fmt % i), key=key,
                                         timestamp=args.get('create_time', 0))
                     vp.num_sent += 1
                 except KafkaException as e:
