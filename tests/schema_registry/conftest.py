@@ -22,7 +22,7 @@ import pytest
 import requests_mock
 
 from confluent_kafka.schema_registry.schema_registry_client import \
-    SchemaRegistryClient, Schema
+    SchemaRegistryClient
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
@@ -345,6 +345,6 @@ def load_avsc():
     def get_handle(name):
         with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
                                'data', name)) as fd:
-            return Schema(schema_str=fd.read(), schema_type='AVRO')
+            return fd.read()
 
     return get_handle

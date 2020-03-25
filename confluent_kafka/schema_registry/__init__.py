@@ -15,144 +15,75 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
-# from .schema_registry_client import SchemaRegistryClient, CompatibilityType
-# from confluent_kafka.serialization.serdes import RecordNameStrategy, \
-#     TopicNameStrategy, TopicRecordNameStrategy
-#
-import io
+from .schema_registry_client import (RegisteredSchema,
+                                     Schema,
+                                     SchemaRegistryClient,
+                                     SchemaRegistryError,
+                                     SchemaReference)
 
 _MAGIC_BYTE = 0
 
+__all__ = ["RegisteredSchema",
+           "Schema",
+           "SchemaRegistryClient",
+           "SchemaRegistryError",
+           "SchemaReference",
+           "topic_subject_name_strategy",
+           "topic_record_subject_name_strategy",
+           "record_subject_name_strategy"]
 
-class MessageField(object):
+
+def topic_subject_name_strategy(record_name, ctx):
     """
-    Enum like object for identifying Message fields.
-
-    Attributes:
-        NONE (int): None
-        KEY (int): Message key
-        VALUE (int): Message value
-
-    """
-    NONE = 0
-    KEY = 1
-    VALUE = 2
-    _str = ("none", "key", "value")
-
-    @staticmethod
-    def __str__(field):
-        """
-        Returns a string representation for a MessageField value.
-
-        Args:
-            field (MessageField): MessageField value
-
-        Returns:
-             String value for MessageField
-
-        """
-        return MessageField._str[field]
-
-
-class SerializationContext(object):
-    """
-    SerializationContext provides additional context to the serializer about
-    the data it's serializing.
+    Constructs a subject name in the form of {topic}-{key|value}.
 
     Args:
-        - topic (str): Topic the serialized data will be sent to
-        - field (MessageField): Describes what part of the message is
-            being serialized.
+        record_name (str): Record name.
+
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation.
 
     """
-    __slots__ = ["topic", "field"]
-
-    def __init__(self, topic, field):
-        self.topic = topic
-        self.field = field
+    return ctx.topic + "-" + ctx.field
 
 
-class SubjectNameStrategy(object):
+def topic_record_subject_name_strategy(record_name, ctx):
     """
-    Instructs the Serializer on how to construct subject names when registering
-    schemas. See the Schema Registry documentation for additional details.
-
-    .. _SchemaRegistry Documentation:
-        https://docs.confluent.io/current/schema-registry/serializer-formatter.html#group-by-topic-or-other-relationships
-
-    """
-    def __call__(self, schema, ctx):
-        raise NotImplementedError
-
-    @classmethod
-    def __str__(cls, strategy):
-        return cls._str[strategy]
-
-
-class TopicNameStrategy(SubjectNameStrategy):
-    """
-    Constructs a subject name in the form of {topic}={key|value}.
+    Constructs a subject name in the form of {topic}-{record.name}.
 
     Args:
-        schema (Schema): Schema associated with a subject
-        ctx (SerializationContext): Serialization context.
+        record_name (str): Record name.
+
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation.
 
     """
-
-    def __call__(self, schema, ctx):
-        return ctx.topic + "-" + str(ctx.field)
+    return ctx.topic + "-" + record_name
 
 
-class TopicRecordNameStrategy(SubjectNameStrategy):
-    """
-    Constructs a subject name in the form of {topic}={record.name}.
-
-    Args:
-        schema (Schema): Schema associated with a subject
-        ctx (SerializationContext): Serialization context.
-
-    """
-
-    def __call__(self, schema, ctx):
-        return ctx.topic + "-" + schema.name
-
-
-class RecordNameStrategy(SubjectNameStrategy):
+def record_subject_name_strategy(record_name, ctx):
     """
     Constructs a subject name in the form of {record.name}.
 
     Args:
-        schema (Schema): Schema associated with a subject
-        ctx (SerializationContext): Serialization context.
+        record_name (str): Record name.
+
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation.
 
     """
-
-    def __call__(self, schema, ctx):
-        return schema.name
+    return record_name
 
 
-class ReferenceSubjectNameStrategy(SubjectNameStrategy):
+def reference_subject_name_strategy(schema_ref, ctx):
     """
-    Constructs a subject reference name in the form of {reference.name}.
+    Constructs a subject reference name in the form of {reference name}.
 
     Args:
-        reference (SchemaReference): SchemaReference associated with some Schema.
-        ctx (SerializationContext): Serialization context.
-    """
-    def __call__(self, reference, ctx):
-        return reference.name
+        schema_ref (SchemaReference): SchemaReference instance.
 
-
-class ContextStringIO(io.BytesIO):
-    """
-    Wrapper to allow use of StringIO via 'with' constructs.
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation.
 
     """
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        self.close()
-        return False
+    return schema_ref.name

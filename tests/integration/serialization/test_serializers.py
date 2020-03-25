@@ -18,10 +18,12 @@
 
 import pytest
 
-from confluent_kafka import \
-    DoubleSerializer, IntegerSerializer, StringDeserializer
-from confluent_kafka.serialization.kafka_serdes import DoubleDeserializer, IntegerDeserializer, \
-    StringSerializer
+from confluent_kafka.serialization import (DoubleSerializer,
+                                           IntegerSerializer,
+                                           StringDeserializer,
+                                           DoubleDeserializer,
+                                           IntegerDeserializer,
+                                           StringSerializer)
 
 
 @pytest.mark.parametrize("serializer, deserializer, data",
@@ -46,7 +48,7 @@ def test_numeric_serialization(kafka_cluster, serializer, deserializer, data):
     topic = kafka_cluster.create_topic("serialization-numeric")
 
     producer = kafka_cluster.producer(value_serializer=serializer)
-    producer.produce(topic, data)
+    producer.produce(topic, value=data)
     producer.flush()
 
     consumer = kafka_cluster.consumer(value_deserializer=deserializer)

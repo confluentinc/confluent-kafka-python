@@ -17,8 +17,7 @@
 #
 import pytest
 
-from confluent_kafka.schema_registry.schema_registry_client import \
-    SchemaRegistryClient
+from confluent_kafka.schema_registry import SchemaRegistryClient
 
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
@@ -97,40 +96,16 @@ def test_config_auth_url_and_userinfo():
         'basic.auth.credentials.source': 'user_info',
         'basic.auth.user.info': TEST_USERNAME + ":" + TEST_USER_PASSWORD}
 
-    with pytest.raises(ValueError, match="basic.auth.credentials.source"
-                                         " configured for USER_INFO with"
-                                         " credentials in the URL."
-                                         " Remove userinfo from the url or"
-                                         " or configure"
-                                         " basic.auth.credentials.source to"
-                                         r" URL\(default\)"):
-        SchemaRegistryClient(conf)
-
-
-def test_config_auth_url_and_sasl_inherit():
-    conf = {
-        'url': 'http://'
-               + TEST_USERNAME + ":"
-               + TEST_USER_PASSWORD
-               + '@SchemaRegistry:65534',
-        'basic.auth.credentials.source': 'SASL_INHERIT',
-        'sasl.mechanism': 'PLAIN',
-        'sasl.username': TEST_USERNAME,
-        'sasl.password': TEST_USER_PASSWORD}
-
-    with pytest.raises(ValueError, match="basic.auth.credentials.source"
-                                         " configured for SASL_INHERIT with"
-                                         " credentials in the URL."
-                                         " Remove userinfo from the url or"
-                                         " or configure"
-                                         " basic.auth.credentials.source to"
-                                         r" URL\(default\)$"):
+    with pytest.raises(ValueError, match="basic.auth.user.info configured with"
+                                         " userinfo credentials in the URL."
+                                         " Remove userinfo credentials from the"
+                                         " url or remove basic.auth.user.info"
+                                         " from the configuration."):
         SchemaRegistryClient(conf)
 
 
 def test_config_auth_userinfo():
     conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'user_info',
             'basic.auth.user.info': TEST_USERNAME + ':' + TEST_USER_PASSWORD}
 
     test_client = SchemaRegistryClient(conf)
@@ -139,52 +114,10 @@ def test_config_auth_userinfo():
 
 def test_config_auth_userinfo_invalid():
     conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'USER_INFO',
-            'basic.auth.userinfo': 'lookmanocolon'}
+            'basic.auth.user.info': 'lookmanocolon'}
 
     with pytest.raises(ValueError, match="basic.auth.user.info must be in the"
                                          " form of {username}:{password}$"):
-        SchemaRegistryClient(conf)
-
-
-def test_config_auth_sasl_inherit():
-    conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'SASL_INHERIT',
-            'sasl.mechanism': 'PLAIN',
-            'sasl.username': TEST_USERNAME,
-            'sasl.password': TEST_USER_PASSWORD}
-
-    test_client = SchemaRegistryClient(conf)
-    assert test_client._auth == (TEST_USERNAME, TEST_USER_PASSWORD)
-
-
-def test_config_auth_sasl_inherit_not_supported():
-    conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'SASL_INHERIT',
-            'sasl.mechanism': 'gssapi'}  # also tests str.upper()}
-
-    with pytest.raises(ValueError, match=r"sasl.mechanism\(s\) GSSAPI is not"
-                                         " supported by"
-                                         " basic.auth.credentials.source"
-                                         " SASL_INHERIT"):
-        SchemaRegistryClient(conf)
-
-
-def test_config_auth_sasl_inherit_no_username():
-    conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'SASL_INHERIT'}
-    with pytest.raises(ValueError, match="sasl.username required when"
-                                         " basic.auth.credentials.source"
-                                         " configured to SASL_INHERIT"):
-        SchemaRegistryClient(conf)
-
-
-def test_config_auth_credential_source_invalid():
-    conf = {'url': TEST_URL,
-            'basic.auth.credentials.source': 'VAULT'}
-
-    with pytest.raises(ValueError, match="basic.auth.credentials.source must"
-                                         r" be one of (\[(.*)\]) not VAULT$"):
         SchemaRegistryClient(conf)
 
 

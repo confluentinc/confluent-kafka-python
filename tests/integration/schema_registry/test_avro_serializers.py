@@ -19,8 +19,36 @@
 import pytest
 
 from confluent_kafka import TopicPartition
-from confluent_kafka.schema_registry import MessageField, SerializationContext
-from confluent_kafka.schema_registry.avro import AvroSerializer, AvroDeserializer
+from confluent_kafka.serialization import (MessageField,
+                                           SerializationContext)
+from confluent_kafka.schema_registry.avro import (AvroSerializer,
+                                                  AvroDeserializer)
+
+
+class User(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "User",
+            "type": "record",
+            "fields": [
+                {"name": "name", "type": "string"},
+                {"name": "favorite_number", "type": "int"},
+                {"name": "favorite_color", "type": "string"}
+            ]
+        }
+        """
+
+    def __init__(self, name, favorite_number, favorite_color):
+        self.name = name
+        self.favorite_number = favorite_number
+        self.favorite_color = favorite_color
+
+    def __eq__(self, other):
+        return all([
+            self.name == other.name,
+            self.favorite_number == other.favorite_number,
+            self.favorite_color == other.favorite_color])
 
 
 @pytest.mark.parametrize("avsc, data, record_type",
@@ -43,16 +71,13 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_
         AssertionError on test failure
 
     """
-    client_conf = kafka_cluster.client_conf()
     topic = kafka_cluster.create_topic("serialization-avro")
     sr = kafka_cluster.schema_registry()
 
-    schema = load_avsc(avsc)
-    value_serializer = AvroSerializer(client_conf, sr,
-                                      schema=schema)
+    schema_str = load_avsc(avsc)
+    value_serializer = AvroSerializer(sr, schema_str)
 
-    value_deserializer = AvroDeserializer(client_conf, sr,
-                                          schema=schema)
+    value_deserializer = AvroDeserializer(sr, schema_str)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -74,7 +99,7 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_
 
 
 @pytest.mark.parametrize("avsc, data,record_type",
-                         [('basic_schema.avsc', {'name': 'abc'}, 'record'),
+                         [('basic_schema.avsc', dict(name='abc'), 'record'),
                           ('primitive_string.avsc', u'Jämtland', 'string'),
                           ('primitive_bool.avsc', True, 'bool'),
                           ('primitive_float.avsc', 768.2340, 'float'),
@@ -93,15 +118,13 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, rec
         AssertionError on test failure
 
     """
-    client_conf = kafka_cluster.client_conf()
     topic = kafka_cluster.create_topic("serialization-avro-dr")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
+    schema_str = load_avsc(avsc)
 
-    value_serializer = AvroSerializer(client_conf, sr,
-                                      schema=load_avsc(avsc))
+    value_serializer = AvroSerializer(sr, schema_str)
 
-    value_deserializer = AvroDeserializer(client_conf, sr,
-                                          schema=load_avsc(avsc))
+    value_deserializer = AvroDeserializer(sr, schema_str)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -109,8 +132,6 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, rec
         actual = value_deserializer(msg.value(),
                                     SerializationContext(
                                         topic, MessageField.VALUE))
-
-        assert type(actual) == type(data)
 
         if record_type == "record":
             assert [v == actual[k] for k, v in data.items()]
@@ -135,3 +156,39 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, rec
         assert data == pytest.approx(actual)
     else:
         assert actual == data
+
+
+def test_avro_record_serialization_custom(kafka_cluster):
+    """
+    Tests basic Avro serializer to_dict and from_dict object hook functionality.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+    """
+    topic = kafka_cluster.create_topic("serialization-avro")
+    sr = kafka_cluster.schema_registry()
+
+    user = User('Bowie', 47, 'purple')
+    value_serializer = AvroSerializer(sr, User.schema_str,
+                                      lambda user, ctx:
+                                      dict(name=user.name,
+                                           favorite_number=user.favorite_number,
+                                           favorite_color=user.favorite_color))
+
+    value_deserializer = AvroDeserializer(sr, User.schema_str,
+                                          lambda user_dict, ctx:
+                                          User(**user_dict))
+
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
+
+    producer.produce(topic, value=user, partition=0)
+    producer.flush()
+
+    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer.assign([TopicPartition(topic, 0)])
+
+    msg = consumer.poll()
+    user2 = msg.value()
+
+    assert user2 == user

@@ -1825,9 +1825,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 		char errstr[256];
                 int r = 0;
 
-                if (vo == Py_None)
-                        continue;
-
 		if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_SetString(PyExc_TypeError,
                                         "expected configuration property name "

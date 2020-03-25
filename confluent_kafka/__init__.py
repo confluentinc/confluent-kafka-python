@@ -18,10 +18,6 @@
 
 from .consumer import DeserializingConsumer
 from .producer import SerializingProducer
-from .serialization import \
-    DoubleSerializer, DoubleDeserializer,\
-    IntegerSerializer, IntegerDeserializer, \
-    StringSerializer, StringDeserializer
 
 from .cimpl import (Producer,
                     Consumer,
@@ -40,15 +36,11 @@ from .cimpl import (Producer,
                     OFFSET_INVALID)
 
 __all__ = ['admin', 'AvroSerializer', 'Consumer',
-           'DoubleSerializer', 'DoubleDeserializer',
-           'IntegerSerializer', 'IntegerDeserializer',
            'KafkaError', 'KafkaException',
            'kafkatest', 'libversion', 'Message',
            'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',
            'Producer', 'DeserializingConsumer',
-           'StringSerializer', 'StringDeserializer',
-           'SerializingProducer', 'StringDeserializer',
-           'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
+           'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition']
 
 __version__ = version()[0]

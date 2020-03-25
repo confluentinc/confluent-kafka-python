@@ -2,7 +2,7 @@
     "name": "basic",
     "type": "record",
     "doc": "basic schema for tests",
-    "namespace": "python.test.basic",
+    "namespace": "python.test",
     "fields": [
         {
             "name": "number",

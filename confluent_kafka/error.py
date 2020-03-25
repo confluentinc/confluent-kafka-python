@@ -24,10 +24,8 @@ class ConsumeException(Exception):
     Wraps all errors encountered during the consumption of a message.
 
     Note:
-        If an error occurs after being received from the broker but before
-        being returned to the application (such as a deserialzation error)
-        it will be made available via the msg_bytes attribute. In most cases
-        this will be None.
+        In the event of a serialization error the original message contents
+        may be retrieved from the ``message`` attribute.
 
     Args:
         error (KafkaError): The error that occurred
@@ -35,14 +33,14 @@ class ConsumeException(Exception):
     Keyword Args:
         message (Message, optional): The message returned from the broker.
         error_message (str): String description of the error.
+
     """
-
-    def __init__(self, error, error_message=None, message=None):
+    def __init__(self, error, reason=None, message=None):
         self.error = error
-        if error_message is None:
-            error_message = error.str()
+        if reason is None:
+            reason = error.str()
 
-        self.error_message = error_message
+        self.error_message = reason
         self.message = message
 
     def __repr__(self):

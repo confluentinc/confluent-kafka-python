@@ -19,22 +19,24 @@
 import json
 import logging
 import urllib
-from copy import deepcopy
+from collections import defaultdict
 from threading import Lock
 
-from requests import Session, utils
+from requests import (Session,
+                      utils)
 
 from .error import SchemaRegistryError
-from .schema import Schema, RegisteredSchema, SchemaReference
 
 # TODO: use six or adopt compat file requests.
 try:
     string_type = basestring  # noqa
 
+
     def _urlencode(value):
         return urllib.quote(value, safe='')
 except NameError:
     string_type = str
+
 
     def _urlencode(value):
         return urllib.parse.quote(value, safe='')
@@ -49,6 +51,35 @@ class _RestClient(object):
     """
     HTTP client for Confluent Schema Registry.
 
+    _RestClient configuration properties.
+    +--------------------------+----------------------------------------------+
+    | Property name            | Description                                  |
+    +==========================+==============================================+
+    | url                      | Schema Registry url                          |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to CA certificate file used             |
+    | ssl.ca.location          | to verify the Schema Registry's              |
+    |                          | private key,                                 |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to client's private key                 |
+    |                          | (PEM) used for authentication.               |
+    | ssl.key.location         |                                              |
+    |                          | *ssl.certificate.location must also be set.  |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to client's public key (PEM) used for   |
+    |                          | authentication.                              |
+    | ssl.certificate.location |                                              |
+    |                          | *May be set without ssl.key.location if the  |
+    |                          | private key is stored within the PEM as well |
+    +--------------------------+----------------------------------------------+
+    |                          | Client HTTP credentials in the form of       |
+    |                          | ``username:password ``.                      |
+    | basic.auth.user.info     |                                              |
+    |                          |  By default userinfo is extracted from       |
+    |                          |  the URL if present.                         |
+    +--------------------------+----------------------------------------------+
+
+
     Args:
         conf (dict): Dictionary containing _RestClient configuration
 
@@ -61,10 +92,10 @@ class _RestClient(object):
         self.session = Session()
 
         # copy dict to avoid mutating the original
-        conf_copy = deepcopy(conf)
+        conf_copy = conf.copy()
 
         base_url = conf_copy.pop('url', None)
-        if not isinstance(base_url, basestring):
+        if not isinstance(base_url, string_type):
             raise ValueError("url must be an instance of str not "
                              + str(type(base_url)))
         if not base_url.startswith('http'):
@@ -93,42 +124,17 @@ class _RestClient(object):
             raise ValueError("ssl.certificate.location required when"
                              " configuring ssl.key.location")
 
-        auth_provider = conf_copy.pop('basic.auth.credentials.source',
-                                      'URL').upper()
         userinfo = utils.get_auth_from_url(base_url)
-        if auth_provider not in VALID_AUTH_PROVIDERS:
-            raise ValueError("basic.auth.credentials.source must be one of"
-                             " {} not {}".format(VALID_AUTH_PROVIDERS,
-                                                 auth_provider))
-
-        if auth_provider == 'SASL_INHERIT':
-            if conf_copy.pop('sasl.mechanism', '').upper() == 'GSSAPI':
-                raise ValueError("sasl.mechanism(s) GSSAPI is not supported by"
-                                 " basic.auth.credentials.source SASL_INHERIT")
+        if 'basic.auth.user.info' in conf_copy:
             if userinfo != ('', ''):
-                raise ValueError("basic.auth.credentials.source configured for"
-                                 " SASL_INHERIT with credentials in the URL."
-                                 " Remove userinfo from the url or or configure"
-                                 " basic.auth.credentials.source to"
-                                 " URL(default)")
-
-            userinfo = (conf_copy.pop('sasl.username', ''),
-                        conf_copy.pop('sasl.password', ''))
-            # Ensure username is set
-            if userinfo[0] == '':
-                raise ValueError("sasl.username required when"
-                                 " basic.auth.credentials.source configured to"
-                                 " SASL_INHERIT")
-
-        if auth_provider == 'USER_INFO':
-            if userinfo != ('', ''):
-                raise ValueError("basic.auth.credentials.source configured for"
-                                 " USER_INFO with credentials in the URL."
-                                 " Remove userinfo from the url or or configure"
-                                 " basic.auth.credentials.source to"
-                                 " URL(default)")
+                raise ValueError("basic.auth.user.info configured with"
+                                 " userinfo credentials in the URL."
+                                 " Remove userinfo credentials from the url or"
+                                 " remove basic.auth.user.info from the"
+                                 " configuration.")
 
             userinfo = conf_copy.pop('basic.auth.user.info', '').split(':')
+
             if len(userinfo) != 2:
                 raise ValueError("basic.auth.user.info must be in the form"
                                  " of {username}:{password}")
@@ -155,8 +161,8 @@ class _RestClient(object):
     def close(self):
         self.session.close()
 
-    def get(self, url):
-        return self.send_request(url, method='GET')
+    def get(self, url, query=None):
+        return self.send_request(url, method='GET', query=query)
 
     def post(self, url, body, **kwargs):
         return self.send_request(url, method='POST', body=body)
@@ -215,9 +221,8 @@ class _SchemaCache(object):
     """
     Thread-safe Cache for use with the Schema Registry Client.
 
-    This cache maintains two indexes to support the most common queries:
-        - schema_id_index
-        - schema_index
+    This cache may be used to retreive schema ids, schemas or to check
+    known subject membership.
 
     """
 
@@ -225,14 +230,16 @@ class _SchemaCache(object):
         self.lock = Lock()
         self.schema_id_index = {}
         self.schema_index = {}
+        self.subject_schemas = defaultdict(set)
 
-    def set(self, schema_id, schema):
+    def set(self, schema_id, schema, subject_name=None):
         """
         Add a Schema identified by schema_id to the cache.
 
         Args:
             schema_id (int): Schema's registration id
             schema (Schema): Schema instance
+            subject_name(str): Optional, subject schema is registered under
 
         Returns:
             int: The schema_id
@@ -241,6 +248,8 @@ class _SchemaCache(object):
             # Don't overwrite existing keys
             if schema_id not in self.schema_id_index:
                 self.schema_id_index[schema_id] = schema
+                if subject_name is not None:
+                    self.subject_schemas[subject_name].add(schema)
             if schema not in self.schema_index:
                 self.schema_index[schema] = schema_id
 
@@ -269,18 +278,50 @@ class _SchemaCache(object):
         """
         return self.schema_index.get(schema, None)
 
+    def is_registered(self, subject, schema):
+        return schema in self.subject_schemas
+
 
 class SchemaRegistryClient(object):
     """
     Schema Registry Client.
 
+    SchemaRegistryClient configuration properties:
+    +--------------------------+----------------------------------------------+
+    | Property name            | Description                                  |
+    +==========================+==============================================+
+    | url                      | Schema Registry url                          |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to CA certificate file used             |
+    | ssl.ca.location          | to verify the Schema Registry's              |
+    |                          | private key,                                 |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to client's private key                 |
+    |                          | (PEM) used for authentication.               |
+    | ssl.key.location         |                                              |
+    |                          | *ssl.certificate.location must also be set.  |
+    +--------------------------+----------------------------------------------+
+    |                          | Path to client's public key (PEM) used for   |
+    |                          | authentication.                              |
+    | ssl.certificate.location |                                              |
+    |                          | *May be set without ssl.key.location if the  |
+    |                          | private key is stored within the PEM as well |
+    +--------------------------+----------------------------------------------+
+    |                          | Client HTTP credentials in the form of       |
+    |                          | ``username:password ``.                      |
+    | basic.auth.user.info     |                                              |
+    |                          |  By default userinfo is extracted from       |
+    |                          |  the URL if present.                         |
+    +--------------------------+----------------------------------------------+
+
+    Args:
+        conf (dict): Schema Registry client configuration
+
     See Also:
         http://confluent.io/docs/current/schema-registry/docs/intro.html
 
-    Arguments:
-        conf (dict): Schema Registry config object
-
     """
+
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
         self.cache = _SchemaCache()
@@ -307,8 +348,6 @@ class SchemaRegistryClient(object):
     def register_schema(self, subject_name, schema):
         """
         Registers a schema under ``subject_name``.
-        Results are cached in the ``schema`` so subsequent requests will not
-        require another trip the Schema Registry.
 
         Args:
             subject_name (str): subject to register a schema under
@@ -325,20 +364,24 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions
 
         """  # noqa: E501
-        schema_id = self.cache.get_schema_id(schema)
-        if schema_id is not None:
-            return schema_id
+        if self.cache.is_registered(subject_name, schema):
+            schema_id = self.cache.get_schema_id(schema)
+            if schema_id is not None:
+                return schema_id
 
-        request = {'schema': schema.schema_str,
-                   'schemaType': schema.schema_type,
-                   'references': schema.references}
+        request = {'schema': schema.schema_str}
+
+        # CP 5.5 adds new fields (for JSON and Protobuf).
+        if len(schema.references) > 0 or schema.schema_type != 'AVRO':
+            request['schemaType'] = schema.schema_type
+            request['references'] = schema.references
 
         response = self._rest_client.post(
             'subjects/{}/versions'.format(_urlencode(subject_name)),
             body=request)
 
         schema_id = response['id']
-        self.cache.set(schema_id, schema)
+        self.cache.set(schema_id, schema, subject_name)
 
         return schema_id
 
@@ -398,11 +441,17 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)
 
         """  # noqa: E501
+
+        request = {'schema': schema.schema_str}
+
+        # CP 5.5 adds new fields (for JSON and Protobuf).
+        if len(schema.references) > 0 or schema.schema_type != 'AVRO':
+            request['schemaType'] = schema.schema_type
+            request['references'] = schema.references
+
         response = self._rest_client.post('subjects/{}'
                                           .format(_urlencode(subject_name)),
-                                          body={'schema': schema.schema_str,
-                                                'schemaType': schema.schema_type,
-                                                'references': schema.references})
+                                          body=request)
 
         schema_type = response.get('schemaType', 'AVRO')
 
@@ -562,7 +611,7 @@ class SchemaRegistryClient(object):
         Get the current compatibility level.
 
         Args:
-            - subject_name (str, optional): Subject name. Returns global policy
+            subject_name (str, optional): Subject name. Returns global policy
                 if left unset.
 
         Returns:
@@ -582,3 +631,71 @@ class SchemaRegistryClient(object):
             url = 'config'
 
         return self._rest_client.get(url)
+
+
+class Schema(object):
+    """
+    An unregistered Schema.
+
+    Args:
+        schema_str (str): String representation of the schema.
+        references ([Schema]): Schemas referenced by this schema.
+        schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
+
+    """
+    __slots__ = ['schema_str', 'references', 'schema_type']
+
+    def __init__(self, schema_str, schema_type, references=[]):
+        super(Schema, self).__init__()
+
+        self.schema_str = schema_str
+        self.schema_type = schema_type
+        self.references = references
+
+    def __eq__(self, other):
+        return str(self) == str(other)
+
+
+class RegisteredSchema(object):
+    """
+    Schema registration information.
+
+    As of Confluent Platform 5.5 Schema's may now hold references to other
+    registered schemas.
+
+    The class represents a reference to another schema which is used by this
+    schema. As long as there is a references to a schema it may not be deleted.
+
+    Args:
+        schema_id (int): Registered Schema id
+        schema_type (str): Type of schema
+        schema (Schema): Registered Schema
+        subject (str): Subject this schema is registered under
+        version (int): Version of this subject this schema is registered to
+
+    """
+
+    def __init__(self, schema_id, schema_type, schema, subject, version):
+        self.schema_id = schema_id
+        self.schema_type = schema_type
+        self.schema = schema
+        self.subject = subject
+        self.version = version
+
+
+class SchemaReference(object):
+    """
+    Reference to a Schema registered with the Schema Registry.
+
+    Args:
+        name (str): Schema name
+        subject (str): Subject this Schema is registered with
+        version (int): This Schema's version
+
+    """
+
+    def __init__(self, name, subject, version):
+        super(SchemaReference, self).__init__()
+        self.name = name
+        self.subject = subject
+        self.version = version
