@@ -65,11 +65,11 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
     test_serializer("test", SerializationContext("test-auto-register",
                                                  MessageField.KEY))
     print()
-    register_count = test_client.COUNTER['POST'].get('/subjects/{}/versions'
+    register_count = test_client.counter['POST'].get('/subjects/{}/versions'
                                                      .format(subject), 0)
     assert register_count == 0
     # Ensure lookup_schema was invoked instead
-    assert test_client.COUNTER['POST'].get('/subjects/{}'.format(subject)) == 1
+    assert test_client.counter['POST'].get('/subjects/{}'.format(subject)) == 1
 
 
 def test_avro_serializer_config_subject_name_strategy():

@@ -17,7 +17,7 @@
 #
 
 
-class ConsumeException(Exception):
+class ConsumeError(Exception):
     __slots__ = ['message', 'error_message', 'error_code']
 
     """

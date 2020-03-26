@@ -48,29 +48,32 @@ class KafkaClusterFixture(object):
 
         return topic_conf
 
-    def producer(self, conf={}, key_serializer=None, value_serializer=None):
+    def producer(self, conf=None, key_serializer=None, value_serializer=None):
         """
         Returns a producer bound to this cluster.
 
         Args:
             conf (dict): Producer configuration overrides
-            key_serializer: serializer to apply to message key
-            value_serializer: serializer to apply to message value
+
+            key_serializer (Serializer): serializer to apply to message key
+
+            value_serializer (Deserializer): serializer to apply to
+                message value
 
         Returns:
             Producer: A new Producer instance
 
         """
-        if key_serializer is not None:
-            conf['key.serializer'] = key_serializer
-
-        if value_serializer is not None:
-            conf['value.serializer'] = value_serializer
-
         client_conf = self.client_conf(conf)
 
-        if key_serializer is not None \
-                or value_serializer is not None:
+        if key_serializer is not None:
+            client_conf['key.serializer'] = key_serializer
+
+        if value_serializer is not None:
+            client_conf['value.serializer'] = value_serializer
+
+        if any(['key.serializer' in client_conf,
+                'value.serializer' in client_conf]):
             return SerializingProducer(client_conf)
 
         return Producer(client_conf)
@@ -79,12 +82,18 @@ class KafkaClusterFixture(object):
         """
         Returns a consumer bound to this cluster.
 
-        :param Serializer key_deserializer: serializer to apply on message key
-        :param Serializer value_deserializer: serializer to apply on message value
-        :param dict conf: consumer configuration overrides
+        Args:
+            conf (dict): Consumer config overrides
 
-        :returns: a new consumer instance.
-        :rtype: Consumer
+            key_deserializer (Deserializer): deserializer to apply to
+                message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            Consumer: A new Consumer instance
+
         """
         consumer_conf = self.client_conf({
             'group.id': str(uuid1()),
@@ -213,7 +222,7 @@ class TrivupFixture(KafkaClusterFixture):
     def schema_registry(self, conf=None):
         if hasattr(self._cluster, 'sr'):
             sr_conf = {'url': self._cluster.sr.get('url')}
-            if conf:
+            if conf is not None:
                 sr_conf.update(conf)
             return SchemaRegistryClient(sr_conf)
         return None

@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import json
 import logging
 import urllib
@@ -44,7 +43,7 @@ except NameError:
 log = logging.getLogger(__name__)
 
 _CONF_PREFIX = 'schema.registry.'
-VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
+VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
 class _RestClient(object):
@@ -374,7 +373,10 @@ class SchemaRegistryClient(object):
         # CP 5.5 adds new fields (for JSON and Protobuf).
         if len(schema.references) > 0 or schema.schema_type != 'AVRO':
             request['schemaType'] = schema.schema_type
-            request['references'] = schema.references
+            request['references'] = [{'name': ref.name,
+                                      'subject': ref.subject,
+                                      'version': ref.version}
+                                     for ref in schema.references]
 
         response = self._rest_client.post(
             'subjects/{}/versions'.format(_urlencode(subject_name)),
@@ -447,7 +449,10 @@ class SchemaRegistryClient(object):
         # CP 5.5 adds new fields (for JSON and Protobuf).
         if len(schema.references) > 0 or schema.schema_type != 'AVRO':
             request['schemaType'] = schema.schema_type
-            request['references'] = schema.references
+            request['references'] = [{'name': ref.name,
+                                      'subject': ref.subject,
+                                      'version': ref.version}
+                                     for ref in schema.references]
 
         response = self._rest_client.post('subjects/{}'
                                           .format(_urlencode(subject_name)),

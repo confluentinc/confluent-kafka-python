@@ -138,7 +138,7 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
     sr = mock_schema_registry(conf)
     schema = load_avsc('basic_schema.avsc')
 
-    count_before = mock_schema_registry.COUNTER['POST'].get(
+    count_before = sr.counter['POST'].get(
         '/subjects/test-cache/versions', 0)
 
     # Caching only starts after the first response is handled.
@@ -153,7 +153,7 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
                                       'test-cache', schema))
     wait(fs)
 
-    count_after = mock_schema_registry.COUNTER['POST'].get(
+    count_after = sr.counter['POST'].get(
         '/subjects/test-cache/versions')
 
     assert count_after - count_before == 1
@@ -183,7 +183,7 @@ def test_get_schema_cache(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)
 
-    count_before = mock_schema_registry.COUNTER['GET'].get(
+    count_before = mock_schema_registry.counter['GET'].get(
         '/schemas/ids/47', 0)
 
     # Caching only starts after the first response is handled.
@@ -197,7 +197,7 @@ def test_get_schema_cache(mock_schema_registry):
             fs.append(executor.submit(sr.get_schema, 47))
     wait(fs)
 
-    count_after = mock_schema_registry.COUNTER['GET'].get(
+    count_after = mock_schema_registry.counter['GET'].get(
         '/schemas/ids/47')
 
     assert count_after - count_before == 1

@@ -97,6 +97,9 @@ class Serializer(object):
     Extensible class from which all Serializer implementations derive.
     Serializers instruct Kafka clients on how convert Python objects to bytes.
 
+    See built-in implementations, listed below, for an example of how to
+    extend this class.
+
     Note:
         This class is not directly instantiable. The derived classes must be
         used instead.
@@ -154,7 +157,10 @@ class Serializer(object):
 class Deserializer(object):
     """
     Extensible class from which all Deserializer implementations derive.
-    Deserializers instruct kafka clients on how convert bytes to objects.
+    Deserializers instruct Kafka clients on how convert bytes to objects.
+
+    See built-in implementations, listed below, for an example of how to
+    extend this class.
 
     Note:
         This class is not directly instantiable. The derived classes must be
@@ -368,7 +374,6 @@ class StringSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringSerializer.html
 
     """  # noqa: E501
-
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
@@ -403,7 +408,7 @@ class StringSerializer(Serializer):
 
 class StringDeserializer(Deserializer):
     """
-    Deserializes bytes to unicode per the configured codec.
+    Deserializes a str(py2:unicode) from bytes.
 
     Args:
         codec (str, optional): encoding scheme. Defaults to utf_8
@@ -416,17 +421,16 @@ class StringDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringDeserializer.html
 
     """  # noqa: E501
-
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
     def __call__(self, data, ctx):
         """
-        Deserializes utf-8 bytes to str(py2:unicode)
+        Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 
         Compatibility Note:
-            Python 2 str objects must be converted to unicode objects by users
-            prior to using this serializer.
+            Python 2 str objects must be converted to unicode objects by the
+            application prior to using this serializer.
 
             Python 3 all str objects are already unicode objects.
 

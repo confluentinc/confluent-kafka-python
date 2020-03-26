@@ -17,6 +17,7 @@
 #
 import os
 import re
+from collections import defaultdict
 
 import pytest
 import requests_mock
@@ -131,11 +132,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SUBJECTS = ['subject1', 'subject2']
 
     # Counts requests handled per path by HTTP method
-    # {HTTP method: { path : count}
-    COUNTER = {'DELETE': {},
-               'GET': {},
-               'POST': {},
-               'PUT': {}}
+    # {HTTP method: { path : count}}
+    counter = defaultdict(dict)
+    counter = {'DELETE': defaultdict(int),
+               'GET': defaultdict(int),
+               'POST': defaultdict(int),
+               'PUT': defaultdict(int)}
 
     def __init__(self, conf):
         super(MockSchemaRegistryClient, self).__init__(conf)
@@ -172,9 +174,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             return fd.read()
 
     def get_compatibility_callback(self, request, context):
-        if request.path not in self.COUNTER['GET']:
-            self.COUNTER['GET'] = {request.path: 0}
-        self.COUNTER['GET'][request.path] += 1
+        self.counter['GET'][request.path] += 1
 
         path_match = re.match(self.compatibility, request.path)
         subject = path_match.group(1)
@@ -188,9 +188,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return {'compatibilityLevel': 'FULL'}
 
     def put_compatibility_callback(self, request, context):
-        if request.path not in self.COUNTER['PUT']:
-            self.COUNTER['PUT'] = {request.path: 0}
-        self.COUNTER['PUT'][request.path] += 1
+        self.counter['PUT'][request.path] += 1
 
         level = request.json().get('compatibility')
 
@@ -203,9 +201,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return request.json()
 
     def delete_subject_callback(self, request, context):
-        if request.path not in self.COUNTER['DELETE']:
-            self.COUNTER['DELETE'] = {request.path: 0}
-        self.COUNTER['DELETE'][request.path] += 1
+        self.counter['DELETE'][request.path] += 1
 
         path_match = re.match(self.subjects, request.path)
         subject = path_match.group(1)
@@ -219,17 +215,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return self.VERSIONS
 
     def get_subject_callback(self, request, context):
-        if request.path not in self.COUNTER['GET']:
-            self.COUNTER['GET'] = {request.path: 0}
-        self.COUNTER['GET'][request.path] += 1
+        self.counter['GET'][request.path] += 1
 
         context.status_code = 200
         return self.SUBJECTS
 
     def post_subject_callback(self, request, context):
-        if request.path not in self.COUNTER['POST']:
-            self.COUNTER['POST'] = {request.path: 0}
-        self.COUNTER['POST'][request.path] += 1
+        self.counter['POST'][request.path] += 1
 
         path_match = re.match(self.subjects, request.path)
         subject = path_match.group(1)
@@ -250,9 +242,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                 "schema": request.json()['schema']}
 
     def get_schemas_callback(self, request, context):
-        if request.path not in self.COUNTER['GET']:
-            self.COUNTER['GET'] = {request.path: 0}
-        self.COUNTER['GET'][request.path] += 1
+        self.counter['GET'][request.path] += 1
 
         path_match = re.match(self.schemas, request.path)
         schema_id = path_match.group(1)
@@ -266,9 +256,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return {'schema': self._load_avsc(self.SCHEMA)}
 
     def get_subject_version_callback(self, request, context):
-        if request.path not in self.COUNTER['GET']:
-            self.COUNTER['GET'] = {request.path: 0}
-        self.COUNTER['GET'][request.path] += 1
+        self.counter['GET'][request.path] += 1
 
         path_match = re.match(self.subject_versions, request.path)
         subject = path_match.group(1)
@@ -293,9 +281,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                 'schema': self._load_avsc(self.SCHEMA)}
 
     def delete_subject_version_callback(self, request, context):
-        if request.path not in self.COUNTER['DELETE']:
-            self.COUNTER['DELETE'] = {request.path: 0}
-        self.COUNTER['DELETE'][request.path] += 1
+        self.counter['DELETE'][request.path] += 1
 
         path_match = re.match(self.subject_versions, request.path)
         subject = path_match.group(1)
@@ -320,9 +306,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return int(version)
 
     def post_subject_version_callback(self, request, context):
-        if request.path not in self.COUNTER['POST']:
-            self.COUNTER['POST'] = {request.path: 0}
-        self.COUNTER['POST'][request.path] += 1
+        self.counter['POST'][request.path] += 1
 
         path_match = re.match(self.subject_versions, request.path)
         subject = path_match.group(1)

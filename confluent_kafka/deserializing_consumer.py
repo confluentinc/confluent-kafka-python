@@ -18,7 +18,7 @@
 
 from confluent_kafka.cimpl import (KafkaError,
                                    Consumer as _cConsumer)
-from .error import ConsumeException
+from .error import ConsumeError
 from .serialization import (SerializationError,
                             SerializationContext,
                             MessageField)
@@ -110,7 +110,7 @@ class DeserializingConsumer(_cConsumer):
             return None
 
         if msg.error() is not None:
-            raise ConsumeException(msg.error(), message=msg)
+            raise ConsumeError(msg.error(), message=msg)
 
         ctx = SerializationContext(msg.topic(), MessageField.VALUE)
         value = None
@@ -118,18 +118,18 @@ class DeserializingConsumer(_cConsumer):
             try:
                 value = self._value_deserializer(msg.value(), ctx)
             except SerializationError as se:
-                raise ConsumeException(KafkaError._VALUE_DESERIALIZATION,
-                                       reason=se.message,
-                                       message=msg)
+                raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
+                                   reason=se.message,
+                                   message=msg)
         key = None
         if self._key_deserializer:
             try:
                 ctx.field = MessageField.KEY
                 key = self._key_deserializer(msg.key(), ctx)
             except SerializationError as se:
-                raise ConsumeException(KafkaError._KEY_DESERIALIZATION,
-                                       reason=se.message,
-                                       message=msg)
+                raise ConsumeError(KafkaError._KEY_DESERIALIZATION,
+                                   reason=se.message,
+                                   message=msg)
 
         msg.set_key(key)
         msg.set_value(value)
