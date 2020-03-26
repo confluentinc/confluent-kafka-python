@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# This script prepares the OSX env for the configured build
+# This script prepares the Travis OSX env with a particular interpreter
 # https://docs.travis-ci.com/user/languages/python/
 #
 # Default OSX environment
@@ -11,19 +11,15 @@ VENV_HOME=$2
 
 set -ev
 
-if [[ -z "$PY_INTERPRETER" ]]; then
-    echo "Usage: $0 <Python interpreter version> <destination>"
-    exit 1
-fi
-
-if [[ -z "${VENV_HOME}" ]]; then
+if [[ -z "${PY_INTERPRETER}" ]] || [[  -z "${VENV_HOME}" ]]; then
     echo "Usage: $0 <Python interpreter version> <destination>"
     exit 1
 fi
 
 # Update virtualenv and install requested interpreter
 echo "# Updating basic dependencies" 
-pip install -U pip && pip install virtualenv
+pip install -U pip
+pip install virtualenv
 pyenv install -f ${PY_INTERPRETER}
 
 # Create virtualenv
