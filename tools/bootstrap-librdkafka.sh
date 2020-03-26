@@ -25,6 +25,8 @@ if [[ $INSTALLDIR != /* ]]; then
     INSTALLDIR="$PWD/$INSTALLDIR"
 fi
 
+rm -rf ${BUILDDIR}
+
 mkdir -p "$BUILDDIR/librdkafka"
 pushd "$BUILDDIR/librdkafka"
 

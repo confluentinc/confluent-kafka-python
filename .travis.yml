@@ -18,23 +18,11 @@ matrix:
   # Source package verification with Python 2.7
   - os: osx
     python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    before_install:
-        - pip install -U pip && pip install virtualenv
-        - pyenv install -f 2.7.15
-        - pip install virtualenv
-        - virtualenv -p ~/.pyenv/versions/2.7.15/bin/python ./env
-        - source env/bin/activate
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
   # Source package verification with Python 3.6
   - os: osx
     python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" EXTRA_PKGS="sphinx sphinx_rtd_theme avro-python3"
-    before_install:
-        - pip install -U pip && pip install virtualenv
-        - pyenv install -f 3.6.5
-        - pip install virtualenv
-        - virtualenv -p ~/.pyenv/versions/3.6.5/bin/python ./env
-        - source env/bin/activate
+    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
   # cibuildwheel for osx
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
@@ -53,26 +41,40 @@ matrix:
     python: "2.7"
     services: docker
 
+# See https://cibuildwheel.readthedocs.io/en/latest/options/ for CIBW* vars
+
+# Install test dependencies unconditionally
+# Travis OSX envs requires some setup; see tools/prepare-osx.sh
+# Install cibuildwheel if this is a tagged PR
+before_install:
+  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
+  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel --force-reinstall; fi
+
+# Install interceptors
+# Install librdkafka if not CIBW_BEFORE_BUILD
+# Install confluent_kafka[avro] if not CIBW_BEFORE_BUILD
 install:
  - tools/install-interceptors.sh
- - pip install -U pip && pip install virtualenv
- - if [[ $TRAVIS_OS_NAME == "osx" ]]; then python -m ensurepip && virtualenv /tmp/venv && source /tmp/venv/bin/activate ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -r confluent_kafka/requirements.txt -r tests/requirements.txt -r confluent_kafka/avro/requirements.txt; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then rm -rf tmp-build ; tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
- - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel --force-reinstall; fi
- - if [[ ! -z $EXTRA_PKGS ]]; then pip install $(echo $EXTRA_PKGS) ; fi
+ - pip install -r tests/requirements.txt
+ - flake8
+ - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build && pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro]; fi
 
+# Build wheels
 script:
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[dev] ; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then flake8 ; fi
- # Make plugins available for tests
+ - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
+
+# Make plugins available for tests
+# Execute tests if not CIBW_BEFORE_BUILD [osx, linux]
+# Execute integration tests if CIBW_BEFORE_BUILD
+# Build docs if MK_DOCS
+after_script:
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append ; fi
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append ; fi
- - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse ; fi
- - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]]; then tools/test-manylinux.sh ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
+ - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]];then tools/test-manylinux.sh; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-osx.sh; fi
- - if [[ $MK_DOCS == y ]]; then make docs ; fi
+ - if [[ $MK_DOCS == y ]]; then make docs; fi
 
 deploy:
  provider: s3
