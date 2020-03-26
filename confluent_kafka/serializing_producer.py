@@ -25,6 +25,10 @@ class SerializingProducer(_cProducer):
     """
     A high level Kafka Producer with serialization capabilities.
 
+    Note:
+        The SerializingProducer is an experimental API and subject to change
+        between now and its eventual promotion to GA.
+
     The SerializingProducer is thread safe and sharing a single instance across
     threads will generally be faster than having multiple instances.
 
@@ -50,35 +54,34 @@ class SerializingProducer(_cProducer):
         producer on how to convert the message payload to bytes.
 
     Args:
-        conf (Config): Producer configuration
-
-        conf (ClientConfig): Client configuration
+        conf (producer): Client configuration
             The following configurations are supported in addition to the ones
             described in Client Configurations(linked below).
 
-            key.serializer (Serializer, optional): The serializer for key that
-                implements Serializer
+            key.serializer (Serializer, optional): The serializer used for
+                message keys.
 
-            value.serializer (Serializer, optional): The serializer for value
-                that implements Serializer
+            value.serializer (Serializer, optional): The serializer used for
+                message values.
 
             error_cb callable(KafkaError, optional): Callback for generic/global
                 error events. These errors are typically to be considered
-                informational since the client will automatically try to recover.
-                This callback is served upon calling :py:func:`Producer.poll()`
-                or :py:func:`Producer.flush()`
+                informational since the client will automatically try to
+                recover. This callback is served upon calling
+                :py:func:`Producer.poll()` or :py:func:`Producer.flush()`
 
-            log_cb (logging.Handler, optional): logging handle to forward logs to.
-                To avoid spontaneous calls from non-Python threads the log messages
-                will only be forwarded when :py:func:`Producer.poll()` or
-                :py:func:`Producer.flush()` is called
+            log_cb (logging.Handler, optional): logging handle to forward logs
+                to. To avoid spontaneous calls from non-Python threads the log
+                messages will only be forwarded when :py:func:`Producer.poll()`
+                or :py:func:`Producer.flush()` is called
 
             stats_cb (callable(str), optional): Callback for statistics data.
                 This callback is triggered by :py:func:`Consumer.poll()` every
                 ``statistics.interval.ms`` (needs to be configured separately).
-                The str function argument is a str instance of a JSON document
-                containing statistics data. This callback is served upon calling
-                :py:func:`Producer.poll()` or :py:func:`Producer.flush()`
+                The str function argument is a str instance of a JSON formatted
+                string containing statistics data. This callback is served upon
+                calling :py:func:`Producer.poll()` or
+                :py:func:`Producer.flush()`
 
             throttle_cb (callable(ThrottleEvent), optional): Callback for
                 throttled request reporting. This callback is served upon

@@ -26,19 +26,22 @@ from .serialization import (SerializationError,
 
 class DeserializingConsumer(_cConsumer):
     """
-    A client that consumes records from a Kafka cluster. With Serialization
+    A client that consumes records from a Kafka cluster. With deserialization
     capabilities.
 
+    Note:
+        The DeserializingConsumer is an experimental API and subject to change
+        between now and its eventual promotion to GA.
+
     Args:
-        conf (ClientConfig): Client configuration
+        conf (dict): Client configuration
             The following configurations are supported in addition to the ones
             described in Client Configurations(linked below).
 
-            key.deserializer (Deserializer): Deserializes
-                :py:func:`Message.key()` return value.
+            key.deserializer (Deserializer): The deserializer for message keys.
 
-            value.deserializer (Deserializer): Deserializes
-                :py:func:`Message.value()` return value.
+            value.deserializer (Deserializer): The deserializer for message
+                values.
 
             error_cb(callable(KafkaError), optional): Callback for
                 generic/global error events. These errors are typically to be
@@ -54,9 +57,10 @@ class DeserializingConsumer(_cConsumer):
             stats_cb (callable(str), optional): Callback for statistics data.
                 This callback is triggered by :py:func:`Consumer.poll()` every
                 ``statistics.interval.ms`` (needs to be configured separately).
-                The str function argument is a str instance of a JSON document
-                containing statistics data. This callback is served upon calling
-                :py:func:`Consumer.poll()`.
+                The str function argument is a str instance of a JSON formatted
+                string containing statistics data. This callback is served upon
+                calling :py:func:`Producer.poll()` or
+                :py:func:`Producer.flush()`
 
             throttle_cb (callable(ThrottleEvent), optional): Callback for
                 throttled request reporting. This callback is served upon
@@ -109,22 +113,26 @@ class DeserializingConsumer(_cConsumer):
             raise ConsumeException(msg.error(), message=msg)
 
         ctx = SerializationContext(msg.topic(), MessageField.VALUE)
+        value = None
         if self._value_deserializer:
             try:
-                msg.set_value(self._value_deserializer(msg.value(), ctx))
+                value = self._value_deserializer(msg.value(), ctx)
             except SerializationError as se:
                 raise ConsumeException(KafkaError._VALUE_DESERIALIZATION,
                                        reason=se.message,
                                        message=msg)
+        key = None
         if self._key_deserializer:
             try:
                 ctx.field = MessageField.KEY
-                msg.set_key(self._key_deserializer(msg.key(), ctx))
+                key = self._key_deserializer(msg.key(), ctx)
             except SerializationError as se:
                 raise ConsumeException(KafkaError._KEY_DESERIALIZATION,
                                        reason=se.message,
                                        message=msg)
 
+        msg.set_key(key)
+        msg.set_value(value)
         return msg
 
     def consume(self, num_messages=1, timeout=-1):

@@ -27,16 +27,16 @@ from requests import (Session,
 
 from .error import SchemaRegistryError
 
-# TODO: use six or adopt compat file requests.
+# TODO: consider adding `six` dependency or employing a compat file
+# six: https://pypi.org/project/six/
+# compat file : https://github.com/psf/requests/blob/master/requests/compat.py
 try:
     string_type = basestring  # noqa
-
 
     def _urlencode(value):
         return urllib.quote(value, safe='')
 except NameError:
     string_type = str
-
 
     def _urlencode(value):
         return urllib.parse.quote(value, safe='')

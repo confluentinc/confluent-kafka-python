@@ -133,9 +133,9 @@ class AvroSerializer(Serializer):
         https://avro.apache.org/docs/current/spec.html#schemas
 
     """  # noqa: E501
-    __slots__ = ['_hash', 'auto_register', 'known_subjects', 'parsed_schema',
-                 'registry', 'schema', 'schema_id', 'schema_name',
-                 'subject_name_func', 'to_dict']
+    __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
+                 '_registry', '_schema', '_schema_id', '_schema_name',
+                 '_subject_name_func', 'to_dict']
 
     # default configuration
     _default = {'auto.register.schemas': True,
@@ -143,13 +143,13 @@ class AvroSerializer(Serializer):
 
     def __init__(self, schema_registry_client, schema_str,
                  to_dict=None, conf=None):
-        self.registry = schema_registry_client
-        self.schema_id = None
+        self._registry = schema_registry_client
+        self._schema_id = None
         # Avoid calling registry if schema is known to be registered
-        self.known_subjects = set()
+        self._known_subjects = set()
 
         if to_dict is not None and not callable(to_dict):
-            raise ValueError("to_dict must  be callable  with the signature"
+            raise ValueError("to_dict must be callable  with the signature"
                              " to_dict(object, Serialization Context)->dict")
 
         self.to_dict = to_dict
@@ -159,9 +159,9 @@ class AvroSerializer(Serializer):
         if conf is not None:
             conf_copy.update(conf)
 
-        self.auto_register = conf_copy.pop('auto.register.schemas')
+        self._auto_register = conf_copy.pop('auto.register.schemas')
 
-        if not isinstance(self.auto_register, bool):
+        if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
 
         subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -169,7 +169,7 @@ class AvroSerializer(Serializer):
         if not callable(subject_name_func):
             raise ValueError("subject.name.strategy must be callable.")
 
-        self.subject_name_func = subject_name_func
+        self._subject_name_func = subject_name_func
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized property(ies) {}"
@@ -182,9 +182,9 @@ class AvroSerializer(Serializer):
         #  https://github.com/fastavro/fastavro/issues/415
         schema_name = parsed_schema.get('name', schema_dict['type'])
 
-        self.schema = schema
-        self.schema_name = schema_name
-        self.parsed_schema = parsed_schema
+        self._schema = schema
+        self._schema_name = schema_name
+        self._parsed_schema = parsed_schema
         self._hash = hash(schema.schema_str)
 
     def __hash__(self):
@@ -207,44 +207,44 @@ class AvroSerializer(Serializer):
             SerializerError if any error occurs encoding obj
 
         Returns:
-            bytes: Confluent Schema Registry formatted binary blob
+            bytes: Confluent Schema Registry formatted Avro bytes
 
         """
         if obj is None:
             return None
 
-        subject = self.subject_name_func(self.schema_name, ctx)
+        subject = self._subject_name_func(self._schema_name, ctx)
 
-        if self.auto_register and subject not in self.known_subjects:
-            self.schema_id = self.registry.register_schema(subject,
-                                                           self.schema)
-            self.known_subjects.add(subject)
-        elif not self.auto_register and subject not in self.known_subjects:
-            registered_schema = self.registry.lookup_schema(subject,
-                                                            self.schema)
-            self.schema_id = registered_schema.schema_id
-            self.known_subjects.add(subject)
+        if self._auto_register and subject not in self._known_subjects:
+            self._schema_id = self._registry.register_schema(subject,
+                                                             self._schema)
+            self._known_subjects.add(subject)
+        elif not self._auto_register and subject not in self._known_subjects:
+            registered_schema = self._registry.lookup_schema(subject,
+                                                             self._schema)
+            self._schema_id = registered_schema.schema_id
+            self._known_subjects.add(subject)
 
         if self.to_dict is not None:
             obj = self.to_dict(obj, ctx)
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self.schema_id))
+            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
-            schemaless_writer(fo, self.parsed_schema, obj)
+            schemaless_writer(fo, self._parsed_schema, obj)
 
             return fo.getvalue()
 
 
 class AvroDeserializer(Deserializer):
     """
-    AvroDeserializer decodes binary blobs written in the Schema Registry
-    binary format for Avro to an object.
+    AvroDeserializer decodes bytes written in the Schema Registry
+    format for Avro to an object.
 
     Note:
         ``Complex Types`` are returned as dicts. If a more specific instance
-        type is desired a callable , ``to_object``, may be registered with
+        type is desired a callable , ``from_dict``, may be registered with
         the AvroDeserializer which converts a dict to the desired type.
 
         See ``avroconsumer.py`` in the examples directory for example usage.
@@ -265,13 +265,13 @@ class AvroDeserializer(Deserializer):
         https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution
 
     """
-    __slots__ = ['reader_schema', 'registry', 'from_dict', 'writer_schemas']
+    __slots__ = ['_reader_schema', '_registry', 'from_dict', '_writer_schemas']
 
     def __init__(self, schema_registry_client, schema_str, from_dict=None):
-        self.registry = schema_registry_client
-        self.writer_schemas = {}
+        self._registry = schema_registry_client
+        self._writer_schemas = {}
 
-        self.reader_schema = parse_schema(loads(schema_str))
+        self._reader_schema = parse_schema(loads(schema_str))
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("to_object must be callable with the signature"
@@ -280,11 +280,11 @@ class AvroDeserializer(Deserializer):
 
     def __call__(self, value, ctx):
         """
-        Decodes a Confluent Schema Registry Avro formatted binary blob
+        Decodes a Confluent Schema Registry formatted Avro bytes
         to an object.
 
         Arguments:
-            value (bytes): binary blob
+            value (bytes): bytes
 
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
@@ -311,17 +311,18 @@ class AvroDeserializer(Deserializer):
                                          " not produced with a Confluent"
                                          " Schema Registry serializer.")
 
-            writer_schema = self.writer_schemas.get(schema_id, None)
+            writer_schema = self._writer_schemas.get(schema_id, None)
+
             if writer_schema is None:
-                schema = self.registry.get_schema(schema_id)
+                schema = self._registry.get_schema(schema_id)
                 prepared_schema = _schema_loads(schema.schema_str)
                 writer_schema = parse_schema(loads(
                     prepared_schema.schema_str))
-                self.writer_schemas[schema_id] = writer_schema
+                self._writer_schemas[schema_id] = writer_schema
 
             obj_dict = schemaless_reader(payload,
                                          writer_schema,
-                                         self.reader_schema)
+                                         self._reader_schema)
 
             if self.from_dict is not None:
                 return self.from_dict(obj_dict, ctx)

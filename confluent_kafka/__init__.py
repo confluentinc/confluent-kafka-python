@@ -16,8 +16,8 @@
 # limitations under the License.
 #
 
-from .consumer import DeserializingConsumer
-from .producer import SerializingProducer
+from .deserializing_consumer import DeserializingConsumer
+from .serializing_producer import SerializingProducer
 
 from .cimpl import (Producer,
                     Consumer,
