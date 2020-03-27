@@ -31,29 +31,27 @@ class SerializingProducer(_ProducerImpl):
     The SerializingProducer is thread safe and sharing a single instance across
     threads will generally be more efficient than having multiple instances.
 
-    The :py:func:`SerializingProducer.produce()` method is asynchronous.
+    The :py:func:`SerializingProducer.produce` method is asynchronous.
     When called it adds the message to a queue of pending messages and
     immediately returns. This allows the Producer to batch together individual
     messages for efficiency.
 
     The Producer will automatically retry failed produce requests up to
-    ``message.timeout.ms``.
+    ``message.timeout.ms`` .
 
     .. versionadded:: 1.4.0
-
         The Transactional Producer allows an application to send messages to
         multiple partitions (and topics) atomically.
 
         The ``key.serializer`` and ``value.serializer`` classes instruct the
         SerializingProducer on how to convert the message payload to bytes.
 
-    For detailed information about this settings and others see
-
     Note:
         All configured callbacks are served from the application queue upon
-        calling :py:func:`SerializingProducer.poll()` or :py:func:`SerializingProducer.flush()`
+        calling :py:func:`SerializingProducer.poll` or :py:func:`SerializingProducer.flush`
 
     SerializingProducer configuration properties(* indicates required field)
+
     +--------------------+-----------------+-----------------------------------------------------+
     | Property Name      | Type            | Description                                         |
     +====================+=================+=====================================================+
@@ -71,8 +69,7 @@ class SerializingProducer(_ProducerImpl):
     |                    |                 |                                                     |
     | error_cb           | callable        | Callback for generic/global error events. These     |
     |                    |                 | errors are typically to be considered informational |
-    |                    |                 | since the                                           |
-    |                    |                 | client will automatically try to recover.           |
+    |                    |                 | since the client will automatically try to recover. |
     +--------------------+-----------------+-----------------------------------------------------+
     | log_cb             | logging.Handler | Logging handler to forward logs                     |
     +--------------------+-----------------+-----------------------------------------------------+
@@ -80,15 +77,16 @@ class SerializingProducer(_ProducerImpl):
     |                    |                 |                                                     |
     |                    |                 | Callback for statistics. This callback is           |
     | stats_cb           | callable        | added to the application queue every                |
-    |                    |                 |``statistics.interval.ms`` (configured separately).  |
+    |                    |                 | ``statistics.interval.ms`` (configured separately). |
     |                    |                 | The function argument is a JSON formatted str       |
     |                    |                 | containing statistics data.                         |
     +--------------------+-----------------+-----------------------------------------------------+
     |                    |                 | Callable(ThrottleEvent)                             |
     | throttle_cb        | callable        |                                                     |
     |                    |                 | Callback for throttled request reporting.           |
+    |                    |                 | Callback for throttled request reporting.           |
     +--------------------+-----------------+-----------------------------------------------------+
-    .. _See Client CONFIGURATION.md for a complete list of configuration properties.
+    .. _See Client CONFIGURATION.md for a complete list of configuration properties:
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
@@ -113,7 +111,7 @@ class SerializingProducer(_ProducerImpl):
 
         This is an asynchronous operation, an application may use the
         ``on_delivery`` argument to pass a function (or lambda) that will be
-        called from :py:func:`SerializingProducer.poll()` when the message has
+        called from :py:func:`SerializingProducer.poll` when the message has
         been successfully delivered or permanently fails delivery.
 
         Currently message headers are not supported on the message returned to
@@ -132,8 +130,8 @@ class SerializingProducer(_ProducerImpl):
 
             on_delivery (callable(KafkaError, Message), optional): Delivery
                 report callback to call (from
-                :py:func:`SerializingProducer.poll()` or
-                :py:func:`SerializingProducer.flush()` ) on successful or
+                :py:func:`SerializingProducer.poll` or
+                :py:func:`SerializingProducer.flush` on successful or
                 failed delivery.
 
             timestamp (float, optional): Message timestamp (CreateTime) in ms
@@ -146,7 +144,7 @@ class SerializingProducer(_ProducerImpl):
 
         Raises:
             BufferError: if the internal producer message queue is full.
-                (``queue.buffering.max.messages`` exceeded). If this happens
+                ( ``queue.buffering.max.messages`` exceeded). If this happens
                 the application should call :py:func:`SerializingProducer.Poll`
                 and try again.
 

@@ -39,9 +39,10 @@ class DeserializingConsumer(_ConsumerImpl):
 
     Note:
         All configured callbacks are served from the application queue upon
-        calling :py:func:`DeserializingConsumer.poll()`
+        calling :py:func:`DeserializingConsumer.poll`
 
     DeserializingConsumer configuration properties(* indicates required field)
+
     +--------------------+-----------------+-----------------------------------------------------+
     | Property Name      | Type            | Description                                         |
     +====================+=================+=====================================================+
@@ -148,6 +149,6 @@ class DeserializingConsumer(_ConsumerImpl):
     def consume(self, num_messages=1, timeout=-1):
         """
         :py:func:`Consumer.consume` not implemented,
-        :py:func:`DeserializingConsumer.poll()` instead
+        :py:func:`DeserializingConsumer.poll` instead
         """
         raise NotImplementedError
