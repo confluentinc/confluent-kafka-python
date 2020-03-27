@@ -27,6 +27,11 @@ from requests import (Session,
 from .error import SchemaRegistryError
 
 # TODO: consider adding `six` dependency or employing a compat file
+# Python 2.7 is officially EOL so compatibility issue will be come more the norm.
+# We need a better way to handle these issues.
+# Six is one possibility but the compat file pattern used by requests
+# is also quite nice.
+#
 # six: https://pypi.org/project/six/
 # compat file : https://github.com/psf/requests/blob/master/requests/compat.py
 try:
@@ -181,7 +186,6 @@ class _SchemaCache(object):
     known subject membership.
 
     """
-
     def __init__(self):
         self.lock = Lock()
         self.schema_id_index = {}
@@ -239,33 +243,33 @@ class SchemaRegistryClient(object):
     """
     Schema Registry Client.
 
-    SchemaRegistryClient configuration properties:
-    +--------------------------+----------------------------------------------+
-    | Property name            | Description                                  |
-    +==========================+==============================================+
-    | url                      | Schema Registry URL.                         |
-    +--------------------------+----------------------------------------------+
-    |                          | Path to CA certificate file used             |
-    | ssl.ca.location          | to verify the Schema Registry's              |
-    |                          | private key.                                 |
-    +--------------------------+----------------------------------------------+
-    |                          | Path to client's private key                 |
-    |                          | (PEM) used for authentication.               |
-    | ssl.key.location         |                                              |
-    |                          | *ssl.certificate.location must also be set.  |
-    +--------------------------+----------------------------------------------+
-    |                          | Path to client's public key (PEM) used for   |
-    |                          | authentication.                              |
-    | ssl.certificate.location |                                              |
-    |                          | *May be set without ssl.key.location if the  |
-    |                          | private key is stored within the PEM as well.|
-    +--------------------------+----------------------------------------------+
-    |                          | Client HTTP credentials in the form of       |
-    |                          | ``username:password``.                       |
-    | basic.auth.user.info     |                                              |
-    |                          |  By default userinfo is extracted from       |
-    |                          |  the URL if present.                         |
-    +--------------------------+----------------------------------------------+
+    SchemaRegistryClient configuration properties(* indicates a required field)
+    +--------------------------+------+-----------------------------------------------+
+    | Property name            | type | Description                                   |
+    +==========================+======+===============================================+
+    | url*                     | str  | Schema Registry URL.                          |
+    +--------------------------+------+-----------------------------------------------+
+    |                          |      | Path to CA certificate file used              |
+    | ssl.ca.location*         | str  | to verify the Schema Registry's               |
+    |                          |      | private key.                                  |
+    +--------------------------+------+-----------------------------------------------+
+    |                          |      | Path to client's private key                  |
+    |                          |      | (PEM) used for authentication.                |
+    | ssl.key.location         | str  |                                               |
+    |                          |      | *ssl.certificate.location must also be set.   |
+    +--------------------------+------+-----------------------------------------------+
+    |                          |      | Path to client's public key (PEM) used for    |
+    |                          |      | authentication.                               |
+    | ssl.certificate.location | str  |                                               |
+    |                          |      | *May be set without ssl.key.location if the   |
+    |                          |      | private key is stored within the PEM as well. |
+    +--------------------------+------+-----------------------------------------------+
+    |                          |      | Client HTTP credentials in the form of        |
+    |                          |      | ``username:password``.                        |
+    | basic.auth.user.info     | str  |                                               |
+    |                          |      | By default userinfo is extracted from         |
+    |                          |      | the URL if present.                           |
+    +--------------------------+------+-----------------------------------------------+
 
     Args:
         conf (dict): Schema Registry client configuration
@@ -638,7 +642,7 @@ class RegisteredSchema(object):
     """
     Schema registration information.
 
-    Represents a Schema registered with a subject. Use this class when you need
+    Represents a  Schema registered with a subject. Use this class when you need
     a specific version of a subject such as forming a SchemaReference.
 
     Args:
@@ -648,6 +652,7 @@ class RegisteredSchema(object):
         version (int): Version of this subject this schema is registered to
 
     """
+
     def __init__(self, schema_id, schema, subject, version):
         self.schema_id = schema_id
         self.schema = schema

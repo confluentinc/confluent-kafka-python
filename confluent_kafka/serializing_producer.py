@@ -16,12 +16,12 @@
 # limitations under the License.
 #
 
-from .cimpl import Producer as _cProducer
+from .cimpl import Producer as _ProducerImpl
 from .serialization import (MessageField,
                             SerializationContext)
 
 
-class SerializingProducer(_cProducer):
+class SerializingProducer(_ProducerImpl):
     """
     A high level Kafka Producer with serialization capabilities.
 
@@ -39,63 +39,60 @@ class SerializingProducer(_cProducer):
     The Producer will automatically retry failed produce requests up to
     ``message.timeout.ms``.
 
-    .. versionadded:: 1.0.0
-
-        Setting ``enable.idempotence: True`` enables Idempotent Producer which
-        provides guaranteed ordering and exactly-once producing.
-
     .. versionadded:: 1.4.0
 
         The Transactional Producer allows an application to send messages to
         multiple partitions (and topics) atomically.
 
-        The ``key_serializer`` and ``value_serializer`` classes instruct the
-        producer on how to convert the message payload to bytes.
-
-    At a minimum both ``bootstrap.servers`` must be set.
+        The ``key.serializer`` and ``value.serializer`` classes instruct the
+        SerializingProducer on how to convert the message payload to bytes.
 
     For detailed information about this settings and others see
 
-    .. _Client Configurations not listed above:
+    Note:
+        All configured callbacks are served from the application queue upon
+        calling :py:func:`SerializingProducer.poll()` or :py:func:`SerializingProducer.flush()`
+
+    SerializingProducer configuration properties(* indicates required field)
+    +--------------------+-----------------+-----------------------------------------------------+
+    | Property Name      | Type            | Description                                         |
+    +====================+=================+=====================================================+
+    | bootstrap.servers* | str             | Comma-separated list of brokers.                    |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(obj, SerializationContext) -> bytes        |
+    | key.serializer     | callable        |                                                     |
+    |                    |                 | Serializer used for message keys.                   |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(obj, SerializationContext) -> bytes        |
+    | value.serializer   | callable        |                                                     |
+    |                    |                 | Serializer used for message values.                 |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(KafkaError)                                |
+    |                    |                 |                                                     |
+    | error_cb           | callable        | Callback for generic/global error events. These     |
+    |                    |                 | errors are typically to be considered informational |
+    |                    |                 | since the                                           |
+    |                    |                 | client will automatically try to recover.           |
+    +--------------------+-----------------+-----------------------------------------------------+
+    | log_cb             | logging.Handler | Logging handler to forward logs                     |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(str)                                       |
+    |                    |                 |                                                     |
+    |                    |                 | Callback for statistics. This callback is           |
+    | stats_cb           | callable        | added to the application queue every                |
+    |                    |                 |``statistics.interval.ms`` (configured separately).  |
+    |                    |                 | The function argument is a JSON formatted str       |
+    |                    |                 | containing statistics data.                         |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(ThrottleEvent)                             |
+    | throttle_cb        | callable        |                                                     |
+    |                    |                 | Callback for throttled request reporting.           |
+    +--------------------+-----------------+-----------------------------------------------------+
+    .. _See Client CONFIGURATION.md for a complete list of configuration properties.
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
-        conf (producer): Client configuration
-            The following configurations are supported in addition to the ones
-            described in Client Configurations(linked below).
-
-            key.serializer (Serializer, optional): The serializer used for
-                message keys.
-
-            value.serializer (Serializer, optional): The serializer used for
-                message values.
-
-            error_cb callable(KafkaError, optional): Callback for generic/global
-                error events. These errors are typically to be considered
-                informational since the client will automatically try to
-                recover. This callback is served upon calling
-                :py:func:`Producer.poll()` or :py:func:`Producer.flush()`
-
-            log_cb (logging.Handler, optional): logging handle to forward logs
-                to. To avoid spontaneous calls from non-Python threads the log
-                messages will only be forwarded when :py:func:`Producer.poll()`
-                or :py:func:`Producer.flush()` is called
-
-            stats_cb (callable(str), optional): Callback for statistics data.
-                This callback is triggered by :py:func:`Consumer.poll()` every
-                ``statistics.interval.ms`` (needs to be configured separately).
-                The str function argument is a str instance of a JSON formatted
-                string containing statistics data. This callback is served upon
-                calling :py:func:`Producer.poll()` or
-                :py:func:`Producer.flush()`
-
-            throttle_cb (callable(ThrottleEvent), optional): Callback for
-                throttled request reporting. This callback is served upon
-                calling :py:func:`SerializingProducer.poll()` or
-                :py:func:`SerializingProducer.flush()`
-
-    .. _Client Configurations not listed above:
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+        conf (producer): SerializingProducer configuration.
 
     .. _Statistics:
         https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md

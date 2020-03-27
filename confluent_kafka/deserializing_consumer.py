@@ -32,45 +32,58 @@ class DeserializingConsumer(_ConsumerImpl):
     Note:
         The DeserializingConsumer is an experimental API and subject to change.
 
-    At a minimum both ``bootstrap.servers`` and ``group.id`` must be set.
+    .. versionadded:: 1.4.0
 
-    For detailed information about these settings and others see
+        The ``key.deserializer`` and ``value.deserializer`` classes instruct the
+        DeserializingConsumer on how to convert the message payload bytes to objects.
 
-    .. _Client Configurations not listed above:
+    Note:
+        All configured callbacks are served from the application queue upon
+        calling :py:func:`DeserializingConsumer.poll()`
+
+    DeserializingConsumer configuration properties(* indicates required field)
+    +--------------------+-----------------+-----------------------------------------------------+
+    | Property Name      | Type            | Description                                         |
+    +====================+=================+=====================================================+
+    | bootstrap.servers* | str             | Comma-separated list of brokers.                    |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Client group id string.                             |
+    | group.id*          | str             | All clients sharing the same group.id belong to the |
+    |                    |                 | same group.                                         |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(bytes, SerializationContext) -> obj        |
+    | key.deserializer   | callable        |                                                     |
+    |                    |                 | Serializer used for message keys.                   |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(bytes, SerializationContext) -> obj        |
+    | value.deserializer | callable        |                                                     |
+    |                    |                 | Serializer used for message values.                 |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(KafkaError)                                |
+    |                    |                 |                                                     |
+    | error_cb           | callable        | Callback for generic/global error events. These     |
+    |                    |                 | errors are typically to be considered informational |
+    |                    |                 | since the client will automatically try to recover. |
+    +--------------------+-----------------+-----------------------------------------------------+
+    | log_cb             | logging.Handler | Logging handler to forward logs                     |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(str)                                       |
+    |                    |                 |                                                     |
+    |                    |                 | Callback for statistics. This callback is           |
+    | stats_cb           | callable        | added to the application queue every                |
+    |                    |                 |``statistics.interval.ms`` (configured separately).  |
+    |                    |                 | The function argument is a JSON formatted str       |
+    |                    |                 | containing statistics data.                         |
+    +--------------------+-----------------+-----------------------------------------------------+
+    |                    |                 | Callable(ThrottleEvent)                             |
+    | throttle_cb        | callable        |                                                     |
+    |                    |                 | Callback for throttled request reporting.           |
+    +--------------------+-----------------+-----------------------------------------------------+
+    .. _See Client CONFIGURATION.md for a complete list of configuration properties.
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
-        conf (dict): Client configuration
-            The following configurations are supported in addition to the ones
-            described in Client Configurations(linked below).
-
-            key.deserializer (Deserializer): The deserializer for message keys.
-
-            value.deserializer (Deserializer): The deserializer for message
-                values.
-
-            error_cb(callable(KafkaError), optional): Callback for
-                generic/global error events. These errors are typically to be
-                considered informational since the client will automatically try
-                to recover. This callback is served upon calling
-                :py:func:`DeserializingConsumer.poll()`
-
-            log_cb (logging.Handler, optional): logging handler to forward logs
-                to. To avoid spontaneous calls from non-Python threads the log
-                messages will only be forwarded when
-                :py:func:`DeserializingConsumer.poll()` is called.
-
-            stats_cb (callable(str), optional): Callback for statistics data.
-                This callback is triggered by
-                :py:func:`DeserialializingConsumer.poll()` every
-                ``statistics.interval.ms`` (needs to be configured separately).
-                The str function argument is a string of a JSON formatted
-                statistics data. This callback is served upon calling
-                :py:func:`DeserializingConsumer.poll()`
-
-            throttle_cb (callable(ThrottleEvent), optional): Callback for
-                throttled request reporting. This callback is served upon
-                calling :py:func:`DeserializingConsumer.poll()`.
+        conf (dict): DeserializingConsumer configuration.
 
     Raises:
         ValueError: if configuration validation fails

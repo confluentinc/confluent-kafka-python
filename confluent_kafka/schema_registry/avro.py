@@ -74,17 +74,19 @@ class AvroSerializer(Serializer):
     format for Avro.
 
     AvroSerializer configuration properties:
-    +-----------------------+--------------------------------------------------+
-    | Property Name         | Description                                      |
-    +=======================+==================================================+
-    |                       | Registers schemas automatically if not           |
-    | auto.register.schemas | previously associated with a particular subject. |
-    |                       | Defaults to True.                                |
-    +-----------------------|--------------------------------------------------+
-    |                       | Instructs the AvroSerializer on how to Construct |
-    | subject.name.strategy | Schema Registry subject names.                   |
-    |                       | Defaults to topic_subject_name_strategy.         |
-    +-----------------------+--------------------------------------------------+
+    +-----------------------+----------+--------------------------------------------------+
+    | Property Name         | type     | Description                                      |
+    +=======================+==========+==================================================+
+    |                       |          | Registers schemas automatically if not           |
+    | auto.register.schemas | bool     | previously associated with a particular subject. |
+    |                       |          | Defaults to True.                                |
+    +-----------------------|----------+--------------------------------------------------+
+    |                       |          | Callable(str, SerialalizationContext) -> str     |
+    |                       |          |                                                  |
+    | subject.name.strategy | callable | Instructs the AvroSerializer on how to Construct |
+    |                       |          | Schema Registry subject names.                   |
+    |                       |          | Defaults to topic_subject_name_strategy.         |
+    +-----------------------+----------+--------------------------------------------------+
 
     Schemas are registered to namespaces known as Subjects which define how a
     schema may evolve over time. By default the subject name is formed by
@@ -212,7 +214,11 @@ class AvroSerializer(Serializer):
 
         subject = self._subject_name_func(self._schema_name, ctx)
 
+        # Check to ensure this schema has been registered under subject_name.
         if self._auto_register and subject not in self._known_subjects:
+            # The schema name will always be the same. We can't however register
+            # a schema without a subject so we set the schema_id here to handle
+            # the initial registration.
             self._schema_id = self._registry.register_schema(subject,
                                                              self._schema)
             self._known_subjects.add(subject)
@@ -239,7 +245,7 @@ class AvroSerializer(Serializer):
 class AvroDeserializer(Deserializer):
     """
     AvroDeserializer decodes bytes written in the Schema Registry
-    format for Avro to an object.
+    Avro format to an object.
 
     Note:
         ``Complex Types`` are returned as dicts. If a more specific instance
