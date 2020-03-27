@@ -17,21 +17,27 @@
 #
 
 from confluent_kafka.cimpl import (KafkaError,
-                                   Consumer as _cConsumer)
+                                   Consumer as _ConsumerImpl)
 from .error import ConsumeError
 from .serialization import (SerializationError,
                             SerializationContext,
                             MessageField)
 
 
-class DeserializingConsumer(_cConsumer):
+class DeserializingConsumer(_ConsumerImpl):
     """
     A client that consumes records from a Kafka cluster. With deserialization
     capabilities.
 
     Note:
-        The DeserializingConsumer is an experimental API and subject to change
-        between now and its eventual promotion to GA.
+        The DeserializingConsumer is an experimental API and subject to change.
+
+    At a minimum both ``bootstrap.servers`` and ``group.id`` must be set.
+
+    For detailed information about these settings and others see
+
+    .. _Client Configurations not listed above:
+        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
         conf (dict): Client configuration
@@ -47,30 +53,27 @@ class DeserializingConsumer(_cConsumer):
                 generic/global error events. These errors are typically to be
                 considered informational since the client will automatically try
                 to recover. This callback is served upon calling
-                :py:func:`Consumer.poll()`
+                :py:func:`DeserializingConsumer.poll()`
 
-            log_cb (logging.Handler, optional): logging handle to forward logs
+            log_cb (logging.Handler, optional): logging handler to forward logs
                 to. To avoid spontaneous calls from non-Python threads the log
-                messages will only be forwarded when :py:func:`Consumer.poll()`
-                is called.
+                messages will only be forwarded when
+                :py:func:`DeserializingConsumer.poll()` is called.
 
             stats_cb (callable(str), optional): Callback for statistics data.
-                This callback is triggered by :py:func:`Consumer.poll()` every
+                This callback is triggered by
+                :py:func:`DeserialializingConsumer.poll()` every
                 ``statistics.interval.ms`` (needs to be configured separately).
-                The str function argument is a str instance of a JSON formatted
-                string containing statistics data. This callback is served upon
-                calling :py:func:`Producer.poll()` or
-                :py:func:`Producer.flush()`
+                The str function argument is a string of a JSON formatted
+                statistics data. This callback is served upon calling
+                :py:func:`DeserializingConsumer.poll()`
 
             throttle_cb (callable(ThrottleEvent), optional): Callback for
                 throttled request reporting. This callback is served upon
-                calling :py:func:`Consumer.poll()`.
+                calling :py:func:`DeserializingConsumer.poll()`.
 
     Raises:
         ValueError: if configuration validation fails
-
-    .. _Client Configurations not listed above:
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     .. _Statistics:
         https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
@@ -88,20 +91,14 @@ class DeserializingConsumer(_cConsumer):
         """
         Consume messages and calls callbacks.
 
-        Note:
-            Callbacks may be called from this method, such as `on_assign``,
-            ``on_revoke``, et.al. This will unblock
-            :py:function:`Consumer.poll()` with a return value of None.
-
         Args:
-            timeout (float): Maximum time to block waiting for message, event
-                or callback. (Seconds)
+            timeout (float): Maximum time to block waiting for message(Seconds).
 
         Returns:
             :py:class:`Message` or None on timeout
 
         Raises:
-            ConsumeException if an error was encountered while polling.
+            ConsumeError if an error was encountered while polling.
 
         """
         msg = super(DeserializingConsumer, self).poll(timeout)
@@ -113,19 +110,19 @@ class DeserializingConsumer(_cConsumer):
             raise ConsumeError(msg.error(), message=msg)
 
         ctx = SerializationContext(msg.topic(), MessageField.VALUE)
-        value = None
-        if self._value_deserializer:
+        value = msg.value()
+        if self._value_deserializer is not None:
             try:
-                value = self._value_deserializer(msg.value(), ctx)
+                value = self._value_deserializer(value, ctx)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
                                    reason=se.message,
                                    message=msg)
-        key = None
-        if self._key_deserializer:
+        key = msg.key()
+        if self._key_deserializer is not None:
             try:
                 ctx.field = MessageField.KEY
-                key = self._key_deserializer(msg.key(), ctx)
+                key = self._key_deserializer(key, ctx)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._KEY_DESERIALIZATION,
                                    reason=se.message,
@@ -136,5 +133,8 @@ class DeserializingConsumer(_cConsumer):
         return msg
 
     def consume(self, num_messages=1, timeout=-1):
-        """:py:func:`Consumer.consume` not implemented"""
+        """
+        :py:func:`Consumer.consume` not implemented,
+        :py:func:`DeserializingConsumer.poll()` instead
+        """
         raise NotImplementedError

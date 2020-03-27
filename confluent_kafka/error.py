@@ -18,7 +18,7 @@
 
 
 class ConsumeError(Exception):
-    __slots__ = ['message', 'error_message', 'error_code']
+    __slots__ = ['message', 'reason', 'error_code']
 
     """
     Wraps all errors encountered during the consumption of a message.
@@ -29,10 +29,8 @@ class ConsumeError(Exception):
 
     Args:
         error (KafkaError): The error that occurred
-
-    Keyword Args:
         message (Message, optional): The message returned from the broker.
-        error_message (str): String description of the error.
+        reason (str): String description of the error.
 
     """
     def __init__(self, error, reason=None, message=None):
@@ -40,14 +38,14 @@ class ConsumeError(Exception):
         if reason is None:
             reason = error.str()
 
-        self.error_message = reason
+        self.reason = reason
         self.message = message
 
     def __repr__(self):
         return '{klass}(error={error})'.format(
             klass=self.__class__.__name__,
-            error=self.message
+            error=self.reason
         )
 
     def __str__(self):
-        return self.message
+        return self.reason

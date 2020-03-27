@@ -48,6 +48,18 @@ class KafkaClusterFixture(object):
 
         return topic_conf
 
+    def cimpl_producer(self, conf=None):
+        """
+        Returns a producer bound to this cluster.
+
+        Args:
+            conf (dict): Producer configuration overrides
+
+        Returns:
+            Producer: A new Producer instance
+        """
+        return Producer(self.client_conf(conf))
+
     def producer(self, conf=None, key_serializer=None, value_serializer=None):
         """
         Returns a producer bound to this cluster.
@@ -61,7 +73,7 @@ class KafkaClusterFixture(object):
                 message value
 
         Returns:
-            Producer: A new Producer instance
+            Producer: A new SerializingProducer instance
 
         """
         client_conf = self.client_conf(conf)
@@ -72,11 +84,28 @@ class KafkaClusterFixture(object):
         if value_serializer is not None:
             client_conf['value.serializer'] = value_serializer
 
-        if any(['key.serializer' in client_conf,
-                'value.serializer' in client_conf]):
-            return SerializingProducer(client_conf)
+        return SerializingProducer(client_conf)
 
-        return Producer(client_conf)
+    def cimpl_consumer(self, conf=None):
+        """
+        Returns a consumer bound to this cluster.
+
+        Args:
+            conf (dict): Consumer config overrides
+
+        Returns:
+            Consumer: A new Consumer instance
+
+        """
+        consumer_conf = self.client_conf({
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest'
+        })
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        return Consumer(consumer_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -92,7 +121,7 @@ class KafkaClusterFixture(object):
                 message value
 
         Returns:
-            Consumer: A new Consumer instance
+            Consumer: A new DeserializingConsumer instance
 
         """
         consumer_conf = self.client_conf({
@@ -109,10 +138,7 @@ class KafkaClusterFixture(object):
         if value_deserializer is not None:
             consumer_conf['value.deserializer'] = value_deserializer
 
-        if key_deserializer is not None \
-                or value_deserializer is not None:
-            return DeserializingConsumer(consumer_conf)
-        return Consumer(consumer_conf)
+        return DeserializingConsumer(consumer_conf)
 
     def create_topic(self, prefix, conf=None):
         """
@@ -220,12 +246,13 @@ class TrivupFixture(KafkaClusterFixture):
         self._cluster.wait_operational()
 
     def schema_registry(self, conf=None):
-        if hasattr(self._cluster, 'sr'):
-            sr_conf = {'url': self._cluster.sr.get('url')}
-            if conf is not None:
-                sr_conf.update(conf)
-            return SchemaRegistryClient(sr_conf)
-        return None
+        if not hasattr(self._cluster, 'sr'):
+            return None
+
+        sr_conf = {'url': self._cluster.sr.get('url')}
+        if conf is not None:
+            sr_conf.update(conf)
+        return SchemaRegistryClient(sr_conf)
 
     def client_conf(self, conf=None):
         """

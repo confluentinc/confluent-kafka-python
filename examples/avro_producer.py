@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+#
 # This is a simple example of the SerializingProducer using Avro.
 #
 import argparse
@@ -42,32 +44,29 @@ class User(object):
         address(str): User's address; confidential
 
     """
-    # Use __slots__ to explicitly declare all data members.
-    __slots__ = ["name", "favorite_number", "favorite_color", "_address"]
-
-    def __init__(self, name=None, favorite_number=None, favorite_color=None,
-                 address=None):
+    def __init__(self, name, address, favorite_number, favorite_color):
         self.name = name
         self.favorite_number = favorite_number
         self.favorite_color = favorite_color
-        # do not serialize
+        # address should not be serialized see user_to_dict()
         self._address = address
 
 
-def from_user(user, ctx):
+def user_to_dict(user, ctx):
     """
-    Converts a User instance to a dict.
+    Returns a dict representation of a User instance for serialization.
 
     Args:
         user (User): User instance
 
-        ctx (SerializationContext: Metadata pertaining to the serialization
+        ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
 
     Returns:
         dict: Dict populated with user attributes to be serialized.
 
     """
+    # User._address must not be serialized; omit from dict
     return dict(name=user.name,
                 favorite_number=user.favorite_number,
                 favorite_color=user.favorite_color)
@@ -78,14 +77,17 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred.
+        err (KafkaError): The error that occurred on None on success.
 
-        msg (Message): The message that was sent.
+        msg (Message): The message that was produced or failed.
 
     Note:
-        Message.key() and Message.value() will return contents as they were
-        produce not as they were received. Meaning the contents will be in
-        bytes not the original instance.
+        In the delivery report callback the Message.key() and Message.value()
+        will be the binary format as encoded by any configured Serializers and
+        not necessarily the same object that was passed to produce().
+        If you wish to pass the original object(s) for key and value to delivery
+        report callback we recommend a bound callback or lambda where you pass
+        the objects along.
 
     """
     if err is not None:
@@ -110,10 +112,10 @@ def main(args):
         ]
     }
     """
-    sr_conf = {'url': args.schema_registry}
-    schema_registry_client = SchemaRegistryClient(sr_conf)
+    schema_registry_conf = {'url': args.schema_registry}
+    schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    avro_serializer = AvroSerializer(schema_registry_client, schema_str, from_user)
+    avro_serializer = AvroSerializer(schema_registry_client, schema_str, user_to_dict)
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),
@@ -123,16 +125,19 @@ def main(args):
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
-        user = User()
+        # Serve on_delivery callbacks from previous call to produce()
+        producer.poll(0.0)
         try:
-            user.name = input("Enter name: ")
-            user._address = input("Enter address: ")
-            user.favorite_number = int(input("Enter favorite number: "))
-            user.favorite_color = input("Enter favorite color: ")
+            user_name = input("Enter name: ")
+            user_address = input("Enter address: ")
+            user_favorite_number = int(input("Enter favorite number: "))
+            user_favorite_color = input("Enter favorite color: ")
+            user = User(name=user_name,
+                        address=user_address,
+                        favorite_color=user_favorite_color,
+                        favorite_number=user_favorite_number)
             producer.produce(topic=topic, key=str(uuid4()), value=user,
                              on_delivery=delivery_report)
-            # Serve on_delivery callbacks from previous asynchronous produce()
-            producer.poll(0.0)
         except KeyboardInterrupt:
             break
         except ValueError:

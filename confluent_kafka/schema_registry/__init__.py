@@ -35,7 +35,7 @@ __all__ = ["RegisteredSchema",
 
 def topic_subject_name_strategy(record_name, ctx):
     """
-    Constructs a subject name in the form of {topic}-{key|value}.
+    Constructs a subject name in the form of {topic}-key|value.
 
     Args:
         record_name (str): Record name.
@@ -49,7 +49,7 @@ def topic_subject_name_strategy(record_name, ctx):
 
 def topic_record_subject_name_strategy(record_name, ctx):
     """
-    Constructs a subject name in the form of {topic}-{record.name}.
+    Constructs a subject name in the form of {topic}-{record_name}.
 
     Args:
         record_name (str): Record name.
@@ -63,7 +63,7 @@ def topic_record_subject_name_strategy(record_name, ctx):
 
 def record_subject_name_strategy(record_name, ctx):
     """
-    Constructs a subject name in the form of {record.name}.
+    Constructs a subject name in the form of {record_name}.
 
     Args:
         record_name (str): Record name.

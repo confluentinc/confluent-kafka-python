@@ -119,10 +119,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     """
     # request paths
-    schemas = re.compile("/schemas/ids/([0-9]*)")
-    subjects = re.compile("/subjects/?(.*)")
-    subject_versions = re.compile("/subjects/(.*)/versions/?(.*)")
-    compatibility = re.compile("/config/?(.*)")
+    schemas = re.compile("/schemas/ids/([0-9]*)$")
+    subjects = re.compile("/subjects/?(.*)$")
+    subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
+    compatibility = re.compile("/config/?(.*)$")
 
     # constants
     SCHEMA_ID = 47
@@ -133,7 +133,6 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
-    counter = defaultdict(dict)
     counter = {'DELETE': defaultdict(int),
                'GET': defaultdict(int),
                'POST': defaultdict(int),

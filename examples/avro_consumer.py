@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+#
 # This is a simple example of the SerializingProducer using Avro.
 #
 import argparse
@@ -37,24 +39,20 @@ class User(object):
         favorite_color (str): User's favorite color
 
     """
-
-    # Use __slots__ to explicitly declare all data members.
-    __slots__ = ["name", "favorite_number", "favorite_color"]
-
     def __init__(self, name=None, favorite_number=None, favorite_color=None):
         self.name = name
         self.favorite_number = favorite_number
         self.favorite_color = favorite_color
 
 
-def toUser(obj, ctx):
+def dict_to_user(obj, ctx):
     """
     Converts object literal(dict) to a User instance.
 
     Args:
         obj (dict): Object literal(dict)
 
-        ctx (SerializationContext: Metadata pertaining to the serialization
+        ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
     """
     if obj is None:
@@ -84,10 +82,11 @@ def main(args):
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
 
-    avro_deserializer = AvroDeserializer(schema_registry_client, schema_str, toUser)
+    avro_deserializer = AvroDeserializer(schema_registry_client, schema_str, dict_to_user)
+    string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.deserializer': StringDeserializer('utf_8'),
+                     'key.deserializer': string_deserializer,
                      'value.deserializer': avro_deserializer,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
@@ -97,16 +96,16 @@ def main(args):
 
     while True:
         try:
-            # SIGINT can't be handled when polling
+            # SIGINT can't be handled when polling, limit timeout to 1 second.
             msg = consumer.poll(1.0)
             if msg is None:
                 continue
 
-            if msg.value() is not None:
-                user = msg.value()
-                print("User record {}: name: {}"
-                      "\n\tfavorite_number: {}"
-                      "\n\tfavorite_color: {}\n"
+            user = msg.value()
+            if user is not None:
+                print("User record {}: name: {}\n"
+                      "\tfavorite_number: {}\n"
+                      "\tfavorite_color: {}\n"
                       .format(msg.key(), user.name,
                               user.favorite_color,
                               user.favorite_number))

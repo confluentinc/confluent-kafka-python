@@ -75,7 +75,7 @@ def test_api_register_schema_incompatible(kafka_cluster, load_avsc):
 
 def test_api_register_schema_invalid(kafka_cluster, load_avsc):
     """
-    Attempts to register ann invalid schema, validates the error.
+    Attempts to register an invalid schema, validates the error.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
@@ -83,7 +83,7 @@ def test_api_register_schema_invalid(kafka_cluster, load_avsc):
 
     """
     sr = kafka_cluster.schema_registry()
-    schema = Schema(load_avsc('invalid_scema.avsc'), schema_type='AVRO')
+    schema = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_invalid_schema')
 
     with pytest.raises(SchemaRegistryError, match="Input schema is an invalid"
@@ -127,7 +127,7 @@ def test_api_get_schema_not_found(kafka_cluster, load_avsc):
     sr = kafka_cluster.schema_registry()
 
     with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
-        sr.get_schema(9999)
+        sr.get_schema(999999)
 
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40403
@@ -169,7 +169,7 @@ def test_api_get_register_schema_invalid(kafka_cluster, load_avsc):
 
     # register valid schema so we don't hit subject not found exception
     sr.register_schema(subject, schema)
-    schema2 = Schema(load_avsc('invalid_scema.avsc'), schema_type='AVRO')
+    schema2 = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Invalid schema") as e:
         sr.lookup_schema(subject, schema2)
@@ -254,8 +254,9 @@ def test_api_delete_subject(kafka_cluster, load_avsc):
     subject = _subject_name("test-delete")
 
     sr.register_schema(subject, schema)
-    sr.delete_subject(subject)
+    assert subject in sr.get_subjects()
 
+    sr.delete_subject(subject)
     assert subject not in sr.get_subjects()
 
 
@@ -404,7 +405,7 @@ def test_api_config_invalid(kafka_cluster):
 
 def test_api_config_update(kafka_cluster):
     """
-    Updates a global compatibility policy then ensures the same policy
+    Updates the global compatibility policy then ensures the same policy
     is returned when queried.
 
     Args:
@@ -412,6 +413,6 @@ def test_api_config_update(kafka_cluster):
     """
     sr = kafka_cluster.schema_registry()
 
-    sr.set_compatibility(level="FORWARD_TRANSITIVE")
-
-    assert sr.get_compatibility()['compatibilityLevel'] == "FORWARD_TRANSITIVE"
+    for l in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
+        sr.set_compatibility(level=l)
+        assert sr.get_compatibility()['compatibilityLevel'] == l

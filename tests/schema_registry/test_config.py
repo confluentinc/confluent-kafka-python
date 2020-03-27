@@ -38,21 +38,22 @@ def test_config_url_invalid():
 
 def test_config_url_invalid_type():
     conf = {'url': dict()}
-    with pytest.raises(ValueError, match="url must be an instance of str not <(.*)>$"):
+    with pytest.raises(TypeError, match="url must be an instance of str,"
+                                        " not <(.*)>$"):
         SchemaRegistryClient(conf)
 
 
 def test_config_url_None():
     conf = {}
-    with pytest.raises(ValueError, match="url must be an instance of str not"
-                                         " <type 'NoneType'>$"):
+    with pytest.raises(ValueError, match="Missing required configuration"
+                                         " property url"):
         SchemaRegistryClient(conf)
 
 
 def test_config_url_trailing_slash():
     conf = {'url': 'http://SchemaRegistry:65534/'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client.url == TEST_URL
+    assert test_client._rest_client.base_url == TEST_URL
 
 
 def test_config_ssl_certificate():
@@ -60,15 +61,15 @@ def test_config_ssl_certificate():
             'ssl.certificate.location': '/ssl/certificates/client',
             'ssl.key.location': '/ssl/keys/client'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._certificate == ('/ssl/certificates/client',
-                                        '/ssl/keys/client')
+    assert test_client._rest_client.session.cert == ('/ssl/certificates/client',
+                                                     '/ssl/keys/client')
 
 
 def test_config_ssl_certificate_no_key():
     conf = {'url': TEST_URL,
             'ssl.certificate.location': '/ssl/certificates/client'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._certificate == '/ssl/certificates/client'
+    assert test_client._rest_client.session.cert == '/ssl/certificates/client'
 
 
 def test_config_ssl_key_no_certificate():
@@ -85,7 +86,8 @@ def test_config_auth_url():
                + TEST_USERNAME + ":"
                + TEST_USER_PASSWORD + '@SchemaRegistry:65534'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._auth == (TEST_USERNAME, TEST_USER_PASSWORD)
+    assert test_client._rest_client.session.auth == (TEST_USERNAME,
+                                                     TEST_USER_PASSWORD)
 
 
 def test_config_auth_url_and_userinfo():
@@ -100,7 +102,7 @@ def test_config_auth_url_and_userinfo():
                                          " userinfo credentials in the URL."
                                          " Remove userinfo credentials from the"
                                          " url or remove basic.auth.user.info"
-                                         " from the configuration."):
+                                         " from the configuration"):
         SchemaRegistryClient(conf)
 
 
@@ -109,7 +111,8 @@ def test_config_auth_userinfo():
             'basic.auth.user.info': TEST_USERNAME + ':' + TEST_USER_PASSWORD}
 
     test_client = SchemaRegistryClient(conf)
-    assert test_client._auth == (TEST_USERNAME, TEST_USER_PASSWORD)
+    assert test_client._rest_client.session.auth == [TEST_USERNAME,
+                                                     TEST_USER_PASSWORD]
 
 
 def test_config_auth_userinfo_invalid():
@@ -129,6 +132,6 @@ def test_config_unknown_prop():
             'invalid.conf': 1,
             'invalid.conf2': 2}
 
-    with pytest.raises(ValueError, match=r"Unrecognized property\(ies\)"
+    with pytest.raises(ValueError, match=r"Unrecognized properties:"
                                          r" (\[(.*)\])$"):
         SchemaRegistryClient(conf)

@@ -24,6 +24,7 @@ from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
 
+# MockSchemaRegistryClient, see ./conftest.py for additional details.
 TEST_URL = 'http://SchemaRegistry:65534'
 
 
@@ -74,7 +75,7 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
 
 def test_avro_serializer_config_subject_name_strategy():
     """
-    Ensures subject.name.strategy is applid
+    Ensures subject.name.strategy is applied
     """
 
     conf = {'url': TEST_URL}
@@ -88,7 +89,7 @@ def test_avro_serializer_config_subject_name_strategy():
 
 def test_avro_serializer_config_subject_name_strategy_invalid():
     """
-    Ensures subject.name.strategy is applid
+    Ensures subject.name.strategy is applied
     """
 
     conf = {'url': TEST_URL}

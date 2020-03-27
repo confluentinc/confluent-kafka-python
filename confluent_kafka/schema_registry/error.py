@@ -20,7 +20,7 @@ from fastavro.schema import SchemaParseException, UnknownType
 __all__ = ['SchemaRegistryError', 'SchemaParseException', 'UnknownType']
 
 
-class SchemaRegistryError(BaseException):
+class SchemaRegistryError(Exception):
     """
     Represents an error returned by the Confluent Schema Registry
 
@@ -40,10 +40,11 @@ class SchemaRegistryError(BaseException):
         self.http_status_code = http_status_code
         self.error_code = error_code
         self.error_message = error_message
-        print("{} {}".format(error_message, error_code))
 
     def __repr__(self):
-        return self.error_message
+        return self.__str__()
 
     def __str__(self):
-        return self.error_message
+        return "{} (HTTP status code {}, SR code {})".format(self.error_message,
+                                                             self.http_status_code,
+                                                             self.error_code)

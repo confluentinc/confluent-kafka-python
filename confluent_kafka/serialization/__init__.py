@@ -95,7 +95,8 @@ class ValueDeserializationError(SerializationError):
 class Serializer(object):
     """
     Extensible class from which all Serializer implementations derive.
-    Serializers instruct Kafka clients on how convert Python objects to bytes.
+    Serializers instruct Kafka clients on how to convert Python objects
+    to bytes.
 
     See built-in implementations, listed below, for an example of how to
     extend this class.
@@ -157,7 +158,7 @@ class Serializer(object):
 class Deserializer(object):
     """
     Extensible class from which all Deserializer implementations derive.
-    Deserializers instruct Kafka clients on how convert bytes to objects.
+    Deserializers instruct Kafka clients on how to convert bytes to objects.
 
     See built-in implementations, listed below, for an example of how to
     extend this class.

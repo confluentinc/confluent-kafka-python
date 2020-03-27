@@ -25,58 +25,14 @@ from confluent_kafka.schema_registry.schema_registry_client import Schema
 """
     Basic SchemaRegistryClient API functionality tests.
 
-    These tests cover the following critera using the MockSchemaRegistryClient:
+    These tests cover the following criteria using the MockSchemaRegistryClient:
         - Proper request/response handling:
             The right data sent to the right place in the right format
         - Error handling: (SR error codes are converted to a
             SchemaRegistryError correctly)
         - Caching: Caching of schema_ids and schemas works as expected.
 
-    The MockSchemaRegistry makes use of special paths to coerce error messages.
-    These paths contain special keywords referred to as triggers. The table
-    below provides a mapping of special paths to error messages.
-
-    The special paths table has been copied here for convenience. For additional
-    details on the MockSchemaRegistry Client and its usages see MockSchemaRegistry
-    in ``conftest.py``
-
-    Request paths to trigger exceptions:
-    +--------+----------------------------------+-------+------------------------------+
-    | Method |         Request Path             | Code  |      Description             |
-    +========+==================================+=======+==============================+
-    | GET    | /schemas/ids/404                 | 40403 | Schema not found             |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions      | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/[0-9]| 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/404  | 40402 | Version not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/422  | 42202 | Invalid version              |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/conflict/versions      | -1*   | Incompatible Schema          |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/invalid/versions       | 42201 | Invalid Schema               |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/schemanotfound         | 40403 | Schema not found             |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/[0-9]| 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/404  | 40402 | Version not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/422  | 42202 | Invalid version              |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /config/notconfig                | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | PUT    | /config**                        | 42203 | Invalid compatibility level  |
-    +--------+----------------------------------+-------+------------------------------+
-
+    See ./conftest.py for details on MockSchemaRegistryClient usage.
 """
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
@@ -95,9 +51,8 @@ def cmp_schema(schema1, schema2):
         bool: True if the schema's match else False
 
     """
-    if schema1.schema_str == schema2.schema_str:
-        return schema1.schema_type == schema2.schema_type
-    return False
+    return all([schema1.schema_str == schema2.schema_str,
+                schema1.schema_type == schema2.schema_type])
 
 
 def test_register_schema(mock_schema_registry, load_avsc):
@@ -124,7 +79,7 @@ def test_register_schema_incompatible(mock_schema_registry, load_avsc):
 def test_register_schema_invalid(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)
-    schema = Schema(load_avsc('invalid_scema.avsc'), schema_type='AVRO')
+    schema = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Invalid Schema") as e:
         sr.register_schema('invalid', schema)
@@ -389,3 +344,16 @@ def test_get_compatibility_subject_not_found(mock_schema_registry):
         sr.get_compatibility("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
+
+
+def test_schema_equivilence(load_avsc):
+    schema_str1 = load_avsc('basic_schema.avsc')
+    schema_str2 = load_avsc('basic_schema.avsc')
+
+    schema = Schema(schema_str1, 'AVRO')
+    schema2 = Schema(schema_str2, 'AVRO')
+
+    assert schema.__eq__(schema2)
+    assert schema == schema2
+    assert schema_str1.__eq__(schema_str2)
+    assert schema_str1 == schema_str2

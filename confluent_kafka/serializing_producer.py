@@ -26,11 +26,10 @@ class SerializingProducer(_cProducer):
     A high level Kafka Producer with serialization capabilities.
 
     Note:
-        The SerializingProducer is an experimental API and subject to change
-        between now and its eventual promotion to GA.
+        The SerializingProducer is an experimental API and subject to change.
 
     The SerializingProducer is thread safe and sharing a single instance across
-    threads will generally be faster than having multiple instances.
+    threads will generally be more efficient than having multiple instances.
 
     The :py:func:`SerializingProducer.produce()` method is asynchronous.
     When called it adds the message to a queue of pending messages and
@@ -52,6 +51,13 @@ class SerializingProducer(_cProducer):
 
         The ``key_serializer`` and ``value_serializer`` classes instruct the
         producer on how to convert the message payload to bytes.
+
+    At a minimum both ``bootstrap.servers`` must be set.
+
+    For detailed information about this settings and others see
+
+    .. _Client Configurations not listed above:
+        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
         conf (producer): Client configuration
@@ -118,20 +124,20 @@ class SerializingProducer(_cProducer):
         original message had headers set.
 
         Args:
-            topic (str): topic to produce message to
+            topic (str): Topic to produce message to.
 
-            key (object, optional): Message key
+            key (object, optional): Message key.
 
-            value (object, optional): Message payload
+            value (object, optional): Message payload.
 
             partition (int, optional): Partition to produce to, else uses the
-                configured built-in partitioner
+                configured built-in partitioner.
 
             on_delivery (callable(KafkaError, Message), optional): Delivery
                 report callback to call (from
                 :py:func:`SerializingProducer.poll()` or
                 :py:func:`SerializingProducer.flush()` ) on successful or
-                failed delivery
+                failed delivery.
 
             timestamp (float, optional): Message timestamp (CreateTime) in ms
                 since epoch UTC (requires broker >= 0.10.0.0). Default value
@@ -151,20 +157,15 @@ class SerializingProducer(_cProducer):
 
         """
         ctx = SerializationContext(topic, MessageField.KEY)
-        if self._key_serializer:
+        if self._key_serializer is not None:
             key = self._key_serializer(key, ctx)
 
         ctx.field = MessageField.VALUE
-        if self._value_serializer:
+        if self._value_serializer is not None:
             value = self._value_serializer(value, ctx)
 
-        if headers is not None:
-            super(SerializingProducer, self).produce(topic, value, key,
-                                                     partition=partition,
-                                                     timestamp=timestamp,
-                                                     on_delivery=on_delivery)
-        else:
-            super(SerializingProducer, self).produce(topic, value, key,
-                                                     partition=partition,
-                                                     timestamp=timestamp,
-                                                     on_delivery=on_delivery)
+        super(SerializingProducer, self).produce(topic, value, key,
+                                                 headers=headers,
+                                                 partition=partition,
+                                                 timestamp=timestamp,
+                                                 on_delivery=on_delivery)
