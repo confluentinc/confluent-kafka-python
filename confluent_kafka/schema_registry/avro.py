@@ -186,10 +186,6 @@ class AvroSerializer(Serializer):
         self._schema = schema
         self._schema_name = schema_name
         self._parsed_schema = parsed_schema
-        self._hash = hash(schema.schema_str)
-
-    def __hash__(self):
-        return self._hash
 
     def __call__(self, obj, ctx):
         """
