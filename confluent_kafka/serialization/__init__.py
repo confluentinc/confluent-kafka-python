@@ -108,7 +108,8 @@ class Serializer(object):
     The following implementations are provided by this module.
 
     Note:
-        Unless noted elsewhere all numeric types are signed and big-endian.
+        Unless noted elsewhere all numeric types are signed and serialization
+        is big-endian.
 
     .. list-table::
         :header-rows: 1
@@ -170,7 +171,8 @@ class Deserializer(object):
     The following implementations are provided by this module.
 
     Note:
-        Unless noted elsewhere all numeric types are signed and big-endian.
+        Unless noted elsewhere all numeric types are signed and
+        serialization is big-endian.
 
     .. list-table::
         :header-rows: 1
@@ -207,7 +209,7 @@ class Deserializer(object):
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
         Raises:
-            SerializerError if an error occurs daring deserialization
+            SerializerError if an error occurs during deserialization
 
         Returns:
             object if data is not None, otherwise None
@@ -238,7 +240,7 @@ class DoubleSerializer(Serializer):
             None objects are represented as Kafka Null.
 
         Raises:
-            SerializerError if an error occurs daring serialization.
+            SerializerError if an error occurs during serialization.
 
         Returns:
             IEEE 764 binary64 bytes if obj is not None, otherwise None
@@ -272,7 +274,7 @@ class DoubleDeserializer(Deserializer):
                 operation.
 
         Raises:
-            SerializerError if an error occurs daring deserialization.
+            SerializerError if an error occurs during deserialization.
 
         Returns:
             float if data is not None, otherwise None
@@ -309,7 +311,7 @@ class IntegerSerializer(Serializer):
             None objects are represented as Kafka Null.
 
         Raises:
-            SerializerError if an error occurs daring serialization
+            SerializerError if an error occurs during serialization
 
         Returns:
             int32 bytes if obj is not None, else None
@@ -343,7 +345,7 @@ class IntegerDeserializer(Deserializer):
                 operation.
 
         Raises:
-            SerializerError if an error occurs daring deserialization.
+            SerializerError if an error occurs during deserialization.
 
         Returns:
             int if data is not None, otherwise None
@@ -392,7 +394,7 @@ class StringSerializer(Serializer):
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
         Raises:
-            SerializerError if an error occurs daring serialization.
+            SerializerError if an error occurs during serialization.
 
         Returns:
             serialized bytes if obj is not None, otherwise None
