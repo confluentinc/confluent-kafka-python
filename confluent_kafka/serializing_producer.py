@@ -26,6 +26,7 @@ class SerializingProducer(_ProducerImpl):
     A high level Kafka Producer with serialization capabilities.
 
     Note:
+
         The SerializingProducer is an experimental API and subject to change.
 
     The SerializingProducer is thread safe and sharing a single instance across
@@ -40,6 +41,7 @@ class SerializingProducer(_ProducerImpl):
     ``message.timeout.ms`` .
 
     .. versionadded:: 1.4.0
+
         The Transactional Producer allows an application to send messages to
         multiple partitions (and topics) atomically.
 
@@ -47,6 +49,7 @@ class SerializingProducer(_ProducerImpl):
         SerializingProducer on how to convert the message payload to bytes.
 
     Note:
+
         All configured callbacks are served from the application queue upon
         calling :py:func:`SerializingProducer.poll` or :py:func:`SerializingProducer.flush`
 
@@ -57,11 +60,11 @@ class SerializingProducer(_ProducerImpl):
     +====================+=================+=====================================================+
     | bootstrap.servers* | str             | Comma-separated list of brokers.                    |
     +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(obj, SerializationContext) -> bytes        |
+    |                    |                 | Callable(SerializationContext, obj) -> bytes        |
     | key.serializer     | callable        |                                                     |
     |                    |                 | Serializer used for message keys.                   |
     +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(obj, SerializationContext) -> bytes        |
+    |                    |                 | Callable(SerializationContext, obj) -> bytes        |
     | value.serializer   | callable        |                                                     |
     |                    |                 | Serializer used for message values.                 |
     +--------------------+-----------------+-----------------------------------------------------+
@@ -86,11 +89,15 @@ class SerializingProducer(_ProducerImpl):
     |                    |                 | Callback for throttled request reporting.           |
     |                    |                 | Callback for throttled request reporting.           |
     +--------------------+-----------------+-----------------------------------------------------+
+
     .. _See Client CONFIGURATION.md for a complete list of configuration properties:
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
         conf (producer): SerializingProducer configuration.
+
+    .. _Client Configuration:
+        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     .. _Statistics:
         https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
@@ -153,11 +160,11 @@ class SerializingProducer(_ProducerImpl):
         """
         ctx = SerializationContext(topic, MessageField.KEY)
         if self._key_serializer is not None:
-            key = self._key_serializer(key, ctx)
+            key = self._key_serializer(ctx, key)
 
         ctx.field = MessageField.VALUE
         if self._value_serializer is not None:
-            value = self._value_serializer(value, ctx)
+            value = self._value_serializer(ctx, value)
 
         super(SerializingProducer, self).produce(topic, value, key,
                                                  headers=headers,

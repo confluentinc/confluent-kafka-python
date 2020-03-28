@@ -52,15 +52,15 @@ class User(object):
         self._address = address
 
 
-def user_to_dict(user, ctx):
+def user_to_dict(ctx, user):
     """
     Returns a dict representation of a User instance for serialization.
 
     Args:
-        user (User): User instance
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+
+        user (User): User instance.
 
     Returns:
         dict: Dict populated with user attributes to be serialized.

@@ -10,7 +10,7 @@ set
 rem Download and install librdkafka from NuGet.
 call tools\windows-install-librdkafka.bat %LIBRDKAFKA_NUGET_VERSION% dest || exit /b 1
 
-pip install cibuildwheel==0.12.0 || exit /b 1
+pip install cibuildwheel==1.3.0 || exit /b 1
 
 rem Build wheels (without tests)
 cibuildwheel --platform windows --output-dir wheelhouse || exit /b 1
@@ -20,7 +20,7 @@ dir wheelhouse
 rem cibuildwheel installs the generated packages, but they're not ready yet,
 rem so remove them.
 rem FIXME: this only covers python27 (default)
-pip uninstall -y confluent_kafka[dev]
+pip uninstall -y confluent_kafka
 
 
 rem Copy the librdkafka DLLs to a path structure that is identical to cimpl.pyd's location

@@ -30,6 +30,7 @@ class DeserializingConsumer(_ConsumerImpl):
     capabilities.
 
     Note:
+
         The DeserializingConsumer is an experimental API and subject to change.
 
     .. versionadded:: 1.4.0
@@ -38,6 +39,7 @@ class DeserializingConsumer(_ConsumerImpl):
         DeserializingConsumer on how to convert the message payload bytes to objects.
 
     Note:
+
         All configured callbacks are served from the application queue upon
         calling :py:func:`DeserializingConsumer.poll`
 
@@ -52,11 +54,11 @@ class DeserializingConsumer(_ConsumerImpl):
     | group.id*          | str             | All clients sharing the same group.id belong to the |
     |                    |                 | same group.                                         |
     +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(bytes, SerializationContext) -> obj        |
+    |                    |                 | Callable(SerializationContext, bytes) -> obj        |
     | key.deserializer   | callable        |                                                     |
     |                    |                 | Serializer used for message keys.                   |
     +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(bytes, SerializationContext) -> obj        |
+    |                    |                 | Callable(SerializationContext, bytes) -> obj        |
     | value.deserializer | callable        |                                                     |
     |                    |                 | Serializer used for message values.                 |
     +--------------------+-----------------+-----------------------------------------------------+
@@ -72,7 +74,7 @@ class DeserializingConsumer(_ConsumerImpl):
     |                    |                 |                                                     |
     |                    |                 | Callback for statistics. This callback is           |
     | stats_cb           | callable        | added to the application queue every                |
-    |                    |                 |``statistics.interval.ms`` (configured separately).  |
+    |                    |                 | ``statistics.interval.ms`` (configured separately). |
     |                    |                 | The function argument is a JSON formatted str       |
     |                    |                 | containing statistics data.                         |
     +--------------------+-----------------+-----------------------------------------------------+
@@ -80,7 +82,8 @@ class DeserializingConsumer(_ConsumerImpl):
     | throttle_cb        | callable        |                                                     |
     |                    |                 | Callback for throttled request reporting.           |
     +--------------------+-----------------+-----------------------------------------------------+
-    .. _See Client CONFIGURATION.md for a complete list of configuration properties.
+
+    .. _See Client CONFIGURATION.md for a complete list of configuration properties:
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
     Args:
@@ -127,7 +130,7 @@ class DeserializingConsumer(_ConsumerImpl):
         value = msg.value()
         if self._value_deserializer is not None:
             try:
-                value = self._value_deserializer(value, ctx)
+                value = self._value_deserializer(ctx, value)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
                                    reason=se.message,
@@ -136,7 +139,7 @@ class DeserializingConsumer(_ConsumerImpl):
         if self._key_deserializer is not None:
             try:
                 ctx.field = MessageField.KEY
-                key = self._key_deserializer(key, ctx)
+                key = self._key_deserializer(ctx, key)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._KEY_DESERIALIZATION,
                                    reason=se.message,

@@ -63,9 +63,9 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
     test_serializer = AvroSerializer(test_client, "string",
                                      conf={'auto.register.schemas': False})
 
-    test_serializer("test", SerializationContext("test-auto-register",
-                                                 MessageField.KEY))
-    print()
+    test_serializer(SerializationContext("test-auto-register",
+                                         MessageField.KEY), "test")
+
     register_count = test_client.counter['POST'].get('/subjects/{}/versions'
                                                      .format(subject), 0)
     assert register_count == 0
@@ -111,8 +111,8 @@ def test_avro_serializer_record_subject_name_strategy(load_avsc):
                                            record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
-    assert test_serializer._subject_name_func(test_serializer._schema_name,
-                                              ctx) == 'python.test.basic'
+    assert test_serializer._subject_name_func(ctx,
+                                              test_serializer._schema_name) == 'python.test.basic'
 
 
 def test_avro_serializer_record_subject_name_strategy_primitive(load_avsc):
@@ -127,8 +127,8 @@ def test_avro_serializer_record_subject_name_strategy_primitive(load_avsc):
                                            record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
-    assert test_serializer._subject_name_func(test_serializer._schema_name,
-                                              ctx) == 'int'
+    assert test_serializer._subject_name_func(ctx,
+                                              test_serializer._schema_name) == 'int'
 
 
 def test_avro_serializer_topic_record_subject_name_strategy(load_avsc):
@@ -144,7 +144,7 @@ def test_avro_serializer_topic_record_subject_name_strategy(load_avsc):
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
-        test_serializer._schema_name, ctx) == 'test_subj-python.test.basic'
+        ctx, test_serializer._schema_name) == 'test_subj-python.test.basic'
 
 
 def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc):
@@ -159,8 +159,8 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
                                            topic_record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
-    assert test_serializer._subject_name_func(test_serializer._schema_name,
-                                              ctx) == 'test_subj-int'
+    assert test_serializer._subject_name_func(
+        ctx, test_serializer._schema_name) == 'test_subj-int'
 
 
 def test_avro_serializer_subject_name_strategy_default(load_avsc):
@@ -174,4 +174,4 @@ def test_avro_serializer_subject_name_strategy_default(load_avsc):
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
-        test_serializer._schema_name, ctx) == 'test_subj-value'
+        ctx, test_serializer._schema_name) == 'test_subj-value'

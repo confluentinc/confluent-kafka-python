@@ -42,10 +42,8 @@ class ConsumeError(Exception):
         self.message = message
 
     def __repr__(self):
-        return '{klass}(error={error})'.format(
-            klass=self.__class__.__name__,
-            error=self.reason
-        )
+        return str(self)
 
     def __str__(self):
-        return self.reason
+        return "{} (Error code {})".format(self.reason,
+                                           self.error_code)

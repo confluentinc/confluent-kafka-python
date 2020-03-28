@@ -51,6 +51,7 @@ class SerializationContext(object):
 
     Args:
         topic (str): Topic data is being produce to or consumed from.
+
         field (MessageField): Describes what part of the message is
             being serialized.
 
@@ -136,15 +137,15 @@ class Serializer(object):
     """
     __slots__ = []
 
-    def __call__(self, obj, ctx):
+    def __call__(self, ctx, obj):
         """
         Converts obj to bytes.
 
         Args:
-            obj (object): object to be serialized
-
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
+
+            obj (object): object to be serialized
 
         Raises:
             SerializerError if an error occurs daring serialization
@@ -199,15 +200,16 @@ class Deserializer(object):
     """
     __slots__ = []
 
-    def __call__(self, data, ctx):
+    def __call__(self, ctx, value):
         """
         Convert bytes to object
 
         Args:
-            data (bytes): bytes to be deserialized
-
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
+
+            value (bytes): bytes to be deserialized
+
         Raises:
             SerializerError if an error occurs during deserialization
 
@@ -226,15 +228,15 @@ class DoubleSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html
 
     """  # noqa: E501
-    def __call__(self, obj, ctx):
+    def __call__(self, ctx, obj):
         """
         Serializes float as IEEE 764 binary64 bytes.
 
         Args:
-            obj (float): float to be serialized
-
             ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+                operation
+
+            obj (object): object to be serialized
 
         Note:
             None objects are represented as Kafka Null.
@@ -263,15 +265,15 @@ class DoubleDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html
 
     """  # noqa: E501
-    def __call__(self, data, ctx):
+    def __call__(self, ctx, value):
         """
         Deserializes float from IEEE 764 binary64 bytes.
 
         Args:
-            data (bytes): IEEE 764 binary64 bytes
-
             ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+                operation
+
+            value (bytes): bytes to be deserialized
 
         Raises:
             SerializerError if an error occurs during deserialization.
@@ -280,11 +282,11 @@ class DoubleDeserializer(Deserializer):
             float if data is not None, otherwise None
 
         """
-        if data is None:
+        if value is None:
             return None
 
         try:
-            return _struct.unpack('>d', data)[0]
+            return _struct.unpack('>d', value)[0]
         except _struct.error as e:
             raise SerializationError(str(e))
 
@@ -297,15 +299,15 @@ class IntegerSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html
 
     """  # noqa: E501
-    def __call__(self, obj, ctx):
+    def __call__(self, ctx, obj):
         """
         Serializes int as int32 bytes.
 
         Args:
-            obj (int): int to be serialized.
-
             ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+                operation
+
+            obj (object): object to be serialized
 
         Note:
             None objects are represented as Kafka Null.
@@ -334,15 +336,16 @@ class IntegerDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html
 
     """  # noqa: E501
-    def __call__(self, data, ctx):
+    def __call__(self, ctx, value):
         """
         Deserializes int from int32 bytes.
 
         Args:
-            data(bytes): int32 bytes
-
             ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+                operation
+
+            value (bytes): bytes to be deserialized
+
 
         Raises:
             SerializerError if an error occurs during deserialization.
@@ -351,11 +354,11 @@ class IntegerDeserializer(Deserializer):
             int if data is not None, otherwise None
 
         """
-        if data is None:
+        if value is None:
             return None
 
         try:
-            return _struct.unpack('>i', data)[0]
+            return _struct.unpack('>i', value)[0]
         except _struct.error as e:
             raise SerializationError(str(e))
 
@@ -380,7 +383,7 @@ class StringSerializer(Serializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, obj, ctx):
+    def __call__(self, ctx, obj):
         """
         Serializes a str(py2:unicode) to bytes.
 
@@ -389,10 +392,11 @@ class StringSerializer(Serializer):
             Python 3 all str objects are already unicode objects.
 
         Args:
-            obj (unicode): Unicode object to serialize
-
             ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+                operation
+
+            obj (object): object to be serialized
+
         Raises:
             SerializerError if an error occurs during serialization.
 
@@ -427,7 +431,7 @@ class StringDeserializer(Deserializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, data, ctx):
+    def __call__(self, ctx, value):
         """
         Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 
@@ -438,10 +442,11 @@ class StringDeserializer(Deserializer):
             Python 3 all str objects are already unicode objects.
 
         Args:
-            data (bytes): bytes to be deserialized
-
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
+
+            value (bytes): bytes to be deserialized
+
         Raises:
             SerializerError if an error occurs during deserialization.
 
@@ -449,10 +454,10 @@ class StringDeserializer(Deserializer):
             unicode if data is not None, otherwise None
 
         """
-        if data is None:
+        if value is None:
             return None
 
         try:
-            return data.decode(self.codec)
+            return value.decode(self.codec)
         except _struct.error as e:
             raise SerializationError(str(e))

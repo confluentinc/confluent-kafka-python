@@ -42,7 +42,7 @@ class SchemaRegistryError(Exception):
         self.error_message = error_message
 
     def __repr__(self):
-        return self.__str__()
+        return str(self)
 
     def __str__(self):
         return "{} (HTTP status code {}, SR code {})".format(self.error_message,
