@@ -191,9 +191,13 @@ class VerifiableConsumer(VerifiableClient):
             self.err('Consume failed: %s' % msg.error(), term=False)
             return
 
-        if False:
-            self.dbg('Read msg from %s [%d] @ %d' %
-                     (msg.topic(), msg.partition(), msg.offset()))
+        if self.verbose:
+            self.send({'name': 'record_data',
+                       'topic': msg.topic(),
+                       'partition': msg.partition(),
+                       'key': msg.key(),
+                       'value': msg.value(),
+                       'offset': msg.offset()})
 
         if self.max_msgs >= 0 and self.consumed_msgs >= self.max_msgs:
             return  # ignore extra messages
@@ -247,6 +251,7 @@ if __name__ == '__main__':
     parser.add_argument('--max-messages', type=int, dest='max_messages', default=-1)
     parser.add_argument('--assignment-strategy', dest='conf_partition.assignment.strategy')
     parser.add_argument('--reset-policy', dest='topicconf_auto.offset.reset', default='earliest')
+    parser.add_argument('--verbose', action='store_true', dest='verbose', default=False, help='Per-message stats')
     parser.add_argument('--consumer.config', dest='consumer_config')
     parser.add_argument('-X', nargs=1, dest='extra_conf', action='append', help='Configuration property', default=[])
     args = vars(parser.parse_args())
@@ -267,6 +272,7 @@ if __name__ == '__main__':
     vc = VerifiableConsumer(conf)
     vc.use_auto_commit = args['conf_enable.auto.commit']
     vc.max_msgs = args['max_messages']
+    vc.verbose = args['verbose']
 
     vc.dbg('Pid %d' % os.getpid())
     vc.dbg('Using config: %s' % conf)
