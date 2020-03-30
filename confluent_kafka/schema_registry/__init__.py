@@ -38,10 +38,10 @@ def topic_subject_name_strategy(ctx, record_name):
     Constructs a subject name in the form of {topic}-key|value.
 
     Args:
-        record_name (str): Record name.
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+
+        record_name (str): Record name.
 
     """
     return ctx.topic + "-" + ctx.field
@@ -52,10 +52,10 @@ def topic_record_subject_name_strategy(ctx, record_name):
     Constructs a subject name in the form of {topic}-{record_name}.
 
     Args:
-        record_name (str): Record name.
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+
+        record_name (str): Record name.
 
     """
     return ctx.topic + "-" + record_name
@@ -66,10 +66,10 @@ def record_subject_name_strategy(ctx, record_name):
     Constructs a subject name in the form of {record_name}.
 
     Args:
-        record_name (str): Record name.
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+
+        record_name (str): Record name.
 
     """
     return record_name
@@ -80,10 +80,10 @@ def reference_subject_name_strategy(ctx, schema_ref):
     Constructs a subject reference name in the form of {reference name}.
 
     Args:
-        schema_ref (SchemaReference): SchemaReference instance.
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+
+        schema_ref (SchemaReference): SchemaReference instance.
 
     """
     return schema_ref.name

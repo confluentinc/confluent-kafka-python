@@ -48,7 +48,7 @@ class User(object):
         self.name = name
         self.favorite_number = favorite_number
         self.favorite_color = favorite_color
-        # address should not be serialized see user_to_dict()
+        # address should not be serialized, see user_to_dict()
         self._address = address
 
 
@@ -84,7 +84,7 @@ def delivery_report(err, msg):
     Note:
         In the delivery report callback the Message.key() and Message.value()
         will be the binary format as encoded by any configured Serializers and
-        not necessarily the same object that was passed to produce().
+        not the same object that was passed to produce().
         If you wish to pass the original object(s) for key and value to delivery
         report callback we recommend a bound callback or lambda where you pass
         the objects along.
@@ -125,7 +125,7 @@ def main(args):
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
-        # Serve on_delivery callbacks from previous call to produce()
+        # Serve on_delivery callbacks from previous calls to produce()
         producer.poll(0.0)
         try:
             user_name = input("Enter name: ")

@@ -59,7 +59,6 @@ class _RestClient(object):
         conf (dict): Dictionary containing _RestClient configuration
 
     """
-
     def __init__(self, conf):
         self.session = Session()
 
@@ -68,7 +67,7 @@ class _RestClient(object):
 
         base_url = conf_copy.pop('url', None)
         if base_url is None:
-            raise ValueError("Missing required configuration property url.")
+            raise ValueError("Missing required configuration property url")
         if not isinstance(base_url, string_type):
             raise TypeError("url must be an instance of str, not "
                             + str(type(base_url)))
@@ -144,12 +143,16 @@ class _RestClient(object):
 
         Args:
             url (str): Request path
+
             method (str): HTTP method
+
             body (str): Request content
+
             query (dict): Query params to attach to the URL
 
         Returns:
             dict: Schema Registry response content.
+
         """
         headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
                              " application/vnd.schemaregistry+json,"
@@ -180,7 +183,7 @@ class _RestClient(object):
 
 class _SchemaCache(object):
     """
-    Thread-safe Cache for use with the Schema Registry Client.
+    Thread-safe cache for use with the Schema Registry Client.
 
     This cache may be used to retrieve schema ids, schemas or to check
     known subject membership.
@@ -198,11 +201,14 @@ class _SchemaCache(object):
 
         Args:
             schema_id (int): Schema's registration id
+
             schema (Schema): Schema instance
+
             subject_name(str): Optional, subject schema is registered under
 
         Returns:
             int: The schema_id
+
         """
         with self.lock:
             self.schema_id_index[schema_id] = schema
@@ -216,6 +222,7 @@ class _SchemaCache(object):
 
         Args:
             schema_id (int): Id used to identify a schema
+
         Returns:
             Schema: The schema if known; else None
 
@@ -228,6 +235,7 @@ class _SchemaCache(object):
 
         Args:
             subject (str): The subject this schema is associated with
+
             schema (Schema): The schema associated with this schema_id
 
         Returns:
@@ -278,7 +286,6 @@ class SchemaRegistryClient(object):
         http://confluent.io/docs/current/schema-registry/docs/intro.html
 
     """
-
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
@@ -296,6 +303,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): subject to register a schema under
+
             schema (Schema): Schema instance to register
 
         Returns:
@@ -376,6 +384,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): Subject name the schema is registered under
+
             schema (Schema): Schema instance.
 
         Returns:
@@ -388,7 +397,6 @@ class SchemaRegistryClient(object):
             https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)
 
         """  # noqa: E501
-
         request = {'schema': schema.schema_str}
 
         # CP 5.5 adds new fields (for JSON and Protobuf).
@@ -436,6 +444,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): subject name
+
         Returns:
             list(int): Versions deleted under this subject
 
@@ -485,6 +494,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): Subject name.
+
             version (int): version number. Defaults to latest version.
 
         Returns:
@@ -535,6 +545,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str) Subject name
+
             version (int): Version number
 
         Returns
@@ -559,6 +570,7 @@ class SchemaRegistryClient(object):
         Args:
             level (str): Compatibility level. See API reference for a list of
                 valid values.
+
             subject_name (str, optional): Subject to update. Sets compatibility
                 level policy if not set.
 
@@ -616,7 +628,9 @@ class Schema(object):
 
     Args:
         schema_str (str): String representation of the schema.
+
         references ([Schema]): Schemas referenced by this schema.
+
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
 
     """
@@ -647,12 +661,14 @@ class RegisteredSchema(object):
 
     Args:
         schema_id (int): Registered Schema id
+
         schema (Schema): Registered Schema
+
         subject (str): Subject this schema is registered under
+
         version (int): Version of this subject this schema is registered to
 
     """
-
     def __init__(self, schema_id, schema, subject, version):
         self.schema_id = schema_id
         self.schema = schema
@@ -670,11 +686,12 @@ class SchemaReference(object):
 
     Args:
         name (str): Schema name
+
         subject (str): Subject this Schema is registered with
+
         version (int): This Schema's version
 
     """
-
     def __init__(self, name, subject, version):
         super(SchemaReference, self).__init__()
         self.name = name

@@ -26,15 +26,17 @@ class SchemaRegistryError(Exception):
 
     Args:
         http_status_code (int) = HTTP status code
+
         error_code (int) = Schema Registry error code; -1 represents an unknown
             error.
+
         error_message (str) = Description of the error
 
     See Also:
         https://docs.confluent.io/current/schema-registry/develop/api.html#errors
 
     """
-    UNEXPECTED = -1
+    UNKNOWN = -1
 
     def __init__(self, http_status_code, error_code, error_message):
         self.http_status_code = http_status_code

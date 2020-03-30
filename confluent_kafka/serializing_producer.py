@@ -96,9 +96,6 @@ class SerializingProducer(_ProducerImpl):
     Args:
         conf (producer): SerializingProducer configuration.
 
-    .. _Client Configuration:
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-
     .. _Statistics:
         https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
 

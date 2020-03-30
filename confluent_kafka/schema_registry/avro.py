@@ -116,8 +116,7 @@ class AvroSerializer(Serializer):
         :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
         callable with the AvroSerializer.
 
-        See ``avro_producer.py`` in the examples directory in the examples
-        directory for example usage"
+        See ``avro_producer.py`` in the examples directory for example usage.
 
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry
@@ -154,7 +153,7 @@ class AvroSerializer(Serializer):
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(object, Serialization Context)->dict")
+                             " to_dict(Serialization Context, object)->dict")
 
         self.to_dict = to_dict
 
@@ -199,7 +198,6 @@ class AvroSerializer(Serializer):
                 operation.
 
             obj (object): object instance to serializes.
-
 
         Note:
             None objects are represented as Kafka Null.
@@ -255,7 +253,7 @@ class AvroDeserializer(Deserializer):
         the AvroDeserializer which converts a dict to the desired type.
 
         See ``avro_consumer.py`` in the examples directory in the examples
-        directory for example usage"
+        directory for example usage.
 
     Args:
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry

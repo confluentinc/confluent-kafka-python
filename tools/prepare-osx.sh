@@ -11,7 +11,7 @@ VENV_HOME=$2
 
 set -ev
 
-if [[ -z "${PY_INTERPRETER}" ]] || [[  -z "${VENV_HOME}" ]]; then
+if [[ -z ${PY_INTERPRETER} ]] || [[  -z ${VENV_HOME} ]]; then
     echo "Usage: $0 <Python interpreter version> <destination>"
     exit 1
 fi

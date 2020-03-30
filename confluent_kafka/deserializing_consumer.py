@@ -56,11 +56,11 @@ class DeserializingConsumer(_ConsumerImpl):
     +--------------------+-----------------+-----------------------------------------------------+
     |                    |                 | Callable(SerializationContext, bytes) -> obj        |
     | key.deserializer   | callable        |                                                     |
-    |                    |                 | Serializer used for message keys.                   |
+    |                    |                 | Deserializer used for message keys.                 |
     +--------------------+-----------------+-----------------------------------------------------+
     |                    |                 | Callable(SerializationContext, bytes) -> obj        |
     | value.deserializer | callable        |                                                     |
-    |                    |                 | Serializer used for message values.                 |
+    |                    |                 | Deserializer used for message values.               |
     +--------------------+-----------------+-----------------------------------------------------+
     |                    |                 | Callable(KafkaError)                                |
     |                    |                 |                                                     |
@@ -135,10 +135,11 @@ class DeserializingConsumer(_ConsumerImpl):
                 raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
                                    reason=se.message,
                                    message=msg)
+
         key = msg.key()
+        ctx.field = MessageField.KEY
         if self._key_deserializer is not None:
             try:
-                ctx.field = MessageField.KEY
                 key = self._key_deserializer(ctx, key)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._KEY_DESERIALIZATION,

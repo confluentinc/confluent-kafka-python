@@ -17,18 +17,17 @@
 #
 import struct as _struct
 
-__all__ = (
-    'Deserializer',
-    'IntegerDeserializer',
-    'IntegerSerializer',
-    'DoubleDeserializer',
-    'DoubleSerializer',
-    'StringDeserializer',
-    'StringSerializer',
-    'MessageField',
-    'SerializationContext',
-    'SerializationError',
-    'Serializer')
+__all__ = ['Deserializer',
+           'IntegerDeserializer',
+           'IntegerSerializer',
+           'DoubleDeserializer',
+           'DoubleSerializer',
+           'StringDeserializer',
+           'StringSerializer',
+           'MessageField',
+           'SerializationContext',
+           'SerializationError',
+           'Serializer']
 
 
 class MessageField(object):
@@ -37,6 +36,7 @@ class MessageField(object):
 
     Attributes:
         KEY (str): Message key
+
         VALUE (str): Message value
 
     """
@@ -148,7 +148,7 @@ class Serializer(object):
             obj (object): object to be serialized
 
         Raises:
-            SerializerError if an error occurs daring serialization
+            SerializerError if an error occurs during serialization
 
         Returns:
             bytes if obj is not None, otherwise None
@@ -228,6 +228,7 @@ class DoubleSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html
 
     """  # noqa: E501
+
     def __call__(self, ctx, obj):
         """
         Serializes float as IEEE 764 binary64 bytes.
@@ -265,6 +266,7 @@ class DoubleDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html
 
     """  # noqa: E501
+
     def __call__(self, ctx, value):
         """
         Deserializes float from IEEE 764 binary64 bytes.
@@ -299,6 +301,7 @@ class IntegerSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html
 
     """  # noqa: E501
+
     def __call__(self, ctx, obj):
         """
         Serializes int as int32 bytes.
@@ -336,6 +339,7 @@ class IntegerDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html
 
     """  # noqa: E501
+
     def __call__(self, ctx, value):
         """
         Deserializes int from int32 bytes.
