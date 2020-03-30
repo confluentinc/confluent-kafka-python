@@ -128,7 +128,7 @@ fixup_wheel () {
 build_patchelf () {
     # Download, build and install patchelf from source.
 
-    curl -l https://nixos.org/releases/patchelf/patchelf-0.9/patchelf-0.9.tar.gz | tar xzf -
+    curl -l https://releases.nixos.org/patchelf/patchelf-0.9/patchelf-0.9.tar.gz | tar xzf -
     pushd patchelf-0.9
     ./configure
     make -j
