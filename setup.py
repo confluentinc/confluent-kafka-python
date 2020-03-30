@@ -5,25 +5,24 @@ from setuptools import setup, find_packages
 from distutils.core import Extension
 import platform
 
-INSTALL_REQUIRES = [
-    'futures;python_version<"3.2"',
-    'enum34;python_version<"3.4"',
-]
+work_dir = os.path.dirname(os.path.realpath(__file__))
+mod_dir = os.path.join(work_dir, 'confluent_kafka')
+ext_dir = os.path.join(mod_dir, 'src')
 
-AVRO_REQUIRES = [
-    'fastavro',
-    'requests',
-    'avro==1.9.2;python_version<"3.0"',
-    'avro-python3==1.9.2.1;python_version>"3.0"'
-]
+with open(os.path.join(mod_dir, 'requirements.txt')) as f:
+    INSTALL_REQUIRES = f.read().split()
 
-TEST_REQUIRES = [
-    'pytest==4.6.4;python_version<"3.0"',
-    'pytest;python_version>="3.0"',
-    'pytest-timeout',
-    'trivup',
-    'flake8'
-]
+with open(os.path.join(mod_dir, 'schema_registry', 'requirements.txt')) as f:
+    INSTALL_REQUIRES += f.read().split()
+
+with open(os.path.join(mod_dir, 'avro', 'requirements.txt')) as f:
+    AVRO_REQUIRES = f.read().splitlines()
+
+with open(os.path.join(work_dir, 'tests', 'requirements.txt')) as f:
+    TEST_REQUIRES = f.read().splitlines()
+
+with open(os.path.join(work_dir, 'docs', 'requirements.txt')) as f:
+    DOC_REQUIRES = f.read().splitlines()
 
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
@@ -34,12 +33,12 @@ else:
 
 module = Extension('confluent_kafka.cimpl',
                    libraries=[librdkafka_libname],
-                   sources=['confluent_kafka/src/confluent_kafka.c',
-                            'confluent_kafka/src/Producer.c',
-                            'confluent_kafka/src/Consumer.c',
-                            'confluent_kafka/src/Metadata.c',
-                            'confluent_kafka/src/AdminTypes.c',
-                            'confluent_kafka/src/Admin.c'])
+                   sources=[os.path.join(ext_dir, 'confluent_kafka.c'),
+                            os.path.join(ext_dir, 'Producer.c'),
+                            os.path.join(ext_dir, 'Consumer.c'),
+                            os.path.join(ext_dir, 'Metadata.c'),
+                            os.path.join(ext_dir, 'AdminTypes.c'),
+                            os.path.join(ext_dir, 'Admin.c')])
 
 
 def get_install_requirements(path):
@@ -61,9 +60,10 @@ setup(name='confluent-kafka',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
       packages=find_packages(exclude=("tests", "tests.*")),
-      data_files=[('', ['LICENSE.txt'])],
+      data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
           'avro': AVRO_REQUIRES,
-          'dev': TEST_REQUIRES + AVRO_REQUIRES
+          'dev': TEST_REQUIRES + AVRO_REQUIRES,
+          'doc': DOC_REQUIRES + AVRO_REQUIRES
       })
