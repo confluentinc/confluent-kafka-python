@@ -26,8 +26,6 @@ matrix:
   # cibuildwheel for osx
   - os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib"
-    before_install:
-        - pip install virtualenv
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
