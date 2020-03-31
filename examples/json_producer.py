@@ -27,7 +27,7 @@ from six.moves import input
 from confluent_kafka import SerializingProducer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.json_schema import JsonSerializer
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
 
 
 class User(object):
@@ -127,7 +127,7 @@ def main(args):
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    json_serializer = JsonSerializer(schema_registry_client, schema_str, user_to_dict)
+    json_serializer = JSONSerializer(schema_registry_client, schema_str, user_to_dict)
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),

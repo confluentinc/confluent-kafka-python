@@ -19,7 +19,7 @@ import pytest
 from confluent_kafka.cimpl import TopicPartition, KafkaError
 
 from confluent_kafka.error import ConsumeError
-from confluent_kafka.schema_registry.json_schema import JsonSerializer, JsonDeserializer
+from confluent_kafka.schema_registry.json_schema import JSONSerializer, JSONDeserializer
 from confluent_kafka.serialization import SerializationError
 
 
@@ -94,8 +94,8 @@ def test_json_record_serialization(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
-    value_serializer = JsonSerializer(sr, schema_str)
-    value_deserializer = JsonDeserializer(schema_str)
+    value_serializer = JSONSerializer(sr, schema_str)
+    value_deserializer = JSONDeserializer(schema_str)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -142,7 +142,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
-    value_serializer = JsonSerializer(sr, schema_str)
+    value_serializer = JSONSerializer(sr, schema_str)
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     record = {"contractorId": 1,
@@ -170,7 +170,7 @@ def test_json_record_serialization_no_title(kafka_cluster, load_file):
 
     with pytest.raises(ValueError,
                        match="Missing required JSON schema annotation title"):
-        JsonSerializer(sr, schema_str)
+        JSONSerializer(sr, schema_str)
 
 
 def test_json_record_serialization_custom(kafka_cluster, load_file):
@@ -187,9 +187,9 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
-    value_serializer = JsonSerializer(sr, schema_str,
+    value_serializer = JSONSerializer(sr, schema_str,
                                       to_dict=_testProduct_to_dict)
-    value_deserializer = JsonDeserializer(schema_str,
+    value_deserializer = JSONDeserializer(schema_str,
                                           from_dict=_testProduct_from_dict)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
@@ -233,8 +233,8 @@ def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
     schema_str = load_file("contractor.json")
     schema_str2 = load_file("product.json")
 
-    value_serializer = JsonSerializer(sr, schema_str)
-    value_deserializer = JsonDeserializer(schema_str2)
+    value_serializer = JSONSerializer(sr, schema_str)
+    value_deserializer = JSONDeserializer(schema_str2)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 

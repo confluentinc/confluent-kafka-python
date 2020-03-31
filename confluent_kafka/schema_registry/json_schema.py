@@ -45,7 +45,7 @@ class _ContextStringIO(BytesIO):
         return False
 
 
-class JsonSerializer(Serializer):
+class JSONSerializer(Serializer):
     """
     JsonSerializer serializes objects in the Confluent Schema Registry binary
     format for JSON.
@@ -220,7 +220,7 @@ class JsonSerializer(Serializer):
             return fo.getvalue()
 
 
-class JsonDeserializer(Deserializer):
+class JSONDeserializer(Deserializer):
     """
     JsonDeserializer decodes bytes written in the Schema Registry
     JSON format to an object.
