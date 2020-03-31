@@ -11,13 +11,15 @@ VENV_HOME=$2
 
 set -ev
 
+brew install libtool
+
 if [[ -z ${PY_INTERPRETER} ]] || [[  -z ${VENV_HOME} ]]; then
     echo "Usage: $0 <Python interpreter version> <destination>"
     exit 1
 fi
 
 # Update virtualenv and install requested interpreter
-echo "# Updating basic dependencies" 
+echo "# Updating basic dependencies"
 pip install -U pip
 pip install virtualenv
 pyenv install -f ${PY_INTERPRETER}
