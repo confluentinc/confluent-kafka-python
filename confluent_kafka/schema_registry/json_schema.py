@@ -149,7 +149,7 @@ class JsonSerializer(Serializer):
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
-                             .format(conf_copy.keys()))
+                             .format(", ".join(conf_copy.keys())))
 
         schema_dict = json.loads(schema_str)
         schema_name = schema_dict.get('title', None)
