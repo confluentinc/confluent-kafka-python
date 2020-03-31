@@ -33,15 +33,15 @@ class _TestProduct(object):
         self.location = location
 
 
-def _testProduct_to_dict(ctx, product_obj):
+def _testProduct_to_dict(product_obj, ctx):
     """
     Returns testProduct instance in dict format.
 
     Args:
+        product_obj (_TestProduct): testProduct instance.
+
         ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
-
-        product_obj (_TestProduct): testProduct instance.
 
     Returns:
         dict: product_obj as a dictionary.
@@ -55,15 +55,15 @@ def _testProduct_to_dict(ctx, product_obj):
             "warehouseLocation": product_obj.location}
 
 
-def _testProduct_from_dict(ctx, product_dict):
+def _testProduct_from_dict(product_dict, ctx):
     """
     Returns testProduct instance from its dict format.
 
     Args:
+        product_dict (dict): testProduct in dict format.
+
         ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
-
-        product_dict (dict): testProduct in dict format.
 
     Returns:
         _TestProduct: product_obj instance.

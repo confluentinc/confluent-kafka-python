@@ -101,7 +101,7 @@ class JsonSerializer(Serializer):
 
         schema_str (str): JSON Schema definition.
 
-        to_dict (callable, optional): Callable(SerializationContext, object) -> dict.
+        to_dict (callable, optional): Callable(object, SerializationContext) -> dict.
             Converts object to a dict.
 
         conf (dict): JsonSerializer configuration.
@@ -130,7 +130,7 @@ class JsonSerializer(Serializer):
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(SerializationContext, object)->dict")
+                             " to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
 
@@ -160,17 +160,16 @@ class JsonSerializer(Serializer):
         self._parsed_schema = schema_dict
         self._schema = Schema(schema_str, schema_type="JSON")
 
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Serializes an object to the Confluent Schema Registry's JSON binary
         format.
 
         Args:
-            ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
-
             obj (object): object instance to serialize.
 
+            ctx (SerializationContext): Metadata pertaining to the serialization
+                operation.
 
         Note:
             None objects are represented as Kafka Null.
@@ -202,7 +201,7 @@ class JsonSerializer(Serializer):
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
-            value = self._to_dict(ctx, obj)
+            value = self._to_dict(obj, ctx)
         else:
             value = obj
 
@@ -229,7 +228,7 @@ class JsonDeserializer(Deserializer):
     Args:
         schema_str (str): JSON schema definition use for validating records.
 
-        from_dict (callable, optional): Callable(SerializationContext, dict) -> object.
+        from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
 
     .. _Schema definition:
@@ -243,19 +242,19 @@ class JsonDeserializer(Deserializer):
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
-                             " from_dict(SerializationContext, dict) -> object")
+                             " from_dict(dict, SerializationContext) -> object")
 
         self._from_dict = from_dict
 
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Deserializes Schema Registry formatted JSON to JSON object literal(dict).
 
         Args:
+            value (bytes): Confluent Schema Registry formatted JSON bytes
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
-
-            value (bytes): Confluent Schema Registry formatted JSON bytes
 
         Returns:
             dict: Deserialized JSON
@@ -289,6 +288,6 @@ class JsonDeserializer(Deserializer):
                 raise SerializationError(ve.message)
 
             if self._from_dict is not None:
-                return self._from_dict(ctx, obj_dict)
+                return self._from_dict(obj_dict, ctx)
 
             return obj_dict
