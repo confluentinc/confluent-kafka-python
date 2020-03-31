@@ -37,12 +37,12 @@ def test_numeric_serialization(kafka_cluster, serializer, deserializer, data):
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-        serializer (Serializer): serializer to test
-        deserializer (Deserializer): deserializer to validate serializer
-        data(object(: input data
 
-    Raises:
-        AssertionError on test failure
+        serializer (Serializer): serializer to test
+
+        deserializer (Deserializer): deserializer to validate serializer
+
+        data(object): input data
 
     """
     topic = kafka_cluster.create_topic("serialization-numeric")
@@ -71,11 +71,10 @@ def test_string_serialization(kafka_cluster, data, codec):
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-        data (unicode): input data
-        codec (str): encoding type
 
-    Raises:
-        AssertionError on test failure
+        data (unicode): input data
+
+        codec (str): encoding type
 
     """
     topic = kafka_cluster.create_topic("serialization-string")
@@ -110,13 +109,14 @@ def test_mixed_serialization(kafka_cluster, key_serializer, value_serializer,
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-        key_serializer (Serializer): serializer to test
-        key_deserializer (Deserializer): deserializer to validate serializer
-        key (object): key data
-        value (object): value data
 
-    Raises:
-        AssertionError on test failure
+        key_serializer (Serializer): serializer to test
+
+        key_deserializer (Deserializer): deserializer to validate serializer
+
+        key (object): key data
+
+        value (object): value data
 
     """
     topic = kafka_cluster.create_topic("serialization-numeric")

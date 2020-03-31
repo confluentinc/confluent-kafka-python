@@ -132,6 +132,5 @@ def test_config_unknown_prop():
             'invalid.conf': 1,
             'invalid.conf2': 2}
 
-    with pytest.raises(ValueError, match=r"Unrecognized properties:"
-                                         r" (\[(.*)\])$"):
+    with pytest.raises(ValueError, match=r"Unrecognized properties: (.*)"):
         SchemaRegistryClient(conf)
