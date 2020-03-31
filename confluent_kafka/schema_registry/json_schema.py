@@ -227,11 +227,6 @@ class JsonDeserializer(Deserializer):
     JSON format to an object.
 
     Args:
-        schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
-            client instance. Currently this argument is ignored and may by set
-            to None. This argument may be used in the future to provide
-            additional functionality to the JsonDeserializer.
-
         schema_str (str): JSON schema definition use for validating records.
 
         from_dict (callable, optional): Callable(SerializationContext, dict) -> object.
@@ -241,10 +236,9 @@ class JsonDeserializer(Deserializer):
         https://json-schema.org/understanding-json-schema/reference/generic.html
 
     """
-    __slots__ = ['_parsed_schema', '_registry', '_from_dict']
+    __slots__ = ['_parsed_schema', '_from_dict']
 
-    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
-        self._registry = schema_registry_client
+    def __init__(self, schema_str, from_dict=None):
         self._parsed_schema = json.loads(schema_str)
 
         if from_dict is not None and not callable(from_dict):
@@ -255,7 +249,7 @@ class JsonDeserializer(Deserializer):
 
     def __call__(self, ctx, value):
         """
-        Deserializes Schema Registry response to JSON object literal(dict).
+        Deserializes Schema Registry formatted JSON to JSON object literal(dict).
 
         Args:
             ctx (SerializationContext): Metadata pertaining to the serialization
