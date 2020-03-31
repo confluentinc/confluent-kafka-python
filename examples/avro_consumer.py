@@ -115,7 +115,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Producer Example client with "
+    parser = argparse.ArgumentParser(description="Consumer Example client with "
                                                  "serialization capabilities")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
