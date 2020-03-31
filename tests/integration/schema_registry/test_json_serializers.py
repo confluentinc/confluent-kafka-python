@@ -91,7 +91,7 @@ def test_json_record_serialization(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -139,7 +139,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -165,7 +165,7 @@ def test_json_record_serialization_no_title(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
     schema_str = load_file('not_title.json')
 
     with pytest.raises(ValueError,
@@ -184,7 +184,7 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str, _testProduct_to_dict)
@@ -226,7 +226,7 @@ def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("contractor.json")
     schema_str2 = load_file("product.json")
