@@ -26,7 +26,9 @@ from jsonschema import validate, ValidationError
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
                                              topic_subject_name_strategy)
-from confluent_kafka.serialization import SerializationError, Serializer, Deserializer
+from confluent_kafka.serialization import (SerializationError,
+                                           Deserializer,
+                                           Serializer)
 
 
 class _ContextStringIO(BytesIO):
@@ -212,8 +214,9 @@ class JsonSerializer(Serializer):
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
-            # write the record to the rest of the buffer
-            json.dump(value, fo, value)
+            # JSON dump always writes a str never bytes
+            # https://docs.python.org/3/library/json.html
+            fo.write(json.dumps(value).encode('utf8'))
 
             return fo.getvalue()
 
@@ -225,9 +228,11 @@ class JsonDeserializer(Deserializer):
 
     Args:
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
-            client instance.
+            client instance. Currently this argument is ignored and may by set
+            to None. This argument may be used in the future to provide
+            additional functionality to the JsonDeserializer.
 
-        schema_str (str): JSON schema definition.
+        schema_str (str): JSON schema definition use for validating records.
 
         from_dict (callable, optional): Callable(SerializationContext, dict) -> object.
             Converts dict to an instance of some object.
@@ -236,11 +241,11 @@ class JsonDeserializer(Deserializer):
         https://json-schema.org/understanding-json-schema/reference/generic.html
 
     """
-    __slots__ = ['_schema', '_registry', '_from_dict']
+    __slots__ = ['_parsed_schema', '_registry', '_from_dict']
 
     def __init__(self, schema_registry_client, schema_str, from_dict=None):
         self._registry = schema_registry_client
-        self._schema = json.loads(schema_str)
+        self._parsed_schema = json.loads(schema_str)
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
@@ -262,8 +267,8 @@ class JsonDeserializer(Deserializer):
             dict: Deserialized JSON
 
         Raises:
-            SerializerError: If response payload and expected Message type
-            differ.
+            SerializerError: If ``value`` cannot be validated by the schema
+            configured with this JsonDeserializer instance.
 
         """
         if value is None:
@@ -283,6 +288,11 @@ class JsonDeserializer(Deserializer):
 
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read(), encoding="utf8")
+
+            try:
+                validate(instance=obj_dict, schema=self._parsed_schema)
+            except ValidationError as ve:
+                raise SerializationError(ve.message)
 
             if self._from_dict is not None:
                 return self._from_dict(ctx, obj_dict)

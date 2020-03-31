@@ -16,8 +16,9 @@
 # limitations under the License.
 #
 import pytest
-from confluent_kafka.cimpl import TopicPartition
+from confluent_kafka.cimpl import TopicPartition, KafkaError
 
+from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry.json_schema import JsonSerializer, JsonDeserializer
 from confluent_kafka.serialization import SerializationError
 
@@ -90,7 +91,7 @@ def test_json_record_serialization(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -138,7 +139,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -154,7 +155,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
         producer.produce(topic, value=record, partition=0)
 
 
-def test_json_record_serialization_invalid(kafka_cluster, load_file):
+def test_json_record_serialization_no_title(kafka_cluster, load_file):
     """
     Ensures ValueError raise if JSON Schema definition lacks Title annotation.
 
@@ -164,8 +165,8 @@ def test_json_record_serialization_invalid(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    sr = kafka_cluster.schema_registry()
-    schema_str = load_file('invalid.json')
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    schema_str = load_file('not_title.json')
 
     with pytest.raises(ValueError,
                        match="Missing required JSON schema annotation title"):
@@ -183,7 +184,7 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str, _testProduct_to_dict)
@@ -212,3 +213,42 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
 
     assert all([getattr(actual, attribute) == getattr(record, attribute)
                 for attribute in vars(record)])
+
+
+def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
+    """
+    Ensures to_dict and from_dict hooks are properly applied by the serializer.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+        load_file (callable(str)): JSON Schema file reader
+
+    """
+    topic = kafka_cluster.create_topic("serialization-json")
+    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+
+    schema_str = load_file("contractor.json")
+    schema_str2 = load_file("product.json")
+
+    value_serializer = JsonSerializer(sr, schema_str)
+    value_deserializer = JsonDeserializer(sr, schema_str2)
+
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
+
+    record = {"contractorId": 2,
+              "contractorName": "Magnus Edenhill",
+              "contractRate": 30,
+              "trades": ["pickling"]}
+
+    producer.produce(topic, value=record, partition=0)
+    producer.flush()
+
+    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer.assign([TopicPartition(topic, 0)])
+
+    with pytest.raises(
+            ConsumeError,
+            match=r"(.*) is a required property \(KafkaError code {}\)"
+                  .format(KafkaError._VALUE_DESERIALIZATION)):
+        consumer.poll()
