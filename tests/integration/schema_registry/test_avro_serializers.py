@@ -123,9 +123,8 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, rec
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     def assert_cb(err, msg):
-        actual = value_deserializer(SerializationContext(topic,
-                                                         MessageField.VALUE),
-                                    msg.value())
+        actual = value_deserializer(msg.value(),
+                                    SerializationContext(topic, MessageField.VALUE))
 
         if record_type == "record":
             assert [v == actual[k] for k, v in data.items()]
@@ -165,13 +164,13 @@ def test_avro_record_serialization_custom(kafka_cluster):
 
     user = User('Bowie', 47, 'purple')
     value_serializer = AvroSerializer(sr, User.schema_str,
-                                      lambda ctx, user:
+                                      lambda user, ctx:
                                       dict(name=user.name,
                                            favorite_number=user.favorite_number,
                                            favorite_color=user.favorite_color))
 
     value_deserializer = AvroDeserializer(sr, User.schema_str,
-                                          lambda ctx, user_dict:
+                                          lambda user_dict, ctx:
                                           User(**user_dict))
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)

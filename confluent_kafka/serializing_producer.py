@@ -157,11 +157,11 @@ class SerializingProducer(_ProducerImpl):
         """
         ctx = SerializationContext(topic, MessageField.KEY)
         if self._key_serializer is not None:
-            key = self._key_serializer(ctx, key)
+            key = self._key_serializer(key, ctx)
 
         ctx.field = MessageField.VALUE
         if self._value_serializer is not None:
-            value = self._value_serializer(ctx, value)
+            value = self._value_serializer(value, ctx)
 
         super(SerializingProducer, self).produce(topic, value, key,
                                                  headers=headers,

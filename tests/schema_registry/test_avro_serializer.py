@@ -63,8 +63,9 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
     test_serializer = AvroSerializer(test_client, "string",
                                      conf={'auto.register.schemas': False})
 
-    test_serializer(SerializationContext("test-auto-register",
-                                         MessageField.KEY), "test")
+    test_serializer("test",
+                    SerializationContext("test-auto-register",
+                                         MessageField.KEY))
 
     register_count = test_client.counter['POST'].get('/subjects/{}/versions'
                                                      .format(subject), 0)

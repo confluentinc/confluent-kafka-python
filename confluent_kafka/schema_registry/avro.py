@@ -124,7 +124,7 @@ class AvroSerializer(Serializer):
 
         schema_str (str): Avro Schema declaration.
 
-        to_dict (callable, optional): Callable(SerializationContext, object) -> dict.
+        to_dict (callable, optional): Callable(object, SerializationContext) -> dict.
             Converts object to a dict.
 
         conf (dict): AvroSerializer configuration.
@@ -172,7 +172,7 @@ class AvroSerializer(Serializer):
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
-                             .format(conf_copy.keys()))
+                             .format(", ".format(conf_copy.keys())))
 
         # convert schema_str to Schema instance
         schema = _schema_loads(schema_str)
@@ -188,16 +188,16 @@ class AvroSerializer(Serializer):
         self._schema_name = schema_name
         self._parsed_schema = parsed_schema
 
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Serializes an object to the Confluent Schema Registry's Avro binary
         format.
 
         Args:
+            obj (object): object instance to serializes.
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
-
-            obj (object): object instance to serialize.
 
         Note:
             None objects are represented as Kafka Null.
@@ -229,7 +229,7 @@ class AvroSerializer(Serializer):
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
-            value = self._to_dict(ctx, obj)
+            value = self._to_dict(obj, ctx)
         else:
             value = obj
 
@@ -261,7 +261,7 @@ class AvroDeserializer(Deserializer):
 
         schema_str (str): Avro reader schema declaration.
 
-        from_dict (callable, optional): Callable(SerializationContext, dict) -> object.
+        from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
 
     .. _Schema declaration:
@@ -284,15 +284,15 @@ class AvroDeserializer(Deserializer):
                              " from_dict(SerializationContext, dict) -> object")
         self._from_dict = from_dict
 
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Decodes a Confluent Schema Registry formatted Avro bytes to an object.
 
         Arguments:
+            value (bytes): bytes
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
-
-            value (bytes): bytes
 
         Raises:
             SerializerError if an error occurs ready data.
@@ -331,6 +331,6 @@ class AvroDeserializer(Deserializer):
                                          self._reader_schema)
 
             if self._from_dict is not None:
-                return self._from_dict(ctx, obj_dict)
+                return self._from_dict(obj_dict, ctx)
 
             return obj_dict
