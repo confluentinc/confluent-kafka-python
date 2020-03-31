@@ -10,9 +10,11 @@ environment:
   matrix:
    - PYTHON: "C:\\Python27-x64"
      PYTHON_VERSION: "2.7.17"
+     PYTHON_SHORTVER: "27"
      PYTHON_ARCH: "64"
    - PYTHON: "C:\\Python36-x64"
      PYTHON_VERSION: "3.6.8"
+     PYTHON_SHORTVER: "36"
      PYTHON_ARCH: "64"
 
 install:
