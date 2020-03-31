@@ -170,10 +170,10 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
                           price=12.50,
                           tags=["cold", "ice"],
                           dimensions={"length": 7.0,
-                                     "width": 12.0,
-                                     "height": 9.5},
+                                      "width": 12.0,
+                                      "height": 9.5},
                           location={"latitude": -78.75,
-                                   "longitude": 20.4})
+                                    "longitude": 20.4})
 
     producer.produce(topic, value=record, partition=0)
     producer.flush()
