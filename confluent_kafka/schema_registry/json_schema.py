@@ -1,3 +1,21 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
 from io import BytesIO
 
 import json
@@ -30,25 +48,17 @@ class JsonSerializer(Serializer):
     JsonSerializer serializes objects in the Confluent Schema Registry binary
     format for JSON.
 
-    Note:
-        The ``title`` annotation, referred to as a record name
-        elsewhere in this document, is not strictly required by the JSON Schema
-        specification. It is however required by this Serializer. This
-        annotation(record name) is used to register the Schema with the Schema
-        Registry. See documentation below  for additional details on Subjects
-        and schema registration.
-
     JsonSerializer configuration properties:
     +-----------------------+----------+--------------------------------------------------+
-    | Property Name         | type     | Description                                      |
+    | Property Name         | Type     | Description                                      |
     +=======================+==========+==================================================+
     |                       |          | Registers schemas automatically if not           |
     | auto.register.schemas | bool     | previously associated with a particular subject. |
     |                       |          | Defaults to True.                                |
     +-----------------------|----------+--------------------------------------------------+
-    |                       |          | Callable(SerialalizationContext, str) -> str     |
+    |                       |          | Callable(SerializationContext, str) -> str       |
     |                       |          |                                                  |
-    | subject.name.strategy | callable | Instructs the JsonSerializer on how to Construct |
+    | subject.name.strategy | callable | Instructs the JsonSerializer on how to construct |
     |                       |          | Schema Registry subject names.                   |
     |                       |          | Defaults to topic_subject_name_strategy.         |
     +-----------------------+----------+--------------------------------------------------+
@@ -74,6 +84,14 @@ class JsonSerializer(Serializer):
     +--------------------------------------+------------------------------+
 
     See ``Subject name strategy`` for additional details.
+
+    Note:
+        The ``title`` annotation, referred to as a record name
+        elsewhere in this document, is not strictly required by the JSON Schema
+        specification. It is however required by this Serializer. This
+        annotation(record name) is used to register the Schema with the Schema
+        Registry. See documentation below for additional details on Subjects
+        and schema registration.
 
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry
@@ -110,7 +128,7 @@ class JsonSerializer(Serializer):
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(Serialization Context, object)->dict")
+                             " to_dict(SerializationContext, object)->dict")
 
         self._to_dict = to_dict
 
@@ -134,7 +152,7 @@ class JsonSerializer(Serializer):
         schema_dict = json.loads(schema_str)
         schema_name = schema_dict.get('title', None)
         if schema_name is None:
-            raise ValueError("Missing required JSON schema annotation Title")
+            raise ValueError("Missing required JSON schema annotation title")
 
         self._schema_name = schema_name
         self._parsed_schema = schema_dict
@@ -149,7 +167,7 @@ class JsonSerializer(Serializer):
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
 
-            obj (object): object instance to serializes.
+            obj (object): object instance to serialize.
 
 
         Note:
@@ -209,7 +227,7 @@ class JsonDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
 
-        schema_str (str): JSON schema declaration.
+        schema_str (str): JSON schema definition.
 
         from_dict (callable, optional): Callable(SerializationContext, dict) -> object.
             Converts dict to an instance of some object.
@@ -232,13 +250,13 @@ class JsonDeserializer(Deserializer):
 
     def __call__(self, ctx, value):
         """
-        Deserializes Schema Registry response to JSON object literal(dict)
+        Deserializes Schema Registry response to JSON object literal(dict).
 
         Args:
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation.
 
-            value (bytes): bytes
+            value (bytes): Confluent Schema Registry formatted JSON bytes
 
         Returns:
             dict: Deserialized JSON
@@ -248,14 +266,20 @@ class JsonDeserializer(Deserializer):
             differ.
 
         """
+        if value is None:
+            return None
+
         if len(value) <= 5:
-            raise SerializationError("message is too small to decode {}".format(value))
+            raise SerializationError("Message too small. This message was not"
+                                     " produced with a Confluent"
+                                     " Schema Registry serializer")
 
         with _ContextStringIO(value) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
-                raise SerializationError(
-                    "message does not start with magic byte")
+                raise SerializationError("Unknown magic byte. This message was"
+                                         " not produced with a Confluent"
+                                         " Schema Registry serializer")
 
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read(), encoding="utf8")

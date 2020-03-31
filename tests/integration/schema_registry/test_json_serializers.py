@@ -1,3 +1,20 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+#
+# Copyright 2020 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
 import pytest
 from confluent_kafka.cimpl import TopicPartition
 
@@ -39,7 +56,7 @@ def _testProduct_to_dict(ctx, product_obj):
 
 def _testProduct_from_dict(ctx, product_dict):
     """
-    Returns testProduct instance from it's dict format.
+    Returns testProduct instance from its dict format.
 
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
@@ -61,7 +78,7 @@ def _testProduct_from_dict(ctx, product_dict):
 
 def test_json_record_serialization(kafka_cluster, load_file):
     """
-    Tests basic JsonSerializer and JsonDeserializer basic functionality
+    Tests basic JsonSerializer and JsonDeserializer basic functionality.
 
     product.json from:
         https://json-schema.org/learn/getting-started-step-by-step.html
@@ -73,7 +90,7 @@ def test_json_record_serialization(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -121,7 +138,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str)
@@ -139,7 +156,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
 def test_json_record_serialization_invalid(kafka_cluster, load_file):
     """
-    Ensures ValueError raise if  JSON Schema definition lacks Title annotation.
+    Ensures ValueError raise if JSON Schema definition lacks Title annotation.
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
@@ -147,17 +164,26 @@ def test_json_record_serialization_invalid(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
     schema_str = load_file('invalid.json')
 
     with pytest.raises(ValueError,
-                       match="Missing required JSON schema annotation Title"):
+                       match="Missing required JSON schema annotation title"):
         JsonSerializer(sr, schema_str)
 
 
 def test_json_record_serialization_custom(kafka_cluster, load_file):
+    """
+    Ensures to_dict and from_dict hooks are properly applied by the serializer.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+        load_file (callable(str)): JSON Schema file reader
+
+    """
     topic = kafka_cluster.create_topic("serialization-json")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
     value_serializer = JsonSerializer(sr, schema_str, _testProduct_to_dict)
