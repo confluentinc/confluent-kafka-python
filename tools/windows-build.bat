@@ -69,10 +69,13 @@ for %%W in (wheelhouse\confluent_kafka-*cp%PYTHON_SHORTVER%*win*%PYTHON_ARCH%.wh
   7z l %%~W
   pip install %%~W || exit /b 1
 
-  python -c "from confluent_kafka import libversion ; print libversion()" || exit /b 1
+  SET savedir=%cd%
+  cd ..
+  python -c "from confluent_kafka import libversion ; print(libversion())" || exit /b 1
 
   python -m pytest --ignore=confluent-kafka-python\tests\schema_registry --ignore=confluent-kafka-python\tests\integration --import-mode=append confluent-kafka-python\tests || exit /b 1
   pip uninstall -y confluent_kafka || exit /b 1
 
+  cd %savedir%
 )
 
