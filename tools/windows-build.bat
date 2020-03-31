@@ -37,12 +37,28 @@ cd stage\x86
 for %%W in (..\..\wheelhouse\*win32.whl) do (
     7z a -r %%~W confluent_kafka\*.dll || exit /b 1
     unzip -l %%~W
+
+    md t1
+    cd t1
+    unzip ..\%%W
+    dumpbin /dependents confluent_kafka\cimpl*.pyd
+    dumpbin /dependents confluent_kafka\librdkafka.dll
+    cd ..
+    rmdir t1 /s /q
 )
 
 cd ..\x64
 for %%W in (..\..\wheelhouse\*amd64.whl) do (
     7z a -r %%~W confluent_kafka\*.dll || exit /b 1
     unzip -l %%~W
+
+    md t1
+    cd t1
+    unzip ..\%%W
+    dumpbin /dependents confluent_kafka\cimpl*.pyd
+    dumpbin /dependents confluent_kafka\librdkafka.dll
+    cd ..
+    rmdir t1 /s /q
 )
 
 cd ..\..
