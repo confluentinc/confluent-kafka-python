@@ -3,3 +3,4 @@ fastapi
 pydantic
 uvicorn
 six
+jsonschema
