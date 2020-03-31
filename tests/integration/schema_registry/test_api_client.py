@@ -27,19 +27,19 @@ def _subject_name(prefix):
     return prefix + "-" + str(uuid1())
 
 
-def test_api_register_schema(kafka_cluster, load_avsc):
+def test_api_register_schema(kafka_cluster, load_file):
     """
     Registers a schema, verifies the registration
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
     avsc = 'basic_schema.avsc'
     subject = _subject_name(avsc)
-    schema = Schema(load_avsc(avsc), schema_type='AVRO')
+    schema = Schema(load_file(avsc), schema_type='AVRO')
 
     schema_id = sr.register_schema(subject, schema)
     registered_schema = sr.lookup_schema(subject, schema)
@@ -49,18 +49,18 @@ def test_api_register_schema(kafka_cluster, load_avsc):
     assert schema.schema_str, registered_schema.schema.schema_str
 
 
-def test_api_register_schema_incompatible(kafka_cluster, load_avsc):
+def test_api_register_schema_incompatible(kafka_cluster, load_file):
     """
     Attempts to register an incompatible Schema verifies the error.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
-    schema1 = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
-    schema2 = Schema(load_avsc('adv_schema.avsc'), schema_type='AVRO')
+    schema1 = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    schema2 = Schema(load_file('adv_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_register_incompatible')
 
     sr.register_schema(subject, schema1)
@@ -73,17 +73,17 @@ def test_api_register_schema_incompatible(kafka_cluster, load_avsc):
     assert e.value.error_code == 409
 
 
-def test_api_register_schema_invalid(kafka_cluster, load_avsc):
+def test_api_register_schema_invalid(kafka_cluster, load_file):
     """
     Attempts to register an invalid schema, validates the error.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
-    schema = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('invalid_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_invalid_schema')
 
     with pytest.raises(SchemaRegistryError, match="Input schema is an invalid"
@@ -93,18 +93,18 @@ def test_api_register_schema_invalid(kafka_cluster, load_avsc):
     assert e.value.error_code == 42201
 
 
-def test_api_get_schema(kafka_cluster, load_avsc):
+def test_api_get_schema(kafka_cluster, load_file):
     """
     Registers a schema then retrieves it using the schema id returned by the
     call to register the Schema.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('get_schema')
 
     schema_id = sr.register_schema(subject, schema)
@@ -115,13 +115,13 @@ def test_api_get_schema(kafka_cluster, load_avsc):
     assert schema.schema_str, registration.schema.schema_str
 
 
-def test_api_get_schema_not_found(kafka_cluster, load_avsc):
+def test_api_get_schema_not_found(kafka_cluster, load_file):
     """
     Attempts to fetch an unknown schema by id, validates the error.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
@@ -133,18 +133,18 @@ def test_api_get_schema_not_found(kafka_cluster, load_avsc):
     assert e.value.error_code == 40403
 
 
-def test_api_get_registration_subject_not_found(kafka_cluster, load_avsc):
+def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     """
     Attempts to obtain information about a schema's subject registration for
     an unknown subject.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
 
     subject = _subject_name("registration_subject_not_found")
 
@@ -154,22 +154,22 @@ def test_api_get_registration_subject_not_found(kafka_cluster, load_avsc):
     assert e.value.error_code == 40401
 
 
-def test_api_get_register_schema_invalid(kafka_cluster, load_avsc):
+def test_api_get_register_schema_invalid(kafka_cluster, load_file):
     """
     Attempts to obtain registration information with an invalid schema
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
     subject = _subject_name("registration_invalid_schema")
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
 
     # register valid schema so we don't hit subject not found exception
     sr.register_schema(subject, schema)
-    schema2 = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
+    schema2 = Schema(load_file('invalid_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Invalid schema") as e:
         sr.lookup_schema(subject, schema2)
@@ -178,14 +178,14 @@ def test_api_get_register_schema_invalid(kafka_cluster, load_avsc):
     assert e.value.error_code == 500
 
 
-def test_api_get_subjects(kafka_cluster, load_avsc):
+def test_api_get_subjects(kafka_cluster, load_file):
     """
     Populates KafkaClusterFixture SR instance with a fixed number of subjects
     then verifies the response includes them all.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
@@ -195,7 +195,7 @@ def test_api_get_subjects(kafka_cluster, load_avsc):
 
     subjects = []
     for avsc in avscs:
-        schema = Schema(load_avsc(avsc), schema_type='AVRO')
+        schema = Schema(load_file(avsc), schema_type='AVRO')
         subject = _subject_name(avsc)
         subjects.append(subject)
 
@@ -206,7 +206,7 @@ def test_api_get_subjects(kafka_cluster, load_avsc):
     assert all([s in registered for s in subjects])
 
 
-def test_api_get_subject_versions(kafka_cluster, load_avsc):
+def test_api_get_subject_versions(kafka_cluster, load_file):
     """
     Registers a Schema with a subject, lists the versions associated with that
     subject and ensures the versions and their schemas match what was
@@ -214,7 +214,7 @@ def test_api_get_subject_versions(kafka_cluster, load_avsc):
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor.
+        load_file (callable(str)): Schema fixture constructor.
 
     """
     sr = kafka_cluster.schema_registry()
@@ -227,7 +227,7 @@ def test_api_get_subject_versions(kafka_cluster, load_avsc):
 
     schemas = []
     for avsc in avscs:
-        schema = Schema(load_avsc(avsc), schema_type='AVRO')
+        schema = Schema(load_file(avsc), schema_type='AVRO')
         schemas.append(schema)
         sr.register_schema(subject, schema)
 
@@ -239,18 +239,18 @@ def test_api_get_subject_versions(kafka_cluster, load_avsc):
         assert registered_schema.version in versions
 
 
-def test_api_delete_subject(kafka_cluster, load_avsc):
+def test_api_delete_subject(kafka_cluster, load_file):
     """
     Registers a Schema under a specific subject then deletes it.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
 
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name("test-delete")
 
     sr.register_schema(subject, schema)
@@ -271,18 +271,18 @@ def test_api_delete_subject_not_found(kafka_cluster):
     assert e.value.error_code == 40401
 
 
-def test_api_get_subject_version(kafka_cluster, load_avsc):
+def test_api_get_subject_version(kafka_cluster, load_file):
     """
     Registers a schema, fetches that schema by it's subject version id.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
 
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test-get_subject')
 
     sr.register_schema(subject, schema)
@@ -294,11 +294,11 @@ def test_api_get_subject_version(kafka_cluster, load_avsc):
     assert registered_schema2.version == registered_schema.version
 
 
-def test_api_get_subject_version_no_version(kafka_cluster, load_avsc):
+def test_api_get_subject_version_no_version(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry()
 
     # ensures subject exists and has a single version
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test-get_subject')
     sr.register_schema(subject, schema)
 
@@ -308,11 +308,11 @@ def test_api_get_subject_version_no_version(kafka_cluster, load_avsc):
     assert e.value.error_code == 40402
 
 
-def test_api_get_subject_version_invalid(kafka_cluster, load_avsc):
+def test_api_get_subject_version_invalid(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry()
 
     # ensures subject exists and has a single version
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test-get_subject')
     sr.register_schema(subject, schema)
 
@@ -323,18 +323,18 @@ def test_api_get_subject_version_invalid(kafka_cluster, load_avsc):
     assert e.value.error_code == 42202
 
 
-def test_api_post_subject_registration(kafka_cluster, load_avsc):
+def test_api_post_subject_registration(kafka_cluster, load_file):
     """
     Registers a schema, fetches that schema by it's subject version id.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
 
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_registration')
 
     schema_id = sr.register_schema(subject, schema)
@@ -344,18 +344,18 @@ def test_api_post_subject_registration(kafka_cluster, load_avsc):
     assert registered_schema.subject == subject
 
 
-def test_api_delete_subject_version(kafka_cluster, load_avsc):
+def test_api_delete_subject_version(kafka_cluster, load_file):
     """
     Registers a Schema under a specific subject then deletes it.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
 
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = str(uuid1())
 
     sr.register_schema(subject, schema)
@@ -364,19 +364,19 @@ def test_api_delete_subject_version(kafka_cluster, load_avsc):
     assert subject not in sr.get_subjects()
 
 
-def test_api_subject_config_update(kafka_cluster, load_avsc):
+def test_api_subject_config_update(kafka_cluster, load_file):
     """
     Updates a subjects compatibility policy then ensures the same policy
     is returned when queried.
 
     Args:
         kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
-        load_avsc (callable(str)): Schema fixture constructor
+        load_file (callable(str)): Schema fixture constructor
 
     """
     sr = kafka_cluster.schema_registry()
 
-    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = str(uuid1())
 
     sr.register_schema(subject, schema)
