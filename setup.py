@@ -12,9 +12,6 @@ ext_dir = os.path.join(mod_dir, 'src')
 with open(os.path.join(mod_dir, 'requirements.txt')) as f:
     INSTALL_REQUIRES = f.read().split()
 
-with open(os.path.join(mod_dir, 'schema_registry', 'requirements.txt')) as f:
-    INSTALL_REQUIRES += f.read().split()
-
 with open(os.path.join(mod_dir, 'avro', 'requirements.txt')) as f:
     AVRO_REQUIRES = f.read().splitlines()
 
@@ -23,6 +20,10 @@ with open(os.path.join(work_dir, 'tests', 'requirements.txt')) as f:
 
 with open(os.path.join(work_dir, 'docs', 'requirements.txt')) as f:
     DOC_REQUIRES = f.read().splitlines()
+
+# Temp fix until a better packaging strategy can be rolled out
+SCHEMA_REGISTRY_REQUIRES = ['requests']
+JSON_REQUIRES = ['jsonschema'] + SCHEMA_REGISTRY_REQUIRES
 
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
@@ -64,6 +65,7 @@ setup(name='confluent-kafka',
       install_requires=INSTALL_REQUIRES,
       extras_require={
           'avro': AVRO_REQUIRES,
+          'json': JSON_REQUIRES,
           'dev': TEST_REQUIRES + AVRO_REQUIRES,
           'doc': DOC_REQUIRES + AVRO_REQUIRES
       })
