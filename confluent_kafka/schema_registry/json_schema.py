@@ -243,7 +243,7 @@ class JsonDeserializer(Deserializer):
     """
     __slots__ = ['_parsed_schema', '_registry', '_from_dict']
 
-    def __init__(self, schema_registry_client, schema_str, from_dict=None):
+    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
         self._registry = schema_registry_client
         self._parsed_schema = json.loads(schema_str)
 

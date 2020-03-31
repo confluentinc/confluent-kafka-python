@@ -22,7 +22,6 @@
 import argparse
 
 from confluent_kafka import DeserializingConsumer
-from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import JsonDeserializer
 from confluent_kafka.serialization import StringDeserializer
 
@@ -91,12 +90,8 @@ def main(args):
       "required": [ "name", "favorite_number", "favorite_color" ]
     }
     """
-
-    sr_conf = {'url': args.schema_registry}
-    schema_registry_client = SchemaRegistryClient(sr_conf)
-
-    json_deserializer = JsonDeserializer(schema_registry_client,
-                                         schema_str, dict_to_user)
+    json_deserializer = JsonDeserializer(schema_str,
+                                         from_dict=dict_to_user)
     string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
