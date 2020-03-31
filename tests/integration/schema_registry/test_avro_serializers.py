@@ -67,9 +67,6 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_
         avsc (str) avsc: Avro schema file
         data (object): data to be serialized
 
-    Raises:
-        AssertionError on test failure
-
     """
     topic = kafka_cluster.create_topic("serialization-avro")
     sr = kafka_cluster.schema_registry()
@@ -113,9 +110,6 @@ def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, rec
         load_avsc (callable(str)): Avro file reader
         avsc (str) avsc: Avro schema file
         data (object): data to be serialized
-
-    Raises:
-        AssertionError on test failure
 
     """
     topic = kafka_cluster.create_topic("serialization-avro-dr")
