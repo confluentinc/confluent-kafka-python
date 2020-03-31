@@ -64,6 +64,7 @@ setup(name='confluent-kafka',
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
+          'schema-registry': SCHEMA_REGISTRY_REQUIRES,
           'avro': AVRO_REQUIRES,
           'json': JSON_REQUIRES,
           'dev': TEST_REQUIRES + AVRO_REQUIRES,
