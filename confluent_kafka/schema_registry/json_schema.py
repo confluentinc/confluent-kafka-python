@@ -46,7 +46,7 @@ class JsonSerializer(Serializer):
     | auto.register.schemas | bool     | previously associated with a particular subject. |
     |                       |          | Defaults to True.                                |
     +-----------------------|----------+--------------------------------------------------+
-    |                       |          | Callable(str, SerialalizationContext) -> str     |
+    |                       |          | Callable(SerialalizationContext, str) -> str     |
     |                       |          |                                                  |
     | subject.name.strategy | callable | Instructs the JsonSerializer on how to Construct |
     |                       |          | Schema Registry subject names.                   |
@@ -95,7 +95,7 @@ class JsonSerializer(Serializer):
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', 'to_dict']
+                 '_subject_name_func', '_to_dict']
 
     # default configuration
     _default_conf = {'auto.register.schemas': True,
@@ -112,7 +112,7 @@ class JsonSerializer(Serializer):
             raise ValueError("to_dict must be callable with the signature"
                              " to_dict(Serialization Context, object)->dict")
 
-        self.to_dict = to_dict
+        self._to_dict = to_dict
 
         # handle configuration
         conf_copy = self._default_conf.copy()
@@ -181,8 +181,8 @@ class JsonSerializer(Serializer):
             self._schema_id = registered_schema.schema_id
             self._known_subjects.add(subject)
 
-        if self.to_dict is not None:
-            value = self.to_dict(ctx, obj)
+        if self._to_dict is not None:
+            value = self._to_dict(ctx, obj)
         else:
             value = obj
 
@@ -195,7 +195,7 @@ class JsonSerializer(Serializer):
             # Write the magic byte and schema ID in network byte order (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
-            json.dump(obj, fo, value)
+            json.dump(value, fo, value)
 
             return fo.getvalue()
 
@@ -218,7 +218,7 @@ class JsonDeserializer(Deserializer):
         https://json-schema.org/understanding-json-schema/reference/generic.html
 
     """
-    __slots__ = ['_schema', '_registry', 'from_dict']
+    __slots__ = ['_schema', '_registry', '_from_dict']
 
     def __init__(self, schema_registry_client, schema_str, from_dict=None):
         self._registry = schema_registry_client
@@ -228,7 +228,7 @@ class JsonDeserializer(Deserializer):
             raise ValueError("from_dict must be callable with the signature"
                              " from_dict(SerializationContext, dict) -> object")
 
-        self.from_dict = from_dict
+        self._from_dict = from_dict
 
     def __call__(self, ctx, value):
         """
@@ -258,4 +258,9 @@ class JsonDeserializer(Deserializer):
                     "message does not start with magic byte")
 
             # JSON documents are self-describing; no need to query schema
-            return json.loads(payload.read(), encoding="utf8")
+            obj_dict = json.loads(payload.read(), encoding="utf8")
+
+            if self._from_dict is not None:
+                return self._from_dict(ctx, obj_dict)
+
+            return obj_dict
