@@ -137,15 +137,15 @@ class Serializer(object):
     """
     __slots__ = []
 
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Converts obj to bytes.
 
         Args:
+            obj (object): object to be serialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            obj (object): object to be serialized
 
         Raises:
             SerializerError if an error occurs during serialization
@@ -200,15 +200,15 @@ class Deserializer(object):
     """
     __slots__ = []
 
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Convert bytes to object
 
         Args:
+            value (bytes): bytes to be deserialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            value (bytes): bytes to be deserialized
 
         Raises:
             SerializerError if an error occurs during deserialization
@@ -228,16 +228,15 @@ class DoubleSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html
 
     """  # noqa: E501
-
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Serializes float as IEEE 764 binary64 bytes.
 
         Args:
+            obj (object): object to be serialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            obj (object): object to be serialized
 
         Note:
             None objects are represented as Kafka Null.
@@ -266,16 +265,15 @@ class DoubleDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html
 
     """  # noqa: E501
-
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Deserializes float from IEEE 764 binary64 bytes.
 
         Args:
+            value (bytes): bytes to be deserialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            value (bytes): bytes to be deserialized
 
         Raises:
             SerializerError if an error occurs during deserialization.
@@ -301,16 +299,15 @@ class IntegerSerializer(Serializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html
 
     """  # noqa: E501
-
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Serializes int as int32 bytes.
 
         Args:
+            obj (object): object to be serialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            obj (object): object to be serialized
 
         Note:
             None objects are represented as Kafka Null.
@@ -339,17 +336,15 @@ class IntegerDeserializer(Deserializer):
         https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html
 
     """  # noqa: E501
-
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Deserializes int from int32 bytes.
 
         Args:
-            ctx (SerializationContext): Metadata pertaining to the serialization
-                operation
-
             value (bytes): bytes to be deserialized
 
+            ctx (SerializationContext): Metadata pertaining to the serialization
+                operation
 
         Raises:
             SerializerError if an error occurs during deserialization.
@@ -387,7 +382,7 @@ class StringSerializer(Serializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, ctx, obj):
+    def __call__(self, obj, ctx):
         """
         Serializes a str(py2:unicode) to bytes.
 
@@ -396,10 +391,10 @@ class StringSerializer(Serializer):
             Python 3 all str objects are already unicode objects.
 
         Args:
+            obj (object): object to be serialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            obj (object): object to be serialized
 
         Raises:
             SerializerError if an error occurs during serialization.
@@ -435,7 +430,7 @@ class StringDeserializer(Deserializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, ctx, value):
+    def __call__(self, value, ctx):
         """
         Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 
@@ -446,10 +441,10 @@ class StringDeserializer(Deserializer):
             Python 3 all str objects are already unicode objects.
 
         Args:
+            value (bytes): bytes to be deserialized
+
             ctx (SerializationContext): Metadata pertaining to the serialization
                 operation
-
-            value (bytes): bytes to be deserialized
 
         Raises:
             SerializerError if an error occurs during deserialization.

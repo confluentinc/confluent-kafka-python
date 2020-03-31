@@ -130,7 +130,7 @@ class DeserializingConsumer(_ConsumerImpl):
         value = msg.value()
         if self._value_deserializer is not None:
             try:
-                value = self._value_deserializer(ctx, value)
+                value = self._value_deserializer(value, ctx)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
                                    reason=se.message,
@@ -140,7 +140,7 @@ class DeserializingConsumer(_ConsumerImpl):
         ctx.field = MessageField.KEY
         if self._key_deserializer is not None:
             try:
-                key = self._key_deserializer(ctx, key)
+                key = self._key_deserializer(key, ctx)
             except SerializationError as se:
                 raise ConsumeError(KafkaError._KEY_DESERIALIZATION,
                                    reason=se.message,
