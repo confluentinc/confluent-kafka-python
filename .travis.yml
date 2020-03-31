@@ -1,7 +1,7 @@
 env:
  global:
   - LIBRDKAFKA_VERSION=v1.4.0-RC4
-matrix:
+jobs:
  include:
   # Source package verification with Python 2.7
   - os: linux
@@ -29,13 +29,11 @@ matrix:
   # cibuildwheel for manylinux
   - os: linux
     dist: trusty
-    sudo: required
     env:
       - CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}"
       - PYTHON_CONFIGURE_OPTS="--enable-unicode=ucs4 --with-wide-unicode"
       - CIBW_MANYLINUX_X86_64_IMAGE="manylinux1"
-      - CIBW_MANYLINUX_I686_IMAGE="manylinux1
-      -  INTERPRETER_VERSION="2.7.17"
+      - CIBW_MANYLINUX_I686_IMAGE="manylinux1"
     language: python
     python: "2.7"
     services: docker
@@ -84,7 +82,7 @@ deploy:
  bucket: librdkafka-ci-packages
  region: us-west-1
  local-dir: wheelhouse
- upload-dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
+ upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
  acl: public_read
  skip_cleanup: true
  on:
