@@ -114,7 +114,8 @@ class _RestClient(object):
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
-            raise ValueError("Unrecognized properties: {}".format(conf_copy.keys()))
+            raise ValueError("Unrecognized properties: {}"
+                             .format(", ".join(conf_copy.keys())))
 
     def _close(self):
         self.session.close()
