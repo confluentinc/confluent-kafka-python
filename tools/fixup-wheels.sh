@@ -28,7 +28,8 @@ mkdir -p $fixed_wheelhouse
 
 fixup_wheel_linux () {
 
-    pushd confluent_kafka/.libs
+    # The .libs directory seems to differ between wheel tooling versions.
+    pushd confluent_kafka/.libs || pushd confluent_kafka.libs
 
     # Find mangled librdkafka name
     local mangled=$(echo librdkafka-*.so.1)
@@ -64,7 +65,7 @@ fixup_wheel_linux () {
         ldd $lib
     done
 
-    popd # confluent_kafka/.libs
+    popd # confluent_kafka/.libs or confluent_kafka.libs
 }
 
 
