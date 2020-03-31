@@ -16,7 +16,7 @@ environment:
      PYTHON_ARCH: "64"
 
 install:
-  - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH
+  - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
   - python --version
   - python -m pip install -U pip
 
