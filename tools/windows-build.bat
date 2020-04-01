@@ -10,10 +10,6 @@ set
 rem Download and install librdkafka from NuGet.
 call tools\windows-install-librdkafka.bat %LIBRDKAFKA_NUGET_VERSION% dest || exit /b 1
 
-
-rem Skip rest of file unless cibuildwheel should run.
-if "%CIBW_TEST_REQUIRES%"=="" exit
-
 pip install -U -r tests/requirements.txt -r confluent_kafka/avro/requirements.txt
 pip install cibuildwheel==0.12.0 || exit /b 1
 
