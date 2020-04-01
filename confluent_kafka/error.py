@@ -28,11 +28,14 @@ class ConsumeError(Exception):
         may be retrieved from the ``message`` attribute.
 
     Args:
-        error (KafkaError): The error that occurred
+        error (KafkaError): The error that occurred.
+
         message (Message, optional): The message returned from the broker.
+
         reason (str): String description of the error.
 
     """
+
     def __init__(self, error, reason=None, message=None):
         self.error = error
         if reason is None:
@@ -45,5 +48,5 @@ class ConsumeError(Exception):
         return str(self)
 
     def __str__(self):
-        return "{} (Error code {})".format(self.reason,
-                                           self.error_code)
+        return "{} (KafkaError code {})".format(self.reason,
+                                                self.error)

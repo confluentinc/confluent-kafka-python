@@ -1,0 +1,31 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Contractor",
+  "description": "A contractor from Very Good Building Company",
+  "type": "object",
+  "properties": {
+    "contractorId": {
+      "description": "The unique identifier for a contractor",
+      "type": "integer"
+    },
+    "contractorName": {
+      "description": "Name of the contractor",
+      "type": "string"
+    },
+    "contractRate": {
+      "description": "The hourly rate in bottlecaps",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "trades": {
+      "description": "Services rendered by this contractor",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "required": [ "contractorId", "contractorName", "contractRate" ]
+}

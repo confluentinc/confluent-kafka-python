@@ -37,7 +37,7 @@ def kafka_cluster():
 
 
 @pytest.fixture()
-def load_avsc():
+def load_file():
     def get_handle(name):
         with open(os.path.join(work_dir, 'schema_registry', 'data', name)) as fd:
             return fd.read()

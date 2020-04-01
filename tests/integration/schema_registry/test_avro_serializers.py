@@ -57,13 +57,13 @@ class User(object):
                           ('primitive_bool.avsc', True, "bool"),
                           ('primitive_float.avsc', 32768.2342, "float"),
                           ('primitive_double.avsc', 68.032768, "float")])
-def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_type):
+def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-        load_avsc (callable(str)): Avro file reader
+        load_file (callable(str)): Avro file reader
         avsc (str) avsc: Avro schema file
         data (object): data to be serialized
 
@@ -71,7 +71,7 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_
     topic = kafka_cluster.create_topic("serialization-avro")
     sr = kafka_cluster.schema_registry()
 
-    schema_str = load_avsc(avsc)
+    schema_str = load_file(avsc)
     value_serializer = AvroSerializer(sr, schema_str)
 
     value_deserializer = AvroDeserializer(sr, schema_str)
@@ -101,20 +101,20 @@ def test_avro_record_serialization(kafka_cluster, load_avsc, avsc, data, record_
                           ('primitive_bool.avsc', True, 'bool'),
                           ('primitive_float.avsc', 768.2340, 'float'),
                           ('primitive_double.avsc', 6.868, 'float')])
-def test_delivery_report_serialization(kafka_cluster, load_avsc, avsc, data, record_type):
+def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-        load_avsc (callable(str)): Avro file reader
+        load_file (callable(str)): Avro file reader
         avsc (str) avsc: Avro schema file
         data (object): data to be serialized
 
     """
     topic = kafka_cluster.create_topic("serialization-avro-dr")
     sr = kafka_cluster.schema_registry()
-    schema_str = load_avsc(avsc)
+    schema_str = load_file(avsc)
 
     value_serializer = AvroSerializer(sr, schema_str)
 
