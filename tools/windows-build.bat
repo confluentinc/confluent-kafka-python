@@ -10,8 +10,11 @@ set
 rem Download and install librdkafka from NuGet.
 call tools\windows-install-librdkafka.bat %LIBRDKAFKA_NUGET_VERSION% dest || exit /b 1
 
-pip install -U -r tests/requirements.txt -r confluent_kafka/avro/requirements.txt
 
+rem Skip rest of file unless cibuildwheel should run.
+if "%CIBW_TEST_REQUIRES%"=="" exit
+
+pip install -U -r tests/requirements.txt -r confluent_kafka/avro/requirements.txt
 pip install cibuildwheel==0.12.0 || exit /b 1
 
 rem Build wheels (without tests)
@@ -37,28 +40,12 @@ cd stage\x86
 for %%W in (..\..\wheelhouse\*win32.whl) do (
     7z a -r %%~W confluent_kafka\*.dll || exit /b 1
     unzip -l %%~W
-
-    md t1
-    cd t1
-    unzip ..\%%W
-    dumpbin /dependents confluent_kafka\cimpl*.pyd
-    dumpbin /dependents confluent_kafka\librdkafka.dll
-    cd ..
-    rmdir t1 /s /q
 )
 
 cd ..\x64
 for %%W in (..\..\wheelhouse\*amd64.whl) do (
     7z a -r %%~W confluent_kafka\*.dll || exit /b 1
     unzip -l %%~W
-
-    md t1
-    cd t1
-    unzip ..\%%W
-    dumpbin /dependents confluent_kafka\cimpl*.pyd
-    dumpbin /dependents confluent_kafka\librdkafka.dll
-    cd ..
-    rmdir t1 /s /q
 )
 
 cd ..\..
