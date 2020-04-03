@@ -83,7 +83,9 @@ def main(args):
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
 
-    avro_deserializer = AvroDeserializer(schema_registry_client, schema_str, dict_to_user)
+    avro_deserializer = AvroDeserializer(schema_str,
+                                         schema_registry_client,
+                                         dict_to_user)
     string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,

@@ -115,7 +115,9 @@ def main(args):
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    avro_serializer = AvroSerializer(schema_registry_client, schema_str, user_to_dict)
+    avro_serializer = AvroSerializer(schema_str,
+                                     schema_registry_client,
+                                     user_to_dict)
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),

@@ -96,10 +96,10 @@ class JSONSerializer(Serializer):
         and schema registration.
 
     Args:
+        schema_str (str): JSON Schema definition.
+
         schema_registry_client (SchemaRegistryClient): Schema Registry
             client instance.
-
-        schema_str (str): JSON Schema definition.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict.
             Converts object to a dict.
@@ -121,7 +121,7 @@ class JSONSerializer(Serializer):
     _default_conf = {'auto.register.schemas': True,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client, schema_str, to_dict=None,
+    def __init__(self, schema_str, schema_registry_client, to_dict=None,
                  conf=None):
         self._registry = schema_registry_client
         self._schema_id = None
