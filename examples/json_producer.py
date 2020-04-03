@@ -52,15 +52,15 @@ class User(object):
         self._address = address
 
 
-def user_to_dict(ctx, user):
+def user_to_dict(user, ctx):
     """
     Returns a dict representation of a User instance for serialization.
 
     Args:
+        user (User): User instance.
+
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
-
-        user (User): User instance.
 
     Returns:
         dict: Dict populated with user attributes to be serialized.
@@ -127,7 +127,7 @@ def main(args):
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    json_serializer = JSONSerializer(schema_registry_client, schema_str, user_to_dict)
+    json_serializer = JSONSerializer(schema_str, schema_registry_client, user_to_dict)
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),

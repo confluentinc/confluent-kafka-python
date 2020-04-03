@@ -119,10 +119,10 @@ class AvroSerializer(Serializer):
         See ``avro_producer.py`` in the examples directory for example usage.
 
     Args:
+        schema_str (str): Avro Schema declaration.
+
         schema_registry_client (SchemaRegistryClient): Schema Registry
             client instance.
-
-        schema_str (str): Avro Schema declaration.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict.
             Converts object to a dict.
@@ -144,7 +144,7 @@ class AvroSerializer(Serializer):
     _default_conf = {'auto.register.schemas': True,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client, schema_str,
+    def __init__(self, schema_str, schema_registry_client,
                  to_dict=None, conf=None):
         self._registry = schema_registry_client
         self._schema_id = None
@@ -256,10 +256,10 @@ class AvroDeserializer(Deserializer):
         directory for example usage.
 
     Args:
+        schema_str (str): Avro reader schema declaration.
+
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
-
-        schema_str (str): Avro reader schema declaration.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
@@ -273,7 +273,7 @@ class AvroDeserializer(Deserializer):
     """
     __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas']
 
-    def __init__(self, schema_registry_client, schema_str, from_dict=None):
+    def __init__(self, schema_str, schema_registry_client, from_dict=None):
         self._registry = schema_registry_client
         self._writer_schemas = {}
 

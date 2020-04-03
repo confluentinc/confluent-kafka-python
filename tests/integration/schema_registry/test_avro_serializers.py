@@ -72,9 +72,9 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
     sr = kafka_cluster.schema_registry()
 
     schema_str = load_file(avsc)
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = AvroSerializer(schema_str, sr)
 
-    value_deserializer = AvroDeserializer(sr, schema_str)
+    value_deserializer = AvroDeserializer(schema_str, sr)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -116,9 +116,9 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
     sr = kafka_cluster.schema_registry()
     schema_str = load_file(avsc)
 
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = AvroSerializer(schema_str, sr)
 
-    value_deserializer = AvroDeserializer(sr, schema_str)
+    value_deserializer = AvroDeserializer(schema_str, sr)
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -163,13 +163,13 @@ def test_avro_record_serialization_custom(kafka_cluster):
     sr = kafka_cluster.schema_registry()
 
     user = User('Bowie', 47, 'purple')
-    value_serializer = AvroSerializer(sr, User.schema_str,
+    value_serializer = AvroSerializer(User.schema_str, sr,
                                       lambda user, ctx:
                                       dict(name=user.name,
                                            favorite_number=user.favorite_number,
                                            favorite_color=user.favorite_color))
 
-    value_deserializer = AvroDeserializer(sr, User.schema_str,
+    value_deserializer = AvroDeserializer(User.schema_str, sr,
                                           lambda user_dict, ctx:
                                           User(**user_dict))
 

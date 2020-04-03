@@ -44,7 +44,7 @@ class User(object):
         self.favorite_color = favorite_color
 
 
-def dict_to_user(ctx, obj):
+def dict_to_user(obj, ctx):
     """
     Converts object literal(dict) to a User instance.
 
