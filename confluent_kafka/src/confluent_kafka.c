@@ -107,14 +107,6 @@ KafkaError_txn_requires_abort (KafkaError *self, PyObject *ignore) {
 }
 
 
-static PyObject *KafkaError_test_raise_fatal (KafkaError *null,
-                                              PyObject *ignore) {
-        cfl_PyErr_Fatal(RD_KAFKA_RESP_ERR__INVALID_ARG,
-                        "This is a fatal exception for testing purposes");
-        return NULL;
-}
-
-
 static PyMethodDef KafkaError_methods[] = {
 	{ "code", (PyCFunction)KafkaError_code, METH_NOARGS,
 	  "  Returns the error/event code for comparison to"
@@ -142,9 +134,6 @@ static PyMethodDef KafkaError_methods[] = {
           "  :returns: True if this a fatal error, else False.\n"
           "  :rtype: bool\n"
           "\n"
-        },
-        { "_test_raise_fatal", (PyCFunction)KafkaError_test_raise_fatal,
-          METH_NOARGS|METH_STATIC
         },
         { "retriable", (PyCFunction)KafkaError_retriable, METH_NOARGS,
           "  :returns: True if the operation that failed may be retried, "
@@ -249,6 +238,46 @@ static PyObject* KafkaError_richcompare (KafkaError *self, PyObject *o2,
 	return result;
 }
 
+static PyObject *KafkaError_new (PyTypeObject *type, PyObject *args,
+                                 PyObject *kwargs) {
+        return type->tp_alloc(type, 0);
+}
+
+/**
+ * @brief Initialize a KafkaError object.
+ */
+static void KafkaError_init (KafkaError *self,
+                             rd_kafka_resp_err_t code, const char *str) {
+        self->code = code;
+        self->fatal = 0;
+        self->retriable = 0;
+        self->txn_requires_abort = 0;
+        if (str)
+                self->str = strdup(str);
+        else
+                self->str = NULL;
+}
+
+static int KafkaError_init0 (PyObject *selfobj, PyObject *args, 
+                             PyObject *kwargs) {
+        KafkaError *self = (KafkaError *)selfobj;
+        int code;
+        int fatal = 0, retriable = 0, txn_requires_abort = 0;
+        const char *reason = NULL;
+        static char *kws[] = { "error", "reason", "fatal", 
+                               "retriable", "txn_requires_abort", NULL };
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|ziii", kws, &code,
+            &reason, &fatal, &retriable, &txn_requires_abort))
+                return -1;
+
+        KafkaError_init(self, code, reason ? reason : rd_kafka_err2str(code));
+        self->fatal = fatal;
+        self->retriable = retriable;
+        self->txn_requires_abort = txn_requires_abort;
+
+        return 0;
+}
 
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
@@ -279,8 +308,18 @@ static PyTypeObject KafkaErrorType = {
 	"  - Propagation of errors\n"
 	"  - Propagation of events\n"
 	"  - Exceptions\n"
-	"\n"
-	"  This class is not user-instantiable.\n"
+        "\n"
+        "Args:\n"
+        "  error_code (KafkaError): Error code indicating the type of error. "
+        "\n"
+        "  reason (str): Alternative message to describe the error."
+        "\n"
+        "  fatal (bool): Set to true if a fatal error. \n"
+        "\n"
+        "  retriable (bool): Set to true if operation is retriable.\n"
+        "\n"
+        "  txn_requires_abort (bool): Set to true if this is an abortable\n"
+        "  transaction error \n"
 	"\n", /*tp_doc*/
         (traverseproc)KafkaError_traverse, /* tp_traverse */
 	(inquiry)KafkaError_clear, /* tp_clear */
@@ -296,25 +335,11 @@ static PyTypeObject KafkaErrorType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0                          /* tp_alloc */
+        KafkaError_init0,          /* tp_init */
+	0,                         /* tp_alloc */
+        KafkaError_new             /* tp_new */
 };
 
-
-/**
- * @brief Initialize a KafkaError object.
- */
-static void KafkaError_init (KafkaError *self,
-			     rd_kafka_resp_err_t code, const char *str) {
-	self->code = code;
-        self->fatal = 0;
-        self->retriable = 0;
-        self->txn_requires_abort = 0;
-	if (str)
-		self->str = strdup(str);
-	else
-		self->str = NULL;
-}
 
 /**
  * @brief Internal factory to create KafkaError object.

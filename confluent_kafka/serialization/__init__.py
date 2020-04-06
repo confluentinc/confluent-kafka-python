@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 import struct as _struct
+from confluent_kafka.error import KafkaException
 
 __all__ = ['Deserializer',
            'IntegerDeserializer',
@@ -61,35 +62,8 @@ class SerializationContext(object):
         self.field = field
 
 
-class SerializationError(Exception):
+class SerializationError(KafkaException):
     """Generic error from serializer package"""
-
-    def __init__(self, message):
-        self.message = message
-
-    def __repr__(self):
-        return '{klass}(error={error})'.format(
-            klass=self.__class__.__name__,
-            error=self.message
-        )
-
-    def __str__(self):
-        return self.message
-
-
-class KeySerializationError(SerializationError):
-    pass
-
-
-class KeyDeserializationError(SerializationError):
-    pass
-
-
-class ValueSerializationError(SerializationError):
-    pass
-
-
-class ValueDeserializationError(SerializationError):
     pass
 
 

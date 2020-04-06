@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 
-from confluent_kafka.cimpl import (KafkaError,
-                                   Consumer as _ConsumerImpl)
-from .error import ConsumeError
-from .serialization import (SerializationError,
-                            SerializationContext,
+from confluent_kafka.cimpl import Consumer as _ConsumerImpl
+from .error import (ConsumeError,
+                    KeyDeserializationError,
+                    ValueDeserializationError)
+from .serialization import (SerializationContext,
                             MessageField)
 
 
@@ -115,6 +115,12 @@ class DeserializingConsumer(_ConsumerImpl):
             :py:class:`Message` or None on timeout
 
         Raises:
+            KeyDeserializationError: If an error occurs during key
+            deserialization.
+
+            ValueDeserializationError: If an error occurs during value
+            deserialization.
+
             ConsumeError if an error was encountered while polling.
 
         """
@@ -131,20 +137,16 @@ class DeserializingConsumer(_ConsumerImpl):
         if self._value_deserializer is not None:
             try:
                 value = self._value_deserializer(value, ctx)
-            except SerializationError as se:
-                raise ConsumeError(KafkaError._VALUE_DESERIALIZATION,
-                                   reason=se.message,
-                                   message=msg)
+            except Exception as se:
+                raise ValueDeserializationError(exception=se, message=msg)
 
         key = msg.key()
         ctx.field = MessageField.KEY
         if self._key_deserializer is not None:
             try:
                 key = self._key_deserializer(key, ctx)
-            except SerializationError as se:
-                raise ConsumeError(KafkaError._KEY_DESERIALIZATION,
-                                   reason=se.message,
-                                   message=msg)
+            except Exception as se:
+                raise KeyDeserializationError(exception=se, message=msg)
 
         msg.set_key(key)
         msg.set_value(value)
