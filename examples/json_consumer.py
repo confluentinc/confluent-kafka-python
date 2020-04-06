@@ -121,6 +121,8 @@ def main(args):
         except KeyboardInterrupt:
             break
 
+    consumer.close()
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="DeserializingConsumer Example")

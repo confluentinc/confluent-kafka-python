@@ -5,6 +5,12 @@ The scripts in this directory provide code examples using Confluent's Python cli
 * [consumer.py](consumer.py): reads messages from a Kafka topic
 * [producer.py](producer.py): reads lines from stdin and sends them to Kafka
 * [eos-transactions.py](eos-transactions.py): transactional producer with exactly once semantics (EOS)
+* [avro_producer.py](avro_producer.py): SerializingProducer with AvroSerializer
+* [avro_consumer.py](avro_consumer.py): DeserializingConsumer with AvroDeserializer
+* [json_producer.py](json_producer.py): SerializingProducer with JsonSerializer
+* [json_consumer.py](json_consumer.py): DeserializingConsumer with JsonDeserializer
+* [protobuf_producer.py](protobuf_producer.py): SerializingProducer with ProtobufSerializer
+* [protobuf_consumer.py](protobuf_consumer.py): DeserializingConsumer with ProtobufDeserializer
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 
