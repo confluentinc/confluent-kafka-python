@@ -4,3 +4,4 @@ pydantic
 uvicorn
 six
 jsonschema
+protobuf
