@@ -18,11 +18,10 @@
 
 from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
+from .error import KafkaException, KafkaError
 
 from .cimpl import (Producer,
                     Consumer,
-                    KafkaError,
-                    KafkaException,
                     Message,
                     TopicPartition,
                     libversion,

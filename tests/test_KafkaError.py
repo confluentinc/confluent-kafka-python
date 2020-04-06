@@ -41,12 +41,41 @@ def test_fatal():
     p = Producer({'error_cb': error_cb})
 
     with pytest.raises(KafkaException) as exc:
-        KafkaError._test_raise_fatal()
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
+                                        fatal=True))
     err = exc.value.args[0]
     assert isinstance(err, KafkaError)
-    assert err.fatal() is True
+    assert err.fatal()
+    assert not err.retriable()
+    assert not err.txn_requires_abort()
 
     p.poll(0)  # Need some p use to avoid flake8 unused warning
+
+
+def test_retriable():
+    """ Test retriable exceptions """
+
+    with pytest.raises(KafkaException) as exc:
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
+                                        retriable=True))
+    err = exc.value.args[0]
+    assert isinstance(err, KafkaError)
+    assert not err.fatal()
+    assert err.retriable()
+    assert not err.txn_requires_abort()
+
+
+def test_abortable():
+    """ Test abortable exceptions """
+
+    with pytest.raises(KafkaException) as exc:
+        raise KafkaException(KafkaError(KafkaError.MEMBER_ID_REQUIRED,
+                                        txn_requires_abort=True))
+    err = exc.value.args[0]
+    assert isinstance(err, KafkaError)
+    assert not err.fatal()
+    assert not err.retriable()
+    assert err.txn_requires_abort()
 
 
 def test_subclassing():
@@ -56,3 +85,34 @@ def test_subclassing():
     err = MyExc()
     assert err.a_method() == "yes"
     assert isinstance(err, KafkaException)
+
+
+def test_kafkaError_custom_msg():
+    err = KafkaError(KafkaError._ALL_BROKERS_DOWN, "Mayday!")
+    assert err == KafkaError._ALL_BROKERS_DOWN
+    assert err.str() == "Mayday!"
+    assert not err.fatal()
+    assert not err.fatal()
+    assert not err.retriable()
+    assert not err.txn_requires_abort()
+
+
+def test_kafkaError_unknonw_error():
+    with pytest.raises(KafkaException, match="Err-12345?") as e:
+        raise KafkaError(12345)
+    assert not e.value.args[0].fatal()
+    assert not e.value.args[0].retriable()
+    assert not e.value.args[0].txn_requires_abort()
+
+
+def test_kafkaException_unknown_KafkaError_with_subclass():
+    class MyException(KafkaException):
+        def __init__(self, error_code):
+            super(MyException, self).__init__(KafkaError(error_code))
+
+    with pytest.raises(KafkaException, match="Err-12345?") as e:
+        raise MyException(12345)
+    assert not e.value.args[0].fatal()
+    assert not e.value.args[0].fatal()
+    assert not e.value.args[0].retriable()
+    assert not e.value.args[0].txn_requires_abort()

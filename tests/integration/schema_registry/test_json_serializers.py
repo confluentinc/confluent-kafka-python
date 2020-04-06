@@ -16,11 +16,11 @@
 # limitations under the License.
 #
 import pytest
-from confluent_kafka.cimpl import TopicPartition, KafkaError
+from confluent_kafka import TopicPartition
 
-from confluent_kafka.error import ConsumeError
-from confluent_kafka.schema_registry.json_schema import JSONSerializer, JSONDeserializer
-from confluent_kafka.serialization import SerializationError
+from confluent_kafka.error import ConsumeError, ValueSerializationError
+from confluent_kafka.schema_registry.json_schema import (JSONSerializer,
+                                                         JSONDeserializer)
 
 
 class _TestProduct(object):
@@ -150,7 +150,7 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
               "contractRate": 1250,
               "trades": ["mason"]}
 
-    with pytest.raises(SerializationError,
+    with pytest.raises(ValueSerializationError,
                        match=r"(.*) is a required property"):
         producer.produce(topic, value=record, partition=0)
 
@@ -251,6 +251,5 @@ def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
 
     with pytest.raises(
             ConsumeError,
-            match=r"(.*) is a required property \(KafkaError code {}\)"
-                  .format(KafkaError._VALUE_DESERIALIZATION)):
+            match="'productId' is a required property"):
         consumer.poll()
