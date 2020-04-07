@@ -122,7 +122,7 @@ if __name__ == '__main__':
     parser.add_argument('-u', dest="user_principal", required=True,
                         help="Username")
     parser.add_argument('-s', dest="user_secret", required=True,
-                        help="Password for PLAIN and SCRAM,or path to"
+                        help="Password for PLAIN and SCRAM, or path to"
                              " keytab (ignored on Windows) if GSSAPI.")
 
     main(parser.parse_args())
