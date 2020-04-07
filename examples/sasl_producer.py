@@ -53,21 +53,23 @@ def delivery_report(err, msg):
 
 
 def sasl_conf(args):
-    sasl_mechanism = args.sasl_mechanism
+    sasl_mechanism = args.sasl_mechanism.upper()
 
     sasl_conf = {'sasl.mechanism': sasl_mechanism,
+                 # Set to SASL_SSL to enable TLS support.
                  'security.protocol': 'SASL_PLAINTEXT'}
 
     if sasl_mechanism != 'GSSAPI':
         sasl_conf.update({'sasl.username': args.user_principal,
                           'sasl.password': args.user_secret})
-    else:
-        sasl_conf.update({'sasl.kerberos.service.name', args.broker_principal,
-                          # On Windows the configured user principal is ignored.
-                          # The logged on user's credentials are used instead.
-                          'sasl.kerberos.principal', args.user_principal,
-                          'sasl.kerberos.keytab', args.user_secrent})
 
+    if sasl_mechanism is 'GSSAPI':
+        sasl_conf.update({'sasl.kerberos.service.name', args.broker_principal,
+                          # Keytabs are not supported on Windows. Instead the
+                          # the logged on user's credentials are used to
+                          # authenticate.
+                          'sasl.kerberos.principal', args.user_principal,
+                          'sasl.kerberos.keytab', args.user_secret})
     return sasl_conf
 
 
@@ -114,10 +116,11 @@ if __name__ == '__main__':
     parser.add_argument('-m', dest="sasl_mechanism", default='PLAIN',
                         help="SASL mechanism to use for authentication."
                              "Defaults to PLAIN")
+    parser.add_argument('--tls', dest="enab_tls", default=False)
     parser.add_argument('-u', dest="user_principal", required=True,
-                        help="username")
+                        help="Username")
     parser.add_argument('-s', dest="user_secret", required=True,
-                        help="password; path to keytab if using"
-                             "SASL Mechanism GSSAPI")
+                        help="Password for PLAIN and SCRAM, or path to keytab "
+                             "if GSSAPI.")
 
     main(parser.parse_args())
