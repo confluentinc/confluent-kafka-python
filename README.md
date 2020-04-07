@@ -60,7 +60,7 @@ p.flush()
 **High-level Consumer**
 
 ```python
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer
 
 
 c = Consumer({
@@ -148,7 +148,6 @@ avroProducer.flush()
 **AvroConsumer**
 
 ```python
-from confluent_kafka import KafkaError
 from confluent_kafka.avro import AvroConsumer
 from confluent_kafka.avro.serializer import SerializerError
 
