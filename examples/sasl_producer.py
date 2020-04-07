@@ -63,7 +63,7 @@ def sasl_conf(args):
         sasl_conf.update({'sasl.username': args.user_principal,
                           'sasl.password': args.user_secret})
 
-    if sasl_mechanism is 'GSSAPI':
+    if sasl_mechanism == 'GSSAPI':
         sasl_conf.update({'sasl.kerberos.service.name', args.broker_principal,
                           # Keytabs are not supported on Windows. Instead the
                           # the logged on user's credentials are used to
@@ -120,7 +120,7 @@ if __name__ == '__main__':
     parser.add_argument('-u', dest="user_principal", required=True,
                         help="Username")
     parser.add_argument('-s', dest="user_secret", required=True,
-                        help="Password for PLAIN and SCRAM, or path to keytab "
-                             "if GSSAPI.")
+                        help="Password(ignored on Windows) for PLAIN and SCRAM,"
+                             " or path to keytab if GSSAPI.")
 
     main(parser.parse_args())
