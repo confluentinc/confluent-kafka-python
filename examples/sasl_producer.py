@@ -114,13 +114,15 @@ if __name__ == '__main__':
     parser.add_argument('-d', dest="delimiter", default="|",
                         help="Key-Value delimiter. Defaults to '|'"),
     parser.add_argument('-m', dest="sasl_mechanism", default='PLAIN',
+                        choices=['GSSAPI', 'PLAIN',
+                                 'SCRAM-SHA-512', 'SCRAM-SHA-256'],
                         help="SASL mechanism to use for authentication."
                              "Defaults to PLAIN")
     parser.add_argument('--tls', dest="enab_tls", default=False)
     parser.add_argument('-u', dest="user_principal", required=True,
                         help="Username")
     parser.add_argument('-s', dest="user_secret", required=True,
-                        help="Password(ignored on Windows) for PLAIN and SCRAM,"
-                             " or path to keytab if GSSAPI.")
+                        help="Password for PLAIN and SCRAM, or path to"
+                             " keytab (ignored on Windows) if GSSAPI.")
 
     main(parser.parse_args())
