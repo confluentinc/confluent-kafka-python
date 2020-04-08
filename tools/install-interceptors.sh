@@ -16,7 +16,7 @@ set -e
 pkgtype=$1
 
 # Confluent Platform release version
-CPVER=5.2
+CPVER=5.4.0
 
 # confluent-librdkafka-plugins version
 PLUGINVER=0.11.1
