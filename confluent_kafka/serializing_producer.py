@@ -55,53 +55,51 @@ class SerializingProducer(_ProducerImpl):
         All configured callbacks are served from the application queue upon
         calling :py:func:`SerializingProducer.poll` or :py:func:`SerializingProducer.flush`
 
-    SerializingProducer configuration properties(* indicates required field)
+    Notable SerializingProducer configuration properties(* indicates required field)
 
-    +--------------------+-----------------+-----------------------------------------------------+
-    | Property Name      | Type            | Description                                         |
-    +====================+=================+=====================================================+
-    | bootstrap.servers* | str             | Comma-separated list of brokers.                    |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(SerializationContext, obj) -> bytes        |
-    | key.serializer     | callable        |                                                     |
-    |                    |                 | Serializer used for message keys.                   |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(SerializationContext, obj) -> bytes        |
-    | value.serializer   | callable        |                                                     |
-    |                    |                 | Serializer used for message values.                 |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(KafkaError)                                |
-    |                    |                 |                                                     |
-    | error_cb           | callable        | Callback for generic/global error events. These     |
-    |                    |                 | errors are typically to be considered informational |
-    |                    |                 | since the client will automatically try to recover. |
-    +--------------------+-----------------+-----------------------------------------------------+
-    | log_cb             | logging.Handler | Logging handler to forward logs                     |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(str)                                       |
-    |                    |                 |                                                     |
-    |                    |                 | Callback for statistics. This callback is           |
-    | stats_cb           | callable        | added to the application queue every                |
-    |                    |                 | ``statistics.interval.ms`` (configured separately). |
-    |                    |                 | The function argument is a JSON formatted str       |
-    |                    |                 | containing statistics data.                         |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(ThrottleEvent)                             |
-    | throttle_cb        | callable        |                                                     |
-    |                    |                 | Callback for throttled request reporting.           |
-    |                    |                 | Callback for throttled request reporting.           |
-    +--------------------+-----------------+-----------------------------------------------------+
+    +-------------------------+---------------------+-----------------------------------------------------+
+    | Property Name           | Type                | Description                                         |
+    +=========================+=====================+=====================================================+
+    | ``bootstrap.servers`` * | str                 | Comma-separated list of brokers.                    |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(SerializationContext, obj) -> bytes        |
+    | ``key.serializer``      | callable            |                                                     |
+    |                         |                     | Serializer used for message keys.                   |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(SerializationContext, obj) -> bytes        |
+    | ``value.serializer``    | callable            |                                                     |
+    |                         |                     | Serializer used for message values.                 |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(KafkaError)                                |
+    |                         |                     |                                                     |
+    | ``error_cb``            | callable            | Callback for generic/global error events. These     |
+    |                         |                     | errors are typically to be considered informational |
+    |                         |                     | since the client will automatically try to recover. |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    | ``log_cb``              | ``logging.Handler`` | Logging handler to forward logs                     |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(str)                                       |
+    |                         |                     |                                                     |
+    |                         |                     | Callback for statistics. This callback is           |
+    | ``stats_cb``            | callable            | added to the application queue every                |
+    |                         |                     | ``statistics.interval.ms`` (configured separately). |
+    |                         |                     | The function argument is a JSON formatted str       |
+    |                         |                     | containing statistics data.                         |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(ThrottleEvent)                             |
+    | ``throttle_cb``         | callable            |                                                     |
+    |                         |                     | Callback for throttled request reporting.           |
+    |                         |                     | Callback for throttled request reporting.           |
+    +-------------------------+---------------------+-----------------------------------------------------+
 
-    .. _See Client CONFIGURATION.md for a complete list of configuration properties:
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+    See Also:
+        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for additional configuration property details.
+        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information about the statistics handled by stats_cb
 
     Args:
         conf (producer): SerializingProducer configuration.
 
-    .. _Statistics:
-        https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
-
-    """
+    """  # noqa E501
     def __init__(self, conf):
         conf_copy = conf.copy()
 

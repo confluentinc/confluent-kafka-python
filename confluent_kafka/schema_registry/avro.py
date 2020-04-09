@@ -73,20 +73,22 @@ class AvroSerializer(Serializer):
     AvroSerializer serializes objects in the Confluent Schema Registry binary
     format for Avro.
 
+
     AvroSerializer configuration properties:
-    +-----------------------+----------+--------------------------------------------------+
-    | Property Name         | Type     | Description                                      |
-    +=======================+==========+==================================================+
-    |                       |          | Registers schemas automatically if not           |
-    | auto.register.schemas | bool     | previously associated with a particular subject. |
-    |                       |          | Defaults to True.                                |
-    +-----------------------|----------+--------------------------------------------------+
-    |                       |          | Callable(SerializationContext, str) -> str       |
-    |                       |          |                                                  |
-    | subject.name.strategy | callable | Instructs the AvroSerializer on how to construct |
-    |                       |          | Schema Registry subject names.                   |
-    |                       |          | Defaults to topic_subject_name_strategy.         |
-    +-----------------------+----------+--------------------------------------------------+
+
+    +---------------------------+----------+--------------------------------------------------+
+    | Property Name             | Type     | Description                                      |
+    +===========================+==========+==================================================+
+    |                           |          | Registers schemas automatically if not           |
+    | ``auto.register.schemas`` | bool     | previously associated with a particular subject. |
+    |                           |          | Defaults to True.                                |
+    +---------------------------+----------+--------------------------------------------------+
+    |                           |          | Callable(SerializationContext, str) -> str       |
+    |                           |          |                                                  |
+    | ``subject.name.strategy`` | callable | Instructs the AvroSerializer on how to construct |
+    |                           |          | Schema Registry subject names.                   |
+    |                           |          | Defaults to topic_subject_name_strategy.         |
+    +---------------------------+----------+--------------------------------------------------+
 
     Schemas are registered to namespaces known as Subjects which define how a
     schema may evolve over time. By default the subject name is formed by
@@ -95,9 +97,10 @@ class AvroSerializer(Serializer):
     i.e. {topic name}-{message field}
 
     Alternative naming strategies may be configured with the property
-    `subject.name.strategy`.
+    ``subject.name.strategy``.
 
     Supported subject name strategies:
+
     +--------------------------------------+------------------------------+
     | Subject Name Strategy                | Output Format                |
     +======================================+==============================+
@@ -108,7 +111,7 @@ class AvroSerializer(Serializer):
     | record_subject_name_strategy         | {record name}                |
     +--------------------------------------+------------------------------+
 
-    See ``Subject name strategy`` for additional details.
+    See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
 
     Note:
         Prior to serialization all ``Complex Types`` must first be converted to
@@ -119,21 +122,13 @@ class AvroSerializer(Serializer):
         See ``avro_producer.py`` in the examples directory for example usage.
 
     Args:
-        schema_str (str): Avro Schema declaration.
+        schema_str (str): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
 
-        schema_registry_client (SchemaRegistryClient): Schema Registry
-            client instance.
+        schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        to_dict (callable, optional): Callable(object, SerializationContext) -> dict.
-            Converts object to a dict.
+        to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
         conf (dict): AvroSerializer configuration.
-
-    .. _Subject name strategy:
-        https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy
-
-    .. _Schema declaration:
-        https://avro.apache.org/docs/current/spec.html#schemas
 
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
@@ -196,14 +191,13 @@ class AvroSerializer(Serializer):
         Args:
             obj (object): object instance to serializes.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+            ctx (SerializationContext): Metadata pertaining to the serialization operation.
 
         Note:
             None objects are represented as Kafka Null.
 
         Raises:
-            SerializerError if any error occurs serializing obj
+            SerializerError: if any error occurs serializing obj
 
         Returns:
             bytes: Confluent Schema Registry formatted Avro bytes
@@ -264,11 +258,10 @@ class AvroDeserializer(Deserializer):
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
 
-    .. _Schema declaration:
-        https://avro.apache.org/docs/current/spec.html#schemas
+    See Also:
+        `Apache Avro Schema Declaration <https://avro.apache.org/docs/current/spec.html#schemas>`_
 
-    .. _Schema Resolution
-        https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution
+        `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
 
     """
     __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas']
@@ -295,13 +288,12 @@ class AvroDeserializer(Deserializer):
                 operation.
 
         Raises:
-            SerializerError if an error occurs ready data.
+            SerializerError: if an error occurs ready data.
 
         Returns:
-            object: if ``from_dict`` is set, otherwise dict.
-                If no value is supplied None is returned.
+            object: object if ``from_dict`` is set, otherwise dict. If no value is supplied None is returned.
 
-        """
+        """  # noqa: E501
         if value is None:
             return None
 

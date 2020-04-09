@@ -252,41 +252,42 @@ class SchemaRegistryClient(object):
     """
     Schema Registry Client.
 
-    SchemaRegistryClient configuration properties(* indicates a required field)
-    +--------------------------+------+-----------------------------------------------+
-    | Property name            | type | Description                                   |
-    +==========================+======+===============================================+
-    | url*                     | str  | Schema Registry URL.                          |
-    +--------------------------+------+-----------------------------------------------+
-    |                          |      | Path to CA certificate file used              |
-    | ssl.ca.location*         | str  | to verify the Schema Registry's               |
-    |                          |      | private key.                                  |
-    +--------------------------+------+-----------------------------------------------+
-    |                          |      | Path to client's private key                  |
-    |                          |      | (PEM) used for authentication.                |
-    | ssl.key.location         | str  |                                               |
-    |                          |      | *ssl.certificate.location must also be set.   |
-    +--------------------------+------+-----------------------------------------------+
-    |                          |      | Path to client's public key (PEM) used for    |
-    |                          |      | authentication.                               |
-    | ssl.certificate.location | str  |                                               |
-    |                          |      | *May be set without ssl.key.location if the   |
-    |                          |      | private key is stored within the PEM as well. |
-    +--------------------------+------+-----------------------------------------------+
-    |                          |      | Client HTTP credentials in the form of        |
-    |                          |      | ``username:password``.                        |
-    | basic.auth.user.info     | str  |                                               |
-    |                          |      | By default userinfo is extracted from         |
-    |                          |      | the URL if present.                           |
-    +--------------------------+------+-----------------------------------------------+
+    SchemaRegistryClient configuration properties(* indicates a required field):
+
+    +------------------------------+------+-------------------------------------------------+
+    | Property name                | type | Description                                     |
+    +==============================+======+=================================================+
+    | ``url`` *                    | str  | Schema Registry URL.                            |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Path to CA certificate file used                |
+    | ``ssl.ca.location`` *        | str  | to verify the Schema Registry's                 |
+    |                              |      | private key.                                    |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Path to client's private key                    |
+    |                              |      | (PEM) used for authentication.                  |
+    | ``ssl.key.location``         | str  |                                                 |
+    |                              |      | ``ssl.certificate.location`` must also be set.  |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Path to client's public key (PEM) used for      |
+    |                              |      | authentication.                                 |
+    | ``ssl.certificate.location`` | str  |                                                 |
+    |                              |      | May be set without ssl.key.location if the      |
+    |                              |      | private key is stored within the PEM as well.   |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Client HTTP credentials in the form of          |
+    |                              |      | ``username:password``.                          |
+    | ``basic.auth.user.info``     | str  |                                                 |
+    |                              |      | By default userinfo is extracted from           |
+    |                              |      | the URL if present.                             |
+    +------------------------------+------+-------------------------------------------------+
 
     Args:
-        conf (dict): Schema Registry client configuration
+        conf (dict): Schema Registry client configuration.
 
     See Also:
-        http://confluent.io/docs/current/schema-registry/docs/intro.html
+        `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
 
-    """
+    """  # noqa: E501
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
@@ -312,10 +313,10 @@ class SchemaRegistryClient(object):
 
         Raises:
             SchemaRegistryError: if Schema violates this subject's
-            Compatibility policy or is otherwise invalid.
+                Compatibility policy or is otherwise invalid.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions
+        See Also:
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
 
         """  # noqa: E501
         schema_id = self._cache.get_schema_id_by_subject(subject_name, schema)
@@ -356,8 +357,8 @@ class SchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: If schema can't be found.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id
+        See Also:
+         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
 
         """  # noqa: E501
         schema = self._cache.get_schema(schema_id)
@@ -394,8 +395,8 @@ class SchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: If schema or subject can't be found
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)
+        See Also:
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
 
         """  # noqa: E501
         request = {'schema': schema.schema_str}
@@ -426,13 +427,13 @@ class SchemaRegistryClient(object):
         List all subjects registered with the Schema Registry
 
         Returns:
-            [str]: Registered subject names
+            list(str): Registered subject names
 
         Raises:
             SchemaRegistryError: if subjects can't be found
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects
+        See Also:
+            `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
 
         """  # noqa: E501
         return self._rest_client.get('subjects')
@@ -452,8 +453,8 @@ class SchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: if the request was unsuccessful.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)
+        See Also:
+            `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
 
         """  # noqa: E501
         return self._rest_client.delete('subjects/{}'
@@ -470,11 +471,10 @@ class SchemaRegistryClient(object):
             RegisteredSchema: Registration information for this version.
 
         Raises:
-            SchemaRegistryError if the version can't be found or
-            is invalid.
+            SchemaRegistryError: if the version can't be found or is invalid.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)
+        See Also:
+            `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
 
         """  # noqa: E501
         response = self._rest_client.get('subjects/{}/versions/{}'
@@ -502,11 +502,10 @@ class SchemaRegistryClient(object):
             RegisteredSchema: Registration information for this version.
 
         Raises:
-            SchemaRegistryError if the version can't be found or
-            is invalid.
+            SchemaRegistryError: if the version can't be found or is invalid.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)
+        See Also:
+            `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
 
         """  # noqa: E501
         response = self._rest_client.get('subjects/{}/versions/{}'
@@ -529,13 +528,13 @@ class SchemaRegistryClient(object):
             subject_name (str): Subject name.
 
         Returns:
-            [int]: Registered versions
+            list(int): Registered versions
 
         Raises:
-            SchemaRegistryError If subject can't be found
+            SchemaRegistryError: If subject can't be found
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
 
         """  # noqa: E501
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
@@ -549,14 +548,14 @@ class SchemaRegistryClient(object):
 
             version (int): Version number
 
-        Returns
+        Returns:
             int: Version number which was deleted
 
         Raises:
-            SchemaRegistryError if the subject or version cannot be found.
+            SchemaRegistryError: if the subject or version cannot be found.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)
+        See Also:
+            `Delete Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
 
         """  # noqa: E501
         response = self._rest_client.delete('subjects/{}/versions/{}'.
@@ -581,8 +580,8 @@ class SchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: If the compatibility level is invalid.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#put--config
+        See Also:
+            `PUT Subject Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--config-(string-%20subject)>`_
 
         """  # noqa: E501
         if level is None:
@@ -605,14 +604,13 @@ class SchemaRegistryClient(object):
                 if left unset.
 
         Returns:
-            str: Compatibility level for the subject if set, otherwise the
-                global compatibility level.
+            str: Compatibility level for the subject if set, otherwise the global compatibility level.
 
         Raises:
             SchemaRegistryError: if the request was unsuccessful.
 
-        .. _Schema Registry API Reference:
-            https://docs.confluent.io/current/schema-registry/develop/api.html#get--config
+        See Also:
+            `GET Subject Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--config-(string-%20subject)>`_
 
         """  # noqa: E501
         if subject_name is not None:
