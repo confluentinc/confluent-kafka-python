@@ -3,185 +3,301 @@ The confluent_kafka API
 
 A reliable, performant and feature rich Python client for Apache Kafka v0.8 and above.
 
-Clients
-   - :ref:`Consumer <pythonclient_consumer>`
-   - :ref:`Producer <pythonclient_producer>`
+Client API
    - :ref:`AdminClient <pythonclient_adminclient>`
+   - :ref:`Consumer <pythonclient_consumer>`
+       - :ref:`DeserializingConsumer <serde_consumer>`
+   - :ref:`Producer <pythonclient_producer>`
+       - :ref:`SerializingProducer <serde_producer>`
+   - :ref:`SchemaRegistry <schemaregistry_client>`
 
+   - :ref:`AvroConsumer(Legacy) <avro_consumer>`
+   - :ref:`AvroProducer(Legacy) <avro_producer>`
+
+Serialization API
+    - :ref:`Deserializer <serde_deserializer>`
+            - :ref:`AvroDeserializer <schemaregistry_avro_deserializer>`
+            - :ref:`DoubleDeserializer <serde_deserializer_double>`
+            - :ref:`JSONDeserializer <schemaregistry_json_deserializer>`
+            - :ref:`IntegerDeserializer <serde_deserializer_integer>`
+            - :ref:`ProtobufDeserializer <schemaregistry_protobuf_deserializer>`
+            - :ref:`StringDeserializer <serde_deserializer_string>`
+
+
+    - :ref:`Serializer <serde_Serializer>`
+            - :ref:`AvroSerializer <schemaregistry_avro_serializer>`
+            - :ref:`DoubleSerializer <serde_serializer_double>`
+            - :ref:`JSONSerializer <schemaregistry_json_serializer>`
+            - :ref:`IntegerSerializer <serde_serializer_integer>`
+            - :ref:`ProtobufSerializer <schemaregistry_protobuf_serializer>`
+            - :ref:`StringSerializer <serde_serializer_string>`
+
+
+:ref:`Transactional Producer API <pythonclient_transactional>`
+
+:ref:`Kafka Client Configuration <pythonclient_configuration>`
 
 Supporting classes
     - :ref:`Message <pythonclient_message>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
+    - :ref:`ThrottleEvent <pythonclient_throttleevent>`
+
     - :ref:`KafkaError <pythonclient_kafkaerror>`
     - :ref:`KafkaException <pythonclient_kafkaexception>`
-    - :ref:`ThrottleEvent <pythonclient_throttleevent>`
-    - :ref:`Avro <pythonclient_avro>`
+    - :ref:`ConsumeError <pyclient_error_consumer>`
+    - :ref:`ProduceError <pyclient_error_producer>`
+    - :ref:`SerializationError <serde_error>`
+            - :ref:`KeySerializationError <serde_error_serializer_key>`
+            - :ref:`ValueSerializationError <serde_error_serializer_value>`
+            - :ref:`KeyDeserializationError <serde_error_deserializer_key>`
+            - :ref:`ValueDeserializationError <serde_error_deserializer_value>`
+
 
 
 :ref:`genindex`
 
 
-.. _pythonclient_consumer:
-
-Consumer
-========
-
-.. autoclass:: confluent_kafka.Consumer
-   :members:
-
-.. _pythonclient_producer:
-
-Producer
-========
-
-.. autoclass:: confluent_kafka.Producer
-   :members:
+Kafka Clients
+=============
 
 .. _pythonclient_adminclient:
 
+***********
 AdminClient
-===========
+***********
 
 .. automodule:: confluent_kafka.admin
    :members:
 
-.. _pythonclient_avro:
+.. _pythonclient_consumer:
 
-Avro
-====
+********
+Consumer
+********
 
-.. automodule:: confluent_kafka.avro
+.. autoclass:: confluent_kafka.Consumer
    :members:
 
-Supporting Classes
-==================
+.. _serde_consumer:
 
-.. _pythonclient_message:
+*********************
+DeserializingConsumer
+*********************
 
-*******
-Message
-*******
-
-.. autoclass:: confluent_kafka.Message
+.. autoclass:: confluent_kafka.DeserializingConsumer
    :members:
 
-.. _pythonclient_topicpartition:
+   :inherited-members:
 
-**************
-TopicPartition
-**************
+.. _pythonclient_producer:
 
-.. autoclass:: confluent_kafka.TopicPartition
+********
+Producer
+********
+
+.. autoclass:: confluent_kafka.Producer
    :members:
 
+.. _serde_producer:
 
-.. _pythonclient_kafkaerror:
+*******************
+SerializingProducer
+*******************
+
+.. autoclass:: confluent_kafka.SerializingProducer
+   :members:
+
+   :inherited-members:
+
+.. _schemaregistry_client:
+
+********************
+SchemaRegistryClient
+********************
+
+.. autoclass:: confluent_kafka.schema_registry.SchemaRegistryClient
+   :members:
+
+.. _avro_producer:
+
+********************
+AvroProducer(Legacy)
+********************
+
+.. autoclass:: confluent_kafka.avro.AvroProducer
+   :members:
+
+.. _avro_consumer:
+
+********************
+AvroConsumer(Legacy)
+********************
+
+.. autoclass:: confluent_kafka.avro.AvroConsumer
+   :members:
+
+Serialization API
+=================
+
+.. _serde_deserializer:
+
+************
+Deserializer
+************
+
+.. autoclass:: confluent_kafka.serialization.Deserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _schemaregistry_avro_deserializer:
+
+****************
+AvroDeserializer
+****************
+
+.. autoclass:: confluent_kafka.schema_registry.avro.AvroDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _serde_deserializer_double:
+
+******************
+DoubleDeserializer
+******************
+
+.. autoclass:: confluent_kafka.serialization.DoubleDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+
+.. _serde_deserializer_integer:
+
+*******************
+IntegerDeserializer
+*******************
+
+.. autoclass:: confluent_kafka.serialization.IntegerDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _schemaregistry_json_deserializer:
+
+****************
+JSONDeserializer
+****************
+
+.. autoclass:: confluent_kafka.schema_registry.json_schema.JSONDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _schemaregistry_protobuf_deserializer:
+
+********************
+ProtobufDeserializer
+********************
+
+.. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _serde_deserializer_string:
+
+******************
+StringDeserializer
+******************
+
+.. autoclass:: confluent_kafka.serialization.StringDeserializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _serde_serializer:
 
 **********
-KafkaError
+Serializer
 **********
 
-.. autoclass:: confluent_kafka.KafkaError
+.. autoclass:: confluent_kafka.serialization.Serializer
    :members:
 
+   .. automethod:: __call__
 
-.. _pythonclient_kafkaexception:
+.. _schemaregistry_avro_serializer:
 
 **************
-KafkaException
+AvroSerializer
 **************
 
-.. autoclass:: confluent_kafka.KafkaException
+.. autoclass:: confluent_kafka.schema_registry.avro.AvroSerializer
    :members:
 
+   .. automethod:: __call__
 
-******
-Offset
-******
+.. _serde_serializer_double:
 
-Logical offset constants:
+****************
+DoubleSerializer
+****************
 
- * :py:const:`OFFSET_BEGINNING` - Beginning of partition (oldest offset)
- * :py:const:`OFFSET_END` - End of partition (next offset)
- * :py:const:`OFFSET_STORED` - Use stored/committed offset
- * :py:const:`OFFSET_INVALID` - Invalid/Default offset
-
-
-.. _pythonclient_throttleevent:
-
-*************
-ThrottleEvent
-*************
-
-.. autoclass:: confluent_kafka.ThrottleEvent
+.. autoclass:: confluent_kafka.serialization.DoubleSerializer
    :members:
 
-
-.. _pythonclient_configuration:
-
-Configuration
-=============
-
-Configuration of producer and consumer instances is performed by
-providing a dict of configuration properties to the instance constructor, e.g.::
-
-  conf = {'bootstrap.servers': 'mybroker.com',
-          'group.id': 'mygroup', 'session.timeout.ms': 6000,
-          'on_commit': my_commit_callback,
-          'auto.offset.reset': 'earliest'}
-  consumer = confluent_kafka.Consumer(conf)
-
-The supported configuration values are dictated by the underlying
-librdkafka C library. For the full range of configuration properties
-please consult librdkafka's documentation:
-https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-
-The Python bindings also provide some additional configuration properties:
-
-* ``default.topic.config``: value is a dict of client topic-level configuration
-  properties that are applied to all used topics for the instance. **DEPRECATED:**
-  topic configuration should now be specified in the global top-level configuration.
-
-* ``error_cb(kafka.KafkaError)``: Callback for generic/global error events, these errors are typically to be considered informational since the client will automatically try to recover. This callback is served upon calling
-  ``client.poll()`` or ``producer.flush()``.
-
-* ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
-  This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
-
-* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll() or flush
-  every ``statistics.interval.ms`` (needs to be configured separately).
-  Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
-  This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
-  https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
-
-* ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
-  that is called once for each produced message to indicate the final
-  delivery result (success or failure).
-  This property may also be set per-message by passing ``callback=callable``
-  (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
-  Currently message headers are not supported on the message returned to the
-  callback. The ``msg.headers()`` will return None even if the original message
-  had headers set. This callback is served upon calling ``producer.poll()`` or ``producer.flush()``.
-
-* ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate
-  success or failure of asynchronous and automatic commit requests. This callback is served upon calling
-  ``consumer.poll()``. Is not triggered for synchronous commits. Callback arguments: *KafkaError* is the
-  commit error, or None on success. *list(TopicPartition)* is the list of partitions with their committed
-  offsets or per-partition errors.
-
-* ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
-  provided ``logging.Handler`` instance.
-  To avoid spontaneous calls from non-Python threads the log messages
-  will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
-  For example::
-
-    mylogger = logging.getLogger()
-    mylogger.addHandler(logging.StreamHandler())
-    producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
+   .. automethod:: __call__
 
 
+.. _serde_serializer_integer:
 
-Transactional producer API
+*****************
+IntegerSerializer
+*****************
+
+.. autoclass:: confluent_kafka.serialization.IntegerSerializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _schemaregistry_json_serializer:
+
+**************
+JSONSerializer
+**************
+
+.. autoclass:: confluent_kafka.schema_registry.json_schema.JSONSerializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _schemaregistry_protobuf_serializer:
+
+******************
+ProtobufSerializer
+******************
+
+.. autoclass:: confluent_kafka.schema_registry.protobuf.ProtobufSerializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _serde_serializer_string:
+
+****************
+StringSerializer
+****************
+
+.. autoclass:: confluent_kafka.serialization.StringSerializer
+   :members:
+
+   .. automethod:: __call__
+
+.. _pythonclient_transactional:
+
+Transactional Producer API
 ==========================
 
 The transactional producer operates on top of the idempotent producer,
@@ -304,3 +420,238 @@ neither the retriable or abortable flags set, as fatal.
            else:
                # treat all other errors as fatal
                raise
+
+.. _pythonclient_configuration:
+
+Kafka Client Configuration
+===========================
+
+Configuration of producer and consumer instances is performed by
+providing a dict of configuration properties to the instance constructor, e.g.
+
+.. code-block:: python
+
+  conf = {'bootstrap.servers': 'mybroker.com',
+          'group.id': 'mygroup', 
+          'session.timeout.ms': 6000,
+          'on_commit': my_commit_callback,
+          'auto.offset.reset': 'earliest'}
+  consumer = confluent_kafka.Consumer(conf)
+
+
+The supported configuration values are dictated by the underlying
+librdkafka C library. For the full range of configuration properties
+please consult librdkafka's documentation:
+https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+
+The Python bindings also provide some additional configuration properties:
+
+* ``default.topic.config``: value is a dict of client topic-level configuration
+  properties that are applied to all used topics for the instance. **DEPRECATED:**
+  topic configuration should now be specified in the global top-level configuration.
+
+* ``error_cb(kafka.KafkaError)``: Callback for generic/global error events, these errors are typically to be considered informational since the client will automatically try to recover. This callback is served upon calling
+  ``client.poll()`` or ``producer.flush()``.
+
+* ``throttle_cb(confluent_kafka.ThrottleEvent)``: Callback for throttled request reporting.
+  This callback is served upon calling ``client.poll()`` or ``producer.flush()``.
+
+* ``stats_cb(json_str)``: Callback for statistics data. This callback is triggered by poll() or flush
+  every ``statistics.interval.ms`` (needs to be configured separately).
+  Function argument ``json_str`` is a str instance of a JSON document containing statistics data.
+  This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
+  https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
+
+* ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
+  that is called once for each produced message to indicate the final
+  delivery result (success or failure).
+  This property may also be set per-message by passing ``callback=callable``
+  (or ``on_delivery=callable``) to the confluent_kafka.Producer.produce() function.
+  Currently message headers are not supported on the message returned to the
+  callback. The ``msg.headers()`` will return None even if the original message
+  had headers set. This callback is served upon calling ``producer.poll()`` or ``producer.flush()``.
+
+* ``on_commit(kafka.KafkaError, list(kafka.TopicPartition))`` (**Consumer**): Callback used to indicate
+  success or failure of asynchronous and automatic commit requests. This callback is served upon calling
+  ``consumer.poll()``. Is not triggered for synchronous commits. Callback arguments: *KafkaError* is the
+  commit error, or None on success. *list(TopicPartition)* is the list of partitions with their committed
+  offsets or per-partition errors.
+
+* ``logger=logging.Handler`` kwarg: forward logs from the Kafka client to the
+  provided ``logging.Handler`` instance.
+  To avoid spontaneous calls from non-Python threads the log messages
+  will only be forwarded when ``client.poll()`` or ``producer.flush()`` are called.
+  For example:
+
+.. code-block:: python
+
+    mylogger = logging.getLogger()
+    mylogger.addHandler(logging.StreamHandler())
+    producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
+
+Supporting Classes
+==================
+
+.. _pythonclient_message:
+
+*******
+Message
+*******
+
+.. autoclass:: confluent_kafka.Message
+   :members:
+
+.. _pythonclient_topicpartition:
+
+**************
+TopicPartition
+**************
+
+.. autoclass:: confluent_kafka.TopicPartition
+   :members:
+
+.. _serde_field:
+
+************
+MessageField
+************
+
+.. autoclass:: confluent_kafka.serialization.MessageField
+   :members:
+
+.. _serde_ctx:
+
+********************
+SerializationContext
+********************
+
+.. autoclass:: confluent_kafka.serialization.SerializationContext
+   :members:
+
+.. _schemaregistry_schema:
+
+******
+Schema
+******
+
+.. autoclass:: confluent_kafka.schema_registry.Schema
+   :members:
+
+.. _schemaregistry_registered_schema:
+
+****************
+RegisteredSchema
+****************
+
+.. autoclass:: confluent_kafka.schema_registry.RegisteredSchema
+   :members:
+
+.. _schemaregistry_error:
+
+*******************
+SchemaRegistryError
+*******************
+
+.. autoclass:: confluent_kafka.schema_registry.error.SchemaRegistryError
+   :members:
+
+.. _pythonclient_kafkaerror:
+
+**********
+KafkaError
+**********
+
+.. autoclass:: confluent_kafka.KafkaError
+   :members:
+
+.. _pythonclient_kafkaexception:
+
+**************
+KafkaException
+**************
+
+.. autoclass:: confluent_kafka.KafkaException
+   :members:
+
+.. _pyclient_error_consumer:
+
+************
+ConsumeError
+************
+
+.. autoclass:: confluent_kafka.error.ConsumeError
+   :members:
+
+.. _pyclient_error_producer:
+
+************
+ProduceError
+************
+
+.. autoclass:: confluent_kafka.error.ProduceError
+   :members:
+
+.. _serde_error:
+
+*******************
+SerializationError
+*******************
+
+.. autoclass:: confluent_kafka.error.SerializationError
+   :members:
+
+.. _serde_error_serializer_key:
+
+*********************
+KeySerializationError
+*********************
+
+.. autoclass:: confluent_kafka.error.KeySerializationError
+   :members:
+
+.. _serde_error_serializer_value:
+
+***********************
+ValueSerializationError
+***********************
+
+.. autoclass:: confluent_kafka.error.ValueSerializationError
+   :members:
+
+.. _serde_error_deserializer_key:
+
+***********************
+KeyDeserializationError
+***********************
+
+.. autoclass:: confluent_kafka.error.KeyDeserializationError
+   :members:
+
+.. _serde_error_deserializer_value:
+
+*************************
+ValueDeserializationError
+*************************
+
+.. autoclass:: confluent_kafka.error.ValueDeserializationError
+   :members:
+
+******
+Offset
+******
+
+Logical offset constants:
+
+ * :py:const:`OFFSET_BEGINNING` - Beginning of partition (oldest offset)
+ * :py:const:`OFFSET_END` - End of partition (next offset)
+ * :py:const:`OFFSET_STORED` - Use stored/committed offset
+ * :py:const:`OFFSET_INVALID` - Invalid/Default offset
+
+.. _pythonclient_throttleevent:
+
+*************
+ThrottleEvent
+*************
+
+.. autoclass:: confluent_kafka.ThrottleEvent
+   :members:

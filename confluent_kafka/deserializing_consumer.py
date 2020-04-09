@@ -43,48 +43,49 @@ class DeserializingConsumer(_ConsumerImpl):
         All configured callbacks are served from the application queue upon
         calling :py:func:`DeserializingConsumer.poll`
 
-    DeserializingConsumer configuration properties(* indicates required field)
+    Notable DeserializingConsumer configuration properties(* indicates required field)
 
-    +--------------------+-----------------+-----------------------------------------------------+
-    | Property Name      | Type            | Description                                         |
-    +====================+=================+=====================================================+
-    | bootstrap.servers* | str             | Comma-separated list of brokers.                    |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Client group id string.                             |
-    | group.id*          | str             | All clients sharing the same group.id belong to the |
-    |                    |                 | same group.                                         |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(SerializationContext, bytes) -> obj        |
-    | key.deserializer   | callable        |                                                     |
-    |                    |                 | Deserializer used for message keys.                 |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(SerializationContext, bytes) -> obj        |
-    | value.deserializer | callable        |                                                     |
-    |                    |                 | Deserializer used for message values.               |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(KafkaError)                                |
-    |                    |                 |                                                     |
-    | error_cb           | callable        | Callback for generic/global error events. These     |
-    |                    |                 | errors are typically to be considered informational |
-    |                    |                 | since the client will automatically try to recover. |
-    +--------------------+-----------------+-----------------------------------------------------+
-    | log_cb             | logging.Handler | Logging handler to forward logs                     |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(str)                                       |
-    |                    |                 |                                                     |
-    |                    |                 | Callback for statistics. This callback is           |
-    | stats_cb           | callable        | added to the application queue every                |
-    |                    |                 | ``statistics.interval.ms`` (configured separately). |
-    |                    |                 | The function argument is a JSON formatted str       |
-    |                    |                 | containing statistics data.                         |
-    +--------------------+-----------------+-----------------------------------------------------+
-    |                    |                 | Callable(ThrottleEvent)                             |
-    | throttle_cb        | callable        |                                                     |
-    |                    |                 | Callback for throttled request reporting.           |
-    +--------------------+-----------------+-----------------------------------------------------+
+    +-------------------------+---------------------+-----------------------------------------------------+
+    | Property Name           | Type                | Description                                         |
+    +=========================+=====================+=====================================================+
+    | ``bootstrap.servers`` * | str                 | Comma-separated list of brokers.                    |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Client group id string.                             |
+    | ``group.id`` *          | str                 | All clients sharing the same group.id belong to the |
+    |                         |                     | same group.                                         |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    | ``key.deserializer``    | callable            |                                                     |
+    |                         |                     | Deserializer used for message keys.                 |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    | ``value.deserializer``  | callable            |                                                     |
+    |                         |                     | Deserializer used for message values.               |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(KafkaError)                                |
+    |                         |                     |                                                     |
+    | ``error_cb``            | callable            | Callback for generic/global error events. These     |
+    |                         |                     | errors are typically to be considered informational |
+    |                         |                     | since the client will automatically try to recover. |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    | ``log_cb``              | ``logging.Handler`` | Logging handler to forward logs                     |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(str)                                       |
+    |                         |                     |                                                     |
+    |                         |                     | Callback for statistics. This callback is           |
+    | ``stats_cb``            | callable            | added to the application queue every                |
+    |                         |                     | ``statistics.interval.ms`` (configured separately). |
+    |                         |                     | The function argument is a JSON formatted str       |
+    |                         |                     | containing statistics data.                         |
+    +-------------------------+---------------------+-----------------------------------------------------+
+    |                         |                     | Callable(ThrottleEvent)                             |
+    | ``throttle_cb``         | callable            |                                                     |
+    |                         |                     | Callback for throttled request reporting.           |
+    +-------------------------+---------------------+-----------------------------------------------------+
 
-    .. _See Client CONFIGURATION.md for a complete list of configuration properties:
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+    See Also:
+        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for additional configuration property details.
+        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information about the statistics handled by stats_cb
 
     Args:
         conf (dict): DeserializingConsumer configuration.
@@ -92,10 +93,7 @@ class DeserializingConsumer(_ConsumerImpl):
     Raises:
         ValueError: if configuration validation fails
 
-    .. _Statistics:
-        https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md
-
-    """
+    """  # noqa: E501
 
     def __init__(self, conf):
         conf_copy = conf.copy()
@@ -154,7 +152,7 @@ class DeserializingConsumer(_ConsumerImpl):
 
     def consume(self, num_messages=1, timeout=-1):
         """
-        :py:func:`Consumer.consume` not implemented,
+        :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead
         """
         raise NotImplementedError
