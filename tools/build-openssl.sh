@@ -6,7 +6,7 @@
 
 # NOTE: Keep this updated to make sure we always build the latest
 #       version of OpenSSL in the 1.0 release train.
-OPENSSL_VERSION_SUFFIX=u
+OPENSSL_VERSION=1.0.2u
 
 PREFIX=$1
 if [[ -z $PREFIX ]]; then
@@ -16,14 +16,14 @@ fi
 set -ex
 set -o pipefail
 
-echo "# Building OpenSSL ${OPENSSL_VERSION_SUFFIX}"
+echo "# Building OpenSSL ${OPENSSL_VERSION}"
 
-if ! grep -q "^VERSION=${OPENSSL_VERSION_SUFFIX}$" build-openssl/Makefile ; then
-    echo "No usable build-openssl directory: downloading ${OPENSSL_VERSION_SUFFIX}"
+if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
+    echo "No usable build-openssl directory: downloading ${OPENSSL_VERSION}"
     rm -rf build-openssl
     mkdir -p build-openssl
     pushd build-openssl
-    curl -s -l https://www.openssl.org/source/old/1.0.2/openssl-1.0.2${OPENSSL_VERSION_SUFFIX}.tar.gz | \
+    curl -s -l https://www.openssl.org/source/old/1.0.2/openssl-${OPENSSL_VERSION}.tar.gz | \
         tar -xz --strip-components=1 -f -
 else
     echo "Reusing existing build-openssl directory"
