@@ -6,7 +6,7 @@
 
 # NOTE: Keep this updated to make sure we always build the latest
 #       version of OpenSSL in the 1.0 release train.
-OPENSSL_VERSION=1.0.2t
+OPENSSL_VERSION=1.0.2u
 
 PREFIX=$1
 if [[ -z $PREFIX ]]; then
@@ -23,7 +23,7 @@ if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
     rm -rf build-openssl
     mkdir -p build-openssl
     pushd build-openssl
-    curl -s -l https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
+    curl -fL https://www.openssl.org/source/old/1.0.2/openssl-${OPENSSL_VERSION}.tar.gz | \
         tar -xz --strip-components=1 -f -
 else
     echo "Reusing existing build-openssl directory"
