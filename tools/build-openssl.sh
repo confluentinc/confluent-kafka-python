@@ -23,7 +23,7 @@ if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
     rm -rf build-openssl
     mkdir -p build-openssl
     pushd build-openssl
-    curl -s -l https://www.openssl.org/source/old/1.0.2/openssl-${OPENSSL_VERSION}.tar.gz | \
+    curl -fl https://www.openssl.org/source/old/1.0.2/openssl-${OPENSSL_VERSION}.tar.gz | \
         tar -xz --strip-components=1 -f -
 else
     echo "Reusing existing build-openssl directory"
