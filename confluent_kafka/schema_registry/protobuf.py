@@ -254,7 +254,7 @@ class ProtobufSerializer(object):
                 value >>= 7
             buf.write(_bytes(value))
 
-    def resolve_dependencies(self, ctx, file_desc):
+    def _resolve_dependencies(self, ctx, file_desc):
         """
         Resolves and optionally registers schema references recursively.
 
@@ -266,7 +266,7 @@ class ProtobufSerializer(object):
         """
         schema_refs = []
         for dep in file_desc.dependencies:
-            dep_refs = self.resolve_dependencies(ctx, dep)
+            dep_refs = self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
                             references=dep_refs,
@@ -313,7 +313,7 @@ class ProtobufSerializer(object):
                                           message_type.DESCRIPTOR.full_name)
 
         if subject not in self._known_subjects:
-            self._schema.references = self.resolve_dependencies(
+            self._schema.references = self._resolve_dependencies(
                 ctx, message_type.DESCRIPTOR.file)
 
             if self._auto_register:
