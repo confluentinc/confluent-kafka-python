@@ -9,21 +9,30 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 mod_dir = os.path.join(work_dir, 'confluent_kafka')
 ext_dir = os.path.join(mod_dir, 'src')
 
-with open(os.path.join(mod_dir, 'requirements.txt')) as f:
-    INSTALL_REQUIRES = f.read().split()
+INSTALL_REQUIRES = [
+    'futures;python_version<"3.2"',
+    'enum34;python_version<"3.4"',
+]
 
-with open(os.path.join(mod_dir, 'avro', 'requirements.txt')) as f:
-    AVRO_REQUIRES = f.read().splitlines()
+TEST_REQUIRES = [
+    'pytest==4.6.4;python_version<"3.0"',
+    'pytest;python_version>="3.0"',
+    'pytest-timeout',
+    'flake8'
+]
 
-with open(os.path.join(work_dir, 'tests', 'requirements.txt')) as f:
-    TEST_REQUIRES = f.read().splitlines()
+DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
 
-with open(os.path.join(work_dir, 'docs', 'requirements.txt')) as f:
-    DOC_REQUIRES = f.read().splitlines()
-
-# Temp fix until a better packaging strategy can be rolled out
 SCHEMA_REGISTRY_REQUIRES = ['requests']
+
+AVRO_REQUIRES = ['fastavro>=0.23.0',
+                 'avro==1.9.2;python_version<"3.0"',
+                 'avro-python3==1.9.2.1;python_version>"3.0"'
+                 ] + SCHEMA_REGISTRY_REQUIRES
+
 JSON_REQUIRES = ['jsonschema'] + SCHEMA_REGISTRY_REQUIRES
+
+PROTO_REQUIRES = ['protobuf'] + SCHEMA_REGISTRY_REQUIRES
 
 # On Un*x the library is linked as -lrdkafka,
 # while on windows we need the full librdkafka name.
@@ -54,7 +63,7 @@ def get_install_requirements(path):
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version and release in docs/conf.py.
-      version='1.4.0',
+      version='1.4.0.1',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
@@ -67,6 +76,7 @@ setup(name='confluent-kafka',
           'schema-registry': SCHEMA_REGISTRY_REQUIRES,
           'avro': AVRO_REQUIRES,
           'json': JSON_REQUIRES,
+          'protobuf': PROTO_REQUIRES,
           'dev': TEST_REQUIRES + AVRO_REQUIRES,
           'doc': DOC_REQUIRES + AVRO_REQUIRES
       })
