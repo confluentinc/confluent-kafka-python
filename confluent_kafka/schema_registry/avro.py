@@ -148,7 +148,7 @@ class AvroSerializer(Serializer):
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(SerializationContext, object)->dict")
+                             " to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
 
@@ -167,7 +167,7 @@ class AvroSerializer(Serializer):
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
-                             .format(", ".format(conf_copy.keys())))
+                             .format(", ".join(conf_copy.keys())))
 
         # convert schema_str to Schema instance
         schema = _schema_loads(schema_str)
