@@ -314,7 +314,7 @@ def test_calling_store_offsets_after_close_throws_erro():
     assert ex.match('Consumer closed')
 
 
-def test_consumer_withot_groupid():
+def test_consumer_without_groupid():
     """ Consumer should raise exception if group.id is not set """
 
     with pytest.raises(ValueError) as ex:
