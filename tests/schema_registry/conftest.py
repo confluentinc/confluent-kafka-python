@@ -70,7 +70,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     the only endpoint which supports this is /config which will return an
     `Invalid compatibility level` error.
 
-    To coerce Authentication errors configure credentials do
+    To coerce Authentication errors configure credentials to
     not match MockSchemaRegistryClient.USERINFO.
 
     Request paths to trigger exceptions:
