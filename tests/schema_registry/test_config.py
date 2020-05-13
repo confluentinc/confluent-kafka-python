@@ -111,8 +111,8 @@ def test_config_auth_userinfo():
             'basic.auth.user.info': TEST_USERNAME + ':' + TEST_USER_PASSWORD}
 
     test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.session.auth == [TEST_USERNAME,
-                                                     TEST_USER_PASSWORD]
+    assert test_client._rest_client.session.auth == (TEST_USERNAME,
+                                                     TEST_USER_PASSWORD)
 
 
 def test_config_auth_userinfo_invalid():

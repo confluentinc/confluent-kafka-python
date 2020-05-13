@@ -110,7 +110,7 @@ class _RestClient(object):
                 raise ValueError("basic.auth.user.info must be in the form"
                                  " of {username}:{password}")
 
-        self.session.auth = userinfo
+        self.session.auth = userinfo if userinfo != ('', '') else None
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
