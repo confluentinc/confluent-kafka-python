@@ -41,8 +41,8 @@ def prefixed_delivery_cb(prefix):
     def delivery_err(err, msg):
         """ Reports failed message delivery to aid in troubleshooting test failures. """
         if err:
-            print("[{}]: Message delivery failed (%s [%s]): %s".format(prefix,
-                                                                       (msg.topic(), str(msg.partition()), err)))
+            print("[{}]: Message delivery failed ({} [{}]): {}".format(
+                prefix, msg.topic(), str(msg.partition()), err))
             return
 
     return delivery_err

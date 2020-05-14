@@ -17,10 +17,12 @@
 #
 import os
 import re
+from base64 import b64decode
 from collections import defaultdict
 
 import pytest
 import requests_mock
+from requests_mock import create_response
 
 from confluent_kafka.schema_registry.schema_registry_client import \
     SchemaRegistryClient
@@ -68,6 +70,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     the only endpoint which supports this is /config which will return an
     `Invalid compatibility level` error.
 
+    To coerce Authentication errors configure credentials to
+    not match MockSchemaRegistryClient.USERINFO.
 
     Request paths to trigger exceptions:
     +--------+----------------------------------+-------+------------------------------+
@@ -130,6 +134,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     VERSIONS = [1, 2, 3, 4]
     SCHEMA = 'basic_schema.avsc'
     SUBJECTS = ['subject1', 'subject2']
+    USERINFO = 'mock_user:mock_password'
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -164,7 +169,28 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         adapter.register_uri('POST', self.subject_versions,
                              json=self.post_subject_version_callback)
 
+        adapter.add_matcher(self._auth_matcher)
         self._rest_client.session.mount('http://', adapter)
+
+    @classmethod
+    def _auth_matcher(cls, request):
+        headers = request._request.headers
+
+        authinfo = headers.get('Authorization', None)
+        # Pass request to downstream matchers
+        if authinfo is None:
+            return None
+
+        # We only support the BASIC scheme today
+        scheme, userinfo = authinfo.split(" ")
+        if b64decode(userinfo) == cls.USERINFO:
+            return None
+
+        unauthorized = {'error_code': 401,
+                        'message': "401 Unauthorized"}
+        return create_response(request=request,
+                               status_code=401,
+                               json=unauthorized)
 
     @staticmethod
     def _load_avsc(name):

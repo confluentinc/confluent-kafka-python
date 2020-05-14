@@ -55,6 +55,25 @@ def cmp_schema(schema1, schema2):
                 schema1.schema_type == schema2.schema_type])
 
 
+def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL,
+            'basic.auth.user.info': "user:secret"}
+    sr = mock_schema_registry(conf)
+
+    with pytest.raises(SchemaRegistryError, match="401 Unauthorized"):
+        sr.get_subjects()
+
+
+def test_basic_auth_authorized(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL,
+            'basic.auth.user.info': mock_schema_registry.USERINFO}
+    sr = mock_schema_registry(conf)
+
+    result = sr.get_subjects()
+
+    assert result == mock_schema_registry.SUBJECTS
+
+
 def test_register_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)

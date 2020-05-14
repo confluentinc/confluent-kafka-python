@@ -147,12 +147,13 @@ Create a new virtualenv:
 
 Install the relevant package for your platform:
 
-    $ pip install dl-v0.11.4rc1/confluent_kafka-....whl
+    $ pip install --no-cache-dir --find-links dl-v0.11.4rc1/ confluent-kafka
 
 Verify that the package works, should print the expected Python client
 and librdkafka versions:
 
-    $ python -c 'import confluent_kafka as ck ; print "py:", ck.version(), "c:", ck.libversion()'
+    $ python -c 'import confluent_kafka as ck ; print "py: {} c: {}" \
+                 .format(ck.version(), ck.libversion())'
     py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
 ## 10. Open a release PR
@@ -203,7 +204,7 @@ In the same virtualenv as created above:
 
 
 Verify that the package works and prints the expected version:
-    $ python -c 'import confluent_kafka as ck ; print "py:", ck.version(), "c:", ck.libversion()'
+    $ python -c 'import confluent_kafka as ck ; print("py:", ck.version(), "c:", ck.libversion())'
     py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
 
