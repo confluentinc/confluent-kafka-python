@@ -17,7 +17,7 @@
 #
 import os
 import re
-from base64 import b64encode
+from base64 import b64decode
 from collections import defaultdict
 
 import pytest
@@ -176,20 +176,21 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     def _auth_matcher(cls, request):
         headers = request._request.headers
 
+        authinfo = headers.get('Authorization', None)
         # Pass request to downstream matchers
-        if 'Authorization' not in headers.keys():
+        if authinfo is None:
             return None
 
-        userinfo = headers.get('Authorization').split(" ")[1]
-        if userinfo == b64encode(cls.USERINFO):
-            # Authenticated, pass downstream
+        # We only support the BASIC scheme today
+        scheme, userinfo = authinfo.split(" ")
+        if b64decode(userinfo) == cls.USERINFO:
             return None
 
-        unauhtorized = {'error_code': 401,
+        unauthorized = {'error_code': 401,
                         'message': "401 Unauthorized"}
         return create_response(request=request,
                                status_code=401,
-                               json=unauhtorized)
+                               json=unauthorized)
 
     @staticmethod
     def _load_avsc(name):
