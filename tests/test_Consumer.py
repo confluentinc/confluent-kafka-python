@@ -209,8 +209,8 @@ def test_offsets_for_times():
     c.close()
 
 
-def test_multiple_close_throw_exception():
-    """ Calling Consumer.close() multiple times should throw Runtime Exception
+def test_multiple_close_does_not_throw_exception():
+    """ Calling Consumer.close() multiple times should not throw Runtime Exception
     """
     c = Consumer({'group.id': 'test',
                   'enable.auto.commit': True,
@@ -222,10 +222,7 @@ def test_multiple_close_throw_exception():
 
     c.unsubscribe()
     c.close()
-
-    with pytest.raises(RuntimeError) as ex:
-        c.close()
-    assert ex.match('Consumer already closed')
+    c.close()
 
 
 def test_any_method_after_close_throws_exception():

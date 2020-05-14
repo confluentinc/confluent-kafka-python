@@ -977,11 +977,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         CallState cs;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer already closed");
-                return NULL;
-        }
+        if (!self->rk)
+                Py_RETURN_NONE;
 
         CallState_begin(self, &cs);
 
@@ -1296,7 +1293,6 @@ static PyMethodDef Consumer_methods[] = {
 	  "see :py:func::`poll()` for more info.\n"
 	  "\n"
 	  "  :rtype: None\n"
-      "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
