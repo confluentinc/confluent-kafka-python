@@ -270,8 +270,9 @@ def example_list(a, args):
             else:
                 errstr = ""
 
-            print("    partition {} leader: {}, replicas: {}, isrs: {}".format(
-                p.id, p.leader, p.replicas, p.isrs, errstr))
+            print("partition {} leader: {}, replicas: {},"
+                  " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
+                                                p.isrs, errstr))
 
 
 if __name__ == '__main__':

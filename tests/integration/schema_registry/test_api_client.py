@@ -413,6 +413,6 @@ def test_api_config_update(kafka_cluster):
     """
     sr = kafka_cluster.schema_registry()
 
-    for l in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
-        sr.set_compatibility(level=l)
-        assert sr.get_compatibility()['compatibilityLevel'] == l
+    for level in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
+        sr.set_compatibility(level=level)
+        assert sr.get_compatibility()['compatibilityLevel'] == level
