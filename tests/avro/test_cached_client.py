@@ -129,6 +129,12 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         # latest should not change with a re-reg
         self.assertEqual(latest2, latest3)
 
+        schema1 = client.get_by_version(subject, v1)
+        schema2 = client.get_by_version(subject, v2)
+        self.assertEqual(schema1, latest1)
+        self.assertEqual(schema2, latest2)
+        self.assertEqual(schema1, latest3)
+
     def hash_func(self):
         return hash(str(self))
 
