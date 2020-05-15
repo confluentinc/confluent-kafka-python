@@ -345,6 +345,7 @@ class CachedSchemaRegistryClient(object):
 
         If the subject is not found, (None,None,None) is returned.
         :param str subject: subject name
+        :param int version: version number
         :returns: (schema_id, schema, version)
         :rtype: (string, schema, int)
         """
