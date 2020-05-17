@@ -1,10 +1,10 @@
 """
 Configuration constants for Kafka clients.
-​
+
 Modeled after java client: https://kafka.apache.org/20/javadoc/constant-values.html
 """
-​
-​
+
+
 class AdminClientConfig:
     """
     The AdminClient configuration class, which also contains constants for configuration entry names.
@@ -26,8 +26,8 @@ class AdminClientConfig:
     RETRY_BACKOFF_MS_CONFIG = "retry.backoff.ms"
     SECURITY_PROTOCOL_CONFIG = "security.protocol"
     SEND_BUFFER_CONFIG = "send.buffer.bytes"
-​
-​
+
+
 class ConsumerConfig:
     """
     The consumer configuration keys
@@ -47,7 +47,7 @@ class ConsumerConfig:
     FETCH_MAX_BYTES_CONFIG = "fetch.max.bytes"
     FETCH_MAX_WAIT_MS_CONFIG = "fetch.max.wait.ms"
     FETCH_MIN_BYTES_CONFIG = "fetch.min.bytes"
-    GROUP_ID_CONFIG	= "group.id"
+    GROUP_ID_CONFIG = "group.id"
     HEARTBEAT_INTERVAL_MS_CONFIG = "heartbeat.interval.ms"
     INTERCEPTOR_CLASSES_CONFIG = "interceptor.classes"
     ISOLATION_LEVEL_CONFIG = "isolation.level"
@@ -69,8 +69,8 @@ class ConsumerConfig:
     SEND_BUFFER_CONFIG = "send.buffer.bytes"
     SESSION_TIMEOUT_MS_CONFIG = "session.timeout.ms"
     VALUE_DESERIALIZER_CLASS_CONFIG = "value.deserializer"
-​
-​
+
+
 class ProducerConfig:
     """
     Configuration for the Kafka Producer.
