@@ -63,7 +63,7 @@ def get_install_requirements(path):
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version and release in docs/conf.py.
-      version='1.4.1',
+      version='1.4.2rc1',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
