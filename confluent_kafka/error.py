@@ -28,14 +28,14 @@ class _KafkaClientError(KafkaException):
 
         exception(Exception, optional): The original exception
 
-        message (str, optional): Alternative error message.
+        kafka_message (Message, optional): Alternative error message.
 
     """
 
-    def __init__(self, kafka_error, exception=None, message=None):
+    def __init__(self, kafka_error, exception=None, kafka_message=None):
         super(_KafkaClientError, self).__init__(kafka_error)
         self.exception = exception
-        self.message = str(KafkaError) if message is None else message
+        self.kafka_message = kafka_message
 
     @property
     def code(self):
@@ -51,20 +51,21 @@ class ConsumeError(_KafkaClientError):
     Wraps all errors encountered during the consumption of a message.
 
     Note:
-        In the event of a serialization error the original message contents
-        may be retrieved from the ``message`` attribute.
+        In the event of a serialization error the original message
+        contents may be retrieved from the ``message`` attribute.
 
     Args:
         kafka_error (KafkaError): KafkaError instance.
 
         exception(Exception, optional): The original exception
 
-        message (str, optional): Alternative error message.
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
 
     """
 
-    def __init__(self, kafka_error, exception=None, message=None):
-        super(ConsumeError, self).__init__(kafka_error, exception, message)
+    def __init__(self, kafka_error, exception=None, kafka_message=None):
+        super(ConsumeError, self).__init__(kafka_error, exception, kafka_message)
 
 
 class KeyDeserializationError(ConsumeError, SerializationError):
@@ -75,14 +76,15 @@ class KeyDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (str, optional): Alternative error message.
+        kafka_message (Message, optional): The Kafka Message returned by
+        the broker.
 
     """
 
-    def __init__(self, exception=None, message=None):
+    def __init__(self, exception=None, kafka_message=None):
         super(KeyDeserializationError, self).__init__(
             KafkaError(KafkaError._KEY_DESERIALIZATION, str(exception)),
-            exception=exception, message=message)
+            exception=exception, kafka_message=kafka_message)
 
 
 class ValueDeserializationError(ConsumeError, SerializationError):
@@ -93,14 +95,14 @@ class ValueDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (str, optional): Alternative error message.
+        kafka_message (Message, optional): The Kafka Message returned from the broker.
 
     """
 
-    def __init__(self, exception=None, message=None):
+    def __init__(self, exception=None, kafka_message=None):
         super(ValueDeserializationError, self).__init__(
             KafkaError(KafkaError._VALUE_DESERIALIZATION, str(exception)),
-            exception=exception, message=message)
+            exception=exception, kafka_message=kafka_message)
 
 
 class ProduceError(_KafkaClientError):
@@ -111,13 +113,10 @@ class ProduceError(_KafkaClientError):
         kafka_error (KafkaError): KafkaError instance.
 
         exception(Exception, optional): The original exception.
-
-        message (str, optional): Alternative error message.
-
     """
 
-    def __init__(self, kafka_error, exception=None, message=None):
-        super(ProduceError, self).__init__(kafka_error, exception, message)
+    def __init__(self, kafka_error, exception=None):
+        super(ProduceError, self).__init__(kafka_error, exception, None)
 
 
 class KeySerializationError(ProduceError, SerializationError):
