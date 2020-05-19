@@ -28,7 +28,7 @@ class _KafkaClientError(KafkaException):
 
         exception(Exception, optional): The original exception
 
-        message (Message, optional): Alternative error message.
+        message (str, optional): Alternative error message.
 
     """
 
@@ -59,7 +59,7 @@ class ConsumeError(_KafkaClientError):
 
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        message (str, optional): Alternative error message.
 
     """
 
@@ -75,7 +75,7 @@ class KeyDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        message (str, optional): Alternative error message.
 
     """
 
@@ -93,7 +93,7 @@ class ValueDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        message (str, optional): Alternative error message.
 
     """
 
@@ -112,7 +112,7 @@ class ProduceError(_KafkaClientError):
 
         exception(Exception, optional): The original exception.
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        message (str, optional): Alternative error message.
 
     """
 
