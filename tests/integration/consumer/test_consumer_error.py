@@ -22,7 +22,11 @@ from confluent_kafka.error import ConsumeError
 from confluent_kafka.serialization import StringSerializer
 
 
-def test_commit_transaction(kafka_cluster):
+def test_consume_error(kafka_cluster):
+    """
+    Tests to ensure librdkafka errors are propagated as
+    an instance of ConsumeError.
+    """
     topic = kafka_cluster.create_topic("test_commit_transaction")
     consumer_conf = {'enable.partition.eof': True}
 
