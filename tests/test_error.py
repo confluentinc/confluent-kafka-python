@@ -43,7 +43,7 @@ def test_new_consume_error_custom_message():
 
     assert ce.code == KafkaError._KEY_SERIALIZATION
     assert ce.name == u'_KEY_SERIALIZATION'
-    assert ce[0].str() == "Unable to serialize key"
+    assert ce.args[0].str() == "Unable to serialize key"
 
 
 def test_new_produce_error_constant():
@@ -68,4 +68,4 @@ def test_new_produce_error_custom_message():
 
     assert pe.code == KafkaError._KEY_SERIALIZATION
     assert pe.name == u'_KEY_SERIALIZATION'
-    assert pe[0].str() == "Unable to serialize key"
+    assert pe.args[0].str() == "Unable to serialize key"
