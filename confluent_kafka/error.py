@@ -28,8 +28,8 @@ class _KafkaClientError(KafkaException):
 
         exception(Exception, optional): The original exception
 
-        kafka_message (Message, optional): Alternative error message.
-
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
     """
 
     def __init__(self, kafka_error, exception=None, kafka_message=None):
@@ -52,15 +52,15 @@ class ConsumeError(_KafkaClientError):
 
     Note:
         In the event of a serialization error the original message
-        contents may be retrieved from the ``message`` attribute.
+        contents may be retrieved from the ``kafka_message`` attribute.
 
     Args:
         kafka_error (KafkaError): KafkaError instance.
 
         exception(Exception, optional): The original exception
 
-        kafka_message (Message, optional): The Kafka Message returned
-        by the broker.
+        kafka_message (Message, optional): The Kafka Message
+        returned by the broker.
 
     """
 
@@ -76,8 +76,8 @@ class KeyDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        kafka_message (Message, optional): The Kafka Message returned by
-        the broker.
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
 
     """
 
@@ -95,7 +95,8 @@ class ValueDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        kafka_message (Message, optional): The Kafka Message returned from the broker.
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
 
     """
 
