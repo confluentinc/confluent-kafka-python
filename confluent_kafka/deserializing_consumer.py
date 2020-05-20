@@ -128,7 +128,7 @@ class DeserializingConsumer(_ConsumerImpl):
             return None
 
         if msg.error() is not None:
-            raise ConsumeError(msg.error(), message=msg)
+            raise ConsumeError(msg.error(), kafka_message=msg)
 
         ctx = SerializationContext(msg.topic(), MessageField.VALUE)
         value = msg.value()
@@ -136,7 +136,7 @@ class DeserializingConsumer(_ConsumerImpl):
             try:
                 value = self._value_deserializer(value, ctx)
             except Exception as se:
-                raise ValueDeserializationError(exception=se, message=msg)
+                raise ValueDeserializationError(exception=se, kafka_message=msg)
 
         key = msg.key()
         ctx.field = MessageField.KEY
@@ -144,7 +144,7 @@ class DeserializingConsumer(_ConsumerImpl):
             try:
                 key = self._key_deserializer(key, ctx)
             except Exception as se:
-                raise KeyDeserializationError(exception=se, message=msg)
+                raise KeyDeserializationError(exception=se, kafka_message=msg)
 
         msg.set_key(key)
         msg.set_value(value)
