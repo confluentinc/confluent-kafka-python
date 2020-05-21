@@ -1,0 +1,13 @@
+{
+    "name": "a_schema",
+    "type": "record",
+    "fields": [
+        {
+            "name": "date_field",
+            "type": {
+                "type": "int",
+                "logicalType": "date"
+            }
+        }
+    ]
+}

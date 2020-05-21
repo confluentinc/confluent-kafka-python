@@ -416,3 +416,16 @@ def test_api_config_update(kafka_cluster):
     for level in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
         sr.set_compatibility(level=level)
         assert sr.get_compatibility()['compatibilityLevel'] == level
+
+
+def test_api_register_logical_schema(kafka_cluster, load_file):
+    sr = kafka_cluster.schema_registry()
+
+    schema = Schema(load_file('logical_date.avsc'), schema_type='AVRO')
+    subject = _subject_name('test_logical_registration')
+
+    schema_id = sr.register_schema(subject, schema)
+    registered_schema = sr.lookup_schema(subject, schema)
+
+    assert registered_schema.schema_id == schema_id
+    assert registered_schema.subject == subject
