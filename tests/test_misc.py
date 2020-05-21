@@ -198,9 +198,3 @@ def test_topic_config_update():
         if "CI" in os.environ:
             pytest.xfail("Timeout exceeded")
         pytest.fail("Timeout exceeded")
-
-
-@pytest.mark.skipif(sys.version_info[0] > 2, reason="syntax requires python <= 2.7")
-def test_confluent_kafka_import_all():
-    # Raises AttributeError if __all__ contains invalid reference
-    from confluent_kafka import *  # noqa F403
