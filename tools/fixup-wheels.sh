@@ -12,7 +12,7 @@ set -e
 wheelhouse=$1
 fixed_wheelhouse=$2
 platform=$(uname -s)
-gen_record_row=$(pwd)/tools/generate-record-row.py
+gen_record_row=$PWD/tools/generate-record-row.py
 
 stagedir=$PWD/staging
 

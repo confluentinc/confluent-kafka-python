@@ -2,7 +2,7 @@
 """
 Generate wheel metadata RECORD file row for given file.
 
-Usefull in cases where you want to postprocess the wheel archive e.g. include
+Useful in cases where you want to postprocess the wheel archive e.g. include
 additional libraries after the wheel has been build.
 """
 import argparse
