@@ -71,7 +71,7 @@ fixup_wheel_linux () {
         echo "$lib dependencies:"
         ldd $lib
 
-        ${gen_record_row} $lib confluent_kafka/.libs/ >> ../../$record_path
+        ${gen_record_row} $lib confluent_kafka/.libs/ >> ../../${record_path}
     done
 
     popd # confluent_kafka/.libs or confluent_kafka.libs
@@ -106,7 +106,7 @@ fixup_wheel_macosx () {
             otool -L $lib
         fi
 
-        ${gen_record_row} $lib confluent_kafka/.dylibs/ >> ../../$record_path
+        ${gen_record_row} $lib confluent_kafka/.dylibs/ >> ../../${record_path}
 
     done
 
