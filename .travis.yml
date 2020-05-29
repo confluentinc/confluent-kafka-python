@@ -46,7 +46,7 @@ jobs:
 before_install:
   - pip install -U pip
   - if [[ $TRAVIS_OS_NAME == "osx" ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install --ignore-installed cibuildwheel; fi
+  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install --no-cache-dir --force-reinstall --upgrade cibuildwheel; fi
 
 # Install interceptors
 # Install librdkafka if not CIBW_BEFORE_BUILD
