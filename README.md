@@ -257,6 +257,8 @@ If you use Kafka broker 0.9 or 0.8 you must set
 `broker.version.fallback` to your broker version,
 e.g `broker.version.fallback=0.9.0.1`.
 
+Please note that brokers prior to version 0.9 does not support `Consumer.subscribe()`. If your server is version 0.8.x, please use [`Consumer.assign()`](https://docs.confluent.io/current/clients/confluent-kafka-python/#confluent_kafka.Consumer.assign) instead.
+
 More info here:
 https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 
