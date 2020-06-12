@@ -117,9 +117,10 @@ fixup_wheel () {
         fixup_wheel_macosx
     fi
 
-    zip -r $fixed_whl .
-
     popd # tmpdir
+
+    python -c "from wheel.wheelfile import WheelFile; w = WheelFile('$fixed_whl', mode='w'); w.write_files('$tmpdir'); w.close()"
+
     rm -rf $tmpdir
 
     echo "Fixed $fixed_whl"
@@ -165,6 +166,3 @@ fi
 for wheel in $wheelhouse/*${wheelmatch}*.whl ; do
     fixup_wheel "$wheel"
 done
-
-
-
