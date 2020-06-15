@@ -4,7 +4,7 @@ rem insert librdkafka in the built wheels.
 echo on
 
 rem For dumpbin
-set PATH=%PATH%;c:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin
+set PATH=%PATH%;c:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\bin
 set
 
 rem Download and install librdkafka from NuGet.

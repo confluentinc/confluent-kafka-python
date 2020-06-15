@@ -21,7 +21,7 @@ environment:
      PYTHON_VERSION: "3.8.0"
      PYTHON_SHORTVER: "38"
      PYTHON_ARCH: "64"
-     MSVC_VERSION: "Visual Studio 12 Win64"
+     MSVC_VERSION: "Visual Studio 14 Win64"
      CIBW_BUILD: cp38-win_amd64
      WHEEL_UPLOAD: true
 
