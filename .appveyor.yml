@@ -17,6 +17,13 @@ environment:
      PYTHON_SHORTVER: "36"
      PYTHON_ARCH: "64"
      WHEEL_UPLOAD: true
+   - PYTHON: "C:\\Python38-x64"
+     PYTHON_VERSION: "3.8.0"
+     PYTHON_SHORTVER: "38"
+     PYTHON_ARCH: "64"
+     MSVC_VERSION: "Visual Studio 12 Win64"
+     CIBW_BUILD: cp38-win_amd64
+     WHEEL_UPLOAD: true
 
 install:
   - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
