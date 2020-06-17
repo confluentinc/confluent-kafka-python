@@ -534,28 +534,30 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
 
 static void *Producer_purge (Handle *self, PyObject *args,
                                  PyObject *kwargs) {
-	int purge_strategy;
-	int blocking = 0;
-	rd_kafka_resp_err_t err;
-        static char *kws[] = { "purge_strategy", "blocking", NULL};
+        int in_queue = 1;
+        int in_flight = 1;
+        int blocking = 1;
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "in_queue", "in_flight" "blocking", NULL};
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|p", kws, &blocking))
-			return NULL;
-	if (blocking==1)
-		err = rd_kafka_purge(self->rk, purge_strategy);
-	else
-		err = rd_kafka_purge(self->rk, purge_strategy|RD_KAFKA_PURGE_F_NON_BLOCKING);
-	if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
-		Py_RETURN_NONE;
-	}
-	if (err == RD_KAFKA_RESP_ERR__INVALID_ARG) {
-		cfl_PyErr_Format(err,
-				 "Purge strategy invalid or unknown.");
-	}
-	if (err == RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED) {
-		cfl_PyErr_Format(err,
-				 "purge() should be called on a producer client instance.");
-	}
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ppp", kws, &in_queue, &in_flight, &blocking))
+                return NULL;
+        int purge_strategy = 0;
+        if (in_queue)
+                purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
+        if (in_flight) 
+                purge_strategy = purge_strategy | RD_KAFKA_PURGE_F_INFLIGHT;
+        if (blocking)
+                purge_strategy = purge_strategy | RD_KAFKA_PURGE_F_NON_BLOCKING;
+
+        err = rd_kafka_purge(self->rk, purge_strategy);
+
+        if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
+                Py_RETURN_NONE;
+        }
+        if (err) {
+                 cfl_PyErr_format(err, "%s", rd_kafka_err2str(err));
+        }
 }
 
 
@@ -631,13 +633,10 @@ static PyMethodDef Producer_methods[] = {
 	  "   The application will need to call poll() or flush() "
 	  "afterwards to serve the delivery report callbacks of the purged messages."
 	  "\n"
-	  "  :param: PurgeStrategy purge_strategy: One of three options.\n"
-	  "- `PURGE_INTERNAL_QUEUES`: Purge messages from internal queues.\n"
-	  "- `PURGE_INFLIGHT`: Purge messages in flight to or from the broker.\n"
-	  "- `PURGE_ALL`: Purge messages from internal queues and those in flight.\n"
-          "  :param: bool blocking: If set to False, will not wait on background thread queue)\n"
-	  "purging to finish. By default, this method will block."
-	  "\n"
+	  "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
+	  "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
+	  "  :param: bool blocking: If set to False, will not wait on background thread queue)\n"
+	  "purging to finish. By default, true."
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc

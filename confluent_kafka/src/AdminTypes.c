@@ -516,9 +516,4 @@ void AdminTypes_AddObjects (PyObject *m) {
         PyModule_AddIntConstant(m, "RESOURCE_TOPIC", RD_KAFKA_RESOURCE_TOPIC);
         PyModule_AddIntConstant(m, "RESOURCE_GROUP", RD_KAFKA_RESOURCE_GROUP);
         PyModule_AddIntConstant(m, "RESOURCE_BROKER", RD_KAFKA_RESOURCE_BROKER);
-
-        /* Flags for rd_kafka_purge() */
-        PyModule_AddIntConstant(m, "PURGE_F_QUEUE", RD_KAFKA_PURGE_F_QUEUE);
-        PyModule_AddIntConstant(m, "PURGE_F_INFLIGHT", RD_KAFKA_PURGE_F_INFLIGHT);
-        PyModule_AddIntConstant(m, "PURGE_ALL", RD_KAFKA_PURGE_F_QUEUE|RD_KAFKA_PURGE_F_INFLIGHT);
 }
