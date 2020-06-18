@@ -556,7 +556,7 @@ static void *Producer_purge (Handle *self, PyObject *args,
                 Py_RETURN_NONE;
         }
         if (err) {
-                 cfl_PyErr_format(err, "%s", rd_kafka_err2str(err));
+                cfl_PyErr_Format(err, "%s", rd_kafka_err2str(err));
         }
 }
 
