@@ -243,7 +243,7 @@ def test_purge():
     to stop waiting for messages and get delivery reports
     """
     p = Producer(
-        {"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30_000}
+        {"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000}
     )  # 30 seconds
 
     on_delivery_called = False
