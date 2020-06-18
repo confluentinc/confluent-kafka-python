@@ -537,12 +537,13 @@ static void *Producer_purge (Handle *self, PyObject *args,
         int in_queue = 1;
         int in_flight = 1;
         int blocking = 1;
+        int purge_strategy = 0;
+
         rd_kafka_resp_err_t err;
         static char *kws[] = { "in_queue", "in_flight", "blocking", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ppp", kws, &in_queue, &in_flight, &blocking))
                 return NULL;
-        int purge_strategy = 0;
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
         if (in_flight) 
