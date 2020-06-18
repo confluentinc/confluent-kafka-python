@@ -246,27 +246,27 @@ def test_purge():
         {"socket.timeout.ms": 10, "error_cb": error_cb, "message.timeout.ms": 30000}
     )  # 30 seconds
 
-    on_delivery_called = False
+    # Hack to detect on_delivery was called because inner functions can modify nonlocal objects.
+    # When python2 support is dropped, we can use the "nonlocal" keyword instead
+    cb_detector = {"on_delivery_called": False}
 
     def on_delivery(err, msg):
-        nonlocal on_delivery_called
-        on_delivery_called = True
+        cb_detector["on_delivery_called"] = True
         # Because we are purging messages, we should see a PURGE_QUEUE kafka error
         assert err.code() == KafkaError._PURGE_QUEUE
 
     # Our message won't be delivered, but also won't timeout yet because our timeout is 30s.
     p.produce(topic="some_topic", value="testing", partition=9, callback=on_delivery)
     p.flush(0.002)
-    assert not on_delivery_called
+    assert not cb_detector["on_delivery_called"]
 
     # When in_queue set to false, we won't purge the message and get delivery callback
     p.purge(in_queue=False)
     p.flush(0.002)
-    assert not on_delivery_called
+    assert not cb_detector["on_delivery_called"]
 
     # When we purge including the queue, the message should have delivered a delivery report
     # with a PURGE_QUEUE error
     p.purge()
     p.flush(0.002)
-    assert on_delivery_called
-
+    assert cb_detector["on_delivery_called"]
