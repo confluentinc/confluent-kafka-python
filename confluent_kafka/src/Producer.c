@@ -629,7 +629,7 @@ static PyMethodDef Producer_methods[] = {
 	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: purge(purge_strategy, [blocking])\n"
           "\n"
-	  "   Purge messages currently handled by producer instance with specified purge strategy.\n"
+	  "   Purge messages currently handled by the producer instance.\n"
 	  "   The application will need to call poll() or flush() "
 	  "afterwards to serve the delivery report callbacks of the purged messages."
 	  "\n"
