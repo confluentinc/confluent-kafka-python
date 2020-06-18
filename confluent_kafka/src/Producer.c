@@ -538,7 +538,7 @@ static void *Producer_purge (Handle *self, PyObject *args,
         int in_flight = 1;
         int blocking = 1;
         rd_kafka_resp_err_t err;
-        static char *kws[] = { "in_queue", "in_flight" "blocking", NULL};
+        static char *kws[] = { "in_queue", "in_flight", "blocking", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ppp", kws, &in_queue, &in_flight, &blocking))
                 return NULL;
