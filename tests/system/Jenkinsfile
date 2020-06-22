@@ -8,21 +8,23 @@ def config = jobConfig {
 }
 
 def job = {
-    withCredentials([
-        file(credentialsId: 'muckrake-2017-06-01.pem', variable: 'MUCKRAKE_PEM')]) {
-        sshagent(['ConfluentJenkins Github SSH Key']) {
-            configFileProvider([configFile(fileId: 'jenkins-maven-global-settings',
-                                targetLocation: '/home/jenkins/.m2/settings.xml')]) {
-                stage("Run tests") {
-                    sh 'tests/system/run-tests.sh'
-                }
+    configureGitSSH("github/confluent_jenkins", "private_key")
+    withVaultEnv([["artifactory/tools_jenkins", "user", "TOOLS_ARTIFACTORY_USER"],
+        ["artifactory/tools_jenkins", "password", "TOOLS_ARTIFACTORY_PASSWORD"],
+        ["sonatype/confluent", "user", "SONATYPE_OSSRH_USER"],
+        ["sonatype/confluent", "password", "SONATYPE_OSSRH_PASSWORD"]]) {
+        withVaultFile([["maven/jenkins_maven_global_settings", "settings_xml",
+            "/home/jenkins/.m2/settings.xml", "MAVEN_GLOBAL_SETTINGS"],
+            ["muckrake/2017-06-01", "pem", "muckrake-2017-06-01.pem", "MUCKRAKE_PEM"]]) {
+            stage("Run tests") {
+                sh 'tests/system/run-tests.sh'
             }
         }
     }
 }
 
 def post = {
-    withCredentials([file(credentialsId: 'muckrake-2017-06-01.pem', variable: 'MUCKRAKE_PEM')]) {
+    withVaultFile([["muckrake/2017-06-01", "pem", "muckrake-2017-06-01.pem", "MUCKRAKE_PEM"]]) {
         stage('Cleanup tests') {
             sh 'tests/system/cleanup-tests.sh'
         }
