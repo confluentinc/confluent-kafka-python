@@ -119,7 +119,7 @@ fixup_wheel () {
 
     popd # tmpdir
 
-    python -c "from wheel.wheelfile import WheelFile; w = WheelFile('$fixed_whl', mode='w'); w.write_files('$tmpdir'); w.close()"
+    python rebuild-wheel.py --staging-dir $tmpdir --wheel-file $fixed_whl
 
     rm -rf $tmpdir
 
