@@ -95,7 +95,7 @@ class _RestClient(object):
             raise ValueError("ssl.certificate.location required when"
                              " configuring ssl.key.location")
 
-        self.timeout = conf_copy.pop('timeout', 30.00)
+        self.timeout = conf_copy.pop('request.timeout', 30.00)
 
         userinfo = utils.get_auth_from_url(base_url)
         if 'basic.auth.user.info' in conf_copy:
@@ -282,7 +282,12 @@ class SchemaRegistryClient(object):
     |                              |      | By default userinfo is extracted from           |
     |                              |      | the URL if present.                             |
     +------------------------------+------+-------------------------------------------------+
-
+    |                              |      | Timeout for HTTP/S calls to Schema registry     |
+    |                              |      |                                                 |
+    | ``request.timeout``          |float |                                                 |
+    |                              |      | By default timeout is 30.00 seconds             |
+    |                              |      | the URL if present.                             |
+    +------------------------------+------+-------------------------------------------------+
     Args:
         conf (dict): Schema Registry client configuration.
 

@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema
+from urllib3.exceptions import ConnectTimeoutError
 
 """
     Basic SchemaRegistryClient API functionality tests.
@@ -376,3 +377,13 @@ def test_schema_equivilence(load_avsc):
     assert schema == schema2
     assert schema_str1.__eq__(schema_str2)
     assert schema_str1 == schema_str2
+
+def test_timeout_exception_thrown_when_unreasonably_low_timeout_set(mock_schema_registry):
+    conf = {'url': TEST_URL,
+        'request.timeout' : 0.01   
+    }
+    sr = mock_schema_registry(conf)
+    with pytest.raises(ConnectTimeoutError) as e :
+       sr.get_schema()
+    assert isinstance(e, ConnectTimeoutError)
+
