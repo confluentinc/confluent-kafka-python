@@ -14,7 +14,7 @@ trap cleanup 0 2 3 6 15
 source ${DOCKER_BIN}/../.env
 
 if [[ ${1:-} == "help" ]]; then
-    python ${TEST_SOURCE}/integration/integration_test.py --help
+    python3 ${TEST_SOURCE}/integration/integration_test.py --help
     exit 0
 fi
 
@@ -30,7 +30,7 @@ run_tox() {
 }
 
 run_native() {
-    pip install -v .[avro]
+    pip3 install -v .[avro]
     start_cluster
 
     for mode in "$@"; do
@@ -38,7 +38,7 @@ run_native() {
     done
 
     echo "Executing test modes $@"
-    python ${TEST_SOURCE}/integration/integration_test.py ${modes:-} ${TEST_SOURCE}/integration/testconf.json
+    python3 ${TEST_SOURCE}/integration/integration_test.py ${modes:-} ${TEST_SOURCE}/integration/testconf.json
 }
 
 run_unit() {

@@ -95,6 +95,8 @@ class _RestClient(object):
             raise ValueError("ssl.certificate.location required when"
                              " configuring ssl.key.location")
 
+        self.timeout = conf_copy.pop('timeout', 30.00)
+
         userinfo = utils.get_auth_from_url(base_url)
         if 'basic.auth.user.info' in conf_copy:
             if userinfo != ('', ''):
@@ -166,7 +168,7 @@ class _RestClient(object):
 
         response = self.session.request(
             method, url="/".join([self.base_url, url]),
-            headers=headers, data=body, params=query)
+            headers=headers, data=body, params=query, timeout=self.timeout)
 
         try:
             if 200 <= response.status_code <= 299:
