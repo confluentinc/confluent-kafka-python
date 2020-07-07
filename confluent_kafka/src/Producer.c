@@ -547,18 +547,18 @@ static void *Producer_purge (Handle *self, PyObject *args,
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
         if (in_flight) 
-                purge_strategy = purge_strategy | RD_KAFKA_PURGE_F_INFLIGHT;
+                purge_strategy |= RD_KAFKA_PURGE_F_INFLIGHT;
         if (blocking)
-                purge_strategy = purge_strategy | RD_KAFKA_PURGE_F_NON_BLOCKING;
+                purge_strategy |= RD_KAFKA_PURGE_F_NON_BLOCKING;
 
         err = rd_kafka_purge(self->rk, purge_strategy);
 
-        if (err == RD_KAFKA_RESP_ERR_NO_ERROR) {
-                Py_RETURN_NONE;
-        }
         if (err) {
-                cfl_PyErr_Format(err, "%s", rd_kafka_err2str(err));
+                cfl_PyErr_Format(err, "Purge failed: %s", rd_kafka_err2str(err));
+                return NULL;
         }
+
+        Py_RETURN_NONE;
 }
 
 
@@ -628,7 +628,7 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: purge(purge_strategy, [blocking])\n"
+          ".. py:function:: purge([in_queue=True], [in_flight=True], [blocking=True])\n"
           "\n"
 	  "   Purge messages currently handled by the producer instance.\n"
 	  "   The application will need to call poll() or flush() "
@@ -636,7 +636,7 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	  "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
 	  "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
-	  "  :param: bool blocking: If set to False, will not wait on background thread queue)\n"
+	  "  :param: bool blocking: If set to False, will not wait on background thread queue\n"
 	  "purging to finish. By default, true."
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
