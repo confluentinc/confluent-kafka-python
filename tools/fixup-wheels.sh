@@ -119,7 +119,7 @@ fixup_wheel () {
 
     popd # tmpdir
 
-    python rebuild-wheel.py --staging-dir $tmpdir --wheel-file $fixed_whl
+    wheel pack $tmpdir -d $fixed_wheelhouse
 
     rm -rf $tmpdir
 
