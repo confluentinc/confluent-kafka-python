@@ -70,8 +70,8 @@ previous version, e.g.: `git grep 0.11`
 The version should be set to the final release version, even when doing
 RCs, so only needs to be set once for each release.
 
- * `confluent_kafka/src/confluent_kafka.c` - in the `version()` function,
-    change both the string and the hex-representation.
+ * `confluent_kafka/src/confluent_kafka.h` - update the `CFL_VERSION`
+    `CFL_VERSION_STR`, change both the string and the hex-representation.
  * `docs/conf.py` - change `release` and `version` variables.
  * `setup.py` - change `version` variable.
 
@@ -107,13 +107,13 @@ the version.
 Perform a dry-run push first to make sure the correct branch and only our tag
 is pushed.
 
-    $ git push --dry-run --tags origin master
+    $ git push --dry-run --tags origin v0.11.4rc  # tags and branch
 
 Remove `--dry-run` when you're happy with the results.
 
 An alternative is to push branch and tags separately:
 
-    $ git push --dry-run origin master
+    $ git push --dry-run origin v011.4rc  # the branch
     $ git push --dry-run --tags origin v0.11.4rc1
 
 
