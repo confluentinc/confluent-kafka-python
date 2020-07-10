@@ -136,25 +136,10 @@ artifacts from S3 using:
 
 The artifacts will be downloaded to `dl-<tag>/`.
 
-
 ## 8. Verify packages
 
-Create a new virtualenv:
+    $ tools/test-wheels.sh tools/dl-v0.11.4rc1
 
-    $ rm -rf mytestenv2
-    $ virtualenv mytestenv2
-    $ source mytestenv2/bin/activate
-
-Install the relevant package for your platform:
-
-    $ pip install --no-cache-dir --find-links dl-v0.11.4rc1/ confluent-kafka
-
-Verify that the package works, should print the expected Python client
-and librdkafka versions:
-
-    $ python -c 'import confluent_kafka as ck ; print "py: {} c: {}" \
-                 .format(ck.version(), ck.libversion())'
-    py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
 ## 10. Open a release PR
 
