@@ -132,7 +132,7 @@ class AvroSerializer(Serializer):
 
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
-                 '_registry', '_schema', '_schema_id', '_schema_name',
+                 '_registry', '_schema', '_schema_ids', '_schema_name',
                  '_subject_name_func', '_to_dict']
 
     # default configuration
@@ -142,7 +142,7 @@ class AvroSerializer(Serializer):
     def __init__(self, schema_str, schema_registry_client,
                  to_dict=None, conf=None):
         self._registry = schema_registry_client
-        self._schema_id = None
+        self._schema_ids = {}
         # Avoid calling registry if schema is known to be registered
         self._known_subjects = set()
 
@@ -213,13 +213,13 @@ class AvroSerializer(Serializer):
             # The schema name will always be the same. We can't however register
             # a schema without a subject so we set the schema_id here to handle
             # the initial registration.
-            self._schema_id = self._registry.register_schema(subject,
-                                                             self._schema)
+            self._schema_ids[subject] = self._registry.register_schema(subject,
+                                                                       self._schema)
             self._known_subjects.add(subject)
         elif not self._auto_register and subject not in self._known_subjects:
             registered_schema = self._registry.lookup_schema(subject,
                                                              self._schema)
-            self._schema_id = registered_schema.schema_id
+            self._schema_ids[subject] = registered_schema.schema_id
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
@@ -229,7 +229,7 @@ class AvroSerializer(Serializer):
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
+            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_ids[subject]))
             # write the record to the rest of the buffer
             schemaless_writer(fo, self._parsed_schema, value)
 

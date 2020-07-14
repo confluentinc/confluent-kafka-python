@@ -15,6 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from struct import unpack
+from io import BytesIO
+
 import pytest
 
 from confluent_kafka.schema_registry import (record_subject_name_strategy,
@@ -23,6 +26,8 @@ from confluent_kafka.schema_registry import (record_subject_name_strategy,
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
+
+from .conftest import find_schema_id
 
 # MockSchemaRegistryClient, see ./conftest.py for additional details.
 TEST_URL = 'http://SchemaRegistry:65534'
@@ -72,6 +77,35 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
     assert register_count == 0
     # Ensure lookup_schema was invoked instead
     assert test_client.counter['POST'].get('/subjects/{}'.format(subject)) == 1
+
+
+def test_avro_serializer_multiple_topic_per_serializer_instance(mock_schema_registry):
+    """
+    Ensures schema_id is correctly find when same serializer is used for multiple topics
+    """
+    conf = {'url': TEST_URL}
+    test_client = mock_schema_registry(conf)
+    topic1 = "test-topic1"
+    topic2 = "test-topic2"
+
+    test_serializer = AvroSerializer("string", test_client,
+                                     conf={'auto.register.schemas': False})
+
+    def ensure_id_match(ctx):
+        subject = "{}-{}".format(ctx.topic, ctx.field)
+        expected_id = find_schema_id(subject)
+
+        payload = test_serializer("test", ctx)
+        _, schema_id = unpack('>bI', BytesIO(payload).read(5))
+        assert schema_id == expected_id
+
+    ensure_id_match(SerializationContext(topic1, MessageField.KEY))
+    ensure_id_match(SerializationContext(topic2, MessageField.VALUE))
+    ensure_id_match(SerializationContext(topic1, MessageField.KEY))
+
+    # Ensure lookup_schema was invoked only once per shema
+    assert test_client.counter['POST'].get('/subjects/{}-key'.format(topic1)) == 1
+    assert test_client.counter['POST'].get('/subjects/{}-value'.format(topic2)) == 1
 
 
 def test_avro_serializer_config_subject_name_strategy():
