@@ -36,6 +36,14 @@ def mock_schema_registry():
     return MockSchemaRegistryClient
 
 
+@pytest.fixture(autouse=True)
+def clear_registry_counters():
+    MockSchemaRegistryClient.counter["DELETE"].clear()
+    MockSchemaRegistryClient.counter["GET"].clear()
+    MockSchemaRegistryClient.counter["POST"].clear()
+    MockSchemaRegistryClient.counter["PUT"].clear()
+
+
 def find_schema_id(x, max_value=50):
     """Build schema ID based on subject name"""
     # We cannot use the builtin 'hash' function. It is not
