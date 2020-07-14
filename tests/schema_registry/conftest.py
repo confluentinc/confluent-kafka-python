@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import hashlib
 import os
 import re
 from base64 import b64decode
@@ -33,6 +34,15 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 @pytest.fixture()
 def mock_schema_registry():
     return MockSchemaRegistryClient
+
+
+def find_schema_id(x, max_value=50):
+    """Build schema ID based on subject name"""
+    # We cannot use the builtin 'hash' function. It is not
+    # constant through runtime, except if you set environment
+    # variable PYTHONHASHSEED
+    h = hashlib.sha1(x.encode())
+    return int(h.hexdigest(), 16) % max_value
 
 
 class MockSchemaRegistryClient(SchemaRegistryClient):
@@ -60,7 +70,6 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     are populated with constants. Which may be referenced when validating the
     response.
 
-        - SCHEMA_ID = 47
         - VERSION = 3
         - VERSIONS = [1, 2, 3, 4]
         - SCHEMA = 'basic_schema.avsc'
@@ -129,7 +138,6 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     compatibility = re.compile("/config/?(.*)$")
 
     # constants
-    SCHEMA_ID = 47
     VERSION = 3
     VERSIONS = [1, 2, 3, 4]
     SCHEMA = 'basic_schema.avsc'
@@ -262,7 +270,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         context.status_code = 200
         return {'subject': subject,
-                "id": self.SCHEMA_ID,
+                "id": find_schema_id(subject),  # Generate a shema ID based on subject name
                 "version": self.VERSION,
                 "schema": request.json()['schema']}
 
@@ -301,7 +309,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                     'message': "Subject not found"}
         context.status_code = 200
         return {'subject': subject,
-                'id': self.SCHEMA_ID,
+                "id": find_schema_id(subject),  # Generate a shema ID based on subject name
                 'version': int(version),
                 'schema': self._load_avsc(self.SCHEMA)}
 
@@ -346,7 +354,9 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                     'message': "Invalid Schema"}
         else:
             context.status_code = 200
-            return {'id': self.SCHEMA_ID}
+            return {
+                "id": find_schema_id(subject),  # Generate a shema ID based on subject name
+            }
 
 
 @pytest.fixture("package")

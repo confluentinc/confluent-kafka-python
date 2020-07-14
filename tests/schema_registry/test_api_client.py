@@ -22,6 +22,8 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema
 
+from .conftest import find_schema_id
+
 """
     Basic SchemaRegistryClient API functionality tests.
 
@@ -80,7 +82,7 @@ def test_register_schema(mock_schema_registry, load_avsc):
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     result = sr.register_schema('test-key', schema)
-    assert result == mock_schema_registry.SCHEMA_ID
+    assert result == find_schema_id('test-key')
 
 
 def test_register_schema_incompatible(mock_schema_registry, load_avsc):
@@ -188,7 +190,7 @@ def test_get_registration(mock_schema_registry, load_avsc):
 
     assert response.subject == subject
     assert response.version == mock_schema_registry.VERSION
-    assert response.schema_id == mock_schema_registry.SCHEMA_ID
+    assert response.schema_id == find_schema_id(subject)
     assert cmp_schema(response.schema, schema)
 
 
@@ -257,7 +259,7 @@ def test_get_version(mock_schema_registry, load_avsc):
     assert result.subject == subject
     assert result.version == version
     assert cmp_schema(result.schema, schema)
-    assert result.schema_id == mock_schema_registry.SCHEMA_ID
+    assert result.schema_id == find_schema_id(subject)
 
 
 def test_get_version_no_version(mock_schema_registry):
