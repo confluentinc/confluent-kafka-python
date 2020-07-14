@@ -183,6 +183,35 @@ class AvroSerializer(Serializer):
         self._schema_name = schema_name
         self._parsed_schema = parsed_schema
 
+    def load_registry_schema_id(self, ctx):
+        """
+        Load registry schema ID for a given SerializationContext.
+
+        Args:
+            ctx (SerializationContext): Metadata pertaining to the serialization operation.
+
+        Returns:
+            int: Confluent Schema Registry schema ID
+
+        """
+        subject = self._subject_name_func(ctx, self._schema_name)
+
+        # Check to ensure this schema has been registered under subject_name.
+        if self._auto_register and subject not in self._known_subjects:
+            # The schema name will always be the same. We can't however register
+            # a schema without a subject so we set the schema_id here to handle
+            # the initial registration.
+            self._schema_ids[subject] = self._registry.register_schema(subject,
+                                                                       self._schema)
+            self._known_subjects.add(subject)
+        elif not self._auto_register and subject not in self._known_subjects:
+            registered_schema = self._registry.lookup_schema(subject,
+                                                             self._schema)
+            self._schema_ids[subject] = registered_schema.schema_id
+            self._known_subjects.add(subject)
+
+        return self._schema_ids[subject]
+
     def __call__(self, obj, ctx):
         """
         Serializes an object to the Confluent Schema Registry's Avro binary
@@ -206,21 +235,7 @@ class AvroSerializer(Serializer):
         if obj is None:
             return None
 
-        subject = self._subject_name_func(ctx, self._schema_name)
-
-        # Check to ensure this schema has been registered under subject_name.
-        if self._auto_register and subject not in self._known_subjects:
-            # The schema name will always be the same. We can't however register
-            # a schema without a subject so we set the schema_id here to handle
-            # the initial registration.
-            self._schema_ids[subject] = self._registry.register_schema(subject,
-                                                                       self._schema)
-            self._known_subjects.add(subject)
-        elif not self._auto_register and subject not in self._known_subjects:
-            registered_schema = self._registry.lookup_schema(subject,
-                                                             self._schema)
-            self._schema_ids[subject] = registered_schema.schema_id
-            self._known_subjects.add(subject)
+        schema_id = self.load_registry_schema_id(ctx)
 
         if self._to_dict is not None:
             value = self._to_dict(obj, ctx)
@@ -229,7 +244,7 @@ class AvroSerializer(Serializer):
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_ids[subject]))
+            fo.write(pack('>bI', _MAGIC_BYTE, schema_id))
             # write the record to the rest of the buffer
             schemaless_writer(fo, self._parsed_schema, value)
 

@@ -108,6 +108,33 @@ def test_avro_serializer_multiple_topic_per_serializer_instance(mock_schema_regi
     assert test_client.counter['POST'].get('/subjects/{}-value'.format(topic2)) == 1
 
 
+def test_avro_serializer_preload_schema_id(mock_schema_registry):
+    """
+    Ensures serializer do not reload schema ID from registry after user has force its preloading.
+    """
+    conf = {'url': TEST_URL}
+    test_client = mock_schema_registry(conf)
+    topic1 = "test-topic1"
+    topic2 = "test-topic2"
+
+    test_serializer = AvroSerializer("string", test_client,
+                                     conf={'auto.register.schemas': False})
+
+    test_serializer.load_registry_schema_id(SerializationContext(topic1, MessageField.KEY))
+    test_serializer.load_registry_schema_id(SerializationContext(topic2, MessageField.VALUE))
+
+    # Ensure lookup_schema was invoked only once per shema
+    assert test_client.counter['POST'].get('/subjects/{}-key'.format(topic1)) == 1
+    assert test_client.counter['POST'].get('/subjects/{}-value'.format(topic2)) == 1
+
+    test_serializer("test", SerializationContext(topic1, MessageField.KEY))
+    test_serializer("test", SerializationContext(topic2, MessageField.VALUE))
+
+    # Ensure we did not look again to avro registry
+    assert test_client.counter['POST'].get('/subjects/{}-key'.format(topic1)) == 1
+    assert test_client.counter['POST'].get('/subjects/{}-value'.format(topic2)) == 1
+
+
 def test_avro_serializer_config_subject_name_strategy():
     """
     Ensures subject.name.strategy is applied
