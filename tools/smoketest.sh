@@ -18,7 +18,7 @@ set -e
 
 wheeldir=$1
 testdir=
-
+all_fails=
 
 if [[ -n $wheeldir ]]; then
     if [[ ! -d $wheeldir ]]; then
@@ -28,15 +28,18 @@ if [[ -n $wheeldir ]]; then
     python -m pip install virtualenv
 fi
 
+pyvers_tested=
 
 # Run tests with both python2 and python3 (whatever versions the OS provides)
 for py in 2.7 3.8 3.7 3.6 3.5 ; do
-    echo "# Smoketest with Python$py"
+    echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then
         echo "$0: python$py not available: skipping"
         continue
     fi
+
+    pyvers_tested="$pyvers_tested $py"
 
     if [[ -n $wheeldir ]]; then
         venvdir=$(mktemp -d /tmp/_venvXXXXXX)
@@ -44,7 +47,6 @@ for py in 2.7 3.8 3.7 3.6 3.5 ; do
         function cleanup () {
             set +e
             deactivate
-            echo $venvdir
             rm -rf "$venvdir"
             [[ -d $testdir ]] && rm -rf "$testdir"
             set -e
@@ -67,7 +69,7 @@ for py in 2.7 3.8 3.7 3.6 3.5 ; do
         # version we can pick any wheel file.
         version=$(pkginfo -f version $(ls $wheeldir/confluent_kafka*.whl | head -1) | sed -e 's/^version: //')
         if [[ -z $version ]]; then
-            echo "Unable to parse version from wheel files in $wheeldir"
+            echo "$0: Unable to parse version from wheel files in $wheeldir"
             exit 1
         fi
 
@@ -86,42 +88,53 @@ for py in 2.7 3.8 3.7 3.6 3.5 ; do
     # Change to a neutral path where there is no confluent_kafka sub-directory
     # that might interfere with module load.
     pushd $testdir
-    echo "Running unit tests"
+    echo "$0: Running unit tests"
     pytest
 
     fails=""
 
-    echo "Verifying OpenSSL"
+    echo "$0: Verifying OpenSSL"
     python -c "
 import confluent_kafka
 confluent_kafka.Producer({'ssl.cipher.suites':'DEFAULT'})
 " || fails="$fails OpenSSL"
 
     for compr in gzip lz4 snappy zstd; do
-        echo "Verifying $compr"
+        echo "$0: Verifying $compr"
         python -c "
 import confluent_kafka
 confluent_kafka.Producer({'compression.codec':'$compr'})
 " || fails="$fails $compr"
     done
 
-    echo "Verifying Interceptor installation"
-    echo "Note: Requires protobuf-c to be installed on the system."
+    echo "$0: Verifying Interceptor installation"
+    echo "$0: Note: Requires protobuf-c to be installed on the system."
     python -c '
 from confluent_kafka import Consumer
 
 c = Consumer({"group.id": "test-linux", "plugin.library.paths": "monitoring-interceptor"})
-' || echo "Warning: interceptor test failed, which we ignore"
+' || echo "$0: Warning: interceptor test failed, which we ignore"
+
+
+    if [[ -n $fails ]]; then
+        echo "$0: SMOKE TEST FAILS FOR python$py: $fails"
+        all_fails="$all_fails \[py$py: $fails\]"
+    fi
 
     popd # $testdir
 done
 
-if [[ -z $fails ]]; then
-    echo "ALL SMOKE TESTS PASSED"
+if [[ -z $pyvers_tested ]]; then
+    echo "$0: NO PYTHON VERSIONS TESTED"
+    exit 1
+fi
+
+if [[ -z $all_fails ]]; then
+    echo "$0: ALL SMOKE TESTS PASSED (python versions:$pyvers_tested)"
     exit 0
 fi
 
-echo "SMOKE TEST FAILURES: $fails"
+echo "$0: SMOKE TEST FAILURES: $all_fails"
 exit 1
 
 
