@@ -39,7 +39,10 @@ function setup_centos {
 function setup_ubuntu {
     # Ubuntu container setup
     apt-get update
-    apt-get install -y python python3 python3-distutils curl
+    apt-get install -y python python3 curl
+    # python3-distutils is required on Ubuntu 18.04 and later but does
+    # not exist on 14.04.
+    apt-get install -y python3-distutils || true
 }
 
 
