@@ -32,3 +32,13 @@ This example only builds for Python 2.7 x64:
     $ CIBW_SKIP="cp3* cp*i686*" tools/cibuildwheel-build.sh wheelhouse
 
 Packages will now be available in wheelhouse/
+
+
+
+## How to test wheels
+
+After wheels have been downloaded with `download-s3.py`, perform smoketests
+by running `tools/test-wheels.sh <download-dir>`, e.g.,
+`tools/test-wheels.sh tools/dl-v1.5.0rc1`.
+This script preferably be run on OSX (with Docker installed) so that
+both OSX and Linux wheels are tested.
