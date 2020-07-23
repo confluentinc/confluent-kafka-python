@@ -25,6 +25,7 @@ import warnings
 from collections import defaultdict
 
 from requests import Session, utils
+from avro.schema import MappingProxyEncoder
 
 from .error import ClientError
 from . import loads
@@ -213,7 +214,7 @@ class CachedSchemaRegistryClient(object):
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
         # body is { schema : json_string }
 
-        body = {'schema': json.dumps(avro_schema.to_json())}
+        body = {'schema': json.dumps(avro_schema.to_json(), cls=MappingProxyEncoder)}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
             raise ClientError("Unauthorized access. Error code:" + str(code))
