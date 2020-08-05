@@ -11,7 +11,7 @@ VENV_HOME=$2
 
 set -ev
 
-brew install libtool
+brew upgrade libtool || brew install libtool
 
 if [[ -z ${PY_INTERPRETER} ]] || [[  -z ${VENV_HOME} ]]; then
     echo "Usage: $0 <Python interpreter version> <destination>"

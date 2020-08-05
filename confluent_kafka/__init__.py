@@ -34,7 +34,7 @@ from .cimpl import (Producer,
                     OFFSET_STORED,
                     OFFSET_INVALID)
 
-__all__ = ['admin', 'AvroSerializer', 'Consumer',
+__all__ = ['admin', 'Consumer',
            'KafkaError', 'KafkaException',
            'kafkatest', 'libversion', 'Message',
            'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',

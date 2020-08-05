@@ -7,34 +7,49 @@
 # Usage outside of docker:
 #  $ tools/test-manylinux.sh
 
-set -ex
+set -e
 
-echo "$0 running from $(pwd)"
-
-if [[ ! -z $1 ]]; then
-    WHEELHOUSE=$1
+if [[ $1 == "--in-docker" ]]; then
+    IN_DOCKER=1
+    shift
 else
-    WHEELHOUSE="wheelhouse"
+    IN_DOCKER=0
 fi
 
+if [[ -z $1 ]]; then
+    echo "Usage: $0 <wheel-directory>"
+    exit 1
+fi
+
+WHEELHOUSE="$1"
+
+if [[ ! -d $WHEELHOUSE ]]; then
+    echo "Wheelhouse directory $WHEELHOUSE does not exist"
+    exit 1
+fi
+
+echo "$0 running from $(pwd)"
 
 
 function setup_centos {
     # CentOS container setup
-    yum install -q -y python epel-release
-    yum install -q -y python-pip
+    yum install -q -y python python3 epel-release curl
 }
 
 function setup_ubuntu {
     # Ubuntu container setup
     apt-get update
-    apt-get install -y python python-pip
+    apt-get install -y python python3 curl
+    # python3-distutils is required on Ubuntu 18.04 and later but does
+    # not exist on 14.04.
+    apt-get install -y python3-distutils || true
 }
 
 
 function run_single_in_docker {
     # Run single test inside docker container
-    local wheelhouse=/io/$1
+    local wheelhouse=$1
+    local testscript=$2
 
     if [[ ! -d $wheelhouse ]]; then
         echo "On docker instance: wheelhouse $wheelhouse does not exist"
@@ -42,53 +57,21 @@ function run_single_in_docker {
     fi
 
     # Detect OS
-    if grep -qi centos /etc/system-release /etc/redhat-release ; then
+    if grep -qi centos /etc/system-release /etc/redhat-release 2>/dev/null ; then
         setup_centos
-    elif grep -qiE 'ubuntu|debian' /etc/os-release ; then
+    elif grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null ; then
         setup_ubuntu
     else
         echo "WARNING: Don't know what platform I'm on: $(uname -a)"
     fi
 
-    # Make sure pip itself is up to date
-    pip install -U pip
-    hash -r # let go of previous 'pip'
+    # Don't install pip from distro packaging since it pulls
+    # in a plethora of possibly outdated Python requirements that
+    # might interfere with the newer packages from PyPi, such as six.
+    # Instead install it directly from PyPa.
+    curl https://bootstrap.pypa.io/get-pip.py | python
 
-    # Install modules
-
-    # TODO: revisit to avoid hardcoding dependencies
-    pip install "futures;python_version=='2.7'"
-    pip install "enum34;python_version=='2.7'"
-    pip install requests avro
-
-    pip install confluent_kafka --no-index -f $wheelhouse
-
-    # Pytest relies on a new version of six; later versions of pip fail to remove older versions gracefully
-    # https://github.com/pypa/pip/issues/5247
-    pip install pytest --ignore-installed six
-
-    echo "Verifying OpenSSL and zlib are properly linked"
-    python -c '
-import confluent_kafka
-
-p = confluent_kafka.Producer({"ssl.cipher.suites":"DEFAULT",
-                              "compression.codec":"gzip"})
-'
-
-    echo "Verifying Interceptor installation"
-    python -c '
-from confluent_kafka import Consumer
-
-c = Consumer({"group.id": "test-linux", "plugin.library.paths": "monitoring-interceptor"})
-'
-
-    pushd /io/tests
-    # Remove cached files from previous runs
-    rm -rf __pycache__ *.pyc
-    # Test
-    pytest --import-mode=append --ignore=avro
-    popd
-
+    /io/tools/smoketest.sh "$wheelhouse"
 }
 
 function run_all_with_docker {
@@ -96,9 +79,14 @@ function run_all_with_docker {
     # This is executed on the host.
     local wheelhouse=$1
 
+    if [[ ! -d ./$wheelhouse ]]; then
+        echo "$wheelhouse must be a relative subdirectory of $(pwd)"
+        exit 1
+    fi
+
     [[ ! -z $DOCKER_IMAGES ]] || \
         # LTS and stable release of popular Linux distros.
-        # We require >= Python 2.7 to be avaialble (which rules out Centos 6.6)
+        # We require >= Python 2.7 to be available (which rules out Centos 6.6)
         DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:18.04 debian:stable centos:7"
 
 
@@ -113,7 +101,7 @@ function run_all_with_docker {
 
     for DOCKER_IMAGE in $DOCKER_IMAGES; do
         echo "# Testing on $DOCKER_IMAGE"
-        docker run -v $(pwd):/io $DOCKER_IMAGE /io/tools/test-manylinux.sh "$wheelhouse" || \
+        docker run -v $(pwd):/io $DOCKER_IMAGE /io/tools/test-manylinux.sh --in-docker "/io/$wheelhouse" || \
             (echo "Failed on $DOCKER_IMAGE" ; false)
 
     done
@@ -121,8 +109,9 @@ function run_all_with_docker {
 
 
 
-if [[ -f /.dockerenv && -d /io ]]; then
+if [[ $IN_DOCKER == 1 ]]; then
     # Called from within a docker container
+    cd /io  # Enter the confluent-kafka-python top level directory
     run_single_in_docker $WHEELHOUSE
 
 else

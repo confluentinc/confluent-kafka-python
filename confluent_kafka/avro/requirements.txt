@@ -1,4 +1,4 @@
 fastavro>=0.23.0
 requests
-avro==1.9.2;python_version<='3.0'
-avro-python3==1.9.2.1;python_version>='3.0'
+avro==1.10.0;python_version<='3.0'
+avro-python3==1.10.0;python_version>='3.0'

@@ -157,7 +157,7 @@ class SerializingProducer(_ProducerImpl):
             ValueSerializationError: If an error occurs during value
             serialization.
 
-             ProduceException: For all other errors
+            KafkaException: For all other errors
 
         """
         ctx = SerializationContext(topic, MessageField.KEY)

@@ -117,9 +117,10 @@ fixup_wheel () {
         fixup_wheel_macosx
     fi
 
-    zip -r $fixed_whl .
-
     popd # tmpdir
+
+    wheel pack $tmpdir -d $fixed_wheelhouse
+
     rm -rf $tmpdir
 
     echo "Fixed $fixed_whl"
@@ -165,6 +166,3 @@ fi
 for wheel in $wheelhouse/*${wheelmatch}*.whl ; do
     fixup_wheel "$wheel"
 done
-
-
-

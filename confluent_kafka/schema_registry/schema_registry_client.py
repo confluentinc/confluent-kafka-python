@@ -252,7 +252,7 @@ class SchemaRegistryClient(object):
     """
     Schema Registry Client.
 
-    SchemaRegistryClient configuration properties(* indicates a required field):
+    SchemaRegistryClient configuration properties (* indicates a required field):
 
     +------------------------------+------+-------------------------------------------------+
     | Property name                | type | Description                                     |
@@ -260,7 +260,7 @@ class SchemaRegistryClient(object):
     | ``url`` *                    | str  | Schema Registry URL.                            |
     +------------------------------+------+-------------------------------------------------+
     |                              |      | Path to CA certificate file used                |
-    | ``ssl.ca.location`` *        | str  | to verify the Schema Registry's                 |
+    | ``ssl.ca.location``          | str  | to verify the Schema Registry's                 |
     |                              |      | private key.                                    |
     +------------------------------+------+-------------------------------------------------+
     |                              |      | Path to client's private key                    |

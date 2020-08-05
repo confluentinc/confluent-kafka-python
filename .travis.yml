@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.4.0
+  - LIBRDKAFKA_VERSION=v1.5.0
 jobs:
  include:
   # Source package verification with Python 2.7
@@ -45,7 +45,7 @@ jobs:
 # Install cibuildwheel if this is a tagged PR
 before_install:
   - if [[ $TRAVIS_OS_NAME == "osx" ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install cibuildwheel --force-reinstall; fi
+  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install -U -r tools/requirements-manylinux.txt --force-reinstall ; fi
 
 # Install interceptors
 # Install librdkafka if not CIBW_BEFORE_BUILD
@@ -69,8 +69,7 @@ after_script:
  - ldd staging/libs/* || otool -L staging/libs/* || true
  - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
  - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
- - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == linux && -n $CIBW_BEFORE_BUILD ]];then tools/test-manylinux.sh; fi
- - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-osx.sh; fi
+ - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-wheel.sh wheelhouse; fi
  - if [[ $MK_DOCS == y ]]; then make docs; fi
 
 deploy:

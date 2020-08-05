@@ -26,8 +26,8 @@ DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
 SCHEMA_REGISTRY_REQUIRES = ['requests']
 
 AVRO_REQUIRES = ['fastavro>=0.23.0',
-                 'avro==1.9.2;python_version<"3.0"',
-                 'avro-python3==1.9.2.1;python_version>"3.0"'
+                 'avro==1.10.0;python_version<"3.0"',
+                 'avro-python3==1.10.0;python_version>"3.0"'
                  ] + SCHEMA_REGISTRY_REQUIRES
 
 JSON_REQUIRES = ['jsonschema'] + SCHEMA_REGISTRY_REQUIRES
@@ -63,7 +63,7 @@ def get_install_requirements(path):
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version and release in docs/conf.py.
-      version='1.4.1',
+      version='1.5.0',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',

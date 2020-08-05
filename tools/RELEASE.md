@@ -70,8 +70,8 @@ previous version, e.g.: `git grep 0.11`
 The version should be set to the final release version, even when doing
 RCs, so only needs to be set once for each release.
 
- * `confluent_kafka/src/confluent_kafka.c` - in the `version()` function,
-    change both the string and the hex-representation.
+ * `confluent_kafka/src/confluent_kafka.h` - update the `CFL_VERSION`
+    `CFL_VERSION_STR`, change both the string and the hex-representation.
  * `docs/conf.py` - change `release` and `version` variables.
  * `setup.py` - change `version` variable.
 
@@ -107,13 +107,13 @@ the version.
 Perform a dry-run push first to make sure the correct branch and only our tag
 is pushed.
 
-    $ git push --dry-run --tags origin master
+    $ git push --dry-run --tags origin v0.11.4rc  # tags and branch
 
 Remove `--dry-run` when you're happy with the results.
 
 An alternative is to push branch and tags separately:
 
-    $ git push --dry-run origin master
+    $ git push --dry-run origin v0.11.4rc  # the branch
     $ git push --dry-run --tags origin v0.11.4rc1
 
 
@@ -136,25 +136,10 @@ artifacts from S3 using:
 
 The artifacts will be downloaded to `dl-<tag>/`.
 
-
 ## 8. Verify packages
 
-Create a new virtualenv:
+    $ tools/test-wheels.sh tools/dl-v0.11.4rc1
 
-    $ rm -rf mytestenv2
-    $ virtualenv mytestenv2
-    $ source mytestenv2/bin/activate
-
-Install the relevant package for your platform:
-
-    $ pip install --no-cache-dir --find-links dl-v0.11.4rc1/ confluent-kafka
-
-Verify that the package works, should print the expected Python client
-and librdkafka versions:
-
-    $ python -c 'import confluent_kafka as ck ; print "py: {} c: {}" \
-                 .format(ck.version(), ck.libversion())'
-    py: ('0.11.4', 721920) c: ('0.11.4-RC1', 722121)
 
 ## 10. Open a release PR
 

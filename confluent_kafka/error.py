@@ -16,44 +16,56 @@
 # limitations under the License.
 #
 from confluent_kafka.cimpl import KafkaException, KafkaError
-
 from confluent_kafka.serialization import SerializationError
 
 
-class ConsumeError(KafkaException):
+class _KafkaClientError(KafkaException):
+    """
+    Wraps all errors encountered by a Kafka Client
+
+    Args:
+        kafka_error (KafkaError): KafkaError instance.
+
+        exception(Exception, optional): The original exception
+
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
+    """
+
+    def __init__(self, kafka_error, exception=None, kafka_message=None):
+        super(_KafkaClientError, self).__init__(kafka_error)
+        self.exception = exception
+        self.kafka_message = kafka_message
+
+    @property
+    def code(self):
+        return self.args[0].code()
+
+    @property
+    def name(self):
+        return self.args[0].name()
+
+
+class ConsumeError(_KafkaClientError):
     """
     Wraps all errors encountered during the consumption of a message.
 
     Note:
-        In the event of a serialization error the original message contents
-        may be retrieved from the ``message`` attribute.
+        In the event of a serialization error the original message
+        contents may be retrieved from the ``kafka_message`` attribute.
 
     Args:
-        error_code (KafkaError): Error code indicating the type of error.
+        kafka_error (KafkaError): KafkaError instance.
 
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        kafka_message (Message, optional): The Kafka Message
+        returned by the broker.
 
     """
-    def __init__(self, error_code, exception=None, message=None):
-        if exception is not None:
-            kafka_error = KafkaError(error_code, repr(exception))
-            self.exception = exception
-        else:
-            kafka_error = KafkaError(error_code)
-            self.exception = None
 
-        super(ConsumeError, self).__init__(kafka_error)
-        self.message = message
-
-    @property
-    def code(self):
-        return self.code()
-
-    @property
-    def name(self):
-        return self.name()
+    def __init__(self, kafka_error, exception=None, kafka_message=None):
+        super(ConsumeError, self).__init__(kafka_error, exception, kafka_message)
 
 
 class KeyDeserializationError(ConsumeError, SerializationError):
@@ -64,12 +76,15 @@ class KeyDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
 
     """
-    def __init__(self, exception=None, message=None):
+
+    def __init__(self, exception=None, kafka_message=None):
         super(KeyDeserializationError, self).__init__(
-            KafkaError._KEY_DESERIALIZATION, exception=exception, message=message)
+            KafkaError(KafkaError._KEY_DESERIALIZATION, str(exception)),
+            exception=exception, kafka_message=kafka_message)
 
 
 class ValueDeserializationError(ConsumeError, SerializationError):
@@ -80,41 +95,29 @@ class ValueDeserializationError(ConsumeError, SerializationError):
     Args:
         exception(Exception, optional): The original exception
 
-        message (Message, optional): The Kafka Message returned from the broker.
+        kafka_message (Message, optional): The Kafka Message returned
+        by the broker.
 
     """
-    def __init__(self, exception=None, message=None):
+
+    def __init__(self, exception=None, kafka_message=None):
         super(ValueDeserializationError, self).__init__(
-            KafkaError._VALUE_DESERIALIZATION, exception=exception, message=message)
+            KafkaError(KafkaError._VALUE_DESERIALIZATION, str(exception)),
+            exception=exception, kafka_message=kafka_message)
 
 
-class ProduceError(KafkaException):
+class ProduceError(_KafkaClientError):
     """
     Wraps all errors encountered when Producing messages.
 
     Args:
-        error_code (KafkaError): Error code indicating the type of error.
+        kafka_error (KafkaError): KafkaError instance.
 
         exception(Exception, optional): The original exception.
-
     """
-    def __init__(self, error_code, exception=None):
-        if exception is not None:
-            kafka_error = KafkaError(error_code, repr(exception))
-            self.exception = exception
-        else:
-            kafka_error = KafkaError(error_code)
-            self.exception = None
 
-        super(ProduceError, self).__init__(kafka_error)
-
-    @property
-    def code(self):
-        return self.code()
-
-    @property
-    def name(self):
-        return self.name()
+    def __init__(self, kafka_error, exception=None):
+        super(ProduceError, self).__init__(kafka_error, exception, None)
 
 
 class KeySerializationError(ProduceError, SerializationError):
@@ -124,9 +127,11 @@ class KeySerializationError(ProduceError, SerializationError):
     Args:
         exception (Exception): The exception that occurred during serialization.
     """
+
     def __init__(self, exception=None):
         super(KeySerializationError, self).__init__(
-            KafkaError._KEY_SERIALIZATION, exception=exception)
+            KafkaError(KafkaError._KEY_SERIALIZATION, str(exception)),
+            exception=exception)
 
 
 class ValueSerializationError(ProduceError, SerializationError):
@@ -136,6 +141,8 @@ class ValueSerializationError(ProduceError, SerializationError):
     Args:
         exception (Exception): The exception that occurred during serialization.
     """
+
     def __init__(self, exception=None):
         super(ValueSerializationError, self).__init__(
-            KafkaError._VALUE_SERIALIZATION, exception=exception)
+            KafkaError(KafkaError._VALUE_SERIALIZATION, str(exception)),
+            exception=exception)
