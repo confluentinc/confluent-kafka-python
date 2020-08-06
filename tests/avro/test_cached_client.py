@@ -133,7 +133,7 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
         schema2 = client.get_by_version(subject, v2)
         self.assertEqual(schema1, latest1)
         self.assertEqual(schema2, latest2)
-        self.assertEqual(schema1, latest3)
+        self.assertEqual(schema2, latest3)
 
     def hash_func(self):
         return hash(str(self))

@@ -135,6 +135,28 @@ class MockSchemaRegistryClient(object):
         """Retrieve a parsed avro schema by id or None if not found"""
         return self.id_to_schema.get(schema_id, None)
 
+    def get_by_version(self, subject, version):
+        """
+        Return the 3-tuple of:
+        (the schema id, the parsed avro schema, the schema version)
+        for a particular subject and version.
+
+        If the subject or version are not found, (None,None,None) is returned.
+        """
+        schema_versions = self.subject_to_schema_versions.get(subject) or []
+        # get schema+version by version
+        schema_versions = [x for x in schema_versions.items() if x[1] == version]
+        schema = None
+        schema_version = None
+        if len(schema_versions) > 0:
+            schema = schema_versions[0][0]
+            schema_version = schema_versions[0][1]
+
+        # get schema_id by schema
+        schema_id = self.subject_to_schema_ids.get(subject).get(schema)
+
+        return (schema_id, schema, schema_version)
+
     def get_latest_schema(self, subject):
         """
         Return the latest 3-tuple of:

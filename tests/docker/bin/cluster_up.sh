@@ -32,11 +32,13 @@ source ${DOCKER_SOURCE}/.env
 echo "Generating SSL certs..."
 ${DOCKER_BIN}/certify.sh
 
+echo ${DOCKER_FILE}
+
 echo "Deploying cluster..."
-docker-compose -f ${DOCKER_CONTEXT} up -d
+docker-compose -f ${DOCKER_FILE} up -d
 
 echo "Setting throttle for throttle test..."
-docker-compose -f ${DOCKER_CONTEXT} exec kafka sh -c "
+docker-compose -f ${DOCKER_FILE} exec kafka sh -c "
         /usr/bin/kafka-configs  --zookeeper zookeeper:2181 \
                 --alter --add-config 'producer_byte_rate=1,consumer_byte_rate=1,request_percentage=001' \
                 --entity-name throttled_client --entity-type clients"
