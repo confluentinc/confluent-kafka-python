@@ -19,7 +19,6 @@
 #
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
-import json
 import logging
 import warnings
 from collections import defaultdict
