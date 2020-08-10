@@ -79,7 +79,7 @@ class MessageSerializer(object):
     # Encoder support
     def _get_encoder_func(self, writer_schema):
         if HAS_FAST:
-            schema = str(writer_schema)
+            schema = writer_schema.to_json()
             parsed_schema = parse_schema(schema)
             return lambda record, fp: schemaless_writer(fp, parsed_schema, record)
         writer = avro.io.DatumWriter(writer_schema)
@@ -174,8 +174,8 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                fast_avro_writer_schema = parse_schema(str(writer_schema_obj))
-                fast_avro_reader_schema = parse_schema(str(reader_schema_obj))
+                fast_avro_writer_schema = parse_schema(writer_schema_obj.to_json())
+                fast_avro_reader_schema = parse_schema(reader_schema_obj.to_json())
                 schemaless_reader(payload, fast_avro_writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can
