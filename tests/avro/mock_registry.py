@@ -100,13 +100,13 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if not schema:
             return self._create_error("schema not found", 404)
         result = {
-            "schema": json.dumps(str(schema))
+            "schema": str(schema)
         }
         return (200, result)
 
     def _get_identity_schema(self, avro_schema):
         # normalized
-        schema_str = json.dumps(str(avro_schema))
+        schema_str = str(avro_schema)
         if schema_str in self.schema_cache:
             return self.schema_cache[schema_str]
         self.schema_cache[schema_str] = avro_schema
@@ -150,7 +150,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema_id = self.registry.get_id_for_schema(subject, avro_schema)
 
         result = {
-            "schema": json.dumps(str(avro_schema)),
+            "schema": str(avro_schema),
             "subject": subject,
             "id": schema_id,
             "version": version
@@ -163,7 +163,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if schema_id is None:
             return self._create_error("Not found", 404)
         result = {
-            "schema": json.dumps(str(avro_schema)),
+            "schema": str(avro_schema),
             "subject": subject,
             "id": schema_id,
             "version": version
