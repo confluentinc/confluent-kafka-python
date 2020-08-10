@@ -23,8 +23,9 @@
 import sys
 import json
 import re
-
 from threading import Thread, Event
+
+from avro.schema import MappingProxyEncoder
 
 from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
@@ -100,13 +101,13 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if not schema:
             return self._create_error("schema not found", 404)
         result = {
-            "schema": json.dumps(schema.to_json())
+            "schema": json.dumps(schema.to_json(), cls=MappingProxyEncoder)
         }
         return (200, result)
 
     def _get_identity_schema(self, avro_schema):
         # normalized
-        schema_str = json.dumps(avro_schema.to_json())
+        schema_str = json.dumps(avro_schema.to_json(), cls=MappingProxyEncoder)
         if schema_str in self.schema_cache:
             return self.schema_cache[schema_str]
         self.schema_cache[schema_str] = avro_schema
@@ -150,7 +151,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         schema_id = self.registry.get_id_for_schema(subject, avro_schema)
 
         result = {
-            "schema": json.dumps(avro_schema.to_json()),
+            "schema": json.dumps(avro_schema.to_json(), cls=MappingProxyEncoder),
             "subject": subject,
             "id": schema_id,
             "version": version
@@ -163,7 +164,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         if schema_id is None:
             return self._create_error("Not found", 404)
         result = {
-            "schema": json.dumps(avro_schema.to_json()),
+            "schema": json.dumps(avro_schema.to_json(), cls=MappingProxyEncoder),
             "subject": subject,
             "id": schema_id,
             "version": version
