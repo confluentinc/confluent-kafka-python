@@ -37,6 +37,10 @@ static void Consumer_clear0 (Handle *self) {
 		Py_DECREF(self->u.Consumer.on_revoke);
 		self->u.Consumer.on_revoke = NULL;
 	}
+	if (self->u.Consumer.on_lost) {
+		Py_DECREF(self->u.Consumer.on_lost);
+		self->u.Consumer.on_lost = NULL;
+	}
 	if (self->u.Consumer.on_commit) {
 		Py_DECREF(self->u.Consumer.on_commit);
 		self->u.Consumer.on_commit = NULL;
@@ -80,6 +84,8 @@ static int Consumer_traverse (Handle *self,
 		Py_VISIT(self->u.Consumer.on_assign);
 	if (self->u.Consumer.on_revoke)
 		Py_VISIT(self->u.Consumer.on_revoke);
+	if (self->u.Consumer.on_lost)
+		Py_VISIT(self->u.Consumer.on_lost);
 	if (self->u.Consumer.on_commit)
 		Py_VISIT(self->u.Consumer.on_commit);
 
@@ -97,8 +103,8 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 					 PyObject *kwargs) {
 
 	rd_kafka_topic_partition_list_t *topics;
-	static char *kws[] = { "topics", "on_assign", "on_revoke", NULL };
-	PyObject *tlist, *on_assign = NULL, *on_revoke = NULL;
+	static char *kws[] = { "topics", "on_assign", "on_revoke", "on_lost", NULL };
+	PyObject *tlist, *on_assign = NULL, *on_revoke = NULL, *on_lost = NULL;
 	Py_ssize_t pos = 0;
 	rd_kafka_resp_err_t err;
 
@@ -108,8 +114,8 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
                 return NULL;
         }
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OO", kws,
-					 &tlist, &on_assign, &on_revoke))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
+					 &tlist, &on_assign, &on_revoke, &on_lost))
 		return NULL;
 
 	if (!PyList_Check(tlist)) {
@@ -127,6 +133,12 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	if (on_revoke && !PyCallable_Check(on_revoke)) {
 		PyErr_Format(PyExc_TypeError,
 			     "on_revoke expects a callable");
+		return NULL;
+	}
+
+	if (on_lost && !PyCallable_Check(on_lost)) {
+		PyErr_Format(PyExc_TypeError,
+			     "on_lost expects a callable");
 		return NULL;
 	}
 
@@ -179,6 +191,15 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 		Py_INCREF(self->u.Consumer.on_revoke);
 	}
 
+	if (self->u.Consumer.on_lost) {
+		Py_DECREF(self->u.Consumer.on_lost);
+		self->u.Consumer.on_lost = NULL;
+	}
+	if (on_lost) {
+		self->u.Consumer.on_lost = on_lost;
+		Py_INCREF(self->u.Consumer.on_lost);
+	}
+
 	Py_RETURN_NONE;
 }
 
@@ -203,6 +224,34 @@ static PyObject *Consumer_unsubscribe (Handle *self,
 	}
 
 	Py_RETURN_NONE;
+}
+
+
+static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_error_t *error;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!(c_parts = py_to_c_parts(tlist)))
+                return NULL;
+
+        self->u.Consumer.rebalance_incremental_assigned++;
+
+        error = rd_kafka_incremental_assign(self->rk, c_parts);
+
+        rd_kafka_topic_partition_list_destroy(c_parts);
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
 }
 
 
@@ -259,6 +308,36 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
 	Py_RETURN_NONE;
 }
+
+
+static PyObject *Consumer_incremental_unassign (Handle *self, PyObject *tlist) {
+
+        rd_kafka_topic_partition_list_t *c_parts;
+        rd_kafka_error_t *error;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        if (!(c_parts = py_to_c_parts(tlist)))
+                return NULL;
+
+        self->u.Consumer.rebalance_incremental_unassigned++;
+
+        error = rd_kafka_incremental_unassign(self->rk, c_parts);
+
+        rd_kafka_topic_partition_list_destroy(c_parts);
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
 
 static PyObject *Consumer_assignment (Handle *self, PyObject *args,
                                       PyObject *kwargs) {
@@ -1022,7 +1101,7 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
 static PyMethodDef Consumer_methods[] = {
 	{ "subscribe", (PyCFunction)Consumer_subscribe,
 	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None])\n"
+	  ".. py:function:: subscribe(topics, [on_assign=None], [on_revoke=None], [on_lost=None])\n"
 	  "\n"
 	  "  Set subscription to supplied list of topics\n"
 	  "  This replaces a previous subscription.\n"
@@ -1039,6 +1118,12 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :param callable on_revoke: callback to provide handling of "
 	  "offset commits to a customized store on the start of a "
 	  "rebalance operation.\n"
+	  "  :param callable on_lost: callback to provide handling in "
+	  "the case the partition assignment has been lost. If not "
+	  "specified, lost partition events will be delivered to "
+	  "on_revoke, if specified. Partitions that have been lost may "
+	  "already be owned by other members in the group and therefore "
+	  "committing offsets, for example, may fail.\n"
 	  "\n"
 	  "  :raises KafkaException:\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
@@ -1046,6 +1131,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  ".. py:function:: on_assign(consumer, partitions)\n"
 	  ".. py:function:: on_revoke(consumer, partitions)\n"
+	  ".. py:function:: on_lost(consumer, partitions)\n"
 	  "\n"
 	  "  :param Consumer consumer: Consumer instance.\n"
 	  "  :param list(TopicPartition) partitions: Absolute list of partitions being assigned or revoked.\n"
@@ -1062,7 +1148,7 @@ static PyMethodDef Consumer_methods[] = {
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: poll([timeout=None])\n"
 	  "\n"
-	  "  Consume messages, calls callbacks and returns events.\n"
+	  "  Consumes a single message, calls callbacks and returns events.\n"
 	  "\n"
 	  "  The application must check the returned :py:class:`Message` "
 	  "object's :py:func:`Message.error()` method to distinguish "
@@ -1082,20 +1168,23 @@ static PyMethodDef Consumer_methods[] = {
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: consume([num_messages=1], [timeout=-1])\n"
 	  "\n"
-	  "  Consume messages, calls callbacks and returns list of messages "
-	  "(possibly empty on timeout).\n"
+	  "  Consumes a list of messages (possibly empty on timeout). "
+          "Callbacks may be executed as a side effect of calling this method.\n"
 	  "\n"
 	  "  The application must check the returned :py:class:`Message` "
 	  "object's :py:func:`Message.error()` method to distinguish "
-	  "between proper messages (error() returns None), or an event or "
-	  "error for each :py:class:`Message` in the list (see error().code() "
-	  "for specifics).\n"
+	  "between proper messages (error() returns None) and errors "
+      "for each :py:class:`Message` in the list (see error().code() "
+	  "for specifics). If the enable.partition.eof configuration "
+      "property is set to True, partition EOF events will also be "
+      "exposed as Messages with error().code() set to "
+      "_PARTITION_EOF.\n"
 	  "\n"
 	  "  .. note: Callbacks may be called from this method, "
 	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
 	  "\n"
-	  "  :param int num_messages: Maximum number of messages to return (default: 1).\n"
-	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (-1)). (Seconds)\n"
+	  "  :param int num_messages: The maximum number of messages to return (default: 1).\n"
+	  "  :param float timeout: The maximum time to block waiting for message, event or callback (default: infinite (-1)). (Seconds)\n"
 	  "  :returns: A list of Message objects (possibly empty on timeout)\n"
 	  "  :rtype: list(Message)\n"
           "  :raises RuntimeError: if called on a closed consumer\n"
@@ -1106,10 +1195,34 @@ static PyMethodDef Consumer_methods[] = {
 	{ "assign", (PyCFunction)Consumer_assign, METH_O,
 	  ".. py:function:: assign(partitions)\n"
 	  "\n"
-	  "  Set consumer partition assignment to the provided list of "
-	  ":py:class:`TopicPartition` and starts consuming.\n"
+	  "  Set the consumer partition assignment to the provided list of "
+	  ":py:class:`TopicPartition` and start consuming.\n"
 	  "\n"
-	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming.\n"
+	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
+          "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
+	  "\n"
+	},
+        { "incremental_assign", (PyCFunction)Consumer_incremental_assign, METH_O,
+          ".. py:function:: incremental_assign(partitions)\n"
+          "\n"
+          "  Incrementally add the provided list of :py:class:`TopicPartition`s "
+          "to the current partition assignment. This list must not contain "
+          "duplicate entries, or any entry corresponding to an already "
+          "assigned partition. When a COOPERATIVE assignor (i.e. incremental "
+          "rebalancing) is being used, this method may be used in the on_assign "
+          "callback to update the current assignment and specify start offsets. "
+          "The application should pass a list of partitions identical to the "
+          "list passed to the callback, even if the list is empty. Note that if "
+          "you do not call incremental_assign in your on_assign handler, this "
+          "will be done automatically and start offsets will be the last committed "
+          "offsets, or determined via the auto offset reset policy "
+          "(auto.offset.reset) if there "
+          "are none. This method may also be used outside the context of a "
+          "rebalance callback.\n"
+          "\n"
+	  "  :param list(TopicPartition) partitions: List of topic+partitions and optionally initial offsets to start consuming from.\n"
+          "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
 	  "\n"
 	},
@@ -1120,6 +1233,25 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises RuntimeError: if called on a closed consumer\n"
           "\n"
         },
+	{ "incremental_unassign", (PyCFunction)Consumer_incremental_unassign, METH_O,
+	  ".. py:function:: incremental_unassign(partitions)\n"
+	  "\n"
+	  "  Incrementally remove the provided list of :py:class:`TopicPartition` "
+          "from the current partition assignment. This list must not contain "
+          "dupliate entries and all entries specified must be part of the "
+          "current assignment. When a COOPERATIVE assignor (i.e. incremental "
+          "rebalancing) is being used, this method may be used in the on_revoke "
+          "or on_lost callback to update the current assignment. The application "
+          "should pass a list of partitions identical to the list passed to the "
+          "callback. This method may also be used outside the context of a "
+          "rebalance callback. The value of the `TopicPartition` offset field "
+          "is ignored by this method.\n"
+	  "\n"
+	  "  :param list(TopicPartition) partitions: List of topic+partitions to remove from the current assignment.\n"
+          "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
+	  "\n"
+	},
         { "assignment", (PyCFunction)Consumer_assignment,
           METH_VARARGS|METH_KEYWORDS,
           "  Returns the current partition assignment.\n"
@@ -1152,15 +1284,17 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  Commit a message or a list of offsets.\n"
 	  "\n"
-	  "  ``message`` and ``offsets`` are mutually exclusive, if neither is set "
+	  "  The ``message`` and ``offsets`` parameters are mutually exclusive. If neither is set, "
 	  "the current partition assignment's offsets are used instead. "
-	  "The consumer relies on your use of this method if you have set 'enable.auto.commit' to False\n"
+	  "Use this method to commit offsets if you have 'enable.auto.commit' set to False.\n"
 	  "\n"
-	  "  :param confluent_kafka.Message message: Commit message's offset+1.\n"
+	  "  :param confluent_kafka.Message message: Commit the message's offset+1. Note: "
+          "By convention, committed offsets reflect the next message to be consumed, **not** "
+          "the last message consumed.\n"
 	  "  :param list(TopicPartition) offsets: List of topic+partitions+offsets to commit.\n"
-	  "  :param bool asynchronous: Asynchronous commit, return None immediately. "
-          "If False the commit() call will block until the commit succeeds or "
-          "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition will need to be checked for success.\n"
+	  "  :param bool asynchronous: If true, asynchronously commit, returning None immediately. "
+          "If False, the commit() call will block until the commit succeeds or "
+          "fails and the committed offsets will be returned (on success). Note that specific partitions may have failed and the .err field of each partition should be checked for success.\n"
 	  "  :rtype: None|list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
@@ -1170,11 +1304,11 @@ static PyMethodDef Consumer_methods[] = {
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: committed(partitions, [timeout=None])\n"
 	  "\n"
-	  "  Retrieve committed offsets for the list of partitions.\n"
+	  "  Retrieve committed offsets for the specified partitions.\n"
 	  "\n"
 	  "  :param list(TopicPartition) partitions: List of topic+partitions "
 	  "to query for stored offsets.\n"
-	  "  :param float timeout: Request timeout. (Seconds)\n"
+	  "  :param float timeout: Request timeout (seconds).\n"
 	  "  :returns: List of topic+partitions with offset and possibly error set.\n"
 	  "  :rtype: list(TopicPartition)\n"
 	  "  :raises: KafkaException\n"
@@ -1185,7 +1319,7 @@ static PyMethodDef Consumer_methods[] = {
 	  METH_VARARGS|METH_KEYWORDS,
 	  ".. py:function:: position(partitions)\n"
 	  "\n"
-	  "  Retrieve current positions (offsets) for the list of partitions.\n"
+	  "  Retrieve current positions (offsets) for the specified partitions.\n"
 	  "\n"
 	  "  :param list(TopicPartition) partitions: List of topic+partitions "
 	  "to return current offsets for. The current offset is the offset of the "
@@ -1242,11 +1376,11 @@ static PyMethodDef Consumer_methods[] = {
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: get_watermark_offsets(partition, [timeout=None], [cached=False])\n"
           "\n"
-          "  Retrieve low and high offsets for partition.\n"
+          "  Retrieve low and high offsets for the specified partition.\n"
           "\n"
           "  :param TopicPartition partition: Topic+partition to return offsets for.\n"
-          "  :param float timeout: Request timeout (when cached=False). (Seconds)\n"
-          "  :param bool cached: Instead of querying the broker used cached information. "
+          "  :param float timeout: Request timeout (seconds). Ignored if cached=True.\n"
+          "  :param bool cached: Instead of querying the broker, use cached information. "
           "Cached values: The low offset is updated periodically (if statistics.interval.ms is set) while "
           "the high offset is updated on each message fetched from the broker for this partition.\n"
           "  :returns: Tuple of (low,high) on success or None on timeout. "
@@ -1260,16 +1394,16 @@ static PyMethodDef Consumer_methods[] = {
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: offsets_for_times(partitions, [timeout=None])\n"
           "\n"
-          " offsets_for_times looks up offsets by timestamp for the given partitions.\n"
+          " Look up offsets by timestamp for the specified partitions.\n"
           "\n"
-          " The returned offsets for each partition is the earliest offset whose\n"
+          " The returned offset for each partition is the earliest offset whose\n"
           " timestamp is greater than or equal to the given timestamp in the\n"
           " corresponding partition. If the provided timestamp exceeds that of the\n"
           " last message in the partition, a value of -1 will be returned.\n"
           "\n"
           "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field.\n"
-          "  :param float timeout: Request timeout. (Seconds)\n"
-          "  :returns: list of topic+partition with offset field set and possibly error set\n"
+          "  :param float timeout: Request timeout (seconds).\n"
+          "  :returns: List of topic+partition with offset field set and possibly error set\n"
           "  :rtype: list(TopicPartition)\n"
           "  :raises: KafkaException\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
@@ -1281,9 +1415,9 @@ static PyMethodDef Consumer_methods[] = {
 	  "\n"
 	  "  Actions performed:\n"
 	  "\n"
-	  "  - Stops consuming\n"
-	  "  - Commits offsets - except if the consumer property 'enable.auto.commit' is set to False\n"
-	  "  - Leave consumer group\n"
+	  "  - Stops consuming.\n"
+	  "  - Commits offsets, unless the consumer property 'enable.auto.commit' is set to False.\n"
+	  "  - Leaves the consumer group.\n"
 	  "\n"
 	  "  .. note: Registered callbacks may be called from this method, "
 	  "see :py:func::`poll()` for more info.\n"
@@ -1298,8 +1432,8 @@ static PyMethodDef Consumer_methods[] = {
           (PyCFunction)Consumer_consumer_group_metadata, METH_NOARGS,
           ".. py:function:: consumer_group_metadata()\n"
           "\n"
-          " :returns: the consumer's current group metadata. "
-          "This object should be passed to the transactional producer's "
+          " :returns: An opaque object representing the consumer's current "
+          "group metadata for passing to the transactional producer's "
           "send_offsets_to_transaction() API.\n"
           "\n"
         },
@@ -1314,15 +1448,22 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 				   void *opaque) {
 	Handle *self = opaque;
 	CallState *cs;
+        PyObject *cb;
 
 	cs = CallState_get(self);
 
 	self->u.Consumer.rebalance_assigned = 0;
+	self->u.Consumer.rebalance_incremental_assigned = 0;
+        self->u.Consumer.rebalance_incremental_unassigned = 0;
 
 	if ((err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS &&
-	     self->u.Consumer.on_assign) ||
-	    (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
-	     self->u.Consumer.on_revoke)) {
+             self->u.Consumer.on_assign) ||
+            (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
+	     self->u.Consumer.on_revoke) ||
+            (err == RD_KAFKA_RESP_ERR__REVOKE_PARTITIONS &&
+             self->u.Consumer.on_lost &&
+             rd_kafka_assignment_lost(rk))) {
+
 		PyObject *parts;
 		PyObject *args, *result;
 
@@ -1341,10 +1482,15 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 			return;
 		}
 
-		result = PyObject_CallObject(
-			err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS ?
-			self->u.Consumer.on_assign :
-			self->u.Consumer.on_revoke, args);
+                if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
+                        cb = self->u.Consumer.on_assign;
+                else if (rd_kafka_assignment_lost(rk) &&
+                         self->u.Consumer.on_lost)
+                        cb = self->u.Consumer.on_lost;
+                else /* revoke */
+                        cb = self->u.Consumer.on_revoke;
+
+		result = PyObject_CallObject(cb, args);
 
 		Py_DECREF(args);
 
@@ -1356,18 +1502,48 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		}
 	}
 
-	/* Fallback: librdkafka needs the rebalance_cb to call assign()
-	 * to synchronize state, if the user did not do this from callback,
-	 * or there was no callback, or the callback failed, then we perform
-	 * that assign() call here instead. */
-	if (!self->u.Consumer.rebalance_assigned) {
-		if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
-			rd_kafka_assign(rk, c_parts);
-		else
-			rd_kafka_assign(rk, NULL);
-	}
+        /* Fallback: librdkafka needs the rebalance_cb to call assign()
+         * to synchronize state, if the user did not do this from callback,
+         * or there was no callback, or the callback failed, then we perform
+         * that assign() call here instead. */
+        if (!(self->u.Consumer.rebalance_assigned ||
+              self->u.Consumer.rebalance_incremental_assigned ||
+              self->u.Consumer.rebalance_incremental_unassigned)) {
+                const char *rebalance_protocol =
+                        rd_kafka_rebalance_protocol(rk);
+                if (rebalance_protocol &&
+                    !strcmp(rebalance_protocol, "COOPERATIVE")) {
+                        rd_kafka_error_t *error = NULL;
 
-	CallState_resume(cs);
+                        if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
+                                error = rd_kafka_incremental_assign(rk,
+                                                                    c_parts);
+                        else
+                                error = rd_kafka_incremental_unassign(rk,
+                                                                      c_parts);
+
+                        if (error) {
+                                cfl_PyErr_from_error_destroy(error);
+                                CallState_crash(cs);
+                        }
+
+                } else {
+                        rd_kafka_resp_err_t assign_err;
+
+                        if (err == RD_KAFKA_RESP_ERR__ASSIGN_PARTITIONS)
+                                assign_err = rd_kafka_assign(rk, c_parts);
+                        else
+                                assign_err = rd_kafka_assign(rk, NULL);
+
+                        if (assign_err) {
+                                cfl_PyErr_Format(assign_err,
+                                                 "Partition assignment failed");
+                                CallState_crash(cs);
+                        }
+                }
+        }
+
+        CallState_resume(cs);
 }
 
 
@@ -1444,7 +1620,7 @@ PyTypeObject ConsumerType = {
 	0,                         /*tp_as_buffer*/
 	Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC, /*tp_flags*/
-        "A high-level Apache Kafka Consumer\n"
+        "A high-level Apache Kafka consumer\n"
         "\n"
         ".. py:function:: Consumer(config)\n"
         "\n"
@@ -1452,8 +1628,8 @@ PyTypeObject ConsumerType = {
         "including properties and callback functions). "
         "See :ref:`pythonclient_configuration` for more information."
         "\n\n"
-        ":param dict config: Configuration properties. At a minimum "
-        "``group.id`` **must** be set, ``bootstrap.servers`` **should** be set."
+        ":param dict config: Configuration properties. At a minimum, "
+        "``group.id`` **must** be set and ``bootstrap.servers`` **should** be set."
         "\n", /*tp_doc*/
 	(traverseproc)Consumer_traverse, /* tp_traverse */
 	(inquiry)Consumer_clear, /* tp_clear */

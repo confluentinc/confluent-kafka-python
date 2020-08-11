@@ -58,7 +58,11 @@ case ${1:-} in
         run_unit $@
         run_native $@
         ;;
-    *)
+    "native")
         run_native $@
+        ;;
+    *)
+        echo $"Usage: $0 {unit|tox|native|all}"
+        exit 1
         ;;
 esac

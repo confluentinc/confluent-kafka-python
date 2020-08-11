@@ -12,8 +12,9 @@ await_http() {
     local exit_code
     local attempt=0
 
+    echo "Awaiting $1..."
     until curl ${2} || [[ ${attempt} -gt 5 ]]; do
-        echo "awaiting $1..."
+        echo "Still awaiting $1..."
         let "attempt+=1"
         sleep 6
     done
@@ -37,11 +38,10 @@ docker-compose -f $PY_DOCKER_COMPOSE_FILE up -d
 
 echo "Setting throttle for throttle test..."
 docker-compose -f $PY_DOCKER_COMPOSE_FILE exec kafka sh -c "
-        /usr/bin/kafka-configs  --zookeeper zookeeper:2181 \
+        /usr/bin/kafka-configs  --bootstrap-server kafka:9092 \
                 --alter --add-config 'producer_byte_rate=1,consumer_byte_rate=1,request_percentage=001' \
                 --entity-name throttled_client --entity-type clients"
 
 await_http "schema-registry" "http://localhost:8081"
 
 await_http "schema-registry-basic-auth" "http://localhost:8083"
-

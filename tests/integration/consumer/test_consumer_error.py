@@ -29,7 +29,7 @@ def test_consume_error(kafka_cluster):
     an instance of ConsumeError.
     """
     topic = kafka_cluster.create_topic("test_commit_transaction")
-    consumer_conf = {'enable.partition.eof': True}
+    consumer_conf = {'group.id': 'pytest', 'enable.partition.eof': True}
 
     producer = kafka_cluster.producer()
     producer.produce(topic=topic, value="a")

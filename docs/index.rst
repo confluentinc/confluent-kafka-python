@@ -1,41 +1,39 @@
-The confluent_kafka API
-=======================
+confluent_kafka API
+===================
 
-A reliable, performant and feature rich Python client for Apache Kafka v0.8 and above.
+A reliable, performant and feature-rich Python client for Apache Kafka v0.8 and above.
+
+Configuration
+   - :ref:`Configuration Guide <pythonclient_configuration>`
 
 Client API
    - :ref:`AdminClient <pythonclient_adminclient>`
    - :ref:`Consumer <pythonclient_consumer>`
-       - :ref:`DeserializingConsumer <serde_consumer>`
+   - :ref:`DeserializingConsumer <serde_consumer>` (new API subject to change)
+   - :ref:`AvroConsumer <avro_consumer>` (legacy)
    - :ref:`Producer <pythonclient_producer>`
-       - :ref:`SerializingProducer <serde_producer>`
+   - :ref:`SerializingProducer <serde_producer>` (new API subject to change)
+   - :ref:`AvroProducer <avro_producer>` (legacy)
    - :ref:`SchemaRegistry <schemaregistry_client>`
 
-   - :ref:`AvroConsumer(Legacy) <avro_consumer>`
-   - :ref:`AvroProducer(Legacy) <avro_producer>`
 
 Serialization API
-    - :ref:`Deserializer <serde_deserializer>`
-            - :ref:`AvroDeserializer <schemaregistry_avro_deserializer>`
-            - :ref:`DoubleDeserializer <serde_deserializer_double>`
-            - :ref:`JSONDeserializer <schemaregistry_json_deserializer>`
-            - :ref:`IntegerDeserializer <serde_deserializer_integer>`
-            - :ref:`ProtobufDeserializer <schemaregistry_protobuf_deserializer>`
-            - :ref:`StringDeserializer <serde_deserializer_string>`
+   - Serializer
+      - :ref:`AvroDeserializer <schemaregistry_avro_deserializer>`
+      - :ref:`DoubleDeserializer <serde_deserializer_double>`
+      - :ref:`JSONDeserializer <schemaregistry_json_deserializer>`
+      - :ref:`IntegerDeserializer <serde_deserializer_integer>`
+      - :ref:`ProtobufDeserializer <schemaregistry_protobuf_deserializer>`
+      - :ref:`StringDeserializer <serde_deserializer_string>`
 
+   - Deserializer
+      - :ref:`AvroSerializer <schemaregistry_avro_serializer>`
+      - :ref:`DoubleSerializer <serde_serializer_double>`
+      - :ref:`JSONSerializer <schemaregistry_json_serializer>`
+      - :ref:`IntegerSerializer <serde_serializer_integer>`
+      - :ref:`ProtobufSerializer <schemaregistry_protobuf_serializer>`
+      - :ref:`StringSerializer <serde_serializer_string>`
 
-    - :ref:`Serializer <serde_Serializer>`
-            - :ref:`AvroSerializer <schemaregistry_avro_serializer>`
-            - :ref:`DoubleSerializer <serde_serializer_double>`
-            - :ref:`JSONSerializer <schemaregistry_json_serializer>`
-            - :ref:`IntegerSerializer <serde_serializer_integer>`
-            - :ref:`ProtobufSerializer <schemaregistry_protobuf_serializer>`
-            - :ref:`StringSerializer <serde_serializer_string>`
-
-
-:ref:`Transactional Producer API <pythonclient_transactional>`
-
-:ref:`Kafka Client Configuration <pythonclient_configuration>`
 
 Supporting classes
     - :ref:`Message <pythonclient_message>`
@@ -52,9 +50,8 @@ Supporting classes
             - :ref:`KeyDeserializationError <serde_error_deserializer_key>`
             - :ref:`ValueDeserializationError <serde_error_deserializer_value>`
 
+Guide to the :ref:`Transactional Producer API <pythonclient_transactional>`
 
-
-:ref:`genindex`
 
 
 Kafka Clients
