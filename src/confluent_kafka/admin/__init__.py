@@ -1,5 +1,5 @@
 """
-Kafka Admin client: create, view, alter, delete topics and resources.
+Kafka admin client: create, view, alter, and delete topics and resources.
 """
 from ..cimpl import (KafkaException, # noqa
                      _AdminClientImpl,
@@ -25,36 +25,24 @@ from enum import Enum
 
 class ConfigSource(Enum):
     """
-    Config sources returned in ConfigEntry by `describe_configs()`.
+    Enumerates the different sources of configuration properties.
+    Used by ConfigEntry to specify the
+    source of configuration properties returned by `describe_configs()`.
     """
-    UNKNOWN_CONFIG = CONFIG_SOURCE_UNKNOWN_CONFIG  #:
-    DYNAMIC_TOPIC_CONFIG = CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG  #:
-    DYNAMIC_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG  #:
-    DYNAMIC_DEFAULT_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG  #:
-    STATIC_BROKER_CONFIG = CONFIG_SOURCE_STATIC_BROKER_CONFIG  #:
-    DEFAULT_CONFIG = CONFIG_SOURCE_DEFAULT_CONFIG  #:
+    UNKNOWN_CONFIG = CONFIG_SOURCE_UNKNOWN_CONFIG  #: Unknown
+    DYNAMIC_TOPIC_CONFIG = CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG  #: Dynamic Topic
+    DYNAMIC_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG  #: Dynamic Broker
+    DYNAMIC_DEFAULT_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG  #: Dynamic Default Broker
+    STATIC_BROKER_CONFIG = CONFIG_SOURCE_STATIC_BROKER_CONFIG  #: Static Broker
+    DEFAULT_CONFIG = CONFIG_SOURCE_DEFAULT_CONFIG  #: Default
 
 
 class ConfigEntry(object):
     """
-    ConfigEntry is returned by describe_configs() for each configuration
-    entry for the specified resource.
+    Represents a configuration property. Returned by describe_configs() for each configuration
+    entry of the specified resource.
 
     This class is typically not user instantiated.
-
-    :ivar str name: Configuration property name.
-    :ivar str value: Configuration value (or None if not set or is_sensitive==True).
-    :ivar ConfigSource source: Configuration source.
-    :ivar bool is_read_only: Indicates if configuration property is read-only.
-    :ivar bool is_default: Indicates if configuration property is using its default value.
-    :ivar bool is_sensitive: Indicates if configuration property value
-                              contains sensitive information
-                              (such as security settings),
-                              in which case .value is None.
-    :ivar bool is_synonym: Indicates if configuration property is a
-                            synonym for the parent configuration entry.
-    :ivar list synonyms: A ConfigEntry list of synonyms and alternate sources for this configuration property.
-
     """
 
     def __init__(self, name, value,
@@ -68,14 +56,23 @@ class ConfigEntry(object):
         This class is typically not user instantiated.
         """
         super(ConfigEntry, self).__init__()
+
         self.name = name
+        """Configuration property name."""
         self.value = value
+        """Configuration value (or None if not set or is_sensitive==True)."""
         self.source = source
+        """Configuration source."""
         self.is_read_only = bool(is_read_only)
+        """Indicates whether the configuration property is read-only."""
         self.is_default = bool(is_default)
+        """Indicates whether the configuration property is using its default value."""
         self.is_sensitive = bool(is_sensitive)
+        """Indicates whether the configuration property value contains sensitive information (such as security settings), in which case .value is None."""
         self.is_synonym = bool(is_synonym)
+        """Indicates whether the configuration property is a synonym for the parent configuration entry."""
         self.synonyms = synonyms
+        """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
 
     def __repr__(self):
         return "ConfigEntry(%s=\"%s\")" % (self.name, self.value)
@@ -87,28 +84,37 @@ class ConfigEntry(object):
 @functools.total_ordering
 class ConfigResource(object):
     """
-    Class representing resources that have configs.
+    Represents a resource that has configuration, and (optionally)
+    a collection of configuration properties for that resource. Used by
+    describe_configs() and alter_configs().
 
-    Instantiate with a resource type and a resource name.
+    Parameters
+    ----------
+    restype : `ConfigResource.Type`
+       The resource type.
+    name : `str`
+       The resource name, which depends on the resource type. For RESOURCE_BROKER, the resource name is the broker id.
+    set_config : `dict`
+        The configuration to set/overwrite. Dictionary of str, str.
     """
 
     class Type(Enum):
         """
-        ConfigResource.Type depicts the type of a Kafka resource.
+        Enumerates the different types of Kafka resources.
         """
         UNKNOWN = RESOURCE_UNKNOWN  #: Resource type is not known or not set.
         ANY = RESOURCE_ANY  #: Match any resource, used for lookups.
-        TOPIC = RESOURCE_TOPIC  #: Topic resource. Resource name is topic name
-        GROUP = RESOURCE_GROUP  #: Group resource. Resource name is group.id
-        BROKER = RESOURCE_BROKER  #: Broker resource. Resource name is broker id
+        TOPIC = RESOURCE_TOPIC  #: Topic resource. Resource name is topic name.
+        GROUP = RESOURCE_GROUP  #: Group resource. Resource name is group.id.
+        BROKER = RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
 
     def __init__(self, restype, name,
                  set_config=None, described_configs=None, error=None):
         """
         :param ConfigResource.Type restype: Resource type.
-        :param str name: Resource name, depending on restype.
-                          For RESOURCE_BROKER the resource name is the broker id.
-        :param dict set_config: Configuration to set/overwrite. Dict of str, str.
+        :param str name: The resource name, which depends on restype.
+                         For RESOURCE_BROKER, the resource name is the broker id.
+        :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
         """
@@ -166,16 +172,17 @@ class ConfigResource(object):
 
     def set_config(self, name, value, overwrite=True):
         """
-        Set/Overwrite configuration entry
+        Set/overwrite a configuration value.
 
-        Any configuration properties that are not included will be reverted to their default values.
-        As a workaround use describe_configs() to retrieve the current configuration and
-        overwrite the settings you want to change.
+        When calling alter_configs, any configuration properties that are not included
+        in the request will be reverted to their default values. As a workaround, use
+        describe_configs() to retrieve the current configuration and overwrite the
+        settings you want to change.
 
         :param str name: Configuration property name
         :param str value: Configuration value
-        :param bool overwrite: If True overwrite entry if already exists (default).
-                               If False do nothing if entry already exists.
+        :param bool overwrite: If True, overwrite entry if it already exists (default).
+                               If False, do nothing if entry already exists.
         """
         if not overwrite and name in self.set_config_dict:
             return
@@ -187,10 +194,10 @@ class AdminClient (_AdminClientImpl):
     AdminClient provides admin operations for Kafka brokers, topics, groups,
     and other resource types supported by the broker.
 
-    The Admin API methods are asynchronous and returns a dict of
+    The Admin API methods are asynchronous and return a dict of
     concurrent.futures.Future objects keyed by the entity.
     The entity is a topic name for create_topics(), delete_topics(), create_partitions(),
-    and a ConfigResource for alter_configs(), describe_configs().
+    and a ConfigResource for alter_configs() and describe_configs().
 
     All the futures for a single API call will currently finish/fail at
     the same time (backed by the same protocol request), but this might
@@ -198,8 +205,8 @@ class AdminClient (_AdminClientImpl):
 
     See examples/adminapi.py for example usage.
 
-    For more information see the Java Admin API documentation:
-    https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/clients/admin/package-frame.html
+    For more information see the `Java Admin API documentation
+    <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/clients/admin/package-frame.html>`_.
 
     Requires broker version v0.11.0.0 or later.
     """
@@ -291,22 +298,23 @@ class AdminClient (_AdminClientImpl):
 
     def create_topics(self, new_topics, **kwargs):
         """
-        Create new topics in cluster.
+        Create one or more new topics.
 
-        The future result() value is None.
-
-        :param list(NewTopic) new_topics: New topics to be created.
-        :param float operation_timeout: Set broker's operation timeout in seconds,
+        :param list(NewTopic) new_topics: A list of specifictions (NewTopic) for
+                  the topics that should be created.
+        :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreateTopics request will block
                   on the broker waiting for the topic creation to propagate
                   in the cluster. A value of 0 returns immediately. Default: 0
-        :param float request_timeout: Set the overall request timeout in seconds,
+        :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
-        :param bool validate_only: Tell broker to only validate the request,
+        :param bool validate_only: If true, the request is only validated
                   without creating the topic. Default: False
 
-        :returns: a dict of futures for each topic, keyed by the topic name.
+        :returns: A dict of futures for each topic, keyed by the topic name.
+                  The future result() method returns None.
+
         :rtype: dict(<topic_name, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
@@ -324,20 +332,20 @@ class AdminClient (_AdminClientImpl):
 
     def delete_topics(self, topics, **kwargs):
         """
-        Delete topics.
+        Delete one or more topics.
 
-        The future result() value is None.
-
-        :param list(str) topics: Topics to mark for deletion.
-        :param float operation_timeout: Set broker's operation timeout in seconds,
+        :param list(str) topics: A list of topics to mark for deletion.
+        :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the DeleteTopics request will block
                   on the broker waiting for the topic deletion to propagate
                   in the cluster. A value of 0 returns immediately. Default: 0
-        :param float request_timeout: Set the overall request timeout in seconds,
+        :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: a dict of futures for each topic, keyed by the topic name.
+        :returns: A dict of futures for each topic, keyed by the topic name.
+                  The future result() method returns None.
+
         :rtype: dict(<topic_name, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
@@ -356,20 +364,20 @@ class AdminClient (_AdminClientImpl):
         """
         Create additional partitions for the given topics.
 
-        The future result() value is None.
-
         :param list(NewPartitions) new_partitions: New partitions to be created.
-        :param float operation_timeout: Set broker's operation timeout in seconds,
+        :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreatePartitions request will block
                   on the broker waiting for the partition creation to propagate
                   in the cluster. A value of 0 returns immediately. Default: 0
-        :param float request_timeout: Set the overall request timeout in seconds,
+        :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
-        :param bool validate_only: Tell broker to only validate the request,
+        :param bool validate_only: If true, the request is only validated
                   without creating the partitions. Default: False
 
-        :returns: a dict of futures for each topic, keyed by the topic name.
+        :returns: A dict of futures for each topic, keyed by the topic name.
+                  The future result() method returns None.
+
         :rtype: dict(<topic_name, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
@@ -387,23 +395,22 @@ class AdminClient (_AdminClientImpl):
 
     def describe_configs(self, resources, **kwargs):
         """
-        Get configuration for the specified resources.
-
-        The future result() value is a dict(<configname, ConfigEntry>).
+        Get the configuration of the specified resources.
 
         :warning: Multiple resources and resource types may be requested,
                   but at most one resource of type RESOURCE_BROKER is allowed
                   per call since these resource requests must be sent to the
                   broker specified in the resource.
 
-        :param list(ConfigResource) resources: Resources to get configuration for.
-        :param float request_timeout: Set the overall request timeout in seconds,
+        :param list(ConfigResource) resources: Resources to get the configuration for.
+        :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
-        :param bool validate_only: Tell broker to only validate the request,
-                  without creating the partitions. Default: False
 
-        :returns: a dict of futures for each resource, keyed by the ConfigResource.
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The type of the value returned by the future result() method is
+                  dict(<configname, ConfigEntry>).
+
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
@@ -420,14 +427,12 @@ class AdminClient (_AdminClientImpl):
 
     def alter_configs(self, resources, **kwargs):
         """
-        Update configuration values for the specified resources.
+        Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
         of the provided resources while the others fail.
         The configuration for a particular resource is updated atomically,
         replacing the specified values while reverting unspecified configuration
         entries to their default values.
-
-        The future result() value is None.
 
         :warning: alter_configs() will replace all existing configuration for
                   the provided resources with the new configuration given,
@@ -439,14 +444,16 @@ class AdminClient (_AdminClientImpl):
                   per call since these resource requests must be sent to the
                   broker specified in the resource.
 
-        :param list(ConfigResource) resources: Resources to update configuration for.
-        :param float request_timeout: Set the overall request timeout in seconds,
+        :param list(ConfigResource) resources: Resources to update configuration of.
+        :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`.
-        :param bool validate_only: Tell broker to only validate the request,
+        :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
 
-        :returns: a dict of futures for each resource, keyed by the ConfigResource.
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The future result() method returns None.
+
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
@@ -464,25 +471,24 @@ class AdminClient (_AdminClientImpl):
 
 class ClusterMetadata (object):
     """
-    ClusterMetadata as returned by list_topics() contains information
-    about the Kafka cluster, brokers, and topics.
+    Provides information about the Kafka cluster, brokers, and topics.
+    Returned by list_topics().
 
     This class is typically not user instantiated.
-
-    :ivar str cluster_id: Cluster id string, if supported by broker, else None.
-    :ivar id controller_id: Current controller broker id, or -1.
-    :ivar dict brokers: Map of brokers indexed by the int broker id. Value is BrokerMetadata object.
-    :ivar dict topics: Map of topics indexed by the topic name. Value is TopicMetadata object.
-    :ivar int orig_broker_id: The broker this metadata originated from.
-    :ivar str orig_broker_name: Broker name/address this metadata originated from.
     """
     def __init__(self):
         self.cluster_id = None
+        """Cluster id string, if supported by the broker, else None."""
         self.controller_id = -1
+        """Current controller broker id, or -1."""
         self.brokers = {}
+        """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
         self.topics = {}
+        """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
         self.orig_broker_id = -1
+        """The broker this metadata originated from."""
         self.orig_broker_name = None
+        """The broker name/address this metadata originated from."""
 
     def __repr__(self):
         return "ClusterMetadata({})".format(self.cluster_id)
@@ -493,18 +499,17 @@ class ClusterMetadata (object):
 
 class BrokerMetadata (object):
     """
-    BrokerMetadata contains information about a Kafka broker.
+    Provides information about a Kafka broker.
 
     This class is typically not user instantiated.
-
-    :ivar int id: Broker id.
-    :ivar str host: Broker hostname.
-    :ivar int port: Broker port.
     """
     def __init__(self):
         self.id = -1
+        """Broker id"""
         self.host = None
+        """Broker hostname"""
         self.port = -1
+        """Broker port"""
 
     def __repr__(self):
         return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
@@ -515,21 +520,20 @@ class BrokerMetadata (object):
 
 class TopicMetadata (object):
     """
-    TopicMetadata contains information about a Kafka topic.
+    Provides information about a Kafka topic.
 
     This class is typically not user instantiated.
-
-    :ivar str -topic: Topic name.
-    :ivar dict partitions: Map of partitions indexed by partition id. Value is PartitionMetadata object.
-    :ivar KafkaError -error: Topic error, or None. Value is a KafkaError object.
     """
     # The dash in "-topic" and "-error" is needed to circumvent a
     # Sphinx issue where it tries to reference the same instance variable
     # on other classes which raises a warning/error.
     def __init__(self):
         self.topic = None
+        """Topic name"""
         self.partitions = {}
+        """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
         self.error = None
+        """Topic error, or None. Value is a KafkaError object."""
 
     def __repr__(self):
         if self.error is not None:
@@ -543,27 +547,26 @@ class TopicMetadata (object):
 
 class PartitionMetadata (object):
     """
-    PartitionsMetadata contains information about a Kafka partition.
+    Provides information about a Kafka partition.
 
     This class is typically not user instantiated.
 
-    :ivar int id: Partition id.
-    :ivar int leader: Current leader broker for this partition, or -1.
-    :ivar list(int) replicas: List of replica broker ids for this partition.
-    :ivar list(int) isrs: List of in-sync-replica broker ids for this partition.
-    :ivar KafkaError -error: Partition error, or None. Value is a KafkaError object.
-
     :warning: Depending on cluster state the broker ids referenced in
-              leader, replicas and isrs may temporarily not be reported
+              leader, replicas and ISRs may temporarily not be reported
               in ClusterMetadata.brokers. Always check the availability
               of a broker id in the brokers dict.
     """
     def __init__(self):
         self.id = -1
+        """Partition id."""
         self.leader = -1
+        """Current leader broker for this partition, or -1."""
         self.replicas = []
+        """List of replica broker ids for this partition."""
         self.isrs = []
+        """List of in-sync-replica broker ids for this partition."""
         self.error = None
+        """Partition error, or None. Value is a KafkaError object."""
 
     def __repr__(self):
         if self.error is not None:
@@ -576,48 +579,46 @@ class PartitionMetadata (object):
 
 
 class GroupMember(object):
-    """Group member information
+    """Provides information about a group member.
 
-    For more information on metadata format, see
-    https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-GroupMembershipAPI
+    For more information on the metadata format, refer to:
+    `A Guide To The Kafka Protocol <https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-GroupMembershipAPI>`_.
 
     This class is typically not user instantiated.
-
-    :ivar str id: Member id (generated by broker)
-    :ivar str client_id: Client id
-    :ivar str client_host: Client hostname
-    :ivar bytes metadata: Member metadata(binary), format depends on protocol type
-    :ivar bytes assignment: Member assignment(binary), format depends on protocol type
     """
     def __init__(self,):
         self.id = None
+        """Member id (generated by broker)."""
         self.client_id = None
+        """Client id."""
         self.client_host = None
+        """Client hostname."""
         self.metadata = None
+        """Member metadata(binary), format depends on protocol type."""
         self.assignment = None
+        """Member assignment(binary), format depends on protocol type."""
 
 
 class GroupMetadata(object):
-    """GroupMetadata contains information about a Kafka consumer group
+    """GroupMetadata provides information about a Kafka consumer group
 
     This class is typically not user instantiated.
-
-    :ivar BrokerMetadata broker: Originating broker metadata
-    :ivar str id: Group name
-    :ivar KafkaError -error: Broker-originated error, or None. Value is a KafkaError object.
-    :ivar str state: Group state
-    :ivar str protocol_type: Group protocol type
-    :ivar str protocol: Group protocol
-    :ivar list(GroupMember) members: Group members
     """
     def __init__(self):
         self.broker = None
+        """Originating broker metadata."""
         self.id = None
+        """Group name."""
         self.error = None
+        """Broker-originated error, or None. Value is a KafkaError object."""
         self.state = None
+        """Group state."""
         self.protocol_type = None
+        """Group protocol type."""
         self.protocol = None
+        """Group protocol."""
         self.members = []
+        """Group members."""
 
     def __repr__(self):
         if self.error is not None:

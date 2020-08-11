@@ -1,73 +1,114 @@
-# Conventions Used in This Document
-Unless otherwise noted all commands, file and directory references are relative to the *source root* directory.
+# Running the Tests
 
-## Terminology
- - modes: Collection of integration tests to be run
- - testconf: [JSON](https://tools.ietf.org/html/rfc8259) formatted configuration file.
-        Example: [tests/testconf-example.json](./tests/testconf-example.json) for formatting.
+**Note:** Unless otherwise stated, all command, file and directory references are relative to the *repo's root* directory.
 
-Unit tests
-==========
-From top-level directory run:
+A python3 env suitable for running tests:
 
-    $ ./tests/run.sh tox
+    $ python3 -m venv venv_test
+    $ source venv_test/bin/activate
+    $ pip install -r test/requirements.txt
+    $ python setup.py build
+    $ python setup.py install
 
-**NOTE**: This requires `tox` ( please install with `pip install tox` ) and several supported versions of Python.
+When you're finished with it:
 
-If tox is not installed:
+    $ deactivate
 
-    $ ./tests/run.sh unit
+## Unit tests
 
-Integration tests
-=================
+"Unit" tests are the ones directly in the `./test` directory. These tests do
+not require an active Kafka cluster.
 
-### Requirements
- 1. docker-compose 3.0 +
- 2. docker-engine 1.13.0+
- 3. **Optional:** tox (enables testing against multiple interpreter versions)
+You can run them selectively like so:
 
-### Cluster setup
-**Note** Manual cluster set up is not required when using ./tests/run.sh
+    $ pytest -s -v tests/test_Producer.py
 
-    $ ./tests/docker/bin/cluster_up.sh
+Or run them all with:
 
-### Cluster teardown
-**Note** Manual cluster teardown is not required when using ./tests/run.sh
+    $ pytest -s -v tests/test_*.py
 
-    $ ./tests/docker/bin/cluster_down.sh
+Note that the -v flag enables verbose output and -s flag disables capture of stderr and stdout (so that you see it on the console).
 
-### Configuration
-Tests are configured with a JSON configuration file referred to as `testconf.json` to be provided as the last argument upon test execution.
-
-Advanced users can reference the provided configuration file, [testconf.json](integration/testconf.json), if modification is required.
-Most developers however should use the defaults.
-
-### Running tests
-To run the entire test suite:
-
-From the source root directory ...
-
-- With tox installed (will run against all supported interpreters)
-  1. Uncomment the following line from [tox.ini](../tox.ini)
-    - ```#python tests/integration/integration_test.py```
-  2. Execute the following script
-    - ```$ ./tests/run.sh tox```
-
-- Without tox (will run against current interpreter)
-  - ```$ ./tests/run.sh all```
-
-To run just the unit tests
+You can also use ./tests/run.sh to run the unit tests:
 
     $ ./tests/run.sh unit
 
-To run a specific integration test `mode` or set of `modes` use the following syntax
 
-    $ ./tests/run.sh <test mode 1> <test mode 2>..
+## Integration tests
 
-For example:
+Integration tests are currently transitioning from one framework to another.
 
-    $ ./tests/run.sh --producer --consumer
+### The Old Way
 
-To get a list of integration test `modes` simply supply the `help` option
+The original integration tests do not utilise `pytest` and are all specified in `./test/integration_test.py`. These tests expect a Kafka cluster and Schema Registry instances to already be running.
 
-    $ ./tests/run.sh --help
+The easiest way to arrange for this is:
+
+    ./tests/docker/bin/cluster_up.sh
+
+And also:
+
+    source ./tests/docker/.env
+
+which sets environment variables referenced by `./tests/integration/testconf.json`.
+
+You can then run the tests as follows:
+
+    python ./tests/integration/integration_test.py ./tests/integration/testconf.json
+
+Or selectively using via specifying one or more options ("modes"). You can see all of these via:
+
+    python ./tests/integration/integration_test.py --help
+
+
+### The New Way
+
+The newer integration tests utilise `pytest` and define the `kafka_cluster` fixture (in `./tests/integration/conftest.py`) which uses [trivup](https://github.com/edenhill/trivup) to bring up a Kafka Cluster and Schema Registry instance automatically.
+
+You can run these tests selectively like so:
+
+    pytest -v -s ./tests/integration/consumer/test_consumer_error.py
+
+#### Bring your own cluster
+
+If you would like to avoid creating / destroying a cluster each time you run a
+test and you have a test cluster running, you can set the BROKERS environment
+variable which will automatically make the integration tests use those brokers
+as the `bootstrap.servers` instead of creating a new cluster for each test
+run, e.g.:
+
+```bash
+
+$ export BROKERS=localhost:9092
+# SR_URL is optional and only required for Schema-registry tests
+$ export SR_URL=http://localhost:1234/
+```
+
+
+#### Troubleshooting
+
+If for some reason these tests aren't working, you can add `'debug': True` to the config property list in `./tests/integration/conftest.py` to debug the cause.
+
+Note that the following error is benign:
+
+```
+tests/integration/consumer/test_consumer_error.py::test_consume_error [2020-12-02 12:09:15.649905] KafkaBrokerApp-2: Failed to set RLIMIT_NOFILE(9223372036854775807,9223372036854775807): current limit exceeds maximum limit
+```
+
+
+### Running with Tox
+
+Tox can be used to test against various supported Python versions (py27, py36, py38):
+
+1. You need to have tox installed:
+
+    ```pip install tox```
+
+2. Uncomment the following line in [tox.ini](../tox.ini)
+
+    ```#python tests/integration/integration_test.py```
+
+3. From top-level directory run:
+
+    ```$ ./tests/run.sh tox```
+

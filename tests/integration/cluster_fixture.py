@@ -152,7 +152,7 @@ class KafkaClusterFixture(object):
         if self._admin is None:
             self._admin = AdminClient(self.client_conf())
 
-        name = prefix + str(uuid1())
+        name = prefix + "-" + str(uuid1())
         future_topic = self._admin.create_topics([NewTopic(name,
                                                            **self._topic_conf(conf))])
 
@@ -173,7 +173,7 @@ class KafkaClusterFixture(object):
         """
 
         if self._producer is None:
-            self._producer = Producer(self.client_conf({'linger.ms': 500}))
+            self._producer = self.producer(self.client_conf({'linger.ms': 500}))
 
         if value_source is None:
             value_source = ['test-data{}'.format(i) for i in range(0, 100)]
@@ -270,3 +270,37 @@ class TrivupFixture(KafkaClusterFixture):
 
     def stop(self):
         self._cluster.stop(cleanup=True)
+
+
+class ByoFixture(KafkaClusterFixture):
+    """
+    A Kafka cluster fixture that assumes an already running cluster as specified
+    by bootstrap.servers, and optionally schema.registry.url, in the conf dict.
+    """
+
+    def __init__(self, conf):
+        if conf.get("bootstrap.servers", "") == "":
+            raise ValueError("'bootstrap.servers' must be set in the "
+                             "conf dict")
+        self._admin = None
+        self._producer = None
+        self._conf = conf.copy()
+        self._sr_url = self._conf.pop("schema.registry.url", None)
+
+    def schema_registry(self, conf=None):
+        if self._sr_url is None:
+            raise RuntimeError("No Schema-registry available in Byo cluster")
+        return SchemaRegistryClient({"url": self._sr_url})
+
+    def client_conf(self, conf=None):
+        """
+        The client configuration
+        """
+        client_conf = self._conf.copy()
+        if conf is not None:
+            client_conf.update(conf)
+
+        return client_conf
+
+    def stop(self):
+        pass

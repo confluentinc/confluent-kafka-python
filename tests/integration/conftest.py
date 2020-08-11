@@ -15,22 +15,53 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import os
 
 import pytest
 
 from tests.integration.cluster_fixture import TrivupFixture
+from tests.integration.cluster_fixture import ByoFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
+def create_trivup_cluster():
+    return TrivupFixture({'with_sr': True,
+                          'debug': True,
+                          'cp_version': 'latest',
+                          'broker_conf': ['transaction.state.log.replication.factor=1',
+                                          'transaction.state.log.min.isr=1']})
+
+
+def create_byo_cluster(conf):
+    """
+    The cluster's bootstrap.servers must be set in dict.
+    """
+    return ByoFixture(conf)
+
+
 @pytest.fixture(scope="package")
 def kafka_cluster():
+    """
+    If BROKERS environment variable is set to a CSV list of bootstrap servers
+    an existing cluster is used.
+    Additionally, if SR_URL environment variable is set the Schema-Registry
+    client will use the given URL.
 
-    cluster = TrivupFixture({'with_sr': True,
-                             'cp_version': 'latest',
-                             'broker_conf': ['transaction.state.log.replication.factor=1',
-                                             'transaction.state.log.min.isr=1']})
+    If BROKERS is not set a TrivUp cluster is created and used.
+    """
+
+    bootstraps = os.environ.get("BROKERS", "")
+    if bootstraps != "":
+        conf = {"bootstrap.servers": bootstraps}
+        sr_url = os.environ.get("SR_URL", "")
+        if sr_url != "":
+            conf["schema.registry.url"] = sr_url
+        print("Using ByoFixture with config from env variables: ", conf)
+        cluster = create_byo_cluster(conf)
+    else:
+        cluster = create_trivup_cluster()
     try:
         yield cluster
     finally:
