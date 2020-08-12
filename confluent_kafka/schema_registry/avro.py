@@ -45,7 +45,7 @@ class _ContextStringIO(BytesIO):
         return False
 
 
-def _schema_loads(schema_str):
+def _schema_loads(schema_str, schema_references):
     """
     Instantiates a Schema instance from a declaration string
 
@@ -65,7 +65,7 @@ def _schema_loads(schema_str):
     if schema_str[0] != "{":
         schema_str = '{"type":"' + schema_str + '"}'
 
-    return Schema(schema_str, schema_type='AVRO')
+    return Schema(schema_str, schema_type='AVRO', references=schema_references)
 
 
 class AvroSerializer(Serializer):
@@ -139,7 +139,7 @@ class AvroSerializer(Serializer):
     _default_conf = {'auto.register.schemas': True,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client,
+    def __init__(self, schema_str, schema_references, schema_registry_client,
                  to_dict=None, conf=None):
         self._registry = schema_registry_client
         self._schema_id = None
@@ -170,7 +170,7 @@ class AvroSerializer(Serializer):
                              .format(", ".join(conf_copy.keys())))
 
         # convert schema_str to Schema instance
-        schema = _schema_loads(schema_str)
+        schema = _schema_loads(schema_str, schema_references)
         schema_dict = loads(schema.schema_str)
         parsed_schema = parse_schema(schema_dict)
         # The Avro spec states primitives have a name equal to their type
