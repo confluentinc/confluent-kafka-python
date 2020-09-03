@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # flake8: noqa
 # Copyright 2019 Confluent Inc.
 #
@@ -13,12 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 # Companion code to the blog post "Integrating Kafka With Python
 # Asyncio Web Applications"
 # https://www.confluent.io/blog/kafka-python-asyncio-integration/
-
+#
 # Example Siege [https://github.com/JoeDog/siege] test:
 # $ siege -c 400 -r 200 'http://localhost:8000/items1 POST {"name":"testuser"}'
+
 
 import asyncio
 import confluent_kafka
