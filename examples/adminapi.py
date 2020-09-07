@@ -274,6 +274,19 @@ def example_list(a, args):
                   " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
                                                 p.isrs, errstr))
 
+    groups = a.list_groups(timeout=10)
+    print(" {} consumer groups".format(len(groups)))
+    for g in groups:
+        if g.error is not None:
+            errstr = ": {}".format(t.error)
+        else:
+            errstr = ""
+
+        print(" \"{}\" with {} member(s){}".format(g, len(g.members), errstr))
+
+        for m in g.members:
+            print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
