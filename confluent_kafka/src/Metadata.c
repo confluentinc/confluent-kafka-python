@@ -240,7 +240,7 @@ static PyObject *c_brokers_to_py (Handle *self,
                 PyObject *broker;
                 PyObject *key;
 
-                broker = PyObject_CallObject(BrokerMetadata_type, NULL);
+                broker = c_broker_to_py(self, BrokerMetadata_type, c_brokers[i]);
                 if (!broker)
                         goto err;
 
@@ -253,19 +253,6 @@ static PyObject *c_brokers_to_py (Handle *self,
                 }
 
                 Py_DECREF(broker);
-
-                if (PyObject_SetAttrString(broker, "id", key) == -1) {
-                        Py_DECREF(key);
-                        goto err;
-                }
-                Py_DECREF(key);
-
-                if (cfl_PyObject_SetString(broker, "host",
-                                           c_brokers[i].host) == -1)
-                        goto err;
-                if (cfl_PyObject_SetInt(broker, "port",
-                                        (int)c_brokers[i].port) == -1)
-                        goto err;
         }
 
         Py_DECREF(BrokerMetadata_type);
