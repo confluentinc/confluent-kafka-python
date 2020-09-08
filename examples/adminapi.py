@@ -233,7 +233,7 @@ def example_delta_alter_configs(a, args):
 
 
 def example_list(a, args):
-    """ list topics and cluster metadata """
+    """ list topics, groups and cluster metadata """
 
     if len(args) == 0:
         what = "all"
@@ -252,40 +252,39 @@ def example_list(a, args):
             else:
                 print("  {}".format(b))
 
-    if what not in ("all", "topics"):
-        return
-
-    print(" {} topics:".format(len(md.topics)))
-    for t in iter(md.topics.values()):
-        if t.error is not None:
-            errstr = ": {}".format(t.error)
-        else:
-            errstr = ""
-
-        print("  \"{}\" with {} partition(s){}".format(t, len(t.partitions), errstr))
-
-        for p in iter(t.partitions.values()):
-            if p.error is not None:
-                errstr = ": {}".format(p.error)
+    if what in ("all", "topics"):
+        print(" {} topics:".format(len(md.topics)))
+        for t in iter(md.topics.values()):
+            if t.error is not None:
+                errstr = ": {}".format(t.error)
             else:
                 errstr = ""
 
-            print("partition {} leader: {}, replicas: {},"
-                  " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
-                                                p.isrs, errstr))
+            print("  \"{}\" with {} partition(s){}".format(t, len(t.partitions), errstr))
 
-    groups = a.list_groups(timeout=10)
-    print(" {} consumer groups".format(len(groups)))
-    for g in groups:
-        if g.error is not None:
-            errstr = ": {}".format(t.error)
-        else:
-            errstr = ""
+            for p in iter(t.partitions.values()):
+                if p.error is not None:
+                    errstr = ": {}".format(p.error)
+                else:
+                    errstr = ""
 
-        print(" \"{}\" with {} member(s){}".format(g, len(g.members), errstr))
+                print("partition {} leader: {}, replicas: {},"
+                      " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
+                                                    p.isrs, errstr))
 
-        for m in g.members:
-            print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+    if what in ("all", "groups"):
+        groups = a.list_groups(timeout=10)
+        print(" {} consumer groups".format(len(groups)))
+        for g in groups:
+            if g.error is not None:
+                errstr = ": {}".format(t.error)
+            else:
+                errstr = ""
+
+            print(" \"{}\" with {} member(s){}".format(g, len(g.members), errstr))
+
+            for m in g.members:
+                print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
 if __name__ == '__main__':
@@ -300,7 +299,7 @@ if __name__ == '__main__':
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
-        sys.stderr.write(' list [<all|topics|brokers>]\n')
+        sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
