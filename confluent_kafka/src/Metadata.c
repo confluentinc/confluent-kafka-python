@@ -203,16 +203,21 @@ static PyObject *c_broker_to_py(Handle *self, PyObject *BrokerMetadata_type,
 
         if (PyObject_SetAttrString(broker, "id", key) == -1) {
                 Py_DECREF(key);
+                Py_DECREF(broker);
                 return NULL;
         }
         Py_DECREF(key);
 
         if (cfl_PyObject_SetString(broker, "host",
-                                        c_broker.host) == -1)
+                                        c_broker.host) == -1) {
+                Py_DECREF(broker);
                 return NULL;
+        }
         if (cfl_PyObject_SetInt(broker, "port",
-                                (int)c_broker.port) == -1)
+                                (int)c_broker.port) == -1) {
+                Py_DECREF(broker);
                 return NULL;
+        }
         return broker;
 }
 
@@ -417,14 +422,13 @@ const char list_topics_doc[] = PyDoc_STR(
         "\n"
         " :param str topic: If specified, only request info about this topic, else return for all topics in cluster. Warning: If auto.create.topics.enable is set to true on the broker and an unknown topic is specified it will be created.\n"
         " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
-        " :rtype: ClusterMetadata \n"
-        " :raises: KafkaException \n");
+        " :rtype: ClusterMetadata\n"
+        " :raises: KafkaException\n");
 
 
 static PyObject *
 c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_members,
-                      int member_cnt)
-{
+                      int member_cnt) {
         PyObject *GroupMember_type, *list;
         int i;
 
@@ -521,7 +525,7 @@ c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
                 if (!group)
                         goto err;
 
-                if (cfl_PyObject_SetString(group, "group",
+                if (cfl_PyObject_SetString(group, "id",
                                            group_list->groups[i].group) == -1)
                         goto err;
 
@@ -623,11 +627,11 @@ end:
 const char list_groups_doc[] = PyDoc_STR(
         ".. py:function:: list_groups([group=None], [timeout=-1])\n"
         "\n"
-        " Request Metadata from cluster.\n"
+        " Request Group Metadata from cluster.\n"
         " This method provides the same information as"
         " listGroups(), describeGroups() in the Java Admin client.\n"
         "\n"
-        " :param str group: If specified, only reqeust info about this group, else return for all groups in cluster"
+        " :param str group: If specified, only request info about this group, else return for all groups in cluster"
         " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
-        " :rtype: GroupMetadata \n"
-        " :raises: KafkaException \n");
+        " :rtype: GroupMetadata\n"
+        " :raises: KafkaException\n");

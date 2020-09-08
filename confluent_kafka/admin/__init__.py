@@ -603,7 +603,7 @@ class GroupMetadata(object):
     This class is typically not user instantiated.
 
     :ivar BrokerMetadata broker: Originating broker metadata
-    :ivar str group: Group name
+    :ivar str id: Group name
     :ivar KafkaError -error: Broker-originated error, or None. Value is a KafkaError object.
     :ivar str state: Group state
     :ivar str protocol_type: Group protocol type
@@ -612,7 +612,7 @@ class GroupMetadata(object):
     """
     def __init__(self):
         self.broker = None
-        self.group = None
+        self.id = None
         self.error = None
         self.state = None
         self.protocol_type = None
@@ -621,9 +621,9 @@ class GroupMetadata(object):
 
     def __repr__(self):
         if self.error is not None:
-            return "GroupMetadata({}, {})".format(self.group, self.error)
+            return "GroupMetadata({}, {})".format(self.id, self.error)
         else:
-            return "GroupMetadata({})".format(self.group)
+            return "GroupMetadata({})".format(self.id)
 
     def __str__(self):
-        return self.group
+        return self.id
