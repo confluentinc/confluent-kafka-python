@@ -25,7 +25,8 @@ DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
 
 SCHEMA_REGISTRY_REQUIRES = ['requests']
 
-AVRO_REQUIRES = ['fastavro>=0.23.0',
+AVRO_REQUIRES = ['fastavro>=0.23.0,<1.0;python_version<"3.0"',
+                 'fastavro>=1.0;python_version>"3.0"',
                  'avro==1.10.0;python_version<"3.0"',
                  'avro-python3==1.10.0;python_version>"3.0"'
                  ] + SCHEMA_REGISTRY_REQUIRES
