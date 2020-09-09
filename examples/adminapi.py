@@ -281,7 +281,8 @@ def example_list(a, args):
             else:
                 errstr = ""
 
-            print(" \"{}\" with {} member(s){}".format(g, len(g.members), errstr))
+            print(" \"{}\" with {} member(s), protocol: {}, protocol_type: {}{}".format(
+                  g, len(g.members), g.protocol, g.protocol_type, errstr))
 
             for m in g.members:
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
