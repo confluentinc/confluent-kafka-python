@@ -15,7 +15,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from fastavro.schema import SchemaParseException, UnknownType
+try:
+    from fastavro.schema import SchemaParseException, UnknownType
+except ImportError:
+    pass
 
 __all__ = ['SchemaRegistryError', 'SchemaParseException', 'UnknownType']
 
