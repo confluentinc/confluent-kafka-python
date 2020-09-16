@@ -383,8 +383,7 @@ def test_api_subject_config_update(kafka_cluster, load_file):
     sr.set_compatibility(subject_name=subject,
                          level="FULL_TRANSITIVE")
 
-    assert sr.get_compatibility(
-        subject_name=subject)['compatibilityLevel'] == "FULL_TRANSITIVE"
+    assert sr.get_compatibility(subject_name=subject) == "FULL_TRANSITIVE"
 
 
 def test_api_config_invalid(kafka_cluster):
@@ -415,7 +414,7 @@ def test_api_config_update(kafka_cluster):
 
     for level in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
         sr.set_compatibility(level=level)
-        assert sr.get_compatibility()['compatibilityLevel'] == level
+        assert sr.get_compatibility() == level
 
 
 def test_api_register_logical_schema(kafka_cluster, load_file):

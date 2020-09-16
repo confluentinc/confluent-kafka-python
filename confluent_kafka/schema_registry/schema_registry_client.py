@@ -618,7 +618,8 @@ class SchemaRegistryClient(object):
         else:
             url = 'config'
 
-        return self._rest_client.get(url)
+        result = self._rest_client.get(url)
+        return result['compatibilityLevel']
 
 
 class Schema(object):
