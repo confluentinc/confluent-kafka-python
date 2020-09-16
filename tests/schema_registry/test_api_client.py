@@ -378,9 +378,17 @@ def test_schema_equivilence(load_avsc):
     assert schema_str1 == schema_str2
 
 
-@pytest.mark.parametrize('subject_name,expected_compatibility', [('conflict', False), ('test-key', True)])
+@pytest.mark.parametrize(
+    'subject_name,version,expected_compatibility',
+    [
+        ('conflict', 'latest', False),
+        ('conflict', 1, False),
+        ('test-key', 'latest', True),
+        ('test-key', 1, True),
+    ]
+)
 def test_test_compatibility_no_error(
-    mock_schema_registry, load_avsc, subject_name, expected_compatibility
+    mock_schema_registry, load_avsc, subject_name, version, expected_compatibility
 ):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)
@@ -395,8 +403,8 @@ def test_test_compatibility_no_error(
     [
         ('notfound', 'latest', 'Subject not found', 404, 40401),
         ('invalid', 'latest', 'Invalid Schema', 422, 42201),
-        ('test-key', 'version', 'Invalid version', 422, 42202),
-        ('test-key', 404, 'Version not found', 404, 40402),
+        ('invalid', '422', 'Invalid version', 422, 42202),
+        ('notfound', 404, 'Version not found', 404, 40402),
     ]
 )
 def test_test_compatibility_with_error(
