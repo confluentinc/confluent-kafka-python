@@ -127,6 +127,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
     compatibility = re.compile("/config/?(.*)$")
+    compatibility_subjects_versions = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
 
     # constants
     SCHEMA_ID = 47
@@ -168,6 +169,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                              json=self.delete_subject_version_callback)
         adapter.register_uri('POST', self.subject_versions,
                              json=self.post_subject_version_callback)
+        adapter.register_uri('POST', self.compatibility_subjects_versions,
+                             json=self.post_compatibility_subjects_versions_callback)
 
         adapter.add_matcher(self._auth_matcher)
         self._rest_client.session.mount('http://', adapter)
@@ -347,6 +350,44 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         else:
             context.status_code = 200
             return {'id': self.SCHEMA_ID}
+
+    def post_compatibility_subjects_versions_callback(self, request, context):
+        self.counter['POST'][request.path] += 1
+
+        path_match = re.match(self.compatibility_subjects_versions, request.path)
+        subject = path_match.group(1)
+        version_str = path_match.group(2)
+        if subject == 'conflict':
+            context.status_code = 200
+            return {'is_compatible': False}
+        elif subject == 'notfound':
+            context.status_code = 404
+            return {'error_code': 40401,
+                    'message': 'Subject not found'}
+        elif subject == 'invalid':
+            context.status_code = 422
+            return {'error_code': 42201,
+                    'message': "Invalid Schema"}
+        else:
+            if version_str == 'latest':
+                version = self.VERSIONS[-1]
+            else:
+                try:
+                    version = int(version_str)
+                except ValueError:
+                    context.status_code = 422
+                    return {'error_code': 42202,
+                            'message': 'Invalid version'}
+            if version in self.VERSIONS:
+                context.status_code = 200
+                return {'is_compatible': True}
+            else:
+                context.status_code = 404
+                return {'error_code': 40402,
+                        'message': "Version not found"}
+
+
+
 
 
 @pytest.fixture("package")

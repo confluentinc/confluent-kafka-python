@@ -376,3 +376,37 @@ def test_schema_equivilence(load_avsc):
     assert schema == schema2
     assert schema_str1.__eq__(schema_str2)
     assert schema_str1 == schema_str2
+
+
+@pytest.mark.parametrize('subject_name,expected_compatibility', [('conflict', False), ('test-key', True)])
+def test_test_compatibility_no_error(
+    mock_schema_registry, load_avsc, subject_name, expected_compatibility
+):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+
+    is_compatible = sr.test_compatibility(subject_name, schema)
+    assert is_compatible is expected_compatibility
+
+
+@pytest.mark.parametrize(
+    'subject_name,version,match_str,status_code,error_code',
+    [
+        ('notfound', 'latest', 'Subject not found', 404, 40401),
+        ('invalid', 'latest', 'Invalid Schema', 422, 42201),
+        ('test-key', 'version', 'Invalid version', 422, 42202),
+        ('test-key', 404, 'Version not found', 404, 40402),
+    ]
+)
+def test_test_compatibility_with_error(
+    mock_schema_registry, load_avsc, subject_name, version, match_str, status_code, error_code
+):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+
+    with pytest.raises(SchemaRegistryError, match=match_str) as e:
+        sr.test_compatibility(subject_name, schema, version)
+    assert e.value.http_status_code == status_code
+    assert e.value.error_code == error_code
