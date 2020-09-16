@@ -394,9 +394,6 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return {'is_compatible': True}
 
 
-
-
-
 @pytest.fixture("package")
 def load_avsc():
     def get_handle(name):
