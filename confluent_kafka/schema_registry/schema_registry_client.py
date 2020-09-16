@@ -620,6 +620,41 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get(url)
 
+    def test_compatibility(self, subject_name, schema, version="latest"):
+        """Test the compatibility of a candidate schema for a given subject and version
+
+        Args:
+            subject_name (str): Subject name the schema is registered under
+
+            schema (Schema): Schema instance.
+
+            version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
+
+        Returns:
+            bool: True if the schema is compatible with the specified version
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `POST Test Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions-(versionId-%20version)>`_
+        """  # noqa: E501
+        request = {"schema": schema.schema_str}
+        if schema.schema_type != "AVRO":
+            request["schemaType"] = schema.schema_type
+
+        if schema.references:
+            request["references"] = [
+                {"name": ref.name, "subject": ref.subject, "version": ref.version}
+                for ref in schema.references
+            ]
+
+        response = self._rest_client.post(
+            f"compatibility/subjects/{subject_name}/versions/{version}", body=request
+        )
+
+        return response["is_compatible"]
+
 
 class Schema(object):
     """
