@@ -641,19 +641,19 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
         request = {"schema": schema.schema_str}
         if schema.schema_type != "AVRO":
-            request["schemaType"] = schema.schema_type
+            request['schemaType'] = schema.schema_type
 
         if schema.references:
-            request["references"] = [
-                {"name": ref.name, "subject": ref.subject, "version": ref.version}
+            request['references'] = [
+                {'name': ref.name, 'subject': ref.subject, 'version': ref.version}
                 for ref in schema.references
             ]
 
         response = self._rest_client.post(
-            f"compatibility/subjects/{subject_name}/versions/{version}", body=request
+            'compatibility/subjects/{}/versions/{}'.format(subject_name, version), body=request
         )
 
-        return response["is_compatible"]
+        return response['is_compatible']
 
 
 class Schema(object):
