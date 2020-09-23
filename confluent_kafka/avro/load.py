@@ -26,7 +26,7 @@ def loads(schema_str):
         if sys.version_info[0] < 3:
             return schema.parse(schema_str)
         else:
-            return schema.Parse(schema_str)
+            return schema.parse(schema_str)
     except schema.SchemaParseException as e:
         raise ClientError("Schema parse failed: %s" % (str(e)))
 
