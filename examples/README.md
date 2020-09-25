@@ -14,6 +14,7 @@ The scripts in this directory provide code examples using Confluent's Python cli
 * [protobuf_consumer.py](protobuf_consumer.py): DeserializingConsumer with ProtobufDeserializer
 * [sasl_producer.py](sasl_producer.py): SerializingProducer with SASL Authentication
 * [list_offsets.py](list_offsets.py): List committed offsets and consumer lag for group and topics
+* [oauth_producer.py](oauth_producer.py): SerializingProducer with OAuth Authentication (client credentials)
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 

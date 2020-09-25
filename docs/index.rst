@@ -459,6 +459,9 @@ The Python bindings also provide some additional configuration properties:
   This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
   https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
 
+* ``oauth_cb(oauthbearer_config_str)``: Callback for retrieving Oauth token.
+  Return value of this callback is expected to be ``(token_str, expiry_time)`` tuple.
+
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
   delivery result (success or failure).

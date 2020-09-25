@@ -1521,6 +1521,47 @@ static void log_cb (const rd_kafka_t *rk, int level,
         CallState_resume(cs);
 }
 
+static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
+        Handle *h = opaque;
+        PyObject *eo, *result;
+        CallState *cs;
+        const char *token;
+        double expiry;
+        char err_msg[2048];
+        rd_kafka_resp_err_t err_code = RD_KAFKA_RESP_ERR_NO_ERROR;
+
+        cs = CallState_get(h);
+
+        eo = Py_BuildValue("s", oauthbearer_config);
+        result = PyObject_CallFunctionObjArgs(h->oauth_cb, eo, NULL);
+        Py_DECREF(eo);
+
+        if (!result) {
+                goto err;
+        }
+        if (!PyArg_ParseTuple(result, "sd", &token, &expiry)) {
+                Py_DECREF(result);
+                PyErr_Format(PyExc_TypeError,
+                             "expect returned value from oauth_cb "
+                             "to be (token_str, expiry_time) tuple");
+                goto err;
+        }
+        err_code = rd_kafka_oauthbearer_set_token(h->rk, token, (int64_t)(expiry * 1000), "",
+                                                  NULL, 0, err_msg, sizeof(err_msg));
+        Py_DECREF(result);
+        if (err_code) {
+                PyErr_Format(PyExc_ValueError, "%s", err_msg);
+                goto err;
+        }
+        goto done;
+
+ err:
+        CallState_crash(cs);
+        rd_kafka_yield(h->rk);
+ done:
+        CallState_resume(cs);
+}
+
 /****************************************************************************
  *
  *
@@ -1949,6 +1990,25 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
                         Py_DECREF(ks);
                         continue;
+                } else if (!strcmp(k, "oauth_cb")) {
+                        if (!PyCallable_Check(vo)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "expected oauth_cb property "
+                                                "as a callable function");
+                                goto inner_err;
+                        }
+                        if (h->oauth_cb) {
+                                Py_DECREF(h->oauth_cb);
+                                h->oauth_cb = NULL;
+                        }
+
+                        if (vo != Py_None) {
+                                h->oauth_cb = vo;
+                                Py_INCREF(h->oauth_cb);
+                        }
+                        Py_XDECREF(ks8);
+                        Py_DECREF(ks);
+                        continue;
                 }
 
 		/* Special handling for certain config keys. */
@@ -2018,6 +2078,9 @@ inner_err:
                 rd_kafka_conf_set(conf, "log.queue", "true", NULL, 0);
                 rd_kafka_conf_set_log_cb(conf, log_cb);
         }
+
+        if (h->oauth_cb)
+                rd_kafka_conf_set_oauthbearer_token_refresh_cb(conf, oauth_cb);
 
 	rd_kafka_conf_set_opaque(conf, h);
 
