@@ -370,8 +370,15 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
 
         if (topic != NULL) {
-                if (!(only_rkt = rd_kafka_topic_new(self->rk,
-                                                    topic, NULL))) {
+                CallState_begin(self, &cs);
+
+                only_rkt = rd_kafka_topic_new(self->rk, topic, NULL);
+
+                if (!CallState_end(self, &cs)) {
+                        goto end;
+                }
+
+                if (!only_rkt) {
                         return PyErr_Format(
                                 PyExc_RuntimeError,
                                 "Unable to create topic object "
