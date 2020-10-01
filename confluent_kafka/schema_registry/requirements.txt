@@ -1,4 +1,4 @@
-fastavro>=0.23.0
+fastavro>=1.0.0.post1
 jsonschema
 protobuf
 requests
