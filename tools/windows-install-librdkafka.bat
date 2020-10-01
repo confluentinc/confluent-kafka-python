@@ -13,7 +13,7 @@ rem Download required (but missing) system includes
 curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/inttypes.h -o inttypes.h || exit /b 1
 curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/stdint.h -o stdint.h || exit /b 1
 
-for %%V in (27, 35, 36, 37) do (
+for %%V in (27, 35, 36, 37, 38) do (
     call tools\windows-copy-librdkafka.bat %librdkafka_version% c:\Python%%~V || exit /b 1
 )
 
