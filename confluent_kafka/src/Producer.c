@@ -145,7 +145,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
                 goto done;
 
 	msgobj = Message_new0(self, rkm);
-	
+
         args = Py_BuildValue("(OO)", ((Message *)msgobj)->error, msgobj);
 
 	Py_DECREF(msgobj);
@@ -532,6 +532,36 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         Py_RETURN_NONE;
 }
 
+static void *Producer_purge (Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
+        int in_queue = 1;
+        int in_flight = 1;
+        int blocking = 1;
+        int purge_strategy = 0;
+
+        rd_kafka_resp_err_t err;
+        static char *kws[] = { "in_queue", "in_flight", "blocking", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws, &in_queue, &in_flight, &blocking))
+                return NULL;
+        if (in_queue)
+                purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
+        if (in_flight) 
+                purge_strategy |= RD_KAFKA_PURGE_F_INFLIGHT;
+        if (blocking)
+                purge_strategy |= RD_KAFKA_PURGE_F_NON_BLOCKING;
+
+        err = rd_kafka_purge(self->rk, purge_strategy);
+
+        if (err) {
+                cfl_PyErr_Format(err, "Purge failed: %s", rd_kafka_err2str(err));
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
 static PyMethodDef Producer_methods[] = {
 	{ "produce", (PyCFunction)Producer_produce,
 	  METH_VARARGS|METH_KEYWORDS,
@@ -596,6 +626,18 @@ static PyMethodDef Producer_methods[] = {
 	  ".. note:: See :py:func:`poll()` for a description on what "
 	  "callbacks may be triggered.\n"
 	  "\n"
+	},
+	{ "purge", (PyCFunction)Producer_purge, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: purge([in_queue=True], [in_flight=True], [blocking=True])\n"
+          "\n"
+	  "   Purge messages currently handled by the producer instance.\n"
+	  "   The application will need to call poll() or flush() "
+	  "afterwards to serve the delivery report callbacks of the purged messages."
+	  "\n"
+	  "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
+	  "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
+	  "  :param: bool blocking: If set to False, will not wait on background thread queue\n"
+	  "purging to finish. By default, true."
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
