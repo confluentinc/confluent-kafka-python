@@ -22,6 +22,7 @@ install:
   - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
   - python --version
   - python -m pip install -U pip
+  - python -m pip install -U -r tests/requirements.txt
 
 build_script:
   - tools/windows-build.bat
