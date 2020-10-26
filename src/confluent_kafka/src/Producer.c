@@ -228,7 +228,7 @@ Producer_produce0 (Handle *self,
 static PyObject *Producer_produce (Handle *self, PyObject *args,
 				       PyObject *kwargs) {
 	const char *topic, *value = NULL, *key = NULL;
-	int value_len = 0, key_len = 0;
+        Py_ssize_t value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
 	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
         long long timestamp = 0;
