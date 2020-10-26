@@ -16,7 +16,7 @@
 # limit
 #
 
-from confluent_kafka.cimpl import KafkaError
+from confluent_kafka import KafkaError
 from confluent_kafka.error import ConsumeError, \
     ProduceError
 

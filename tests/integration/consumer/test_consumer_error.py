@@ -17,7 +17,7 @@
 #
 
 import pytest
-from confluent_kafka.cimpl import TopicPartition, OFFSET_END
+from confluent_kafka import TopicPartition, OFFSET_END, KafkaError
 
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.serialization import StringSerializer
@@ -39,6 +39,8 @@ def test_consume_error(kafka_cluster):
                                       value_deserializer=StringSerializer())
     consumer.assign([TopicPartition(topic, 0, OFFSET_END)])
 
-    with pytest.raises(ConsumeError, match="No more messages"):
+    with pytest.raises(ConsumeError) as exc_info:
         # Trigger EOF error
         consumer.poll()
+    assert exc_info.value.args[0].code() == KafkaError._PARTITION_EOF, \
+        "Expected _PARTITION_EOF, not {}".format(exc_info)
