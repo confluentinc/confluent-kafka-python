@@ -6,7 +6,7 @@ from distutils.core import Extension
 import platform
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
-mod_dir = os.path.join(work_dir, 'confluent_kafka')
+mod_dir = os.path.join(work_dir, 'src', 'confluent_kafka')
 ext_dir = os.path.join(mod_dir, 'src')
 
 INSTALL_REQUIRES = [
@@ -70,7 +70,8 @@ setup(name='confluent-kafka',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
-      packages=find_packages(exclude=("tests", "tests.*")),
+      packages=find_packages('src'),
+      package_dir={'': 'src'},
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
       extras_require={
