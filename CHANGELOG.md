@@ -1,5 +1,22 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.5.2
+
+v1.5.2 is a maintenance release with the following fixing and enhancements:
+
+ - Add producer purge method with optional blocking argument (@peteryin21, #548)
+ - Add AdminClient.list_groups API (@messense, #948)
+ - Rename asyncio.py example to avoid circular import (#945)
+ - Upgrade bundled OpenSSL to v1.1.1h (from v1.0.2u)
+
+confluent-kafka-python is based on librdkafka v1.5.2, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.5.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+**Note: There was no v1.5.1 release**
+
+
 ## v1.5.0
 
 v1.5.0 is a maintenance release with the following fixes and enhancements:
