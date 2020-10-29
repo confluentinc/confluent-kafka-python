@@ -1,33 +1,33 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.5.0
+  - LIBRDKAFKA_VERSION=v1.5.2
 jobs:
  include:
-  # Source package verification with Python 2.7
-  - os: linux
+  - name: "Source package verification with Python 2.7 (Linux)"
+    os: linux
     language: python
     dist: trusty
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-  # Source package verification with Python 3.6
-  - os: linux
+  - name: "Source package verification with Python 3.6 (Linux)"
+    os: linux
     language: python
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-  # Source package verification with Python 2.7
-  - os: osx
+  - name: "Source package verification with Python 2.7 (OSX)"
+    os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-  # Source package verification with Python 3.6
-  - os: osx
+  - name: "Source package verification with Python 3.6 (OSX) +docs"
+    os: osx
     python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-  # cibuildwheel for osx
-  - os: osx
+  - name: "cibuildwheel (OSX)"
+    os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib" INTERPRETER_VERSION="2.7.17"
-  # cibuildwheel for manylinux
-  - os: linux
+  - name: "cibuildwheel (manylinux)"
+    os: linux
     dist: trusty
     env:
       - CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}"
@@ -53,22 +53,20 @@ before_install:
 install:
  - tools/install-interceptors.sh
  - pip install -r tests/requirements.txt
+ - pip install tox
  - flake8
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  - if [[ -z $CIBW_BEFORE_BUILD ]]; then tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build && pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro]; fi
 
 # Build wheels
-script:
- - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
-
 # Make plugins available for tests
 # Execute tests if not CIBW_BEFORE_BUILD [osx, linux]
 # Execute integration tests if CIBW_BEFORE_BUILD
 # Build docs if MK_DOCS
-after_script:
+script:
+ - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "osx" ]]; then DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs py.test --timeout=60 --ignore=tmp-build --import-mode append; fi
+ - [[ -n $CIBW_BEFORE_BUILD ]] || LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs tox
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-wheel.sh wheelhouse; fi
  - if [[ $MK_DOCS == y ]]; then make docs; fi
 

@@ -183,7 +183,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         # We only support the BASIC scheme today
         scheme, userinfo = authinfo.split(" ")
-        if b64decode(userinfo) == cls.USERINFO:
+        if b64decode(userinfo).decode('utf-8') == cls.USERINFO:
             return None
 
         unauthorized = {'error_code': 401,
@@ -349,7 +349,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             return {'id': self.SCHEMA_ID}
 
 
-@pytest.fixture("package")
+@pytest.fixture(scope="package")
 def load_avsc():
     def get_handle(name):
         with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',

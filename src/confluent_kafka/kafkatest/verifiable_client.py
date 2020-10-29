@@ -86,10 +86,12 @@ class VerifiableClient(object):
             if n == 'partition.assignment.strategy':
                 # Convert Java class name to config value.
                 # "org.apache.kafka.clients.consumer.RangeAssignor" -> "range"
-                conf[n] = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
-                                 lambda x: x.group(1).lower(), v)
-            else:
-                conf[n] = v
+                v = re.sub(r'org.apache.kafka.clients.consumer.(\w+)Assignor',
+                           lambda x: x.group(1).lower(), v)
+                if v == 'sticky':
+                    v = 'cooperative-sticky'
+
+            conf[n] = v
 
     @staticmethod
     def read_config_file(path):

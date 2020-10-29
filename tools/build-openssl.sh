@@ -6,11 +6,12 @@
 
 # NOTE: Keep this updated to make sure we always build the latest
 #       version of OpenSSL in the 1.0 release train.
-OPENSSL_VERSION=1.0.2u
+OPENSSL_VERSION=1.1.1h
 
 PREFIX=$1
 if [[ -z $PREFIX ]]; then
     echo "Usage: $0 <installation-prefix>"
+    exit 1
 fi
 
 set -ex
@@ -23,14 +24,14 @@ if ! grep -q "^VERSION=${OPENSSL_VERSION}$" build-openssl/Makefile ; then
     rm -rf build-openssl
     mkdir -p build-openssl
     pushd build-openssl
-    curl -fL https://www.openssl.org/source/old/1.0.2/openssl-${OPENSSL_VERSION}.tar.gz | \
+    curl -fL https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz | \
         tar -xz --strip-components=1 -f -
 else
     echo "Reusing existing build-openssl directory"
     pushd build-openssl
 fi
 
-./config --prefix=${PREFIX} zlib no-krb5 zlib shared
+./config --prefix=${PREFIX} zlib shared no-deprecated
 echo "## building openssl"
 if ! make -j 2>&1 | tail -20 ; then
     echo "## Make failed, cleaning up and retrying"
