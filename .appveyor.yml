@@ -23,6 +23,7 @@ environment:
 
 install:
   - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
+  - cp "c:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\include\stdint.h" "C:\Users\appveyor\AppData\Local\Programs\Common\Microsoft\Visual C++ for Python\9.0\VC\include\stdint.h"
   - python --version
   - python -m pip install -U pip
   - python -m pip install -U -r tests/requirements.txt
