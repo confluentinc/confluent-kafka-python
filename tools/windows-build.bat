@@ -3,6 +3,8 @@ rem insert librdkafka in the built wheels.
 
 echo on
 
+dir stdint.h /S /B
+
 rem For dumpbin
 set PATH=%PATH%;c:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\bin
 set
