@@ -12,10 +12,13 @@ environment:
      PYTHON_VERSION: "2.7.17"
      PYTHON_SHORTVER: "27"
      PYTHON_ARCH: "64"
-   - PYTHON: "C:\\Python36-x64"
-     PYTHON_VERSION: "3.6.8"
-     PYTHON_SHORTVER: "36"
+     CIBW_VERSION: "0.11.0"
+   - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
+     PYTHON: "C:\\Python37-x64"
+     PYTHON_VERSION: "3.7.9"
+     PYTHON_SHORTVER: "37"
      PYTHON_ARCH: "64"
+     CIBW_VERSION: "1.6.4"
      WHEEL_UPLOAD: true
 
 install:
