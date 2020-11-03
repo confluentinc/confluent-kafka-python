@@ -2,8 +2,8 @@
 
 set -eu
 
-DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-source ${DOCKER_BIN}/../.env
+PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+source ${PY_DOCKER_BIN}/../.env
 
 echo "Destroying cluster.."
-docker-compose -f ${DOCKER_CONTEXT} down -v --remove-orphans
+docker-compose -f $PY_DOCKER_COMPOSE_FILE down -v --remove-orphans

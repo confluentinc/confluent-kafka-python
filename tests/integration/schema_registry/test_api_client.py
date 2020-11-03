@@ -86,8 +86,7 @@ def test_api_register_schema_invalid(kafka_cluster, load_file):
     schema = Schema(load_file('invalid_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_invalid_schema')
 
-    with pytest.raises(SchemaRegistryError, match="Input schema is an invalid"
-                                                  " Avro schema") as e:
+    with pytest.raises(SchemaRegistryError) as e:
         sr.register_schema(subject, schema)
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42201
@@ -126,7 +125,7 @@ def test_api_get_schema_not_found(kafka_cluster, load_file):
     """
     sr = kafka_cluster.schema_registry()
 
-    with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
+    with pytest.raises(SchemaRegistryError, match="Schema .*not found.*") as e:
         sr.get_schema(999999)
 
     assert e.value.http_status_code == 404
@@ -148,7 +147,7 @@ def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
 
     subject = _subject_name("registration_subject_not_found")
 
-    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+    with pytest.raises(SchemaRegistryError, match="Subject .*not found.*") as e:
         sr.lookup_schema(subject, schema)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
@@ -265,7 +264,7 @@ def test_api_delete_subject_not_found(kafka_cluster):
 
     subject = _subject_name("test-delete_invalid_subject")
 
-    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+    with pytest.raises(SchemaRegistryError, match="Subject .*not found.*") as e:
         sr.delete_subject(subject)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
@@ -302,7 +301,7 @@ def test_api_get_subject_version_no_version(kafka_cluster, load_file):
     subject = _subject_name('test-get_subject')
     sr.register_schema(subject, schema)
 
-    with pytest.raises(SchemaRegistryError, match="Version not found") as e:
+    with pytest.raises(SchemaRegistryError, match="Version .*not found") as e:
         sr.get_version(subject, version=3)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40402
@@ -316,8 +315,9 @@ def test_api_get_subject_version_invalid(kafka_cluster, load_file):
     subject = _subject_name('test-get_subject')
     sr.register_schema(subject, schema)
 
-    with pytest.raises(SchemaRegistryError, match="The specified version is not"
-                                                  " a valid version id") as e:
+    with pytest.raises(SchemaRegistryError,
+                       match="The specified version .*is not"
+                       " a valid version id.*") as e:
         sr.get_version(subject, version='a')
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202

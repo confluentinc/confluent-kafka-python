@@ -63,12 +63,8 @@ static void Consumer_dealloc (Handle *self) {
 
                 CallState_begin(self, &cs);
 
-                /* If application has not called c.close() then
-                 * rd_kafka_destroy() will, and that might trigger
-                 * callbacks to be called from consumer_close().
-                 * This should probably be fixed in librdkafka,
-                 * or the application. */
-                rd_kafka_destroy(self->rk);
+                rd_kafka_destroy_flags(self->rk,
+                                       RD_KAFKA_DESTROY_F_NO_CONSUMER_CLOSE);
 
                 CallState_end(self, &cs);
         }
