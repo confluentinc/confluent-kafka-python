@@ -10,20 +10,20 @@ jobs:
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
-  - name: "Source package verification with Python 3.8 (Linux)"
+  - name: "Source package verification with Python 3.6 (Linux)"
     os: linux
     language: python
     dist: trusty
-    python: "3.8"
+    python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
   - name: "Source package verification with Python 2.7 (OSX)"
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-  - name: "Source package verification with Python 3.8 (OSX) +docs"
+  - name: "Source package verification with Python 3.6 (OSX) +docs"
     os: osx
-    python: "3.8"
+    python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
   - name: "cibuildwheel (OSX)"
     os: osx
