@@ -9,23 +9,28 @@ jobs:
     dist: trusty
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
+    services: docker
   - name: "Source package verification with Python 3.6 (Linux)"
     os: linux
     language: python
     dist: trusty
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
+    services: docker
   - name: "Source package verification with Python 2.7 (OSX)"
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
+    services: docker
   - name: "Source package verification with Python 3.6 (OSX) +docs"
     os: osx
     python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
+    services: docker
   - name: "cibuildwheel (OSX)"
     os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib" INTERPRETER_VERSION="2.7.17"
+    services: docker
   - name: "cibuildwheel (manylinux)"
     os: linux
     dist: trusty
