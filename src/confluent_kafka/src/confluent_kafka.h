@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
 #include <pythread.h>
@@ -41,8 +42,8 @@
  *  0xMMmmRRPP
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x01050000
-#define CFL_VERSION_STR "1.5.0"
+#define CFL_VERSION     0x01050200
+#define CFL_VERSION_STR "1.5.2"
 
 /**
  * Minimum required librdkafka version. This is checked both during
