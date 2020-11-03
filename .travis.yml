@@ -21,16 +21,13 @@ jobs:
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-    services: docker
   - name: "Source package verification with Python 3.6 (OSX) +docs"
     os: osx
     python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-    services: docker
   - name: "cibuildwheel (OSX)"
     os: osx
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib" INTERPRETER_VERSION="2.7.17"
-    services: docker
   - name: "cibuildwheel (manylinux)"
     os: linux
     dist: trusty
@@ -71,7 +68,7 @@ install:
 script:
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs tox || travis_terminate 1; fi
+ - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs tox || travis_terminate 1; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-wheel.sh wheelhouse; fi
  - if [[ $MK_DOCS == y ]]; then make docs; fi
 
