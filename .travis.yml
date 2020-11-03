@@ -66,7 +66,7 @@ install:
 script:
  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - [[ -n $CIBW_BEFORE_BUILD ]] || LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs tox
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs tox || travis_terminate 1; fi
  - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-wheel.sh wheelhouse; fi
  - if [[ $MK_DOCS == y ]]; then make docs; fi
 
