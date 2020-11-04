@@ -36,6 +36,11 @@ def test_basic_api():
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
+    try:
+        a.list_groups(timeout=0.2)
+    except KafkaException as e:
+        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
 
 @pytest.mark.skipif(libversion()[1] < 0x000b0500,
                     reason="AdminAPI requires librdkafka >= v0.11.5")

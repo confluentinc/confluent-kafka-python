@@ -6,7 +6,7 @@ from distutils.core import Extension
 import platform
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
-mod_dir = os.path.join(work_dir, 'confluent_kafka')
+mod_dir = os.path.join(work_dir, 'src', 'confluent_kafka')
 ext_dir = os.path.join(mod_dir, 'src')
 
 INSTALL_REQUIRES = [
@@ -25,7 +25,8 @@ DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
 
 SCHEMA_REGISTRY_REQUIRES = ['requests']
 
-AVRO_REQUIRES = ['fastavro>=0.23.0',
+AVRO_REQUIRES = ['fastavro>=0.23.0,<1.0;python_version<"3.0"',
+                 'fastavro>=1.0;python_version>"3.0"',
                  'avro==1.10.0;python_version<"3.0"',
                  'avro-python3==1.10.0;python_version>"3.0"'
                  ] + SCHEMA_REGISTRY_REQUIRES
@@ -63,13 +64,14 @@ def get_install_requirements(path):
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version and release in docs/conf.py.
-      version='1.5.0',
+      version='1.5.2',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
-      packages=find_packages(exclude=("tests", "tests.*")),
+      packages=find_packages('src'),
+      package_dir={'': 'src'},
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
       install_requires=INSTALL_REQUIRES,
       extras_require={

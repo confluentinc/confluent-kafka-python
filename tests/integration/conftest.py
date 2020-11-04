@@ -28,6 +28,7 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 def kafka_cluster():
 
     cluster = TrivupFixture({'with_sr': True,
+                             'cp_version': 'latest',
                              'broker_conf': ['transaction.state.log.replication.factor=1',
                                              'transaction.state.log.min.isr=1']})
     try:

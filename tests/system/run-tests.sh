@@ -24,7 +24,7 @@ export PYTHONUNBUFFERED=1
 TEST_PATH=tests/kafkatest/tests/client
 
 LIBRDKAFKA_BRANCH=master
-KAFKA_BRANCH=2.5
+KAFKA_BRANCH=2.6.0  # Tag
 REPO=https://github.com/apache/kafka.git
 
 CACHE=$WORKSPACE/cache  # Helps with reusing vagrant cluster
@@ -192,6 +192,10 @@ python setup.py develop
 # Build Python client
 cd $WORKSPACE
 build_python_client
+
+# Downgrade bcrypt since 3.2.0 no longer works with Python 2.
+# Remove this when ducktape runs on Python 3.
+pip install bcrypt==3.1.7
 
 # Run the tests
 cd $KAFKA_DIR

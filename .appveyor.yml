@@ -1,6 +1,6 @@
 environment:
   global:
-    LIBRDKAFKA_NUGET_VERSION: 1.5.0
+    LIBRDKAFKA_NUGET_VERSION: 1.5.2
     CIBW_SKIP: cp33-* cp34-*
     CIBW_TEST_REQUIRES: pytest pytest-timeout requests trivup
     # SDK v7.0 MSVC Express 2008's SetEnv.cmd script will fail if the
@@ -22,6 +22,7 @@ install:
   - SET PATH=%PYTHON%;%PYTHON%\\Scripts;%PATH%
   - python --version
   - python -m pip install -U pip
+  - python -m pip install -U -r tests/requirements.txt
 
 build_script:
   - tools/windows-build.bat

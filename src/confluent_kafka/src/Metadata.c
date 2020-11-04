@@ -190,6 +190,38 @@ c_topics_to_py (Handle *self, const rd_kafka_metadata_topic_t *c_topics,
 }
 
 
+static PyObject *c_broker_to_py(Handle *self, PyObject *BrokerMetadata_type,
+                                const rd_kafka_metadata_broker_t c_broker) {
+        PyObject *broker;
+        PyObject *key;
+
+        broker = PyObject_CallObject(BrokerMetadata_type, NULL);
+        if (!broker)
+                return NULL;
+
+        key = cfl_PyInt_FromInt(c_broker.id);
+
+        if (PyObject_SetAttrString(broker, "id", key) == -1) {
+                Py_DECREF(key);
+                Py_DECREF(broker);
+                return NULL;
+        }
+        Py_DECREF(key);
+
+        if (cfl_PyObject_SetString(broker, "host",
+                                        c_broker.host) == -1) {
+                Py_DECREF(broker);
+                return NULL;
+        }
+        if (cfl_PyObject_SetInt(broker, "port",
+                                (int)c_broker.port) == -1) {
+                Py_DECREF(broker);
+                return NULL;
+        }
+        return broker;
+}
+
+
 /**
  * @returns a dict<broker_id, BrokerMetadata>, or NULL (and exception) on error.
  */
@@ -213,7 +245,7 @@ static PyObject *c_brokers_to_py (Handle *self,
                 PyObject *broker;
                 PyObject *key;
 
-                broker = PyObject_CallObject(BrokerMetadata_type, NULL);
+                broker = c_broker_to_py(self, BrokerMetadata_type, c_brokers[i]);
                 if (!broker)
                         goto err;
 
@@ -226,19 +258,6 @@ static PyObject *c_brokers_to_py (Handle *self,
                 }
 
                 Py_DECREF(broker);
-
-                if (PyObject_SetAttrString(broker, "id", key) == -1) {
-                        Py_DECREF(key);
-                        goto err;
-                }
-                Py_DECREF(key);
-
-                if (cfl_PyObject_SetString(broker, "host",
-                                           c_brokers[i].host) == -1)
-                        goto err;
-                if (cfl_PyObject_SetInt(broker, "port",
-                                        (int)c_brokers[i].port) == -1)
-                        goto err;
         }
 
         Py_DECREF(BrokerMetadata_type);
@@ -403,5 +422,216 @@ const char list_topics_doc[] = PyDoc_STR(
         "\n"
         " :param str topic: If specified, only request info about this topic, else return for all topics in cluster. Warning: If auto.create.topics.enable is set to true on the broker and an unknown topic is specified it will be created.\n"
         " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
-        " :rtype: ClusterMetadata \n"
-        " :raises: KafkaException \n");
+        " :rtype: ClusterMetadata\n"
+        " :raises: KafkaException\n");
+
+
+static PyObject *
+c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_members,
+                      int member_cnt) {
+        PyObject *GroupMember_type, *list;
+        int i;
+
+        GroupMember_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                               "GroupMember");
+        if (!GroupMember_type)
+                return NULL;
+
+        list = PyList_New(member_cnt);
+        if (!list)
+                goto err;
+
+        for (i = 0; i < member_cnt; i++) {
+                PyObject *member, *metadata, *assignment;
+
+                member = PyObject_CallObject(GroupMember_type, NULL);
+                if (!member)
+                        goto err;
+
+                if (cfl_PyObject_SetString(member, "id", c_members[i].member_id) == -1) {
+                        goto err;
+                }
+
+                if (cfl_PyObject_SetString(member, "client_id", c_members[i].client_id) == -1) {
+                        goto err;
+                }
+
+                if (cfl_PyObject_SetString(member, "client_host", c_members[i].client_host) == -1) {
+                        goto err;
+                }
+
+                metadata = PyBytes_FromStringAndSize(c_members[i].member_metadata,
+                                                     c_members[i].member_metadata_size);
+                if (!metadata)
+                        goto err;
+
+                if (PyObject_SetAttrString(member, "metadata", metadata) == -1) {
+                        Py_DECREF(metadata);
+                        goto err;
+                }
+                Py_DECREF(metadata);
+
+                assignment = PyBytes_FromStringAndSize(c_members[i].member_assignment,
+                                                       c_members[i].member_assignment_size);
+                if (!assignment)
+                        goto err;
+
+                if (PyObject_SetAttrString(member, "assignment", assignment) == -1) {
+                        Py_DECREF(assignment);
+                        goto err;
+                }
+                Py_DECREF(assignment);
+
+                PyList_SET_ITEM(list, i, member);
+        }
+        Py_DECREF(GroupMember_type);
+        return list;
+err:
+        Py_DECREF(GroupMember_type);
+        return NULL;
+}
+
+
+/**
+ * @returns a GroupMetadata object populated with all metadata information
+ *          from \p metadata, or NULL on error in which case an exception
+ *          has been raised.
+ */
+static PyObject *
+c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
+        PyObject *GroupMetadata_type, *BrokerMetadata_type;
+        PyObject *groups;
+        int i;
+
+        GroupMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                 "GroupMetadata");
+        if (!GroupMetadata_type)
+                return NULL;
+
+        BrokerMetadata_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "BrokerMetadata");
+        if (!BrokerMetadata_type) {
+                Py_DECREF(GroupMetadata_type);
+                return NULL;
+        }
+
+        groups = PyList_New(group_list->group_cnt);
+        if (!groups)
+                goto err;
+        for (i = 0; i < group_list->group_cnt; i++) {
+                PyObject *group, *error, *broker, *members;
+
+                group = PyObject_CallObject(GroupMetadata_type, NULL);
+                if (!group)
+                        goto err;
+
+                if (cfl_PyObject_SetString(group, "id",
+                                           group_list->groups[i].group) == -1)
+                        goto err;
+
+                error = KafkaError_new_or_None(group_list->groups[i].err, NULL);
+
+                if (PyObject_SetAttrString(group, "error", error) == -1) {
+                        Py_DECREF(error);
+                        goto err;
+                }
+
+                Py_DECREF(error);
+
+                if (cfl_PyObject_SetString(group, "state",
+                                           group_list->groups[i].state) == -1)
+                        goto err;
+
+                if (cfl_PyObject_SetString(group, "protocol_type",
+                                           group_list->groups[i].protocol_type) == -1)
+                        goto err;
+
+                if (cfl_PyObject_SetString(group, "protocol",
+                                           group_list->groups[i].protocol) == -1)
+                        goto err;
+
+                broker = c_broker_to_py(self, BrokerMetadata_type, group_list->groups[i].broker);
+                if (!broker)
+                        goto err;
+                if (PyObject_SetAttrString(group, "broker", broker) == -1) {
+                        Py_DECREF(broker);
+                        goto err;
+                }
+                Py_DECREF(broker);
+
+                members = c_group_members_to_py(self, group_list->groups[i].members,
+                                                group_list->groups[i].member_cnt);
+                if (!members)
+                        goto err;
+                if (PyObject_SetAttrString(group, "members", members) == -1) {
+                        Py_DECREF(members);
+                        goto err;
+                }
+                Py_DECREF(members);
+
+                PyList_SET_ITEM(groups, i, group);
+        }
+        Py_DECREF(GroupMetadata_type);
+        Py_DECREF(BrokerMetadata_type);
+        return groups;
+err:
+        Py_DECREF(GroupMetadata_type);
+        Py_DECREF(BrokerMetadata_type);
+        Py_XDECREF(groups);
+        return NULL;
+}
+
+
+/**
+ * @brief List consumer groups
+ */
+PyObject *
+list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        CallState cs;
+        PyObject *result = NULL;
+        rd_kafka_resp_err_t err;
+        const struct rd_kafka_group_list *group_list = NULL;
+        const char *group = NULL;
+        double tmout = -1.0f;
+        static char *kws[] = {"group", "timeout", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws,
+                                         &group, &tmout))
+                return NULL;
+
+        CallState_begin(self, &cs);
+
+        err = rd_kafka_list_groups(self->rk, group, &group_list,
+                                   cfl_timeout_ms(tmout));
+
+        if (!CallState_end(self, &cs)) {
+                /* Exception raised */
+                goto end;
+        }
+
+        if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                cfl_PyErr_Format(err,
+                                 "Failed to list groups: %s",
+                                 rd_kafka_err2str(err));
+
+                goto end;
+        }
+        result = c_groups_to_py(self, group_list);
+end:
+        if (group_list != NULL) {
+                rd_kafka_group_list_destroy(group_list);
+        }
+        return result;
+}
+
+const char list_groups_doc[] = PyDoc_STR(
+        ".. py:function:: list_groups([group=None], [timeout=-1])\n"
+        "\n"
+        " Request Group Metadata from cluster.\n"
+        " This method provides the same information as"
+        " listGroups(), describeGroups() in the Java Admin client.\n"
+        "\n"
+        " :param str group: If specified, only request info about this group, else return for all groups in cluster"
+        " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
+        " :rtype: GroupMetadata\n"
+        " :raises: KafkaException\n");

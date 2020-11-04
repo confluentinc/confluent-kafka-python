@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
 #include <pythread.h>
@@ -41,8 +42,8 @@
  *  0xMMmmRRPP
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x01050000
-#define CFL_VERSION_STR "1.5.0"
+#define CFL_VERSION     0x01050200
+#define CFL_VERSION_STR "1.5.2"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -373,9 +374,11 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
 
 
 extern const char list_topics_doc[];
+extern const char list_groups_doc[];
 
 
 #ifdef RD_KAFKA_V_HEADERS

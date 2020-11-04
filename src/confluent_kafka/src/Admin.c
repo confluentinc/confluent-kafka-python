@@ -1074,6 +1074,10 @@ static PyMethodDef Admin_methods[] = {
           list_topics_doc
         },
 
+        { "list_groups", (PyCFunction)list_groups, METH_VARARGS|METH_KEYWORDS,
+          list_groups_doc
+        },
+
         { NULL }
 };
 
