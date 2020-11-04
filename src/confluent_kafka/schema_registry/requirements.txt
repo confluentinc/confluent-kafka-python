@@ -1,4 +1,6 @@
 fastavro>=0.23.0
+pyrsistent==0.16.1;python_version<"3.0"
+pyrsistent;python_version>"3.0"
 jsonschema
 protobuf
 requests
