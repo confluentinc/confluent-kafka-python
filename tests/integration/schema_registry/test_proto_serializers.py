@@ -16,7 +16,7 @@
 #
 import pytest
 
-from confluent_kafka import TopicPartition, KafkaException
+from confluent_kafka import TopicPartition, KafkaException, KafkaError
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, ProtobufDeserializer
 from .gen import metadata_proto_pb2
@@ -145,6 +145,6 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
                      partition=0)
     producer.flush()
 
-    with pytest.raises(ConsumeError,
-                       match="Error parsing message"):
+    with pytest.raises(ConsumeError) as e:
         consumer.poll()
+    assert e.value.code == KafkaError._KEY_DESERIALIZATION
