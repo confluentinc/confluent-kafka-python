@@ -83,7 +83,7 @@ deploy:
  local-dir: wheelhouse
  upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
  acl: public_read
- skip_cleanup: true
+ cleanup: false
  on:
   repo: confluentinc/confluent-kafka-python
   tags: true
