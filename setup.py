@@ -31,7 +31,9 @@ AVRO_REQUIRES = ['fastavro>=0.23.0,<1.0;python_version<"3.0"',
                  'avro-python3==1.10.0;python_version>"3.0"'
                  ] + SCHEMA_REGISTRY_REQUIRES
 
-JSON_REQUIRES = ['jsonschema'] + SCHEMA_REGISTRY_REQUIRES
+JSON_REQUIRES = ['pyrsistent==0.16.1;python_version<"3.0"',
+                 'pyrsistent;python_version>"3.0"',
+                 'jsonschema'] + SCHEMA_REGISTRY_REQUIRES
 
 PROTO_REQUIRES = ['protobuf'] + SCHEMA_REGISTRY_REQUIRES
 
