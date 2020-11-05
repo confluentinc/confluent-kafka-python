@@ -57,7 +57,7 @@ install:
  - pip install -r tests/requirements.txt
  - flake8
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build && pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . && pip install .[avro] .[schema-registry] .[json] .[protobuf] ; fi
+ - if [[ -z $CIBW_BEFORE_BUILD ]]; then tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build && pip install -vvv --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . && echo "INSTALLING SUBPACKAGES" && pip install -vvv .[avro] .[schema-registry] .[json] .[protobuf] ; fi
 
 # Build wheels
 # Make plugins available for tests
