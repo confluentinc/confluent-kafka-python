@@ -284,7 +284,7 @@ client's CA location with `'ssl.ca.location': certifi.where()`.
 Prerequisites
 =============
 
- * Python >= 2.7 or Python 3.x
+ * Python >= 2.7, >=3.9
  * [librdkafka](https://github.com/edenhill/librdkafka) >= 1.4.0 (latest release is embedded in wheels)
 
 librdkafka is embedded in the macosx manylinux wheels, for other platforms, SASL Kerberos/GSSAPI support or
