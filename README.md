@@ -284,7 +284,7 @@ client's CA location with `'ssl.ca.location': certifi.where()`.
 Prerequisites
 =============
 
- * Python >= 2.7 or Python < 3.9*
+ * Python >= 2.7 or Python < 3.9 - Please note that we intend to support all persions of python, but the latest version broke things for us. We intend to fix this as soon as possible.
 
  * [librdkafka](https://github.com/edenhill/librdkafka) >= 1.4.0 (latest release is embedded in wheels)
 
@@ -300,7 +300,6 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
 
-Note: We intend to support all persions of python, but the latest version broke things for us. We intend to fix this as soon as possible.
 
 Developer Notes
 ===============
