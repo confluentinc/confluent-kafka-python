@@ -26,3 +26,4 @@ tests/docker/conf/tls/*
 .DS_Store
 .idea
 tmp-KafkaCluster
+.venv
