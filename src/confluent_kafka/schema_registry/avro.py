@@ -122,9 +122,9 @@ class AvroSerializer(Serializer):
         See ``avro_producer.py`` in the examples directory for example usage.
 
     Args:
-        schema_str (str): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
-
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
+
+        schema_str (str): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
@@ -139,7 +139,7 @@ class AvroSerializer(Serializer):
     _default_conf = {'auto.register.schemas': True,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client,
+    def __init__(self, schema_registry_client, schema_str,
                  to_dict=None, conf=None):
         self._registry = schema_registry_client
         self._schema_id = None
@@ -250,10 +250,11 @@ class AvroDeserializer(Deserializer):
         directory for example usage.
 
     Args:
-        schema_str (str): Avro reader schema declaration.
-
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
+
+        schema_str (str, optional): Avro reader schema declaration.
+            If not provided, writer schema is used for deserialization.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
@@ -266,11 +267,11 @@ class AvroDeserializer(Deserializer):
     """
     __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas']
 
-    def __init__(self, schema_str, schema_registry_client, from_dict=None):
+    def __init__(self, schema_registry_client, schema_str=None, from_dict=None):
         self._registry = schema_registry_client
         self._writer_schemas = {}
 
-        self._reader_schema = parse_schema(loads(schema_str))
+        self._reader_schema = parse_schema(loads(schema_str)) if schema_str else None
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
