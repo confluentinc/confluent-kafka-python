@@ -23,10 +23,7 @@ from confluent_kafka.avro.error import ClientError
 def loads(schema_str):
     """ Parse a schema given a schema string """
     try:
-        if sys.version_info[0] < 3:
-            return schema.parse(schema_str)
-        else:
-            return schema.Parse(schema_str)
+        return schema.parse(schema_str)
     except schema.SchemaParseException as e:
         raise ClientError("Schema parse failed: %s" % (str(e)))
 
