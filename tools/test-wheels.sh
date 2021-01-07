@@ -36,8 +36,12 @@ echo "##################################"
 echo "# Smoke testing locally"
 tools/smoketest.sh "$wheeldir"
 
-echo "# Smoke testing on many linux distros"
-tools/test-manylinux.sh "$wheeldir"
+if which docker ; then
+    echo "# Smoke testing on many linux distros"
+    tools/test-manylinux.sh "$wheeldir"
+else
+    echo "# Not smoke-testing on many linux distros: docker not available"
+fi
 
 echo "##################################"
 echo "#### Tests passed for         ####"
