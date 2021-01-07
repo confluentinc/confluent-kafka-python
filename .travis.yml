@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.5.2
+  - LIBRDKAFKA_VERSION=v1.6.0-RC1
 jobs:
  include:
   - name: "Source package verification with Python 2.7 (Linux)"
