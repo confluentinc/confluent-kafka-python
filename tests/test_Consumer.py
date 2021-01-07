@@ -78,8 +78,10 @@ def test_basic_api():
     try:
         lo, hi = kc.get_watermark_offsets(partitions[0], timeout=0.5, cached=False)
     except KafkaException as e:
-        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE),\
-            str(e.args([0]))
+        assert e.args[0].code() in (
+            KafkaError._TIMED_OUT, KafkaError._WAIT_COORD,
+            KafkaError.LEADER_NOT_AVAILABLE,
+            KafkaError._ALL_BROKERS_DOWN)
 
     kc.unassign()
 
@@ -204,8 +206,10 @@ def test_offsets_for_times():
         test_topic_partition = TopicPartition("test", 0, 100)
         c.offsets_for_times([test_topic_partition], timeout=0.1)
     except KafkaException as e:
-        assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._WAIT_COORD, KafkaError.LEADER_NOT_AVAILABLE),\
-            str(e.args([0]))
+        assert e.args[0].code() in (
+            KafkaError._TIMED_OUT, KafkaError._WAIT_COORD,
+            KafkaError.LEADER_NOT_AVAILABLE,
+            KafkaError._ALL_BROKERS_DOWN)
     c.close()
 
 
