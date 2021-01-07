@@ -11,6 +11,8 @@ VENV_HOME=$2
 
 set -ev
 
+export HOMEBREW_NO_AUTO_UPDATE=1
+export HOMEBREW_NO_INSTALL_CLEANUP=1
 brew upgrade libtool || brew install libtool
 
 if [[ -z ${PY_INTERPRETER} ]] || [[  -z ${VENV_HOME} ]]; then
