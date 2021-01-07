@@ -12,7 +12,7 @@
 #  tools/build-manylinux.sh <librdkafka_tag>
 #
 # Usage in container:
-#  docker run -t -v $(pwd):/io quay.io/pypa/manylinux1_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
+#  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
 
@@ -33,7 +33,7 @@ if [[ ! -f /.dockerenv ]]; then
         exit 1
     fi
 
-    docker run -t -v $(pwd):/io quay.io/pypa/manylinux1_x86_64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
+    docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
 
     exit $?
 fi
