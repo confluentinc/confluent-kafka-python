@@ -6,14 +6,14 @@ jobs:
   - name: "Source package verification with Python 2.7 (Linux)"
     os: linux
     language: python
-    dist: trusty
+    dist: xenial
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
   - name: "Source package verification with Python 3.6 (Linux)"
     os: linux
     language: python
-    dist: trusty
+    dist: xenial
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
@@ -30,7 +30,7 @@ jobs:
     env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib" INTERPRETER_VERSION="2.7.17"
   - name: "cibuildwheel (manylinux)"
     os: linux
-    dist: trusty
+    dist: xenial
     env:
       - CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}"
       - PYTHON_CONFIGURE_OPTS="--enable-unicode=ucs4 --with-wide-unicode"
