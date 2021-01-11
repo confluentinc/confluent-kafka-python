@@ -87,7 +87,7 @@ function run_all_with_docker {
     [[ ! -z $DOCKER_IMAGES ]] || \
         # LTS and stable release of popular Linux distros.
         # We require >= Python 2.7 to be available (which rules out Centos 6.6)
-        DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:18.04 debian:stable centos:7"
+        DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:18.04 ubuntu:20.04 centos:7 centos:8"
 
 
     _wheels="$wheelhouse/*manylinux*.whl"
