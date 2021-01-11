@@ -25,13 +25,12 @@ if [[ -n $wheeldir ]]; then
         echo "$0: wheeldir $wheeldir does not exist"
         exit 1
     fi
-    python -m pip install virtualenv
 fi
 
 pyvers_tested=
 
 # Run tests with both python2 and python3 (whatever versions the OS provides)
-for py in 2.7 3.8 3.7 3.6 3.5 ; do
+for py in 2.7 3.8 3.6 ; do
     echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then
@@ -54,6 +53,8 @@ for py in 2.7 3.8 3.7 3.6 3.5 ; do
 
         trap cleanup EXIT
 
+        python$py -m pip install virtualenv
+
         virtualenv -p python$py $venvdir
         source $venvdir/bin/activate
         hash -r
@@ -74,7 +75,8 @@ for py in 2.7 3.8 3.7 3.6 3.5 ; do
         fi
 
         pip install --find-links "$wheeldir" confluent-kafka==$version
-        pip install --find-links "$wheeldir" confluent-kafka[avro]==$version
+        # Install a prebuilt version that doesn't require a gcc toolchain
+        pip install --find-links "$wheeldir" --binary-only :fastavro: confluent-kafka[avro]==$version
         pip install --find-links "$wheeldir" confluent-kafka[protobuf]==$version
         pip install --find-links "$wheeldir" confluent-kafka[json]==$version
     fi
