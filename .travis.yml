@@ -1,6 +1,7 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.6.0-RC1
+  - LIBRDKAFKA_VERSION=v1.6.0-RC2
+
 jobs:
  include:
   - name: "Source package verification with Python 2.7 (Linux)"
@@ -10,6 +11,7 @@ jobs:
     python: "2.7"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
+
   - name: "Source package verification with Python 3.6 (Linux)"
     os: linux
     language: python
@@ -17,58 +19,88 @@ jobs:
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
+
   - name: "Source package verification with Python 2.7 (OSX)"
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
+
   - name: "Source package verification with Python 3.6 (OSX) +docs"
     os: osx
     python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-  - name: "cibuildwheel (OSX)"
-    os: osx
-    env: CIBW_BEFORE_BUILD="tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp" CFLAGS="-Itmp/include" LDFLAGS="-Ltmp/lib" INTERPRETER_VERSION="2.7.17"
-  - name: "cibuildwheel (manylinux)"
-    os: linux
-    dist: xenial
-    env:
-      - CIBW_BEFORE_BUILD="tools/prepare-cibuildwheel-linux.sh ${LIBRDKAFKA_VERSION}"
-      - PYTHON_CONFIGURE_OPTS="--enable-unicode=ucs4 --with-wide-unicode"
-      - CIBW_MANYLINUX_X86_64_IMAGE="manylinux2010"
-      - CIBW_MANYLINUX_I686_IMAGE="manylinux2010"
-    language: python
-    python: "2.7"
-    services: docker
 
-# See https://cibuildwheel.readthedocs.io/en/latest/options/ for CIBW* vars
+  - name: "Wheels: Windows x64"
+    if: tag is present
+    os: windows
+    language: shell
+    env: BUILD_WHEELS=1
+    before_install:
+      - choco install python --version 3.8.0
+      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+      # make sure it's on PATH as 'python3'
+      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    install:
+      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+    script:
+      - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+
+  - name: "Wheels: Windows x86"
+    if: tag is present
+    os: windows
+    language: shell
+    env: BUILD_WHEELS=1
+    before_install:
+      - choco install python --version 3.8.0
+      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+      # make sure it's on PATH as 'python3'
+      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    install:
+      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+    script:
+      - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
+
+  - name: "Wheels: Linux x64"
+    if: tag is present
+    language: python
+    python: "3.8"
+    services: docker
+    env: BUILD_WHEELS=1
+    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
+  - name: "Wheels: MacOSX x64"
+    if: tag is present
+    os: osx
+    language: shell
+    env: BUILD_WHEELS=1
+    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
 
 # Install test dependencies unconditionally
 # Travis OSX envs requires some setup; see tools/prepare-osx.sh
 # Install cibuildwheel if this is a tagged PR
 before_install:
-  - if [[ $TRAVIS_OS_NAME == "osx" ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-  - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then pip install -U -r tools/requirements-manylinux.txt --force-reinstall ; fi
+  - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
 
-# Install interceptors
-# Install librdkafka if not CIBW_BEFORE_BUILD
-# Install confluent_kafka[avro] if not CIBW_BEFORE_BUILD
 install:
+ # Install interceptors
  - tools/install-interceptors.sh
- - pip install -r tests/requirements.txt
- - flake8
+ - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
- - if [[ -z $CIBW_BEFORE_BUILD ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build && pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf] ; fi
+ # Install librdkafka and confluent_kafka[avro] if not building wheels
+ - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
 
-# Build wheels
-# Make plugins available for tests
-# Execute tests if not CIBW_BEFORE_BUILD [osx, linux]
-# Execute integration tests if CIBW_BEFORE_BUILD
-# Build docs if MK_DOCS
+
+
+# Note: Will not be run for wheel builds.
 script:
- - if [[ -n $TRAVIS_TAG && -n $CIBW_BEFORE_BUILD ]]; then cibuildwheel --output-dir wheelhouse1 && tools/fixup-wheels.sh wheelhouse1 wheelhouse; fi
+ - flake8
+ # Build package
+ -  pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
  - ldd staging/libs/* || otool -L staging/libs/* || true
- - if [[ -z $CIBW_BEFORE_BUILD && $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
- - if [[ -n $TRAVIS_TAG && $TRAVIS_OS_NAME == osx && -n $CIBW_BEFORE_BUILD ]]; then tools/test-wheels.sh wheelhouse; fi
+ # Run tests
+ - if [[ $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
+ # Build docs
  - if [[ $MK_DOCS == y ]]; then make docs; fi
 
 deploy:
@@ -87,4 +119,4 @@ deploy:
  on:
   repo: confluentinc/confluent-kafka-python
   tags: true
-  condition: "-n $CIBW_BEFORE_BUILD"
+  condition: "BUILD_WHEEL == 1"
