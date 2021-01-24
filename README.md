@@ -297,14 +297,16 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
 
-Developer Notes
-===============
+License
+=======
 
-Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
-
-
-**License:** [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
 KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
 by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
 The Apache Software Foundation.
+
+Developer Notes
+===============
+
+Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
