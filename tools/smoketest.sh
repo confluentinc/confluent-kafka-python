@@ -30,7 +30,7 @@ fi
 pyvers_tested=
 
 # Run tests with both python2 and python3 (whatever versions the OS provides)
-for py in 2.7 3.8 3.6 ; do
+for py in 2.7 3.8 ; do
     echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then
@@ -75,8 +75,8 @@ for py in 2.7 3.8 3.6 ; do
         fi
 
         pip install --find-links "$wheeldir" confluent-kafka==$version
-        # Install a prebuilt version that doesn't require a gcc toolchain
-        pip install --find-links "$wheeldir" --binary-only :fastavro: confluent-kafka[avro]==$version
+        # Install a prebuilt version of fastavro that doesn't require a gcc toolchain
+        pip install --find-links "$wheeldir" --only-binary :fastavro: confluent-kafka[avro]==$version
         pip install --find-links "$wheeldir" confluent-kafka[protobuf]==$version
         pip install --find-links "$wheeldir" confluent-kafka[json]==$version
     fi
