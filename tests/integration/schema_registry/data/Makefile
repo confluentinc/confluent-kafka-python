@@ -5,7 +5,7 @@ TARGET_DIR=$(WORK_DIR)/../gen
 
 PROTOS := common_proto.proto DependencyTestProto.proto exampleProtoCriteo.proto $\
          metadata_proto.proto NestedTestProto.proto PublicTestProto.proto $\
-         Sint32Value.proto Sint64Value.proto TestProto.proto
+         SInt32Value.proto SInt64Value.proto TestProto.proto
 
 compile: $(PROTOS)
 	for proto in $(PROTOS); do \
