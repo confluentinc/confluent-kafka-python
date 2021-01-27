@@ -542,7 +542,8 @@ static void *Producer_purge (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
         static char *kws[] = { "in_queue", "in_flight", "blocking", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws, &in_queue, &in_flight, &blocking))
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws,
+                                         &in_queue, &in_flight, &blocking))
                 return NULL;
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
@@ -554,7 +555,8 @@ static void *Producer_purge (Handle *self, PyObject *args,
         err = rd_kafka_purge(self->rk, purge_strategy);
 
         if (err) {
-                cfl_PyErr_Format(err, "Purge failed: %s", rd_kafka_err2str(err));
+                cfl_PyErr_Format(err, "Purge failed: %s",
+                                 rd_kafka_err2str(err));
                 return NULL;
         }
 
@@ -632,12 +634,13 @@ static PyMethodDef Producer_methods[] = {
           "\n"
 	  "   Purge messages currently handled by the producer instance.\n"
 	  "   The application will need to call poll() or flush() "
-	  "afterwards to serve the delivery report callbacks of the purged messages."
+	  "afterwards to serve the delivery report callbacks of the purged messages.\n"
 	  "\n"
 	  "  :param: bool in_queue: Purge messages from internal queues. By default, true.\n"
 	  "  :param: bool in_flight: Purge messages in flight to or from the broker. By default, true.\n"
-	  "  :param: bool blocking: If set to False, will not wait on background thread queue\n"
-	  "purging to finish. By default, true."
+	  "  :param: bool blocking: If set to False, will not wait on background thread queue "
+	  "purging to finish. By default, true.\n"
+          "\n"
 	},
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
