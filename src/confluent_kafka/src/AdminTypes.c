@@ -231,7 +231,7 @@ PyTypeObject NewTopicType = {
         Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
         Py_TPFLAGS_HAVE_GC, /*tp_flags*/
         "NewTopic specifies per-topic settings for passing to "
-        "passed to AdminClient.create_topics().\n"
+        "AdminClient.create_topics().\n"
         "\n"
         ".. py:function:: NewTopic(topic, num_partitions, [replication_factor], [replica_assignment], [config])\n"
         "\n"
