@@ -17,8 +17,6 @@ pace with core Apache Kafka and components of the [Confluent Platform](https://w
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
 
-**License**: [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
-
 
 Usage
 =====
@@ -298,6 +296,15 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
+
+License
+=======
+
+[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
+
+KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
+by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
+The Apache Software Foundation.
 
 Developer Notes
 ===============

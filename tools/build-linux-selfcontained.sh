@@ -23,7 +23,7 @@ if [[ $1 != "--in-docker" ]]; then
     outdir=$2
     [[ -d $outdir ]] || mkdir -p $outdir
 
-    docker_image=quay.io/pypa/manylinux1_x86_64
+    docker_image=quay.io/pypa/manylinux2010_x86_64
 
     script_in_docker=/tmp/$(basename $0)
 

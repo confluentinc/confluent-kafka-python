@@ -1,4 +1,0 @@
-fastavro>=0.23.0
-jsonschema
-protobuf
-requests

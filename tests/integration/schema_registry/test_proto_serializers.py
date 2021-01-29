@@ -16,7 +16,7 @@
 #
 import pytest
 
-from confluent_kafka import TopicPartition, KafkaException
+from confluent_kafka import TopicPartition, KafkaException, KafkaError
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, ProtobufDeserializer
 from .gen import metadata_proto_pb2
@@ -54,7 +54,7 @@ def test_protobuf_message_serialization(kafka_cluster, pb2, data):
 
     """
     topic = kafka_cluster.create_topic("serialization-proto")
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
 
     value_serializer = ProtobufSerializer(pb2, sr)
     value_deserializer = ProtobufDeserializer(pb2)
@@ -85,7 +85,7 @@ def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
     Registry to ensure the references match up.
 
     """
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2, sr)
     producer = kafka_cluster.producer(key_serializer=serializer)
@@ -106,7 +106,7 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
     pb2_1 = TestProto_pb2.TestMessage
     pb2_2 = NestedTestProto_pb2.NestedMessage
 
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr)
 
@@ -127,7 +127,7 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     pb2_1 = PublicTestProto_pb2.TestMessage
     pb2_2 = metadata_proto_pb2.HDFSOptions
 
-    sr = kafka_cluster.schema_registry({'url': 'http://localhost:8081'})
+    sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr)
     deserializer = ProtobufDeserializer(pb2_2)
@@ -145,6 +145,6 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
                      partition=0)
     producer.flush()
 
-    with pytest.raises(ConsumeError,
-                       match="Error parsing message"):
+    with pytest.raises(ConsumeError) as e:
         consumer.poll()
+    assert e.value.code == KafkaError._KEY_DESERIALIZATION

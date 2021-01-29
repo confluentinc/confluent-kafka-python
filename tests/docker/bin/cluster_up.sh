@@ -2,8 +2,8 @@
 
 set -eu
 
-DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-source ${DOCKER_BIN}/../.env
+PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+source ${PY_DOCKER_BIN}/../.env
 
 # Wait for http service listener to come up and start serving
 # $1 http service name
@@ -27,22 +27,21 @@ await_http() {
 }
 
 echo "Configuring Environment..."
-source ${DOCKER_SOURCE}/.env
+source ${PY_DOCKER_SOURCE}/.env
 
 echo "Generating SSL certs..."
-${DOCKER_BIN}/certify.sh
-
-echo ${DOCKER_FILE}
+${PY_DOCKER_BIN}/certify.sh
 
 echo "Deploying cluster..."
-docker-compose -f ${DOCKER_FILE} up -d
+docker-compose -f $PY_DOCKER_COMPOSE_FILE up -d
 
 echo "Setting throttle for throttle test..."
-docker-compose -f ${DOCKER_FILE} exec kafka sh -c "
+docker-compose -f $PY_DOCKER_COMPOSE_FILE exec kafka sh -c "
         /usr/bin/kafka-configs  --zookeeper zookeeper:2181 \
                 --alter --add-config 'producer_byte_rate=1,consumer_byte_rate=1,request_percentage=001' \
                 --entity-name throttled_client --entity-type clients"
 
 await_http "schema-registry" "http://localhost:8081"
+
 await_http "schema-registry-basic-auth" "http://localhost:8083"
 

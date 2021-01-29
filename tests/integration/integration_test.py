@@ -135,8 +135,9 @@ class MyTestDr(object):
             return 0
         else:
             if not silent:
-                print('Message delivered to %s [%s] at offset [%s]: %s' %
-                      (msg.topic(), msg.partition(), msg.offset(), msg.value()))
+                print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
+                      (msg.topic(), msg.partition(), msg.offset(),
+                       msg.latency(), msg.value()))
             return 1
 
     def delivery(self, err, msg):
@@ -145,8 +146,9 @@ class MyTestDr(object):
                   (msg.topic(), str(msg.partition()), err))
             return
         elif not self.silent:
-            print('Message delivered to %s [%s] at offset [%s]: %s' %
-                  (msg.topic(), msg.partition(), msg.offset(), msg.value()))
+            print('Message delivered to %s [%s] at offset [%s] in %.3fs: %s' %
+                  (msg.topic(), msg.partition(), msg.offset(),
+                   msg.latency(), msg.value()))
         self.msgs_delivered += 1
         self.bytes_delivered += len(msg)
 
@@ -1109,6 +1111,61 @@ def verify_admin():
     # Verify with list_topics.
     #
     verify_topic_metadata(a, {our_topic: num_partitions})
+
+    #
+    # Verify with list_groups.
+    #
+
+    # Produce some messages
+    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers})
+    p.produce(our_topic, 'Hello Python!', headers=produce_headers)
+    p.produce(our_topic, key='Just a key and headers', headers=produce_headers)
+
+    def consume_messages(group_id):
+        # Consume messages
+        conf = {'bootstrap.servers': bootstrap_servers,
+                'group.id': group_id,
+                'session.timeout.ms': 6000,
+                'enable.auto.commit': False,
+                'on_commit': print_commit_result,
+                'error_cb': error_cb,
+                'auto.offset.reset': 'earliest',
+                'enable.partition.eof': True}
+        c = confluent_kafka.Consumer(conf)
+        c.subscribe([our_topic])
+        eof_reached = dict()
+        while True:
+            msg = c.poll()
+            if msg is None:
+                raise Exception('Got timeout from poll() without a timeout set: %s' % msg)
+
+            if msg.error():
+                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
+                    print('Reached end of %s [%d] at offset %d' % (
+                          msg.topic(), msg.partition(), msg.offset()))
+                    eof_reached[(msg.topic(), msg.partition())] = True
+                    if len(eof_reached) == len(c.assignment()):
+                        print('EOF reached for all assigned partitions: exiting')
+                        break
+                else:
+                    print('Consumer error: %s: ignoring' % msg.error())
+                    break
+            # Commit offset
+            c.commit(msg, asynchronous=False)
+
+    group1 = 'test-group-1'
+    group2 = 'test-group-2'
+    consume_messages(group1)
+    consume_messages(group2)
+    # list_groups without group argument
+    groups = set(group.id for group in a.list_groups(timeout=10))
+    assert group1 in groups, "Consumer group {} not found".format(group1)
+    assert group2 in groups, "Consumer group {} not found".format(group2)
+    # list_groups with group argument
+    groups = set(group.id for group in a.list_groups(group1))
+    assert group1 in groups, "Consumer group {} not found".format(group1)
+    groups = set(group.id for group in a.list_groups(group2))
+    assert group2 in groups, "Consumer group {} not found".format(group2)
 
     def verify_config(expconfig, configs):
         """
