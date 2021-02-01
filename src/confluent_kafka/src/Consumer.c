@@ -1072,7 +1072,7 @@ static PyMethodDef Consumer_methods[] = {
 	  "  .. note: Callbacks may be called from this method, "
 	  "such as ``on_assign``, ``on_revoke``, et.al.\n"
 	  "\n"
-	  "  :param float timeout: Maximum time to block waiting for message, event or callback. (Seconds)\n"
+	  "  :param float timeout: Maximum time to block waiting for message, event or callback (default: infinite (None translated into -1 in the library)). (Seconds)\n"
 	  "  :returns: A Message object or None on timeout\n"
 	  "  :rtype: :py:class:`Message` or None\n"
       "  :raises: RuntimeError if called on a closed consumer\n"
