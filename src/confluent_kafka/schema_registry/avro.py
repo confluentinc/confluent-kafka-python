@@ -258,15 +258,19 @@ class AvroDeserializer(Deserializer):
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts dict to an instance of some object.
 
+        return_record_name (bool): If True, when reading a union of records, the result will
+                                   be a tuple where the first value is the name of the record and the second value is
+                                   the record itself.  Defaults to False.
+
     See Also:
         `Apache Avro Schema Declaration <https://avro.apache.org/docs/current/spec.html#schemas>`_
 
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
 
     """
-    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas']
+    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name']
 
-    def __init__(self, schema_str, schema_registry_client, from_dict=None):
+    def __init__(self, schema_str, schema_registry_client, from_dict=None, return_record_name=False):
         self._registry = schema_registry_client
         self._writer_schemas = {}
 
@@ -276,6 +280,10 @@ class AvroDeserializer(Deserializer):
             raise ValueError("from_dict must be callable with the signature"
                              " from_dict(SerializationContext, dict) -> object")
         self._from_dict = from_dict
+
+        self._return_record_name = return_record_name
+        if not isinstance(self._return_record_name, bool):
+            raise ValueError("return_record_name must be a boolean value")
 
     def __call__(self, value, ctx):
         """
@@ -320,7 +328,8 @@ class AvroDeserializer(Deserializer):
 
             obj_dict = schemaless_reader(payload,
                                          writer_schema,
-                                         self._reader_schema)
+                                         self._reader_schema,
+                                         self._return_record_name)
 
             if self._from_dict is not None:
                 return self._from_dict(obj_dict, ctx)
