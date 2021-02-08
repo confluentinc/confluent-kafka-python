@@ -438,7 +438,7 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
         return self._rest_client.get('subjects')
 
-    def delete_subject(self, subject_name):
+    def delete_subject(self, subject_name, permanent=False):
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
@@ -446,7 +446,8 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): subject name
-
+            permanent (bool): True for a hard delete, False (default) for a soft delete
+            
         Returns:
             list(int): Versions deleted under this subject
 
@@ -457,8 +458,14 @@ class SchemaRegistryClient(object):
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
 
         """  # noqa: E501
-        return self._rest_client.delete('subjects/{}'
+        list = self._rest_client.delete('subjects/{}'
                                         .format(_urlencode(subject_name)))
+
+        if permanent:
+            self._rest_client.delete('subjects/{}?permanent=true'
+                                     .format(_urlencode(subject_name)))
+
+        return list
 
     def get_latest_version(self, subject_name):
         """
