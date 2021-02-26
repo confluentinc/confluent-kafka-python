@@ -40,7 +40,7 @@ def test_incremental_assign(kafka_cluster):
 
     consumer.incremental_assign([TopicPartition(topic1, 0, OFFSET_BEGINNING)])
     msg1 = consumer.poll(10)
-    assert msg1 != None
+    assert msg1 is not None
     assert 0 == msg1.offset()
     assert topic1 == msg1.topic()
     assert 0 == msg1.partition()
@@ -54,19 +54,19 @@ def test_incremental_assign(kafka_cluster):
 
     consumer.incremental_assign([TopicPartition(topic2, 0, OFFSET_BEGINNING)])
     msg2 = consumer.poll(10)
-    assert msg2 != None
+    assert msg2 is not None
     assert 0 == msg2.offset()
     assert topic2 == msg2.topic()
     assert 0 == msg2.partition()
-    
+
     consumer.incremental_unassign([TopicPartition(topic1, 0)])
     kafka_cluster.seed_topic(topic1, value_source=[b'aa'])
     msg3 = consumer.poll(2)
-    assert msg3 == None
+    assert msg3 is None
 
     kafka_cluster.seed_topic(topic2, value_source=[b'aaa'])
     msg4 = consumer.poll(10)
-    assert msg4 != None
+    assert msg4 is not None
     assert 1 == msg4.offset()
     assert topic2 == msg4.topic()
     assert 0 == msg4.partition()
@@ -74,13 +74,13 @@ def test_incremental_assign(kafka_cluster):
 
     consumer.incremental_assign([TopicPartition(topic1, 0)])
     msg5 = consumer.poll(10)
-    assert msg5 != None
+    assert msg5 is not None
     assert 1 == msg5.offset()
     assert topic1 == msg5.topic()
     assert 0 == msg5.partition()
 
     msg6 = consumer.poll(1)
-    assert msg6 == None
+    assert msg6 is None
 
     consumer.incremental_unassign([TopicPartition(topic1, 0)])
 

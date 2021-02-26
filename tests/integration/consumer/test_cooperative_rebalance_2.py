@@ -35,31 +35,36 @@ def test_cooperative_rebalance_2(kafka_cluster):
                      'enable.auto.commit': 'false',
                      'auto.offset.reset': 'earliest',
                      'heartbeat.interval.ms': '2000',
-                     'session.timeout.ms': '6000', # minimum allowed by broker
+                     'session.timeout.ms': '6000',  # minimum allowed by broker
                      'max.poll.interval.ms': '6500'}
 
-    assign_count = 0
-    def on_assign(consumer, partitions):
-        nonlocal assign_count
-        assign_count += 1
+    class RebalanceState:
+        def __init__(self):
+            self.assign_count = 0
+            self.revoke_count = 0
 
-    revoke_count = 0
-    def on_revoke(consumer, partitions):
-        nonlocal revoke_count
-        revoke_count += 1
+        def on_assign(self, consumer, partitions):
+            self.assign_count += 1
+            assert 1 == len(partitions)
+
+        def on_revoke(self, consumer, partitions):
+            self.revoke_count += 1
+
+    reb = RebalanceState()
 
     topic1 = kafka_cluster.create_topic("topic1")
-    topic2 = kafka_cluster.create_topic("topic2")
 
     consumer = kafka_cluster.consumer(consumer_conf)
 
     kafka_cluster.seed_topic(topic1, value_source=[b'a'])
 
-    consumer.subscribe([topic1], on_assign=on_assign, on_revoke=on_revoke)
+    consumer.subscribe([topic1],
+                       on_assign=reb.on_assign,
+                       on_revoke=reb.on_revoke)
     msg = consumer.poll(10)
-    assert msg != None
+    assert msg is not None
     assert msg.value() == b'a'
-    assert assign_count == 1
+    assert reb.assign_count == 1
 
     # Exceed MaxPollIntervalMs => lost partitions.
     time.sleep(8)
@@ -71,8 +76,8 @@ def test_cooperative_rebalance_2(kafka_cluster):
 
     # The second call should trigger the revoked handler (because a lost
     # handler has not been specified).
-    assert 0 == revoke_count
+    assert 0 == reb.revoke_count
     consumer.poll(1)
-    assert 1 == revoke_count
+    assert 1 == reb.revoke_count
 
     consumer.close()

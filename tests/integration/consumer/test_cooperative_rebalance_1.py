@@ -33,24 +33,26 @@ def test_cooperative_rebalance_1(kafka_cluster):
                      'enable.auto.commit': 'false',
                      'auto.offset.reset': 'earliest',
                      'heartbeat.interval.ms': '2000',
-                     'session.timeout.ms': '6000', # minimum allowed by broker
+                     'session.timeout.ms': '6000',  # minimum allowed by broker
                      'max.poll.interval.ms': '6500'}
 
-    assign_count = 0
-    def on_assign(consumer, partitions):
-        nonlocal assign_count
-        assign_count += 1
-        assert 1 == len(partitions)
+    class RebalanceState:
+        def __init__(self):
+            self.assign_count = 0
+            self.revoke_count = 0
+            self.lost_count = 0
 
-    revoke_count = 0
-    def on_revoke(consumer, partitions):
-        nonlocal revoke_count
-        revoke_count += 1
+        def on_assign(self, consumer, partitions):
+            self.assign_count += 1
+            assert 1 == len(partitions)
 
-    lost_count = 0
-    def on_lost(consumer, partitions):
-        nonlocal lost_count
-        lost_count += 1
+        def on_revoke(self, consumer, partitions):
+            self.revoke_count += 1
+
+        def on_lost(self, consumer, partitions):
+            self.lost_count += 1
+
+    reb = RebalanceState()
 
     topic1 = kafka_cluster.create_topic("topic1")
     topic2 = kafka_cluster.create_topic("topic2")
@@ -59,26 +61,32 @@ def test_cooperative_rebalance_1(kafka_cluster):
 
     kafka_cluster.seed_topic(topic1, value_source=[b'a'])
 
-    consumer.subscribe([topic1], on_assign=on_assign, on_revoke=on_revoke, on_lost=on_lost)
+    consumer.subscribe([topic1],
+                       on_assign=reb.on_assign,
+                       on_revoke=reb.on_revoke,
+                       on_lost=reb.on_lost)
     msg = consumer.poll(10)
-    assert msg != None
+    assert msg is not None
     assert msg.value() == b'a'
 
     # Subscribe to a second one partition topic, the second assign
     # call should be incremental (checked in the handler).
-    consumer.subscribe([topic1, topic2], on_assign=on_assign, on_revoke=on_revoke, on_lost=on_lost)
+    consumer.subscribe([topic1, topic2],
+                       on_assign=reb.on_assign,
+                       on_revoke=reb.on_revoke,
+                       on_lost=reb.on_lost)
 
     kafka_cluster.seed_topic(topic2, value_source=[b'b'])
     msg2 = consumer.poll(10)
-    assert msg2 != None
+    assert msg2 is not None
     assert msg2.value() == b'b'
 
-    assert 2 == assign_count
-    assert 0 == lost_count
-    assert 0 == revoke_count
+    assert 2 == reb.assign_count
+    assert 0 == reb.lost_count
+    assert 0 == reb.revoke_count
 
     msg3 = consumer.poll(1)
-    assert msg3 == None
+    assert msg3 is None
 
     # Exceed MaxPollIntervalMs => lost partitions.
     time.sleep(8)
@@ -90,11 +98,10 @@ def test_cooperative_rebalance_1(kafka_cluster):
 
     # And poll again to trigger rebalance callbacks
     msg4 = consumer.poll(1)
-    assert msg4 == None
+    assert msg4 is None
 
-    assert 2 == assign_count
-    assert 1 == lost_count
-    assert 0 == revoke_count
+    assert 2 == reb.assign_count
+    assert 1 == reb.lost_count
+    assert 0 == reb.revoke_count
 
     consumer.close()
-
