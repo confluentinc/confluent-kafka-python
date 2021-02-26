@@ -59,8 +59,8 @@ def test_api_register_schema_incompatible(kafka_cluster, load_file):
 
     """
     sr = kafka_cluster.schema_registry()
-    schema1 = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
-    schema2 = Schema(load_file('adv_schema.avsc'), schema_type='AVRO')
+    schema1 = Schema(load_file('adv_schema.avsc'), schema_type='AVRO')
+    schema2 = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_register_incompatible')
 
     sr.register_schema(subject, schema1)
