@@ -447,7 +447,7 @@ class SchemaRegistryClient(object):
         Args:
             subject_name (str): subject name
             permanent (bool): True for a hard delete, False (default) for a soft delete
-            
+
         Returns:
             list(int): Versions deleted under this subject
 
