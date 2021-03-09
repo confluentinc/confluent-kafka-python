@@ -15,7 +15,6 @@
 # limitations under the License.
 #
 
-import sys
 
 from confluent_kafka.avro.error import ClientError
 
