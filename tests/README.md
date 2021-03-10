@@ -1,3 +1,15 @@
+# Overview
+
+Test summary:
+
+- `./tests/test_*` (pytest): Unit tests. These tests don't bring up any external processes.
+- `./tests/schema_registry/*` (pytest): Tests related to Schema Registry that utilize a mock client and don't bring up any external processes.
+- `./tests/avro/*` (pytest): Tests for the old Avro API. These tests don't bring up any external processes.
+- `./tests/integration/integration_test.py`: Older integration tests, not built on pytest.
+- `./tests/integration/*`, excluding `integration_test.py` (pytest): Integration tests that depend on Kafka.
+- `./tests/system`: System tests.
+- `./tests/soak`: Soak test.
+
 # Running the Tests
 
 **Note:** Unless otherwise stated, all command, file and directory references are relative to the *repo's root* directory.
