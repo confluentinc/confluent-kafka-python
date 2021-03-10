@@ -74,41 +74,49 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     not match MockSchemaRegistryClient.USERINFO.
 
     Request paths to trigger exceptions:
-    +--------+----------------------------------+-------+------------------------------+
-    | Method |         Request Path             | Code  |      Description             |
-    +========+==================================+=======+==============================+
-    | GET    | /schemas/ids/404                 | 40403 | Schema not found             |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions      | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/[0-9]| 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/404  | 40402 | Version not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /subjects/notfound/versions/422  | 42202 | Invalid version              |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/conflict/versions      | 409*  | Incompatible Schema          |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/invalid/versions       | 42201 | Invalid Schema               |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | POST   | /subjects/schemanotfound         | 40403 | Schema not found             |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound               | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/[0-9]| 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/404  | 40402 | Version not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | DELETE | /subjects/notfound/versions/422  | 42202 | Invalid version              |
-    +--------+----------------------------------+-------+------------------------------+
-    | GET    | /config/notconfig                | 40401 | Subject not found            |
-    +--------+----------------------------------+-------+------------------------------+
-    | PUT    | /config**                        | 42203 | Invalid compatibility level  |
-    +--------+----------------------------------+-------+------------------------------+
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | Method |         Request Path                            | Code  |      Description             |
+    +========+=================================================+=======+==============================+
+    | GET    | /schemas/ids/404                                | 40403 | Schema not found             |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions                     | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/[0-9]               | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/404                 | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/422                 | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | DELETE | /subjects/notfound                              | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /subjects/conflict/versions                     | 409*  | Incompatible Schema          |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /subjects/invalid/versions                      | 42201 | Invalid Schema               |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /subjects/notfound                              | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /subjects/schemanotfound                        | 40403 | Schema not found             |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | DELETE | /subjects/notfound                              | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | DELETE | /subjects/notfound/versions/[0-9]               | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | DELETE | /subjects/notfound/versions/404                 | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | DELETE | /subjects/notfound/versions/422                 | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /config/notconfig                               | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | PUT    | /config**                                       | 42203 | Invalid compatibility level  |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /compatibility/subjects/notfound/versions/[0-9] | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /compatibility/subjects/invalid/versions/[0-9]  | 42201 | Invalid Schema               |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /compatibility/subjects/notfound/versions/404   | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | POST   | /compatibility/subjects/invalid/versions/bad    | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
     * POST /subjects/{}/versions does not follow the documented API error.
     ** PUT /config reacts to a trigger in the body: - {"compatibility": "FULL"}
 
@@ -127,6 +135,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
     compatibility = re.compile("/config/?(.*)$")
+    compatibility_subjects_versions = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
 
     # constants
     SCHEMA_ID = 47
@@ -168,6 +177,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                              json=self.delete_subject_version_callback)
         adapter.register_uri('POST', self.subject_versions,
                              json=self.post_subject_version_callback)
+        adapter.register_uri('POST', self.compatibility_subjects_versions,
+                             json=self.post_compatibility_subjects_versions_callback)
 
         adapter.add_matcher(self._auth_matcher)
         self._rest_client.session.mount('http://', adapter)
@@ -347,6 +358,40 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         else:
             context.status_code = 200
             return {'id': self.SCHEMA_ID}
+
+    def post_compatibility_subjects_versions_callback(self, request, context):
+        self.counter['POST'][request.path] += 1
+
+        path_match = re.match(self.compatibility_subjects_versions, request.path)
+        subject = path_match.group(1)
+        version = path_match.group(2)
+
+        if version == '422':
+            context.status_code = 422
+            return {'error_code': 42202,
+                    'message': 'Invalid version'}
+
+        if version == '404':
+            context.status_code = 404
+            return {'error_code': 40402,
+                    'message': "Version not found"}
+
+        if subject == 'conflict':
+            context.status_code = 200
+            return {'is_compatible': False}
+
+        if subject == 'notfound':
+            context.status_code = 404
+            return {'error_code': 40401,
+                    'message': 'Subject not found'}
+
+        if subject == 'invalid':
+            context.status_code = 422
+            return {'error_code': 42201,
+                    'message': "Invalid Schema"}
+
+        context.status_code = 200
+        return {'is_compatible': True}
 
 
 @pytest.fixture(scope="package")
