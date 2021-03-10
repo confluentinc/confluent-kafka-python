@@ -415,13 +415,13 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
 const char list_topics_doc[] = PyDoc_STR(
         ".. py:function:: list_topics([topic=None], [timeout=-1])\n"
         "\n"
-        " Request Metadata from cluster.\n"
+        " Request metadata from the cluster.\n"
         " This method provides the same information as "
         " listTopics(), describeTopics() and describeCluster() in "
         " the Java Admin client.\n"
         "\n"
-        " :param str topic: If specified, only request info about this topic, else return for all topics in cluster. Warning: If auto.create.topics.enable is set to true on the broker and an unknown topic is specified it will be created.\n"
-        " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
+        " :param str topic: If specified, only request information about this topic, else return results for all topics in cluster. Warning: If auto.create.topics.enable is set to true on the broker and an unknown topic is specified, it will be created.\n"
+        " :param float timeout: The maximum response time before timing out, or -1 for infinite timeout.\n"
         " :rtype: ClusterMetadata\n"
         " :raises: KafkaException\n");
 

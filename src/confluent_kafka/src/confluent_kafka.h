@@ -251,8 +251,11 @@ typedef struct {
 		 */
 		struct {
 			int rebalance_assigned;  /* Rebalance: Callback performed assign() call.*/
+			int rebalance_incremental_assigned; /* Rebalance: Callback performed incremental_assign() call.*/
+			int rebalance_incremental_unassigned; /* Rebalance: Callback performed incremental_unassign() call.*/
 			PyObject *on_assign;     /* Rebalance: on_assign callback */
 			PyObject *on_revoke;     /* Rebalance: on_revoke callback */
+			PyObject *on_lost;     /* Rebalance: on_lost callback */
 			PyObject *on_commit;     /* Commit callback */
 			rd_kafka_queue_t *rkqu;  /* Consumer queue */
 

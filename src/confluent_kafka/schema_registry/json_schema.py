@@ -273,7 +273,7 @@ class JSONDeserializer(Deserializer):
                                          " Schema Registry serializer")
 
             # JSON documents are self-describing; no need to query schema
-            obj_dict = json.loads(payload.read(), encoding="utf8")
+            obj_dict = json.loads(payload.read())
 
             try:
                 validate(instance=obj_dict, schema=self._parsed_schema)
