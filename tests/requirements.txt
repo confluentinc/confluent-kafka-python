@@ -4,3 +4,7 @@ pytest>=6.0.0;python_version>="3.0"
 pytest-timeout
 requests-mock
 trivup>=0.8.2
+fastavro
+avro
+jsonschema
+protobuf
