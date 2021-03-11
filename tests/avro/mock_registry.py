@@ -59,6 +59,7 @@ class MockServer(HTTPSERVER.HTTPServer, object):
         self.all_routes = {
             'GET': [
                 (r"/schemas/ids/(\d+)", 'get_schema_by_id'),
+                (r"/subjects/(\w+)/versions/(\d+)", 'get_by_version'),
                 (r"/subjects/(\w+)/versions/latest", 'get_latest')
             ],
             'POST': [
@@ -164,6 +165,21 @@ class MockServer(HTTPSERVER.HTTPServer, object):
             return self._create_error("Not found", 404)
         result = {
             "schema": str(avro_schema),
+            "subject": subject,
+            "id": schema_id,
+            "version": version
+        }
+        return (200, result)
+
+    def get_by_version(self, req, groups):
+        subject = groups[0]
+        version = int(groups[1])
+
+        schema_id, avro_schema, version = self.registry.get_by_version(subject, version)
+        if schema_id is None:
+            return self._create_error("Not found", 404)
+        result = {
+            "schema": json.dumps(avro_schema.to_json()),
             "subject": subject,
             "id": schema_id,
             "version": version

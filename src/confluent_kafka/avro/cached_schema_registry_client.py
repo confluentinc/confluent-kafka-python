@@ -321,7 +321,7 @@ class CachedSchemaRegistryClient(object):
 
     def get_latest_schema(self, subject):
         """
-        GET /subjects/(string: subject)/versions/(versionId: version)
+        GET /subjects/(string: subject)/versions/latest
 
         Return the latest 3-tuple of:
         (the schema id, the parsed avro schema, the schema version)
@@ -334,7 +334,25 @@ class CachedSchemaRegistryClient(object):
         :returns: (schema_id, schema, version)
         :rtype: (string, schema, int)
         """
-        url = '/'.join([self.url, 'subjects', subject, 'versions', 'latest'])
+        return self.get_by_version(subject, 'latest')
+
+    def get_by_version(self, subject, version):
+        """
+        GET /subjects/(string: subject)/versions/(versionId: version)
+
+        Return the 3-tuple of:
+        (the schema id, the parsed avro schema, the schema version)
+        for a particular subject and version.
+
+        This call always contacts the registry.
+
+        If the subject is not found, (None,None,None) is returned.
+        :param str subject: subject name
+        :param int version: version number
+        :returns: (schema_id, schema, version)
+        :rtype: (string, schema, int)
+        """
+        url = '/'.join([self.url, 'subjects', subject, 'versions', str(version)])
 
         result, code = self._send_request(url)
         if code == 404:
