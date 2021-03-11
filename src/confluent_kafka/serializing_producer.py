@@ -62,11 +62,11 @@ class SerializingProducer(_ProducerImpl):
     +=========================+=====================+=====================================================+
     | ``bootstrap.servers`` * | str                 | Comma-separated list of brokers.                    |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(SerializationContext, obj) -> bytes        |
+    |                         |                     | Callable(obj, SerializationContext) -> bytes        |
     | ``key.serializer``      | callable            |                                                     |
     |                         |                     | Serializer used for message keys.                   |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(SerializationContext, obj) -> bytes        |
+    |                         |                     | Callable(obj, SerializationContext) -> bytes        |
     | ``value.serializer``    | callable            |                                                     |
     |                         |                     | Serializer used for message values.                 |
     +-------------------------+---------------------+-----------------------------------------------------+
