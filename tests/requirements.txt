@@ -3,7 +3,7 @@ pytest==4.6.9;python_version<="3.0"
 pytest>=6.0.0;python_version>="3.0"
 pytest-timeout
 requests-mock
-trivup>=0.8.2
+trivup>=0.8.3
 fastavro
 avro
 jsonschema
