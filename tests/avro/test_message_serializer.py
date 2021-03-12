@@ -34,6 +34,7 @@ from tests.avro.mock_schema_registry_client import MockSchemaRegistryClient
 from confluent_kafka import avro
 from pyflakes.test.harness import skipIf
 
+
 class TestMessageSerializer(unittest.TestCase):
     def setUp(self):
         # need to set up the serializer
