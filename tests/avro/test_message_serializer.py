@@ -23,7 +23,9 @@
 import struct
 
 import unittest
-from unittest.mock import patch
+
+if sys.version >= 3.0
+    from unittest.mock import patch
 
 from tests.avro import data_gen
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
@@ -76,7 +78,10 @@ class TestMessageSerializer(unittest.TestCase):
             message = self.ms.encode_record_with_schema(topic, basic, record)
             self.assertMessageIsSame(message, record, schema_id)
 
-    def test_encode_record_with_schema_sets_writers_cache_once(self):
+    def test_encode_r   ecord_with_schema_sets_writers_cache_once(self):
+        if sys.version < 3.0
+            # unittest.mock.patch not available
+            return
         topic = 'test'
         basic = avro.loads(data_gen.BASIC_SCHEMA)
         subject = 'test-value'
