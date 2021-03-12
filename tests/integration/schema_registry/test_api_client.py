@@ -73,7 +73,7 @@ def test_api_register_schema_incompatible(kafka_cluster, load_file):
         # be added. schema2 adds non-optional fields to schema1, so
         # registering schema2 after schema1 should fail.
         sr.register_schema(subject, schema2)
-    assert e.value.http_status_code == 409 # conflict
+    assert e.value.http_status_code == 409  # conflict
     assert e.value.error_code == 409
 
 
