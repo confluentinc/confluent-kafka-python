@@ -59,8 +59,8 @@ def test_api_register_schema_incompatible(kafka_cluster, load_file):
 
     """
     sr = kafka_cluster.schema_registry()
-    schema1 = Schema(load_file('adv_schema.avsc'), schema_type='AVRO')
-    schema2 = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    schema1 = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    schema2 = Schema(load_file('adv_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('test_register_incompatible')
 
     sr.register_schema(subject, schema1)
@@ -68,8 +68,12 @@ def test_api_register_schema_incompatible(kafka_cluster, load_file):
     with pytest.raises(SchemaRegistryError, match="Schema being registered is"
                                                   " incompatible with an"
                                                   " earlier schema") as e:
+        # The default Schema Registry compatibility type is BACKWARD.
+        # this allows 1) fields to be deleted, 2) optional fields to
+        # be added. schema2 adds non-optional fields to schema1, so
+        # registering schema2 after schema1 should fail.
         sr.register_schema(subject, schema2)
-    assert e.value.http_status_code == 409
+    assert e.value.http_status_code == 409  # conflict
     assert e.value.error_code == 409
 
 
@@ -236,6 +240,9 @@ def test_api_get_subject_versions(kafka_cluster, load_file):
         registered_schema = sr.lookup_schema(subject, schema)
         assert registered_schema.subject == subject
         assert registered_schema.version in versions
+
+    # revert global compatibility level back to the default.
+    sr.set_compatibility(level="BACKWARD")
 
 
 def test_api_delete_subject(kafka_cluster, load_file):
@@ -415,6 +422,9 @@ def test_api_config_update(kafka_cluster):
     for level in ["BACKWARD", "BACKWARD_TRANSITIVE", "FORWARD", "FORWARD_TRANSITIVE"]:
         sr.set_compatibility(level=level)
         assert sr.get_compatibility() == level
+
+    # revert global compatibility level back to the default.
+    sr.set_compatibility(level="BACKWARD")
 
 
 def test_api_register_logical_schema(kafka_cluster, load_file):
