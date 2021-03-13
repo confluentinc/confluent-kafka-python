@@ -1521,14 +1521,15 @@ static void log_cb (const rd_kafka_t *rk, int level,
         CallState_resume(cs);
 }
 
-static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config, void *opaque) {
+static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
+                      void *opaque) {
         Handle *h = opaque;
         PyObject *eo, *result;
         CallState *cs;
         const char *token;
         double expiry;
         char err_msg[2048];
-        rd_kafka_resp_err_t err_code = RD_KAFKA_RESP_ERR_NO_ERROR;
+        rd_kafka_resp_err_t err_code;
 
         cs = CallState_get(h);
 
@@ -1546,8 +1547,10 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config, void *opaq
                              "to be (token_str, expiry_time) tuple");
                 goto err;
         }
-        err_code = rd_kafka_oauthbearer_set_token(h->rk, token, (int64_t)(expiry * 1000), "",
-                                                  NULL, 0, err_msg, sizeof(err_msg));
+        err_code = rd_kafka_oauthbearer_set_token(h->rk, token,
+                                                  (int64_t)(expiry * 1000),
+                                                  "", NULL, 0, err_msg,
+                                                  sizeof(err_msg));
         Py_DECREF(result);
         if (err_code) {
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);

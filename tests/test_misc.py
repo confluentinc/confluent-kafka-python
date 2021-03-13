@@ -130,6 +130,35 @@ def test_throttle_event_types():
     assert str(throttle_event) == "broker/0 throttled for 10000 ms"
 
 
+# global variable for oauth_cb call back function
+seen_oauth_cb = False
+
+
+def test_oauth_cb():
+    """ Tests oauth_cb. """
+
+    def oauth_cb(oauth_config):
+        global seen_oauth_cb
+        seen_oauth_cb = True
+        assert oauth_config == 'oauth_cb'
+        return 'token', time.time() + 300.0
+
+    conf = {'group.id': 'test',
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'socket.timeout.ms': '100',
+            'session.timeout.ms': 1000,  # Avoid close() blocking too long
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': oauth_cb
+            }
+
+    kc = confluent_kafka.Consumer(**conf)
+
+    while not seen_oauth_cb:
+        kc.poll(timeout=1)
+    kc.close()
+
+
 def skip_interceptors():
     # Run interceptor test if monitoring-interceptor is found
     for path in ["/usr/lib", "/usr/local/lib", "staging/libs", "."]:

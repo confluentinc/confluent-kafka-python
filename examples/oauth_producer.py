@@ -41,9 +41,10 @@ def _get_token(args, config):
         'scope': ' '.join(args.scopes)
     }
     resp = requests.post(args.token_url,
-                         auth=(args.client_id, args.client_secret), data=payload)
+                         auth=(args.client_id, args.client_secret),
+                         data=payload)
     token = resp.json()
-    return token['access_token'], time.time() + token['expires_in']
+    return token['access_token'], time.time() + float(token['expires_in'])
 
 
 def producer_config(args):
@@ -54,7 +55,7 @@ def producer_config(args):
         'value.serializer': StringSerializer('utf_8'),
         'security.protocol': 'sasl_plaintext',
         'sasl.mechanisms': 'OAUTHBEARER',
-        'sasl.oauthbearer.config': "not-important",
+        'sasl.oauthbearer.config': 'not-important',
         'oauth_cb': functools.partial(_get_token, args),
         'logger': logger,
     }
@@ -79,7 +80,7 @@ def delivery_report(err, msg):
 
     """
     if err is not None:
-        print("Delivery failed for User record {}: {}".format(msg.key(), err))
+        print('Delivery failed for User record {}: {}'.format(msg.key(), err))
         return
     print('User record {} successfully produced to {} [{}] at offset {}'.format(
         msg.key(), msg.topic(), msg.partition(), msg.offset()))
@@ -93,7 +94,7 @@ def main(args):
 
     producer = SerializingProducer(producer_conf)
 
-    print("Producing records to topic {}. ^C to exit.".format(topic))
+    print('Producing records to topic {}. ^C to exit.'.format(topic))
     while True:
         # Serve on_delivery callbacks from previous calls to produce()
         producer.poll(0.0)
@@ -109,7 +110,7 @@ def main(args):
         except KeyboardInterrupt:
             break
 
-    print("\nFlushing {} records...".format(len(producer)))
+    print('\nFlushing {} records...'.format(len(producer)))
     producer.flush()
 
 
