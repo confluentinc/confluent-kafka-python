@@ -55,7 +55,10 @@ def producer_config(args):
         'value.serializer': StringSerializer('utf_8'),
         'security.protocol': 'sasl_plaintext',
         'sasl.mechanisms': 'OAUTHBEARER',
-        'sasl.oauthbearer.config': 'not-important',
+        # sasl.oauthbearer.config can be used to pass argument to your oauth_cb
+        # It is not used in this example since we are passing all the arguments
+        # from command line
+        # 'sasl.oauthbearer.config': 'not-used',
         'oauth_cb': functools.partial(_get_token, args),
         'logger': logger,
     }
