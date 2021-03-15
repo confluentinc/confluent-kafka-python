@@ -236,6 +236,7 @@ typedef struct {
         rd_kafka_type_t type; /* Producer or consumer */
 
         PyObject *logger;
+        PyObject *oauth_cb;
 
 	union {
 		/**

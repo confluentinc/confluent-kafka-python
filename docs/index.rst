@@ -459,6 +459,14 @@ The Python bindings also provide some additional configuration properties:
   This callback is served upon calling ``client.poll()`` or ``producer.flush()``. See
   https://github.com/edenhill/librdkafka/wiki/Statistics" for more information.
 
+* ``oauth_cb(config_str)``: Callback for retrieving OAuth Bearer token.
+  Function argument ``config_str`` is a str from config: ``sasl.oauthbearer.config``.
+  Return value of this callback is expected to be ``(token_str, expiry_time)`` tuple
+  where ``expiry_time`` is the time in seconds since the epoch as a floating point number.
+  This callback is useful only when ``sasl.mechanisms=OAUTHBEARER`` is set and
+  is served to get the initial token before a successful broker connection can be made.
+  The callback can be triggered by calling ``client.poll()`` or ``producer.flush()``.
+
 * ``on_delivery(kafka.KafkaError, kafka.Message)`` (**Producer**): value is a Python function reference
   that is called once for each produced message to indicate the final
   delivery result (success or failure).
