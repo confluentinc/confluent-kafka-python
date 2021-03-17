@@ -283,7 +283,7 @@ def test_any_method_after_close_throws_exception():
     assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
-        c.seek([TopicPartition("test", 0, 0)])
+        c.seek(TopicPartition("test", 0, 0))
     assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
