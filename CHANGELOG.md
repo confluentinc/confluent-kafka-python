@@ -1,5 +1,33 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.6.1
+
+v1.6.1 is a feature release:
+
+ - KIP-429 - Incremental consumer rebalancing support.
+ - OAUTHBEARER support.
+
+### Fixes
+
+ - Add `return_record_name=True` to AvroDeserializer (@slominskir, #1028)
+ - Fix deprecated `schema.Parse` call (@casperlehmann, #1006).
+ - Make reader schema optional in AvroDeserializer (@97nitt, #1000).
+ - Add `**kwargs` to legacy AvroProducer and AvroConsumer constructors to
+   support all Consumer and Producer base class constructor arguments, such
+   as `logger` (@venthur, #699).
+ - Add bool for permanent schema delete (@slominskir, #1029).
+ - The avro package is no longer required for Schema-Registry support (@jaysonsantos, #950).
+ - Only write to schema cache once, improving performance (@fimmtiu, #724).
+ - Improve Schema-Registry error reporting (@jacopofar, #673).
+ - `producer.flush()` could return a non-zero value without hitting the
+   specified timeout.
+
+
+confluent-kafka-python is based on librdkafka v1.6.1, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.6.0
 
 v1.6.0 is a feature release with the following features, fixes and enhancements:
@@ -23,7 +51,7 @@ v1.6.0 is a feature release with the following features, fixes and enhancements:
  - Added `AdminClient.list_groups()` API (@messense, #948)
  - Rename asyncio.py example to avoid circular import (#945)
 
-confluent-kafka-python is based on librdkafka v1.6.2, see the
+confluent-kafka-python is based on librdkafka v1.6.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.6.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
