@@ -169,7 +169,7 @@ def test_on_commit():
     c.assign([TopicPartition(cs.topic, cs.partition)])
 
     for i in range(1, 3):
-        c.poll(0.1)
+        c.poll(timeout=0.1)
 
         if cs.once:
             # Try commit once
