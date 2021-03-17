@@ -374,27 +374,22 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
 static PyObject *Producer_flush (Handle *self, PyObject *args,
                                  PyObject *kwargs) {
         double tmout = -1;
-        int qlen;
+        int qlen = 0;
         static char *kws[] = { "timeout", NULL };
-#if RD_KAFKA_VERSION >= 0x00090300
+        rd_kafka_resp_err_t err;
         CallState cs;
-#endif
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
-#if RD_KAFKA_VERSION >= 0x00090300
         CallState_begin(self, &cs);
-        rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
+        err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
         if (!CallState_end(self, &cs))
                 return NULL;
-        qlen = rd_kafka_outq_len(self->rk);
-#else
-        while ((qlen = rd_kafka_outq_len(self->rk)) > 0) {
-                if (Producer_poll0(self, 500) == -1)
-                        return NULL;
-        }
-#endif
+
+        if (err) /* Get the queue length on error (timeout) */
+                qlen = rd_kafka_outq_len(self->rk);
+
         return cfl_PyInt_FromInt(qlen);
 }
 
