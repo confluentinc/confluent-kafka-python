@@ -165,13 +165,12 @@ class DeserializingConsumer(_ConsumerImpl):
         deserialized_messages = []
 
         for message in messages:
-            if msg.error() is not None:
-                raise ConsumeError(msg.error(), kafka_message=msg)
+            if message.error() is not None:
+                raise ConsumeError(message.error(), kafka_message=message)
 
             deserialized_messages.append(self._parse_deserialize_message(message))
 
         return deserialized_messages
-
 
     def _parse_deserialize_message(self, message):
         """
