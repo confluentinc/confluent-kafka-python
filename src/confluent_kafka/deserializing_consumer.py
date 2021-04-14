@@ -173,7 +173,7 @@ class DeserializingConsumer(_ConsumerImpl):
         return deserialized_messages
 
 
-    def _parse_deserialize_message(message):
+    def _parse_deserialize_message(self, message):
         """
         Internal class method for deserializing and maintaining consistency between poll and consume classes.
 
