@@ -51,7 +51,7 @@ def test_create_index(pb2, coordinates):
 def test_index_serialization(pb2):
     msg_idx = _create_msg_index(pb2.DESCRIPTOR)
     buf = BytesIO()
-    ProtobufSerializer._encode_uvarints(buf, msg_idx)
+    ProtobufSerializer._encode_varints(buf, msg_idx)
     buf.flush()
 
     # reset buffer cursor
@@ -64,14 +64,14 @@ def test_index_serialization(pb2):
 
 @pytest.mark.parametrize("msg_idx, expected_hex", [
     ([1, 0], b'00'),   # b2a_hex always returns hex pairs
-    ([1, 1], b'01'),
-    ([1, 127], b'7f'),
-    ([1, 128], b'8001'),
-    ([1, 9223372036854775807], b'ffffffffffffffff7f')
+    ([1, 1], b'02'),
+    ([1, 127], b'fe01'),
+    ([1, 128], b'8002'),
+    ([1, 9223372036854775807], b'feffffffffffffffff01')
 ])
 def test_index_encoder(msg_idx, expected_hex):
     buf = BytesIO()
-    ProtobufSerializer._encode_uvarints(buf, msg_idx)
+    ProtobufSerializer._encode_varints(buf, msg_idx)
     buf.flush()
     # ignore array length prefix
     buf.seek(1)

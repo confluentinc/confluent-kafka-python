@@ -239,9 +239,9 @@ class ProtobufSerializer(object):
                               schema_type='PROTOBUF')
 
     @staticmethod
-    def _encode_uvarints(buf, ints):
+    def _encode_varints(buf, ints):
         """
-        Encodes each int as a uvarint onto buf
+        Encodes each int as a varint onto buf
 
         Args:
             buf (BytesIO): buffer to write to.
@@ -249,6 +249,10 @@ class ProtobufSerializer(object):
 
         """
         for value in ints:
+            if(value < 0):
+                value = (-value) << 1 - 1
+            else:
+                value <<= 1
             while (value & ~0x7f) != 0:
                 buf.write(_bytes((value & 0x7f) | 0x80))
                 value >>= 7
@@ -328,7 +332,7 @@ class ProtobufSerializer(object):
             # (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record index to the buffer
-            self._encode_uvarints(fo, self._msg_index)
+            self._encode_varints(fo, self._msg_index)
             # write the record itself
             fo.write(message_type.SerializeToString())
             return fo.getvalue()
@@ -354,15 +358,15 @@ class ProtobufDeserializer(object):
         self._msg_class = MessageFactory().GetPrototype(descriptor)
 
     @staticmethod
-    def _decode_uvarint(buf):
+    def _decode_varint(buf):
         """
-        Decodes a single uvarint from a buffer.
+        Decodes a single varint from a buffer.
 
         Args:
             buf (BytesIO): buffer to read from
 
         Returns:
-            int: decoded uvarint
+            int: decoded varint
 
         Raises:
             EOFError: if buffer is empty
@@ -377,7 +381,10 @@ class ProtobufDeserializer(object):
                 value |= (i & 0x7f) << shift
                 shift += 7
                 if not (i & 0x80):
-                    return value
+                    if value & 1:
+                        return -(value + 1) >> 1
+                    else:
+                        return value >> 1
 
         except EOFError:
             raise EOFError("Unexpected EOF while reading index")
@@ -410,10 +417,10 @@ class ProtobufDeserializer(object):
             int: Protobuf Message index.
 
         """
-        size = ProtobufDeserializer._decode_uvarint(buf)
+        size = ProtobufDeserializer._decode_varint(buf)
         msg_index = [size]
         for _ in range(size):
-            msg_index.append(ProtobufDeserializer._decode_uvarint(buf))
+            msg_index.append(ProtobufDeserializer._decode_varint(buf))
 
         return msg_index
 
