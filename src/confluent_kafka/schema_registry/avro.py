@@ -133,14 +133,14 @@ class AvroSerializer(Serializer):
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', '_to_dict']
+                 '_subject_name_func', '_to_dict', '_named_schemas']
 
     # default configuration
     _default_conf = {'auto.register.schemas': True,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client, schema_str,
-                 to_dict=None, conf=None):
+    def __init__(self, schema_registry_client, schema,
+                 to_dict=None, conf=None, named_schemas={}):
         self._registry = schema_registry_client
         self._schema_id = None
         # Avoid calling registry if schema is known to be registered
@@ -151,6 +151,7 @@ class AvroSerializer(Serializer):
                              " to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
+        self._named_schemas = named_schemas
 
         # handle configuration
         conf_copy = self._default_conf.copy()
@@ -169,10 +170,8 @@ class AvroSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        # convert schema_str to Schema instance
-        schema = _schema_loads(schema_str)
         schema_dict = loads(schema.schema_str)
-        parsed_schema = parse_schema(schema_dict)
+        parsed_schema = parse_schema(schema_dict, _named_schemas=self._named_schemas)
         # The Avro spec states primitives have a name equal to their type
         # i.e. {"type": "string"} has a name of string.
         # This function does not comply.
@@ -269,13 +268,14 @@ class AvroDeserializer(Deserializer):
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
 
     """
-    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name']
+    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name', '_named_schemas']
 
-    def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False):
+    def __init__(self, schema_registry_client, schema=None, from_dict=None, return_record_name=False, named_schemas={}):
         self._registry = schema_registry_client
         self._writer_schemas = {}
 
-        self._reader_schema = parse_schema(loads(schema_str)) if schema_str else None
+        self._reader_schema = schema
+        self._named_schemas = named_schemas
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
@@ -324,7 +324,7 @@ class AvroDeserializer(Deserializer):
                 schema = self._registry.get_schema(schema_id)
                 prepared_schema = _schema_loads(schema.schema_str)
                 writer_schema = parse_schema(loads(
-                    prepared_schema.schema_str))
+                    prepared_schema.schema_str), _named_schemas=self._named_schemas)
                 self._writer_schemas[schema_id] = writer_schema
 
             obj_dict = schemaless_reader(payload,
