@@ -671,7 +671,7 @@ class Schema(object):
     Args:
         schema_str (str): String representation of the schema.
 
-        references ([Schema]): Schemas referenced by this schema.
+        references ([SchemaReference]): SchemaReferences used in this schema.
 
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
 
