@@ -11,6 +11,7 @@ If librdkafka is installed in a non-standard location provide the include and li
 
     $ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python setup.py ...
 
+**Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB 
 
 ## Generate Documentation
 
