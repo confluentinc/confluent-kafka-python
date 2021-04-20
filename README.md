@@ -296,6 +296,8 @@ http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
 
  * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
+ * On **Windows** use **Nuget** to download https://www.nuget.org/packages/librdkafka.redist/ and **Visual Studio** to build
+
 
 License
 =======
