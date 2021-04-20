@@ -26,7 +26,7 @@ or:
 
     $ python setup.py build_sphinx
 
-Documentation will be generated in `docs/_build/`.
+Documentation will be generated in `build\sphinx\html`.
 
 
 ## Tests
