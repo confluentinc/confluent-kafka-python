@@ -37,6 +37,8 @@ Serialization API
 
 Supporting classes
     - :ref:`Message <pythonclient_message>`
+    - :ref:`NewTopic <pythonclient_newtopic>`
+    - :ref:`NewPartitions <pythonclient_newpartitions>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
     - :ref:`ThrottleEvent <pythonclient_throttleevent>`
 
@@ -64,6 +66,24 @@ AdminClient
 ***********
 
 .. automodule:: confluent_kafka.admin
+   :members:
+
+.. _pythonclient_newtopic:
+
+**************
+NewTopic
+**************
+
+.. autoclass:: confluent_kafka.admin.NewTopic
+   :members:
+
+.. _pythonclient_newpartitions:
+
+**************
+NewPartitions
+**************
+
+.. autoclass:: confluent_kafka.admin.NewPartitions
    :members:
 
 .. _pythonclient_consumer:
