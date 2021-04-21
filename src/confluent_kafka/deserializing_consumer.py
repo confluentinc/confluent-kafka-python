@@ -130,29 +130,83 @@ class DeserializingConsumer(_ConsumerImpl):
         if msg.error() is not None:
             raise ConsumeError(msg.error(), kafka_message=msg)
 
-        ctx = SerializationContext(msg.topic(), MessageField.VALUE)
-        value = msg.value()
+        return self._parse_deserialize_message(msg)
+
+    def consume(self, num_messages=1, timeout=-1):
+        """
+        Consume up to the number of messages specified with a timeout for each request
+
+        Args:
+            num_messages (int): The maximum number of messages to wait for.
+            timeout (float): Maximum time to block waiting for message(Seconds).
+
+        Returns:
+            :py:class:`Message` or None on timeout
+
+        Raises:
+            KeyDeserializationError: If an error occurs during key
+            deserialization.
+
+            ValueDeserializationError: If an error occurs during value
+            deserialization.
+
+            ConsumeError if an error was encountered while polling.
+
+            RuntimeError if the number of messages is less than 1
+        """
+        if num_messages < 1:
+            raise RuntimeError("The maximum number of messages must be greater than or equal to 1.")
+
+        messages = super(DeserializingConsumer, self).consume(num_messages, timeout)
+
+        if messages is None:
+            return []
+
+        deserialized_messages = []
+
+        for message in messages:
+            if message.error() is not None:
+                raise ConsumeError(message.error(), kafka_message=message)
+
+            deserialized_messages.append(self._parse_deserialize_message(message))
+
+        return deserialized_messages
+
+    def _parse_deserialize_message(self, message):
+        """
+        Internal class method for deserializing and maintaining consistency between poll and consume classes.
+
+        This function will take in a raw serialized message (from cimpl) and return a deserialized message back.
+
+        Args:
+            message (cimpl.Message): The serialized message returned from the base consumer class.
+
+        Returns:
+            :py:class:`Message` on sucessful deserialization
+
+        Raises:
+            KeyDeserializationError: If an error occurs during key
+            deserialization.
+
+            ValueDeserializationError: If an error occurs during value
+            deserialization.
+        """
+        ctx = SerializationContext(message.topic(), MessageField.VALUE)
+        value = message.value()
         if self._value_deserializer is not None:
             try:
                 value = self._value_deserializer(value, ctx)
             except Exception as se:
-                raise ValueDeserializationError(exception=se, kafka_message=msg)
+                raise ValueDeserializationError(exception=se, kafka_message=message)
 
-        key = msg.key()
+        key = message.key()
         ctx.field = MessageField.KEY
         if self._key_deserializer is not None:
             try:
                 key = self._key_deserializer(key, ctx)
             except Exception as se:
-                raise KeyDeserializationError(exception=se, kafka_message=msg)
+                raise KeyDeserializationError(exception=se, kafka_message=message)
 
-        msg.set_key(key)
-        msg.set_value(value)
-        return msg
-
-    def consume(self, num_messages=1, timeout=-1):
-        """
-        :py:func:`Consumer.consume` not implemented, use
-        :py:func:`DeserializingConsumer.poll` instead
-        """
-        raise NotImplementedError
+        message.set_key(key)
+        message.set_value(value)
+        return message
