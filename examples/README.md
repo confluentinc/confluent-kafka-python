@@ -43,7 +43,6 @@ need to have a C compiler and librdkafka installed
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ python setup.py build
 $ python setup.py develop
 $ cd examples
 $ pip install -r requirements.txt
