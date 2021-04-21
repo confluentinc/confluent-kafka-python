@@ -37,20 +37,23 @@ Serialization API
 
 Supporting classes
     - :ref:`Message <pythonclient_message>`
-    - :ref:`NewTopic <pythonclient_newtopic>`
-    - :ref:`NewPartitions <pythonclient_newpartitions>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
     - :ref:`ThrottleEvent <pythonclient_throttleevent>`
 
-    - :ref:`KafkaError <pythonclient_kafkaerror>`
-    - :ref:`KafkaException <pythonclient_kafkaexception>`
-    - :ref:`ConsumeError <pyclient_error_consumer>`
-    - :ref:`ProduceError <pyclient_error_producer>`
-    - :ref:`SerializationError <serde_error>`
+    - Errors
+        - :ref:`KafkaError <pythonclient_kafkaerror>`
+        - :ref:`KafkaException <pythonclient_kafkaexception>`
+        - :ref:`ConsumeError <pyclient_error_consumer>`
+        - :ref:`ProduceError <pyclient_error_producer>`
+        - :ref:`SerializationError <serde_error>`
             - :ref:`KeySerializationError <serde_error_serializer_key>`
             - :ref:`ValueSerializationError <serde_error_serializer_value>`
             - :ref:`KeyDeserializationError <serde_error_deserializer_key>`
             - :ref:`ValueDeserializationError <serde_error_deserializer_value>`
+
+    - Admin API
+        - :ref:`NewTopic <pyclient_admin_newtopic>`
+        - :ref:`NewPartitions <pyclient_admin_newpartitions>`
 
 Guide to the :ref:`Transactional Producer API <pythonclient_transactional>`
 
@@ -68,7 +71,7 @@ AdminClient
 .. automodule:: confluent_kafka.admin
    :members:
 
-.. _pythonclient_newtopic:
+.. _pyclient_admin_newtopic:
 
 **************
 NewTopic
@@ -77,7 +80,7 @@ NewTopic
 .. autoclass:: confluent_kafka.admin.NewTopic
    :members:
 
-.. _pythonclient_newpartitions:
+.. _pyclient_admin_newpartitions:
 
 **************
 NewPartitions
