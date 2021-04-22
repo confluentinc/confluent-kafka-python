@@ -150,8 +150,6 @@ class DeserializingConsumer(_ConsumerImpl):
             ValueDeserializationError: If an error occurs during value
             deserialization.
 
-            ConsumeError if an error was encountered while polling.
-
             RuntimeError if the number of messages is less than 1
         """
         if num_messages < 1:
@@ -165,9 +163,6 @@ class DeserializingConsumer(_ConsumerImpl):
         deserialized_messages = []
 
         for message in messages:
-            if message.error() is not None:
-                raise ConsumeError(message.error(), kafka_message=message)
-
             deserialized_messages.append(self._parse_deserialize_message(message))
 
         return deserialized_messages
