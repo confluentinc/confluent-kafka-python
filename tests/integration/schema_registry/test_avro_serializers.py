@@ -24,7 +24,7 @@ from confluent_kafka.serialization import (MessageField,
 from confluent_kafka.schema_registry.avro import (AvroSerializer,
                                                   AvroDeserializer)
 
-from src.confluent_kafka.schema_registry import Schema
+from confluent_kafka.schema_registry import Schema
 
 
 class User(object):

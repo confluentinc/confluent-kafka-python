@@ -18,6 +18,7 @@
 import pytest
 
 from confluent_kafka.schema_registry import (record_subject_name_strategy,
+                                             Schema,
                                              SchemaRegistryClient,
                                              topic_record_subject_name_strategy)
 from confluent_kafka.schema_registry.avro import AvroSerializer
@@ -25,7 +26,6 @@ from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
 
 # MockSchemaRegistryClient, see ./conftest.py for additional details.
-from src.confluent_kafka.schema_registry import Schema
 
 TEST_URL = 'http://SchemaRegistry:65534'
 
