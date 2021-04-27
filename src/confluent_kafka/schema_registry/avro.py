@@ -123,7 +123,7 @@ class AvroSerializer(Serializer):
 
     Note:
        Tuple notation can be used to determine which branch of an ambiguous union to take.
-       
+
        See `fastavro notation <https://fastavro.readthedocs.io/en/latest/writer.html#using-the-tuple-notation-to-specify-which-branch-of-a-union-to-take>`_
 
     Args:
