@@ -268,9 +268,11 @@ class AvroDeserializer(Deserializer):
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
 
     """
-    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name', '_named_schemas']
+    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name',
+                 '_named_schemas']
 
-    def __init__(self, schema_registry_client, schema=None, from_dict=None, return_record_name=False, named_schemas={}):
+    def __init__(self, schema_registry_client, schema=None, from_dict=None, return_record_name=False,
+                 named_schemas={}):
         self._registry = schema_registry_client
         self._writer_schemas = {}
 
