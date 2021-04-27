@@ -24,6 +24,8 @@ from confluent_kafka.serialization import (MessageField,
 from confluent_kafka.schema_registry.avro import (AvroSerializer,
                                                   AvroDeserializer)
 
+from src.confluent_kafka.schema_registry import Schema
+
 
 class User(object):
     schema_str = """
@@ -72,7 +74,7 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
     sr = kafka_cluster.schema_registry()
 
     schema_str = load_file(avsc)
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = AvroSerializer(sr, Schema(schema_str, 'AVRO'))
 
     value_deserializer = AvroDeserializer(sr)
 
@@ -116,7 +118,7 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
     sr = kafka_cluster.schema_registry()
     schema_str = load_file(avsc)
 
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = AvroSerializer(sr, Schema(schema_str, 'AVRO'))
 
     value_deserializer = AvroDeserializer(sr)
 
@@ -163,13 +165,13 @@ def test_avro_record_serialization_custom(kafka_cluster):
     sr = kafka_cluster.schema_registry()
 
     user = User('Bowie', 47, 'purple')
-    value_serializer = AvroSerializer(sr, User.schema_str,
+    value_serializer = AvroSerializer(sr, Schema(User.schema_str, 'AVRO'),
                                       lambda user, ctx:
                                       dict(name=user.name,
                                            favorite_number=user.favorite_number,
                                            favorite_color=user.favorite_color))
 
-    value_deserializer = AvroDeserializer(sr, User.schema_str,
+    value_deserializer = AvroDeserializer(sr, Schema(User.schema_str, 'AVRO'),
                                           lambda user_dict, ctx:
                                           User(**user_dict))
 
