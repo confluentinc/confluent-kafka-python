@@ -141,7 +141,7 @@ def test_avro_serializer_topic_record_subject_name_strategy(load_avsc):
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client,
-                                     Schema(load_avsc('basic_schema.avsc'),'AVRO'),
+                                     Schema(load_avsc('basic_schema.avsc'), 'AVRO'),
                                      conf={'subject.name.strategy':
                                            topic_record_subject_name_strategy})
 
@@ -157,7 +157,7 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    test_serializer = AvroSerializer(test_client, Schema('int','AVRO'),
+    test_serializer = AvroSerializer(test_client, Schema('int', 'AVRO'),
                                      conf={'subject.name.strategy':
                                            topic_record_subject_name_strategy})
 
@@ -173,7 +173,7 @@ def test_avro_serializer_subject_name_strategy_default(load_avsc):
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client,
-                                     Schema(load_avsc('basic_schema.avsc'),'AVRO'))
+                                     Schema(load_avsc('basic_schema.avsc'), 'AVRO'))
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
