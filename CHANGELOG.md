@@ -1,5 +1,19 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.7.0
+
+v1.7.0 is a maintenance release with the following fixes and enhancements:
+
+- Add error_cb to confluent_cloud.py example (#1096).
+- Clarify that doc output varies based on method (@slominskir, #1098).
+- Docs say Schema when they mean SchemaReference (@slominskir, #1092).
+- Add documentation for NewTopic and NewPartitions (#1101).
+
+confluent-kafka-python is based on librdkafka v1.7.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.7.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.6.1
 
 v1.6.1 is a feature release:
