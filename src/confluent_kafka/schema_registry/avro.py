@@ -124,7 +124,7 @@ class AvroSerializer(Serializer):
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        schema_str (str): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
+        schema (Schema): Avro schema declaration.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
@@ -252,7 +252,7 @@ class AvroDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
 
-        schema_str (str, optional): Avro reader schema declaration.
+        schema (Schema, optional): Avro reader schema declaration.
             If not provided, writer schema is used for deserialization.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
