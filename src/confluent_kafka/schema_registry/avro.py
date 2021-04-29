@@ -329,9 +329,16 @@ class AvroDeserializer(Deserializer):
                     prepared_schema.schema_str), _named_schemas=self._named_schemas)
                 self._writer_schemas[schema_id] = writer_schema
 
+            # Must translate from Confluent Registry Schema obj to fastavro dict
+            if self._reader_schema is None:
+                fastavro_reader_schema = None
+            else:
+                fastavro_reader_schema = parse_schema(loads(self._reader_schema.schema_str),
+                                                      _named_schemas=self._named_schemas)
+
             obj_dict = schemaless_reader(payload,
                                          writer_schema,
-                                         self._reader_schema,
+                                         fastavro_reader_schema,
                                          self._return_record_name)
 
             if self._from_dict is not None:
