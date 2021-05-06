@@ -220,22 +220,3 @@ def test_serialization_context_headers_empty(load_avsc):
     ctx = SerializationContext('test_subj', MessageField.VALUE, [])
     assert ctx is not None
     assert not ctx.headers
-
-
-def test_serialization_context_headers_updated(load_avsc):
-    """
-    Ensures SerializationContext headers parameter can be updated
-    """
-    conf = {'url': TEST_URL}
-    test_client = SchemaRegistryClient(conf)
-    test_serializer = AvroSerializer(test_client, 'int',
-                                     conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
-
-    headers = [('k1', 'v1'),]
-
-    ctx = SerializationContext('test_subj', MessageField.VALUE, headers)
-    assert ('k1', 'v1') in ctx.headers
-    headers.extend([('k2', 'v2'),])
-    assert ('k2', 'v2') in ctx.headers
-    assert len(headers) == 2

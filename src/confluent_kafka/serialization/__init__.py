@@ -56,7 +56,7 @@ class SerializationContext(object):
         field (MessageField): Describes what part of the message is
             being serialized.
 
-        headers (List of header tuples): Message headers
+        headers (optional, defaults to None, List of header tuples): Message headers
 
     """
     def __init__(self, topic, field, headers=None):
