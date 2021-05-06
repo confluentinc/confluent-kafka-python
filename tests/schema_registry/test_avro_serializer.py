@@ -127,7 +127,7 @@ def test_avro_serializer_record_subject_name_strategy_primitive(load_avsc):
                                      conf={'subject.name.strategy':
                                            record_subject_name_strategy})
 
-    ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'header value 1'),])
+    ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'header value 1'), ])
     assert test_serializer._subject_name_func(ctx,
                                               test_serializer._schema_name) == 'int'
 
@@ -184,11 +184,10 @@ def test_serialization_context_receives_headers(load_avsc):
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    test_serializer = AvroSerializer(test_client, 'int',
-                                     conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+    _ = AvroSerializer(test_client, 'int',
+                       conf={'subject.name.strategy': record_subject_name_strategy})
 
-    ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'value1'),])
+    ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'value1'), ])
     assert ('header1', 'value1') in ctx.headers
 
 
@@ -198,9 +197,8 @@ def test_serialization_context_headers_optional(load_avsc):
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    test_serializer = AvroSerializer(test_client, 'int',
-                                     conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+    _ = AvroSerializer(test_client, 'int',
+                       conf={'subject.name.strategy': record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert ctx is not None
@@ -213,9 +211,8 @@ def test_serialization_context_headers_empty(load_avsc):
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    test_serializer = AvroSerializer(test_client, 'int',
-                                     conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+    _ = AvroSerializer(test_client, 'int',
+                       conf={'subject.name.strategy': record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE, [])
     assert ctx is not None
