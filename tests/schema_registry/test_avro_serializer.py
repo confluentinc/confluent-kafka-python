@@ -208,6 +208,7 @@ def test_serialization_context_headers_optional(load_avsc):
     assert ctx is not None
     assert ctx.headers is None
 
+
 def test_serialization_context_headers_empty(load_avsc):
     """
     Ensures record_subject_name_strategy returns the correct record name.
@@ -222,6 +223,7 @@ def test_serialization_context_headers_empty(load_avsc):
     ctx = SerializationContext('test_subj', MessageField.VALUE, [])
     assert ctx is not None
     assert not ctx.headers
+
 
 def test_serialization_context_headers_updated(load_avsc):
     """
