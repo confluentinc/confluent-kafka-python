@@ -57,9 +57,10 @@ class SerializationContext(object):
             being serialized.
 
     """
-    def __init__(self, topic, field):
+    def __init__(self, topic, field, headers):
         self.topic = topic
         self.field = field
+        self.headers = headers
 
 
 class SerializationError(KafkaException):
