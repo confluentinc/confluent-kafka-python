@@ -59,7 +59,7 @@ class SerializationContext(object):
         headers (List of header tuples): Message headers
 
     """
-    def __init__(self, topic, field, headers):
+    def __init__(self, topic, field, headers=None):
         self.topic = topic
         self.field = field
         self.headers = headers
