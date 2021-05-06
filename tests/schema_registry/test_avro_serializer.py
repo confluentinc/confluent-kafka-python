@@ -180,8 +180,7 @@ def test_avro_serializer_subject_name_strategy_default(load_avsc):
 
 def test_serialization_context_receives_headers(load_avsc):
     """
-    Ensures record_subject_name_strategy returns the correct record name.
-    Also verifies transformation from Avro canonical form.
+    Ensures SerializationContext headers parameter is properly stored
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
@@ -195,8 +194,7 @@ def test_serialization_context_receives_headers(load_avsc):
 
 def test_serialization_context_headers_optional(load_avsc):
     """
-    Ensures record_subject_name_strategy returns the correct record name.
-    Also verifies transformation from Avro canonical form.
+    Ensures SerializationContext headers parameter is optional
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
@@ -211,8 +209,7 @@ def test_serialization_context_headers_optional(load_avsc):
 
 def test_serialization_context_headers_empty(load_avsc):
     """
-    Ensures record_subject_name_strategy returns the correct record name.
-    Also verifies transformation from Avro canonical form.
+    Ensures SerializationContext headers parameter can be empty
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
@@ -227,8 +224,7 @@ def test_serialization_context_headers_empty(load_avsc):
 
 def test_serialization_context_headers_updated(load_avsc):
     """
-    Ensures record_subject_name_strategy returns the correct record name.
-    Also verifies transformation from Avro canonical form.
+    Ensures SerializationContext headers parameter can be updated
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
