@@ -171,7 +171,7 @@ class AvroSerializer(Serializer):
                              .format(", ".join(conf_copy.keys())))
 
         schema_dict = loads(schema.schema_str)
-        parsed_schema = parse_schema(schema_dict, _named_schemas=self._named_schemas)
+        parsed_schema = parse_schema(schema_dict, named_schemas=self._named_schemas)
         # The Avro spec states primitives have a name equal to their type
         # i.e. {"type": "string"} has a name of string.
         # This function does not comply.
@@ -326,7 +326,7 @@ class AvroDeserializer(Deserializer):
                 schema = self._registry.get_schema(schema_id)
                 prepared_schema = _schema_loads(schema.schema_str)
                 writer_schema = parse_schema(loads(
-                    prepared_schema.schema_str), _named_schemas=self._named_schemas)
+                    prepared_schema.schema_str), named_schemas=self._named_schemas)
                 self._writer_schemas[schema_id] = writer_schema
 
             # Must translate from Confluent Registry Schema obj to fastavro dict
@@ -334,7 +334,7 @@ class AvroDeserializer(Deserializer):
                 fastavro_reader_schema = None
             else:
                 fastavro_reader_schema = parse_schema(loads(self._reader_schema.schema_str),
-                                                      _named_schemas=self._named_schemas)
+                                                      named_schemas=self._named_schemas)
 
             obj_dict = schemaless_reader(payload,
                                          writer_schema,
