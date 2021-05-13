@@ -162,10 +162,11 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
                                      conf={'subject.name.strategy':
                                            topic_record_subject_name_strategy})
 
-    ctx = SerializationContext('test_subj', MessageField.VALUE, [])
+    ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
         ctx, test_serializer._schema_name) == 'test_subj-int'
-    assert not ctx.headers
+    assert ctx is not None
+    assert ctx.headers is None
 
 
 def test_avro_serializer_subject_name_strategy_default(load_avsc):
@@ -180,17 +181,3 @@ def test_avro_serializer_subject_name_strategy_default(load_avsc):
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
         ctx, test_serializer._schema_name) == 'test_subj-value'
-
-
-def test_serialization_context_headers_optional(load_avsc):
-    """
-    Ensures SerializationContext headers parameter is optional
-    """
-    conf = {'url': TEST_URL}
-    test_client = SchemaRegistryClient(conf)
-    _ = AvroSerializer(test_client, 'int',
-                       conf={'subject.name.strategy': record_subject_name_strategy})
-
-    ctx = SerializationContext('test_subj', MessageField.VALUE)
-    assert ctx is not None
-    assert ctx.headers is None
