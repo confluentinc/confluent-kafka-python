@@ -56,10 +56,13 @@ class SerializationContext(object):
         field (MessageField): Describes what part of the message is
             being serialized.
 
+        headers (list): List of message header tuples. Defaults to None.
+
     """
-    def __init__(self, topic, field):
+    def __init__(self, topic, field, headers=None):
         self.topic = topic
         self.field = field
+        self.headers = headers
 
 
 class SerializationError(KafkaException):
