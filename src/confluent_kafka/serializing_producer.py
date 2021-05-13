@@ -160,7 +160,7 @@ class SerializingProducer(_ProducerImpl):
             KafkaException: For all other errors
 
         """
-        ctx = SerializationContext(topic, MessageField.KEY)
+        ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:
             try:
                 key = self._key_serializer(key, ctx)
