@@ -363,6 +363,14 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def list_topics(self, **kwargs):
+
+        return super(AdminClient, self).list_topics(**kwargs)
+
+    def list_groups(self, **kwargs):
+
+        return super(AdminClient, self).list_groups(**kwargs)
+
     def create_partitions(self, new_partitions, **kwargs):
         """
         Create additional partitions for the given topics.
