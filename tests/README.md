@@ -18,7 +18,7 @@ A python3 env suitable for running tests:
 
     $ python3 -m venv venv_test
     $ source venv_test/bin/activate
-    $ pip install -r test/requirements.txt
+    $ pip install -r tests/requirements.txt
     $ python setup.py build
     $ python setup.py install
 
