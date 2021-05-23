@@ -1,5 +1,11 @@
 # Confluent's Python client for Apache Kafka
 
+
+## v1.10.0
+
+- Add metadata to TopicPartition type and commit() (#1126).
+
+
 ## v1.9.2
 
 v1.9.2 is a maintenance release with the following fixes and enhancements:
@@ -115,10 +121,6 @@ must set `use.deprecated.format` to `False`.
 
 The requirement to explicitly set `use.deprecated.format` will be removed
 in a future version and the setting will then default to `False` (new format).
-
-
-
-
 
 
 ## v1.7.0
