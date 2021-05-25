@@ -458,12 +458,16 @@ class SchemaRegistryClient(object):
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
 
         """  # noqa: E501
-        list = self._rest_client.delete('subjects/{}'
-                                        .format(_urlencode(subject_name)))
+        try:
+            list = self._rest_client.delete('subjects/{}'
+                                            .format(_urlencode(subject_name)))
+        except SchemaRegistryError as e:
+            if e.error_code != 40404:
+                raise
 
         if permanent:
-            self._rest_client.delete('subjects/{}?permanent=true'
-                                     .format(_urlencode(subject_name)))
+            list = self._rest_client.delete('subjects/{}?permanent=true'
+                                            .format(_urlencode(subject_name)))
 
         return list
 
