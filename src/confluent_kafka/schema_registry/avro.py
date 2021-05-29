@@ -83,6 +83,10 @@ class AvroSerializer(Serializer):
     | ``auto.register.schemas`` | bool     | previously associated with a particular subject. |
     |                           |          | Defaults to True.                                |
     +---------------------------+----------+--------------------------------------------------+
+    |                           |          | Whether to use the latest subject version for    |
+    | ``use.latest.version``    | bool     | serialization.                                   |
+    |                           |          | Defaults to False.                               |
+    +-------------------------------------+----------+----------------------------------------+
     |                           |          | Callable(SerializationContext, str) -> str       |
     |                           |          |                                                  |
     | ``subject.name.strategy`` | callable | Instructs the AvroSerializer on how to construct |
@@ -131,12 +135,13 @@ class AvroSerializer(Serializer):
         conf (dict): AvroSerializer configuration.
 
     """  # noqa: E501
-    __slots__ = ['_hash', '_auto_register', '_known_subjects', '_parsed_schema',
+    __slots__ = ['_hash', '_auto_register', '_use_latest_version', '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
                  '_subject_name_func', '_to_dict']
 
     # default configuration
     _default_conf = {'auto.register.schemas': True,
+                     'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
     def __init__(self, schema_registry_client, schema_str,
@@ -160,6 +165,10 @@ class AvroSerializer(Serializer):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._use_latest_version = conf_copy.pop('use.latest.version')
+        if not isinstance(self._use_latest_version, bool):
+            raise ValueError("use.latest.version must be a boolean value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -208,18 +217,23 @@ class AvroSerializer(Serializer):
 
         subject = self._subject_name_func(ctx, self._schema_name)
 
-        # Check to ensure this schema has been registered under subject_name.
-        if self._auto_register and subject not in self._known_subjects:
-            # The schema name will always be the same. We can't however register
-            # a schema without a subject so we set the schema_id here to handle
-            # the initial registration.
-            self._schema_id = self._registry.register_schema(subject,
-                                                             self._schema)
-            self._known_subjects.add(subject)
-        elif not self._auto_register and subject not in self._known_subjects:
-            registered_schema = self._registry.lookup_schema(subject,
-                                                             self._schema)
-            self._schema_id = registered_schema.schema_id
+        if subject not in self._known_subjects:
+            if self._use_latest_version:
+                latest_schema = self._registry.get_latest_version(subject)
+                self._schema_id = latest_schema.schema_id
+
+            else:
+                # Check to ensure this schema has been registered under subject_name.
+                if self._auto_register:
+                    # The schema name will always be the same. We can't however register
+                    # a schema without a subject so we set the schema_id here to handle
+                    # the initial registration.
+                    self._schema_id = self._registry.register_schema(subject,
+                                                                     self._schema)
+                else:
+                    registered_schema = self._registry.lookup_schema(subject,
+                                                                     self._schema)
+                    self._schema_id = registered_schema.schema_id
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
