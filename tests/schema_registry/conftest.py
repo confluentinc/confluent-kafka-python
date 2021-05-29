@@ -297,12 +297,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         path_match = re.match(self.subject_versions, request.path)
         subject = path_match.group(1)
         version = path_match.group(2)
+        version_num = -1 if version == 'latest' else int(version)
 
-        if int(version) == 404:
+        if version_num == 404:
             context.status_code = 404
             return {'error_code': 40402,
                     'message': "Version not found"}
-        if int(version) == 422:
+        if version_num == 422:
             context.status_code = 422
             return {'error_code': 42202,
                     'message': "Invalid version"}
@@ -313,7 +314,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         context.status_code = 200
         return {'subject': subject,
                 'id': self.SCHEMA_ID,
-                'version': int(version),
+                'version': version_num,
                 'schema': self._load_avsc(self.SCHEMA)}
 
     def delete_subject_version_callback(self, request, context):
@@ -322,13 +323,14 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         path_match = re.match(self.subject_versions, request.path)
         subject = path_match.group(1)
         version = path_match.group(2)
+        version_num = -1 if version == 'latest' else int(version)
 
-        if int(version) == 404:
+        if version_num == 404:
             context.status_code = 404
             return {"error_code": 40402,
                     "message": "Version not found"}
 
-        if int(version) == 422:
+        if version_num == 422:
             context.status_code = 422
             return {"error_code": 42202,
                     "message": "Invalid version"}
@@ -339,7 +341,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                     "message": "Subject not found"}
 
         context.status_code = 200
-        return int(version)
+        return version_num
 
     def post_subject_version_callback(self, request, context):
         self.counter['POST'][request.path] += 1
