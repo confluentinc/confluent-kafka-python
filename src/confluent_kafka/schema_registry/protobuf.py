@@ -228,6 +228,8 @@ class ProtobufSerializer(object):
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
+        if self._use_latest_version and self._auto_register:
+            raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
         self._skip_known_types = conf_copy.pop('skip.known.types')
         if not isinstance(self._skip_known_types, bool):
