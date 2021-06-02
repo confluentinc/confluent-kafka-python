@@ -61,6 +61,9 @@ class JSONSerializer(Serializer):
     +---------------------------+----------+--------------------------------------------------+
     |                           |          | Whether to use the latest subject version for    |
     | ``use.latest.version``    | bool     | serialization.                                   |
+    |                           |          | WARNING: There is no check that the latest       |
+    |                           |          | schema is backwards compatible with the object   |
+    |                           |          | being serialized.                                |
     |                           |          | Defaults to False.                               |
     +-------------------------------------+----------+----------------------------------------+
     |                           |          | Callable(SerializationContext, str) -> str       |
@@ -147,6 +150,8 @@ class JSONSerializer(Serializer):
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
+        if self._use_latest_version and self._auto_register:
+            raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):

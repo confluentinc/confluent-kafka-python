@@ -148,6 +148,9 @@ class ProtobufSerializer(object):
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
+    |                                     |          | WARNING: There is no check that the latest           |
+    |                                     |          | schema is backwards compatible with the object       |
+    |                                     |          | being serialized.                                    |
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to skip known types when resolving schema    |
