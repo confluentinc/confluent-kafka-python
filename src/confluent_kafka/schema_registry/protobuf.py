@@ -146,6 +146,17 @@ class ProtobufSerializer(object):
     | ``auto.register.schemas``           | bool     | previously associated with a particular subject.     |
     |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to use the latest subject version for        |
+    | ``use.latest.version``              | bool     | serialization.                                       |
+    |                                     |          | WARNING: There is no check that the latest           |
+    |                                     |          | schema is backwards compatible with the object       |
+    |                                     |          | being serialized.                                    |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to skip known types when resolving schema    |
+    | ``skip.known.types``                | bool     | dependencies.                                        |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Instructs the ProtobufSerializer on how to construct |
@@ -194,12 +205,15 @@ class ProtobufSerializer(object):
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
 
     """  # noqa: E501
-    __slots__ = ['_auto_register', '_registry', '_known_subjects',
+    __slots__ = ['_auto_register', '_use_latest_version', '_skip_known_types',
+                 '_registry', '_known_subjects',
                  '_msg_class', '_msg_index', '_schema', '_schema_id',
                  '_ref_reference_subject_func', '_subject_name_func']
     # default configuration
     _default_conf = {
         'auto.register.schemas': True,
+        'use.latest.version': False,
+        'skip.known.types': False,
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy
     }
@@ -213,6 +227,16 @@ class ProtobufSerializer(object):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._use_latest_version = conf_copy.pop('use.latest.version')
+        if not isinstance(self._use_latest_version, bool):
+            raise ValueError("use.latest.version must be a boolean value")
+        if self._use_latest_version and self._auto_register:
+            raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
+
+        self._skip_known_types = conf_copy.pop('skip.known.types')
+        if not isinstance(self._skip_known_types, bool):
+            raise ValueError("skip.known.types must be a boolean value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -266,6 +290,8 @@ class ProtobufSerializer(object):
         """
         schema_refs = []
         for dep in file_desc.dependencies:
+            if self._skip_known_types and dep.name.startswith("google/protobuf/"):
+                continue
             dep_refs = self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
@@ -313,15 +339,22 @@ class ProtobufSerializer(object):
                                           message_type.DESCRIPTOR.full_name)
 
         if subject not in self._known_subjects:
-            self._schema.references = self._resolve_dependencies(
-                ctx, message_type.DESCRIPTOR.file)
+            if self._use_latest_version:
+                latest_schema = self._registry.get_latest_version(subject)
+                self._schema_id = latest_schema.schema_id
 
-            if self._auto_register:
-                self._schema_id = self._registry.register_schema(subject,
-                                                                 self._schema)
             else:
-                self._schema_id = self._registry.lookup_schema(
-                    subject, self._schema).schema_id
+                self._schema.references = self._resolve_dependencies(
+                    ctx, message_type.DESCRIPTOR.file)
+
+                if self._auto_register:
+                    self._schema_id = self._registry.register_schema(subject,
+                                                                     self._schema)
+                else:
+                    self._schema_id = self._registry.lookup_schema(
+                        subject, self._schema).schema_id
+
+            self._known_subjects.add(subject)
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order
