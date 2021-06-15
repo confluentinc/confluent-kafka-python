@@ -2,6 +2,8 @@
 
 ## v1.7.1
 
+v1.7.1 is a maintenance release with the following fixes and enhancements:
+
 ### Fixes
 
 - Add metadata to TopicPartition type and commit() (#1126).
