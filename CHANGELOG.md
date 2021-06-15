@@ -41,6 +41,8 @@ This is a feature release:
  - OAUTHBEARER OIDC support
  - KIP-140 Admin API ACL support
 
+v1.7.1 is a maintenance release with the following fixes and enhancements:
+
 ### Fixes
 
  - The warnings for `use.deprecated.format` (introduced in v1.8.2)

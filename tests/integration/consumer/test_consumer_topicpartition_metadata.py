@@ -16,7 +16,7 @@
 # limit
 #
 
-from confluent_kafka import TopicPartition, KafkaError, KafkaException
+from confluent_kafka import TopicPartition, KafkaException
 
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
@@ -27,30 +27,28 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
     c = kafka_cluster.consumer(consumer_conf)
 
     try:
-        c.commit(offsets=[TopicPartition(topic, 0)],
+        c.commit(offsets=[TopicPartition(topic, 0, 0)],
                  asynchronous=False)
     except KafkaException as e:
-        print('commit failed with %s (expected)' % e)
-        assert e.args[0].code() == KafkaError._NO_OFFSET
+        print('commit failed with %s' % e)
 
-    offsets = c.committed([TopicPartition(topic, 0)])
-
+    offsets = c.committed([TopicPartition(topic, 0, 0)])
     for tp in offsets:
         assert tp.metadata is None
 
     c.close()
 
-    c = kafka_cluster.consumer({'group.id': 'testmeta'})
+    c = kafka_cluster.consumer(consumer_conf)
+    metadata = "\x01abcdefg\\x00afd\\xff"
 
     try:
-        c.commit(offsets=[TopicPartition(topic, 0, 0, "metadata")],
+        c.commit(offsets=[TopicPartition(topic, 0, 1, metadata, len(metadata))],
                  asynchronous=False)
     except KafkaException as e:
-        print('commit failed with %s (expected)' % e)
-        assert e.args[0].code() == KafkaError._NO_OFFSET
+        print('commit failed with %s' % e)
 
     offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
-
     for tp in offsets:
-        assert tp.metadata == "metadata"
+        assert str.encode(metadata) == tp.metadata
+
     c.close()
