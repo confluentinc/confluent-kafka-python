@@ -1144,13 +1144,12 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 			return NULL;
 		}
 
-		rd_kafka_topic_partition_list_add(c_parts,
+		rd_kafka_topic_partition_t *rktpar;
+		rktpar = rd_kafka_topic_partition_list_add(c_parts,
 						  tp->topic,
-						  tp->partition)->offset =
-			tp->offset;
-
+						  tp->partition);
+		rktpar->offset = tp->offset;
 		if (tp->metadata_size != 0) {
-			rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
 			rktpar->metadata_size = tp->metadata_size;
 			rktpar->metadata = malloc(rktpar->metadata_size);
 			memcpy(rktpar->metadata,
