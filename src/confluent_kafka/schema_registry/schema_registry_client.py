@@ -112,6 +112,15 @@ class _RestClient(object):
 
         self.session.auth = userinfo if userinfo != ('', '') else None
 
+        # The following adds support for proxy config
+        # If specified: it uses the specified proxy details when making requests
+        proxy = conf_copy.pop('proxy', None)
+        if proxy is not None:
+            if not isinstance(proxy, dict):
+                raise TypeError("proxy details must be an instance of dict, not "
+                                + str(type(proxy)))
+        self.proxy = proxy
+
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -164,9 +173,17 @@ class _RestClient(object):
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
-        response = self.session.request(
-            method, url="/".join([self.base_url, url]),
-            headers=headers, data=body, params=query)
+        if self.proxy is not None:
+            # request with proxy
+            response = self.session.request(
+                method, url="/".join([self.base_url, url]),
+                headers=headers, data=body, params=query, proxies=self.proxy)
+
+        else:
+            # normal request without proxy
+            response = self.session.request(
+                method, url="/".join([self.base_url, url]),
+                headers=headers, data=body, params=query)
 
         try:
             if 200 <= response.status_code <= 299:
@@ -279,6 +296,11 @@ class SchemaRegistryClient(object):
     | ``basic.auth.user.info``     | str  |                                                 |
     |                              |      | By default userinfo is extracted from           |
     |                              |      | the URL if present.                             |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | (optional) Dictionary mapping protocol          |
+    |                              |      | to the URL of the proxy. eg:                    |
+    | ``proxy``                    | dict |                                                 |
+    |                              |      | ``{'http':'http://proxyhost:proxyport',...}``   |
     +------------------------------+------+-------------------------------------------------+
 
     Args:
