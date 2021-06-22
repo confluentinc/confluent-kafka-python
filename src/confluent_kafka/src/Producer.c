@@ -16,7 +16,6 @@
 
 #include "confluent_kafka.h"
 
-
 /**
  * @brief KNOWN ISSUES
  *
@@ -48,6 +47,7 @@
 struct Producer_msgstate {
 	Handle   *self;
 	PyObject *dr_cb;
+        PyObject *partitioner_cb;
 };
 
 
@@ -57,7 +57,8 @@ struct Producer_msgstate {
  */
 static __inline struct Producer_msgstate *
 Producer_msgstate_new (Handle *self,
-		       PyObject *dr_cb) {
+		       PyObject *dr_cb,
+                       PyObject *partitioner_cb) {
 	struct Producer_msgstate *msgstate;
 
 	msgstate = calloc(1, sizeof(*msgstate));
@@ -67,6 +68,12 @@ Producer_msgstate_new (Handle *self,
 		msgstate->dr_cb = dr_cb;
 		Py_INCREF(dr_cb);
 	}
+
+        if (partitioner_cb) {
+		msgstate->partitioner_cb = partitioner_cb;
+		Py_INCREF(partitioner_cb);
+	}
+
 	return msgstate;
 }
 
@@ -74,6 +81,10 @@ static __inline void
 Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
 	if (msgstate->dr_cb)
 		Py_DECREF(msgstate->dr_cb);
+ 
+        if (msgstate->partitioner_cb)
+		Py_DECREF(msgstate->partitioner_cb);
+ 
 	free(msgstate);
 }
 
@@ -118,6 +129,87 @@ static int Producer_traverse (Handle *self,
 	Handle_traverse(self, visit, arg);
 
 	return 0;
+}
+
+
+static int32_t partition_cb (const rd_kafka_topic_t *rkt,
+			      const void *keydata,
+			      size_t keylen,
+			      int32_t partition_cnt,
+			      void *rkt_opaque,
+			      void *msg_opaque) {
+        
+        int32_t i;
+        i = 1;
+        //return i;
+        
+      
+	struct Producer_msgstate *msgstate = msg_opaque;
+	//Handle *self = msgstate->self;
+	//CallState *cs;
+	PyObject *result, *args = NULL;
+	PyObject *msgobj;
+        fprintf(stderr, "Jing Liu partitioner_cb 0\n");
+	if (!msgstate) {
+                fprintf(stderr, "Jing Liu partitioner_cb 1\n");
+		return 0;
+        }
+        
+/*
+        if (!self) {
+                fprintf(stderr, "Jing Liu self is NULL\n");
+        }
+*/
+        fprintf(stderr, "Jing Liu partitioner_cb 2\n");
+
+	//cs = CallState_get(self);
+
+        fprintf(stderr, "Jing Liu partitioner_cb 3\n");
+	if (!msgstate->partitioner_cb) {
+		goto done;
+	}
+        fprintf(stderr, "Jing Liu partitioner_cb 4 keydata %s\n", keydata);
+        fprintf(stderr, "Jing Liu partitioner_cb 4 keylen %zu\n", keylen);
+        fprintf(stderr, "Jing Liu partitioner_cb 4 partition_cnt %d\n", partition_cnt);
+	//msgobj = Message_new0(self, rkt);
+
+
+        args = Py_BuildValue("Oii", keydata, 3, 128);
+        
+        fprintf(stderr, "Jing Liu partitioner_cb 5\n");
+	//Py_DECREF(msgobj);
+
+	if (!args) {
+		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+				 "Unable to build callback args");
+		//CallState_crash(cs);
+		goto done;
+	}
+
+        fprintf(stderr, "Jing Liu partitioner_cb msgstate->partitioner_cb is NULL %d\n", msgstate->partitioner_cb == NULL);
+
+        if (msgstate->partitioner_cb != NULL && !PyCallable_Check(msgstate->partitioner_cb)) {
+            PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+            return -1;      
+        }
+        fprintf(stderr, "Jing Liu partitioner_cb msgstate->partitioner_cb after callable check\n");
+	result = PyObject_CallObject(msgstate->partitioner_cb, args);
+        fprintf(stderr, "Jing Liu partitioner_cb 7\n");
+	Py_DECREF(args);
+
+	if (result)
+		Py_DECREF(result);
+	else {
+		//CallState_crash(cs);
+		//rd_kafka_yield(rkt);
+	}
+        return (int32_t)(PyLong_AsLong(result));
+
+ done:
+	Producer_msgstate_destroy(msgstate);
+	//CallState_resume(cs);
+        return -1;
+
 }
 
 
@@ -185,6 +277,23 @@ Producer_producev (Handle *self,
 #endif
                    ) {
 
+        struct Producer_msgstate *msgstate = opaque;
+        rd_kafka_topic_conf_t *tconf = NULL;
+        rd_kafka_topic_t *rkt;
+
+        if (msgstate != NULL && msgstate->partitioner_cb != NULL) {
+                fprintf(stderr, "Jing Liu Producer_produce0 msgstate->partitioner_cb is not NULL\n");
+                tconf = rd_kafka_topic_conf_new();
+
+                rd_kafka_topic_conf_set_partitioner_cb(tconf, partition_cb);
+                fprintf(stderr, "JIng Liu after partitioner cb1 tconf is null %d\n", tconf == NULL);
+        }
+
+
+        fprintf(stderr, "JIng Liu after partitioner cb\n");
+        if (!(rkt = rd_kafka_topic_new(self->rk, topic, tconf)))
+                return RD_KAFKA_RESP_ERR__INVALID_ARG;
+        fprintf(stderr, "JIng Liu python before rd_kafka_producev\n");
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
                                  RD_KAFKA_V_TOPIC(topic),
@@ -209,10 +318,24 @@ Producer_produce0 (Handle *self,
                    void *opaque) {
         rd_kafka_topic_t *rkt;
         rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR_NO_ERROR;
+        struct Producer_msgstate *msgstate = opaque;
+        rd_kafka_topic_conf_t *tconf = NULL;
+        
 
-        if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL)))
+
+        if (msgstate != NULL && msgstate->partitioner_cb != NULL) {
+                fprintf(stderr, "Jing Liu Producer_produce0 msgstate->partitioner_cb is not NULL\n");
+                tconf = rd_kafka_topic_conf_new();
+
+                rd_kafka_topic_conf_set_partitioner_cb(tconf, partition_cb);
+                fprintf(stderr, "JIng Liu after partitioner cb1 tconf is null %d\n", tconf == NULL);
+        }
+
+
+        fprintf(stderr, "JIng Liu after partitioner cb\n");
+        if (!(rkt = rd_kafka_topic_new(self->rk, topic, tconf)))
                 return RD_KAFKA_RESP_ERR__INVALID_ARG;
-
+        fprintf(stderr, "JIng Liu python before rd_kafka_produce\n");
 	if (rd_kafka_produce(rkt, partition, RD_KAFKA_MSG_F_COPY,
 			     (void *)value, value_len,
 			     (void *)key, key_len, opaque) == -1)
@@ -230,7 +353,8 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	const char *topic, *value = NULL, *key = NULL;
         Py_ssize_t value_len = 0, key_len = 0;
 	int partition = RD_KAFKA_PARTITION_UA;
-	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL;
+	PyObject *headers = NULL, *dr_cb = NULL, *dr_cb2 = NULL,
+                 *partitioner_cb = NULL;
         long long timestamp = 0;
         rd_kafka_resp_err_t err;
 	struct Producer_msgstate *msgstate;
@@ -244,18 +368,36 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "partition",
 			       "callback",
 			       "on_delivery", /* Alias */
+                               "partitioner_cb",
                    "timestamp",
                    "headers",
 			       NULL };
-
+        fprintf(stderr, "Jing Liu Producer_produce\n");
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-					 "s|z#z#iOOLO"
+					 "s|z#z#iOOOLO"
                                          , kws,
 					 &topic, &value, &value_len,
 					 &key, &key_len, &partition,
-					 &dr_cb, &dr_cb2,
+					 &dr_cb, &dr_cb2, &partitioner_cb,
                      &timestamp, &headers))
 		return NULL;
+
+        fprintf(stderr, "Jing Liu Producer_produce partitioner_cb is NULL %d\n", partitioner_cb == NULL);
+
+        if (partitioner_cb != NULL) {
+                PyObject *ks;
+                PyObject *ks8 = NULL;
+		PyObject *vs = NULL, *vs8 = NULL;
+                const char *k = NULL;
+                ks = cfl_PyObject_Unistr(partitioner_cb);
+                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                fprintf(stderr, "Jing Liu Producer_produce partitioner_cb %s\n", k);
+        }
+        
+        if (partitioner_cb != NULL && !PyCallable_Check(partitioner_cb)) {
+            PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+            return NULL;
+        }
 
 #if !HAVE_PRODUCEV
         if (timestamp) {
@@ -295,7 +437,9 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
-	msgstate = Producer_msgstate_new(self, dr_cb);
+	msgstate = Producer_msgstate_new(self, dr_cb, partitioner_cb);
+
+
 
         /* Produce message */
 #if HAVE_PRODUCEV
@@ -308,6 +452,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 #endif
                                 );
 #else
+        fprintf(stderr, "Jing Liu Producer_produce0 before\n");
         err = Producer_produce0(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
@@ -315,6 +460,8 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 #endif
 
         if (err) {
+                fprintf(stderr, "Jing Liu Producer_producev return error\n");
+        
 		if (msgstate)
 			Producer_msgstate_destroy(msgstate);
 
@@ -329,6 +476,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 		return NULL;
 	}
 
+        fprintf(stderr, "Jing Liu Producer_producev return succeed\n");
 	Py_RETURN_NONE;
 }
 
@@ -829,7 +977,7 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
         char errstr[256];
         rd_kafka_conf_t *conf;
-
+        rd_kafka_topic_conf_t *tconf = NULL;
         if (self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
                                 "Producer already __init__:ialized");
@@ -843,6 +991,7 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 return -1;
 
         rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
+        //rd_kafka_topic_conf_set_partitioner_cb(tconf, partition_cb);
 
         self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,
                                 errstr, sizeof(errstr));

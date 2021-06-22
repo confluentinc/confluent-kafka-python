@@ -2152,15 +2152,25 @@ int CallState_end (Handle *h, CallState *cs) {
  */
 CallState *CallState_get (Handle *h) {
         CallState *cs;
+        fprintf(stderr, "Jing liu CallState_get\n");
 #ifdef WITH_PY_TSS
+        fprintf(stderr, "Jing liu CallState_get WITH_PY_TSS\n");
         cs = PyThread_tss_get(&h->tlskey);
+        fprintf(stderr, "Jing liu CallState_get WITH_PY_TSS after\n");
 #else
+        fprintf(stderr, "Jing liu CallState_get WITH_PY_TSS else\n");
         cs = PyThread_get_key_value(h->tlskey);
+        fprintf(stderr, "Jing liu CallState_get WITH_PY_TSS else after\n");
 #endif
+        fprintf(stderr, "Jing liu CallState_get before assert\n");
 	assert(cs != NULL);
+        fprintf(stderr, "Jing liu CallState_get after assert\n");
 	assert(cs->thread_state != NULL);
+        fprintf(stderr, "Jing liu CallState_get after assert cs->thread_state\n");
 	PyEval_RestoreThread(cs->thread_state);
+        fprintf(stderr, "Jing liu CallState_get after PyEval_RestoreThread\n");
 	cs->thread_state = NULL;
+        fprintf(stderr, "Jing liu CallState_get after cs->thread_state is NULL\n");
 	return cs;
 }
 
