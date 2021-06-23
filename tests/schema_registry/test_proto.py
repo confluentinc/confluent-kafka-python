@@ -62,16 +62,21 @@ def test_index_serialization(pb2):
     assert decoded_msg_idx == msg_idx
 
 
-@pytest.mark.parametrize("msg_idx, expected_hex", [
-    ([1, 0], b'00'),   # b2a_hex always returns hex pairs
-    ([1, 1], b'02'),
-    ([1, 127], b'fe01'),
-    ([1, 128], b'8002'),
-    ([1, 9223372036854775807], b'feffffffffffffffff01')
+@pytest.mark.parametrize("msg_idx, expected_hex, deprecated_format", [
+    ([1, 0], b'00', False),   # b2a_hex always returns hex pirs
+    ([1, 1], b'02', False),
+    ([1, 127], b'fe01', False),
+    ([1, 128], b'8002', False),
+    ([1, 9223372036854775807], b'feffffffffffffffff01', False),
+    ([1, 0], b'00', True),
+    ([1, 1], b'01', True),
+    ([1, 127], b'7f', True),
+    ([1, 128], b'8001', True),
+    ([1, 9223372036854775807], b'ffffffffffffffff7f', True)
 ])
-def test_index_encoder(msg_idx, expected_hex):
+def test_index_encoder(msg_idx, expected_hex, deprecated_format):
     buf = BytesIO()
-    ProtobufSerializer._encode_varints(buf, msg_idx)
+    ProtobufSerializer._encode_index(buf, msg_idx, deprecated_format)
     buf.flush()
     # ignore array length prefix
     buf.seek(1)
@@ -79,4 +84,4 @@ def test_index_encoder(msg_idx, expected_hex):
 
     # reset reader and test decoder
     buf.seek(0)
-    assert msg_idx == ProtobufDeserializer._decode_index(buf)
+    assert msg_idx == ProtobufDeserializer._decode_index(buf, deprecated_format)
