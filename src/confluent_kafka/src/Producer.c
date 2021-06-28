@@ -899,8 +899,9 @@ PyTypeObject ProducerType = {
         "  Create a new Producer instance using the provided configuration dict.\n"
         "\n"
         "\n"
-        ".. py:function:: len()\n"
+        ".. py:function:: __len__(self)\n"
         "\n"
+	"  Producer implements __len__ that can be used as len(producer) to obtain number of messages waiting.\n"
         "  :returns: Number of messages and Kafka protocol requests waiting to be delivered to broker.\n"
         "  :rtype: int\n"
         "\n", /*tp_doc*/
