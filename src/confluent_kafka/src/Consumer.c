@@ -96,6 +96,9 @@ static int Consumer_traverse (Handle *self,
 
 
 
+
+
+
 static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 					 PyObject *kwargs) {
 
@@ -992,8 +995,6 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
 
         memberid = rd_kafka_memberid(self->rk);
 
-        fprintf(stderr, "Jing Liu memberid %s\n", memberid);
-
         if (!CallState_end(self, &cs)) {
                 return NULL;
         }
@@ -1435,22 +1436,20 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
-
         { "memberid", (PyCFunction)Consumer_memberid,
-	  METH_VARARGS|METH_KEYWORDS,
-	  ".. py:function:: memberid()\n"
-	  "\n"
-	  " Look up this client's broker-assigned group member id.\n"
-	  "\n"
-	  " The member id is assigned by the group coordinator and "
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: memberid()\n"
+          "\n"
+          " Look up this client's broker-assigned group member id.\n"
+          "\n"
+          " The member id is assigned by the group coordinator and "
           " is propagated to the consumer during rebalance.\n"
-	  "\n"
-	  "  :returns: A string member id PyObject or None\n"
-	  "  :rtype: :py:class:`PyObject` or None\n"
+          "\n"
+          "  :returns: A PyObject with member id or None\n"
+          "  :rtype: :py:class:`PyObject` or None\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
-	  "\n"
-	},
-
+          "\n"
+        },
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
 	  "\n"
 	  "  Close down and terminate the Kafka Consumer.\n"

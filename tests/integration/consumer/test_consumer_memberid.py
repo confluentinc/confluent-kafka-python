@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2020 Confluent Inc.
+# Copyright 2021 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,24 +15,17 @@
 # See the License for the specific language governing permissions and
 # limit
 
-import pytest
-import time
-from uuid import uuid1
 
 def test_consumer_memberid(kafka_cluster):
     """
-    Test cooperative-sticky assignor and various aspects
-    of the incremental rebalancing API.
+    Test consumer memberid.
     """
 
-    consumer_conf = {
-            'group.id': 'test'
-           }
+    consumer_conf = {'group.id': 'test'}
 
     topic = "testmemberid"
 
     kafka_cluster.create_topic(topic)
-    
 
     consumer = kafka_cluster.consumer(consumer_conf)
 
@@ -42,8 +35,5 @@ def test_consumer_memberid(kafka_cluster):
     msg = consumer.poll(10)
     assert msg is not None
     assert msg.value() == b'memberid'
-
-    assert consumer.kafka_memberid() is not None 
-    print("jing liu after poll memberid", consumer.kafka_memberid())
-
+    assert consumer.memberid() is not None
     consumer.close()
