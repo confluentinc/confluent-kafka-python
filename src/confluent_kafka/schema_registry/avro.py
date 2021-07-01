@@ -63,7 +63,7 @@ def _schema_loads(schema_str):
 
     # canonical form primitive declarations are not supported
     if schema_str[0] != "{":
-        schema_str = '{"type":"' + schema_str + '"}'
+        schema_str = '{"type":' + schema_str + '}'
 
     return Schema(schema_str, schema_type='AVRO')
 

@@ -204,3 +204,16 @@ def test_avro_serializer_subject_name_strategy_default(load_avsc):
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
         ctx, test_serializer._schema_name) == 'test_subj-value'
+
+
+def test_avro_serializer_schema_loads_canonical(load_avsc):
+    """
+    Ensures canonical form declarations are correctly parsed by _schema_loads
+    """
+    conf = {'url': TEST_URL}
+    test_client = SchemaRegistryClient(conf)
+    test_serializer = AvroSerializer(test_client,
+                                     load_avsc('canonical_string.avsc'))
+
+    assert test_serializer._schema.schema_str == '{"type":"string"}'
+
