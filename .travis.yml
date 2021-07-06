@@ -4,31 +4,37 @@ env:
 
 jobs:
  include:
-  - name: "Source package verification with Python 2.7 (Linux)"
-    os: linux
-    language: python
-    dist: xenial
-    python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
+  #- name: "Source package verification with Python 2.7 (Linux)"
+  #  os: linux
+  #  language: python
+  #  dist: xenial
+  #  python: "2.7"
+  #  env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
+  #  services: docker
 
-  - name: "Source package verification with Python 3.6 (Linux)"
-    os: linux
-    language: python
-    dist: xenial
-    python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
+  #- name: "Source package verification with Python 3.6 (Linux)"
+  #  os: linux
+  #  language: python
+  #  dist: xenial
+  #  python: "3.6"
+  #  env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
+  #  services: docker
 
-  - name: "Source package verification with Python 2.7 (OSX)"
-    os: osx
-    python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
+  #- name: "Source package verification with Python 2.7 (OSX)"
+  #  os: osx
+  #  python: "2.7"
+  #  env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
 
-  - name: "Source package verification with Python 3.6 (OSX) +docs"
-    os: osx
-    python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
+  #- name: "Source package verification with Python 3.6 (OSX) +docs"
+  #  os: osx
+  #  python: "3.6"
+  #  env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
+
+   #- name: "Source package verification with Python 3.6 (Linux + arm64) +docs"
+   # os: linux
+   # arch: arm64
+   # python: "3.6"
+   # env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
 
   - name: "Wheels: Windows x64"
     if: tag is present
@@ -75,6 +81,35 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
+  - name: "Wheels: Linux Arm64"
+    #if: tag is present
+    language: python
+    python: "3.8"
+    arch: arm64
+    services: docker
+      #dist: focal
+      #virt: vm
+      #group: edge
+    env:
+      - BUILD_WHEELS=1
+        #- DOCKER_IMAGE=quay.io/pypa/manylinux2014_aarch64
+      - PLAT=aarch64
+        #- PYTHON=cp37-cp37m
+    #install:
+    #  - ls -lrt
+    #  - uname -m
+    #  - docker pull $DOCKER_IMAGE
+    #- bash tools/wheels/install-librdkafka-arm64.sh ${LIBRDKAFKA_VERSION#v} dest
+        # - pip install -r tests/requirements.txt
+        #- pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build
+        #script: 
+      #- docker run --rm -e PLAT=$PLAT -e PYTHON=$PYTHON -v $(realpath .):/src $DOCKER_IMAGE
+      #- ls -lrt
+      # - bash /src/tools/wheels/install-librdkafka-arm64.sh ${LIBRDKAFKA_VERSION#v} dest
+      #- bash /src/build-arm64-wheels.sh 
+      #- ls -lrt
+    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
 
 # Install test dependencies unconditionally
 # Travis OSX envs requires some setup; see tools/prepare-osx.sh
@@ -83,8 +118,8 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
 
 install:
- # Install interceptors
- - tools/install-interceptors.sh
+  # Install interceptors
+ - if [[ $PLAT != "aarch64" ]]; then tools/install-interceptors.sh; fi
  - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  # Install librdkafka and confluent_kafka[avro] if not building wheels

@@ -23,7 +23,8 @@ PLUGINVER=v0.11.3
 
 # Stage directory for wheels
 stagedir=staging/libs
-
+echo "tanveen"
+echo $pkgtype
 [[ -d $stagedir ]] || mkdir -p $stagedir
 
 if [[ -z $pkgtype ]]; then
@@ -85,7 +86,7 @@ elif [[ $pkgtype == deb ]]; then
         sudo apt-get update
         sudo apt-get install -y $need_pkgs
     fi
-
+echo "hi1"
 
     wget -qO - https://packages.confluent.io/deb/${CPVER}/archive.key | sudo apt-key add -
     sudo add-apt-repository "deb [arch=amd64] https://packages.confluent.io/deb/${CPVER} stable main"

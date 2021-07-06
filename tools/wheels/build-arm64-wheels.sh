@@ -32,15 +32,9 @@ case $OSTYPE in
         os=linux
         # Need to set up env vars (in docker) so that setup.py
         # finds librdkafka.
-        echo ${PLAT}
-	if [[ ${PLAT} == "aarch64" ]]; then 
-		lib_dir=dest/runtimes/linux-arm64/native
-	else
-
-		lib_dir=dest/runtimes/linux-x64/native
-	fi;
-	export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
-	;;
+        lib_dir=dest/runtimes/linux-arm64/native
+        export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
+        ;;
     darwin*)
         os=macos
         # Need to set up env vars so that setup.py finds librdkafka.
@@ -55,7 +49,7 @@ case $OSTYPE in
 esac
 
 
-if [[ ${PLAT} == "aarch64" ]]; then export CIBW_BEFORE_BUILD="tools/wheels/install-librdkafka.sh $librdkafka_version dest"; else $this_dir/install-librdkafka.sh $librdkafka_version dest; fi;
+export CIBW_BEFORE_BUILD="tools/wheels/install-librdkafka-arm64.sh $LIBRDKAFKA_VERSION dest" 
 install_pkgs=cibuildwheel==1.11.0
 
 python3 -m pip install $install_pkgs ||
@@ -64,7 +58,7 @@ python3 -m pip install $install_pkgs ||
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
 fi
-
+ls -lrt
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir python3 -m cibuildwheel --output-dir $wheeldir $cibw_args
 
 ls $wheeldir
