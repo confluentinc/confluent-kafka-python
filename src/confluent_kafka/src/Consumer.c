@@ -982,27 +982,22 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
 static PyObject *Consumer_memberid (Handle *self, PyObject *args,
                                     PyObject *kwargs) {
-        char *memberid = NULL;
+        char *memberid;
         PyObject *memberidobj;
-        CallState cs;
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
                                 "Consumer closed");
                 return NULL;
         }
 
-        CallState_begin(self, &cs);
-
         memberid = rd_kafka_memberid(self->rk);
 
-        if (!CallState_end(self, &cs)) {
-                return NULL;
-        }
-
         if (!memberid)
-                Py_RETURN_NONE;
+                return NULL;
 
-        memberidobj = PyBytes_FromString(memberid);
+        memberidobj = Py_BuildValue("s", memberid);
+        rd_kafka_mem_free(NULL, memberid);
+
         return memberidobj;
 }
 
@@ -1436,17 +1431,16 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
-        { "memberid", (PyCFunction)Consumer_memberid,
-          METH_VARARGS|METH_KEYWORDS,
+        { "memberid", (PyCFunction)Consumer_memberid, METH_NOARGS,
           ".. py:function:: memberid()\n"
           "\n"
-          " Look up this client's broker-assigned group member id.\n"
+          " Return this client's broker-assigned group member id.\n"
           "\n"
-          " The member id is assigned by the group coordinator and "
+          " The member id is assigned by the group coordinator and"
           " is propagated to the consumer during rebalance.\n"
           "\n"
-          "  :returns: A PyObject with member id or None\n"
-          "  :rtype: :py:class:`PyObject` or None\n"
+          "  :returns: Member id string or None\n"
+          "  :rtype: string\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
