@@ -993,10 +993,10 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
         memberid = rd_kafka_memberid(self->rk);
 
         if (!memberid)
-                return NULL;
+                Py_RETURN_NONE;
 
         memberidobj = Py_BuildValue("s", memberid);
-        rd_kafka_mem_free(NULL, memberid);
+        rd_kafka_mem_free(self->rk, memberid);
 
         return memberidobj;
 }

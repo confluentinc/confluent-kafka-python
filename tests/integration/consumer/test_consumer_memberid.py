@@ -30,6 +30,7 @@ def test_consumer_memberid(kafka_cluster):
     consumer = kafka_cluster.consumer(consumer_conf)
 
     assert consumer is not None
+    assert len(consumer.memberid()) == 0
     kafka_cluster.seed_topic(topic, value_source=[b'memberid'])
 
     consumer.subscribe([topic])
@@ -37,4 +38,5 @@ def test_consumer_memberid(kafka_cluster):
     assert msg is not None
     assert msg.value() == b'memberid'
     assert len(consumer.memberid()) > 0
+    assert isinstance(consumer.memberid(), str) is True
     consumer.close()

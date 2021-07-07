@@ -1,5 +1,18 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.8.0
+
+v1.8.0 is a maintenance release with the following fixes and enhancements:
+
+### Enhancements
+
+- Support rd_kafka_memberid() from python clients (#1154).
+
+confluent-kafka-python is based on librdkafka v1.8.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.7.0
 
 v1.7.0 is a maintenance release with the following fixes and enhancements:
