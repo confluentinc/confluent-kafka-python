@@ -37,6 +37,6 @@ def test_consumer_memberid(kafka_cluster):
     msg = consumer.poll(10)
     assert msg is not None
     assert msg.value() == b'memberid'
-    assert len(consumer.memberid()) > 0
     assert isinstance(consumer.memberid(), str) is True
+    assert len(consumer.memberid()) > 0
     consumer.close()
