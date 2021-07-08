@@ -92,22 +92,7 @@ jobs:
       #group: edge
     env:
       - BUILD_WHEELS=1
-        #- DOCKER_IMAGE=quay.io/pypa/manylinux2014_aarch64
       - PLAT=aarch64
-        #- PYTHON=cp37-cp37m
-    #install:
-    #  - ls -lrt
-    #  - uname -m
-    #  - docker pull $DOCKER_IMAGE
-    #- bash tools/wheels/install-librdkafka-arm64.sh ${LIBRDKAFKA_VERSION#v} dest
-        # - pip install -r tests/requirements.txt
-        #- pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build
-        #script: 
-      #- docker run --rm -e PLAT=$PLAT -e PYTHON=$PYTHON -v $(realpath .):/src $DOCKER_IMAGE
-      #- ls -lrt
-      # - bash /src/tools/wheels/install-librdkafka-arm64.sh ${LIBRDKAFKA_VERSION#v} dest
-      #- bash /src/build-arm64-wheels.sh 
-      #- ls -lrt
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
 
