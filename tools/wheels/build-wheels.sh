@@ -8,7 +8,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
 # Skip PyPy, old Python3 versions, and x86 builds.
-export CIBW_SKIP="pp* cp35-* cp36-* cp37-* *i686"
+export CIBW_SKIP="pp* cp35-* *i686"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
@@ -54,8 +54,8 @@ case $OSTYPE in
         ;;
 esac
 
-$this_dir/install-librdkafka.sh $librdkafka_version dest
-#if [[ ${PLAT} == "aarch64" ]]; then export CIBW_BEFORE_BUILD="tools/wheels/install-librdkafka.sh $librdkafka_version"; else $this_dir/install-librdkafka.sh $librdkafka_version dest; fi;
+#$this_dir/install-librdkafka.sh $librdkafka_version dest
+if [[ ${PLAT} == "aarch64" ]]; then export CIBW_BEFORE_BUILD="tools/wheels/install-librdkafka.sh $librdkafka_version"; else $this_dir/install-librdkafka.sh $librdkafka_version dest; fi;
 install_pkgs=cibuildwheel==1.11.0
 
 python3 -m pip install $install_pkgs ||
