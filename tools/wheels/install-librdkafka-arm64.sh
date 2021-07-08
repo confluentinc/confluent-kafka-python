@@ -20,8 +20,8 @@ echo "$0: Installing librdkafka $VER to $PWD"
 #pwd
 #rm -rf librdkafka
 #git clone https://github.com/edenhill/librdkafka
-curl -L https://github.com/edenhill/librdkafka/archive/$VER.tar.gz | tar xzf -
-cd librdkafka-${VER#v}
+curl -L https://github.com/edenhill/librdkafka/archive/v$VER.tar.gz | tar xzf -
+cd librdkafka-$VER
 chmod 777 configure lds-gen.py
 ./configure
 make
