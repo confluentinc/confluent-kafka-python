@@ -30,12 +30,6 @@ jobs:
   #  python: "3.6"
   #  env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
 
-  - name: "Source package verification with Python 3.6 (Linux) +docs"
-    os: linux
-      #arch: arm64
-    python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-
   - name: "Wheels: Windows x64"
     #if: tag is present
     os: windows
