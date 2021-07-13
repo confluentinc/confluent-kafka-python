@@ -353,7 +353,6 @@ typedef struct {
 	int   partition;
 	int64_t offset;
 	PyObject *metadata;
-	size_t metadata_size;
 	PyObject *error;
 } TopicPartition;
 

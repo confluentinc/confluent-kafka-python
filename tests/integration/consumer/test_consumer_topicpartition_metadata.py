@@ -36,19 +36,16 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
     for tp in offsets:
         assert tp.metadata is None
 
-    c.close()
-
-    c = kafka_cluster.consumer(consumer_conf)
-    metadata = "\x01abcdefg\\x00afd\\xff"
-
+    metadata = '\x01abcdefgafd\xff'
+    binarymetadata = str.encode(metadata)
     try:
-        c.commit(offsets=[TopicPartition(topic, 0, 1, metadata, len(metadata))],
+        c.commit(offsets=[TopicPartition(topic, 0, 1, binarymetadata)],
                  asynchronous=False)
     except KafkaException as e:
         print('commit failed with %s' % e)
 
     offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
     for tp in offsets:
-        assert str.encode(metadata) == tp.metadata
+        assert binarymetadata == tp.metadata
 
     c.close()
