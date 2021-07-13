@@ -1,10 +1,10 @@
 # Confluent's Python client for Apache Kafka
 
-## v1.7.1
+## v1.8.0
 
-v1.7.1 is a maintenance release with the following fixes and enhancements:
+v1.8.0 is a maintenance release with the following fixes and enhancements:
 
-### Fixes
+### Enhancements
 
 - Add metadata to TopicPartition type and commit() (#1126).
 
