@@ -32,7 +32,7 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
     except KafkaException as e:
         print('commit failed with %s' % e)
 
-    offsets = c.committed([TopicPartition(topic, 0, 0)])
+    offsets = c.committed([TopicPartition(topic, 0)])
     for tp in offsets:
         assert tp.metadata is None
 
