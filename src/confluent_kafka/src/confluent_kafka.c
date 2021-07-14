@@ -858,10 +858,10 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 	const char *metadata = NULL;
 
 	static char *kws[] = { "topic",
-					"partition",
-					"offset",
-					"metadata",
-					NULL };
+			       "partition",
+			       "offset",
+			       "metadata",
+			       NULL };
         
 	if (PyArg_ParseTupleAndKeywords (args, kwargs, "s|iLy", kws,
 					 &topic, &partition, &offset,
@@ -1134,16 +1134,16 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 						  tp->partition);
 		rktpar->offset = tp->offset;
 		if (tp->metadata != NULL) {
-                        char *metadata;
-                        Py_ssize_t metadata_size;
+			char *metadata;
+			Py_ssize_t metadata_size;
 			if (cfl_PyBin(_AsStringAndSize(tp->metadata,
 						       &metadata,
 						       &metadata_size)) == -1) {
-                                PyErr_SetString(PyExc_RuntimeError,
-                                                "Failed to parse metadata "
-                                                "object");
-                        	return NULL;
-                                                       }
+ 				PyErr_SetString(PyExc_RuntimeError,
+						"Failed to parse metadata "
+						"object");
+				return NULL;
+			}
 			rktpar->metadata_size = metadata_size;
 			rktpar->metadata = malloc(rktpar->metadata_size);
 			memcpy(rktpar->metadata,
