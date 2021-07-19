@@ -1299,6 +1299,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
                         cfl_PyBin(_FromStringAndSize(header_value, header_value_size))
                     );
             } else {
+                Py_INCREF(Py_None);
                 PyTuple_SetItem(header_tuple, 1, Py_None);
             }
         PyList_SET_ITEM(header_list, idx-1, header_tuple);
