@@ -115,6 +115,8 @@ def test_create_topics_api():
         a.create_topics([NewTopic("mytopic", 3, 2,
                                   config=["fails", "because not a dict"])])
 
+    fs = a.create_topics([NewTopic("mytopicDefault")])
+
 
 @pytest.mark.skipif(libversion()[1] < 0x000b0500,
                     reason="AdminAPI requires librdkafka >= v0.11.5")
