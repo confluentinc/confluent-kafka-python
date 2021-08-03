@@ -1461,6 +1461,71 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
         CallState_resume(cs);
 }
 
+static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
+			     const void *keydata,
+			     size_t keylen,
+			     int32_t partition_cnt,
+			     void *rkt_opaque,
+			     void *msg_opaque) {
+
+	int32_t i;
+	i = 1;
+
+        printf("Jing Liu partitioner_cb is called\n");
+        Handle *h = rkt_opaque;
+
+	//struct Producer_msgstate *msgstate = (struct Producer_msgstate*)  msg_opaque;
+	CallState *cs = NULL;
+	PyObject *result = NULL, *args = NULL;
+	PyObject *msgobj = NULL;
+	//if (!msgstate) {
+	//	return 0;
+	//}
+
+	if (!h->partitioner_cb) {
+                printf("Jing Liu no partitioner_cb in handler\n");
+		goto done;
+	}
+        printf("Jing Liu there is partitioner_cb in handler\n");
+	//printf("Jing Liu partitioner_cb 4 keydata %p\n", keydata);
+	//printf("Jing Liu partitioner_cb 4 keylen %zu\n", keylen);
+	//printf("Jing Liu partitioner_cb 4 partition_cnt %d\n", partition_cnt);
+
+	args = Py_BuildValue("(sii)", keydata, partition_cnt, partition_cnt);
+
+	if (!args) {
+		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+				 "Unable to build callback args");
+		//CallState_crash(cs);
+		goto done;
+	}
+
+/*
+	if (!PyCallable_Check(msgstate->partitioner_cb)) {
+		PyErr_SetString(PyExc_TypeError, "parameter must be callable");
+		return -1;
+	}
+
+	result = PyObject_CallObject(msgstate->partitioner_cb, args);
+*/
+	Py_DECREF(args);
+
+	if (result)
+		Py_DECREF(result);
+	else {
+		//CallState_crash(cs);
+		//rd_kafka_yield(rkt);
+	}
+	return (int32_t)(PyLong_AsLong(result));
+
+ done:
+        printf("Jing Liu partitioner_cb done\n");
+	//Producer_msgstate_destroy(msgstate);
+	//CallState_resume(cs);
+	return -1;
+
+}
+
 static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	Handle *h = opaque;
 	PyObject *eo = NULL, *result = NULL;
@@ -1601,6 +1666,11 @@ void Handle_clear (Handle *h) {
                 h->logger = NULL;
         }
 
+        if (h->partitioner_cb) {
+                Py_DECREF(h->partitioner_cb);
+                h->partitioner_cb = NULL;
+        }
+
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);
@@ -1622,6 +1692,9 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 
 	if (h->stats_cb)
 		Py_VISIT(h->stats_cb);
+
+        if (h->partitioner_cb)
+		Py_VISIT(h->partitioner_cb);
 
 	return 0;
 }
@@ -1797,6 +1870,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *args,
 				    PyObject *kwargs) {
 	rd_kafka_conf_t *conf;
+        rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
@@ -1980,6 +2054,26 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
+                }  else if (!strcmp(k, "partitioner_cb")) {
+                        printf("Jing Liu enter partitioner_cb\n");
+			if (!PyCallable_Check(vo)) {
+				PyErr_SetString(PyExc_TypeError,
+						"expected partitioner_cb property "
+						"as a callable function");
+                                goto inner_err;
+                        }
+
+			if (h->partitioner_cb) {
+				Py_DECREF(h->partitioner_cb);
+				h->partitioner_cb = NULL;
+			}
+			if (vo != Py_None) {
+				h->partitioner_cb = vo;
+				Py_INCREF(h->partitioner_cb);
+			}
+                        Py_XDECREF(ks8);
+			Py_DECREF(ks);
+			continue;
                 } else if (!strcmp(k, "logger")) {
                         if (h->logger) {
                                 Py_DECREF(h->logger);
@@ -2074,6 +2168,32 @@ inner_err:
 
 	if (h->stats_cb)
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
+
+	if (h->partitioner_cb) {
+                /*
+                if (h->partitioner_cb != NULL) {
+		        PyObject *ks;
+		        PyObject *ks8 = NULL;
+		        PyObject *vs = NULL, *vs8 = NULL;
+		        const char *k = NULL;
+		        ks = cfl_PyObject_Unistr(h->partitioner_cb);
+		        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		        printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
+	        }
+                */
+                if (h->partitioner_cb != NULL) {
+		        PyObject *ks;
+		        PyObject *ks8 = NULL;
+		        PyObject *vs = NULL, *vs8 = NULL;
+		        const char *k = NULL;
+		        ks = cfl_PyObject_Unistr(h->partitioner_cb);
+		        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		        printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
+	        }
+                printf("Jing Liu set partitioner_cb\n");
+		//tconf = rd_kafka_topic_conf_new();
+		rd_kafka_topic_conf_set_partitioner_cb(conf->topic_conf, partitioner_cb);
+	}
 
         if (h->logger) {
                 /* Write logs to log queue (which is forwarded
