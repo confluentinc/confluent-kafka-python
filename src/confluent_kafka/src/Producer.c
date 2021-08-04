@@ -184,7 +184,9 @@ Producer_producev (Handle *self,
                    ,rd_kafka_headers_t *headers
 #endif
                    ) {
-
+        //printf("Jing Liu Producer_producev rk_conf is NULL %d\n", self->rk == NULL);
+        //printf("Jing Liu Producer_producev rk_conf is NULL %d\n", self->rk->rk_conf);
+        //self->rkrk_conf = new_c
         return rd_kafka_producev(self->rk,
                                  RD_KAFKA_V_MSGFLAGS(RD_KAFKA_MSG_F_COPY),
                                  RD_KAFKA_V_TOPIC(topic),
@@ -299,6 +301,8 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 
         /* Produce message */
 #if HAVE_PRODUCEV
+        
+
         err = Producer_producev(self, topic, partition,
                                 value, value_len,
                                 key, key_len,
@@ -842,6 +846,9 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                        args, kwargs)))
                 return -1;
 
+        //self->rk_conf = malloc(rd_kafka_conf);
+        //memcpy(&self->rk_conf, &conf, sizeof(rd_kafka_conf_t));
+        printf("Jing Liu producer_init %d\n", conf->topic_conf == NULL);
         rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
 
         self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,

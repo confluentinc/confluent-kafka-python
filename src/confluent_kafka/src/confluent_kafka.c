@@ -2162,6 +2162,7 @@ inner_err:
         Py_DECREF(confdict);
 
         rd_kafka_conf_set_error_cb(conf, error_cb);
+        //printf("Jing Liu error_cb conf %d\n", conf->error_cb == NULL);
 
         if (h->throttle_cb)
                 rd_kafka_conf_set_throttle_cb(conf, throttle_cb);
@@ -2191,8 +2192,16 @@ inner_err:
 		        printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
 	        }
                 printf("Jing Liu set partitioner_cb\n");
-		//tconf = rd_kafka_topic_conf_new();
-		rd_kafka_topic_conf_set_partitioner_cb(conf->topic_conf, partitioner_cb);
+                tconf = rd_kafka_topic_conf_new();
+                
+		conf->topic_conf = rd_kafka_topic_conf_new();
+		rd_kafka_topic_conf_set_partitioner_cb(tconf, partitioner_cb);
+                rd_kafka_conf_set_default_topic_conf(conf, tconf);
+                printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
+                //if (conf->topic_conf->partitioner != NULL) {
+                //        printf("Jing Liu topic conf partitioner is not null\n");
+                //}
+
 	}
 
         if (h->logger) {

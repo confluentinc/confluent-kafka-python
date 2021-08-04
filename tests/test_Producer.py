@@ -182,12 +182,15 @@ def test_set_partitioner_cb():
         return 1
 
     p = Producer({'bootstrap.servers':'127.0.0.1:9092', "socket.timeout.ms": 10,
-                  "error_cb": error_cb}, partitioner_cb=partitioner_cb)
+                  "error_cb": error_cb, "partitioner_cb":partitioner_cb,
+                  "sticky.partitioning.linger.ms": 0})
     print("Jing Liu partitioner cb 1")
 
     try:
         print("Jing Liu partitioner cb 2")
         p.produce('mytopic2', "This is the message payload")
+        p.produce('mytopic2', "This is the message payload 1")
+        p.produce('mytopic2', "This is the message payload 2")
         print("Jing Liu partitioner cb 3")
     except SystemError as e:
         print(e)
