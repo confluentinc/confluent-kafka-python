@@ -1472,8 +1472,8 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 	i = 1;
 
         printf("Jing Liu partitioner_cb is called\n");
-        Handle *h = rkt_opaque;
-
+        Handle *h = (Handle*) rkt_opaque;
+        printf("Jing Liu partitioner_cb is called 1\n");
 	//struct Producer_msgstate *msgstate = (struct Producer_msgstate*)  msg_opaque;
 	CallState *cs = NULL;
 	PyObject *result = NULL, *args = NULL;
@@ -1481,17 +1481,21 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 	//if (!msgstate) {
 	//	return 0;
 	//}
-
+        printf("Jing Liu no partitioner_cb before\n");
+     
 	if (!h->partitioner_cb) {
                 printf("Jing Liu no partitioner_cb in handler\n");
 		goto done;
 	}
+       
         printf("Jing Liu there is partitioner_cb in handler\n");
-	//printf("Jing Liu partitioner_cb 4 keydata %p\n", keydata);
-	//printf("Jing Liu partitioner_cb 4 keylen %zu\n", keylen);
-	//printf("Jing Liu partitioner_cb 4 partition_cnt %d\n", partition_cnt);
+	printf("Jing Liu partitioner_cb 4 keydata %p\n", keydata);
+	printf("Jing Liu partitioner_cb 4 keylen %zu\n", keylen);
+	printf("Jing Liu partitioner_cb 4 partition_cnt %d\n", partition_cnt);
 
-	args = Py_BuildValue("(sii)", keydata, partition_cnt, partition_cnt);
+
+	//args = Py_BuildValue("sii", keydata, partition_cnt, partition_cnt);
+        args = Py_BuildValue("(y#)", "keydata", keylen, partition_cnt);
 
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
@@ -1500,15 +1504,17 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 		goto done;
 	}
 
-/*
-	if (!PyCallable_Check(msgstate->partitioner_cb)) {
+        printf("Jing Liu after build args %d\n", PyCallable_Check(h->partitioner_cb));
+               
+	if (!PyCallable_Check(h->partitioner_cb)) {
 		PyErr_SetString(PyExc_TypeError, "parameter must be callable");
 		return -1;
 	}
 
-	result = PyObject_CallObject(msgstate->partitioner_cb, args);
-*/
-	Py_DECREF(args);
+        printf("Jing Liu after callable check\n");
+	result = PyObject_CallObject(h->partitioner_cb, args);
+
+/*	Py_DECREF(args);
 
 	if (result)
 		Py_DECREF(result);
@@ -1516,7 +1522,9 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 		//CallState_crash(cs);
 		//rd_kafka_yield(rkt);
 	}
-	return (int32_t)(PyLong_AsLong(result));
+        */
+	//return (int32_t)(PyLong_AsLong(result));
+        return 1;
 
  done:
         printf("Jing Liu partitioner_cb done\n");
@@ -2196,8 +2204,10 @@ inner_err:
                 
 		conf->topic_conf = rd_kafka_topic_conf_new();
 		rd_kafka_topic_conf_set_partitioner_cb(tconf, partitioner_cb);
+                rd_kafka_topic_conf_set_opaque(tconf, h);
                 rd_kafka_conf_set_default_topic_conf(conf, tconf);
-                printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
+                //printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
+                //printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
                 //if (conf->topic_conf->partitioner != NULL) {
                 //        printf("Jing Liu topic conf partitioner is not null\n");
                 //}
