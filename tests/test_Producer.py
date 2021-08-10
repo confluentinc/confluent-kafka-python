@@ -172,7 +172,7 @@ def test_dr_msg_errstr():
 
 def test_set_partitioner_cb():
     """
-    Test ability to set built-in partitioner type murmur
+    Test ability to set custom partitioner call back
     """
 
     def partitioner_cb(keydata, partition_cnt):
@@ -278,7 +278,6 @@ def test_purge():
 
     def on_delivery(err, msg):
         cb_detector["on_delivery_called"] = True
-        #print("≈")
         # Because we are purging messages, we should see a PURGE_QUEUE kafka error
         assert err.code() == KafkaError._PURGE_QUEUE
 

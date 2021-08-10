@@ -1478,11 +1478,11 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 		PyObject *ks8 = NULL;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k = NULL;
-		printf("Jing Liu h->partitioner_cb check\n");
+		printf("Jing Liu callback before cfl_PyObject_Unistr\n");
 		ks = cfl_PyObject_Unistr(callback);
-		printf("Jing Liu h->partitioner_cb after check\n");
+		printf("Jing Liu callback after cfl_PyObject_Unistr\n");
 		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		printf("Jing Liu Producer_produce partitioner_cb at callback %s\n", k);
+		printf("Jing Liu partitioner_cb at callback %s\n", k);
 	}
 
 	keydataobj = Py_BuildValue("s", keydata);
@@ -2158,7 +2158,7 @@ inner_err:
 
 	if (h->partitioner_cb) {
 		/* 
-		 * Line 2210 to line 2216 is only for testing ,convert the
+		 * Line 2164 to line 2170 is only for testing ,convert the
 		 * PyObject h->partitioner_cb to string and print.
 		 */               
 		PyObject *ks;
@@ -2520,7 +2520,7 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
  *
  *
  *
- *****************************************************************Py_BuildValue***********/
+ ****************************************************************************/
 
 
 static PyObject *libversion (PyObject *self, PyObject *args) {
