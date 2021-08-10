@@ -1462,31 +1462,32 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
 }
 
 static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
-			     const void *keydata,
-			     size_t keylen,
-			     int32_t partition_cnt,
-			     void *rkt_opaque,
-			     void *msg_opaque) {
+			       const void *keydata,
+			       size_t keylen,
+			       int32_t partition_cnt,
+			       void *rkt_opaque,
+			       void *msg_opaque) {
 
 	PyObject *callback = rkt_opaque;
 	PyObject *result = NULL, *args = NULL;
 	PyObject *keydataobj = NULL;
 
-        if (callback != NULL) {
+	/* This is only used for testing */
+	if (callback != NULL) {
 		PyObject *ks;
 		PyObject *ks8 = NULL;
 		PyObject *vs = NULL, *vs8 = NULL;
 		const char *k = NULL;
-                printf("Jing Liu h->partitioner_cb check\n");
+		printf("Jing Liu h->partitioner_cb check\n");
 		ks = cfl_PyObject_Unistr(callback);
-                printf("Jing Liu h->partitioner_cb after check\n");
+		printf("Jing Liu h->partitioner_cb after check\n");
 		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 		printf("Jing Liu Producer_produce partitioner_cb at callback %s\n", k);
 	}
 
-        keydataobj = Py_BuildValue("s", keydata);
+	keydataobj = Py_BuildValue("s", keydata);
 
-        args = Py_BuildValue("(y#)", keydataobj, partition_cnt);
+	args = Py_BuildValue("(y#)", keydataobj, partition_cnt);
 
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
@@ -1680,7 +1681,7 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	if (h->stats_cb)
 		Py_VISIT(h->stats_cb);
 
-        if (h->partitioner_cb)
+	if (h->partitioner_cb)
 		Py_VISIT(h->partitioner_cb);
 
 	return 0;
@@ -1857,7 +1858,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *args,
 				    PyObject *kwargs) {
 	rd_kafka_conf_t *conf;
-        rd_kafka_topic_conf_t *tconf;
+	rd_kafka_topic_conf_t *tconf;
 	Py_ssize_t pos = 0;
 	PyObject *ko, *vo;
         PyObject *confdict = NULL;
@@ -2041,13 +2042,13 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                         Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
-                }  else if (!strcmp(k, "partitioner_cb")) {
+		}  else if (!strcmp(k, "partitioner_cb")) {
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
 						"expected partitioner_cb property "
 						"as a callable function");
-                                goto inner_err;
-                        }
+				goto inner_err;
+			}
 
 			if (h->partitioner_cb) {
 				Py_DECREF(h->partitioner_cb);
@@ -2060,7 +2061,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
-                } else if (!strcmp(k, "logger")) {
+		} else if (!strcmp(k, "logger")) {
                         if (h->logger) {
                                 Py_DECREF(h->logger);
                                 h->logger = NULL;
