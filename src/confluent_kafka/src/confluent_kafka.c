@@ -2170,7 +2170,6 @@ inner_err:
 		printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
 
 		tconf = rd_kafka_topic_conf_new();
-		conf->topic_conf = rd_kafka_topic_conf_new();
 		rd_kafka_topic_conf_set_partitioner_cb(tconf, partitioner_cb);
 		rd_kafka_topic_conf_set_opaque(tconf, h->partitioner_cb);
 		rd_kafka_conf_set_default_topic_conf(conf, tconf);
