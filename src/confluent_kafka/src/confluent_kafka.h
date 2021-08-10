@@ -221,7 +221,6 @@ PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
 typedef struct {
 	PyObject_HEAD
 	rd_kafka_t *rk;
-	rd_kafka_conf_t *rk_conf;
 	PyObject *error_cb;
 	PyObject *throttle_cb;
 	PyObject *stats_cb;

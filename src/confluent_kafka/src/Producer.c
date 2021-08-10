@@ -157,6 +157,16 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 		goto done;
 	}
 
+        if (msgstate->dr_cb != NULL) {
+		        PyObject *ks;
+		        PyObject *ks8 = NULL;
+		        PyObject *vs = NULL, *vs8 = NULL;
+		        const char *k = NULL;
+		        ks = cfl_PyObject_Unistr(msgstate->dr_cb);
+		        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		        printf("Jing Liu Producer_produce msgstate->dr_cb at callback %s\n", k);
+	}
+
 	result = PyObject_CallObject(msgstate->dr_cb, args);
 	Py_DECREF(args);
 

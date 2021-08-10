@@ -1468,70 +1468,49 @@ static int32_t partitioner_cb (const rd_kafka_topic_t *rkt,
 			     void *rkt_opaque,
 			     void *msg_opaque) {
 
-	int32_t i;
-	i = 1;
-
-        printf("Jing Liu partitioner_cb is called\n");
-        Handle *h = (Handle*) rkt_opaque;
-        printf("Jing Liu partitioner_cb is called 1\n");
-	//struct Producer_msgstate *msgstate = (struct Producer_msgstate*)  msg_opaque;
-	CallState *cs = NULL;
+	PyObject *callback = rkt_opaque;
 	PyObject *result = NULL, *args = NULL;
-	PyObject *msgobj = NULL;
-	//if (!msgstate) {
-	//	return 0;
-	//}
-        printf("Jing Liu no partitioner_cb before\n");
-     
-	if (!h->partitioner_cb) {
-                printf("Jing Liu no partitioner_cb in handler\n");
-		goto done;
+	PyObject *keydataobj = NULL;
+
+        if (callback != NULL) {
+		PyObject *ks;
+		PyObject *ks8 = NULL;
+		PyObject *vs = NULL, *vs8 = NULL;
+		const char *k = NULL;
+                printf("Jing Liu h->partitioner_cb check\n");
+		ks = cfl_PyObject_Unistr(callback);
+                printf("Jing Liu h->partitioner_cb after check\n");
+		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		printf("Jing Liu Producer_produce partitioner_cb at callback %s\n", k);
 	}
-       
-        printf("Jing Liu there is partitioner_cb in handler\n");
-	printf("Jing Liu partitioner_cb 4 keydata %p\n", keydata);
-	printf("Jing Liu partitioner_cb 4 keylen %zu\n", keylen);
-	printf("Jing Liu partitioner_cb 4 partition_cnt %d\n", partition_cnt);
 
+        keydataobj = Py_BuildValue("s", keydata);
 
-	//args = Py_BuildValue("sii", keydata, partition_cnt, partition_cnt);
-        args = Py_BuildValue("(y#)", "keydata", keylen, partition_cnt);
+        args = Py_BuildValue("(y#)", keydataobj, partition_cnt);
 
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 				 "Unable to build callback args");
-		//CallState_crash(cs);
 		goto done;
 	}
-
-        printf("Jing Liu after build args %d\n", PyCallable_Check(h->partitioner_cb));
-               
-	if (!PyCallable_Check(h->partitioner_cb)) {
+  
+	if (!PyCallable_Check(callback)) {
 		PyErr_SetString(PyExc_TypeError, "parameter must be callable");
 		return -1;
 	}
 
-        printf("Jing Liu after callable check\n");
-	result = PyObject_CallObject(h->partitioner_cb, args);
+	printf("Jing Liu after callable check\n");
+	result = PyObject_CallObject(callback, keydataobj);
 
-/*	Py_DECREF(args);
+	Py_DECREF(args);
 
 	if (result)
 		Py_DECREF(result);
-	else {
-		//CallState_crash(cs);
-		//rd_kafka_yield(rkt);
-	}
-        */
-	//return (int32_t)(PyLong_AsLong(result));
-        return 1;
-
+	return (int32_t)(PyLong_AsLong(result));
  done:
-        printf("Jing Liu partitioner_cb done\n");
-	//Producer_msgstate_destroy(msgstate);
+	printf("Jing Liu partitioner_cb done\n");
 	//CallState_resume(cs);
 	return -1;
-
 }
 
 static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
@@ -2063,7 +2042,6 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 			Py_DECREF(ks);
 			continue;
                 }  else if (!strcmp(k, "partitioner_cb")) {
-                        printf("Jing Liu enter partitioner_cb\n");
 			if (!PyCallable_Check(vo)) {
 				PyErr_SetString(PyExc_TypeError,
 						"expected partitioner_cb property "
@@ -2079,7 +2057,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				h->partitioner_cb = vo;
 				Py_INCREF(h->partitioner_cb);
 			}
-                        Py_XDECREF(ks8);
+			Py_XDECREF(ks8);
 			Py_DECREF(ks);
 			continue;
                 } else if (!strcmp(k, "logger")) {
@@ -2170,7 +2148,6 @@ inner_err:
         Py_DECREF(confdict);
 
         rd_kafka_conf_set_error_cb(conf, error_cb);
-        //printf("Jing Liu error_cb conf %d\n", conf->error_cb == NULL);
 
         if (h->throttle_cb)
                 rd_kafka_conf_set_throttle_cb(conf, throttle_cb);
@@ -2179,39 +2156,23 @@ inner_err:
 		rd_kafka_conf_set_stats_cb(conf, stats_cb);
 
 	if (h->partitioner_cb) {
-                /*
-                if (h->partitioner_cb != NULL) {
-		        PyObject *ks;
-		        PyObject *ks8 = NULL;
-		        PyObject *vs = NULL, *vs8 = NULL;
-		        const char *k = NULL;
-		        ks = cfl_PyObject_Unistr(h->partitioner_cb);
-		        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		        printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
-	        }
-                */
-                if (h->partitioner_cb != NULL) {
-		        PyObject *ks;
-		        PyObject *ks8 = NULL;
-		        PyObject *vs = NULL, *vs8 = NULL;
-		        const char *k = NULL;
-		        ks = cfl_PyObject_Unistr(h->partitioner_cb);
-		        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-		        printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
-	        }
-                printf("Jing Liu set partitioner_cb\n");
-                tconf = rd_kafka_topic_conf_new();
-                
+		/* 
+		 * Line 2210 to line 2216 is only for testing ,convert the
+		 * PyObject h->partitioner_cb to string and print.
+		 */               
+		PyObject *ks;
+		PyObject *ks8 = NULL;
+		PyObject *vs = NULL, *vs8 = NULL;
+		const char *k = NULL;
+		ks = cfl_PyObject_Unistr(h->partitioner_cb);
+		k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+		printf("Jing Liu Producer_produce partitioner_cb %s\n", k);
+
+		tconf = rd_kafka_topic_conf_new();
 		conf->topic_conf = rd_kafka_topic_conf_new();
 		rd_kafka_topic_conf_set_partitioner_cb(tconf, partitioner_cb);
-                rd_kafka_topic_conf_set_opaque(tconf, h);
-                rd_kafka_conf_set_default_topic_conf(conf, tconf);
-                //printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
-                //printf("Jing Liu set partitioner_cb conf %d\n", conf->topic_conf->partitioner == NULL);
-                //if (conf->topic_conf->partitioner != NULL) {
-                //        printf("Jing Liu topic conf partitioner is not null\n");
-                //}
-
+		rd_kafka_topic_conf_set_opaque(tconf, h->partitioner_cb);
+		rd_kafka_conf_set_default_topic_conf(conf, tconf);
 	}
 
         if (h->logger) {
@@ -2558,7 +2519,7 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
  *
  *
  *
- ****************************************************************************/
+ *****************************************************************Py_BuildValue***********/
 
 
 static PyObject *libversion (PyObject *self, PyObject *args) {

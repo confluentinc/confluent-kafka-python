@@ -11,7 +11,7 @@ def error_cb(err):
     print ("jing liu error cb")
     print('error_cb', err)
 
-'''
+
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
         broker configured. """
@@ -169,36 +169,29 @@ def test_dr_msg_errstr():
 
     p.flush()
 
-'''
 
 def test_set_partitioner_cb():
     """
     Test ability to set built-in partitioner type murmur
     """
 
-    def partitioner_cb(keydata, keylen, partition_cnt):
-    #def partitioner_cb(partition_cnt):
-        print("Jing Liu partitioner cb partition_cnt", partition_cnt)
+    def partitioner_cb(keydata, partition_cnt):
+        print("Jing Liu partitioner cb partition_cnt", keydata)
         return 1
 
     p = Producer({'bootstrap.servers':'127.0.0.1:9092', "socket.timeout.ms": 10,
                   "error_cb": error_cb, "partitioner_cb":partitioner_cb,
                   "sticky.partitioning.linger.ms": 0})
-    print("Jing Liu partitioner cb 1")
-
     try:
-        print("Jing Liu partitioner cb 2")
-        p.produce('mytopic2', "This is the message payload")
-        p.produce('mytopic2', "This is the message payload 1")
-        p.produce('mytopic2', "This is the message payload 2")
-        print("Jing Liu partitioner cb 3")
+        p.produce('mytopic2', "This is the message payload", "test")
+        p.produce('mytopic2', "This is the message payload 1", "test")
+        p.produce('mytopic2', "This is the message payload 2", "Test")
     except SystemError as e:
         print(e)
     except KafkaException as e:
         print(e)
     
     p.flush()
-
 
 
 def test_set_partitioner_murmur2():
