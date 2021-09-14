@@ -54,11 +54,11 @@ class DeserializingConsumer(_ConsumerImpl):
     | ``group.id`` *          | str                 | All clients sharing the same group.id belong to the |
     |                         |                     | same group.                                         |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    |                         |                     | Callable(bytes, SerializationContext) -> obj        |
     | ``key.deserializer``    | callable            |                                                     |
     |                         |                     | Deserializer used for message keys.                 |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    |                         |                     | Callable(bytes, SerializationContext) -> obj        |
     | ``value.deserializer``  | callable            |                                                     |
     |                         |                     | Deserializer used for message values.               |
     +-------------------------+---------------------+-----------------------------------------------------+
