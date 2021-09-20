@@ -128,6 +128,11 @@ class AvroSerializer(Serializer):
 
         See ``avro_producer.py`` in the examples directory for example usage.
 
+    Note:
+       Tuple notation can be used to determine which branch of an ambiguous union to take.
+
+       See `fastavro notation <https://fastavro.readthedocs.io/en/latest/writer.html#using-the-tuple-notation-to-specify-which-branch-of-a-union-to-take>`_
+
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
