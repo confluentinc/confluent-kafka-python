@@ -5,6 +5,7 @@ env:
 jobs:
  include:
   - name: "Source package verification with Python 2.7 (Linux)"
+    if: false
     os: linux
     language: python
     dist: xenial
@@ -21,6 +22,7 @@ jobs:
     services: docker
 
   - name: "Source package verification with Python 2.7 (OSX)"
+    if: false
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
