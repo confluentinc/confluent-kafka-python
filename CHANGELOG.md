@@ -4,6 +4,10 @@
 
 v1.8.0 is a maintenance release with the following fixes and enhancements:
 
+ - **Python 2.7 binary wheels are no longer provided.**
+   Users still on Python 2.7 will need to build confluent-kafka from source
+   and install librdkafka separately, see [README.md](README.md#Prerequisites)
+   for build instructions.
  - Added `use.latest.version` and `skip.known.types` (Protobuf) to
    the Serializer classes. (Robert Yokota, #1133).
  - `list_topics()` and `list_groups()` added to AdminClient.
