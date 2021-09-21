@@ -1,5 +1,22 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.8.0
+
+v1.8.0 is a maintenance release with the following fixes and enhancements:
+
+ - Added `use.latest.version` and `skip.known.types` (Protobuf) to
+   the Serializer classes. (Robert Yokota, #1133).
+ - `list_topics()` and `list_groups()` added to AdminClient.
+ - Added support for headers in the SerializationContext (Laurent Domenech-Cabaud)
+ - Fix crash in header parsing (Armin Ronacher, #1165)
+ - Added long package description in setuptools (Bowrna, #1172).
+ - Documentation fixes by Aviram Hassan and Ryan Slominski.
+
+confluent-kafka-python is based on librdkafka v1.8.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.7.0
 
 v1.7.0 is a maintenance release with the following fixes and enhancements:
