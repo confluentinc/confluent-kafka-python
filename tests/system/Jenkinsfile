@@ -1,6 +1,6 @@
 def config = jobConfig {
     cron = '@midnight'
-    nodeLabel = 'docker-oraclejdk8'
+    nodeLabel = 'docker-debian-10-system-test-jdk8'
     realJobPrefixes = ['system-test-python-client']
     owner = 'client'
     slackChannel = 'clients-eng'
