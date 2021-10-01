@@ -49,6 +49,8 @@ else:
 
 module = Extension('confluent_kafka.cimpl',
                    libraries=[librdkafka_libname],
+                   include_dirs=[os.getenv('include')],
+                   library_dirs=[os.getenv('lib')],
                    sources=[os.path.join(ext_dir, 'confluent_kafka.c'),
                             os.path.join(ext_dir, 'Producer.c'),
                             os.path.join(ext_dir, 'Consumer.c'),
