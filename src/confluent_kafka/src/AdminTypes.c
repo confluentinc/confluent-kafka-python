@@ -78,7 +78,7 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
         self->replica_assignment = NULL;
         self->config = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|iOO", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iiOO", kws,
                                          &topic, &self->num_partitions,
                                          &self->replication_factor,
                                          &self->replica_assignment,
