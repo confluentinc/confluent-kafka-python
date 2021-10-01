@@ -169,6 +169,10 @@ class ProtobufSerializer(object):
     |                                     |          | Schema Registry subject names for Schema References  |
     |                                     |          | Defaults to reference_subject_name_strategy          |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Specifies whether the Protobuf serializer should     |
+    | ``use.deprecated.format``           | bool     | serialize message indexes without zig-zag encoding.  |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered to namespaces known as Subjects which define how a
     schema may evolve over time. By default the subject name is formed by
@@ -215,7 +219,8 @@ class ProtobufSerializer(object):
         'use.latest.version': False,
         'skip.known.types': False,
         'subject.name.strategy': topic_subject_name_strategy,
-        'reference.subject.name.strategy': reference_subject_name_strategy
+        'reference.subject.name.strategy': reference_subject_name_strategy,
+        'use.deprecated.format': False
     }
 
     def __init__(self, msg_type, schema_registry_client, conf=None):
@@ -247,6 +252,10 @@ class ProtobufSerializer(object):
         if not callable(self._ref_reference_subject_func):
             raise ValueError("subject.name.strategy must be callable")
 
+        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        if not isinstance(self._use_deprecated_format, bool):
+            raise ValueError("use.deprecated.format must be a boolean value")
+
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
@@ -263,6 +272,26 @@ class ProtobufSerializer(object):
                               schema_type='PROTOBUF')
 
     @staticmethod
+    def _encode_varints(buf, ints):
+        """
+        Encodes each int as a varint onto buf
+
+        Args:
+            buf (BytesIO): buffer to write to.
+            ints ([int]): ints to be encoded.
+
+        """
+        for value in ints:
+            if(value < 0):
+                value = (-value) << 1 - 1
+            else:
+                value <<= 1
+            while (value & ~0x7f) != 0:
+                buf.write(_bytes((value & 0x7f) | 0x80))
+                value >>= 7
+            buf.write(_bytes(value))
+
+    @staticmethod
     def _encode_uvarints(buf, ints):
         """
         Encodes each int as a uvarint onto buf
@@ -277,6 +306,21 @@ class ProtobufSerializer(object):
                 buf.write(_bytes((value & 0x7f) | 0x80))
                 value >>= 7
             buf.write(_bytes(value))
+
+    @staticmethod
+    def _encode_index(buf, msg_idx, deprecated_format=False):
+        """
+        Writes message index in Schema Registry Protobuf format.
+
+        Args:
+            buf (BytesIO): byte buffer
+            msg_index: Tuple[int]
+            deprecated_format: boolean, optional
+        """
+        if deprecated_format:
+            self._encode_uvarints(buf, msg_index)
+        else:
+            self._encode_varints(buf, msg_index)
 
     def _resolve_dependencies(self, ctx, file_desc):
         """
@@ -361,7 +405,7 @@ class ProtobufSerializer(object):
             # (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record index to the buffer
-            self._encode_uvarints(fo, self._msg_index)
+            self._encode_index(fo, self._msg_index, self._use_deprecated_format)
             # write the record itself
             fo.write(message_type.SerializeToString())
             return fo.getvalue()
@@ -375,13 +419,38 @@ class ProtobufDeserializer(object):
     Args:
         message_type (GeneratedProtocolMessageType): Protobuf Message type.
 
+        conf (dict): ProtobufDeserializer configuration.
+
+    ProtobufSerializer configuration properties:
+
+    +-------------------------------------+----------+------------------------------------------------------+
+    | Property Name                       | Type     | Description                                          |
+    +=====================================+==========+======================================================+
+    |                                     |          | Specifies whether the Protobuf serializer should     |
+    | ``use.deprecated.format``           | bool     | serialize message indexes without zig-zag encoding.  |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
+
     See Also:
     `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
 
     """
     __slots__ = ['_msg_class', '_msg_index']
+    # default configuration
+    _default_conf = {
+        'use.deprecated.format': False
+    }
 
-    def __init__(self, message_type):
+    def __init__(self, message_type, conf=None):
+        # handle configuration
+        conf_copy = self._default_conf.copy()
+        if conf is not None:
+            conf_copy.update(conf)
+
+        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        if not isinstance(self._use_deprecated_format, bool):
+            raise ValueError("use.deprecated.format must be a boolean value")
+
         descriptor = message_type.DESCRIPTOR
         self._msg_index = _create_msg_index(descriptor)
         self._msg_class = MessageFactory().GetPrototype(descriptor)
@@ -416,6 +485,38 @@ class ProtobufDeserializer(object):
             raise EOFError("Unexpected EOF while reading index")
 
     @staticmethod
+    def _decode_varint(buf):
+        """
+        Decodes a single varint from a buffer.
+
+        Args:
+            buf (BytesIO): buffer to read from
+
+        Returns:
+            int: decoded varint
+
+        Raises:
+            EOFError: if buffer is empty
+
+        """
+        value = 0
+        shift = 0
+        try:
+            while True:
+                i = ProtobufDeserializer._read_byte(buf)
+
+                value |= (i & 0x7f) << shift
+                shift += 7
+                if not (i & 0x80):
+                    if value & 1:
+                        return -(value + 1) >> 1
+                    else:
+                        return value >> 1
+
+        except EOFError:
+            raise EOFError("Unexpected EOF while reading index")
+
+    @staticmethod
     def _read_byte(buf):
         """
         Returns int representation for a byte.
@@ -432,21 +533,27 @@ class ProtobufDeserializer(object):
         return ord(i)
 
     @staticmethod
-    def _decode_index(buf):
+    def _decode_index(buf, deprecated_format=False):
         """
         Extracts message index from Schema Registry Protobuf formatted bytes.
 
         Args:
             buf (BytesIO): byte buffer
+            deprecated_format: boolean, optional
 
         Returns:
-            int: Protobuf Message index.
+            Tuple[int]: Protobuf Message index.
 
         """
-        size = ProtobufDeserializer._decode_uvarint(buf)
+        if deprecated_format:
+            decode = ProtobufDeserializer._decode_uvarint
+        else:
+            decode = ProtobufDeserializer._decode_varint
+
+        size = decode(buf)
         msg_index = [size]
         for _ in range(size):
-            msg_index.append(ProtobufDeserializer._decode_uvarint(buf))
+            msg_index.append(decode(buf))
 
         return msg_index
 
@@ -486,7 +593,7 @@ class ProtobufDeserializer(object):
 
             # Protobuf Messages are self-describing; no need to query schema
             # Move the reader cursor past the index
-            _ = ProtobufDeserializer._decode_index(payload)
+            _ = ProtobufDeserializer._decode_index(payload, self._use_deprecated_format)
             msg = self._msg_class()
             try:
                 msg.ParseFromString(payload.read())
