@@ -677,7 +677,7 @@ class Schema(object):
 
         self.schema_str = schema_str
         self.schema_type = schema_type
-        self.references = self.schema_references(references)
+        self.references = [SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version']) for ref in references]
         self._hash = hash(schema_str)
 
     def __eq__(self, other):
@@ -686,15 +686,6 @@ class Schema(object):
 
     def __hash__(self):
         return self._hash
-
-    def schema_references(self, references):
-        refs = []
-        for ref in references:
-            refs.append(SchemaReference(name=ref['name'],
-                                        subject=ref['subject'],
-                                        version=ref['version']))
-        return refs
-
 
 
 class RegisteredSchema(object):
