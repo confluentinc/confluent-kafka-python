@@ -16,8 +16,8 @@ v1.8.0 is a maintenance release with the following fixes and enhancements:
  - Added long package description in setuptools (Bowrna, #1172).
  - Documentation fixes by Aviram Hassan and Ryan Slominski.
 
-confluent-kafka-python is based on librdkafka v1.8.0, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.0)
+confluent-kafka-python is based on librdkafka v1.8.2, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
