@@ -186,7 +186,7 @@ fi
 
 # Set up python dependencies
 cd $KAFKA_DIR
-virtualenv venv
+virtualenv -p python3 venv
 . venv/bin/activate
 cd tests
 python setup.py develop
