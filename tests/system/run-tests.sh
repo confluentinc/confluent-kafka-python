@@ -49,7 +49,7 @@ function build_python_client {
     tools/build-linux-selfcontained.sh $LIBRDKAFKA_BRANCH wheels
 
     # Deploy wheels on workers
-    confluent_kafka/kafkatest/deploy.sh --prepare $KAFKA_DIR wheels
+    src/confluent_kafka/kafkatest/deploy.sh --prepare $KAFKA_DIR wheels
 
     # Synchronize workers
     pushd $KAFKA_DIR
