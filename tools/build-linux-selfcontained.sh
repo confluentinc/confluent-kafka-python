@@ -107,6 +107,14 @@ function build {
 
     mkdir -p $outdir
 
+    echo "/opt: "
+    ls -la /opt
+
+    echo "/opt/python: "
+    ls -la /opt/python
+
+    python get-pip.py -y
+
     for PYBIN in /opt/python/cp27-*/bin; do
         # Setup
         rm -rf /tmp/built_wheel
