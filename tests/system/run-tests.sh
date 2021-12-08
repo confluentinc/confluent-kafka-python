@@ -23,7 +23,7 @@ export PYTHONUNBUFFERED=1
 
 TEST_PATH=tests/kafkatest/tests/client
 
-LIBRDKAFKA_BRANCH=master
+LIBRDKAFKA_BRANCH=v1.8.2
 KAFKA_BRANCH=3.0.0  # Tag
 REPO=https://github.com/apache/kafka.git
 
@@ -46,10 +46,6 @@ VAGRANT_CLEANUP=$DESTROY
 function build_python_client {
     local this_host=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
     export DOCKER_HOST="tcp://$this_host:2375"
-    sudo apt update
-    sudo apt remove libcurl4
-
-    sudo apt-get install libcurl4-openssl-dev -y
     tools/build-linux-selfcontained.sh $LIBRDKAFKA_BRANCH wheels
 
     # Deploy wheels on workers
