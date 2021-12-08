@@ -46,7 +46,10 @@ VAGRANT_CLEANUP=$DESTROY
 function build_python_client {
     local this_host=`curl http://169.254.169.254/latest/meta-data/local-ipv4`
     export DOCKER_HOST="tcp://$this_host:2375"
+    sudo apt update
+    sudo apt remove libcurl4
 
+    sudo apt-get install libcurl4-openssl-dev -y
     tools/build-linux-selfcontained.sh $LIBRDKAFKA_BRANCH wheels
 
     # Deploy wheels on workers
@@ -189,7 +192,7 @@ cd $KAFKA_DIR
 virtualenv -p python3 venv
 . venv/bin/activate
 cd tests
-python setup.py develop
+python3 setup.py develop
 
 # Build Python client
 cd $WORKSPACE
