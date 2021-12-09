@@ -23,7 +23,7 @@ def loads(schema_str):
     """ Parse a schema given a schema string """
     try:
         return schema.parse(schema_str)
-    except schema.SchemaParseException as e:
+    except SchemaParseException as e:
         raise ClientError("Schema parse failed: %s" % (str(e)))
 
 
@@ -41,6 +41,13 @@ def _hash_func(self):
 
 try:
     from avro import schema
+
+    try:
+        # avro >= 1.11.0
+        from avro.errors import SchemaParseException
+    except ImportError:
+        # avro < 1.11.0
+        from avro.schema import SchemaParseException
 
     schema.RecordSchema.__hash__ = _hash_func
     schema.PrimitiveSchema.__hash__ = _hash_func
