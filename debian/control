@@ -1,0 +1,38 @@
+Source: python-confluent-kafka
+Maintainer: Debian Python Team <team+python@tracker.debian.org>
+Uploaders: Christos Trochalakis <ctrochalakis@debian.org>,
+           Nicolas Dandrimont <olasd@debian.org>
+Section: python
+Priority: optional
+Build-Depends: debhelper (>= 9),
+               dh-python,
+               librdkafka-dev (>= 1.4.2),
+               python3-all-dev,
+               python3-avro,
+               python3-jsonschema,
+               python3-protobuf,
+               python3-pytest,
+               python3-pytest-timeout,
+               python3-requests,
+               python3-requests-mock,
+               python3-setuptools
+Standards-Version: 4.5.1
+Vcs-Browser: https://salsa.debian.org/python-team/packages/python-confluent-kafka
+Vcs-Git: https://salsa.debian.org/python-team/packages/python-confluent-kafka.git
+Homepage: https://github.com/confluentinc/confluent-kafka-python
+
+Package: python3-confluent-kafka
+Architecture: any
+Depends: ${misc:Depends},
+         ${python3:Depends},
+         ${shlibs:Depends}
+Suggests: python3-avro,
+          python3-jsonschema,
+          python3-protobuf,
+          python3-requests
+Description: Python client to interact with Kafka - Python 3.x
+ python-confluent-kafka wraps the librdkafka C library, providing full Kafka
+ protocol support with great performance and reliability.
+ .
+ This package provides the Python 3.x module.
+

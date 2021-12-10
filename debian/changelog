@@ -1,0 +1,138 @@
+python-confluent-kafka (1.7.0-1) unstable; urgency=medium
+
+  [ Nicolas Dandrimont ]
+  * Add myself to Uploaders.
+  * New upstream release 1.7.0.
+    - Move debian/watch to GitHub tags to retrieve upstream test suite.
+  * Don't disable PIE.
+  * Run upstream testsuite
+    - add Build-Depends on pytest, pytest-timeout, requests-mock.
+  * Add optional dependencies on protobuf, pyrsistent and jsonschema.
+
+  [ Debian Janitor ]
+  * Bump debhelper from old 12 to 13.
+  * Update standards version to 4.5.1, no changes needed.
+
+ -- Nicolas Dandrimont <olasd@debian.org>  Thu, 02 Dec 2021 16:16:17 +0100
+
+python-confluent-kafka (1.3.0-2) unstable; urgency=medium
+
+  [ Thomas Goirand ]
+  * Up min version of librdkafka-dev, as backporting with the version from
+    Buster fails.
+  * Uploading to unstable.
+
+  [ Ondřej Nový ]
+  * d/control: Update Maintainer field with new Debian Python Team
+    contact address.
+  * d/control: Update Vcs-* fields with new Debian Python Team Salsa
+    layout.
+
+ -- Thomas Goirand <zigo@debian.org>  Sun, 13 Sep 2020 11:46:30 +0200
+
+python-confluent-kafka (1.3.0-1) experimental; urgency=medium
+
+  [ Ondřej Nový ]
+  * Bump Standards-Version to 4.4.1.
+
+  [ Debian Janitor ]
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
+  * Update standards version to 4.5.0, no changes needed.
+
+  [ Thomas Goirand ]
+  * Team upload.
+  * New upstream release.
+  * Refreshed 0001-Switch-to-trove-classifiers.patch.
+
+ -- Thomas Goirand <zigo@debian.org>  Sun, 13 Sep 2020 11:37:09 +0200
+
+python-confluent-kafka (1.1.0-1) unstable; urgency=medium
+
+  * Team upload
+
+  [ Ondřej Nový ]
+  * Use debhelper-compat instead of debian/compat.
+
+  [ Andreas Tille ]
+  * Set Maintainer to Debian Python Modules Team
+  * Drop Python2 package; Closes: #937661
+  * debhelper-compat 12
+  * Point Vcs fields to salsa.debian.org
+  * Standards-Version: 4.4.0
+
+ -- Sandro Tosi <morph@debian.org>  Wed, 16 Oct 2019 23:27:56 -0400
+
+python-confluent-kafka (0.11.6-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * Convert git repository from git-dpm to gbp layout
+
+  [ Christos Trochalakis ]
+  * Bump librdkafka dependency
+  * Bump Standards-Version, no changes needed
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Fri, 09 Nov 2018 15:47:18 +0200
+
+python-confluent-kafka (0.11.5-1) unstable; urgency=medium
+
+  * New upstream version
+  * Bump Standards-Version to 4.1.5, no changes needed
+  * Set testsuite to autopkgtest-pkg-python
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Mon, 23 Jul 2018 16:36:20 +0300
+
+python-confluent-kafka (0.11.4-1) unstable; urgency=medium
+
+  [ Ondřej Nový ]
+  * d/control: Set Vcs-* to salsa.debian.org
+
+  [ Christos Trochalakis ]
+  * new upstream version
+  * Bump librdkafka-dev dependency to take advantage of the new features
+  * Switch to debhelper 11
+  * Bump Standards-Version, no changes needed
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Thu, 12 Apr 2018 12:43:01 +0300
+
+python-confluent-kafka (0.11.0-1) unstable; urgency=medium
+
+  * New upstream version
+  * Bump Standards-Version to 4.1.0, no changes needed
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Thu, 14 Sep 2017 09:45:43 +0300
+
+python-confluent-kafka (0.9.4-3) unstable; urgency=medium
+
+  * Properly Build-Depend on python*-all-dev (Closes: #867633)
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Sat, 08 Jul 2017 14:37:20 +0300
+
+python-confluent-kafka (0.9.4-2) unstable; urgency=medium
+
+  * Switch to debhelper 10.
+  * Bump Standards to 4.0.0, no changes needed.
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Wed, 28 Jun 2017 10:41:44 +0300
+
+python-confluent-kafka (0.9.4-1) experimental; urgency=medium
+
+  * New upstream release.
+  * Support for Avro Consumer & Producer.
+  * Bump librdkafka-dev dependency to 0.9.4 to pull-in new functionality.
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Thu, 09 Mar 2017 16:46:47 +0200
+
+python-confluent-kafka (0.9.2-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Enable hardening flags.
+
+ -- Christos Trochalakis <ctrochalakis@debian.org>  Thu, 12 Jan 2017 15:17:10 +0200
+
+python-confluent-kafka (0.9.1.2-1) unstable; urgency=medium
+
+  * Initial release. (Closes: #836936)
+
+ -- Christos Trochalakis <yatiohi@ideopolis.gr>  Fri, 23 Sep 2016 12:20:20 +0300
+

@@ -1,0 +1,13 @@
+#! /usr/bin/make -f
+
+export DH_VERBOSE = 1
+export PYBUILD_NAME = confluent-kafka
+export DPKG_EXPORT_BUILDFLAGS=1
+export DEB_BUILD_MAINT_OPTIONS=hardening=+bindnow
+include /usr/share/dpkg/buildflags.mk
+
+export PYBUILD_TEST_ARGS=-v --noconftest --ignore=tests/avro --ignore=tests/integration --ignore=tests/schema_registry
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
