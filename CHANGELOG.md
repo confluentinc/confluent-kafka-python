@@ -1,8 +1,8 @@
 # Confluent's Python client for Apache Kafka
 
-## v1.8.0
+## v1.8.2
 
-v1.8.0 is a maintenance release with the following fixes and enhancements:
+v1.8.2 is a maintenance release with the following fixes and enhancements:
 
  - **Python 2.7 binary wheels are no longer provided.**
    Users still on Python 2.7 will need to build confluent-kafka from source
@@ -19,6 +19,8 @@ v1.8.0 is a maintenance release with the following fixes and enhancements:
 confluent-kafka-python is based on librdkafka v1.8.2, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+**Note**: There were no v1.8.0 and v1.8.1 releases.
 
 
 ## v1.7.0
