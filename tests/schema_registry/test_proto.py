@@ -36,11 +36,7 @@ from tests.integration.schema_registry.gen import (DependencyTestProto_pb2,
 def test_create_index(pb2, coordinates):
     msg_idx = _create_msg_index(pb2.DESCRIPTOR)
 
-    if coordinates == [0]:
-        assert msg_idx == coordinates
-    else:
-        assert msg_idx[0] == len(coordinates)
-        assert msg_idx[1:] == coordinates
+    assert msg_idx == coordinates
 
 
 @pytest.mark.parametrize("pb2", [
@@ -48,35 +44,42 @@ def test_create_index(pb2, coordinates):
     metadata_proto_pb2.ControlMessage.Watermark,
     metadata_proto_pb2.HDFSOptions.ImportOptions.Generator.KacohaConfig
 ])
-def test_index_serialization(pb2):
+@pytest.mark.parametrize("zigzag", [True, False])
+def test_index_serialization(pb2, zigzag):
     msg_idx = _create_msg_index(pb2.DESCRIPTOR)
     buf = BytesIO()
-    ProtobufSerializer._encode_uvarints(buf, msg_idx)
+    ProtobufSerializer._encode_varints(buf, msg_idx, zigzag=zigzag)
     buf.flush()
 
     # reset buffer cursor
     buf.seek(0)
-    decoded_msg_idx = ProtobufDeserializer._decode_index(buf)
+    decoded_msg_idx = ProtobufDeserializer._decode_index(buf, zigzag=zigzag)
     buf.close()
 
     assert decoded_msg_idx == msg_idx
 
 
-@pytest.mark.parametrize("msg_idx, expected_hex", [
-    ([1, 0], b'00'),   # b2a_hex always returns hex pairs
-    ([1, 1], b'01'),
-    ([1, 127], b'7f'),
-    ([1, 128], b'8001'),
-    ([1, 9223372036854775807], b'ffffffffffffffff7f')
+@pytest.mark.parametrize("msg_idx, zigzag, expected_hex", [
+    # b2a_hex returns hex pairs
+    ([0], True, b'00'),   # special case [0]
+    ([0], False, b'00'),  # special case [0]
+    ([1], True, b'0202'),
+    ([1], False, b'0101'),
+    ([127, 8, 9], True, b'06fe011012'),
+    ([127, 8, 9], False, b'037f0809'),
+    ([128], True, b'028002'),
+    ([128], False, b'018001'),
+    ([9223372036854775807], True, b'02feffffffffffffffff01'),
+    ([9223372036854775807], False, b'01ffffffffffffffff7f')
 ])
-def test_index_encoder(msg_idx, expected_hex):
+def test_index_encoder(msg_idx, zigzag, expected_hex):
     buf = BytesIO()
-    ProtobufSerializer._encode_uvarints(buf, msg_idx)
+    ProtobufSerializer._encode_varints(buf, msg_idx, zigzag=zigzag)
     buf.flush()
-    # ignore array length prefix
-    buf.seek(1)
+    buf.seek(0)
     assert binascii.b2a_hex(buf.read()) == expected_hex
 
     # reset reader and test decoder
     buf.seek(0)
-    assert msg_idx == ProtobufDeserializer._decode_index(buf)
+    decoded_msg_idx = ProtobufDeserializer._decode_index(buf, zigzag=zigzag)
+    assert decoded_msg_idx == msg_idx

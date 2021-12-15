@@ -4,6 +4,9 @@
 
 v1.8.2 is a maintenance release with the following fixes and enhancements:
 
+ - **IMPORTANT**: Added mandatory `use.deprecated.format` to
+   `ProtobufSerializer` and `ProtobufDeserializer`.
+   See **Upgrade considerations** below for more information.
  - **Python 2.7 binary wheels are no longer provided.**
    Users still on Python 2.7 will need to build confluent-kafka from source
    and install librdkafka separately, see [README.md](README.md#Prerequisites)
@@ -23,6 +26,41 @@ confluent-kafka-python is based on librdkafka v1.8.2, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 **Note**: There were no v1.8.0 and v1.8.1 releases.
+
+
+## Upgrade considerations
+
+### Protobuf serialization format changes
+
+Prior to this version the confluent-kafka-python client had a bug where
+nested protobuf schemas indexes were incorrectly serialized, causing
+incompatibility with other Schema-Registry protobuf consumers and producers.
+
+This has now been fixed, but since the old defect serialization and the new
+correct serialization are mutually incompatible the user of
+confluent-kafka-python will need to make an explicit choice which
+serialization format to use during a transitory phase while old producers and
+consumers are upgraded.
+
+The `ProtobufSerializer` and `ProtobufDeserializer` constructors now
+both take a (for the time being) configuration dictionary that requires
+the `use.deprecated.format` configuration property to be explicitly set.
+
+Producers should be upgraded first and as long as there are old (<=v1.7.0)
+Python consumers reading from topics being produced to, the new (>=v1.8.2)
+Python producer must be configured with `use.deprecated.format` set to `True`.
+
+When all existing messages in the topic have been consumed by older consumers
+the consumers should be upgraded and both new producers and the new consumers
+must set `use.deprecated.format` to `False`.
+
+
+The requirement to explicitly set `use.deprecated.format` will be removed
+in a future version and the setting will then default to `False` (new format).
+
+
+
+
 
 
 ## v1.7.0
