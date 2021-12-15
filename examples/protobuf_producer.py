@@ -74,7 +74,8 @@ def main(args):
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
     protobuf_serializer = ProtobufSerializer(user_pb2.User,
-                                             schema_registry_client)
+                                             schema_registry_client,
+                                             {'use.deprecated.format': True})
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),
@@ -93,9 +94,9 @@ def main(args):
             user = user_pb2.User(name=user_name,
                                  favorite_color=user_favorite_color,
                                  favorite_number=user_favorite_number)
-            producer.produce(topic=topic, key=str(uuid4()), value=user,
+            producer.produce(topic=topic, partition=0, key=str(uuid4()), value=user,
                              on_delivery=delivery_report)
-        except KeyboardInterrupt:
+        except (KeyboardInterrupt, EOFError):
             break
         except ValueError:
             print("Invalid input, discarding record...")
