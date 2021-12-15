@@ -4,6 +4,7 @@
      "exec_cmd": "source /tmp/venv/bin/activate && python -m confluent_kafka.kafkatest.verifiable_consumer",
      "deploy": "sudo mkdir -p /mnt/verifiable_consumer && sudo /vagrant/tests/confluent-kafka-python/deploy.sh",
      "kill_signal": 2,
+     "debug": "all",
      "pids": "pgrep -f 'sudo python -m confluent_kafka.kafkatest.verifiable_consumer'"
     },
     "VerifiableProducer":
@@ -11,6 +12,7 @@
      "exec_cmd": "source /tmp/venv/bin/activate && python -m confluent_kafka.kafkatest.verifiable_producer",
      "deploy": "sudo mkdir -p /mnt/verifiable_producer && sudo /vagrant/tests/confluent-kafka-python/deploy.sh",
      "kill_signal": 2,
+     "debug": "all",
      "pids": "pgrep -f 'sudo python -m confluent_kafka.kafkatest.verifiable_producer'"
     }
 }
