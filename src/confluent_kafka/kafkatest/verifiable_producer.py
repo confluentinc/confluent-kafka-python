@@ -32,6 +32,7 @@ class VerifiableProducer(VerifiableClient):
         """
         super(VerifiableProducer, self).__init__(conf)
         self.conf['on_delivery'] = self.dr_cb
+        self.conf['debug'] = 'all'
         self.producer = Producer(**self.conf)
         self.num_acked = 0
         self.num_sent = 0

@@ -34,6 +34,7 @@ class VerifiableClient(object):
         super(VerifiableClient, self).__init__()
         self.conf = conf
         self.conf['client.id'] = 'python@' + socket.gethostname()
+        self.conf['debug'] = 'all'
         self.run = True
         signal.signal(signal.SIGTERM, self.sig_term)
         self.dbg('Pid is %d' % os.getpid())

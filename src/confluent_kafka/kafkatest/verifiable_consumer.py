@@ -33,6 +33,7 @@ class VerifiableConsumer(VerifiableClient):
         """
         super(VerifiableConsumer, self).__init__(conf)
         self.conf['on_commit'] = self.on_commit
+        self.conf['debug'] = 'all'
         self.consumer = Consumer(**conf)
         self.consumed_msgs = 0
         self.consumed_msgs_last_reported = 0
