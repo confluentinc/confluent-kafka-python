@@ -41,7 +41,7 @@ def post = {
 
                 sh '''
                     tests/system/upload-tests.sh muckrake python-client-$BRANCH_NAME \
-                        https://github.com/confluentinc/confluent-kafka-python tests/kafkatest/tests/client
+                        https://github.com/confluentinc/confluent-kafka-python tests/kafkatest/tests/client/consumer_test.py
                 '''
             }
         }
