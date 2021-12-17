@@ -9,8 +9,8 @@
     },
     "VerifiableProducer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
-     "exec_cmd": "source /tmp/venv/bin/activate && sudo python -m confluent_kafka.kafkatest.verifiable_producer",
-     "deploy": "sudo mkdir -p /mnt/verifiable_producer && sudo chmod 777 /mnt/verifiable_producer && sudo mkdir -p /mnt/verifiable_producer/logs && sudo chmod 777 /mnt/verifiable_producer/logs && sudo /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_producer/verifiable_producer.stderr 2>&1",
+     "exec_cmd": "source /tmp/venv/bin/activate && sudo mkdir -p /mnt/verifiable_producer && sudo chmod 777 /mnt/verifiable_producer && sudo mkdir -p /mnt/verifiable_producer/logs && sudo chmod 777 /mnt/verifiable_producer/logs && sudo python -m confluent_kafka.kafkatest.verifiable_producer",
+     "deploy": "sudo /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_producer/verifiable_producer.stderr 2>&1",
      "kill_signal": 2,
      "debug": "all",
      "pids": "pgrep -f 'sudo python -m confluent_kafka.kafkatest.verifiable_producer'"
