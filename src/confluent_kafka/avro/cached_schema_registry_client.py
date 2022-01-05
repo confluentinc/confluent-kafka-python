@@ -125,7 +125,9 @@ class CachedSchemaRegistryClient(object):
         self.close()
 
     def close(self):
-        self._session.close()
+        # Constructor exceptions may occur prior to _session being set.
+        if hasattr(self, '_session'):
+            self._session.close()
 
     @staticmethod
     def _configure_basic_auth(url, conf):

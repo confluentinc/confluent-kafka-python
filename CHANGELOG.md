@@ -15,6 +15,8 @@ v1.8.2 is a maintenance release with the following fixes and enhancements:
  - Fix crash in header parsing (Armin Ronacher, #1165)
  - Added long package description in setuptools (Bowrna, #1172).
  - Documentation fixes by Aviram Hassan and Ryan Slominski.
+ - Don't raise AttributeError exception when CachedSchemaRegistryClient
+   constructor raises a valid exception.
 
 confluent-kafka-python is based on librdkafka v1.8.2, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.8.2)
