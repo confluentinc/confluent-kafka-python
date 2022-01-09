@@ -201,6 +201,6 @@ build_python_client
 # Run the tests
 cd $KAFKA_DIR
 python `which ducktape` --debug $TEST_PATH \
-    --globals tests/confluent-kafka-python/globals.json \
+    --globals tests/confluent-kafka-python/globals.json tests/kafkatest/tests/client/consumer_test.py::AssignmentValidationTest \
     --results-root $RESULTS \
     --compress
