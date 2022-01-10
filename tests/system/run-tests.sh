@@ -21,7 +21,7 @@ set -x
 # Immediately flush output when running python
 export PYTHONUNBUFFERED=1
 
-TEST_PATH=tests/kafkatest/tests/client
+TEST_PATH=tests/kafkatest/tests/client/consumer_test.py::AssignmentValidationTest
 
 LIBRDKAFKA_BRANCH=v1.8.2
 KAFKA_BRANCH=3.0.0  # Tag
@@ -201,6 +201,6 @@ build_python_client
 # Run the tests
 cd $KAFKA_DIR
 python `which ducktape` --debug $TEST_PATH \
-    --globals tests/confluent-kafka-python/globals.json tests/kafkatest/tests/client/consumer_test.py::AssignmentValidationTest \
+    --globals tests/confluent-kafka-python/globals.json \
     --results-root $RESULTS \
     --compress
