@@ -185,14 +185,14 @@ fi
 
 # Set up python dependencies
 cd $KAFKA_DIR
-virtualenv -p python3 venv
+virtualenv -p python3.7 venv
 . venv/bin/activate
 cd tests
-#python3 setup.py develop
+python3.7 setup.py develop
 pip install home
 pip install jenkins
 pip install workspace
-pip install -e .
+#pip install -e .
 
 # Build Python client
 cd $WORKSPACE
