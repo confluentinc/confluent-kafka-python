@@ -192,6 +192,7 @@ cd tests
 pip install home
 pip install jenkins
 pip install workspace
+pip install psycopg2-binary
 #pip install zipp==2.0.0
 #python3.7 -m pip --no-cache-dir zipp==2.0.0 -- -c 'pass'
 pip install -e .
