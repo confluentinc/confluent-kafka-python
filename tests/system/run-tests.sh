@@ -194,6 +194,7 @@ python setup.py develop
 pip install home
 pip install jenkins
 pip install workspace
+pip install zipp==2.0.0
 #pip install -e .
 
 # Build Python client
