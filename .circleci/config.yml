@@ -53,10 +53,10 @@ jobs:
           command: pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
       - run:
           name: Show linker info
-          command: ldd staging/libs/* || otool -L staging/libs/* || true
+          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib ldd staging/libs/* || otool -L staging/libs/* || true
       - run:
           name: Run tests
-          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build
+          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
