@@ -54,6 +54,8 @@ jobs:
       - run:
           name: Show linker info
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib ldd staging/libs/* || otool -L staging/libs/* || true
+      - setup_remote_docker:
+          version: 19.03.13
       - run:
           name: Run tests
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build
