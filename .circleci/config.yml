@@ -30,6 +30,9 @@ jobs:
     environment:
       LD_LIBRARY_PATH: $PWD/tmp-build/lib
     steps:
+      - run:
+         name: Print envs
+         command: env | grep LD_LIBRARY
       - checkout
       - run:
           name: Install interceptors
