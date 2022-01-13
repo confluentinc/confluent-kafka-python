@@ -29,14 +29,28 @@ jobs:
     # CircleCI will report the results back to your VCS provider.
     steps:
       - checkout
+      - run:
+          name: Install interceptors
+          command: tools/install-interceptors.sh
+      - run:
+          name: Install librdkafka
+          command: tools/bootstrap-librdkafka.sh --require-ssl v1.8.2 tmp-build
       - python/install-packages:
           pkg-manager: pip
           # app-dir: ~/project/package-directory/  # If you're requirements.txt isn't in the root directory.
-          # pip-dependency-file: test-requirements.txt  # if you have a different name for your requirements file, maybe one that combines your runtime and test requirements.
+          pip-dependency-file: -r tests/requirements.txt
+      - run:
+          name: Install protobuf
+          command: pip install -U protobuf
+      - run:
+          name: Build
+          command: pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
+      - run:
+          name: Show linker info
+          command: ldd staging/libs/* || otool -L staging/libs/* || true
       - run:
           name: Run tests
-          # This assumes pytest is installed via the install-package step above
-          command: pytest
+          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
