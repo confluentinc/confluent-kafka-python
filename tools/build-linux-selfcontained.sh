@@ -113,13 +113,11 @@ function build {
     echo "/opt/python: "
     ls -la /opt/python
 
-    #echo "/opt/_internal/cpython-3.6.15"
-    #ls -la /opt/_internal/cpython-3.6.15
-    python get-pip.py -y
+    echo "/opt/_internal/cpython-3.6.15"
+    ls -la /opt/_internal/cpython-3.6.15
 
 
-    #for PYBIN in /opt/_internal/cpython-*/bin; do
-    for PYBIN in /opt/python/cp27-*/bin; do
+    for PYBIN in /opt/_internal/cpython-*/bin; do
         # Setup
         rm -rf /tmp/built_wheel
         rm -rf /tmp/delocated_wheel

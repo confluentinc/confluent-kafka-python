@@ -185,12 +185,10 @@ fi
 
 # Set up python dependencies
 cd $KAFKA_DIR
-#virtualenv -p python3.7 venv
-virtualenv venv
+virtualenv -p python3.7 venv
 . venv/bin/activate
 cd tests
-#python3.7 setup.py develop
-python setup.py develop
+python3.7 setup.py develop
 pip install home
 pip install jenkins
 pip install workspace
@@ -203,7 +201,7 @@ build_python_client
 
 # Downgrade bcrypt since 3.2.0 no longer works with Python 2.
 # Remove this when ducktape runs on Python 3.
-pip install bcrypt==3.1.7
+#pip install bcrypt==3.1.7
 
 # Run the tests
 cd $KAFKA_DIR
