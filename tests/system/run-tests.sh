@@ -189,10 +189,11 @@ virtualenv -p python3.7 venv
 . venv/bin/activate
 cd tests
 #python3.7 setup.py develop
+/home/jenkins/workspace/m-test-python-client_jenkins-fix/kafka/venv/bin/python -m pip install --upgrade pip
 pip install home
 pip install jenkins
 pip install workspace
-pip install psycopg2-binary
+/home/jenkins/workspace/m-test-python-client_jenkins-fix/kafka/venv/bin/python -m pip install psycopg2-binary
 #pip install zipp==2.0.0
 #python3.7 -m pip --no-cache-dir zipp==2.0.0 -- -c 'pass'
 pip install -e .
