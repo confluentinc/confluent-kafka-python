@@ -34,11 +34,12 @@ jobs:
           command: tools/install-interceptors.sh
       - run:
           name: Install librdkafka
-          command: tools/bootstrap-librdkafka.sh --require-ssl v1.8.2 tmp-build
+          # FIXME: add --require-ssl again
+          command: tools/bootstrap-librdkafka.sh v1.8.2 tmp-build
       - python/install-packages:
           pkg-manager: pip
           # app-dir: ~/project/package-directory/  # If you're requirements.txt isn't in the root directory.
-          pip-dependency-file: -r tests/requirements.txt
+          pip-dependency-file: tests/requirements.txt
       - run:
           name: Install protobuf
           command: pip install -U protobuf
