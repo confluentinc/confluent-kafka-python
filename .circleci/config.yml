@@ -58,7 +58,7 @@ jobs:
           version: 19.03.13
       - run:
           name: Run tests
-          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build
+          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:tmp-build/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build --ignore=tests/integration
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
