@@ -28,7 +28,7 @@ jobs:
     # Then run your tests!
     # CircleCI will report the results back to your VCS provider.
     environment:
-      LD_LIBRARY_PATH: $PWD/tmp-build/lib
+      LD_LIBRARY_PATH: ~/tmp-build/lib
     steps:
       - run:
          name: Print envs
