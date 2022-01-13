@@ -27,6 +27,8 @@ jobs:
     # Here we're making sure we use just use the system-wide pip. By default it uses the project root's requirements.txt.
     # Then run your tests!
     # CircleCI will report the results back to your VCS provider.
+    environment:
+      LD_LIBRARY_PATH: $PWD/tmp-build/lib
     steps:
       - checkout
       - run:
