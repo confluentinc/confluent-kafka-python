@@ -40,7 +40,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-            - v1-librdkafka-builddir-<<parameters.librdkafka_version>>
+            - v2-librdkafka-builddir-<<parameters.librdkafka_version>>
       - run:
           name: Install interceptors
           command: tools/install-interceptors.sh
@@ -48,7 +48,7 @@ jobs:
           name: Install librdkafka
           command: tools/bootstrap-librdkafka.sh --require-ssl <<parameters.librdkafka_version>> destdir librdkafka-<<parameters.librdkafka_version>>
       - save_cache:
-          key: v1-librdkafka-builddir-<<parameters.librdkafka_version>>
+          key: v2-librdkafka-builddir-<<parameters.librdkafka_version>>
           paths:
             - librdkafka-<<parameters.librdkafka_version>>
       - python/install-packages:
