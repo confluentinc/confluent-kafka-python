@@ -100,17 +100,20 @@ jobs:
     docker:
       - image: cimg/python:3.8
     steps:
+      - checkout
       - build-wheels
 
   build-wheels-windows:
     executor: win/default
     steps:
+      - checkout
       - build-wheels
 
   build-wheels-osx:
     macos:
       xcode: 12.5.1
     steps:
+      - checkout
       - build-wheels
 
 # Invoke jobs via workflows
