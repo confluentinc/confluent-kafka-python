@@ -70,7 +70,7 @@ else
     make -j
 
     # Store one binary in the cache to verify cached "builds".
-    cp examples/rdkafka_example ..
+    cp examples/rdkafka_example .
 
     # Clean up sizable directories we don't need no more to keep cache size down.
     rm -rf mklove/deps/src
