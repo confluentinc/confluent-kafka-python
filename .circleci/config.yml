@@ -70,7 +70,9 @@ jobs:
           name: Run tests
           # FIXME: Skip integration tests for now as Docker networking is a bit of an issue with trivup
           #  TODO: Look into port-forwarding in trivup&docker.
-          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=destdir --ignore=tests/integration
+          command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=destdir --ignore=tests/integration --junitxml=test-results/junit.xml
+      - store_test_results:
+          path: tests-results
       - run:
           name: Build wheel
           command: tools/wheels/build-wheels.sh <<parameters.librdkafka_version>> wheelhouse
