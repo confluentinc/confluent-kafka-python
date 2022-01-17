@@ -12,9 +12,6 @@ orbs:
   python: circleci/python@1.2
   win: circleci/windows@2.2.0
 
-mysettings:
-  lrk: v1.8.2
-
 commands:
   install-librdkafka:
     parameters:
@@ -120,9 +117,6 @@ jobs:
     executor: win/default
     steps:
       - checkout
-      - run:
-          name: "test"
-          command: echo "try this <<mysettings.lrk>>"
       - run:
           name: "Install choco"
           command: choco install python --version 3.8.0
