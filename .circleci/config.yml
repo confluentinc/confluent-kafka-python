@@ -120,13 +120,20 @@ jobs:
       - checkout
       - build-wheels
 
+tag_only: &TAG_ONLY
+  filters:
+    tags:
+      only: /..*/
+
 workflows:
   build:
     jobs:
       - build-and-test
   build-wheels-all:
-    when: <<pipeline.git.tag>>
     jobs:
-      - build-wheels-linux
-      - build-wheels-windows
-      - build-wheels-osx
+      - build-wheels-linux:
+          <<: *TAG_ONLY
+      - build-wheels-windows:
+          <<: *TAG_ONLY
+      - build-wheels-osx:
+          <<: *TAG_ONLY
