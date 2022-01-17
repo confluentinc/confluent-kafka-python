@@ -125,8 +125,7 @@ workflows:
     jobs:
       - build-and-test
   build-wheels-all:
-    when:
-      <<pipeline.git.tag>>
+    when: <<pipeline.git.tag>>
     jobs:
       - build-wheels-linux
       - build-wheels-windows
