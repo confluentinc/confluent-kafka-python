@@ -10,15 +10,49 @@ orbs:
   # so you dont have to copy and paste it everywhere.
   # See the orb documentation here: https://circleci.com/developer/orbs/orb/circleci/python
   python: circleci/python@1.2
+  win: circleci/windows@2.2.0
+
+commands:
+  install-librdkafka:
+    parameters:
+      librdkafka_version:
+        type: string
+        default: v1.8.2
+    steps:
+      - restore_cache:
+          keys:
+            - v2-librdkafka-builddir-<<parameters.librdkafka_version>>
+      - run:
+          name: Install librdkafka
+          command: tools/bootstrap-librdkafka.sh --require-ssl <<parameters.librdkafka_version>> destdir librdkafka-<<parameters.librdkafka_version>>
+      - save_cache:
+          key: v2-librdkafka-builddir-<<parameters.librdkafka_version>>
+          paths:
+            - librdkafka-<<parameters.librdkafka_version>>
+
+  install-interceptors:
+    steps:
+      - run:
+          name: Install interceptors
+          command: tools/install-interceptors.sh
+
+  build-wheels:
+    parameters:
+      librdkafka_version:
+        type: string
+        default: v1.8.2
+    steps:
+      - run:
+          name: Build wheels
+          command: tools/wheels/build-wheels.sh <<parameters.librdkafka_version>> wheelhouse
+      - store_artifacts:
+          path: wheelhouse
+
 
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
   build-and-test: # This is the name of the job, feel free to change it to better match what you're trying to do!
-    parameters:
-      librdkafka_version:
-        type: string
-        default: v1.8.2
     # These next lines defines a Docker executors: https://circleci.com/docs/2.0/executor-types/
     # You can specify an image from Dockerhub or use one of the convenience images from CircleCI's Developer Hub
     # A list of available CircleCI Docker convenience images are available here: https://circleci.com/developer/images/image/cimg/python
@@ -38,22 +72,10 @@ jobs:
          name: Print envs
          command: env | grep LD_LIBRARY
       - checkout
-      - restore_cache:
-          keys:
-            - v2-librdkafka-builddir-<<parameters.librdkafka_version>>
-      - run:
-          name: Install interceptors
-          command: tools/install-interceptors.sh
-      - run:
-          name: Install librdkafka
-          command: tools/bootstrap-librdkafka.sh --require-ssl <<parameters.librdkafka_version>> destdir librdkafka-<<parameters.librdkafka_version>>
-      - save_cache:
-          key: v2-librdkafka-builddir-<<parameters.librdkafka_version>>
-          paths:
-            - librdkafka-<<parameters.librdkafka_version>>
+      - install-librdkafka
+      - install-interceptors
       - python/install-packages:
           pkg-manager: pip
-          # app-dir: ~/project/package-directory/  # If you're requirements.txt isn't in the root directory.
           pip-dependency-file: tests/requirements.txt
       - run:
           name: Install protobuf
@@ -64,8 +86,8 @@ jobs:
       - run:
           name: Show linker info
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib ldd staging/libs/* || otool -L staging/libs/* || true
-      - setup_remote_docker:
-          version: 19.03.13
+#      - setup_remote_docker:
+#          version: 19.03.13
       - run:
           name: Run tests
           # FIXME: Skip integration tests for now as Docker networking is a bit of an issue with trivup
@@ -73,16 +95,33 @@ jobs:
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=destdir --ignore=tests/integration --junitxml=test-results/junit.xml
       - store_test_results:
           path: tests-results
-      - run:
-          name: Build wheel
-          command: tools/wheels/build-wheels.sh <<parameters.librdkafka_version>> wheelhouse
-      - store_artifacts:
-          path: wheelhouse
+
+  build-wheels-linux:
+    docker:
+      - image: cimg/python:3.8
+    steps:
+      - build-wheels
+
+  build-wheels-windows:
+    executor: win/default
+    steps:
+      - build-wheels
+
+  build-wheels-osx:
+    macos:
+      xcode: 12.5.1
+    steps:
+      - build-wheels
 
 # Invoke jobs via workflows
 # See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
-  sample: # This is the name of the workflow, feel free to change it to better match your workflow.
+  build: # This is the name of the workflow, feel free to change it to better match your workflow.
     # Inside the workflow, you define the jobs you want to run.
     jobs:
       - build-and-test
+  build-wheels-all:
+    jobs:
+      - build-wheels-linux
+      - build-wheels-windows
+      - build-wheels-osx
