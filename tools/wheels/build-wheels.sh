@@ -14,7 +14,8 @@ export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 
 
-librdkafka_version=$1
+# librdkafka version without the leading 'v' to match the nuget version.
+librdkafka_version=${1#v}
 wheeldir=$2
 
 if [[ -z $wheeldir ]]; then
