@@ -45,6 +45,7 @@ commands:
       - run:
           name: Build wheels
           command: tools/wheels/build-wheels.sh <<parameters.librdkafka_version>> wheelhouse
+          shell: bash
       - store_artifacts:
           path: wheelhouse
 
@@ -95,12 +96,17 @@ jobs:
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=destdir --ignore=tests/integration --junitxml=test-results/junit.xml
       - store_test_results:
           path: tests-results
+      - store_artifacts:
+          path: test-results
 
   build-wheels-linux:
     docker:
       - image: cimg/python:3.8
     steps:
       - checkout
+      # Wheels are built using manylinux docker images
+      - setup_remote_docker:
+          version: 19.03.13
       - build-wheels
 
   build-wheels-windows:
