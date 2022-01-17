@@ -95,7 +95,7 @@ jobs:
           #  TODO: Look into port-forwarding in trivup&docker.
           command: LD_LIBRARY_PATH=$LD_LIBRARY_PATH:destdir/lib:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=destdir --ignore=tests/integration --junitxml=test-results/junit.xml
       - store_test_results:
-          path: tests-results
+          path: test-results
       - store_artifacts:
           path: test-results
 
