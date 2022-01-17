@@ -68,10 +68,16 @@ else
     fi
 
     make -j
+
+    # Store one binary in the cache to verify cached "builds".
+    cp examples/rdkafka_example ..
+
+    # Clean up sizable directories we don't need no more to keep cache size down.
+    rm -rf mklove/deps/src
+    make -C examples clean
 fi
 
-
-examples/rdkafka_example -X builtin.features
+./rdkafka_example -X builtin.features
 
 if [[ $INSTALLDIR == /usr && $(whoami) != root ]]; then
     sudo make install
