@@ -1,5 +1,18 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.8.3
+
+v1.8.3 is a maintenance release with the following fixes:
+
+ - The warnings for `use.deprecated.format` (introduced in v1.8.2)
+   had its logic reversed, which result in warning logs to be emitted when
+   the property was correctly configured, and the log message itself also
+   contained text that had it backwards.
+   The warning is now only emitted when `use.deprecated.format` is set
+   to the old legacy encoding (`True`). #1265
+
+
+
 ## v1.8.2
 
 v1.8.2 is a maintenance release with the following fixes and enhancements:

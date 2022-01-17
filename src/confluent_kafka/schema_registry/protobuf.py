@@ -258,14 +258,14 @@ class ProtobufSerializer(object):
         self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
-        if not self._use_deprecated_format:
+        if self._use_deprecated_format:
             warnings.warn("ProtobufSerializer: the 'use.deprecated.format' "
                           "configuration property, and the ability to use the "
                           "old incorrect Protobuf serializer heading format "
                           "introduced in confluent-kafka-python v1.4.0, "
                           "will be removed in an upcoming release in 2021 Q2. "
                           "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':True as "
+                          "consumers to 'use.deprecated.format':False as "
                           "soon as possible")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -482,14 +482,14 @@ class ProtobufDeserializer(object):
         self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
-        if not self._use_deprecated_format:
+        if self._use_deprecated_format:
             warnings.warn("ProtobufDeserializer: the 'use.deprecated.format' "
                           "configuration property, and the ability to use the "
                           "old incorrect Protobuf serializer heading format "
                           "introduced in confluent-kafka-python v1.4.0, "
                           "will be removed in an upcoming release in 2022 Q2. "
                           "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':True as "
+                          "consumers to 'use.deprecated.format':False as "
                           "soon as possible")
 
         descriptor = message_type.DESCRIPTOR
