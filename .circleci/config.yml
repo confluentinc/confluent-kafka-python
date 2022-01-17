@@ -12,6 +12,9 @@ orbs:
   python: circleci/python@1.2
   win: circleci/windows@2.2.0
 
+mysettings:
+  lrk: v1.8.2
+
 commands:
   install-librdkafka:
     parameters:
@@ -110,10 +113,32 @@ jobs:
       - build-wheels
 
   build-wheels-windows:
+    parameters:
+      librdkafka_version:
+        type: string
+        default: v1.8.2
     executor: win/default
     steps:
       - checkout
-      - build-wheels
+      - run:
+          name: "test"
+          command: echo "try this <<mysettings.lrk>>"
+      - run:
+          name: "Install choco"
+          command: choco install python --version 3.8.0
+          shell: bash
+      - run:
+          name: "Link python"
+          command: ln -s /c/Python38/python.exe /c/Python38/python3.exe
+          shell: bash
+      - run:
+          name: "Install librdkafka (wheel)"
+          command: tools/wheels/install-librdkafka.sh <<parameters.librdkafka_version>> destdir
+          shell: bash
+      - run:
+          name: "Build wheels (windows)"
+          command: tools/wheels/build-wheels.bat x64 win_amd64 destdir wheelhouse
+          shell: cmd
 
   build-wheels-osx:
     macos:
@@ -131,6 +156,6 @@ workflows:
       - build-and-test
   build-wheels-all:
     jobs:
-      - build-wheels-linux
+#      - build-wheels-linux
       - build-wheels-windows
-      - build-wheels-osx
+#      - build-wheels-osx

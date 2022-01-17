@@ -2,7 +2,8 @@
 
 set -ex
 
-VER="$1"
+# Remove 'v' prefix from version to match librdkafka.redist nuget version
+VER=${1#v}
 DEST="$2"
 
 if [[ -z $DEST ]]; then
