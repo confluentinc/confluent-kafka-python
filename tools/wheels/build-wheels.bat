@@ -1,3 +1,4 @@
+echo start
 @echo off
 SETLOCAL ENABLEEXTENSIONS
 
@@ -13,6 +14,7 @@ set WHEELHOUSE=%4
 if [%WHEELHOUSE%]==[] goto usage
 echo on
 
+echo "hello"
 set CIBW_BUILD=cp36-%BW_ARCH% cp37-%BW_ARCH% cp38-%BW_ARCH% cp39-%BW_ARCH%
 set CIBW_BEFORE_BUILD=python -m pip install delvewheel==0.0.6
 set CIBW_TEST_REQUIRES=-r tests/requirements.txt
@@ -25,10 +27,11 @@ set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair --add-path %DLL_DIR% -
 
 set PATH=%PATH%;c:\Program Files\Git\bin\
 
+echo blob
 python -m pip install cibuildwheel==1.11.0 || goto :error
-
+echo blob2
 python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows || goto :error
-
+echo blob3
 dir %WHEELHOUSE%
 
 goto :eof
