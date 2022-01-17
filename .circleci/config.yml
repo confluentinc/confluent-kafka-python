@@ -131,8 +131,10 @@ jobs:
           shell: bash
       - run:
           name: "Build wheels (windows)"
-          command: tools/wheels/build-wheels.bat x64 win_amd64 destdir wheelhouse
-          shell: cmd
+          command: tools\wheels\build-wheels.bat x64 win_amd64 destdir wheelhouse
+          shell: cmd.exe
+      - store_artifacts:
+          path: wheelhouse
 
   build-wheels-osx:
     macos:
