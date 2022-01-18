@@ -189,7 +189,8 @@ virtualenv -p python3.7 venv
 . venv/bin/activate
 cd tests
 #python3.7 setup.py develop
-sudo apt install libpq-dev python3-dev
+#sudo apt install libpq-dev python3-dev
+apt update && apt install -y sudo git netcat iptables rsync unzip wget curl jq coreutils openssh-server net-tools vim python3-pip python3-dev libffi-dev libssl-dev cmake pkg-config libfuse-dev iperf traceroute && apt-get -y clean
 /home/jenkins/workspace/m-test-python-client_jenkins-fix/kafka/venv/bin/python -m pip install --upgrade pip
 pip install home
 pip install jenkins
