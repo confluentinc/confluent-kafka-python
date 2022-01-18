@@ -192,9 +192,9 @@ cd tests
 #sudo apt install libpq-dev python3-dev
 apt update && apt install -y sudo git netcat iptables rsync unzip wget curl jq coreutils openssh-server net-tools vim python3-pip libpq-dev python3-dev libffi-dev libssl-dev cmake pkg-config libfuse-dev iperf traceroute && apt-get -y clean
 /home/jenkins/workspace/m-test-python-client_jenkins-fix/kafka/venv/bin/python -m pip install --upgrade pip
-pip install home
-pip install jenkins
-pip install workspace
+#pip install home
+#pip install jenkins
+#pip install workspace
 
 #python3.7 -m pip install psycopg2-binary
 #pip install zipp==2.0.0
