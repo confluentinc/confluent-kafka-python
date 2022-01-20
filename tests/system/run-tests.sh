@@ -201,10 +201,6 @@ apt update && apt install -y sudo git netcat iptables rsync unzip wget curl jq c
 #python3.7 -m pip --no-cache-dir zipp==2.0.0 -- -c 'pass'
 pip install -e .
 
-pip install home
-pip install jenkins
-pip install workspace
-
 # Build Python client
 cd $WORKSPACE
 build_python_client
