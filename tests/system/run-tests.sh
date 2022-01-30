@@ -21,11 +21,11 @@ set -x
 # Immediately flush output when running python
 export PYTHONUNBUFFERED=1
 
-TEST_PATH=tests/kafkatest/tests/client
+TEST_PATH=tests/kafkatest/tests/client/pluggable_test.py
 
 LIBRDKAFKA_BRANCH=v1.8.2
 KAFKA_BRANCH=3.1.0  # Tag
-REPO=https://github.com/apache/kafka.git
+REPO=https://github.com/jliunyu/kafka.git
 
 CACHE=$WORKSPACE/cache  # Helps with reusing vagrant cluster
 RESULTS=$WORKSPACE/results
@@ -125,7 +125,7 @@ fi
 echo "Checking out $KAFKA_BRANCH ..."
 cd $KAFKA_DIR
 git pull
-git checkout $KAFKA_BRANCH
+#git checkout $KAFKA_BRANCH
 #git checkout -b test3.1.0
 #git cherry-pick ff862651a64d90d74d34094bb726b0a9962e9988
 ./gradlew clean assemble systemTestLibs
