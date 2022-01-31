@@ -1,16 +1,16 @@
 {
     "VerifiableConsumer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
-     "exec_cmd": "source /tmp/venv/bin/activate && sudo mkdir -p /mnt/verifiable_consumer && sudo chmod 777 /mnt/verifiable_consumer && sudo mkdir -p /mnt/verifiable_consumer/logs && sudo chmod 777 /mnt/verifiable_consumer/logs && sudo touch /mnt/verifiable_consumer/verifiable_consumer.stderr && sudo chmod 777 /mnt/verifiable_consumer/verifiable_consumer.stderr && sudo python -m confluent_kafka.kafkatest.verifiable_consumer",
-     "deploy": "sudo /vagrant/tests/confluent-kafka-python/deploy.sh |& tee -a /mnt/verifiable_consumer/verifiable_consumer.stderr",
+     "exec_cmd": "source /tmp/venv/bin/activate && python -m confluent_kafka.kafkatest.verifiable_consumer",
+     "deploy": "mkdir -p /mnt/verifiable_consumer && /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_consumer/verifiable_consumer.stderr 2>&1",
      "kill_signal": 2,
      "debug": "all",
      "pids": "pgrep -f 'sudo python -m confluent_kafka.kafkatest.verifiable_consumer'"
     },
     "VerifiableProducer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
-     "exec_cmd": "source /tmp/venv/bin/activate && sudo mkdir -p /mnt/verifiable_producer && sudo chmod 777 /mnt/verifiable_producer && sudo mkdir -p /mnt/verifiable_producer/logs && sudo chmod 777 /mnt/verifiable_producer/logs && sudo touch /mnt/verifiable_producer/verifiable_producer.stderr && sudo chmod 777 /mnt/verifiable_producer/verifiable_producer.stderr && sudo python -m confluent_kafka.kafkatest.verifiable_producer",
-     "deploy": "sudo /vagrant/tests/confluent-kafka-python/deploy.sh |& tee -a /mnt/verifiable_producer/verifiable_producer.stderr",
+     "exec_cmd": "source /tmp/venv/bin/activate && python -m confluent_kafka.kafkatest.verifiable_producer",
+     "deploy": "mkdir -p /mnt/verifiable_producer && /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_producer/verifiable_producer.stderr 2>&1",
      "kill_signal": 2,
      "debug": "all",
      "pids": "pgrep -f 'sudo python -m confluent_kafka.kafkatest.verifiable_producer'"
