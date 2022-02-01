@@ -117,8 +117,9 @@ function install_client {
 }
 
 function verify_client {
-    echo "Jing test 17"
-    python3.7 -m confluent_kafka.kafkatest.verifiable_consumer --help
+    echo "Jing list all python version"
+    ls -ls /usr/bin/python*
+    python3 -m confluent_kafka.kafkatest.verifiable_consumer --help
     echo "Jing test 18"
 }
 
