@@ -109,8 +109,7 @@ function install_librdkafka {
 }
 
 function install_client {
-    apt update && apt install -y sudo python3-pip libpq-dev python3-dev libffi-dev libssl-dev && apt-get -y clean
-    /home/jenkins/workspace/m-test-python-client_jenkins-fix/kafka/venv/bin/python -m pip install --upgrade pip
+    sudo apt update && apt install -y sudo python3-pip libpq-dev python3-dev libffi-dev libssl-dev && apt-get -y clean
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
     echo "Jing test 15"
@@ -119,7 +118,7 @@ function install_client {
 }
 
 function verify_client {
-    install_client
+    #install_client
     echo "Jing list all python version"
     ls -ls /usr/bin/python*
     python -m confluent_kafka.kafkatest.verifiable_consumer --help
