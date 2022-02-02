@@ -78,7 +78,8 @@ function setup_virtualenv {
         virtualenv $DIR/venv
         source $DIR/venv/bin/activate
         # Upgrade pip
-        pip install -U pip
+        #pip install -U pip
+        #python -m pip install --upgrade pip
     else
         echo "Reusing existing virtualenv"
         source $DIR/venv/bin/activate
