@@ -54,6 +54,7 @@ fi
 
 if [[ $1 == "--update" ]]; then
     FORCE_UPDATE=1
+    echo "Jing Liu force update"
     shift
 fi
 
@@ -119,7 +120,7 @@ function install_client {
 }
 
 function verify_client {
-    #install_client
+    install_client
     echo "Jing list all python version"
     ls -ls /usr/bin/python*
     python -m confluent_kafka.kafkatest.verifiable_consumer --help
