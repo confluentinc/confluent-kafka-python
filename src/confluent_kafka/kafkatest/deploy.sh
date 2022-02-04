@@ -123,6 +123,7 @@ function verify_client {
     echo "Jing list all python version"
     ls -ls /usr/bin/python*
     python -m confluent_kafka.kafkatest.verifiable_consumer --help
+    python3 -m confluent_kafka.kafkatest.verifiable_consumer --help
     echo "Jing test 18"
 }
 
