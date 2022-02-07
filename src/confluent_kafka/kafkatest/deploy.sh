@@ -81,7 +81,7 @@ function setup_virtualenv {
         # Upgrade pip
         #pip install -U pip
         #python -m pip install --upgrade pip
-        python3 -m pip install --upgrade pip
+        #python3 -m pip install --upgrade pip
     else
         echo "Reusing existing virtualenv"
         source $DIR/venv/bin/activate
@@ -113,6 +113,8 @@ function install_librdkafka {
 
 function install_client {
     sudo apt update && sudo apt install -y sudo python3-pip libpq-dev python3-dev libffi-dev libssl-dev && apt-get -y clean
+    echo "pip upgrade"
+    python3 -m pip install --upgrade pip
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
     echo "Jing test 15"
