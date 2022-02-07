@@ -76,7 +76,7 @@ function setup_virtualenv {
     if [[ ! -f $DIR/venv/bin/activate ]]; then
         echo "Installing and creating virtualenv"
         which virtualenv || sudo apt-get install -y python-virtualenv
-        virtualenv $DIR/venv
+        virtualenv -p python3 $DIR/venv
         source $DIR/venv/bin/activate
         # Upgrade pip
         #pip install -U pip
