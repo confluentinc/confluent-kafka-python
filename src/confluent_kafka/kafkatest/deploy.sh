@@ -119,7 +119,7 @@ function install_client {
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
     echo "Jing test 15"
-    pip install -U confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
+    pip install -U confluent_kafka -f /vagrant/$REL_DIR
     echo "Jing test 16"
 }
 
