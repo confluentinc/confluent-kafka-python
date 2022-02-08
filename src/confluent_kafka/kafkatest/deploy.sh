@@ -112,10 +112,13 @@ function install_librdkafka {
 }
 
 function install_client {
-    sudo apt update && sudo apt install -y sudo python3-pip libpq-dev python3-dev libffi-dev libssl-dev python3.8 && sudo apt-get -y clean
+    sudo apt update && sudo apt install -y sudo python3-pip libpq-dev python3-dev libffi-dev libssl-dev && sudo apt-get -y clean
+    sudo add-apt-repository ppa:deadsnakes/ppa
+    sudo apt install python3.8
     echo "pip upgrade"
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python3.8 10
     sudo pip install --upgrade pip
+    sudo pip install setuptools -U
     #sudo python3 -m pip install --upgrade pip
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
