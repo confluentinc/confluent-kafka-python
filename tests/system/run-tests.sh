@@ -10,7 +10,9 @@ set -e
 # Checkout supporting scripts
 # Used by add_suffix_to_latest_results function above and jenkins/upload-tests.sh
 rm -rf jenkins-common
-git clone git@github.com:confluentinc/jenkins-common.git
+git clone git@github.com:jliunyu/jenkins-common.git
+git pull
+git checkout pythonClientSystemTest
 
 cp $MUCKRAKE_PEM muckrake.pem
 
