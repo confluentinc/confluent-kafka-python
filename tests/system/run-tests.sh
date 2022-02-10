@@ -28,7 +28,7 @@ export PYTHONUNBUFFERED=1
 TEST_PATH=tests/kafkatest/tests/client/pluggable_test.py
 
 LIBRDKAFKA_BRANCH=v1.8.2
-KAFKA_BRANCH=forSystemTest  # Tag
+KAFKA_BRANCH=2.6.0  # Tag
 REPO=https://github.com/jliunyu/kafka.git
 
 CACHE=$WORKSPACE/cache  # Helps with reusing vagrant cluster
