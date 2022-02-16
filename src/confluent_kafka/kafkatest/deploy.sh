@@ -119,7 +119,7 @@ function install_client {
     #sudo python3 -m pip install --upgrade pip
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
-    pip install -U --only-binary confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
+    python -m pip install -U --only-binary confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
 }
 
 function verify_client {
