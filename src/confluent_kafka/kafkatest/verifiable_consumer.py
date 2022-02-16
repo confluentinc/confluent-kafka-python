@@ -19,7 +19,7 @@ import argparse
 import os
 import time
 from confluent_kafka import Consumer, KafkaError, KafkaException
-from verifiable_client import VerifiableClient
+from .verifiable_client import VerifiableClient
 
 
 class VerifiableConsumer(VerifiableClient):
