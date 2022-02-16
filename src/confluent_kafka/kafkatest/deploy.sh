@@ -120,7 +120,7 @@ function install_client {
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
     ls /vagrant/$REL_DIR
-    python -m pip install -U --only-binary confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
+    python -m pip install --user --only-binary confluent_kafka -f /vagrant/$REL_DIR confluent_kafka
 }
 
 function verify_client {
