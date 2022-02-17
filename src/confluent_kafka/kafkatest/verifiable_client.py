@@ -68,7 +68,7 @@ class VerifiableClient(object):
     @staticmethod
     def set_config(conf, args):
         """ Set client config properties using args dict. """
-        for n, v in args.iteritems():
+        for n, v in args.items():
             if v is None:
                 continue
 
