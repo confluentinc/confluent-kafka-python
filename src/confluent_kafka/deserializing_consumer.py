@@ -152,7 +152,7 @@ class DeserializingConsumer(_ConsumerImpl):
 
     def consume(self, num_messages=1, timeout=-1):
         """
-        :py:func:`Consumer.consume` not implemented, use
+        :py:func:`DeserializingConsumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead
         """
         raise NotImplementedError
