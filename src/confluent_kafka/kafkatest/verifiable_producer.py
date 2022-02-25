@@ -18,7 +18,7 @@
 import argparse
 import time
 from confluent_kafka import Producer, KafkaException
-from verifiable_client import VerifiableClient
+from .verifiable_client import VerifiableClient
 
 
 class VerifiableProducer(VerifiableClient):
