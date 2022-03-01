@@ -120,7 +120,7 @@ function install_client {
     echo "Jing test 14"
     pip uninstall -y confluent_kafka || true
     ls /vagrant/$REL_DIR
-    python -m pip install --user /vagrant/$REL_DIR/confluent_kafka-1.7.0-cp38-cp38-manylinux_2_12_x86_64.manylinux2010_x86_64.whl
+    python -m pip install --user /vagrant/$REL_DIR/confluent_kafka-1.7.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
 }
 
 function verify_client {
