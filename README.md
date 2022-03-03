@@ -17,6 +17,8 @@ pace with core Apache Kafka and components of the [Confluent Platform](https://w
 
 See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
 
+For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
+
 
 Usage
 =====
@@ -310,3 +312,8 @@ Developer Notes
 ===============
 
 Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
+
+Confluent Cloud
+===============
+
+For a step-by-step guide on using the Python client with Confluent Cloud see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
