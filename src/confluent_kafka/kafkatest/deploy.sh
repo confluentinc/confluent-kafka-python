@@ -108,7 +108,6 @@ function install_librdkafka {
     make install
     echo "Jing test 12"
     popd
-    echo "Jing test 13"
 }
 
 function install_client {
