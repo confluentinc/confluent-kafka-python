@@ -76,7 +76,7 @@ class SerializingProducer(_ProducerImpl):
     |                         |                     | errors are typically to be considered informational |
     |                         |                     | since the client will automatically try to recover. |
     +-------------------------+---------------------+-----------------------------------------------------+
-    | ``log_cb``              | ``logging.Handler`` | Logging handler to forward logs                     |
+    | ``logger``              | ``logging.Handler`` | Logging handler to forward logs                     |
     +-------------------------+---------------------+-----------------------------------------------------+
     |                         |                     | Callable(str)                                       |
     |                         |                     |                                                     |
