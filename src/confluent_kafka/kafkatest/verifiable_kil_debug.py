@@ -12,7 +12,7 @@ import time
 from confluent_kafka import Consumer, KafkaError, KafkaException
 from .verifiable_client import VerifiableClient
 
-'''
+
 parser = argparse.ArgumentParser(description='Verifiable Python Consumer')
 
 parser.add_argument('--bootstrap-server', dest='conf_bootstrap.servers')
@@ -55,7 +55,7 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = dict()
 
 vc = VerifiableConsumer(conf)
-'''
+
 run = True
 
 def handler(signum, frame):
