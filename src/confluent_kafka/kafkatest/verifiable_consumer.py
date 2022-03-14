@@ -282,22 +282,29 @@ if __name__ == '__main__':
     vc.consumer.subscribe(args['topic'],
                           on_assign=vc.on_assign, on_revoke=vc.on_revoke)
 
+    vc.dbg('Jing Liu after Subscribing to %s' % args['topic'])
     failed = False
 
     try:
         while vc.run:
+            vc.dbg('Jing Liu after Subscribing to %s' % args['topic'])
             msg = vc.consumer.poll(timeout=1.0)
+            vc.dbg('Jing Liu after poll to')
             if msg is None:
+                vc.dbg('Jing Liu msg is None')
                 # Timeout.
                 # Try reporting consumed messages
                 vc.send_records_consumed(immediate=True)
+                vc.dbg('Jing Liu after send_records_consumed')
                 # Commit every poll() timeout instead of on every message.
                 # Also commit on every 1000 messages, whichever comes first.
                 vc.do_commit(immediate=True)
+                vc.dbg('Jing Liu after do_commit')
                 continue
-
+            vc.dbg('Jing Liu msg is not Node')
             # Handle message (or error event)
             vc.msg_consume(msg)
+            vc.dbg('Jing Liu msg after msg_consume')
 
     except KeyboardInterrupt:
         vc.dbg('KeyboardInterrupt')
