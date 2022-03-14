@@ -1,11 +1,11 @@
 {
     "VerifiableConsumer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
-     "exec_cmd": "python -m confluent_kafka.kafkatest.verifiable_kil_debug",
+     "exec_cmd": "python -m confluent_kafka.kafkatest.verifiable_consumer",
      "deploy": "mkdir -p /mnt/verifiable_consumer && /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_consumer/verifiable_consumer.stderr 2>&1",
      "kill_signal": 2,
      "debug": "all",
-     "pids": "pgrep -f 'python -m confluent_kafka.kafkatest.verifiable_kil_debug'"
+     "pids": "pgrep -f 'python -m confluent_kafka.kafkatest.verifiable_consumer'"
     },
     "VerifiableProducer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
