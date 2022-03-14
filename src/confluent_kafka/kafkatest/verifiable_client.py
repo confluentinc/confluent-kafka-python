@@ -36,11 +36,11 @@ class VerifiableClient(object):
         self.conf['client.id'] = 'python@' + socket.gethostname()
         self.conf['debug'] = 'all'
         self.run = True
-        signal.signal(signal.SIGTERM, self.sig_term)
+        signal.signal(signal.SIGINT, self.sig_term)
         self.dbg('Pid is %d' % os.getpid())
 
     def sig_term(self, sig, frame):
-        self.dbg('SIGTERM')
+        self.dbg('Jing Liu signal', sig)
         self.run = False
 
     @staticmethod
@@ -63,6 +63,10 @@ class VerifiableClient(object):
         d['_time'] = str(datetime.datetime.now())
         self.dbg('SEND: %s' % str(d))
         sys.stdout.write('%s\n' % str(d))
+        #self.dbg('SEND: %s' % json.dumps(d))
+        #if d['value'] is not None:
+        #    d['value'] = d['value'].decode('utf8').replace("'", '"')
+        #sys.stdout.write('%s\n' % json.dumps(d))
         sys.stdout.flush()
 
     @staticmethod
