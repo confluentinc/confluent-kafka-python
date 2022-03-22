@@ -36,12 +36,14 @@ class VerifiableClient(object):
         self.conf['client.id'] = 'python@' + socket.gethostname()
         self.conf['debug'] = 'all'
         self.run = True
-        signal.signal(signal.SIGINT, self.sig_term)
+        signal.signal(signal.SIGINT, self.sig_handler)
+        signal.signal(signal.SIGTERM, self.sig_handler)
         self.dbg('Pid is %d' % os.getpid())
 
-    def sig_term(self, sig, frame):
-        self.dbg('Jing Liu signal', sig)
-        self.run = False
+    def sig_handler(self, sig, frame):
+        if sig == signal.SIGINT or sig == signal.SIGTERM:
+            self.dbg('Jing Liu signal', sig)
+            self.run = False
 
     @staticmethod
     def _timestamp():
