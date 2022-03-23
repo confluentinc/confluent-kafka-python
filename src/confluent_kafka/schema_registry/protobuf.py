@@ -19,6 +19,7 @@ import io
 import sys
 import base64
 import struct
+import warnings
 from collections import deque
 
 from google.protobuf.message import DecodeError
@@ -110,11 +111,6 @@ def _create_msg_index(msg_desc):
     if not found:
         raise ValueError("MessageDescriptor not found in file")
 
-    # The root element at the 0 position does not need a length prefix.
-    if len(msg_idx) == 1 and msg_idx[0] == 0:
-        return [0]
-
-    msg_idx.appendleft(len(msg_idx))
     return list(msg_idx)
 
 
@@ -146,6 +142,17 @@ class ProtobufSerializer(object):
     | ``auto.register.schemas``           | bool     | previously associated with a particular subject.     |
     |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to use the latest subject version for        |
+    | ``use.latest.version``              | bool     | serialization.                                       |
+    |                                     |          | WARNING: There is no check that the latest           |
+    |                                     |          | schema is backwards compatible with the object       |
+    |                                     |          | being serialized.                                    |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to skip known types when resolving schema    |
+    | ``skip.known.types``                | bool     | dependencies.                                        |
+    |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Instructs the ProtobufSerializer on how to construct |
@@ -157,6 +164,17 @@ class ProtobufSerializer(object):
     | ``reference.subject.name.strategy`` | callable | Instructs the ProtobufSerializer on how to construct |
     |                                     |          | Schema Registry subject names for Schema References  |
     |                                     |          | Defaults to reference_subject_name_strategy          |
+    +-------------------------------------+----------+------------------------------------------------------+
+    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
+    |                                     |          | serialize message indexes without zig-zag encoding.  |
+    |                                     |          | This option must be explicitly configured as older   |
+    |                                     |          | and newer Protobuf producers are incompatible.       |
+    |                                     |          | If the consumers of the topic being produced to are  |
+    |                                     |          | using confluent-kafka-python <1.8 then this property |
+    |                                     |          | must be set to True until all old consumers have     |
+    |                                     |          | have been upgraded.                                 |
+    |                                     |          | Warning: This configuration property will be removed |
+    |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered to namespaces known as Subjects which define how a
@@ -194,17 +212,30 @@ class ProtobufSerializer(object):
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
 
     """  # noqa: E501
-    __slots__ = ['_auto_register', '_registry', '_known_subjects',
+    __slots__ = ['_auto_register', '_use_latest_version', '_skip_known_types',
+                 '_registry', '_known_subjects',
                  '_msg_class', '_msg_index', '_schema', '_schema_id',
-                 '_ref_reference_subject_func', '_subject_name_func']
+                 '_ref_reference_subject_func', '_subject_name_func',
+                 '_use_deprecated_format']
     # default configuration
     _default_conf = {
         'auto.register.schemas': True,
+        'use.latest.version': False,
+        'skip.known.types': False,
         'subject.name.strategy': topic_subject_name_strategy,
-        'reference.subject.name.strategy': reference_subject_name_strategy
+        'reference.subject.name.strategy': reference_subject_name_strategy,
+        'use.deprecated.format': False,
     }
 
     def __init__(self, msg_type, schema_registry_client, conf=None):
+
+        if conf is None or 'use.deprecated.format' not in conf:
+            raise RuntimeError(
+                "ProtobufSerializer: the 'use.deprecated.format' configuration "
+                "property must be explicitly set due to backward incompatibility "
+                "with older confluent-kafka-python Protobuf producers and consumers. "
+                "See the release notes for more details")
+
         # handle configuration
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -213,6 +244,29 @@ class ProtobufSerializer(object):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._use_latest_version = conf_copy.pop('use.latest.version')
+        if not isinstance(self._use_latest_version, bool):
+            raise ValueError("use.latest.version must be a boolean value")
+        if self._use_latest_version and self._auto_register:
+            raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
+
+        self._skip_known_types = conf_copy.pop('skip.known.types')
+        if not isinstance(self._skip_known_types, bool):
+            raise ValueError("skip.known.types must be a boolean value")
+
+        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        if not isinstance(self._use_deprecated_format, bool):
+            raise ValueError("use.deprecated.format must be a boolean value")
+        if self._use_deprecated_format:
+            warnings.warn("ProtobufSerializer: the 'use.deprecated.format' "
+                          "configuration property, and the ability to use the "
+                          "old incorrect Protobuf serializer heading format "
+                          "introduced in confluent-kafka-python v1.4.0, "
+                          "will be removed in an upcoming release in 2021 Q2. "
+                          "Please migrate your Python Protobuf producers and "
+                          "consumers to 'use.deprecated.format':False as "
+                          "soon as possible")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -239,20 +293,46 @@ class ProtobufSerializer(object):
                               schema_type='PROTOBUF')
 
     @staticmethod
-    def _encode_uvarints(buf, ints):
+    def _write_varint(buf, val, zigzag=True):
+        """
+        Writes val to buf, either using zigzag or uvarint encoding.
+
+        Args:
+            buf (BytesIO): buffer to write to.
+            val (int): integer to be encoded.
+            zigzag (bool): whether to encode in zigzag or uvarint encoding
+        """
+
+        if zigzag:
+            val = (val << 1) ^ (val >> 63)
+
+        while (val & ~0x7f) != 0:
+            buf.write(_bytes((val & 0x7f) | 0x80))
+            val >>= 7
+        buf.write(_bytes(val))
+
+    @staticmethod
+    def _encode_varints(buf, ints, zigzag=True):
         """
         Encodes each int as a uvarint onto buf
 
         Args:
             buf (BytesIO): buffer to write to.
             ints ([int]): ints to be encoded.
+            zigzag (bool): whether to encode in zigzag or uvarint encoding
 
         """
+
+        assert len(ints) > 0
+        # The root element at the 0 position does not need a length prefix.
+        if ints == [0]:
+            buf.write(_bytes(0x00))
+            return
+
+        ProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
+
         for value in ints:
-            while (value & ~0x7f) != 0:
-                buf.write(_bytes((value & 0x7f) | 0x80))
-                value >>= 7
-            buf.write(_bytes(value))
+            ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
     def _resolve_dependencies(self, ctx, file_desc):
         """
@@ -266,6 +346,8 @@ class ProtobufSerializer(object):
         """
         schema_refs = []
         for dep in file_desc.dependencies:
+            if self._skip_known_types and dep.name.startswith("google/protobuf/"):
+                continue
             dep_refs = self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
@@ -313,22 +395,30 @@ class ProtobufSerializer(object):
                                           message_type.DESCRIPTOR.full_name)
 
         if subject not in self._known_subjects:
-            self._schema.references = self._resolve_dependencies(
-                ctx, message_type.DESCRIPTOR.file)
+            if self._use_latest_version:
+                latest_schema = self._registry.get_latest_version(subject)
+                self._schema_id = latest_schema.schema_id
 
-            if self._auto_register:
-                self._schema_id = self._registry.register_schema(subject,
-                                                                 self._schema)
             else:
-                self._schema_id = self._registry.lookup_schema(
-                    subject, self._schema).schema_id
+                self._schema.references = self._resolve_dependencies(
+                    ctx, message_type.DESCRIPTOR.file)
+
+                if self._auto_register:
+                    self._schema_id = self._registry.register_schema(subject,
+                                                                     self._schema)
+                else:
+                    self._schema_id = self._registry.lookup_schema(
+                        subject, self._schema).schema_id
+
+            self._known_subjects.add(subject)
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order
             # (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record index to the buffer
-            self._encode_uvarints(fo, self._msg_index)
+            self._encode_varints(fo, self._msg_index,
+                                 zigzag=not self._use_deprecated_format)
             # write the record itself
             fo.write(message_type.SerializeToString())
             return fo.getvalue()
@@ -341,28 +431,82 @@ class ProtobufDeserializer(object):
 
     Args:
         message_type (GeneratedProtocolMessageType): Protobuf Message type.
+        conf (dict): Configuration dictionary.
+
+    ProtobufDeserializer configuration properties:
+
+    +-------------------------------------+----------+------------------------------------------------------+
+    | Property Name                       | Type     | Description                                          |
+    +-------------------------------------+----------+------------------------------------------------------+
+    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
+    |                                     |          | deserialize message indexes without zig-zag encoding.|
+    |                                     |          | This option must be explicitly configured as older   |
+    |                                     |          | and newer Protobuf producers are incompatible.       |
+    |                                     |          | If Protobuf messages in the topic to consume were    |
+    |                                     |          | produced with confluent-kafka-python <1.8 then this  |
+    |                                     |          | property must be set to True until all old messages  |
+    |                                     |          | have been processed and producers have been upgraded.|
+    |                                     |          | Warning: This configuration property will be removed |
+    |                                     |          | in a future version of the client.                   |
+    +-------------------------------------+----------+------------------------------------------------------+
+
 
     See Also:
     `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
 
     """
-    __slots__ = ['_msg_class', '_msg_index']
+    __slots__ = ['_msg_class', '_msg_index', '_use_deprecated_format']
 
-    def __init__(self, message_type):
+    # default configuration
+    _default_conf = {
+        'use.deprecated.format': False,
+    }
+
+    def __init__(self, message_type, conf=None):
+
+        # Require use.deprecated.format to be explicitly configured
+        # during a transitionary period since old/new format are
+        # incompatible.
+        if conf is None or 'use.deprecated.format' not in conf:
+            raise RuntimeError(
+                "ProtobufDeserializer: the 'use.deprecated.format' configuration "
+                "property must be explicitly set due to backward incompatibility "
+                "with older confluent-kafka-python Protobuf producers and consumers. "
+                "See the release notes for more details")
+
+        # handle configuration
+        conf_copy = self._default_conf.copy()
+        if conf is not None:
+            conf_copy.update(conf)
+
+        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        if not isinstance(self._use_deprecated_format, bool):
+            raise ValueError("use.deprecated.format must be a boolean value")
+        if self._use_deprecated_format:
+            warnings.warn("ProtobufDeserializer: the 'use.deprecated.format' "
+                          "configuration property, and the ability to use the "
+                          "old incorrect Protobuf serializer heading format "
+                          "introduced in confluent-kafka-python v1.4.0, "
+                          "will be removed in an upcoming release in 2022 Q2. "
+                          "Please migrate your Python Protobuf producers and "
+                          "consumers to 'use.deprecated.format':False as "
+                          "soon as possible")
+
         descriptor = message_type.DESCRIPTOR
         self._msg_index = _create_msg_index(descriptor)
         self._msg_class = MessageFactory().GetPrototype(descriptor)
 
     @staticmethod
-    def _decode_uvarint(buf):
+    def _decode_varint(buf, zigzag=True):
         """
-        Decodes a single uvarint from a buffer.
+        Decodes a single varint from a buffer.
 
         Args:
             buf (BytesIO): buffer to read from
+            zigzag (bool): decode as zigzag or uvarint
 
         Returns:
-            int: decoded uvarint
+            int: decoded varint
 
         Raises:
             EOFError: if buffer is empty
@@ -377,7 +521,12 @@ class ProtobufDeserializer(object):
                 value |= (i & 0x7f) << shift
                 shift += 7
                 if not (i & 0x80):
-                    return value
+                    break
+
+            if zigzag:
+                value = (value >> 1) ^ -(value & 1)
+
+            return value
 
         except EOFError:
             raise EOFError("Unexpected EOF while reading index")
@@ -399,7 +548,7 @@ class ProtobufDeserializer(object):
         return ord(i)
 
     @staticmethod
-    def _decode_index(buf):
+    def _decode_index(buf, zigzag=True):
         """
         Extracts message index from Schema Registry Protobuf formatted bytes.
 
@@ -410,10 +559,17 @@ class ProtobufDeserializer(object):
             int: Protobuf Message index.
 
         """
-        size = ProtobufDeserializer._decode_uvarint(buf)
-        msg_index = [size]
+        size = ProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
+        if size < 0 or size > 100000:
+            raise DecodeError("Invalid Protobuf msgidx array length")
+
+        if size == 0:
+            return [0]
+
+        msg_index = []
         for _ in range(size):
-            msg_index.append(ProtobufDeserializer._decode_uvarint(buf))
+            msg_index.append(ProtobufDeserializer._decode_varint(buf,
+                                                                 zigzag=zigzag))
 
         return msg_index
 
@@ -453,7 +609,7 @@ class ProtobufDeserializer(object):
 
             # Protobuf Messages are self-describing; no need to query schema
             # Move the reader cursor past the index
-            _ = ProtobufDeserializer._decode_index(payload)
+            _ = self._decode_index(payload, zigzag=not self._use_deprecated_format)
             msg = self._msg_class()
             try:
                 msg.ParseFromString(payload.read())

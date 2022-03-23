@@ -68,7 +68,7 @@ class DeserializingConsumer(_ConsumerImpl):
     |                         |                     | errors are typically to be considered informational |
     |                         |                     | since the client will automatically try to recover. |
     +-------------------------+---------------------+-----------------------------------------------------+
-    | ``log_cb``              | ``logging.Handler`` | Logging handler to forward logs                     |
+    | ``logger``              | ``logging.Handler`` | Logging handler to forward logs                     |
     +-------------------------+---------------------+-----------------------------------------------------+
     |                         |                     | Callable(str)                                       |
     |                         |                     |                                                     |
@@ -130,7 +130,7 @@ class DeserializingConsumer(_ConsumerImpl):
         if msg.error() is not None:
             raise ConsumeError(msg.error(), kafka_message=msg)
 
-        ctx = SerializationContext(msg.topic(), MessageField.VALUE)
+        ctx = SerializationContext(msg.topic(), MessageField.VALUE, msg.headers())
         value = msg.value()
         if self._value_deserializer is not None:
             try:

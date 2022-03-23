@@ -1,10 +1,11 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.6.1
+  - LIBRDKAFKA_VERSION=v1.8.2
 
 jobs:
  include:
   - name: "Source package verification with Python 2.7 (Linux)"
+    if: false
     os: linux
     language: python
     dist: xenial
@@ -21,6 +22,7 @@ jobs:
     services: docker
 
   - name: "Source package verification with Python 2.7 (OSX)"
+    if: false
     os: osx
     python: "2.7"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
@@ -102,14 +104,16 @@ script:
  - if [[ $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
  # Build docs
  - if [[ $MK_DOCS == y ]]; then make docs; fi
+ # Checksum artifacts to build log
+ - sha256sum wheelhouse/* || true
 
 deploy:
  provider: s3
  edge: true
  access_key_id:
-  secure: "Mcp7TRPNt3Eilct5UXRu6dI1NelOtxG0a+y2riKGDCEoWivTDbkcFdYFFnV8xOZPZzgTr2W4vNpXNa6SoJar1zs7moVFi0nUweb7EWNuAJZo1JRmzAvoCf3Wvsn2solEHo7jYNsIwm8LHaR9XCypPcFIEyzKEjiPd7wGZucogQEdPIaCC7sCkUcG1y69CtfY+55/68w93JBAQs2uTltF/sue4nQOPAs/urlR6Qy4Sek0BtkzTj3YN7gIB3/7zz/0lNAhx1mkPUJTnCdTWLQKj0BnQmFL4eP1jHbo0BLlHTFrHaiFGkF37wnjw532eXLgEGfgtIFpcx+GmNWZZd7MPEf8wLEBetmdoxLIHaat6uaMYEwgBeP1aTfUDR4loTZf0Mrd2ulzBWL5nbxPD+haGzutLuksMReGJTgAB8bZJKC0KRFPTKUEVdQBr4Vobqd7EKj0+VOoPGEPX7PmsT1dQLGonwnrQ47w/RwpkuriGb0zLhJK1uwUAqCV7IjWncPY6uoKfSClpgEwcknJgcIoLy0n6fyYCPfcQQOBQh+oyb/D8dkFvPmXbNwBH9r6rNJFrA0lx9WhJpIvd4j+amGk5rmGrMEJMSB71QgmujR315qvJE1xasL+RaLJwJLn9Q0fImX8LLROdx5Eb+/N7hyxZkFZ9F43WKkcBLLBEBP/mEY="
+  secure: "HGz8fJ0DLM0T7BddjuSBpPw+mRAmp1vP1xbl+gfhPsPTmXfjeAczj1YekfH6yrro7I3JwwNfXtUIofgRSeVW3Hl6rCI+ODnF82TFdjo/7yA3owUaVc4rx1qau6oMBCYWFCoHrQo+qHJ+bMpG1ppZvRR+pgaY+YBCTkki4p3q0MKYppnZmC89pvJkOBZatNUxzhZLcyMykShN+cdp3z7o2oED9/IJ8m30g0mkt/jIUZFdTiK/mQ2NxcZn667AAsSnyOud1pdXeg+UMvjR6U2thESw7DJpKyWJqv2eU/8SWGQyzvom+W44ZWdgjtqHo1ObTcKR2PHB3yYx6kixo5Wp9PUP/c0jAj78k+BURs/XXKj5fk/mM9FDlJpFv4FUDbhl1tTLdKNEltRYfjPfNApb963QEx0VyXWSxnBEVdOoi3SSdlx80EnYxPX3OfMKvIeYFTIURow7E1YMHl4kvBuYxRAUPjiuNn43jfqkgRhkdY7YaofJvu2hDw/togD1uUemP49QoCP9aC0TJ3aF/qfpcpoc8g8K6sF0cu5uOGyU2LGtYK0uYVZzkMKTX6QBP8I8SJU0Zw2Xprtwl7/qtZri47N83f5/WrWMNIVLOKdbLxPC2piT6N3M3aBt5l07dkEDmnzen585mQrNNbuXg/Din3D1XpGPWUxAZjw/LfcOR+A="
  secret_access_key:
-  secure: "Bl7hB0J56ZBt9gJBiiVYiVW0mVwK4Y3oOEqARyVXt5M0OcKb176NI6u5d02LdS575ITdvWAxqarQuV1sr31KNjr4MKt85xz4F+Fzf7Yavz1+eG32G+3mxqrvw82T+j3rojVEqjUqNuEQ9st0RAae/z7lJxAsnWUQ27xLFTVZriayojWX8uzvgB77SQut3qkrgODAMPJGv109TpMeOGZROgvi8LY4EXoQIULk8fJV0C67qiTGFVRwarspdznDrTs9WzKYo84UcErg4cWpmxD2U479EfBmI/7hNC06NU0sxhfnkqVKbb1CdhWXx1b0tmn+cM4GwcFL0MHo54jnYunOlL7/ZB7ckmughN+a5wQm6PiHj64aR6gkIyKBtLXUNo+qW3bD43gCgYfILLcKAV+Oag7fDWDyUsQJJvCGkN3KsRHDCWNk7KYS2FQSoOY3Nq1blESiCHC6DXmzzcLi1eTBp/9Eg5QRNielEb7fJkOJOi0XuygRHzgIf2i3c2acP1i2k1drU6Y/pZSNKO3rkXpUKE4nRf2U0n/HxNB7+G2KWn4ZFYH2o6yZdT4JU3oMEQdFIGuBE3AErkaLscZ6d67r2rwIUTGyFnH5UxRNKjDSsrU+a8A2Psyq6a7JsMqTT/V5b2I2/aLuSWmilGRd9x0CrCtyCkNn+WD+/FXCXfmYQ7g="
+  secure: "YBAWciQ0WIhFJw/V72iERmukozz1hxd3HVbrhedHiNotYa53kQMd9qz9p6c4aJUF/y6xPrctCRVK1fUYlKVFJzCyPp5TOdqHcv56q9X9ip4Mt+oVwzbtdeHxGX+AYkr6sSn6xNlE6uNFaTVPzQ1EAL9WfhVkcuYDdponr8yc/HnCOIjafa7LZmtefnEpwhU1sAlyJFVeJkQfagZlmrz7cMiDpsvI10GXydJGWmwLoUTEKQiUf1ZKSlVd92bAWmALyCXmUZ0aS7SisO54580AsOR1TdWNIKZJ21n7PYY08GtoJtb9593CLgK0Z3FtTo2GZQbd2jehWA7ag8ku4e8rYNb78dSalKcN86kFH7GR6UJL+pL1c8O4LIJMzKALFcqpHYlxmyhPIzCCfVlCIWxwk/qTloa7dNBODb0vqAJJEbZ3q950Ig93gyU1kxiE8dwHkrQzlJCyufNtPY51Kv8MGa7n+/tI9z4LK4VVz+w4CrCzzl8T7SpWV4w+BKMKkymR4hL4JrpLnB8egpRqIL/V3E61qA1x9ik5Ck2AP+wEshiou3oJZ7BU0cGmp0ttVidwZ96sp2wxStulouQDwuT1A6jkvcCt5s3pM3eYIrucYk/mtBwHoz8DyYZH1Ds1JmTffCe4ZeEfFzIC5RIzpbj90t03aTd4oYVgYETPPyfdqhU="
  bucket: librdkafka-ci-packages
  region: us-west-1
  local-dir: wheelhouse

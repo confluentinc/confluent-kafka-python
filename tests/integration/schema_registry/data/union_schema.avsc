@@ -1,0 +1,22 @@
+[
+    {
+        "name": "RecordOne",
+        "type": "record",
+        "fields": [
+            {
+                "name": "field_one",
+                "type": "string"
+            }
+        ]
+    },
+    {
+        "name": "RecordTwo",
+        "type": "record",
+        "fields": [
+            {
+                "name": "field_two",
+                "type": "int"
+            }
+        ]
+    }
+]
