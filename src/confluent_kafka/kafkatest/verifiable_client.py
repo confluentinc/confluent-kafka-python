@@ -42,7 +42,6 @@ class VerifiableClient(object):
 
     def sig_handler(self, sig, frame):
         if sig == signal.SIGINT or sig == signal.SIGTERM:
-            self.dbg('Jing Liu signal', sig)
             self.run = False
 
     @staticmethod
@@ -63,12 +62,13 @@ class VerifiableClient(object):
     def send(self, d):
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
-        self.dbg('SEND: %s' % str(d))
-        sys.stdout.write('%s\n' % str(d))
+        #self.dbg('SEND: %s' % str(d))
+        #sys.stdout.write('%s\n' % str(d))
         #self.dbg('SEND: %s' % json.dumps(d))
-        #if d['value'] is not None:
-        #    d['value'] = d['value'].decode('utf8').replace("'", '"')
-        #sys.stdout.write('%s\n' % json.dumps(d))
+        if d['value'] is not None:
+            d['value'] = d['value'].decode('utf8').replace("'", '"')
+        self.dbg('SEND: %s' % json.dumps(d))
+        sys.stdout.write('%s\n' % json.dumps(d))
         sys.stdout.flush()
 
     @staticmethod
