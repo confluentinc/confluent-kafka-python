@@ -197,7 +197,7 @@ class VerifiableConsumer(VerifiableClient):
                        'topic': msg.topic(),
                        'partition': msg.partition(),
                        'key': msg.key(),
-                       'value': msg.value(),
+                       'value': msg.value() if msg.value() is None else msg.decode('UTF-8'),
                        'offset': msg.offset()})
 
         if self.max_msgs >= 0 and self.consumed_msgs >= self.max_msgs:

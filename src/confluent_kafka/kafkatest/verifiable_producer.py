@@ -40,13 +40,15 @@ class VerifiableProducer(VerifiableClient):
 
     def dr_cb(self, err, msg):
         """ Per-message Delivery report callback. Called from poll() """
+
         if err:
             self.num_err += 1
             self.send({'name': 'producer_send_error',
                        'message': str(err),
                        'topic': msg.topic(),
                        'key': msg.key(),
-                       'value': msg.value()})
+                       'value': msg.value() if msg.value() is None else msg.decode('UTF-8')
+                       })
         else:
             self.num_acked += 1
             self.send({'name': 'producer_send_success',
@@ -54,7 +56,8 @@ class VerifiableProducer(VerifiableClient):
                        'partition': msg.partition(),
                        'offset': msg.offset(),
                        'key': msg.key(),
-                       'value': msg.value()})
+                       'value': msg.value() if msg.value() is None else msg.decode('UTF-8')
+                       })
 
         pass
 
@@ -119,7 +122,7 @@ if __name__ == '__main__':
                     key = None
 
                 try:
-                    vp.producer.produce(topic, value=(value_fmt % i), key=key,
+                    vp.producer.produce(topic, value=(value_fmt % i).encode('UTF-8'), key=key,
                                         timestamp=args.get('create_time', 0))
                     vp.num_sent += 1
                 except KafkaException as e:

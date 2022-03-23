@@ -62,18 +62,9 @@ class VerifiableClient(object):
     def send(self, d):
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
-        #self.dbg('SEND: %s' % str(d))
-        #sys.stdout.write('%s\n' % str(d))
-        #self.dbg('SEND: %s' % json.dumps(d))
-        if 'value' in d:
-            d['value'] = d['value'].decode('utf8').replace("'", '"')
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
-        try:
-            sys.stdout.flush()
-        except (BrokenPipeError, IOError):
-            # print ('BrokenPipeError caught', file = sys.stderr)
-            self.dbg('BrokenPipeError caught')
+        sys.stdout.flush()
 
 
     @staticmethod
