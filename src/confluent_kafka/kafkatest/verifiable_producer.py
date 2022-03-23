@@ -47,7 +47,7 @@ class VerifiableProducer(VerifiableClient):
                        'message': str(err),
                        'topic': msg.topic(),
                        'key': msg.key(),
-                       'value': msg.value() if msg.value() is None else msg.decode('UTF-8')
+                       'value': msg.value() if msg.value() is None else msg.value().decode('UTF-8')
                        })
         else:
             self.num_acked += 1
@@ -56,7 +56,7 @@ class VerifiableProducer(VerifiableClient):
                        'partition': msg.partition(),
                        'offset': msg.offset(),
                        'key': msg.key(),
-                       'value': msg.value() if msg.value() is None else msg.decode('UTF-8')
+                       'value': msg.value() if msg.value() is None else msg.value().decode('UTF-8')
                        })
 
         pass
