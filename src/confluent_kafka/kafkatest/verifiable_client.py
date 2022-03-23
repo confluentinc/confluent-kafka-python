@@ -65,7 +65,7 @@ class VerifiableClient(object):
         #self.dbg('SEND: %s' % str(d))
         #sys.stdout.write('%s\n' % str(d))
         #self.dbg('SEND: %s' % json.dumps(d))
-        if d['value'] is not None:
+        if 'value' in d:
             d['value'] = d['value'].decode('utf8').replace("'", '"')
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
