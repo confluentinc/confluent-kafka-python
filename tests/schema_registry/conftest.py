@@ -144,6 +144,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SCHEMA = 'basic_schema.avsc'
     SUBJECTS = ['subject1', 'subject2']
     USERINFO = 'mock_user:mock_password'
+    OAUTH_TOKEN = 'VALID_TOKEN'
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -192,10 +193,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         if authinfo is None:
             return None
 
-        # We only support the BASIC scheme today
         scheme, userinfo = authinfo.split(" ")
-        if b64decode(userinfo).decode('utf-8') == cls.USERINFO:
-            return None
+        if scheme.upper() == 'BEARER':
+            if userinfo == cls.OAUTH_TOKEN:
+                return None
+        if scheme.upper() == 'BASIC':
+            if b64decode(userinfo).decode('utf-8') == cls.USERINFO:
+                return None
 
         unauthorized = {'error_code': 401,
                         'message': "401 Unauthorized"}

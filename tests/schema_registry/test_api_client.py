@@ -74,6 +74,29 @@ def test_basic_auth_authorized(mock_schema_registry, load_avsc):
     assert result == mock_schema_registry.SUBJECTS
 
 
+def test_oauth_cb_unauthorized(mock_schema_registry, load_avsc):
+    def oauth_callback():
+        return ('BAD_TOKEN', '123456')
+    conf = {'url': TEST_URL,
+            'oauth_cb': oauth_callback}
+    sr = mock_schema_registry(conf)
+
+    with pytest.raises(SchemaRegistryError, match="401 Unauthorized"):
+            sr.get_subjects()
+
+
+def test_oauth_cb_authorized(mock_schema_registry, load_avsc):
+    def oauth_callback():
+        return (mock_schema_registry.OAUTH_TOKEN, '123456')
+    conf = {'url': TEST_URL,
+        'oauth_cb': oauth_callback}
+    sr = mock_schema_registry(conf)
+
+    result = sr.get_subjects()
+
+    assert result == mock_schema_registry.SUBJECTS
+
+
 def test_register_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)

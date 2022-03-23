@@ -124,6 +124,24 @@ def test_config_auth_userinfo_invalid():
         SchemaRegistryClient(conf)
 
 
+def test_config_oauth_cb():
+    def mock_oauth_callback():
+        pass
+    conf = {'url': TEST_URL, 'oauth_cb': mock_oauth_callback}
+    test_client = SchemaRegistryClient(conf)
+    assert test_client._rest_client.oauth_cb == mock_oauth_callback
+
+def test_config_oauth_cb_and_userinfo():
+    def mock_oauth_callback():
+        pass
+    conf = {'url': 'http://'
+               + TEST_USERNAME + ":"
+               + TEST_USER_PASSWORD + '@SchemaRegistry:65534',
+             'oauth_cb': mock_oauth_callback}
+    with pytest.raises(ValueError, match="Must specify either basic auth user"
+                                         " info or oauth_cb, not both"):
+        SchemaRegistryClient(conf)
+
 def test_config_unknown_prop():
     conf = {'url': TEST_URL,
             'basic.auth.credentials.source': 'SASL_INHERIT',

@@ -109,6 +109,12 @@ class _RestClient(object):
             if len(userinfo) != 2:
                 raise ValueError("basic.auth.user.info must be in the form"
                                  " of {username}:{password}")
+        if 'oauth_cb' in conf_copy:
+            if userinfo != ('', ''):
+                raise ValueError('Cannot specify both a basic auth and an oauth callback function')
+            self.oauth_cb = conf_copy.pop('oauth_cb')
+        else:
+            self.oauth_cb = None
 
         self.session.auth = userinfo if userinfo != ('', '') else None
 
@@ -163,6 +169,10 @@ class _RestClient(object):
             body = json.dumps(body)
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
+
+        if self.oauth_cb is not None:
+            token, expires = self.oauth_cb()
+            headers.update({'Authorization': f"Bearer {token}"})
 
         response = self.session.request(
             method, url="/".join([self.base_url, url]),
@@ -279,6 +289,13 @@ class SchemaRegistryClient(object):
     | ``basic.auth.user.info``     | str  |                                                 |
     |                              |      | By default userinfo is extracted from           |
     |                              |      | the URL if present.                             |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | A function that can be called during requests   |
+    |                              |      | to retrieve a valid oauth token.                |
+    | ``oauth_cb``                 | funtion  |                                             |
+    |                              |      | The function returns a tuple of the form        |
+    |                              |      | (TOKEN, EXPIRATION_TIME). This functions is     |
+    |                              |      | expected to handle token refresh.               |
     +------------------------------+------+-------------------------------------------------+
 
     Args:
