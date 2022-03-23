@@ -69,7 +69,12 @@ class VerifiableClient(object):
             d['value'] = d['value'].decode('utf8').replace("'", '"')
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
-        sys.stdout.flush()
+        try:
+            sys.stdout.flush()
+        except (BrokenPipeError, IOError):
+            # print ('BrokenPipeError caught', file = sys.stderr)
+            self.dbg('BrokenPipeError caught')
+
 
     @staticmethod
     def set_config(conf, args):
