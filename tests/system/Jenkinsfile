@@ -4,7 +4,7 @@ def config = jobConfig {
     realJobPrefixes = ['system-test-python-client']
     owner = 'client'
     slackChannel = 'clients-eng'
-    timeoutHours = 3
+    timeoutHours = 5
 }
 
 def job = {
