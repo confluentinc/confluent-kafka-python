@@ -27,7 +27,7 @@ export PYTHONUNBUFFERED=1
 
 TEST_PATH=tests/kafkatest/tests/client/consumer_rolling_upgrade_test.py
 
-LIBRDKAFKA_BRANCH=v1.8.2
+LIBRDKAFKA_BRANCH=master
 KAFKA_BRANCH=forSystemTest  # Tag
 REPO=https://github.com/jliunyu/kafka.git
 
