@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
+import fastavro
 
 import pytest
 
@@ -24,7 +26,7 @@ from confluent_kafka.serialization import (MessageField,
 from confluent_kafka.schema_registry.avro import (AvroSerializer,
                                                   AvroDeserializer)
 
-from confluent_kafka.schema_registry import Schema
+from confluent_kafka.schema_registry import Schema, SchemaReference
 
 
 class User(object):
@@ -51,6 +53,30 @@ class User(object):
             self.name == other.name,
             self.favorite_number == other.favorite_number,
             self.favorite_color == other.favorite_color])
+
+
+class AwardedUser(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "AwardedUser",
+            "type": "record",
+            "fields": [
+                {"name": "award", "type": "string"},
+                {"name": "user", "type": "User"}
+            ]
+        }    
+    """
+
+    def __init__(self, award, user):
+        self.award = award
+        self.user = user
+
+    def __eq__(self, other):
+        return all([
+            self.award == other.award,
+            self.user == other.user
+        ])
 
 
 @pytest.mark.parametrize("avsc, data, record_type",
@@ -187,3 +213,87 @@ def test_avro_record_serialization_custom(kafka_cluster):
     user2 = msg.value()
 
     assert user2 == user
+
+
+def _get_reference_data():
+    user = User('Bowie', 47, 'purple')
+    awarded_user = AwardedUser("Best In Show", user)
+
+    ref_dict = json.loads(User.schema_str)
+    named_schemas = {}
+    fastavro.parse_schema(ref_dict, named_schemas=named_schemas)
+
+    schema_ref = SchemaReference("confluent.io.examples.serialization.avro.User", "user", 1)
+    references = [schema_ref]
+
+    schema = Schema(AwardedUser.schema_str, 'AVRO', references, named_schemas)
+
+    return awarded_user, schema
+
+
+def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
+    """
+    Common (both reader and writer) avro schema reference test.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+    """
+    topic = kafka_cluster.create_topic("reference-avro")
+    sr = kafka_cluster.schema_registry()
+
+    sr.register_schema("user", Schema(User.schema_str, 'AVRO'))
+
+    value_serializer = AvroSerializer(sr, serializer_schema,
+                                      lambda awarded_user, ctx:
+                                      dict(award=awarded_user.award,
+                                           user=dict(name=awarded_user.user.name,
+                                                     favorite_number=awarded_user.user.favorite_number,
+                                                     favorite_color=awarded_user.user.favorite_color)))
+
+    value_deserializer = AvroDeserializer(sr, deserializer_schema,
+                                          lambda awarded_user_dict, ctx:
+                                          AwardedUser(awarded_user_dict.get('award'),
+                                                      User(awarded_user_dict.get('user').get('name'),
+                                                           awarded_user_dict.get('user').get('favorite_number'),
+                                                           awarded_user_dict.get('user').get('favorite_color'))))
+
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
+
+    producer.produce(topic, value=awarded_user, partition=0)
+    producer.flush()
+
+    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer.assign([TopicPartition(topic, 0)])
+
+    msg = consumer.poll()
+    awarded_user2 = msg.value()
+
+    assert awarded_user2 == awarded_user
+
+
+def test_avro_reader_reference(kafka_cluster):
+    """
+    Tests Avro schema reference relying on reader schema.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+    """
+    awarded_user, schema = _get_reference_data()
+
+    _reference_common(kafka_cluster, awarded_user, schema, schema)
+
+
+def test_avro_writer_reference(kafka_cluster):
+    """
+    Tests Avro schema reference relying on writer schema.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): cluster fixture
+
+    """
+    awarded_user, schema = _get_reference_data()
+
+    _reference_common(kafka_cluster, awarded_user, schema, None)
+
