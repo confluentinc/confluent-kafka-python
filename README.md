@@ -222,20 +222,16 @@ Install
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
-          confluent-kafka  using the command in the "Install from
-          source from PyPi" section below.
+          confluent-kafka using the instructions in the
+          "Install from source" section below.
 
 **Install AvroProducer and AvroConsumer**
 
     $ pip install "confluent-kafka[avro]"
 
-**Install from source from PyPi**
-*(requires librdkafka + dependencies to be installed separately)*:
+**Install from source**
 
-    $ pip install --no-binary :all: confluent-kafka
-
-
-For source install, see *Prerequisites* below.
+For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
 
 Broker Compatibility
@@ -274,29 +270,12 @@ Linux distribution's `ca-certificates` package which needs to be installed
 through `apt`, `yum`, et.al.
 
 If your system stores CA certificates in another location you will need to
-configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`. 
+configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
 
 Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
 Python package. To use certifi, add an `import certifi` line and configure the
 client's CA location with `'ssl.ca.location': certifi.where()`.
 
-
-Prerequisites
-=============
-
- * Python >= 2.7 or Python 3.x
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 1.6.0 (latest release is embedded in wheels)
-
-librdkafka is embedded in the macosx manylinux wheels, for other platforms, SASL Kerberos/GSSAPI support or
-when a specific version of librdkafka is desired, following these guidelines:
-
-  * For **Debian/Ubuntu** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
-http://docs.confluent.io/current/installation.html#installation-apt
-
- * For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
-http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
-
- * On **OSX**, use **homebrew** and do `brew install librdkafka`
 
 
 License
