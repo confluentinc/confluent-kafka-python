@@ -1,8 +1,12 @@
 # Confluent's Python client for Apache Kafka
 
-## v1.8.3
+## v1.9.0
 
-v1.8.3 is a maintenance release with the following fixes:
+This is a feature release:
+
+ - OAUTHBEARER OIDC support
+
+### Fixes
 
  - The warnings for `use.deprecated.format` (introduced in v1.8.2)
    had its logic reversed, which result in warning logs to be emitted when
@@ -10,7 +14,16 @@ v1.8.3 is a maintenance release with the following fixes:
    contained text that had it backwards.
    The warning is now only emitted when `use.deprecated.format` is set
    to the old legacy encoding (`True`). #1265
+ - Use `str(Schema)` rather than `Schema.to_json` to prevent fastavro
+   from raising exception `TypeError: unhashable type: 'mappingproxy'`. (Federico Fissore, #1156, #1197)
+ - Fix the argument order in the constructor signature for
+   AvroDeserializer/Serializer: the argument order in the constructor signature for AvroDeserializer/Serializer was altered in v1.6.1, but the example is not changed yet. (Duc Le Tu, #1263)
+ - Fix the json deserialization errors from `_schema_loads` for
+   valid primitive declarations. (Dylan Richardson, #989)
 
+confluent-kafka-python is based on librdkafka v1.9.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v1.8.2
