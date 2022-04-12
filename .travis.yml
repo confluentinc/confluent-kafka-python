@@ -61,8 +61,8 @@ jobs:
     services: docker
     env: BUILD_WHEELS=1
     script:
-      - mkdir wheelhouse
-      - echo test > wheelhouse/test1
+    - mkdir wheelhouse
+    - echo test > wheelhouse/test1
   - name: 'Wheels: MacOSX x64'
     if: tag is present
     os: osx
@@ -73,9 +73,9 @@ deploy:
   provider: s3
   edge: true
   access_key_id:
-    secure: O/+9sbIj+hB979JYQu5M+GG+iM/+/l18/nsUvF26eEqcNHo1VGFZDj+w3Vw1mMc6ZQTLMo4y/7PdwMjutpD0+NQK0B0m7Ig+DqjIoIILaJ4AXpLqsZg+VbyvUbX/JO06d8lEYs9Q2JZBgI9E8aOlrUnS/CM1LcebBb2eWG2Oe94r7gf3p6HBFdGMpUj1vRhmYzw1aIX4cvUzxMlVCzZOpPZlYP1eImfiLnxdqV4yctDms7WQixErlpjoqNC8Q1VrV49mdzbmoxjM2jwIbP0oialDtRtnzqMGkkzsR/OIOSokVVmBZBnQ1DoDMqMmNlrqmAAUkCisiNhwllh/FLitBbPQcVIWI7WunMHnPQetppUg+JxjIRKlXr4jdXZ15aFouF1CyqykWyeKTIrVujePf7Y99fqVGVG0WyFeRSR/FO82t6ke0446xB5VtgmpCMfPZNoNxyC/5edHathD3oTXq8pGBwi6h12/FqC3pHdvFUQJndfeq5M4Fi/v/5Mqtc4PUzGKZgD5SGnyrUnnhB8e8OVC3WqrorlAsj3SzNlyxBmMO5Jah/ZnTOVKnglbSqH5kLkwngKAUhY7uj+m/5WhWX+dt/RPPBNyO6hY4/E+JkQA8B3ppFVAtmD9jQBNBid8H5l7ZANNjmQLsBdoYEIKjGUhmtKehyJ3K+S3UHls0b8=
+    secure: BMrIjoMbcTad50/A6WcG+uIuNmvva72KVu+gUs85ZhGQ+7u645XsfrZGCSHA+suP8iD7vIaiw97PgGHN2b0Wg9quB65Zqw8vbJ+dGoYBc+O1fjwC9RL6i4BPe6wPqYy/TVVwC11A8Iw75emRlHDmMVf9Z0FRWp83rB+JBT599O7dEl57lv3i6rxjiNAGVIUeY0oQAdhBhWne2TNIHfMsyFHoJ9QV+s1gAK/oe71JPErABTow2oKgfbzK9GOHKk/A77oFDejy3TQr2TbOMAyZJEVzDl8aoZO2dem6fR+wjOQA127gpMIfU74oOgT2TftFP1iYtd5bX7vWJyM7u4jS8bEfW00+1C8RQA7OQ+0vPibmJ62C1QTRM5H1Kw+cHQ1NFnaOpvKv9IVVrHGDE3glr/ouq/RPtIUqEd4o+mUzZ/uX4Wbb9+XUy1+7HFjdkMcCLDsh2xIRjkDURUBBPwAh2V+RBXRI+X4H0AS6ImFbBJGLGcLgJlMNKyV8Zy6CSdUI9dZj1m6jcvLOrGerNMBO62oVEXpKUiGmQ/Z6PgoxZzh7pnpiiehCye7aym6EedUC/X4+RWfu5rP1osif1mSi5Kg8d5bmU+gD4xSdwCiGjACBOU6WHR7INGjkbDLM2KqmW7E2oUVfiTzWTAp8274m+J7HA0kgChb90JdaGpA4tB0=
   secret_access_key:
-    secure: LlWHBfL84ELjmNT74e6Ld9pxM+rFEXQQtRJBEWKm+lCwk5wisN/dbW+SxPyRFrLNIoTXdH5XtD0p8apJuaQgtNN+ge4iK5pCywWhhPBNCXipY4Bjv/9X6chyXiqf/lVny+NylnfOYgEdaGydE2nvtsQBfrPliDNh404IW2J0ZxhP10CNZG8cJyViY1SrK+W93Sbk8M2ZjMoj5Qu5XUPvKhAdjfCf9/QdDQ6iJ01xBQpvR5/vSHLMUk92eHipM1jzjwcFKZ3TK+6uRg/xrT1FFYD1Lso49xLTqKYSeF5i476i4DLAcF+r/3tbC+Y5e8l96PuJ/7opVA533A3vDRLlnz+rBYn/feI6Lumjnlvw/hgDZT9fN1CsYgqJW0hTP0lsC9ia1DOseEY2uAudx3+7QA3BTpm8g6fEqMq52p4+TWmIgQF79Pfl4hfXKA6uSD6lpMVORamcoT3e+YjH0HKCketm85uegvC8MZfQHriW17tPpvyXmMO0xw6pygtsAySdjYbjYRbsfJhwpi7XqkNKPWJw0Y5VMTpkg6AvHW0MWKIoEmP+UGs+e8yNRMJ9j0/t3y93CB/rWB/LZ/CGIyyEF8R9Y2snzCD4sAASPFDkQZCIRvvAfgbTQ4HfnnXpoydqs9t9Zr+iXlv+qpWKecyovA3VjrgdYQ5GuIVwQNEguzc=
+    secure: juB0NOgWp5KzBzqdlSt2byny6Muzbo1H3ZdJS/5q8PeLuJsb0WEEuNyf7/eH6wCgH4dkgkCigu/LMGN3qdAjYxr5gITTXut8upWo2gXstpX1yk6wTwSpbjQwStjJ5MK3kEEatCsk/LJZ/46S+gS6DphgZMXAeMr8udP6TijrBh9F822yUu9D6CejPmZPmPHm/yEIVGWGqWT6QWCrmUP2JTWwFEHiIzGWqZc+miZzdUZ6+PcpiPoDuC66h7ztKukOAmv6KWlKP2ExDPB/xgAw4RY1cJaJ1fAMVHFj1GqWkNYRFAQmVGhhCY6nWrSMcXv8gQKeDKF0DPJlZmSD/Te6ijpNJ7FcbzxVVpqKltQBBimxaOPEYVCosOxjHQhCQwSD0vqSfIi1oy7vDXg/X6Bzkmo/Hfahx5icEHNLOzRK1GXie+TW6eTAIFD+3TMl86x3JwdtkeCL5LUmXH08BjXGSbDd3UCERb7C11NGRLOnvgj6o+b5lmEB6PcchKyrhmnADF8mF9HS/n39xUFHX06wSjcM/60+m0VFsgatuAeLYUDdKTKggqSFfe650ivhVYHk8Kyz2Q5MxZlMxM96mqi0Coi/BCSLyCDHb2/47FcFPeplBvIp8m6X37Cj0jxchhcy8XMJ+OyFScCftLJaRTqcUtj+toNDgTDA1RaTe9pWFiM=
   bucket: librdkafka-ci-packages
   region: us-west-1
   local-dir: wheelhouse
