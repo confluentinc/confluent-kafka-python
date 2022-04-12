@@ -74,7 +74,7 @@ jobs:
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 deploy:
   provider: s3
-  edge: true
+#  edge: true
   access_key_id:
     secure: BMrIjoMbcTad50/A6WcG+uIuNmvva72KVu+gUs85ZhGQ+7u645XsfrZGCSHA+suP8iD7vIaiw97PgGHN2b0Wg9quB65Zqw8vbJ+dGoYBc+O1fjwC9RL6i4BPe6wPqYy/TVVwC11A8Iw75emRlHDmMVf9Z0FRWp83rB+JBT599O7dEl57lv3i6rxjiNAGVIUeY0oQAdhBhWne2TNIHfMsyFHoJ9QV+s1gAK/oe71JPErABTow2oKgfbzK9GOHKk/A77oFDejy3TQr2TbOMAyZJEVzDl8aoZO2dem6fR+wjOQA127gpMIfU74oOgT2TftFP1iYtd5bX7vWJyM7u4jS8bEfW00+1C8RQA7OQ+0vPibmJ62C1QTRM5H1Kw+cHQ1NFnaOpvKv9IVVrHGDE3glr/ouq/RPtIUqEd4o+mUzZ/uX4Wbb9+XUy1+7HFjdkMcCLDsh2xIRjkDURUBBPwAh2V+RBXRI+X4H0AS6ImFbBJGLGcLgJlMNKyV8Zy6CSdUI9dZj1m6jcvLOrGerNMBO62oVEXpKUiGmQ/Z6PgoxZzh7pnpiiehCye7aym6EedUC/X4+RWfu5rP1osif1mSi5Kg8d5bmU+gD4xSdwCiGjACBOU6WHR7INGjkbDLM2KqmW7E2oUVfiTzWTAp8274m+J7HA0kgChb90JdaGpA4tB0=
   secret_access_key:
