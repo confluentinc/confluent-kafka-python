@@ -19,7 +19,7 @@ set CIBW_TEST_REQUIRES=-r tests/requirements.txt
 set CIBW_TEST_COMMAND=pytest {project}\tests\test_Producer.py
 rem set CIBW_BUILD_VERBOSITY=3
 set include=%cd%\%DEST%\build\native\include
-set lib=%cd%\%DEST%\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v140
+set lib=%cd%\%DEST%\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v142
 set DLL_DIR=%cd%\%DEST%\runtimes\win-%ARCH%\native
 set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair --add-path %DLL_DIR% -w {dest_dir} {wheel}
 
