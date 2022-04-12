@@ -1,6 +1,7 @@
 env:
   global:
   - LIBRDKAFKA_VERSION=v1.9.0-RC2
+  - secure: Oo6C8dY72hBKzAF6O+Zcbv8OX62hkcAUsPYRkUskMJU9LKJAe/5pDVm4K1+HZnE+7da1wqR78yaFGZ3uoH0vLXe3neNPnICdPL0wBeytfO3BLBl+jxGDjGKB16xJdPHV+K1Xn75Ao4L0+26SJhdCGOh45tN5BlVBDWmwsInRlpy84tdaLvuzhCk5N39rSxl3KvURoZmipTpFevzmtBvunqiCdnWcrHFsFv++ExRkg0sWqSm/ayBbzcIs18p+98u75rhmZgazIyKkosjfhtgWIXWb52oLf5WpuKghjzbRPa2LQSrakpCA+xvYqX12LQ2M5fJjXna9sv2Rslhv3mFyi8PqQfsqk1tW13cd+Hz7ryD9tanaBqEDv31RBa3feHcbNrZHXPtramdOczBNZy9HnywxH6F8A08Hzf278s4O8mu3/nOBJMABtcIJ3aZjECFehZO/8apbESNgNH5CLPePfhvNecI2BBi8CHKk4QRDojpIDM7diAhjO0FJiz62dCOca+0M1FVnPz66zILETTSqkDid17RSytjLnRU3gSc7hrWDrXzHk6xIWnJmTRg9SGGFCWp6DvC38LhJ2hcjrGIgHdNA2YvQApIWdEU52t8FONTTl/MMR3mP91O1oz8zktII4KABgrbmqUNH7MuwZZBOuNrXLbcYd8d8qvMakrmHUYA=
 jobs:
   include:
   - name: Source package verification with Python 2.7 (Linux)
@@ -63,6 +64,8 @@ jobs:
     script:
     - mkdir wheelhouse
     - echo test > wheelhouse/test1
+    - echo the testenv is ${TESTENV} ..
+
   - name: 'Wheels: MacOSX x64'
     if: tag is present
     os: osx
