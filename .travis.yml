@@ -14,6 +14,7 @@ jobs:
     services: docker
 
   - name: "Source package verification with Python 3.6 (Linux)"
+    if: false
     os: linux
     language: python
     dist: xenial
@@ -28,6 +29,7 @@ jobs:
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
 
   - name: "Source package verification with Python 3.6 (OSX) +docs"
+    if: false
     os: osx
     python: "3.6"
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
@@ -68,7 +70,7 @@ jobs:
     python: "3.8"
     services: docker
     env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+    script: touch wheelhouse/test1
 
   - name: "Wheels: MacOSX x64"
     if: tag is present
@@ -78,34 +80,6 @@ jobs:
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
 
-# Install test dependencies unconditionally
-# Travis OSX envs requires some setup; see tools/prepare-osx.sh
-# Install cibuildwheel if this is a tagged PR
-before_install:
-  - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-
-install:
- # Install interceptors
- - tools/install-interceptors.sh
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
- - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
- # Install librdkafka and confluent_kafka[avro] if not building wheels
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
-
-
-
-# Note: Will not be run for wheel builds.
-script:
- - flake8
- # Build package
- -  pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
- - ldd staging/libs/* || otool -L staging/libs/* || true
- # Run tests
- - if [[ $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
- # Build docs
- - if [[ $MK_DOCS == y ]]; then make docs; fi
- # Checksum artifacts to build log
- - sha256sum wheelhouse/* || true
 
 deploy:
  provider: s3
