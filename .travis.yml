@@ -64,7 +64,7 @@ jobs:
     script:
     - mkdir wheelhouse
     - echo test > wheelhouse/test1
-    - echo the testenv is ${TESTENV} ..
+    - echo the testenv is ${TESTENV} .. | grep testenv
 
   - name: 'Wheels: MacOSX x64'
     if: tag is present
