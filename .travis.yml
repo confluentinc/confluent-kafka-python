@@ -84,3 +84,4 @@ deploy:
   cleanup: false
   on:
     repo: confluentinc/confluent-kafka-python
+    all_branches: true
