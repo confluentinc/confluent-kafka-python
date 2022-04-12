@@ -1,100 +1,85 @@
 env:
- global:
+  global:
   - LIBRDKAFKA_VERSION=v1.9.0-RC2
-
 jobs:
- include:
-  - name: "Source package verification with Python 2.7 (Linux)"
+  include:
+  - name: Source package verification with Python 2.7 (Linux)
     if: false
     os: linux
     language: python
     dist: xenial
-    python: "2.7"
+    python: '2.7'
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
-
-  - name: "Source package verification with Python 3.6 (Linux)"
+  - name: Source package verification with Python 3.6 (Linux)
     if: false
     os: linux
     language: python
     dist: xenial
-    python: "3.6"
+    python: '3.6'
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
-
-  - name: "Source package verification with Python 2.7 (OSX)"
+  - name: Source package verification with Python 2.7 (OSX)
     if: false
     os: osx
-    python: "2.7"
+    python: '2.7'
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-
-  - name: "Source package verification with Python 3.6 (OSX) +docs"
+  - name: Source package verification with Python 3.6 (OSX) +docs
     if: false
     os: osx
-    python: "3.6"
+    python: '3.6'
     env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-
-  - name: "Wheels: Windows x64"
+  - name: 'Wheels: Windows x64'
     if: tag is present
     os: windows
     language: shell
     env: BUILD_WHEELS=1
     before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    - choco install python --version 3.8.0
+    - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+    - ln -s /c/Python38/python.exe /c/Python38/python3.exe
     install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+    - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
     script:
-      - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-
-  - name: "Wheels: Windows x86"
+    - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+  - name: 'Wheels: Windows x86'
     if: tag is present
     os: windows
     language: shell
     env: BUILD_WHEELS=1
     before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+    - choco install python --version 3.8.0
+    - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+    - ln -s /c/Python38/python.exe /c/Python38/python3.exe
     install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+    - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
     script:
-      - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
-
-  - name: "Wheels: Linux x64"
+    - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
+  - name: 'Wheels: Linux x64'
     if: tag is present
     language: python
-    python: "3.8"
+    python: '3.8'
     services: docker
     env: BUILD_WHEELS=1
     script: touch wheelhouse/test1
-
-  - name: "Wheels: MacOSX x64"
+  - name: 'Wheels: MacOSX x64'
     if: tag is present
     os: osx
     language: shell
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-
-
 deploy:
- provider: s3
- edge: true
- access_key_id:
-  secure: "KNkhEMixGmG9Vlf6S9bAtSxLr8mkJJyXEUHSWbksIg+0ZllZhE/CBpPoV3YVHWHXd7skTBXnZesZCxhlFuzfDWdFCs4rQL42niutHmgxFr5ZTGDVNM2UCI1K/JqC2sW+YxSAe+9sPPWNz7C9kB/BA12j4KHRr6pxNqHXUcez5WA/sPnxQQuQkShVolJ/zmMOP/cxYuSx3k9kMCuHHCL/BatDctoEFzcNI/kAz9RolsuNIjI9yh8qgwjfri9cogmEZHLfnhmbKxtYfqgtehuasgXE1HkXFQfH/7x5wmI1r6xPpCkZJ9391PjB7fr5P4lV/JZKUzChOPy/9u1BzuDyt8olu6dMYy/FeoUjJw5z94kyo5P+pp28YEIppxrbLHNlC2jOBtn/oPwCV8bfoZBgOLqx1/m4Hsvdf/xYOvbKGWBj20HR7aHTeM7YcHtHGNOBMWEvIjglNBpyzhmIIaGOvV3m2ZfzJBlmue5WzkgsZ1eXVo+mBL5SOt+SiRhqBxJL68Tbexc6758xu88nuSuSume6dv6+ypoztzHiCn8KWlx3O6vRYkDE8cf9mnAHfkCp2A4KnH8dJzcf4ZAIMPWQyjySHCvZUpRypsLitXXAQbv/HtRimGw5dZ4Jg+bUj3evH9+qcVXU18S2LBwwz5y3s3QkytufYFgA3btjfvXoZ9M="
- secret_access_key:
-  secure: "H8WJO+bSH5wmFoS4ByhdRK99qQdhdhQ4VE0+LE+qF9L2UXaMAkDgk5wB39ufXm3scChjv+eywgbgLE16v4WWul/4l9xtn1tLMAhTUy8DAO9lKyXMx7J3HPcPYSeRRQVK7qeNRzRNbsQ2FFfNbCd0VCsi6JDtZ/oeuCairmFNMsFGwiuB52+czVSWLJyrmQhjmbsJULNW8VDo4Bu3w82cYSNrKL1Xq8ig7O4sdBN5Vx6Bp6vfqlURedXrGM9TO+3a8Dv1c+MTk+vuaqHgEsNW1nQogJW/1oaVtQxa+/hr+0mjJi/0JCKRhmq0TC1l0/93xMT22MO4aQQrtia3/Q41wbOf0CSO/ErCIIcw0XOywwZbGEsplGWXQnYid4wMg4eyp5SLICJeE0u/cTu+ef/x3HlzeKKzuzOQjVIyH/ipg0Gdkso0WC2WgNAjEQ9ihZMiHgkx9lgVCrYxn8fworFATKAyt+HJKMTyna0jQ1PlURWGpx5+vdreLDsmyH6OD63qE4H78w/Y/kRnyr1VG9t94D7/sDtqVDuxPcjGKXqMCwM/z9Z38wjg5EY+DBMR3xP/0XMYC0PXwoWU2ePhwNpWx/psUVsfOfSD9vbiIuMPFDrW8ZP/j1qI+VPXfezklXFfZ7NvJru+en5JtXQXcJjSChs1CUWdZ+fExExDrv4/v00="
- bucket: librdkafka-ci-packages
- region: us-west-1
- local-dir: wheelhouse
- upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
- acl: public_read
- cleanup: false
- on:
-  repo: confluentinc/confluent-kafka-python
-  tags: true
-  condition: "$BUILD_WHEELS == 1"
+  provider: s3
+  edge: true
+  access_key_id:
+    secure: O/+9sbIj+hB979JYQu5M+GG+iM/+/l18/nsUvF26eEqcNHo1VGFZDj+w3Vw1mMc6ZQTLMo4y/7PdwMjutpD0+NQK0B0m7Ig+DqjIoIILaJ4AXpLqsZg+VbyvUbX/JO06d8lEYs9Q2JZBgI9E8aOlrUnS/CM1LcebBb2eWG2Oe94r7gf3p6HBFdGMpUj1vRhmYzw1aIX4cvUzxMlVCzZOpPZlYP1eImfiLnxdqV4yctDms7WQixErlpjoqNC8Q1VrV49mdzbmoxjM2jwIbP0oialDtRtnzqMGkkzsR/OIOSokVVmBZBnQ1DoDMqMmNlrqmAAUkCisiNhwllh/FLitBbPQcVIWI7WunMHnPQetppUg+JxjIRKlXr4jdXZ15aFouF1CyqykWyeKTIrVujePf7Y99fqVGVG0WyFeRSR/FO82t6ke0446xB5VtgmpCMfPZNoNxyC/5edHathD3oTXq8pGBwi6h12/FqC3pHdvFUQJndfeq5M4Fi/v/5Mqtc4PUzGKZgD5SGnyrUnnhB8e8OVC3WqrorlAsj3SzNlyxBmMO5Jah/ZnTOVKnglbSqH5kLkwngKAUhY7uj+m/5WhWX+dt/RPPBNyO6hY4/E+JkQA8B3ppFVAtmD9jQBNBid8H5l7ZANNjmQLsBdoYEIKjGUhmtKehyJ3K+S3UHls0b8=
+  secret_access_key:
+    secure: LlWHBfL84ELjmNT74e6Ld9pxM+rFEXQQtRJBEWKm+lCwk5wisN/dbW+SxPyRFrLNIoTXdH5XtD0p8apJuaQgtNN+ge4iK5pCywWhhPBNCXipY4Bjv/9X6chyXiqf/lVny+NylnfOYgEdaGydE2nvtsQBfrPliDNh404IW2J0ZxhP10CNZG8cJyViY1SrK+W93Sbk8M2ZjMoj5Qu5XUPvKhAdjfCf9/QdDQ6iJ01xBQpvR5/vSHLMUk92eHipM1jzjwcFKZ3TK+6uRg/xrT1FFYD1Lso49xLTqKYSeF5i476i4DLAcF+r/3tbC+Y5e8l96PuJ/7opVA533A3vDRLlnz+rBYn/feI6Lumjnlvw/hgDZT9fN1CsYgqJW0hTP0lsC9ia1DOseEY2uAudx3+7QA3BTpm8g6fEqMq52p4+TWmIgQF79Pfl4hfXKA6uSD6lpMVORamcoT3e+YjH0HKCketm85uegvC8MZfQHriW17tPpvyXmMO0xw6pygtsAySdjYbjYRbsfJhwpi7XqkNKPWJw0Y5VMTpkg6AvHW0MWKIoEmP+UGs+e8yNRMJ9j0/t3y93CB/rWB/LZ/CGIyyEF8R9Y2snzCD4sAASPFDkQZCIRvvAfgbTQ4HfnnXpoydqs9t9Zr+iXlv+qpWKecyovA3VjrgdYQ5GuIVwQNEguzc=
+  bucket: librdkafka-ci-packages
+  region: us-west-1
+  local-dir: wheelhouse
+  upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
+  acl: public_read
+  cleanup: false
+  on:
+    repo: confluentinc/confluent-kafka-python
