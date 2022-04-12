@@ -584,7 +584,7 @@ static PyMethodDef Producer_methods[] = {
 	  "failed delivery\n"
           "  :param int timestamp: Message timestamp (CreateTime) in milliseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
-          "  :param headers dict|list: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
+          "  :param dict|list headers: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"

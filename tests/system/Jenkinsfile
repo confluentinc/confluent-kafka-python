@@ -8,16 +8,20 @@ def config = jobConfig {
 }
 
 def job = {
+    def mavenSettingsFile = "${env.WORKSPACE_TMP}/maven-global-settings.xml"
+
     configureGitSSH("github/confluent_jenkins", "private_key")
     withVaultEnv([["artifactory/tools_jenkins", "user", "TOOLS_ARTIFACTORY_USER"],
         ["artifactory/tools_jenkins", "password", "TOOLS_ARTIFACTORY_PASSWORD"],
         ["sonatype/confluent", "user", "SONATYPE_OSSRH_USER"],
         ["sonatype/confluent", "password", "SONATYPE_OSSRH_PASSWORD"]]) {
-        withVaultFile([["maven/jenkins_maven_global_settings", "settings_xml",
-            "/home/jenkins/.m2/settings.xml", "MAVEN_GLOBAL_SETTINGS"],
-            ["muckrake/2017-06-01", "pem", "muckrake-2017-06-01.pem", "MUCKRAKE_PEM"]]) {
-            stage("Run tests") {
-                sh 'tests/system/run-tests.sh'
+        withVaultFile([["muckrake/2017-06-01", "pem", "muckrake-2017-06-01.pem", "MUCKRAKE_PEM"]]) {
+            withMavenSettings("maven/jenkins_maven_global_settings", "settings", "MAVEN_GLOBAL_SETTINGS", mavenSettingsFile) {
+                withMaven(globalMavenSettingsFilePath: mavenSettingsFile) {
+                    stage("Run tests") {
+                        sh 'tests/system/run-tests.sh'
+                    }
+                }
             }
         }
     }

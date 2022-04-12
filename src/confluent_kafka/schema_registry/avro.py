@@ -62,8 +62,8 @@ def _schema_loads(schema_str):
     schema_str = schema_str.strip()
 
     # canonical form primitive declarations are not supported
-    if schema_str[0] != "{":
-        schema_str = '{"type":"' + schema_str + '"}'
+    if schema_str[0] != "{" and schema_str[0] != "[":
+        schema_str = '{"type":' + schema_str + '}'
 
     return Schema(schema_str, schema_type='AVRO')
 
@@ -192,11 +192,20 @@ class AvroSerializer(Serializer):
         schema = _schema_loads(schema_str)
         schema_dict = loads(schema.schema_str)
         parsed_schema = parse_schema(schema_dict)
-        # The Avro spec states primitives have a name equal to their type
-        # i.e. {"type": "string"} has a name of string.
-        # This function does not comply.
-        # https://github.com/fastavro/fastavro/issues/415
-        schema_name = parsed_schema.get('name', schema_dict['type'])
+
+        if isinstance(parsed_schema, list):
+            # if parsed_schema is a list, we have an Avro union and there
+            # is no valid schema name. This is fine because the only use of
+            # schema_name is for supplying the subject name to the registry
+            # and union types should use topic_subject_name_strategy, which
+            # just discards the schema name anyway
+            schema_name = None
+        else:
+            # The Avro spec states primitives have a name equal to their type
+            # i.e. {"type": "string"} has a name of string.
+            # This function does not comply.
+            # https://github.com/fastavro/fastavro/issues/415
+            schema_name = parsed_schema.get("name", schema_dict["type"])
 
         self._schema = schema
         self._schema_name = schema_name

@@ -9,9 +9,6 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 mod_dir = os.path.join(work_dir, 'src', 'confluent_kafka')
 ext_dir = os.path.join(mod_dir, 'src')
 
-with open(os.path.join(work_dir, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
-
 INSTALL_REQUIRES = [
     'futures;python_version<"3.2"',
     'enum34;python_version<"3.4"',
@@ -79,12 +76,10 @@ trove_classifiers = [
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version in docs/conf.py.
-      version='1.7.0',
+      version='1.8.3',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
-      long_description=long_description,
-      long_description_content_type='text/markdown',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
       packages=find_packages('src'),

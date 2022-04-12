@@ -32,12 +32,12 @@ if exist %pypath64% (
 
 rem Copy x86 libs and dlls
 if exist %pypath% (
-	echo A | xcopy /F dest\librdkafka.redist.%librdkafka_version%\build\native\lib\win\x86\win-x86-Release\v120\librdkafka.lib %pypath%\libs\* || exit /b 1
+	echo A | xcopy /F dest\librdkafka.redist.%librdkafka_version%\build\native\lib\win\x86\win-x86-Release\v140\librdkafka.lib %pypath%\libs\* || exit /b 1
 	echo A | xcopy /I /F /S dest\librdkafka.redist.%librdkafka_version%\runtimes\win-x86\native\* %pypath%\libs || exit /b 1
 )
 
 rem Copy x64 libs and dlls
 if exist %pypath64% (
-	echo A | xcopy /F dest\librdkafka.redist.%librdkafka_version%\build\native\lib\win\x64\win-x64-Release\v120\librdkafka.lib %pypath64%\libs\* || exit /b 1
+	echo A | xcopy /F dest\librdkafka.redist.%librdkafka_version%\build\native\lib\win\x64\win-x64-Release\v140\librdkafka.lib %pypath64%\libs\* || exit /b 1
 	echo A | xcopy /I /F /S dest\librdkafka.redist.%librdkafka_version%\runtimes\win-x64\native\* %pypath64%\libs || exit /b 1
 )
