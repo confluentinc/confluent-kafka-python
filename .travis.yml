@@ -4,108 +4,16 @@ env:
 
 jobs:
  include:
-  - name: "Source package verification with Python 2.7 (Linux)"
-    if: false
-    os: linux
-    language: python
-    dist: xenial
-    python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
-
-  - name: "Source package verification with Python 3.6 (Linux)"
-    os: linux
-    language: python
-    dist: xenial
-    python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
-
-  - name: "Source package verification with Python 2.7 (OSX)"
-    if: false
-    os: osx
-    python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-
-  - name: "Source package verification with Python 3.6 (OSX) +docs"
-    os: osx
-    python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
-
-  - name: "Wheels: Windows x64"
-    if: tag is present
-    os: windows
-    language: shell
-    env: BUILD_WHEELS=1
-    before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
-    install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
-    script:
-      - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-
-  - name: "Wheels: Windows x86"
-    if: tag is present
-    os: windows
-    language: shell
-    env: BUILD_WHEELS=1
-    before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
-    install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
-    script:
-      - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
-
   - name: "Wheels: Linux x64"
-    if: tag is present
     language: python
     python: "3.8"
     services: docker
     env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+    script:
+      - mkdir wheelhouse
+      - echo "test2" > wheelhouse/test2
 
 
-# Install test dependencies unconditionally
-# Travis OSX envs requires some setup; see tools/prepare-osx.sh
-# Install cibuildwheel if this is a tagged PR
-before_install:
-  - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-
-install:
- # Install interceptors
- - tools/install-interceptors.sh
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
- - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
- # Install librdkafka and confluent_kafka[avro] if not building wheels
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
-
-
-
-# Note: Will not be run for wheel builds.
-script:
- - flake8
- # Build package
- -  pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
- - ldd staging/libs/* || otool -L staging/libs/* || true
- # Run tests
- - if [[ $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
- # Build docs
- - if [[ $MK_DOCS == y ]]; then make docs; fi
- # Checksum artifacts to build log
- - sha256sum wheelhouse/* || true
 
 deploy:
  provider: s3
@@ -118,9 +26,7 @@ deploy:
  region: us-west-1
  local-dir: wheelhouse
  upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
- acl: public_read
  cleanup: false
  on:
   repo: confluentinc/confluent-kafka-python
-  tags: true
-  condition: "$BUILD_WHEELS == 1"
+  all_branches: true
