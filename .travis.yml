@@ -60,7 +60,9 @@ jobs:
     python: '3.8'
     services: docker
     env: BUILD_WHEELS=1
-    script: touch wheelhouse/test1
+    script:
+      - mkdir wheelhouse
+      - echo test > wheelhouse/test1
   - name: 'Wheels: MacOSX x64'
     if: tag is present
     os: osx
