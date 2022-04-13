@@ -177,8 +177,8 @@ def test_api_get_register_schema_invalid(kafka_cluster, load_file):
     with pytest.raises(SchemaRegistryError, match="Invalid schema") as e:
         sr.lookup_schema(subject, schema2)
     # Not as documented but the caused by is correct.
-    assert e.value.http_status_code == 500
-    assert e.value.error_code == 500
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42201
 
 
 def test_api_get_subjects(kafka_cluster, load_file):
