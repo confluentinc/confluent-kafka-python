@@ -90,7 +90,7 @@ class AvroSerializer(Serializer):
     |                           |          | schema is backwards compatible with the object   |
     |                           |          | being serialized.                                |
     |                           |          | Defaults to False.                               |
-    +-------------------------------------+----------+----------------------------------------+
+    +---------------------------+----------+--------------------------------------------------+
     |                           |          | Callable(SerializationContext, str) -> str       |
     |                           |          |                                                  |
     | ``subject.name.strategy`` | callable | Instructs the AvroSerializer on how to construct |
