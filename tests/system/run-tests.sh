@@ -25,7 +25,7 @@ set -x
 # Immediately flush output when running python
 export PYTHONUNBUFFERED=1
 
-TEST_PATH=tests/kafkatest/tests/client/consumer_rolling_upgrade_test.py
+TEST_PATH=tests/kafkatest/tests/client/truncation_test.py
 
 LIBRDKAFKA_BRANCH=master
 KAFKA_BRANCH=forSystemTest  # Tag
