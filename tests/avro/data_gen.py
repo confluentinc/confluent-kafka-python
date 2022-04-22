@@ -22,6 +22,7 @@
 import os
 import os.path
 import random
+from datetime import datetime, timezone
 
 from avro import schema
 from avro.datafile import DataFileWriter
@@ -65,6 +66,7 @@ def create_adv_item(i):
     basic = create_basic_item(i)
     basic['family'] = dict(map(lambda bi: (bi['name'], bi), family))
     basic['friends'] = dict(map(lambda bi: (bi['name'], bi), friends))
+    basic['timestamp'] = datetime(1970, 1, 1, 0, 0, tzinfo=timezone.utc)
     return basic
 
 

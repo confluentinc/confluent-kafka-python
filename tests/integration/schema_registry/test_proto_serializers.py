@@ -56,8 +56,8 @@ def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     topic = kafka_cluster.create_topic("serialization-proto")
     sr = kafka_cluster.schema_registry()
 
-    value_serializer = ProtobufSerializer(pb2, sr)
-    value_deserializer = ProtobufDeserializer(pb2)
+    value_serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
+    value_deserializer = ProtobufDeserializer(pb2, {'use.deprecated.format': False})
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
     consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
@@ -87,7 +87,7 @@ def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
     """
     sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
-    serializer = ProtobufSerializer(pb2, sr)
+    serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
     producer = kafka_cluster.producer(key_serializer=serializer)
 
     producer.produce(topic, key=pb2(), partition=0)
@@ -108,7 +108,7 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
 
     sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
-    serializer = ProtobufSerializer(pb2_1, sr)
+    serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
 
     producer = kafka_cluster.producer(key_serializer=serializer)
 
@@ -129,8 +129,8 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
 
     sr = kafka_cluster.schema_registry()
     topic = kafka_cluster.create_topic("serialization-proto-refs")
-    serializer = ProtobufSerializer(pb2_1, sr)
-    deserializer = ProtobufDeserializer(pb2_2)
+    serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
+    deserializer = ProtobufDeserializer(pb2_2, {'use.deprecated.format': False})
 
     producer = kafka_cluster.producer(key_serializer=serializer)
     consumer = kafka_cluster.consumer(key_deserializer=deserializer)

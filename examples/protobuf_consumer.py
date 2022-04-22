@@ -41,7 +41,8 @@ from confluent_kafka.serialization import StringDeserializer
 def main(args):
     topic = args.topic
 
-    protobuf_deserializer = ProtobufDeserializer(user_pb2.User)
+    protobuf_deserializer = ProtobufDeserializer(user_pb2.User,
+                                                 {'use.deprecated.format': False})
     string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
@@ -62,7 +63,8 @@ def main(args):
 
             user = msg.value()
             if user is not None:
-                print("User record {}: name: {}\n"
+                print("User record {}:\n"
+                      "\tname: {}\n"
                       "\tfavorite_number: {}\n"
                       "\tfavorite_color: {}\n"
                       .format(msg.key(), user.name,
