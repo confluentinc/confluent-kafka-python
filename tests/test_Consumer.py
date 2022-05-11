@@ -230,7 +230,7 @@ def test_multiple_close_does_not_throw_exception():
 
 
 def test_any_method_after_close_throws_exception():
-    """ Calling any consumer method after close should thorw a RuntimeError
+    """ Calling any consumer method after close should throw a RuntimeError
     """
     c = Consumer({'group.id': 'test',
                   'enable.auto.commit': True,

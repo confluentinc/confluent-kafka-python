@@ -258,13 +258,13 @@ static void KafkaError_init (KafkaError *self,
                 self->str = NULL;
 }
 
-static int KafkaError_init0 (PyObject *selfobj, PyObject *args, 
+static int KafkaError_init0 (PyObject *selfobj, PyObject *args,
                              PyObject *kwargs) {
         KafkaError *self = (KafkaError *)selfobj;
         int code;
         int fatal = 0, retriable = 0, txn_requires_abort = 0;
         const char *reason = NULL;
-        static char *kws[] = { "error", "reason", "fatal", 
+        static char *kws[] = { "error", "reason", "fatal",
                                "retriable", "txn_requires_abort", NULL };
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "i|ziii", kws, &code,
@@ -1849,7 +1849,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
                 PyDict_Update(confdict, kwargs);
         }
 
-        if (ktype == RD_KAFKA_CONSUMER && 
+        if (ktype == RD_KAFKA_CONSUMER &&
                 !PyDict_GetItemString(confdict, "group.id")) {
 
                 PyErr_SetString(PyExc_ValueError,

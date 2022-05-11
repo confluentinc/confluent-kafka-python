@@ -542,7 +542,7 @@ static void *Producer_purge (Handle *self, PyObject *args,
                 return NULL;
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
-        if (in_flight) 
+        if (in_flight)
                 purge_strategy |= RD_KAFKA_PURGE_F_INFLIGHT;
         if (blocking)
                 purge_strategy |= RD_KAFKA_PURGE_F_NON_BLOCKING;
