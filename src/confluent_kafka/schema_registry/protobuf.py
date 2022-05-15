@@ -178,9 +178,9 @@ class ProtobufSerializer(object):
     +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry
-    which define a scope in which they can be evolved. By default, the subject name
-    is formed by concatenating the topic name with the message field separated by
-    a hyphen.
+    that define a scope in which the schemas can be evolved. By default, the subject
+    name is formed by concatenating the topic name with the message field separated
+    by a hyphen.
 
     i.e. {topic name}-{message field}
 
