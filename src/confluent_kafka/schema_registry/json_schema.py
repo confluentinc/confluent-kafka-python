@@ -46,9 +46,6 @@ class _ContextStringIO(BytesIO):
 class JSONSerializer(Serializer):
     """
     Serializes Python objects to JSON with Confluent Schema Registry framing.
-    If the objects to serialize are not dicts, a to_dict method must be specified
-    to convert them. The dicts are then validated against the JSON Schema
-    schema_str before serialization.
 
     Configuration properties:
 
@@ -97,11 +94,16 @@ class JSONSerializer(Serializer):
 
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
 
-    Note:
+    Notes:
         The ``title`` annotation, referred to elsewhere as a record name
         is not strictly required by the JSON Schema specification. It is
         however required by this serializer in order to register the schema
         with Confluent Schema Registry.
+
+        Prior to serialization, all values must first be converted to
+        a dict instance. This may handled manually prior to calling
+        :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
+        callable with JSONSerializer.
 
     Args:
         schema_str (str): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_
