@@ -45,7 +45,7 @@ class _ContextStringIO(BytesIO):
 
 class JSONSerializer(Serializer):
     """
-    Serializes Python objects to JSON with Confluent Schema Registry framing.
+    Serializer that produces JSON formatted data with Confluent Schema Registry framing.
 
     Configuration properties:
 
