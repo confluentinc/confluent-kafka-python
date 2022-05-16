@@ -25,11 +25,7 @@ from .error import (KeySerializationError,
 
 class SerializingProducer(_ProducerImpl):
     """
-    A high level Kafka Producer with serialization capabilities.
-
-    Note:
-
-        The SerializingProducer is an experimental API and subject to change.
+    A high level Kafka producer with serialization capabilities.
 
     The SerializingProducer is thread safe and sharing a single instance across
     threads will generally be more efficient than having multiple instances.
@@ -44,14 +40,13 @@ class SerializingProducer(_ProducerImpl):
 
     .. versionadded:: 1.4.0
 
-        The Transactional Producer allows an application to send messages to
-        multiple partitions (and topics) atomically.
+    The Transactional Producer allows an application to send messages to
+    multiple partitions (and topics) atomically.
 
-        The ``key.serializer`` and ``value.serializer`` classes instruct the
-        SerializingProducer on how to convert the message payload to bytes.
+    The ``key.serializer`` and ``value.serializer`` classes instruct the
+    SerializingProducer on how to convert the message payload to bytes.
 
     Note:
-
         All configured callbacks are served from the application queue upon
         calling :py:func:`SerializingProducer.poll` or :py:func:`SerializingProducer.flush`
 

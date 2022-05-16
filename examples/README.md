@@ -2,7 +2,6 @@ The scripts in this directory provide code examples using Confluent's Python cli
 
 * [adminapi.py](adminapi.py): Collection of Kafka Admin API operations
 * [asyncio_example.py](asyncio_example.py): AsyncIO webserver with Kafka producer
-* [avro-cli.py](avro-cli.py): Produces Avro messages with Confluent Schema Registry and then reads them back again
 * [consumer.py](consumer.py): Reads messages from a Kafka topic
 * [producer.py](producer.py): Reads lines from stdin and sends them to Kafka
 * [eos-transactions.py](eos-transactions.py): Transactional producer with exactly once semantics (EOS)

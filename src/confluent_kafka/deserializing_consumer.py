@@ -26,20 +26,14 @@ from .serialization import (SerializationContext,
 
 class DeserializingConsumer(_ConsumerImpl):
     """
-    A client that consumes records from a Kafka cluster. With deserialization
-    capabilities.
-
-    Note:
-
-        The DeserializingConsumer is an experimental API and subject to change.
+    A Kafka consumer with deserialization capabilities.
 
     .. versionadded:: 1.4.0
 
-        The ``key.deserializer`` and ``value.deserializer`` classes instruct the
-        DeserializingConsumer on how to convert the message payload bytes to objects.
+    The ``key.deserializer`` and ``value.deserializer`` classes instruct the
+    DeserializingConsumer on how to convert the message payload bytes to objects.
 
     Note:
-
         All configured callbacks are served from the application queue upon
         calling :py:func:`DeserializingConsumer.poll`
 
@@ -92,7 +86,6 @@ class DeserializingConsumer(_ConsumerImpl):
 
     Raises:
         ValueError: if configuration validation fails
-
     """  # noqa: E501
 
     def __init__(self, conf):

@@ -31,7 +31,6 @@ Below are some examples of typical usage. For more examples, see the [examples](
 ```python
 from confluent_kafka import Producer
 
-
 p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
 def delivery_report(err, msg):
@@ -46,9 +45,9 @@ for data in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
     p.poll(0)
 
-    # Asynchronously produce a message, the delivery report callback
-    # will be triggered from poll() above, or flush() below, when the message has
-    # been successfully delivered or failed permanently.
+    # Asynchronously produce a message. The delivery report callback will
+    # be triggered from the call to poll() above, or flush() below, when the
+    # message has been successfully delivered or failed permanently.
     p.produce('mytopic', data.encode('utf-8'), callback=delivery_report)
 
 # Wait for any outstanding messages to be delivered and delivery report
@@ -56,12 +55,15 @@ for data in some_data_source:
 p.flush()
 ```
 
+For additional discussion on the poll based producer API, refer to the
+[Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
+blog post.
 
-**High-level Consumer**
+
+**Consumer**
 
 ```python
 from confluent_kafka import Consumer
-
 
 c = Consumer({
     'bootstrap.servers': 'mybroker',
@@ -85,99 +87,6 @@ while True:
 c.close()
 ```
 
-**AvroProducer**
-
-```python
-from confluent_kafka import avro
-from confluent_kafka.avro import AvroProducer
-
-
-value_schema_str = """
-{
-   "namespace": "my.test",
-   "name": "value",
-   "type": "record",
-   "fields" : [
-     {
-       "name" : "name",
-       "type" : "string"
-     }
-   ]
-}
-"""
-
-key_schema_str = """
-{
-   "namespace": "my.test",
-   "name": "key",
-   "type": "record",
-   "fields" : [
-     {
-       "name" : "name",
-       "type" : "string"
-     }
-   ]
-}
-"""
-
-value_schema = avro.loads(value_schema_str)
-key_schema = avro.loads(key_schema_str)
-value = {"name": "Value"}
-key = {"name": "Key"}
-
-
-def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
-    if err is not None:
-        print('Message delivery failed: {}'.format(err))
-    else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
-
-
-avroProducer = AvroProducer({
-    'bootstrap.servers': 'mybroker,mybroker2',
-    'on_delivery': delivery_report,
-    'schema.registry.url': 'http://schema_registry_host:port'
-    }, default_key_schema=key_schema, default_value_schema=value_schema)
-
-avroProducer.produce(topic='my_topic', value=value, key=key)
-avroProducer.flush()
-```
-
-**AvroConsumer**
-
-```python
-from confluent_kafka.avro import AvroConsumer
-from confluent_kafka.avro.serializer import SerializerError
-
-
-c = AvroConsumer({
-    'bootstrap.servers': 'mybroker,mybroker2',
-    'group.id': 'groupid',
-    'schema.registry.url': 'http://127.0.0.1:8081'})
-
-c.subscribe(['my_topic'])
-
-while True:
-    try:
-        msg = c.poll(10)
-
-    except SerializerError as e:
-        print("Message deserialization failed for {}: {}".format(msg, e))
-        break
-
-    if msg is None:
-        continue
-
-    if msg.error():
-        print("AvroConsumer error: {}".format(msg.error()))
-        continue
-
-    print(msg.value())
-
-c.close()
-```
 
 **AdminClient**
 
@@ -205,7 +114,6 @@ for topic, f in fs.items():
 ```
 
 
-
 Thread Safety
 -------------
 
@@ -224,10 +132,6 @@ Install
           its dependencies using the repositories below and then build
           confluent-kafka using the instructions in the
           "Install from source" section below.
-
-**Install AvroProducer and AvroConsumer**
-
-    $ pip install "confluent-kafka[avro]"
 
 **Install from source**
 
@@ -277,7 +181,6 @@ Python package. To use certifi, add an `import certifi` line and configure the
 client's CA location with `'ssl.ca.location': certifi.where()`.
 
 
-
 License
 =======
 
@@ -287,10 +190,12 @@ KAFKA is a registered trademark of The Apache Software Foundation and has been l
 by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
 The Apache Software Foundation.
 
+
 Developer Notes
 ===============
 
 Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
+
 
 Confluent Cloud
 ===============
