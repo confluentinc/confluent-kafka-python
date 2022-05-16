@@ -45,7 +45,7 @@ class _ContextStringIO(BytesIO):
 
 class JSONSerializer(Serializer):
     """
-    Serializer that produces JSON formatted data with Confluent Schema Registry framing.
+    Serializer that outputs JSON formatted data with Confluent Schema Registry framing.
 
     Configuration properties:
 
