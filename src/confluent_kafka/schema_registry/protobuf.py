@@ -585,7 +585,8 @@ class ProtobufDeserializer(object):
             Message: Protobuf Message instance.
 
         Raises:
-            SerializerError: If payload and expected Message type differ.
+            SerializerError: If there was an error reading the Confluent framing
+                data, or parsing the protobuf serialized message.
         """
 
         if value is None:
