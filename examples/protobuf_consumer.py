@@ -68,8 +68,8 @@ def main(args):
                       "\tfavorite_number: {}\n"
                       "\tfavorite_color: {}\n"
                       .format(msg.key(), user.name,
-                              user.favorite_color,
-                              user.favorite_number))
+                              user.favorite_number,
+                              user.favorite_color))
         except KeyboardInterrupt:
             break
 
