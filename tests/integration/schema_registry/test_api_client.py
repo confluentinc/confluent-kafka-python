@@ -21,6 +21,22 @@ import pytest
 
 from confluent_kafka.schema_registry import Schema
 from confluent_kafka.schema_registry.error import SchemaRegistryError
+from tests.integration.conftest import kafka_cluster_fixture
+
+
+@pytest.fixture(scope="module")
+def kafka_cluster_cp_7_0_1():
+    """
+    Returns a Trivup cluster with CP version 7.0.1.
+    SR version 7.0.1 is the last returning 500 instead of 422
+    for the invalid schema passed to test_api_get_register_schema_invalid
+    """
+    for fixture in kafka_cluster_fixture(
+        brokers_env="BROKERS_7_0_1",
+        sr_url_env="SR_URL_7_0_1",
+        trivup_cluster_conf={'cp_version': '7.0.1'}
+    ):
+        yield fixture
 
 
 def _subject_name(prefix):
@@ -157,15 +173,28 @@ def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     assert e.value.error_code == 40401
 
 
-def test_api_get_register_schema_invalid(kafka_cluster, load_file):
+@pytest.mark.parametrize("kafka_cluster_name, http_status_code, error_code", [
+    ["kafka_cluster_cp_7_0_1", 500, 500],
+    ["kafka_cluster", 422, 42201],
+])
+def test_api_get_register_schema_invalid(
+        kafka_cluster_name,
+        http_status_code,
+        error_code,
+        load_file,
+        request):
     """
     Attempts to obtain registration information with an invalid schema
+    with different CP versions.
 
     Args:
-        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+        kafka_cluster_name (str): name of the Kafka Cluster fixture to use
+        http_status_code (int): HTTP status return code expected in this version
+        error_code (int): error code expected in this version
         load_file (callable(str)): Schema fixture constructor
-
+        request (FixtureRequest): PyTest object giving access to the test context
     """
+    kafka_cluster = request.getfixturevalue(kafka_cluster_name)
     sr = kafka_cluster.schema_registry()
     subject = _subject_name("registration_invalid_schema")
     schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
@@ -177,8 +206,8 @@ def test_api_get_register_schema_invalid(kafka_cluster, load_file):
     with pytest.raises(SchemaRegistryError, match="Invalid schema") as e:
         sr.lookup_schema(subject, schema2)
 
-    assert e.value.http_status_code == 422
-    assert e.value.error_code == 42201
+    assert e.value.http_status_code == http_status_code
+    assert e.value.error_code == error_code
 
 
 def test_api_get_subjects(kafka_cluster, load_file):
