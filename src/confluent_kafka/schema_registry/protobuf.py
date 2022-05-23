@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2020 Confluent Inc.
+# Copyright 2020-2022 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 import io
 import sys
 import base64
@@ -32,35 +32,33 @@ from .schema_registry_client import (Schema,
                                      SchemaReference)
 from confluent_kafka.serialization import SerializationError
 
-# Converts an int to bytes (opposite of ord)
+
+# Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
 # Python2.chr() -> str(alias for bytes)
 if sys.version > '3':
-    def _bytes(b):
+    def _bytes(v):
         """
         Convert int to bytes
 
         Args:
-            b (int): int to format as bytes.
-
+            v (int): The int to convert to bytes.
         """
-        return bytes((b,))
+        return bytes((v,))
 else:
-    def _bytes(b):
+    def _bytes(v):
         """
         Convert int to bytes
 
         Args:
-            b (int): int to format as bytes.
-
+            v (int): The int to convert to bytes.
         """
-        return chr(b)
+        return chr(v)
 
 
 class _ContextStringIO(io.BytesIO):
     """
     Wrapper to allow use of StringIO via 'with' constructs.
-
     """
 
     def __enter__(self):
@@ -71,24 +69,26 @@ class _ContextStringIO(io.BytesIO):
         return False
 
 
-def _create_msg_index(msg_desc):
+def _create_index_array(msg_desc):
     """
-    Maps the location of msg_desc within a FileDescriptor.
+    Creates an index array specifying the location of msg_desc in
+    the referenced FileDescriptor.
 
     Args:
         msg_desc (MessageDescriptor): Protobuf MessageDescriptor
 
     Returns:
-        [int]: Protobuf MessageDescriptor index
+        list of int: Protobuf MessageDescriptor index array.
 
     Raises:
         ValueError: If the message descriptor is malformed.
-
     """
+
     msg_idx = deque()
+
+    # Walk the nested MessageDescriptor tree up to the root.
     current = msg_desc
     found = False
-    # Traverse tree upwardly it's root
     while current.containing_type is not None:
         previous = current
         current = previous.containing_type
@@ -101,8 +101,8 @@ def _create_msg_index(msg_desc):
         if not found:
             raise ValueError("Nested MessageDescriptor not found")
 
+    # Add the index of the root MessageDescriptor in the FileDescriptor.
     found = False
-    # find root's position in protofile
     for idx, msg_type_name in enumerate(msg_desc.file.message_types_by_name):
         if msg_type_name == current.name:
             msg_idx.appendleft(idx)
@@ -114,55 +114,69 @@ def _create_msg_index(msg_desc):
     return list(msg_idx)
 
 
-def _schema_to_str(proto_file):
+def _schema_to_str(file_descriptor):
     """
-    Base64 encodes a FileDescriptor
+    Base64 encode a FileDescriptor
 
     Args:
-        proto_file (FileDescriptor): FileDescriptor to encode.
+        file_descriptor (FileDescriptor): FileDescriptor to encode.
 
     Returns:
         str: Base64 encoded FileDescriptor
-
     """
-    return base64.standard_b64encode(proto_file.serialized_pb).decode('ascii')
+
+    return base64.standard_b64encode(file_descriptor.serialized_pb).decode('ascii')
 
 
 class ProtobufSerializer(object):
     """
-    ProtobufSerializer serializes objects in the Confluent Schema Registry
-    binary format for Protobuf.
+    Serializer for Protobuf Message derived classes. Serialization format is Protobuf,
+    with Confluent Schema Registry framing.
 
-    ProtobufSerializer configuration properties:
+    Configuration properties:
 
     +-------------------------------------+----------+------------------------------------------------------+
     | Property Name                       | Type     | Description                                          |
     +=====================================+==========+======================================================+
-    |                                     |          | Registers schemas automatically if not               |
-    | ``auto.register.schemas``           | bool     | previously associated with a particular subject.     |
+    |                                     |          | If True, automatically register the configured       |
+    | ``auto.register.schemas``           | bool     | schema with Confluent Schema Registry if it has      |
+    |                                     |          | not previously been associated with the relevant     |
+    |                                     |          | subject (determined via subject.name.strategy).      |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to True.                                    |
+    |                                     |          |                                                      |
+    |                                     |          | Raises SchemaRegistryError if the schema was not     |
+    |                                     |          | registered against the subject, or could not be      |
+    |                                     |          | successfully registered.                             |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
+    |                                     |          |                                                      |
     |                                     |          | WARNING: There is no check that the latest           |
     |                                     |          | schema is backwards compatible with the object       |
     |                                     |          | being serialized.                                    |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
-    |                                     |          | Whether to skip known types when resolving schema    |
-    | ``skip.known.types``                | bool     | dependencies.                                        |
+    |                                     |          | Whether or not to skip known types when resolving    |
+    | ``skip.known.types``                | bool     | schema dependencies.                                 |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
-    | ``subject.name.strategy``           | callable | Instructs the ProtobufSerializer on how to construct |
-    |                                     |          | Schema Registry subject names.                       |
+    | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
+    |                                     |          | constructed. Standard naming strategies are          |
+    |                                     |          | defined in the confluent_kafka.schema_registry       |
+    |                                     |          | namespace.                                           |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to topic_subject_name_strategy.             |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
-    | ``reference.subject.name.strategy`` | callable | Instructs the ProtobufSerializer on how to construct |
-    |                                     |          | Schema Registry subject names for Schema References  |
+    | ``reference.subject.name.strategy`` | callable | Defines how Schema Registry subject names for schema |
+    |                                     |          | references are constructed.                          |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to reference_subject_name_strategy          |
     +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
@@ -172,14 +186,16 @@ class ProtobufSerializer(object):
     |                                     |          | If the consumers of the topic being produced to are  |
     |                                     |          | using confluent-kafka-python <1.8 then this property |
     |                                     |          | must be set to True until all old consumers have     |
-    |                                     |          | have been upgraded.                                 |
+    |                                     |          | have been upgraded.                                  |
+    |                                     |          |                                                      |
     |                                     |          | Warning: This configuration property will be removed |
     |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
 
-    Schemas are registered to namespaces known as Subjects which define how a
-    schema may evolve over time. By default the subject name is formed by
-    concatenating the topic name with the message field separated by a hyphen.
+    Schemas are registered against subject names in Confluent Schema Registry that
+    define a scope in which the schemas can be evolved. By default, the subject name
+    is formed by concatenating the topic name with the message field (key or value)
+    separated by a hyphen.
 
     i.e. {topic name}-{message field}
 
@@ -210,14 +226,14 @@ class ProtobufSerializer(object):
 
     See Also:
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
-
     """  # noqa: E501
+
     __slots__ = ['_auto_register', '_use_latest_version', '_skip_known_types',
                  '_registry', '_known_subjects',
-                 '_msg_class', '_msg_index', '_schema', '_schema_id',
+                 '_msg_class', '_index_array', '_schema', '_schema_id',
                  '_ref_reference_subject_func', '_subject_name_func',
                  '_use_deprecated_format']
-    # default configuration
+
     _default_conf = {
         'auto.register.schemas': True,
         'use.latest.version': False,
@@ -236,7 +252,6 @@ class ProtobufSerializer(object):
                 "with older confluent-kafka-python Protobuf producers and consumers. "
                 "See the release notes for more details")
 
-        # handle configuration
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -283,12 +298,11 @@ class ProtobufSerializer(object):
 
         self._registry = schema_registry_client
         self._schema_id = None
-        # Avoid calling registry if schema is known to be registered
         self._known_subjects = set()
         self._msg_class = msg_type
 
         descriptor = msg_type.DESCRIPTOR
-        self._msg_index = _create_msg_index(descriptor)
+        self._index_array = _create_index_array(descriptor)
         self._schema = Schema(_schema_to_str(descriptor.file),
                               schema_type='PROTOBUF')
 
@@ -320,7 +334,6 @@ class ProtobufSerializer(object):
             buf (BytesIO): buffer to write to.
             ints ([int]): ints to be encoded.
             zigzag (bool): whether to encode in zigzag or uvarint encoding
-
         """
 
         assert len(ints) > 0
@@ -342,8 +355,8 @@ class ProtobufSerializer(object):
             ctx (SerializationContext): Serialization context.
 
             file_desc (FileDescriptor): file descriptor to traverse.
-
         """
+
         schema_refs = []
         for dep in file_desc.dependencies:
             if self._skip_known_types and dep.name.startswith("google/protobuf/"):
@@ -363,36 +376,34 @@ class ProtobufSerializer(object):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message_type, ctx):
+    def __call__(self, message, ctx):
         """
-        Serializes a Protobuf Message to the Confluent Schema Registry
-        Protobuf binary format.
+        Serializes an instance of a class derived from Protobuf Message, and prepends
+        it with Confluent Schema Registry framing.
 
         Args:
-            message_type (Message): Protobuf message instance.
+            message (Message): An instance of a class derived from Protobuf Message.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization.
                 operation.
 
-        Note:
-            None objects are represented as Kafka Null.
-
         Raises:
-            SerializerError if any error occurs serializing obj
+            SerializerError if any error occurs during serialization.
 
         Returns:
-            bytes: Confluent Schema Registry formatted Protobuf bytes
-
+            None if messages is None, else a byte array containing the Protobuf
+            serialized message with Confluent Schema Registry framing.
         """
-        if message_type is None:
+
+        if message is None:
             return None
 
-        if not isinstance(message_type, self._msg_class):
+        if not isinstance(message, self._msg_class):
             raise ValueError("message must be of type {} not {}"
-                             .format(self._msg_class, type(message_type)))
+                             .format(self._msg_class, type(message)))
 
         subject = self._subject_name_func(ctx,
-                                          message_type.DESCRIPTOR.full_name)
+                                          message.DESCRIPTOR.full_name)
 
         if subject not in self._known_subjects:
             if self._use_latest_version:
@@ -401,7 +412,7 @@ class ProtobufSerializer(object):
 
             else:
                 self._schema.references = self._resolve_dependencies(
-                    ctx, message_type.DESCRIPTOR.file)
+                    ctx, message.DESCRIPTOR.file)
 
                 if self._auto_register:
                     self._schema_id = self._registry.register_schema(subject,
@@ -416,21 +427,21 @@ class ProtobufSerializer(object):
             # Write the magic byte and schema ID in network byte order
             # (big endian)
             fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
-            # write the record index to the buffer
-            self._encode_varints(fo, self._msg_index,
+            # write the index array that specifies the message descriptor
+            # of the serialized data.
+            self._encode_varints(fo, self._index_array,
                                  zigzag=not self._use_deprecated_format)
-            # write the record itself
-            fo.write(message_type.SerializeToString())
+            # write the serialized data itself
+            fo.write(message.SerializeToString())
             return fo.getvalue()
 
 
 class ProtobufDeserializer(object):
     """
-    ProtobufDeserializer decodes bytes written in the Schema Registry
-    Protobuf format to an object.
+    Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
 
     Args:
-        message_type (GeneratedProtocolMessageType): Protobuf Message type.
+        message_type (Message derived type): Protobuf Message type.
         conf (dict): Configuration dictionary.
 
     ProtobufDeserializer configuration properties:
@@ -453,11 +464,10 @@ class ProtobufDeserializer(object):
 
     See Also:
     `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
-
     """
-    __slots__ = ['_msg_class', '_msg_index', '_use_deprecated_format']
 
-    # default configuration
+    __slots__ = ['_msg_class', '_index_array', '_use_deprecated_format']
+
     _default_conf = {
         'use.deprecated.format': False,
     }
@@ -474,7 +484,6 @@ class ProtobufDeserializer(object):
                 "with older confluent-kafka-python Protobuf producers and consumers. "
                 "See the release notes for more details")
 
-        # handle configuration
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -493,7 +502,7 @@ class ProtobufDeserializer(object):
                           "soon as possible")
 
         descriptor = message_type.DESCRIPTOR
-        self._msg_index = _create_msg_index(descriptor)
+        self._index_array = _create_index_array(descriptor)
         self._msg_class = MessageFactory().GetPrototype(descriptor)
 
     @staticmethod
@@ -510,8 +519,8 @@ class ProtobufDeserializer(object):
 
         Raises:
             EOFError: if buffer is empty
-
         """
+
         value = 0
         shift = 0
         try:
@@ -534,31 +543,33 @@ class ProtobufDeserializer(object):
     @staticmethod
     def _read_byte(buf):
         """
-        Returns int representation for a byte.
+        Read one byte from buf as an int.
 
         Args:
-            buf (BytesIO): buffer to read from
+            buf (BytesIO): The buffer to read from.
 
         .. _ord:
             https://docs.python.org/2/library/functions.html#ord
         """
+
         i = buf.read(1)
         if i == b'':
             raise EOFError("Unexpected EOF encountered")
         return ord(i)
 
     @staticmethod
-    def _decode_index(buf, zigzag=True):
+    def _read_index_array(buf, zigzag=True):
         """
-        Extracts message index from Schema Registry Protobuf formatted bytes.
+        Read an index array from buf that specifies the message
+        descriptor of interest in the file descriptor.
 
         Args:
-            buf (BytesIO): byte buffer
+            buf (BytesIO): The buffer to read from.
 
         Returns:
-            int: Protobuf Message index.
-
+            list of int: The index array.
         """
+
         size = ProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
         if size < 0 or size > 100000:
             raise DecodeError("Invalid Protobuf msgidx array length")
@@ -573,43 +584,45 @@ class ProtobufDeserializer(object):
 
         return msg_index
 
-    def __call__(self, value, ctx):
+    def __call__(self, data, ctx):
         """
-        Deserializes Schema Registry formatted Protobuf to Protobuf Message.
+        Deserialize a serialized protobuf message with Confluent Schema Registry
+        framing.
 
         Args:
-            value (bytes): Confluent Schema Registry formatted Protobuf bytes.
+            data (bytes): Serialized protobuf message with Confluent Schema
+                           Registry framing.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization
                 operation.
 
         Returns:
             Message: Protobuf Message instance.
 
         Raises:
-            SerializerError: If response payload and expected Message type
-            differ.
-
+            SerializerError: If there was an error reading the Confluent framing
+                data, or parsing the protobuf serialized message.
         """
-        if value is None:
+
+        if data is None:
             return None
 
         # SR wire protocol + msg_index length
-        if len(value) < 6:
-            raise SerializationError("Message too small. This message was not"
-                                     " produced with a Confluent"
-                                     " Schema Registry serializer")
+        if len(data) < 6:
+            raise SerializationError("Expecting data framing of length 6 bytes or "
+                                     "more but total data size is {} bytes. This "
+                                     "message was not produced with a Confluent "
+                                     "Schema Registry serializer".format(len(data)))
 
-        with _ContextStringIO(value) as payload:
+        with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was"
-                                         " not produced with a Confluent"
-                                         " Schema Registry serializer")
+                raise SerializationError("Unknown magic byte. This message was "
+                                         "not produced with a Confluent "
+                                         "Schema Registry serializer")
 
             # Protobuf Messages are self-describing; no need to query schema
-            # Move the reader cursor past the index
-            _ = self._decode_index(payload, zigzag=not self._use_deprecated_format)
+            _ = self._read_index_array(payload, zigzag=not self._use_deprecated_format)
             msg = self._msg_class()
             try:
                 msg.ParseFromString(payload.read())
