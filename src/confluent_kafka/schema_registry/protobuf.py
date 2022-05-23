@@ -138,31 +138,45 @@ class ProtobufSerializer(object):
     +-------------------------------------+----------+------------------------------------------------------+
     | Property Name                       | Type     | Description                                          |
     +=====================================+==========+======================================================+
-    |                                     |          | If True, automatically register unrecognized schemas |
-    | ``auto.register.schemas``           | bool     | with Confluent Schema Registry.                      |
+    |                                     |          | If True, automatically register the configured       |
+    | ``auto.register.schemas``           | bool     | schema with Confluent Schema Registry if it has      |
+    |                                     |          | not previously been associated with the relevant     |
+    |                                     |          | subject (determined via subject.name.strategy).      |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to True.                                    |
+    |                                     |          |                                                      |
+    |                                     |          | Raises SchemaRegistryError if the schema was not     |
+    |                                     |          | registered against the subject, or could not be      |
+    |                                     |          | successfully registered.                             |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
+    |                                     |          |                                                      |
     |                                     |          | WARNING: There is no check that the latest           |
     |                                     |          | schema is backwards compatible with the object       |
     |                                     |          | being serialized.                                    |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether or not to skip known types when resolving    |
     | ``skip.known.types``                | bool     | schema dependencies.                                 |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``subject.name.strategy``           | callable | Defines how Schema Registry subject names are        |
-    |                                     |          | constructed.                                         |
+    |                                     |          | constructed. Standard naming strategies are          |
+    |                                     |          | defined in the confluent_kafka.schema_registry       |
+    |                                     |          | namespace.                                           |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to topic_subject_name_strategy.             |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
     | ``reference.subject.name.strategy`` | callable | Defines how Schema Registry subject names for schema |
     |                                     |          | references are constructed.                          |
+    |                                     |          |                                                      |
     |                                     |          | Defaults to reference_subject_name_strategy          |
     +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
@@ -172,15 +186,16 @@ class ProtobufSerializer(object):
     |                                     |          | If the consumers of the topic being produced to are  |
     |                                     |          | using confluent-kafka-python <1.8 then this property |
     |                                     |          | must be set to True until all old consumers have     |
-    |                                     |          | have been upgraded.                                 |
+    |                                     |          | have been upgraded.                                  |
+    |                                     |          |                                                      |
     |                                     |          | Warning: This configuration property will be removed |
     |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
 
-    Schemas are registered against subject names in Confluent Schema Registry
-    that define a scope in which the schemas can be evolved. By default, the subject
-    name is formed by concatenating the topic name with the message field separated
-    by a hyphen.
+    Schemas are registered against subject names in Confluent Schema Registry that
+    define a scope in which the schemas can be evolved. By default, the subject name
+    is formed by concatenating the topic name with the message field (key or value)
+    separated by a hyphen.
 
     i.e. {topic name}-{message field}
 
@@ -369,7 +384,7 @@ class ProtobufSerializer(object):
         Args:
             message (Message): An instance of a class derived from Protobuf Message.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization.
                 operation.
 
         Raises:
@@ -569,16 +584,16 @@ class ProtobufDeserializer(object):
 
         return msg_index
 
-    def __call__(self, value, ctx):
+    def __call__(self, data, ctx):
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
 
         Args:
-            value (bytes): Serialized protobuf message with Confluent Schema
+            data (bytes): Serialized protobuf message with Confluent Schema
                            Registry framing.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization
                 operation.
 
         Returns:
@@ -589,17 +604,17 @@ class ProtobufDeserializer(object):
                 data, or parsing the protobuf serialized message.
         """
 
-        if value is None:
+        if data is None:
             return None
 
         # SR wire protocol + msg_index length
-        if len(value) < 6:
+        if len(data) < 6:
             raise SerializationError("Expecting data framing of length 6 bytes or "
                                      "more but total data size is {} bytes. This "
                                      "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(value)))
+                                     "Schema Registry serializer".format(len(data)))
 
-        with _ContextStringIO(value) as payload:
+        with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
                 raise SerializationError("Unknown magic byte. This message was "
