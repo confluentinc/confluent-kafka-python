@@ -45,35 +45,47 @@ class _ContextStringIO(BytesIO):
 
 class JSONSerializer(Serializer):
     """
-    Serializer that outputs JSON formatted data with Confluent Schema Registry framing.
+    Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
 
     Configuration properties:
 
-    +---------------------------+----------+--------------------------------------------------+
-    | Property Name             | Type     | Description                                      |
-    +===========================+==========+==================================================+
-    |                           |          | If True, automatically register unrecognized     |
-    | ``auto.register.schemas`` | bool     | schemas with Confluent Schema Registry.          |
-    |                           |          | Defaults to True.                                |
-    +---------------------------+----------+--------------------------------------------------+
-    |                           |          | Whether to use the latest subject version for    |
-    | ``use.latest.version``    | bool     | serialization.                                   |
-    |                           |          | WARNING: There is no check that the latest       |
-    |                           |          | schema is backwards compatible with the object   |
-    |                           |          | being serialized.                                |
-    |                           |          | Defaults to False.                               |
-    +-------------------------------------+----------+----------------------------------------+
-    |                           |          | Callable(SerializationContext, str) -> str       |
-    |                           |          |                                                  |
-    | ``subject.name.strategy`` | callable | Defines how Schema Registry subject names are    |
-    |                           |          | constructed.                                     |
-    |                           |          | Defaults to topic_subject_name_strategy.         |
-    +---------------------------+----------+--------------------------------------------------+
+    +---------------------------+----------+----------------------------------------------------+
+    | Property Name             | Type     | Description                                        |
+    +===========================+==========+====================================================+
+    |                           |          | If True, automatically register the configured     |
+    | ``auto.register.schemas`` | bool     | schema with Confluent Schema Registry if it has    |
+    |                           |          | not previously been associated with the relevant   |
+    |                           |          | subject (determined via subject.name.strategy).    |
+    |                           |          |                                                    |
+    |                           |          | Defaults to True.                                  |
+    |                           |          |                                                    |
+    |                           |          | Raises SchemaRegistryError if the schema was not   |
+    |                           |          | registered against the subject, or could not be    |
+    |                           |          | successfully registered.                           |
+    +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Whether to use the latest subject version for      |
+    | ``use.latest.version``    | bool     | serialization.                                     |
+    |                           |          |                                                    |
+    |                           |          | WARNING: There is no check that the latest         |
+    |                           |          | schema is backwards compatible with the object     |
+    |                           |          | being serialized.                                  |
+    |                           |          |                                                    |
+    |                           |          | Defaults to False.                                 |
+    +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Callable(SerializationContext, str) -> str         |
+    |                           |          |                                                    |
+    | ``subject.name.strategy`` | callable | Defines how Schema Registry subject names are      |
+    |                           |          | constructed. Standard naming strategies are        |
+    |                           |          | defined in the confluent_kafka.schema_registry     |
+    |                           |          | namespace.                                         |
+    |                           |          |                                                    |
+    |                           |          | Defaults to topic_subject_name_strategy.           |
+    +---------------------------+----------+----------------------------------------------------+
 
-    Schemas are registered against subject names in Confluent Schema Registry
-    that define a scope in which the schemas can be evolved. By default, the subject
-    name is formed by concatenating the topic name with the message field separated
-    by a hyphen.
+    Schemas are registered against subject names in Confluent Schema Registry that
+    define a scope in which the schemas can be evolved. By default, the subject name
+    is formed by concatenating the topic name with the message field (key or value)
+    separated by a hyphen.
 
     i.e. {topic name}-{message field}
 
@@ -100,8 +112,8 @@ class JSONSerializer(Serializer):
         however required by this serializer in order to register the schema
         with Confluent Schema Registry.
 
-        Prior to serialization, all values must first be converted to
-        a dict instance. This may handled manually prior to calling
+        Prior to serialization, all objects must first be converted to
+        a dict instance. This may be handled manually prior to calling
         :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
         callable with JSONSerializer.
 
@@ -175,7 +187,7 @@ class JSONSerializer(Serializer):
         Args:
             obj (object): The object instance to serialize.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization
                 operation.
 
         Raises:
@@ -253,34 +265,34 @@ class JSONDeserializer(Deserializer):
 
         self._from_dict = from_dict
 
-    def __call__(self, value, ctx):
+    def __call__(self, data, ctx):
         """
-        Deserialize a JSON formatted record with Confluent Schema Registry framing to
-        a dict, or object instance according to from_dict, if from_dict is specified.
+        Deserialize a JSON encoded record with Confluent Schema Registry framing to
+        a dict, or object instance according to from_dict if from_dict is specified.
 
         Args:
-            value (bytes): A JSON serialized record with Confluent Schema Regsitry framing.
+            data (bytes): A JSON serialized record with Confluent Schema Regsitry framing.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization operation.
+            ctx (SerializationContext): Metadata relevant to the serialization operation.
 
         Returns:
-            A dict, or object instance according to from_dict, if from_dict is specified.
+            A dict, or object instance according to from_dict if from_dict is specified.
 
         Raises:
-            SerializerError: If there was an error reading the Confluent framing data, or if
-               ``value`` was not validated by the configured schema.
+            SerializerError: If there was an error reading the Confluent framing data, or
+               if ``data`` was not successfully validated with the configured schema.
         """
 
-        if value is None:
+        if data is None:
             return None
 
-        if len(value) <= 5:
+        if len(data) <= 5:
             raise SerializationError("Expecting data framing of length 6 bytes or "
                                      "more but total data size is {} bytes. This "
                                      "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(value)))
+                                     "Schema Registry serializer".format(len(data)))
 
-        with _ContextStringIO(value) as payload:
+        with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
                 raise SerializationError("Unexpected magic byte {}. This message "
