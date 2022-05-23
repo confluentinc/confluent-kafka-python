@@ -191,7 +191,7 @@ class JSONSerializer(Serializer):
                 operation.
 
         Raises:
-            SerializerError if any error occurs serializing obj
+            SerializerError if any error occurs serializing obj.
 
         Returns:
             bytes: None if obj is None, else a byte array containing the JSON
