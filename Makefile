@@ -12,3 +12,12 @@ clean:
 
 docs:
 	$(MAKE) -C docs html
+
+lint:
+	flake8 .
+	black --check .
+	isort . --check
+
+lint-fix:
+	black .
+	isort .
