@@ -1,7 +1,7 @@
 {
     "VerifiableConsumer":
     {"class": "kafkatest.services.verifiable_client.VerifiableClientApp",
-     "exec_cmd": "python -m confluent_kafka.kafkatest.verifiable_consumer -X debug=all",
+     "exec_cmd": "python -m confluent_kafka.kafkatest.verifiable_consumer -X debug=all --session-timeout=20000",
      "deploy": "mkdir -p /mnt/verifiable_consumer && /vagrant/tests/confluent-kafka-python/deploy.sh >> /mnt/verifiable_consumer/verifiable_consumer.stderr 2>&1",
      "kill_signal": 2,
      "debug": "all",
