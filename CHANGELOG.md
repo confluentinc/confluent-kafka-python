@@ -2,6 +2,7 @@
 
 ## v1.9.0
 
+
 This is a feature release:
 
  - OAUTHBEARER OIDC support
