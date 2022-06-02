@@ -19,13 +19,22 @@
 # Example Admin clients.
 #
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
+                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
+                                   AclOperation, AclPermissionType)
 from confluent_kafka import KafkaException
 import sys
 import threading
 import logging
 
 logging.basicConfig()
+
+
+def parse_nullable_string(s):
+    if s == "None":
+        return None
+    else:
+        return s
 
 
 def example_create_topics(a, topics):
@@ -113,6 +122,133 @@ def example_describe_configs(a, args):
 
         except KafkaException as e:
             print("Failed to describe {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_create_acls(a, args):
+    """ create acls """
+
+    acl_bindings = [
+        AclBinding(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    fs = a.create_acls(acl_bindings, request_timeout=10)
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            result = f.result()
+            if result is None:
+                print("Created {}".format(res))
+
+        except KafkaException as e:
+            print("Failed to create ACL {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_describe_acls(a, args):
+    """ describe acls """
+
+    acl_binding_filters = [
+        AclBindingFilter(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    fs = [
+        a.describe_acls(acl_binding_filter, request_timeout=10)
+        for acl_binding_filter in acl_binding_filters
+    ]
+    # Wait for operations to finish.
+    for acl_binding_filter, f in zip(acl_binding_filters, fs):
+        try:
+            print("Acls matching filter: {}".format(acl_binding_filter))
+            acl_bindings = f.result()
+            for acl_binding in acl_bindings:
+                print(acl_binding)
+
+        except KafkaException as e:
+            print("Failed to describe {}: {}".format(acl_binding_filter, e))
+        except Exception:
+            raise
+
+
+def example_delete_acls(a, args):
+    """ delete acls """
+
+    acl_binding_filters = [
+        AclBindingFilter(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    fs = a.delete_acls(acl_binding_filters, request_timeout=10)
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            acl_bindings = f.result()
+            print("Deleted acls matching filter: {}".format(res))
+            for acl_binding in acl_bindings:
+                print(" ", acl_binding)
+
+        except KafkaException as e:
+            print("Failed to delete {}: {}".format(res, e))
         except Exception:
             raise
 
@@ -300,6 +436,12 @@ if __name__ == '__main__':
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
+        sys.stderr.write(' describe_acls <resource_type1 <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
+        sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
         sys.exit(1)
 
@@ -316,6 +458,9 @@ if __name__ == '__main__':
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
+              'create_acls': example_create_acls,
+              'describe_acls': example_describe_acls,
+              'delete_acls': example_delete_acls,
               'list': example_list}
 
     if operation not in opsmap:

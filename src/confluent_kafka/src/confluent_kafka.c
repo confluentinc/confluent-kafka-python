@@ -2255,7 +2255,7 @@ int cfl_PyObject_SetInt (PyObject *o, const char *name, int val) {
  */
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
                           PyObject **valp, const PyTypeObject *py_type,
-                          int required) {
+                          int required, int allow_None) {
         PyObject *o;
 
         o = PyObject_GetAttrString(object, attr_name);
@@ -2270,7 +2270,7 @@ int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
                 return 0;
         }
 
-        if (py_type && Py_TYPE(o) != py_type) {
+        if (!(allow_None && o == Py_None) && py_type && Py_TYPE(o) != py_type) {
                 Py_DECREF(o);
                 PyErr_Format(PyExc_TypeError,
                              "Expected .%s to be %s type, not %s",
@@ -2301,7 +2301,7 @@ int cfl_PyObject_GetInt (PyObject *object, const char *attr_name, int *valp,
 #else
                                   &PyInt_Type,
 #endif
-                                  required))
+                                  required, 0))
                 return 0;
 
         if (!o) {
@@ -2337,17 +2337,17 @@ int cfl_PyBool_get (PyObject *object, const char *name, int *valp) {
         return 1;
 }
 
-
 /**
  * @brief Get attribute \p attr_name from \p object and make sure it is
- *        a string type.
+ *        a string type or None if \p allow_None is 1
  *
  * @returns 1 if \p valp was updated with a newly allocated copy of either the
- *          object value (UTF8), or \p defval.
+ *          object value (UTF8), or \p defval or NULL if the attr is None
  *          0 if an exception was raised.
  */
 int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
-                            char **valp, const char *defval, int required) {
+                            char **valp, const char *defval, int required,
+                            int allow_None) {
         PyObject *o, *uo, *uop;
 
         if (!cfl_PyObject_GetAttr(object, attr_name, &o,
@@ -2359,11 +2359,17 @@ int cfl_PyObject_GetString (PyObject *object, const char *attr_name,
                                    *           proper conversion below. */
                                   NULL,
 #endif
-                                  required))
+                                  required, allow_None))
                 return 0;
 
         if (!o) {
                 *valp = defval ? strdup(defval) : NULL;
+                return 1;
+        }
+
+        if (o == Py_None) {
+                Py_DECREF(o);
+                *valp = NULL;
                 return 1;
         }
 

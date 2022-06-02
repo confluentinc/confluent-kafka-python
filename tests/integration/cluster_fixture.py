@@ -140,7 +140,12 @@ class KafkaClusterFixture(object):
 
         return DeserializingConsumer(consumer_conf)
 
-    def create_topic(self, prefix, conf=None):
+    def admin(self):
+        if self._admin is None:
+            self._admin = AdminClient(self.client_conf())
+        return self._admin
+
+    def create_topic(self, prefix, conf=None, **create_topic_kwargs):
         """
         Creates a new topic with this cluster.
 
@@ -149,12 +154,10 @@ class KafkaClusterFixture(object):
         :returns: The topic's name
         :rtype: str
         """
-        if self._admin is None:
-            self._admin = AdminClient(self.client_conf())
-
         name = prefix + "-" + str(uuid1())
-        future_topic = self._admin.create_topics([NewTopic(name,
-                                                           **self._topic_conf(conf))])
+        future_topic = self.admin().create_topics([NewTopic(name,
+                                                            **self._topic_conf(conf))],
+                                                  **create_topic_kwargs)
 
         future_topic.get(name).result()
         return name
