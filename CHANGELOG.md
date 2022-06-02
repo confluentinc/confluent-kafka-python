@@ -5,6 +5,7 @@
 This is a feature release:
 
  - OAUTHBEARER OIDC support
+ - KIP-140 Admin API ACL support
 
 ### Fixes
 

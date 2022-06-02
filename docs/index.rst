@@ -54,6 +54,15 @@ Supporting classes
     - Admin API
         - :ref:`NewTopic <pyclient_admin_newtopic>`
         - :ref:`NewPartitions <pyclient_admin_newpartitions>`
+        - :ref:`ConfigSource <pythonclient_config_source>`
+        - :ref:`ConfigEntry <pythonclient_config_entry>`
+        - :ref:`ConfigResource <pythonclient_config_resource>`
+        - :ref:`ResourceType <pythonclient_resource_type>`
+        - :ref:`ResourcePatternType <pythonclient_resource_pattern_type>`
+        - :ref:`AclOperation <pythonclient_acl_operation>`
+        - :ref:`AclPermissionType <pythonclient_acl_permission_type>`
+        - :ref:`AclBinding <pythonclient_acl_binding>`
+        - :ref:`AclBindingFilter <pythonclient_acl_binding_filter>`
 
 Guide to the :ref:`Transactional Producer API <pythonclient_transactional>`
 
@@ -87,6 +96,87 @@ NewPartitions
 **************
 
 .. autoclass:: confluent_kafka.admin.NewPartitions
+   :members:
+
+.. _pythonclient_config_source:
+
+**************
+ConfigSource
+**************
+
+.. autoclass:: confluent_kafka.admin.ConfigSource
+   :members:
+
+.. _pythonclient_config_entry:
+
+**************
+ConfigEntry
+**************
+
+.. autoclass:: confluent_kafka.admin.ConfigEntry
+   :members:
+
+.. _pythonclient_config_resource:
+
+**************
+ConfigResource
+**************
+
+.. autoclass:: confluent_kafka.admin.ConfigResource
+   :members:
+
+.. _pythonclient_resource_type:
+
+**************
+ResourceType
+**************
+
+.. autoclass:: confluent_kafka.admin.ResourceType
+   :members:
+
+.. _pythonclient_resource_pattern_type:
+
+**************
+ResourcePatternType
+**************
+
+.. autoclass:: confluent_kafka.admin.ResourcePatternType
+   :members:
+
+.. _pythonclient_acl_operation:
+
+**************
+AclOperation
+**************
+
+.. autoclass:: confluent_kafka.admin.AclOperation
+   :members:
+
+.. _pythonclient_acl_permission_type:
+
+**************
+AclPermissionType
+**************
+
+.. autoclass:: confluent_kafka.admin.AclPermissionType
+   :members:
+
+.. _pythonclient_acl_binding:
+
+**************
+AclBinding
+**************
+
+.. autoclass:: confluent_kafka.admin.AclBinding
+   :members:
+
+.. _pythonclient_acl_binding_filter:
+
+**************
+AclBindingFilter
+**************
+
+.. autoclass:: confluent_kafka.admin.AclBindingFilter
    :members:
 
 .. _pythonclient_consumer:
