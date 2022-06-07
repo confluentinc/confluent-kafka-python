@@ -136,9 +136,9 @@ ResourceType
 
 .. _pythonclient_resource_pattern_type:
 
-**************
+*******************
 ResourcePatternType
-**************
+*******************
 
 .. autoclass:: confluent_kafka.admin.ResourcePatternType
    :members:
@@ -154,9 +154,9 @@ AclOperation
 
 .. _pythonclient_acl_permission_type:
 
-**************
+*****************
 AclPermissionType
-**************
+*****************
 
 .. autoclass:: confluent_kafka.admin.AclPermissionType
    :members:
@@ -172,9 +172,9 @@ AclBinding
 
 .. _pythonclient_acl_binding_filter:
 
-**************
+****************
 AclBindingFilter
-**************
+****************
 
 .. autoclass:: confluent_kafka.admin.AclBindingFilter
    :members:

@@ -395,7 +395,7 @@ class AdminClient (_AdminClientImpl):
         :param AclBindingFilter acl_binding_filter: a filter with attributes that
                   must match.
                   String attributes match exact values or any string if set to None.
-                  Enums attributes match exact values or any value if ending with `_ANY`.
+                  Enums attributes match exact values or any value if equal to `ANY`.
                   If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH` returns all
                   the ACL bindings with :attr:`ResourcePatternType.LITERAL`,
                   :attr:`ResourcePatternType.WILDCARD` or :attr:`ResourcePatternType.PREFIXED` pattern
@@ -426,7 +426,7 @@ class AdminClient (_AdminClientImpl):
         :param list(AclBindingFilter) acl_binding_filters: a list of ACL binding filters
                   to match ACLs to delete.
                   String attributes match exact values or any string if set to None.
-                  Enums attributes match exact values or any value if ending with `_ANY`.
+                  Enums attributes match exact values or any value if equal to `ANY`.
                   If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
                   deletes all the ACL bindings with :attr:`ResourcePatternType.LITERAL`,
                   :attr:`ResourcePatternType.WILDCARD` or :attr:`ResourcePatternType.PREFIXED`
