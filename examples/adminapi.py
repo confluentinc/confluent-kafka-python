@@ -152,7 +152,11 @@ def example_create_acls(a, args):
         )
     ]
 
-    fs = a.create_acls(acl_bindings, request_timeout=10)
+    try:
+        fs = a.create_acls(acl_bindings, request_timeout=10)
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+        return
 
     # Wait for operation to finish.
     for res, f in fs.items():
@@ -237,7 +241,11 @@ def example_delete_acls(a, args):
         )
     ]
 
-    fs = a.delete_acls(acl_binding_filters, request_timeout=10)
+    try:
+        fs = a.delete_acls(acl_binding_filters, request_timeout=10)
+    except ValueError as e:
+        print(f"Invalid input: {e}")
+        return
 
     # Wait for operation to finish.
     for res, f in fs.items():
