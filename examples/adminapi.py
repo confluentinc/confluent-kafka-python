@@ -152,10 +152,15 @@ def example_create_acls(a, args):
         )
     ]
 
+    fs = None
     try:
         fs = a.create_acls(acl_bindings, request_timeout=10)
     except ValueError as e:
         print(f"Invalid input: {e}")
+        return
+
+    if fs is None:
+        print("Unknown error: fs is None")
         return
 
     # Wait for operation to finish.
@@ -241,10 +246,15 @@ def example_delete_acls(a, args):
         )
     ]
 
+    fs = None
     try:
         fs = a.delete_acls(acl_binding_filters, request_timeout=10)
     except ValueError as e:
         print(f"Invalid input: {e}")
+        return
+    
+    if fs is None:
+        print("Unknown error: fs is None")
         return
 
     # Wait for operation to finish.
