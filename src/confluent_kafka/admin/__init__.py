@@ -182,7 +182,7 @@ class AdminClient (_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _has_duplicated(items):
+    def _has_duplicates(items):
         return len(set(items)) != len(items)
 
     def create_topics(self, new_topics, **kwargs):
@@ -384,8 +384,8 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-        if AdminClient._has_duplicated(acls):
-            raise ValueError("pass only different ACL bindings")
+        if AdminClient._has_duplicates(acls):
+            raise ValueError("duplicate ACL bindings not allowed")
 
         f, futmap = AdminClient._make_futures(acls, AclBinding,
                                               AdminClient._make_acls_result)
@@ -450,8 +450,8 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-        if AdminClient._has_duplicated(acl_binding_filters):
-            raise ValueError("pass only different ACL binding filters")
+        if AdminClient._has_duplicates(acl_binding_filters):
+            raise ValueError("duplicate ACL binding filters not allowed")
 
         f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter,
                                               AdminClient._make_acls_result)
