@@ -77,6 +77,17 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
+  - name: "Wheels: Linux Arm64"
+    if: tag is present
+    language: python
+    python: "3.8"
+    arch: arm64
+    services: docker
+    env:
+      - BUILD_WHEELS=1
+      - PLAT=aarch64
+    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
 
 # Install test dependencies unconditionally
 # Travis OSX envs requires some setup; see tools/prepare-osx.sh
@@ -85,8 +96,8 @@ before_install:
   - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
 
 install:
- # Install interceptors
- - tools/install-interceptors.sh
+  # Install interceptors
+ - if [[ $PLAT != "aarch64" ]]; then tools/install-interceptors.sh; fi
  - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  # Install librdkafka and confluent_kafka[avro] if not building wheels

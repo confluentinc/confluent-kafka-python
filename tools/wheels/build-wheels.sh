@@ -32,9 +32,15 @@ case $OSTYPE in
         os=linux
         # Need to set up env vars (in docker) so that setup.py
         # finds librdkafka.
-        lib_dir=dest/runtimes/linux-x64/native
-        export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
-        ;;
+        echo ${PLAT}
+	if [[ ${PLAT} == "aarch64" ]]; then 
+		lib_dir=dest/runtimes/linux-arm64/native
+	else
+
+		lib_dir=dest/runtimes/linux-x64/native
+	fi;
+	export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
+	;;
     darwin*)
         os=macos
         # Need to set up env vars so that setup.py finds librdkafka.
@@ -48,9 +54,7 @@ case $OSTYPE in
         ;;
 esac
 
-
-$this_dir/install-librdkafka.sh $librdkafka_version dest
-
+if [[ ${PLAT} == "aarch64" ]]; then export CIBW_BEFORE_BUILD="tools/wheels/install-librdkafka-arm64.sh $librdkafka_version"; else $this_dir/install-librdkafka.sh $librdkafka_version dest; fi;
 install_pkgs=cibuildwheel==1.11.0
 
 python3 -m pip install $install_pkgs ||
