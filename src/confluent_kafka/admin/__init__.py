@@ -181,6 +181,10 @@ class AdminClient (_AdminClientImpl):
 
         return f, futmap
 
+    @staticmethod
+    def _has_duplicates(items):
+        return len(set(items)) != len(items)
+
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
@@ -365,7 +369,7 @@ class AdminClient (_AdminClientImpl):
         """
         Create one or more ACL bindings.
 
-        :param list(AclBinding) acls: A list of ACL binding specifications (:class:`.AclBinding`)
+        :param list(AclBinding) acls: A list of unique ACL binding specifications (:class:`.AclBinding`)
                          to create.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
@@ -380,6 +384,8 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
+        if AdminClient._has_duplicates(acls):
+            raise ValueError("duplicate ACL bindings not allowed")
 
         f, futmap = AdminClient._make_futures(acls, AclBinding,
                                               AdminClient._make_acls_result)
@@ -395,7 +401,7 @@ class AdminClient (_AdminClientImpl):
         :param AclBindingFilter acl_binding_filter: a filter with attributes that
                   must match.
                   String attributes match exact values or any string if set to None.
-                  Enums attributes match exact values or any value if ending with `_ANY`.
+                  Enums attributes match exact values or any value if equal to `ANY`.
                   If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH` returns all
                   the ACL bindings with :attr:`ResourcePatternType.LITERAL`,
                   :attr:`ResourcePatternType.WILDCARD` or :attr:`ResourcePatternType.PREFIXED` pattern
@@ -423,10 +429,10 @@ class AdminClient (_AdminClientImpl):
         """
         Delete ACL bindings matching one or more ACL binding filters.
 
-        :param list(AclBindingFilter) acl_binding_filters: a list of ACL binding filters
+        :param list(AclBindingFilter) acl_binding_filters: a list of unique ACL binding filters
                   to match ACLs to delete.
                   String attributes match exact values or any string if set to None.
-                  Enums attributes match exact values or any value if ending with `_ANY`.
+                  Enums attributes match exact values or any value if equal to `ANY`.
                   If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
                   deletes all the ACL bindings with :attr:`ResourcePatternType.LITERAL`,
                   :attr:`ResourcePatternType.WILDCARD` or :attr:`ResourcePatternType.PREFIXED`
@@ -444,6 +450,8 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
+        if AdminClient._has_duplicates(acl_binding_filters):
+            raise ValueError("duplicate ACL binding filters not allowed")
 
         f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter,
                                               AdminClient._make_acls_result)

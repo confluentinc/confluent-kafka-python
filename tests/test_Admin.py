@@ -347,6 +347,9 @@ def test_create_acls_api():
     with pytest.raises(ValueError):
         a.create_acls([None, acl_binding1])
 
+    with pytest.raises(ValueError):
+        a.create_acls([acl_binding1, acl_binding1])
+
     fs = a.create_acls([acl_binding1, acl_binding2])
     with pytest.raises(KafkaException):
         for f in fs.values():
@@ -390,6 +393,9 @@ def test_delete_acls_api():
 
     with pytest.raises(ValueError):
         a.delete_acls([None, acl_binding_filter1])
+
+    with pytest.raises(ValueError):
+        a.delete_acls([acl_binding_filter1, acl_binding_filter1])
 
     fs = a.delete_acls([acl_binding_filter1, acl_binding_filter2])
     with pytest.raises(KafkaException):
