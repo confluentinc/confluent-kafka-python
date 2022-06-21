@@ -7,8 +7,8 @@
 this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
-# Skip PyPy, Python2, old Python3 versions, and x86 builds.
-export CIBW_SKIP="pp* cp27-* cp35-* *i686"
+# Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
+export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux*"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
@@ -51,7 +51,7 @@ esac
 
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==1.11.0
+install_pkgs=cibuildwheel==2.7.0
 
 python3 -m pip install $install_pkgs ||
     pip3 install $install_pkgs
