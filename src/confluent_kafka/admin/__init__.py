@@ -402,10 +402,14 @@ class AdminClient (_AdminClientImpl):
                   must match.
                   String attributes match exact values or any string if set to None.
                   Enums attributes match exact values or any value if equal to `ANY`.
-                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH` returns ACL bindings with:
-                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name equal to the given resource name;
-                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name that matches the given resource name; 
-                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name that is a prefix of the given resource name
+                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
+                  returns ACL bindings with:
+                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name equal
+                  to the given resource name;
+                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name
+                  that matches the given resource name;
+                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name
+                  that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -433,10 +437,14 @@ class AdminClient (_AdminClientImpl):
                   to match ACLs to delete.
                   String attributes match exact values or any string if set to None.
                   Enums attributes match exact values or any value if equal to `ANY`.
-                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH` deletes ACL bindings with:
-                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name equal to the given resource name;
-                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name that matches the given resource name; 
-                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name that is a prefix of the given resource name
+                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
+                  deletes ACL bindings with:
+                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name
+                  equal to the given resource name;
+                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name
+                  that matches the given resource name;
+                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name
+                  that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`

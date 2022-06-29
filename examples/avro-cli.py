@@ -16,6 +16,7 @@
 #
 
 import argparse
+import os
 from uuid import uuid4
 
 from six.moves import input
@@ -23,18 +24,9 @@ from six.moves import input
 from confluent_kafka import avro
 
 # Parse Schema used for serializing User class
-record_schema = avro.loads("""
-    {
-        "namespace": "confluent.io.examples.serialization.avro",
-        "name": "User",
-        "type": "record",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "favorite_number", "type": "int"},
-            {"name": "favorite_color", "type": "string"}
-        ]
-    }
-""")
+path = os.path.realpath(os.path.dirname(__file__))
+with open(f"{path}/avro/user_specific.avsc") as f:
+    record_schema = avro.loads(f.read())
 
 
 class User(object):
