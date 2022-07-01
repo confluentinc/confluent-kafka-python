@@ -34,8 +34,8 @@ from uuid import uuid4
 
 from six.moves import input
 
-# Protobuf generated class; resides at ./user_pb2.py
-import user_pb2
+# Protobuf generated class; resides at ./protobuf/user_pb2.py
+import protobuf.user_pb2 as user_pb2
 from confluent_kafka import SerializingProducer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -75,7 +75,7 @@ def main(args):
 
     protobuf_serializer = ProtobufSerializer(user_pb2.User,
                                              schema_registry_client,
-                                             {'use.deprecated.format': True})
+                                             {'use.deprecated.format': False})
 
     producer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'key.serializer': StringSerializer('utf_8'),

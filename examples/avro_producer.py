@@ -20,6 +20,7 @@
 # This is a simple example of the SerializingProducer using Avro.
 #
 import argparse
+import os
 from uuid import uuid4
 
 from six.moves import input
@@ -99,19 +100,17 @@ def delivery_report(err, msg):
 
 def main(args):
     topic = args.topic
+    is_specific = args.specific == "true"
 
-    schema_str = """
-    {
-        "namespace": "confluent.io.examples.serialization.avro",
-        "name": "User",
-        "type": "record",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "favorite_number", "type": "int"},
-            {"name": "favorite_color", "type": "string"}
-        ]
-    }
-    """
+    if is_specific:
+        schema = "user_specific.avsc"
+    else:
+        schema = "user_generic.avsc"
+
+    path = os.path.realpath(os.path.dirname(__file__))
+    with open(f"{path}/avro/{schema}") as f:
+        schema_str = f.read()
+
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
@@ -158,5 +157,7 @@ if __name__ == '__main__':
                         help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_avro",
                         help="Topic name")
+    parser.add_argument('-p', dest="specific", default="true",
+                        help="Avro specific record")
 
     main(parser.parse_args())

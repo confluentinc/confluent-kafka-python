@@ -20,6 +20,7 @@
 # This is a simple example of the SerializingProducer using Avro.
 #
 import argparse
+import os
 
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -66,19 +67,16 @@ def dict_to_user(obj, ctx):
 
 def main(args):
     topic = args.topic
+    is_specific = args.specific == "true"
 
-    schema_str = """
-    {
-        "namespace": "confluent.io.examples.serialization.avro",
-        "name": "User",
-        "type": "record",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "favorite_number", "type": "int"},
-            {"name": "favorite_color", "type": "string"}
-        ]
-    }
-    """
+    if is_specific:
+        schema = "user_specific.avsc"
+    else:
+        schema = "user_generic.avsc"
+
+    path = os.path.realpath(os.path.dirname(__file__))
+    with open(f"{path}/avro/{schema}") as f:
+        schema_str = f.read()
 
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
@@ -110,8 +108,8 @@ def main(args):
                       "\tfavorite_number: {}\n"
                       "\tfavorite_color: {}\n"
                       .format(msg.key(), user.name,
-                              user.favorite_color,
-                              user.favorite_number))
+                              user.favorite_number,
+                              user.favorite_color))
         except KeyboardInterrupt:
             break
 
@@ -129,5 +127,7 @@ if __name__ == '__main__':
                         help="Topic name")
     parser.add_argument('-g', dest="group", default="example_serde_avro",
                         help="Consumer group")
+    parser.add_argument('-p', dest="specific", default="true",
+                        help="Avro specific record")
 
     main(parser.parse_args())
