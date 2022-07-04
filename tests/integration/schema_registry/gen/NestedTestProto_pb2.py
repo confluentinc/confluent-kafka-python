@@ -401,7 +401,7 @@ ComplexType = _reflection.GeneratedProtocolMessageType('ComplexType', (_message.
   ))
 _sym_db.RegisterMessage(ComplexType)
 
-NestedMessage = _reflection.GeneratedProtocolMessageType('NestedMessage', (_message.Message,), dict( 
+NestedMessage = _reflection.GeneratedProtocolMessageType('NestedMessage', (_message.Message,), dict(
 
   MapTypeEntry = _reflection.GeneratedProtocolMessageType('MapTypeEntry', (_message.Message,), dict(
     DESCRIPTOR = _NESTEDMESSAGE_MAPTYPEENTRY,

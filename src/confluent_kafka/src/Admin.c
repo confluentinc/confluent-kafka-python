@@ -1119,7 +1119,7 @@ static PyObject *Admin_create_acls (Handle *self, PyObject *args, PyObject *kwar
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
         rkqu = rd_kafka_queue_get_background(self->rk);
-        
+
         /*
          * Call CreateAcls
          *
@@ -1173,7 +1173,7 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
         CallState cs;
         rd_kafka_queue_t *rkqu;
         char errstr[512];
-        
+
         static char *kws[] = {"acl_binding_filter",
                              "future",
                              /* options */
@@ -1230,7 +1230,7 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
         rkqu = rd_kafka_queue_get_background(self->rk);
-        
+
         /*
          * Call DeleteAcls
          *
@@ -1277,7 +1277,7 @@ static PyObject *Admin_delete_acls (Handle *self, PyObject *args, PyObject *kwar
         CallState cs;
         rd_kafka_queue_t *rkqu;
         char errstr[512];
-        
+
         static char *kws[] = {"acls",
                              "future",
                              /* options */
@@ -1350,7 +1350,7 @@ static PyObject *Admin_delete_acls (Handle *self, PyObject *args, PyObject *kwar
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
         rkqu = rd_kafka_queue_get_background(self->rk);
-        
+
         /*
          * Call DeleteAcls
          *
@@ -1710,7 +1710,7 @@ Admin_c_ConfigResource_result_to_py (const rd_kafka_ConfigResource_t **c_resourc
  */
 static PyObject *
 Admin_c_AclBinding_to_py (const rd_kafka_AclBinding_t *c_acl_binding) {
-        
+
         PyObject *args, *kwargs, *AclBinding_type, *acl_binding;
 
         AclBinding_type = cfl_PyObject_lookup("confluent_kafka.admin",
@@ -1718,7 +1718,7 @@ Admin_c_AclBinding_to_py (const rd_kafka_AclBinding_t *c_acl_binding) {
         if (!AclBinding_type) {
                 return NULL;
         }
-        
+
         kwargs = PyDict_New();
 
         cfl_PyDict_SetInt(kwargs, "restype",
