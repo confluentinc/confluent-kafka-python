@@ -1,0 +1,27 @@
+version: v1.0
+name: Python Pipeline
+agent:
+  machine:
+    type: e1-standard-2
+    os_image: ubuntu2004
+blocks:
+  - name: OSX x64
+    task:
+      agent:
+        machine:
+          type: s1-prod-mac-m1
+          os_image: ''
+      jobs:
+        - name: Build
+          commands:
+            - uname -a
+  - name: OSX arm64
+    task:
+      agent:
+        machine:
+          type: s1-prod-mac-m1
+          os_image: ''
+      jobs:
+        - name: Build
+          commands:
+            - uname -a
