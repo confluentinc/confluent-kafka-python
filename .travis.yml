@@ -1,18 +1,9 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.9.2-RC2
+  - LIBRDKAFKA_VERSION=v1.9.2-RC3
 
 jobs:
  include:
-  - name: "Source package verification with Python 2.7 (Linux)"
-    if: false
-    os: linux
-    language: python
-    dist: xenial
-    python: "2.7"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
-
   - name: "Source package verification with Python 3.6 (Linux)"
     os: linux
     language: python
@@ -20,17 +11,6 @@ jobs:
     python: "3.6"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
-
-  - name: "Source package verification with Python 2.7 (OSX)"
-    if: false
-    os: osx
-    python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-
-  - name: "Source package verification with Python 3.6 (OSX) +docs"
-    os: osx
-    python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
 
   - name: "Wheels: Windows x64"
     if: tag is present
@@ -70,19 +50,12 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-
-# Install test dependencies unconditionally
-# Travis OSX envs requires some setup; see tools/prepare-osx.sh
-# Install cibuildwheel if this is a tagged PR
-before_install:
-  - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
+  # - name: "Wheels: MacOSX x64"
+  #   if: tag is present
+  #   os: osx
+  #   language: shell
+  #   env: BUILD_WHEELS=1
+  #   script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
 install:
  # Install interceptors
