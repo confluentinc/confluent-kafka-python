@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.9.0
+  - LIBRDKAFKA_VERSION=v1.9.2-RC2
 
 jobs:
  include:
