@@ -70,13 +70,6 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
 
 # Install test dependencies unconditionally
 # Travis OSX envs requires some setup; see tools/prepare-osx.sh
