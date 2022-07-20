@@ -1,0 +1,41 @@
+version: v1.0
+name: Python Pipeline
+agent:
+  machine:
+    type: s1-prod-mac-m1
+global_job_config:
+  env_vars:
+    - name: LIBRDKAFKA_VERSION
+      value: v1.9.2-RC2
+blocks:
+  - name: OSX x64
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos
+      jobs:
+        - name: Build
+          commands:
+            - cd $SEM_WORKSPACE
+            - checkout
+            - 'if [ ! -d ./tools ]; then cd $SEM_WORKSPACE/confluent-kafka-python; fi'
+            - export DYLD_LIBRARY_PATH="$PWD/tmp-build/lib"
+            - python3 -m venv _venv && source ./_venv/bin/activate
+            - 'tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse'
+            - tar -czf wheelhouse-macOS-x64.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-x64.tgz
+  - name: OSX arm64
+    dependencies: []
+    task:
+      jobs:
+        - name: Build
+          commands:
+            - cd $SEM_WORKSPACE
+            - checkout
+            - 'if [ ! -d ./tools ]; then cd $SEM_WORKSPACE/confluent-kafka-python; fi'
+            - export DYLD_LIBRARY_PATH="$PWD/tmp-build/lib"
+            - python3 -m venv _venv && source ./_venv/bin/activate
+            - 'tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse'
+            - tar -czf wheelhouse-macOS-arm64.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-arm64.tgz
