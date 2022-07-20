@@ -55,7 +55,7 @@ if ! which cibuildwheel 2>/dev/null ; then
     pip install cibuildwheel==0.4.1
 fi
 
-cibuildwheel $_CIBW_ARGS --output-dir "$OUT_DIR"
+sudo cibuildwheel $_CIBW_ARGS --output-dir "$OUT_DIR"
 
 echo "Packages in $OUT_DIR:"
 (cd $OUT_DIR ; ls -la)
