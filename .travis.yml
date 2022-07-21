@@ -1,6 +1,6 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.9.0
+  - LIBRDKAFKA_VERSION=v1.9.2-RC2
 
 jobs:
  include:
@@ -67,13 +67,6 @@ jobs:
     language: python
     python: "3.8"
     services: docker
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
