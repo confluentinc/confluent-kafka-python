@@ -1,3 +1,5 @@
+include ./mk-include/cc-vault.mk
+
 all:
 	@echo "Targets:"
 	@echo " clean"
