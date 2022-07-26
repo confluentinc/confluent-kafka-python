@@ -2,8 +2,8 @@ syntax = "proto3";
 package Criteo.Glup;
 option java_package = "com.criteo.glup";
 
-import "metadata_proto.proto";
-import "common_proto.proto";
+import "tests/integration/schema_registry/data/proto/metadata_proto.proto";
+import "tests/integration/schema_registry/data/proto/common_proto.proto";
 
 message ClickCas {
   option (contains_nullable_fields) = true;
