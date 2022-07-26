@@ -1,0 +1,6 @@
+syntax = "proto3";
+
+import public "tests/integration/schema_registry/data/proto/TestProto.proto";
+
+package tests.integration.serialization.data;
+

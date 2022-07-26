@@ -1,7 +1,6 @@
 WORK_DIR:=$(strip $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST)))))
 PROTO_HOME=/usr/local/opt/include
-SRC_DIR=$(WORK_DIR)
-TARGET_DIR=$(WORK_DIR)/../gen
+SRC_DIR=$(realpath $(WORK_DIR)/../../../../..)
 
 PROTOS := common_proto.proto DependencyTestProto.proto exampleProtoCriteo.proto $\
          metadata_proto.proto NestedTestProto.proto PublicTestProto.proto $\
@@ -9,8 +8,8 @@ PROTOS := common_proto.proto DependencyTestProto.proto exampleProtoCriteo.proto 
 
 compile: $(PROTOS)
 	for proto in $(PROTOS); do \
-		protoc -I=$(PROTO_HOME) -I=$(SRC_DIR) --python_out=$(TARGET_DIR) $$proto ; \
+		(cd $(SRC_DIR) && protoc -I=$(PROTO_HOME) -I=$(SRC_DIR) --python_out=$(SRC_DIR) tests/integration/schema_registry/data/proto/$$proto ;) \
 	done
 
 clean:
-	rm -f $(TARGET_DIR)/*_pb2.py
+	rm -f *_pb2.py

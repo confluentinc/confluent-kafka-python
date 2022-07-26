@@ -1,6 +1,0 @@
-syntax = "proto3";
-
-import public "TestProto.proto";
-
-package tests.integration.serialization.data;
-

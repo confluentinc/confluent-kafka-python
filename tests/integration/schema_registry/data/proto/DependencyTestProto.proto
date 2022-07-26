@@ -1,7 +1,7 @@
 syntax = "proto3";
 
-import "NestedTestProto.proto";
-import "PublicTestProto.proto";
+import "tests/integration/schema_registry/data/proto/NestedTestProto.proto";
+import "tests/integration/schema_registry/data/proto/PublicTestProto.proto";
 
 package tests.integration.serialization.data;
 
