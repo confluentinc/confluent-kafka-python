@@ -52,9 +52,9 @@ services:
     volumes:
       - ./conf:/conf
     environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry2
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-basic-auth
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas2
-      SCHEMA_REGISTRY_SCHEMA_REGISTRY_ZK_NAMESPACE: schema_registry2
+      SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry-basic-auth
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8083, https://0.0.0.0:8084
       SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL: https
