@@ -11,7 +11,7 @@ cleanup() {
 
 trap cleanup 0 2 3 6 15
 
-source ${DOCKER_BIN}/../.env
+source ${DOCKER_BIN}/../.env.sh
 
 if [[ ${1:-} == "help" ]]; then
     python ${TEST_SOURCE}/integration/integration_test.py --help

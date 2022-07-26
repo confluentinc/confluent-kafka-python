@@ -3,7 +3,7 @@
 set -eu
 
 PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
-source ${PY_DOCKER_BIN}/../.env
+source ${PY_DOCKER_BIN}/../.env.sh
 
 # Wait for http service listener to come up and start serving
 # $1 http service name
@@ -28,7 +28,7 @@ await_http() {
 }
 
 echo "Configuring Environment..."
-source ${PY_DOCKER_SOURCE}/.env
+source ${PY_DOCKER_SOURCE}/.env.sh
 
 echo "Generating SSL certs..."
 ${PY_DOCKER_BIN}/certify.sh
