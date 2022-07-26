@@ -1,5 +1,30 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.9.2
+
+v1.9.2 is a maintenance release with the following fixes and enhancements:
+
+ - KIP-140 Admin API ACL fix:
+   When requesting multiple create_acls or delete_acls operations
+   if the provided ACL bindings or ACL binding filters are not
+   unique it throws an exception immediately instead of failing later
+   when the responses are read. (#1370).
+ - KIP-140 Admin API ACL fix:
+   Better documentation of the describe and delete ACLs behavior
+   when using the MATCH resource patter type in a filter. (#1373).
+ - Avro serialization examples:
+   added a parameter for using a generic or specific Avro schema. (#1381).
+
+confluent-kafka-python is based on librdkafka v1.9.2, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.2)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v1.9.1
+
+There was no 1.9.1 release of the Python Client.
+
+
 ## v1.9.0
 
 This is a feature release:
