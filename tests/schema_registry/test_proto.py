@@ -23,8 +23,8 @@ import pytest
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
                                                       ProtobufDeserializer,
                                                       _create_msg_index)
-from tests.integration.schema_registry.gen import (DependencyTestProto_pb2,
-                                                   metadata_proto_pb2)
+from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb2,
+                                                          metadata_proto_pb2)
 
 
 @pytest.mark.parametrize("pb2, coordinates", [
