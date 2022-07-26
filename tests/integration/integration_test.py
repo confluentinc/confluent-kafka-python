@@ -28,6 +28,7 @@ import sys
 import json
 import gc
 import struct
+import re
 
 try:
     # Memory tracker
@@ -795,13 +796,17 @@ def verify_avro_basic_auth(mode_conf):
     if mode_conf is None:
         abort_on_missing_configuration('avro-basic-auth')
 
-    url = {
-        'schema.registry.basic.auth.credentials.source': 'URL'
+    url = mode_conf.get('schema.registry.url')
+    credentials = mode_conf.get('schema.registry.basic.auth.user.info')
+
+    url_conf = {
+        'schema.registry.basic.auth.credentials.source': 'URL',
+        'schema.registry.url': str(re.sub("(^https?://)", f"\\1{credentials}@", url))
     }
 
     user_info = {
         'schema.registry.basic.auth.credentials.source': 'USER_INFO',
-        'schema.registry.basic.auth.user.info': mode_conf.get('schema.registry.basic.auth.user.info')
+        'schema.registry.basic.auth.user.info': credentials
     }
 
     sasl_inherit = {
@@ -813,7 +818,7 @@ def verify_avro_basic_auth(mode_conf):
     base_conf = {
         'bootstrap.servers': bootstrap_servers,
         'error_cb': error_cb,
-        'schema.registry.url': schema_registry_url
+        'schema.registry.url': url
     }
 
     consumer_conf = dict({'group.id': generate_group_id(),
@@ -829,7 +834,7 @@ def verify_avro_basic_auth(mode_conf):
     run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
 
     print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
-    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
+    run_avro_loop(dict(base_conf, **url_conf), dict(consumer_conf, **url_conf))
 
 
 def run_avro_loop(producer_conf, consumer_conf):
