@@ -159,6 +159,65 @@ def test_oauth_cb():
     kc.close()
 
 
+seen_oauth_cb = False
+
+
+def test_oauth_cb_principal_sasl_extensions():
+    """ Tests oauth_cb. """
+
+    def oauth_cb(oauth_config):
+        global seen_oauth_cb
+        seen_oauth_cb = True
+        assert oauth_config == 'oauth_cb'
+        return 'token', time.time() + 300.0, oauth_config, {"extone": "extoneval", "exttwo": "exttwoval"}
+
+    conf = {'group.id': 'test',
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'socket.timeout.ms': '100',
+            'session.timeout.ms': 1000,  # Avoid close() blocking too long
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': oauth_cb
+            }
+
+    kc = confluent_kafka.Consumer(**conf)
+
+    while not seen_oauth_cb:
+        kc.poll(timeout=1)
+    kc.close()
+
+
+# global variable for oauth_cb call back function
+oauth_cb_count = 0
+
+
+def test_oauth_cb_failure():
+    """ Tests oauth_cb. """
+
+    def oauth_cb(oauth_config):
+        global oauth_cb_count
+        oauth_cb_count += 1
+        assert oauth_config == 'oauth_cb'
+        if oauth_cb_count == 2:
+            return 'token', time.time() + 300.0, oauth_config, {"extthree": "extthreeval"}
+        raise Exception
+
+    conf = {'group.id': 'test',
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'socket.timeout.ms': '100',
+            'session.timeout.ms': 1000,  # Avoid close() blocking too long
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': oauth_cb
+            }
+
+    kc = confluent_kafka.Consumer(**conf)
+
+    while oauth_cb_count < 2:
+        kc.poll(timeout=1)
+    kc.close()
+
+
 def skip_interceptors():
     # Run interceptor test if monitoring-interceptor is found
     for path in ["/usr/lib", "/usr/local/lib", "staging/libs", "."]:
