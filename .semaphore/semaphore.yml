@@ -34,6 +34,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+            - .semaphore/upload_to_s3.sh wheelhouse "confluent-kafka-python/p-confluent-kafka-python__bld-semaphore__plat-${OS_NAME}__tag-${SEMAPHORE_GIT_TAG_NAME}__sha-${SEMAPHORE_GIT_SHA}__bid-${SEMAPHORE_WORKFLOW_ID}__"
   - name: "Wheels: OSX arm64"
     run:
       when: "tag =~ '.*'"
@@ -57,6 +58,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+            - .semaphore/upload_to_s3.sh wheelhouse "p-confluent-kafka-python__bld-semaphore__plat-${OS_NAME}__tag-${SEMAPHORE_GIT_TAG_NAME}__sha-${SEMAPHORE_GIT_SHA}__bid-${SEMAPHORE_WORKFLOW_ID}__"
   
   - name: Source package verification with Python 3 (OSX x64) +docs
     dependencies: []
