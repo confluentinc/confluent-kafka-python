@@ -23,22 +23,23 @@ curl -L -o lrk$VER.zip https://www.nuget.org/api/v2/package/librdkafka.redist/$V
 
 unzip lrk$VER.zip
 
+ARCH=${ARCH:-x64}
 
 if [[ $OSTYPE == linux* ]]; then
     # Linux
 
     # Copy the librdkafka build with least dependencies to librdkafka.so.1
-    cp -v runtimes/linux-x64/native/{centos6-librdkafka.so,librdkafka.so.1}
-    ldd runtimes/linux-x64/native/librdkafka.so.1
+    cp -v runtimes/linux-$ARCH/native/{centos6-librdkafka.so,librdkafka.so.1}
+    ldd runtimes/linux-$ARCH/native/librdkafka.so.1
 
 elif [[ $OSTYPE == darwin* ]]; then
     # MacOS X
 
     # Change the library's self-referencing name from
     # /Users/travis/.....somelocation/librdkafka.1.dylib to its local path.
-    install_name_tool -id $PWD/runtimes/osx-x64/native/librdkafka.dylib runtimes/osx-x64/native/librdkafka.dylib
+    install_name_tool -id $PWD/runtimes/osx-$ARCH/native/librdkafka.dylib runtimes/osx-$ARCH/native/librdkafka.dylib
 
-    otool -L runtimes/osx-x64/native/librdkafka.dylib
+    otool -L runtimes/osx-$ARCH/native/librdkafka.dylib
 fi
 
 popd
