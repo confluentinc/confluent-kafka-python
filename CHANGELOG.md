@@ -4,11 +4,13 @@
 
 v1.9.2 is a maintenance release with the following fixes and enhancements:
 
+ - Support for setting principal and SASL extensions in oauth_cb
+   and handle failures (@Manicben, #1402)
  - Wheel for macOS M1/arm64
  - KIP-140 Admin API ACL fix:
-   When requesting multiple create_acls or delete_acls operations
+   When requesting multiple create_acls or delete_acls operations,
    if the provided ACL bindings or ACL binding filters are not
-   unique it throws an exception immediately instead of failing later
+   unique, an exception will be thrown immediately rather than later
    when the responses are read. (#1370).
  - KIP-140 Admin API ACL fix:
    Better documentation of the describe and delete ACLs behavior
