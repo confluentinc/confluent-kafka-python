@@ -8,7 +8,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
 # Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
-export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux*"
+export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
@@ -26,19 +26,20 @@ set -ex
 
 [[ -d $wheeldir ]] || mkdir -p "$wheeldir"
 
+ARCH=${ARCH:-x64}
 
 case $OSTYPE in
     linux*)
         os=linux
         # Need to set up env vars (in docker) so that setup.py
         # finds librdkafka.
-        lib_dir=dest/runtimes/linux-x64/native
+        lib_dir=dest/runtimes/linux-$ARCH/native
         export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
         ;;
     darwin*)
         os=macos
         # Need to set up env vars so that setup.py finds librdkafka.
-        lib_dir=dest/runtimes/osx-x64/native
+        lib_dir=dest/runtimes/osx-$ARCH/native
         export CFLAGS="-I${PWD}/dest/build/native/include"
         export LDFLAGS="-L${PWD}/$lib_dir"
         ;;
@@ -51,10 +52,10 @@ esac
 
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==2.7.0
+install_pkgs=cibuildwheel==2.8.1
 
-python3 -m pip install $install_pkgs ||
-    pip3 install $install_pkgs
+python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
+    pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
