@@ -30,19 +30,13 @@ fi
 
 echo "$0 running from $(pwd)"
 
-
-function setup_centos {
-    # CentOS container setup
-    yum install -q -y python python3 epel-release curl
-}
-
 function setup_ubuntu {
     # Ubuntu container setup
     apt-get update
-    apt-get install -y python python3 curl
+    apt-get install -y python3.8 curl
     # python3-distutils is required on Ubuntu 18.04 and later but does
     # not exist on 14.04.
-    apt-get install -y python3-distutils || true
+    apt-get install -y python3.8-distutils || true
 }
 
 
@@ -57,9 +51,7 @@ function run_single_in_docker {
     fi
 
     # Detect OS
-    if grep -qi centos /etc/system-release /etc/redhat-release 2>/dev/null ; then
-        setup_centos
-    elif grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null ; then
+    if grep -qiE 'ubuntu|debian' /etc/os-release 2>/dev/null ; then
         setup_ubuntu
     else
         echo "WARNING: Don't know what platform I'm on: $(uname -a)"
@@ -69,7 +61,7 @@ function run_single_in_docker {
     # in a plethora of possibly outdated Python requirements that
     # might interfere with the newer packages from PyPi, such as six.
     # Instead install it directly from PyPa.
-    curl https://bootstrap.pypa.io/get-pip.py | python
+    curl https://bootstrap.pypa.io/get-pip.py | python3.8
 
     /io/tools/smoketest.sh "$wheelhouse"
 }
@@ -86,8 +78,7 @@ function run_all_with_docker {
 
     [[ ! -z $DOCKER_IMAGES ]] || \
         # LTS and stable release of popular Linux distros.
-        # We require >= Python 2.7 to be available (which rules out Centos 6.6)
-        DOCKER_IMAGES="ubuntu:14.04 ubuntu:16.04 ubuntu:18.04 ubuntu:20.04 centos:7 centos:8"
+        DOCKER_IMAGES="ubuntu:18.04 ubuntu:20.04"
 
 
     _wheels="$wheelhouse/*manylinux*.whl"
