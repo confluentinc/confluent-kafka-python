@@ -4,6 +4,8 @@
 
 v1.9.2 is a maintenance release with the following fixes and enhancements:
 
+ - Support setting principal and SASL extensions in oauth_cb
+   and handle failures (@Manicben, #1402)
  - Wheel for macOS M1/arm64
  - KIP-140 Admin API ACL fix:
    When requesting multiple create_acls or delete_acls operations
