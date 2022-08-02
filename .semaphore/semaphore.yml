@@ -1,0 +1,93 @@
+version: v1.0
+name: Test on PR or create and upload wheels on tag.
+agent:
+  machine:
+    type: s1-prod-mac-m1
+global_job_config:
+  secrets:
+    - name: vault_sem2_approle
+  env_vars:
+    - name: LIBRDKAFKA_VERSION
+      value: v1.9.2
+blocks:
+  - name: "Wheels: OSX x64"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Build
+          commands:
+            - cd $SEM_WORKSPACE
+            - export HOME=$SEM_WORKSPACE
+            - checkout
+            # needed on the self-hosted agent
+            - if [ ! -d ./tools ]; then cd $SEM_WORKSPACE/confluent-kafka-python; fi
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+  - name: "Wheels: OSX arm64"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: CIBW_ARCHS
+          value: arm64
+        - name: ARCH
+          value: arm64
+      jobs:
+        - name: Build
+          commands:
+            - cd $SEM_WORKSPACE
+            - export HOME=$SEM_WORKSPACE
+            - checkout
+            # needed on the self-hosted agent
+            - if [ ! -d ./tools ]; then cd $SEM_WORKSPACE/confluent-kafka-python; fi
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+  
+  - name: Source package verification with Python 3 (OSX x64) +docs
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: arm64
+      jobs:
+        - name: Build
+          commands:
+            - cd $SEM_WORKSPACE
+            - export HOME=$SEM_WORKSPACE
+            - checkout
+            # needed on the self-hosted agent
+            - if [ ! -d ./tools ]; then cd $SEM_WORKSPACE/confluent-kafka-python; fi
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - pip install -r docs/requirements.txt
+            - pip install -U protobuf
+            # install librdkafka
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
+            - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
+            # install confluent-kafka
+            - python setup.py build && python setup.py install
+            - make docs
