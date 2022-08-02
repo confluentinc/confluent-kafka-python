@@ -30,7 +30,7 @@ FROM alpine:3.12
 
 COPY . /usr/src/confluent-kafka-python
 
-ENV LIBRDKAFKA_VERSION v1.9.2-RC3
+ENV LIBRDKAFKA_VERSION v1.9.2
 ENV KAFKACAT_VERSION master
 
 

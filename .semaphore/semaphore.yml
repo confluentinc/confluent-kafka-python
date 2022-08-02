@@ -8,7 +8,7 @@ global_job_config:
     - name: vault_sem2_approle
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v1.9.2-RC3
+      value: v1.9.2
 blocks:
   - name: "Wheels: OSX x64"
     run:
