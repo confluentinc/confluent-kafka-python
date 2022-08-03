@@ -1605,7 +1605,7 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                 Py_DECREF(result);
                 PyErr_SetString(PyExc_TypeError,
                              "expect returned value from oauth_cb "
-                             "to be (token_str, expiry_time) tuple");
+                             "to be (token_str, expiry_time[, principal, extensions]) tuple");
                 goto err;
         }
 
