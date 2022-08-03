@@ -1522,6 +1522,62 @@ static void log_cb (const rd_kafka_t *rk, int level,
         CallState_resume(cs);
 }
 
+/**
+ * @brief Translate Python \p key and \p value to C types and set on
+ *        provided \p extensions char* array at the provided index.
+ *
+ * @returns 1 on success or 0 if an exception was raised.
+ */
+static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
+                               PyObject *key, PyObject *value) {
+        PyObject *ks, *ks8, *vo8 = NULL;
+        const char *k;
+        const char *v;
+        Py_ssize_t ksize = 0;
+        Py_ssize_t vsize = 0;
+
+        if (!(ks = cfl_PyObject_Unistr(key))) {
+                PyErr_SetString(PyExc_TypeError,
+                                "expected extension key to be unicode "
+                                "string");
+                return 0;
+        }
+
+        k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+        ksize = (Py_ssize_t)strlen(k);
+
+        if (cfl_PyUnistr(_Check(value))) {
+                /* Unicode string, translate to utf-8. */
+                v = cfl_PyUnistr_AsUTF8(value, &vo8);
+                if (!v) {
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
+                        return 0;
+                }
+                vsize = (Py_ssize_t)strlen(v);
+        } else {
+                PyErr_Format(PyExc_TypeError,
+                             "expected extension value to be "
+                             "unicode string, not %s",
+                             ((PyTypeObject *)PyObject_Type(value))->
+                             tp_name);
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+                return 0;
+        }
+
+        extensions[idx] = (char*)malloc(ksize);
+        strcpy(extensions[idx], k);
+        extensions[idx + 1] = (char*)malloc(vsize);
+        strcpy(extensions[idx + 1], v);
+
+        Py_DECREF(ks);
+        Py_XDECREF(ks8);
+        Py_XDECREF(vo8);
+
+        return 1;
+}
+
 static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                       void *opaque) {
         Handle *h = opaque;
@@ -1529,6 +1585,10 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
         CallState *cs;
         const char *token;
         double expiry;
+        const char *principal = "";
+        PyObject *extensions = NULL;
+        char **rd_extensions = NULL;
+        Py_ssize_t rd_extensions_size = 0;
         char err_msg[2048];
         rd_kafka_resp_err_t err_code;
 
@@ -1539,26 +1599,57 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
         Py_DECREF(eo);
 
         if (!result) {
-                goto err;
+                goto fail;
         }
-        if (!PyArg_ParseTuple(result, "sd", &token, &expiry)) {
+        if (!PyArg_ParseTuple(result, "sd|sO!", &token, &expiry, &principal, &PyDict_Type, &extensions)) {
                 Py_DECREF(result);
-                PyErr_Format(PyExc_TypeError,
+                PyErr_SetString(PyExc_TypeError,
                              "expect returned value from oauth_cb "
-                             "to be (token_str, expiry_time) tuple");
+                             "to be (token_str, expiry_time[, principal, extensions]) tuple");
                 goto err;
         }
+
+        if (extensions) {
+                int len = (int)PyDict_Size(extensions);
+                rd_extensions = (char **)malloc(2 * len * sizeof(char *));
+                Py_ssize_t pos = 0;
+                PyObject *ko, *vo;
+                while (PyDict_Next(extensions, &pos, &ko, &vo)) {
+                        if (!py_extensions_to_c(rd_extensions, rd_extensions_size, ko, vo)) {
+                                Py_DECREF(result);
+                                free(rd_extensions);
+                                goto err;
+                        }
+                        rd_extensions_size = rd_extensions_size + 2;
+                }
+        }
+
         err_code = rd_kafka_oauthbearer_set_token(h->rk, token,
                                                   (int64_t)(expiry * 1000),
-                                                  "", NULL, 0, err_msg,
+                                                  principal, (const char **)rd_extensions, rd_extensions_size, err_msg,
                                                   sizeof(err_msg));
         Py_DECREF(result);
-        if (err_code) {
+        if (rd_extensions) {
+                for(int i = 0; i < rd_extensions_size; i++) {
+                        free(rd_extensions[i]);
+                }
+                free(rd_extensions);
+        }
+
+        if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
                 PyErr_Format(PyExc_ValueError, "%s", err_msg);
-                goto err;
+                goto fail;
         }
         goto done;
 
+fail:
+        err_code = rd_kafka_oauthbearer_set_token_failure(h->rk, "OAuth callback raised exception");
+        if (err_code != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                PyErr_SetString(PyExc_ValueError, "Failed to set token failure");
+                goto err;
+        }
+        PyErr_Clear();
+        goto done;
  err:
         CallState_crash(cs);
         rd_kafka_yield(h->rk);

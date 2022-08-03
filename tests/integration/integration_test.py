@@ -1126,10 +1126,10 @@ def verify_avro_explicit_read_schema():
         msgcount += 1
         # Avro schema projection should return the two fields not present in the writer schema
         try:
-            assert(msg.key().get('favorite_number') == 42)
-            assert(msg.key().get('favorite_color') == "purple")
-            assert(msg.value().get('favorite_number') == 42)
-            assert(msg.value().get('favorite_color') == "purple")
+            assert (msg.key().get('favorite_number') == 42)
+            assert (msg.key().get('favorite_color') == "purple")
+            assert (msg.value().get('favorite_number') == 42)
+            assert (msg.value().get('favorite_color') == "purple")
             print("success: schema projection worked for explicit reader schema")
         except KeyError:
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
