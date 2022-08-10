@@ -65,6 +65,28 @@ def test_api_register_schema(kafka_cluster, load_file):
     assert schema.schema_str, registered_schema.schema.schema_str
 
 
+def test_api_register_normalized_schema(kafka_cluster, load_file):
+    """
+    Registers a schema, verifies the registration
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+        load_file (callable(str)): Schema fixture constructor
+
+    """
+    sr = kafka_cluster.schema_registry()
+    avsc = 'basic_schema.avsc'
+    subject = _subject_name(avsc)
+    schema = Schema(load_file(avsc), schema_type='AVRO')
+
+    schema_id = sr.register_schema(subject, schema, True)
+    registered_schema = sr.lookup_schema(subject, schema, True)
+
+    assert registered_schema.schema_id == schema_id
+    assert registered_schema.subject == subject
+    assert schema.schema_str, registered_schema.schema.schema_str
+
+
 def test_api_register_schema_incompatible(kafka_cluster, load_file):
     """
     Attempts to register an incompatible Schema verifies the error.

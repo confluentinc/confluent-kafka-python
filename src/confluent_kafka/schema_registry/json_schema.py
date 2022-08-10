@@ -59,6 +59,10 @@ class JSONSerializer(Serializer):
     | ``auto.register.schemas`` | bool     | previously associated with a particular subject. |
     |                           |          | Defaults to True.                                |
     +---------------------------+----------+--------------------------------------------------+
+    |                           |          | Whether to normalize schemas, which will         |
+    | ``normalize.schemas``     | bool     | transform schemas to have a consistent format,   |
+    |                           |          | including ordering properties and references.    |
+    +---------------------------+----------+--------------------------------------------------+
     |                           |          | Whether to use the latest subject version for    |
     | ``use.latest.version``    | bool     | serialization.                                   |
     |                           |          | WARNING: There is no check that the latest       |
@@ -116,12 +120,14 @@ class JSONSerializer(Serializer):
         conf (dict): JsonSerializer configuration.
 
     """  # noqa: E501
-    __slots__ = ['_hash', '_auto_register', '_use_latest_version', '_known_subjects', '_parsed_schema',
+    __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
+                 '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
                  '_subject_name_func', '_to_dict']
 
     # default configuration
     _default_conf = {'auto.register.schemas': True,
+                     'normalize.schemas': False,
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
@@ -146,6 +152,10 @@ class JSONSerializer(Serializer):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._normalize_schemas = conf_copy.pop('normalize.schemas')
+        if not isinstance(self._normalize_schemas, bool):
+            raise ValueError("normalize.schemas must be a boolean value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -208,10 +218,12 @@ class JSONSerializer(Serializer):
                     # a schema without a subject so we set the schema_id here to handle
                     # the initial registration.
                     self._schema_id = self._registry.register_schema(subject,
-                                                                     self._schema)
+                                                                     self._schema,
+                                                                     self._normalize_schemas)
                 else:
                     registered_schema = self._registry.lookup_schema(subject,
-                                                                     self._schema)
+                                                                     self._schema,
+                                                                     self._normalize_schemas)
                     self._schema_id = registered_schema.schema_id
             self._known_subjects.add(subject)
 
