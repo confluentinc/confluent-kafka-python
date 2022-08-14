@@ -23,30 +23,10 @@ from .data.proto import metadata_proto_pb2, NestedTestProto_pb2, TestProto_pb2, 
     PublicTestProto_pb2
 from tests.integration.schema_registry.data.proto.DependencyTestProto_pb2 import DependencyMessage
 from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import ClickCas
+from tests.schema_registry.test_proto import TEST_DATA
 
 
-@pytest.mark.parametrize("pb2, data", [
-    (TestProto_pb2.TestMessage, {'test_string': "abc",
-                                 'test_bool': True,
-                                 'test_bytes': b'look at these bytes',
-                                 'test_double': 1.0,
-                                 'test_float': 12.0}),
-    (PublicTestProto_pb2.TestMessage, {'test_string': "abc",
-                                       'test_bool': True,
-                                       'test_bytes': b'look at these bytes',
-                                       'test_double': 1.0,
-                                       'test_float': 12.0}),
-    (NestedTestProto_pb2.NestedMessage, {'user_id':
-     NestedTestProto_pb2.UserId(
-            kafka_user_id='oneof_str'),
-        'is_active': True,
-        'experiments_active': ['x', 'y', '1'],
-        'status': NestedTestProto_pb2.INACTIVE,
-        'complex_type':
-            NestedTestProto_pb2.ComplexType(
-                one_id='oneof_str',
-                is_active=False)})
-])
+@pytest.mark.parametrize("pb2, data", TEST_DATA)
 def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     """
     Validates that we get the same message back that we put in.
@@ -116,7 +96,6 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
                              r" 'tests.integration.schema_registry.data.proto.TestProto_pb2.TestMessage'\> not \<class"
                              r" 'tests.integration.schema_registry.data.proto.NestedTestProto_pb2.NestedMessage'\>"):
         producer.produce(topic, key=pb2_2())
-
 
 def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     """

@@ -494,7 +494,7 @@ class ProtobufDeserializer(object):
 
         descriptor = message_type.DESCRIPTOR
         self._msg_index = _create_msg_index(descriptor)
-        self._msg_class = MessageFactory().GetPrototype(descriptor)
+        self._msg_class = message_type
 
     @staticmethod
     def _decode_varint(buf, zigzag=True):
