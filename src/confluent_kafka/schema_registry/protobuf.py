@@ -142,6 +142,10 @@ class ProtobufSerializer(object):
     | ``auto.register.schemas``           | bool     | previously associated with a particular subject.     |
     |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to normalize schemas, which will             |
+    | ``normalize.schemas``               | bool     | transform schemas to have a consistent format,       |
+    |                                     |          | including ordering properties and references.        |
+    +---------------------------+----------+----------------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          | WARNING: There is no check that the latest           |
@@ -212,7 +216,7 @@ class ProtobufSerializer(object):
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
 
     """  # noqa: E501
-    __slots__ = ['_auto_register', '_use_latest_version', '_skip_known_types',
+    __slots__ = ['_auto_register', '_normalize_schemas', '_use_latest_version', '_skip_known_types',
                  '_registry', '_known_subjects',
                  '_msg_class', '_msg_index', '_schema', '_schema_id',
                  '_ref_reference_subject_func', '_subject_name_func',
@@ -220,6 +224,7 @@ class ProtobufSerializer(object):
     # default configuration
     _default_conf = {
         'auto.register.schemas': True,
+        'normalize.schemas': False,
         'use.latest.version': False,
         'skip.known.types': False,
         'subject.name.strategy': topic_subject_name_strategy,
@@ -244,6 +249,10 @@ class ProtobufSerializer(object):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._normalize_schemas = conf_copy.pop('normalize.schemas')
+        if not isinstance(self._normalize_schemas, bool):
+            raise ValueError("normalize.schemas must be a boolean value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -405,10 +414,11 @@ class ProtobufSerializer(object):
 
                 if self._auto_register:
                     self._schema_id = self._registry.register_schema(subject,
-                                                                     self._schema)
+                                                                     self._schema,
+                                                                     self._normalize_schemas)
                 else:
                     self._schema_id = self._registry.lookup_schema(
-                        subject, self._schema).schema_id
+                        subject, self._schema, self._normalize_schemas).schema_id
 
             self._known_subjects.add(subject)
 
