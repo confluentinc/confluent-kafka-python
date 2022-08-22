@@ -26,26 +26,31 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
 
     c = kafka_cluster.consumer(consumer_conf)
 
-    try:
-        c.commit(offsets=[TopicPartition(topic, 0, 0)],
-                 asynchronous=False)
-    except KafkaException as e:
-        print('commit failed with %s' % e)
-
+    # Commit without any metadata.
+    c.commit(offsets=[TopicPartition(topic, 0, 0)], asynchronous=False)
     offsets = c.committed([TopicPartition(topic, 0)])
-    for tp in offsets:
-        assert tp.metadata is None
+    assert len(offsets) == 1
+    assert offsets[0].metadata is None
 
-    metadata = '\x01abcdefgafd\xff'
-    binarymetadata = str.encode(metadata)
-    try:
-        c.commit(offsets=[TopicPartition(topic, 0, 1, binarymetadata)],
-                 asynchronous=False)
-    except KafkaException as e:
-        print('commit failed with %s' % e)
-
+    # Commit with only ASCII metadata.
+    metadata = 'hello world'
+    c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
     offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
-    for tp in offsets:
-        assert binarymetadata == tp.metadata
+    assert len(offsets) == 1
+    assert offsets[0].metadata == metadata
+
+    # Commit with Unicode characters in metadata.
+    metadata = 'नमस्ते दुनिया'
+    c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+    offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
+    assert len(offsets) == 1
+    assert offsets[0].metadata == metadata
+
+    # Commit with invalid metadata (with null byte in the middle).
+    metadata = 'xyz\x00abc'
+    try:
+        c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+    except ValueError as ve:
+        assert 'embedded null character' in str(ve)
 
     c.close()
