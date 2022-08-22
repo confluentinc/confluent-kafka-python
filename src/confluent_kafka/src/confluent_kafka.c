@@ -817,7 +817,7 @@ static int TopicPartition_clear (TopicPartition *self) {
 		self->error = NULL;
 	}
 	if (self->metadata) {
-		Py_DECREF(self->metadata);
+                free(self->metadata);
 		self->metadata = NULL;
 	}
 	return 0;
@@ -831,11 +831,11 @@ static void TopicPartition_setup (TopicPartition *self, const char *topic,
 	self->partition = partition;
 	self->offset = offset;
 
-	if (metadata != NULL) {
-		self->metadata = cfl_PyBin(_FromString(metadata));
-	} else {
-		self->metadata = NULL;
-	}
+        if (metadata != NULL) {
+                self->metadata = strdup(metadata);
+        } else {
+                self->metadata = NULL;
+        }
 
 	self->error = KafkaError_new_or_None(err, NULL);
 }
@@ -862,15 +862,16 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 			       "offset",
 			       "metadata",
 			       NULL };
-        
-	if (PyArg_ParseTupleAndKeywords (args, kwargs, "s|iLy", kws,
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLs", kws,
 					 &topic, &partition, &offset,
 					 &metadata)) {
-		TopicPartition_setup((TopicPartition *)self,
-				      topic, partition, offset, metadata, 0);
-	} else {
-		return -1;
+                return -1;
+
 	}
+
+        TopicPartition_setup((TopicPartition *)self,
+			     topic, partition, offset, metadata, 0);
 	return 0;
 }
 
@@ -905,9 +906,9 @@ static PyMemberDef TopicPartition_members[] = {
           " :py:const:`OFFSET_STORED`,"
           " :py:const:`OFFSET_INVALID`\n"
         },
-        {"metadata", T_OBJECT, offsetof(TopicPartition, metadata), READONLY,
+        {"metadata", T_STRING, offsetof(TopicPartition, metadata), READONLY,
          "attribute metadata: Optional application metadata committed with the "
-         "offset (bytes)"},
+         "offset (string)"},
         { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
           ":attribute error: Indicates an error (with :py:class:`KafkaError`) unless None." },
         { NULL }
@@ -1106,7 +1107,6 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	rd_kafka_topic_partition_list_t *c_parts;
 	size_t i;
-        rd_kafka_topic_partition_t *rktpar;
 
 	if (!PyList_Check(plist)) {
 		PyErr_SetString(PyExc_TypeError,
@@ -1129,26 +1129,14 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 			return NULL;
 		}
 
-		rktpar = rd_kafka_topic_partition_list_add(c_parts,
-						  tp->topic,
-						  tp->partition);
+		rd_kafka_topic_partition_t *rktpar =
+                        rd_kafka_topic_partition_list_add(c_parts,
+						          tp->topic,
+						          tp->partition);
 		rktpar->offset = tp->offset;
 		if (tp->metadata != NULL) {
-			char *metadata;
-			Py_ssize_t metadata_size;
-			if (cfl_PyBin(_AsStringAndSize(tp->metadata,
-						       &metadata,
-						       &metadata_size)) == -1) {
- 				PyErr_SetString(PyExc_RuntimeError,
-						"Failed to parse metadata "
-						"object");
-				return NULL;
-			}
-			rktpar->metadata_size = metadata_size;
-			rktpar->metadata = malloc(rktpar->metadata_size);
-			memcpy(rktpar->metadata,
-			       metadata,
-			       rktpar->metadata_size);
+			rktpar->metadata_size = strlen(tp->metadata) + 1;
+			rktpar->metadata = strdup(tp->metadata);
 		}
 	}
 
