@@ -831,11 +831,11 @@ static void TopicPartition_setup (TopicPartition *self, const char *topic,
 	self->partition = partition;
 	self->offset = offset;
 
-        if (metadata != NULL) {
-                self->metadata = strdup(metadata);
-        } else {
-                self->metadata = NULL;
-        }
+	if (metadata != NULL) {
+	        self->metadata = strdup(metadata);
+	} else {
+	        self->metadata = NULL;
+	}
 
 	self->error = KafkaError_new_or_None(err, NULL);
 }
@@ -870,7 +870,7 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 
 	}
 
-        TopicPartition_setup((TopicPartition *)self,
+	TopicPartition_setup((TopicPartition *)self,
 			     topic, partition, offset, metadata, 0);
 	return 0;
 }
