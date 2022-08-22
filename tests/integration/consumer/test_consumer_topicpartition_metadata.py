@@ -16,13 +16,15 @@
 # limit
 #
 
-from confluent_kafka import TopicPartition, KafkaException
+from confluent_kafka import TopicPartition
+
 
 def commit_and_check(consumer, topic, metadata):
     consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
     offsets = consumer.committed([TopicPartition(topic, 0)], timeout=100)
     assert len(offsets) == 1
     assert offsets[0].metadata == metadata
+
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
 
