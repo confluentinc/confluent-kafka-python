@@ -1,5 +1,16 @@
 # Confluent's Python client for Apache Kafka
 
+## v1.9.3
+
+v1.9.3 is a maintenance release with the following fixes and enhancements:
+
+ - Added normalize.schemas config to SR client (@rayokota, #1406).
+
+confluent-kafka-python is based on librdkafka v1.9.3, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.9.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v1.9.2
 
 v1.9.2 is a maintenance release with the following fixes and enhancements:
