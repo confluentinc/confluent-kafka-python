@@ -50,10 +50,19 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
-  - name: "Wheels: MacOSX x64"
+  # - name: "Wheels: MacOSX x64"
+  #   if: tag is present
+  #   os: osx
+  #   language: shell
+  #   env: BUILD_WHEELS=1
+  #   script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
+  - name: "Wheels: Linux arm64"
     if: tag is present
-    os: osx
-    language: shell
+    arch: arm64
+    language: python
+    python: "3.8"
+    services: docker
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
