@@ -817,7 +817,7 @@ static int TopicPartition_clear (TopicPartition *self) {
 		self->error = NULL;
 	}
 	if (self->metadata) {
-                free(self->metadata);
+		free(self->metadata);
 		self->metadata = NULL;
 	}
 	return 0;

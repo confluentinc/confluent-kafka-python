@@ -3,7 +3,7 @@
 
 ## v1.10.0
 
-- Add metadata to TopicPartition type and commit() (TODO(milind) - fill in PR number here once created).
+- Add metadata to TopicPartition type and commit() (#1410).
 
 
 ## v1.9.2
