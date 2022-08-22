@@ -18,6 +18,11 @@
 
 from confluent_kafka import TopicPartition, KafkaException
 
+def commit_and_check(consumer, topic, metadata):
+    consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+    offsets = consumer.committed([TopicPartition(topic, 0)], timeout=100)
+    assert len(offsets) == 1
+    assert offsets[0].metadata == metadata
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
 
@@ -34,22 +39,16 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
 
     # Commit with only ASCII metadata.
     metadata = 'hello world'
-    c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
-    offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
-    assert len(offsets) == 1
-    assert offsets[0].metadata == metadata
+    commit_and_check(c, topic, metadata)
 
     # Commit with Unicode characters in metadata.
     metadata = 'नमस्ते दुनिया'
-    c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
-    offsets = c.committed([TopicPartition(topic, 0)], timeout=100)
-    assert len(offsets) == 1
-    assert offsets[0].metadata == metadata
+    commit_and_check(c, topic, metadata)
 
     # Commit with invalid metadata (with null byte in the middle).
     metadata = 'xyz\x00abc'
     try:
-        c.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+        commit_and_check(c, topic, metadata)
     except ValueError as ve:
         assert 'embedded null character' in str(ve)
 
