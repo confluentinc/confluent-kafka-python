@@ -299,7 +299,7 @@ class SchemaRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client._close()
 
-    def register_schema(self, subject_name, schema):
+    def register_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Registers a schema under ``subject_name``.
 
@@ -334,7 +334,7 @@ class SchemaRegistryClient(object):
                                      for ref in schema.references]
 
         response = self._rest_client.post(
-            'subjects/{}/versions'.format(_urlencode(subject_name)),
+            'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
         schema_id = response['id']
@@ -380,7 +380,7 @@ class SchemaRegistryClient(object):
 
         return schema
 
-    def lookup_schema(self, subject_name, schema):
+    def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.
 
@@ -409,8 +409,8 @@ class SchemaRegistryClient(object):
                                       'version': ref.version}
                                      for ref in schema.references]
 
-        response = self._rest_client.post('subjects/{}'
-                                          .format(_urlencode(subject_name)),
+        response = self._rest_client.post('subjects/{}?normalize={}'
+                                          .format(_urlencode(subject_name), normalize_schemas),
                                           body=request)
 
         schema_type = response.get('schemaType', 'AVRO')
