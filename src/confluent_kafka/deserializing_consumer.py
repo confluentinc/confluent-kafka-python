@@ -26,28 +26,16 @@ from .serialization import (SerializationContext,
 
 class DeserializingConsumer(_ConsumerImpl):
     """
-    A Kafka consumer with deserialization capabilities.
+    A high level Kafka consumer with deserialization capabilities.
 
-    .. versionadded:: 1.4.0
+    Derived from the :py:class:`Consumer` class, overriding the :py:func:`Consumer.poll`
+    method to add deserialization capabilities.
 
-    The ``key.deserializer`` and ``value.deserializer`` classes instruct the
-    DeserializingConsumer on how to convert the message payload bytes to objects.
-
-    Note:
-        All configured callbacks are served from the application queue upon
-        calling :py:func:`DeserializingConsumer.poll`
-
-    Notable DeserializingConsumer configuration properties(* indicates required field)
+    Additional configuration properties:
 
     +-------------------------+---------------------+-----------------------------------------------------+
     | Property Name           | Type                | Description                                         |
     +=========================+=====================+=====================================================+
-    | ``bootstrap.servers`` * | str                 | Comma-separated list of brokers.                    |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Client group id string.                             |
-    | ``group.id`` *          | str                 | All clients sharing the same group.id belong to the |
-    |                         |                     | same group.                                         |
-    +-------------------------+---------------------+-----------------------------------------------------+
     |                         |                     | Callable(SerializationContext, bytes) -> obj        |
     | ``key.deserializer``    | callable            |                                                     |
     |                         |                     | Deserializer used for message keys.                 |
@@ -56,30 +44,20 @@ class DeserializingConsumer(_ConsumerImpl):
     | ``value.deserializer``  | callable            |                                                     |
     |                         |                     | Deserializer used for message values.               |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(KafkaError)                                |
-    |                         |                     |                                                     |
-    | ``error_cb``            | callable            | Callback for generic/global error events. These     |
-    |                         |                     | errors are typically to be considered informational |
-    |                         |                     | since the client will automatically try to recover. |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    | ``logger``              | ``logging.Handler`` | Logging handler to forward logs                     |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(str)                                       |
-    |                         |                     |                                                     |
-    |                         |                     | Callback for statistics. This callback is           |
-    | ``stats_cb``            | callable            | added to the application queue every                |
-    |                         |                     | ``statistics.interval.ms`` (configured separately). |
-    |                         |                     | The function argument is a JSON formatted str       |
-    |                         |                     | containing statistics data.                         |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(ThrottleEvent)                             |
-    | ``throttle_cb``         | callable            |                                                     |
-    |                         |                     | Callback for throttled request reporting.           |
-    +-------------------------+---------------------+-----------------------------------------------------+
+
+    Deserializers for string, integer and double (:py:class:`StringDeserializer`, :py:class:`IntegerDeserializer`
+    and :py:class:`DoubleDeserializer`) are supplied out-of-the-box in the ``confluent_kafka.serialization``
+    namespace.
+
+    Deserializers for Protobuf, JSON Schema and Avro (:py:class:`ProtobufDeserializer`, :py:class:`JSONDeserializer`
+    and :py:class:`AvroDeserializer`) with Confluent Schema Registry integration are supplied out-of-the-box
+    in the ``confluent_kafka.schema_registry`` namespace.
 
     See Also:
-        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for additional configuration property details.
-        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information about the statistics handled by stats_cb
+        - The :ref:`Configuration Guide <pythonclient_configuration>` for in depth information on how to configure the client.
+        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for a comprehensive set of configuration properties.
+        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information on the statistics provided by stats_cb
+        - The :py:class:`Consumer` class for inherited methods.
 
     Args:
         conf (dict): DeserializingConsumer configuration.
@@ -95,6 +73,7 @@ class DeserializingConsumer(_ConsumerImpl):
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
+
     def poll(self, timeout=-1):
         """
         Consume messages and calls callbacks.
@@ -106,15 +85,13 @@ class DeserializingConsumer(_ConsumerImpl):
             :py:class:`Message` or None on timeout
 
         Raises:
-            KeyDeserializationError: If an error occurs during key
-            deserialization.
+            KeyDeserializationError: If an error occurs during key deserialization.
 
-            ValueDeserializationError: If an error occurs during value
-            deserialization.
+            ValueDeserializationError: If an error occurs during value deserialization.
 
-            ConsumeError if an error was encountered while polling.
-
+            ConsumeError: If an error was encountered while polling.
         """
+
         msg = super(DeserializingConsumer, self).poll(timeout)
 
         if msg is None:
@@ -143,9 +120,11 @@ class DeserializingConsumer(_ConsumerImpl):
         msg.set_value(value)
         return msg
 
+
     def consume(self, num_messages=1, timeout=-1):
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead
         """
+
         raise NotImplementedError

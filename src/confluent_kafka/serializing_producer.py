@@ -27,36 +27,14 @@ class SerializingProducer(_ProducerImpl):
     """
     A high level Kafka producer with serialization capabilities.
 
-    The SerializingProducer is thread safe and sharing a single instance across
-    threads will generally be more efficient than having multiple instances.
+    Derived from the :py:class:`Producer` class, overriding the :py:func:`Producer.produce`
+    method to add serialization capabilities.
 
-    The :py:func:`SerializingProducer.produce` method is asynchronous.
-    When called it adds the message to a queue of pending messages and
-    immediately returns. This allows the Producer to batch together individual
-    messages for efficiency.
-
-    The Producer will automatically retry failed produce requests up to
-    ``message.timeout.ms`` .
-
-    .. versionadded:: 1.4.0
-
-    The Transactional Producer allows an application to send messages to
-    multiple partitions (and topics) atomically.
-
-    The ``key.serializer`` and ``value.serializer`` classes instruct the
-    SerializingProducer on how to convert the message payload to bytes.
-
-    Note:
-        All configured callbacks are served from the application queue upon
-        calling :py:func:`SerializingProducer.poll` or :py:func:`SerializingProducer.flush`
-
-    Notable SerializingProducer configuration properties(* indicates required field)
+    Additional configuration properties:
 
     +-------------------------+---------------------+-----------------------------------------------------+
     | Property Name           | Type                | Description                                         |
     +=========================+=====================+=====================================================+
-    | ``bootstrap.servers`` * | str                 | Comma-separated list of brokers.                    |
-    +-------------------------+---------------------+-----------------------------------------------------+
     |                         |                     | Callable(obj, SerializationContext) -> bytes        |
     | ``key.serializer``      | callable            |                                                     |
     |                         |                     | Serializer used for message keys.                   |
@@ -65,36 +43,25 @@ class SerializingProducer(_ProducerImpl):
     | ``value.serializer``    | callable            |                                                     |
     |                         |                     | Serializer used for message values.                 |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(KafkaError)                                |
-    |                         |                     |                                                     |
-    | ``error_cb``            | callable            | Callback for generic/global error events. These     |
-    |                         |                     | errors are typically to be considered informational |
-    |                         |                     | since the client will automatically try to recover. |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    | ``logger``              | ``logging.Handler`` | Logging handler to forward logs                     |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(str)                                       |
-    |                         |                     |                                                     |
-    |                         |                     | Callback for statistics. This callback is           |
-    | ``stats_cb``            | callable            | added to the application queue every                |
-    |                         |                     | ``statistics.interval.ms`` (configured separately). |
-    |                         |                     | The function argument is a JSON formatted str       |
-    |                         |                     | containing statistics data.                         |
-    +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(ThrottleEvent)                             |
-    | ``throttle_cb``         | callable            |                                                     |
-    |                         |                     | Callback for throttled request reporting.           |
-    |                         |                     | Callback for throttled request reporting.           |
-    +-------------------------+---------------------+-----------------------------------------------------+
+
+    Serializers for string, integer and double (:py:class:`StringSerializer`, :py:class:`IntegerSerializer`
+    and :py:class:`DoubleSerializer`) are supplied out-of-the-box in the ``confluent_kafka.serialization``
+    namespace.
+
+    Serializers for Protobuf, JSON Schema and Avro (:py:class:`ProtobufSerializer`, :py:class:`JSONSerializer`
+    and :py:class:`AvroSerializer`) with Confluent Schema Registry integration are supplied out-of-the-box
+    in the ``confluent_kafka.schema_registry`` namespace.
 
     See Also:
-        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for additional configuration property details.
-        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information about the statistics handled by stats_cb
+        - The :ref:`Configuration Guide <pythonclient_configuration>` for in depth information on how to configure the client.
+        - `CONFIGURATION.md <https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md>`_ for a comprehensive set of configuration properties.
+        - `STATISTICS.md <https://github.com/edenhill/librdkafka/blob/master/STATISTICS.md>`_ for detailed information on the statistics provided by stats_cb
+        - The :py:class:`Producer` class for inherited methods.
 
     Args:
         conf (producer): SerializingProducer configuration.
-
     """  # noqa E501
+
     def __init__(self, conf):
         conf_copy = conf.copy()
 
@@ -103,58 +70,59 @@ class SerializingProducer(_ProducerImpl):
 
         super(SerializingProducer, self).__init__(conf_copy)
 
+
     def produce(self, topic, key=None, value=None, partition=-1,
                 on_delivery=None, timestamp=0, headers=None):
         """
-        Produce message to topic.
+        Produce a message.
 
-        This is an asynchronous operation, an application may use the
+        This is an asynchronous operation. An application may use the
         ``on_delivery`` argument to pass a function (or lambda) that will be
         called from :py:func:`SerializingProducer.poll` when the message has
         been successfully delivered or permanently fails delivery.
 
-        Currently message headers are not supported on the message returned to
-        the callback. The ``msg.headers()`` will return None even if the
-        original message had headers set.
+        Note:
+            Currently message headers are not supported on the message returned to
+            the callback. The ``msg.headers()`` will return None even if the
+            original message had headers set.
 
         Args:
             topic (str): Topic to produce message to.
 
-            key (object, optional): Message key.
+            key (object, optional): Message payload key.
 
-            value (object, optional): Message payload.
+            value (object, optional): Message payload value.
 
-            partition (int, optional): Partition to produce to, else uses the
-                configured built-in partitioner.
+            partition (int, optional): Partition to produce to, else the
+                configured built-in partitioner will be used.
 
             on_delivery (callable(KafkaError, Message), optional): Delivery
-                report callback to call (from
+                report callback. Called as a side effect of
                 :py:func:`SerializingProducer.poll` or
                 :py:func:`SerializingProducer.flush` on successful or
                 failed delivery.
 
-            timestamp (float, optional): Message timestamp (CreateTime) in ms
-                since epoch UTC (requires broker >= 0.10.0.0). Default value
-                is current time.
+            timestamp (float, optional): Message timestamp (CreateTime) in
+                milliseconds since Unix epoch UTC (requires broker >= 0.10.0.0).
+                Default value is current time.
 
-            headers (dict, optional): Message headers to set on the message.
-                The header key must be a str while the value must be binary,
-                unicode or None. (Requires broker version >= 0.11.0.0)
+            headers (dict, optional): Message headers. The header key must be
+                a str while the value must be binary, unicode or None. (Requires
+                broker version >= 0.11.0.0)
 
         Raises:
             BufferError: if the internal producer message queue is full.
-                ( ``queue.buffering.max.messages`` exceeded). If this happens
+                (``queue.buffering.max.messages`` exceeded). If this happens
                 the application should call :py:func:`SerializingProducer.Poll`
                 and try again.
 
             KeySerializationError: If an error occurs during key serialization.
 
-            ValueSerializationError: If an error occurs during value
-            serialization.
+            ValueSerializationError: If an error occurs during value serialization.
 
             KafkaException: For all other errors
-
         """
+
         ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:
             try:

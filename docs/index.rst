@@ -5,7 +5,7 @@ A reliable, performant and feature-rich Python client for Apache Kafka v0.8 and 
 
 Guides
    - :ref:`Configuration Guide <pythonclient_configuration>`
-   - :ref:`Transactional Producer API <pythonclient_transactional>`
+   - :ref:`Transactional API <pythonclient_transactional>`
 
 Client API
    - :ref:`AdminClient <pythonclient_adminclient>`
@@ -566,8 +566,8 @@ AvroConsumer (Legacy)
 
 .. _pythonclient_transactional:
 
-Transactional Producer API
-==========================
+Transactional API
+=================
 
 The transactional producer operates on top of the idempotent producer,
 and provides full exactly-once semantics (EOS) for Apache Kafka when used
