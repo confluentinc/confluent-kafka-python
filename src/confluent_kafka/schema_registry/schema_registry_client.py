@@ -26,6 +26,7 @@ from requests import (Session,
 
 from .error import SchemaRegistryError
 
+
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.
 # We need a better way to handle these issues.
@@ -250,9 +251,9 @@ class _SchemaCache(object):
 
 class SchemaRegistryClient(object):
     """
-    Schema Registry Client.
+    A Confluent Schema Registry client.
 
-    SchemaRegistryClient configuration properties (* indicates a required field):
+    Configuration properties (* indicates a required field):
 
     +------------------------------+------+-------------------------------------------------+
     | Property name                | type | Description                                     |

@@ -35,7 +35,6 @@ import argparse
 import protobuf.user_pb2 as user_pb2
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
-from confluent_kafka.serialization import StringDeserializer
 
 
 def main(args):
@@ -43,15 +42,12 @@ def main(args):
 
     protobuf_deserializer = ProtobufDeserializer(user_pb2.User,
                                                  {'use.deprecated.format': False})
-    string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.deserializer': string_deserializer,
-                     'value.deserializer': protobuf_deserializer,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 
-    consumer = DeserializingConsumer(consumer_conf)
+    consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -61,7 +57,8 @@ def main(args):
             if msg is None:
                 continue
 
-            user = msg.value()
+            user = protobuf_deserializer.deserialize(msg.value(), new SerializationContext(topic, MessageField.VALUE));
+
             if user is not None:
                 print("User record {}:\n"
                       "\tname: {}\n"

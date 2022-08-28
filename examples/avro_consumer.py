@@ -38,8 +38,8 @@ class User(object):
         favorite_number (int): User's favorite number
 
         favorite_color (str): User's favorite color
-
     """
+
     def __init__(self, name=None, favorite_number=None, favorite_color=None):
         self.name = name
         self.favorite_number = favorite_number
@@ -55,8 +55,8 @@ def dict_to_user(obj, ctx):
 
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
-
     """
+
     if obj is None:
         return None
 

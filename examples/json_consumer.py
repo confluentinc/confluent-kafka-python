@@ -23,7 +23,6 @@ import argparse
 
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer
-from confluent_kafka.serialization import StringDeserializer
 
 
 class User(object):
@@ -32,12 +31,10 @@ class User(object):
 
     Args:
         name (str): User's name
-
         favorite_number (int): User's favorite number
-
         favorite_color (str): User's favorite color
-
     """
+
     def __init__(self, name=None, favorite_number=None, favorite_color=None):
         self.name = name
         self.favorite_number = favorite_number
@@ -51,10 +48,9 @@ def dict_to_user(obj, ctx):
     Args:
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
-
         obj (dict): Object literal(dict)
-
     """
+
     if obj is None:
         return None
 
@@ -95,8 +91,6 @@ def main(args):
     string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.deserializer': string_deserializer,
-                     'value.deserializer': json_deserializer,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 

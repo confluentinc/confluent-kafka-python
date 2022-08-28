@@ -39,8 +39,9 @@ class MessageField(object):
         KEY (str): Message key
 
         VALUE (str): Message value
-
     """
+
+    NONE = 'none'
     KEY = 'key'
     VALUE = 'value'
 
@@ -57,8 +58,8 @@ class SerializationContext(object):
             being serialized.
 
         headers (list): List of message header tuples. Defaults to None.
-
     """
+
     def __init__(self, topic, field, headers=None):
         self.topic = topic
         self.field = field
@@ -104,8 +105,8 @@ class Serializer(object):
         * - StringSerializer
           - unicode
           - unicode(encoding)
-
     """
+
     __slots__ = []
 
     def __call__(self, obj, ctx):
@@ -123,8 +124,8 @@ class Serializer(object):
 
         Returns:
             bytes if obj is not None, otherwise None
-
         """
+    
         raise NotImplementedError
 
 
@@ -161,8 +162,8 @@ class Deserializer(object):
         * - StringDeserializer
           - unicode
           - unicode(encoding)
-
     """
+
     __slots__ = []
 
     def __call__(self, value, ctx):
@@ -180,8 +181,8 @@ class Deserializer(object):
 
         Returns:
             object if data is not None, otherwise None
-
         """
+
         raise NotImplementedError
 
 
@@ -193,7 +194,7 @@ class DoubleSerializer(Serializer):
         `DoubleSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html>`_
 
     """  # noqa: E501
-    def __call__(self, obj, ctx):
+    def __call__(self, obj, ctx = None):
         """
         Args:
             obj (object): object to be serialized
@@ -209,8 +210,8 @@ class DoubleSerializer(Serializer):
 
         Returns:
             IEEE 764 binary64 bytes if obj is not None, otherwise None
-
         """
+
         if obj is None:
             return None
 
@@ -226,9 +227,9 @@ class DoubleDeserializer(Deserializer):
 
     See Also:
         `DoubleDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html>`_
-
     """  # noqa: E501
-    def __call__(self, value, ctx):
+
+    def __call__(self, value, ctx = None):
         """
         Deserializes float from IEEE 764 binary64 bytes.
 
@@ -243,8 +244,8 @@ class DoubleDeserializer(Deserializer):
 
         Returns:
             float if data is not None, otherwise None
-
         """
+
         if value is None:
             return None
 
@@ -260,9 +261,9 @@ class IntegerSerializer(Serializer):
 
     See Also:
         `IntegerSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html>`_
-
     """  # noqa: E501
-    def __call__(self, obj, ctx):
+
+    def __call__(self, obj, ctx = None):
         """
         Serializes int as int32 bytes.
 
@@ -280,8 +281,8 @@ class IntegerSerializer(Serializer):
 
         Returns:
             int32 bytes if obj is not None, else None
-
         """
+
         if obj is None:
             return None
 
@@ -297,9 +298,9 @@ class IntegerDeserializer(Deserializer):
 
     See Also:
         `IntegerDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html>`_
-
     """  # noqa: E501
-    def __call__(self, value, ctx):
+
+    def __call__(self, value, ctx = None):
         """
         Deserializes int from int32 bytes.
 
@@ -314,8 +315,8 @@ class IntegerDeserializer(Deserializer):
 
         Returns:
             int if data is not None, otherwise None
-
         """
+
         if value is None:
             return None
 
@@ -339,12 +340,12 @@ class StringSerializer(Serializer):
         `Supported encodings <https://docs.python.org/3/library/codecs.html#standard-encodings>`_
 
         `StringSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringSerializer.html>`_
-
     """  # noqa: E501
+
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, obj, ctx):
+    def __call__(self, obj, ctx = None):
         """
         Serializes a str(py2:unicode) to bytes.
 
@@ -363,8 +364,8 @@ class StringSerializer(Serializer):
 
         Returns:
             serialized bytes if obj is not None, otherwise None
-
         """
+
         if obj is None:
             return None
 
@@ -385,12 +386,12 @@ class StringDeserializer(Deserializer):
         `Supported encodings <https://docs.python.org/3/library/codecs.html#standard-encodings>`_
 
         `StringDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringDeserializer.html>`_
-
     """  # noqa: E501
+
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, value, ctx):
+    def __call__(self, value, ctx = None):
         """
         Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 
@@ -411,8 +412,8 @@ class StringDeserializer(Deserializer):
 
         Returns:
             unicode if data is not None, otherwise None
-
         """
+
         if value is None:
             return None
 

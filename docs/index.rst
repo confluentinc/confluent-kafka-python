@@ -8,11 +8,10 @@ Guides
    - :ref:`Transactional API <pythonclient_transactional>`
 
 Client API
+   - :ref:`Producer <pythonclient_producer>`
+   - :ref:`Consumer <pythonclient_consumer>`
    - :ref:`AdminClient <pythonclient_adminclient>`
-   - :ref:`SerializingProducer <serde_producer>` / :ref:`Producer <pythonclient_producer>`
-   - :ref:`DeserializingConsumer <serde_consumer>` / :ref:`Consumer <pythonclient_consumer>`
    - :ref:`SchemaRegistryClient <schemaregistry_client>`
-
 
 Serialization API
    - Avro :ref:`serializer <schemaregistry_avro_serializer>` / :ref:`deserializer <schemaregistry_avro_deserializer>`
@@ -22,11 +21,11 @@ Serialization API
    - Integer :ref:`serializer <serde_serializer_integer>` / :ref:`deserializer <serde_deserializer_integer>`
    - Double :ref:`serializer <serde_serializer_double>` / :ref:`deserializer <serde_deserializer_double>`
 
-
 Supporting classes
     - :ref:`Message <pythonclient_message>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
     - :ref:`ThrottleEvent <pythonclient_throttleevent>`
+
     - Errors:
        - :ref:`KafkaError <pythonclient_kafkaerror>`
        - :ref:`KafkaException <pythonclient_kafkaexception>`
@@ -51,9 +50,19 @@ Supporting classes
        - :ref:`AclBinding <pythonclient_acl_binding>`
        - :ref:`AclBindingFilter <pythonclient_acl_binding_filter>`
 
+Experimental
+   These classes are experimental and are likely to be removed, or subject to incompatible
+   API changes in future versions of the library. To avoid breaking changes on upgrading,
+   we recommend using (de)serializers directly, as per the examples applications in this repo.
+
+   - :ref:`SerializingProducer <serde_producer>`
+   - :ref:`DeserializingConsumer <serde_consumer>`
+
 Legacy
-   - :ref:`AvroConsumer <avro_consumer>` (deprecated)
-   - :ref:`AvroProducer <avro_producer>` (deprecated)
+   These classes are deprecated and will be removed in a future version of the library.
+
+   - :ref:`AvroConsumer <avro_consumer>`
+   - :ref:`AvroProducer <avro_producer>`
 
 
 
@@ -179,9 +188,9 @@ Consumer
 
 .. _serde_consumer:
 
-*********************
-DeserializingConsumer
-*********************
+************************************
+DeserializingConsumer (experimental)
+************************************
 
 .. autoclass:: confluent_kafka.DeserializingConsumer
    :members:
@@ -199,9 +208,9 @@ Producer
 
 .. _serde_producer:
 
-*******************
-SerializingProducer
-*******************
+**********************************
+SerializingProducer (experimental)
+**********************************
 
 .. autoclass:: confluent_kafka.SerializingProducer
    :members:

@@ -28,6 +28,10 @@ class DeserializingConsumer(_ConsumerImpl):
     """
     A high level Kafka consumer with deserialization capabilities.
 
+    `This class is experimental and likely to be removed, or subject to incompatible API
+    changes in future versions of the library. To avoid breaking changes on upgrading, we
+    recommend using deserializers directly.`
+
     Derived from the :py:class:`Consumer` class, overriding the :py:func:`Consumer.poll`
     method to add deserialization capabilities.
 

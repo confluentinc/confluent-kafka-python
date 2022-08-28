@@ -43,8 +43,8 @@ class User(object):
         favorite_color (str): User's favorite color
 
         address(str): User's address; confidential
-
     """
+
     def __init__(self, name, address, favorite_number, favorite_color):
         self.name = name
         self.favorite_number = favorite_number
@@ -65,8 +65,8 @@ def user_to_dict(user, ctx):
 
     Returns:
         dict: Dict populated with user attributes to be serialized.
-
     """
+
     # User._address must not be serialized; omit from dict
     return dict(name=user.name,
                 favorite_number=user.favorite_number,
@@ -89,8 +89,8 @@ def delivery_report(err, msg):
         If you wish to pass the original object(s) for key and value to delivery
         report callback we recommend a bound callback or lambda where you pass
         the objects along.
-
     """
+
     if err is not None:
         print("Delivery failed for User record {}: {}".format(msg.key(), err))
         return

@@ -27,6 +27,10 @@ class SerializingProducer(_ProducerImpl):
     """
     A high level Kafka producer with serialization capabilities.
 
+    `This class is experimental and likely to be removed, or subject to incompatible API
+    changes in future versions of the library. To avoid breaking changes on upgrading, we
+    recommend using serializers directly.`
+
     Derived from the :py:class:`Producer` class, overriding the :py:func:`Producer.produce`
     method to add serialization capabilities.
 
