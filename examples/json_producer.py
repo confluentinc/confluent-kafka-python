@@ -14,17 +14,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using JSON.
-#
+
+# A simple example demonstrating use of JSONSerializer.
+
 import argparse
 from uuid import uuid4
 
 from six.moves import input
 
-from confluent_kafka import SerializingProducer
+from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import JSONSerializer
@@ -121,7 +120,7 @@ def main(args):
     string_serializer = StringSerializer('utf_8')
     json_serializer = JSONSerializer(schema_str, schema_registry_client, user_to_dict)
 
-    producer = SerializingProducer({'bootstrap.servers': args.bootstrap_servers})
+    producer = Producer({'bootstrap.servers': args.bootstrap_servers})
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -132,14 +131,14 @@ def main(args):
             user_address = input("Enter address: ")
             user_favorite_number = int(input("Enter favorite number: "))
             user_favorite_color = input("Enter favorite color: ")
-            user = User(name=user_name,
-                        address=user_address,
-                        favorite_color=user_favorite_color,
-                        favorite_number=user_favorite_number)
-            producer.produce(topic=topic,
-                             key=string_serializer.serialize(str(uuid4())),
-                             value=json_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
-                             on_delivery=delivery_report)
+            user = User(name = user_name,
+                        address = user_address,
+                        favorite_color = user_favorite_color,
+                        favorite_number = user_favorite_number)
+            producer.produce(topic = topic,
+                             key = string_serializer.serialize(str(uuid4())),
+                             value = json_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
+                             on_delivery = delivery_report)
         except KeyboardInterrupt:
             break
         except ValueError:
@@ -151,7 +150,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="SerializingProducer Example")
+    parser = argparse.ArgumentParser(description="JSONSerailizer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,

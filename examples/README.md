@@ -5,15 +5,15 @@ The scripts in this directory provide code examples using Confluent's Python cli
 * [consumer.py](consumer.py): Reads messages from a Kafka topic
 * [producer.py](producer.py): Reads lines from stdin and sends them to Kafka
 * [eos-transactions.py](eos-transactions.py): Transactional producer with exactly once semantics (EOS)
-* [avro_producer.py](avro_producer.py): SerializingProducer with AvroSerializer
-* [avro_consumer.py](avro_consumer.py): DeserializingConsumer with AvroDeserializer
-* [json_producer.py](json_producer.py): SerializingProducer with JsonSerializer
-* [json_consumer.py](json_consumer.py): DeserializingConsumer with JsonDeserializer
-* [protobuf_producer.py](protobuf_producer.py): SerializingProducer with ProtobufSerializer
-* [protobuf_consumer.py](protobuf_consumer.py): DeserializingConsumer with ProtobufDeserializer
-* [sasl_producer.py](sasl_producer.py): SerializingProducer with SASL Authentication
+* [avro_producer.py](avro_producer.py): Simple example demonstrating use of AvroSerializer
+* [avro_consumer.py](avro_consumer.py): Simple example demonstrating use of AvroDeserializer
+* [json_producer.py](json_producer.py): Simple example demonstrating use of JSONSerializer
+* [json_consumer.py](json_consumer.py): Simple example demonstrating use of JSONDeserializer
+* [protobuf_producer.py](protobuf_producer.py): Simple example demonstrating use of ProtobufSerializer
+* [protobuf_consumer.py](protobuf_consumer.py): Simple example demonstrating use of ProtobufDeserializer
+* [sasl_producer.py](sasl_producer.py):  Example demonstrating SASL Authentication
 * [list_offsets.py](list_offsets.py): List committed offsets and consumer lag for group and topics
-* [oauth_producer.py](oauth_producer.py): SerializingProducer with OAuth Authentication (client credentials)
+* [oauth_producer.py](oauth_producer.py): Example demonstrating OAuth Authentication (client credentials)
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 

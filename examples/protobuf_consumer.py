@@ -14,10 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using protobuf.
+
+# A simple example demonstrating use of ProtobufDeserializer.
 #
 # To regenerate Protobuf classes you must first install the protobuf
 # compiler. Once installed you may call protoc directly or use make.
@@ -28,12 +27,12 @@
 # After installing protoc execute the following command from the examples
 # directory to regenerate the user_pb2 module.
 # `make`
-#
+
 import argparse
 
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
-from confluent_kafka import DeserializingConsumer
+from confluent_kafka import Consumer
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
 
 
@@ -74,7 +73,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="DeserializingConsumer Example")
+    parser = argparse.ArgumentParser(description="ProtobufDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,

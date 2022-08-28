@@ -53,7 +53,8 @@ Supporting classes
 Experimental
    These classes are experimental and are likely to be removed, or subject to incompatible
    API changes in future versions of the library. To avoid breaking changes on upgrading,
-   we recommend using (de)serializers directly, as per the examples applications in this repo.
+   we recommend using (de)serializers directly, as per the examples applications in the
+   github repo.
 
    - :ref:`SerializingProducer <serde_producer>`
    - :ref:`DeserializingConsumer <serde_consumer>`

@@ -23,7 +23,7 @@ For a step-by-step guide on using the client see [Getting Started with Apache Ka
 Usage
 =====
 
-Below are some examples of typical usage. For more examples, see the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo for a [Confluent Cloud](https://www.confluent.io/confluent-cloud/) example.
+Below are some examples of typical usage. For more examples, see the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo for a [Confluent Cloud](https://www.confluent.io/confluent-cloud/) example. In particular, (de)serializers for Protobuf, JSON, and Avro with Confluent Schema Registry integration are now provided out-of-the-box.
 
 
 **Producer**
@@ -55,7 +55,7 @@ for data in some_data_source:
 p.flush()
 ```
 
-For additional discussion on the poll based producer API, refer to the
+For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
 blog post.
 

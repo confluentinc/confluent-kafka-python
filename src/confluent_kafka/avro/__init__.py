@@ -51,8 +51,8 @@ class AvroProducer(Producer):
     def __init__(self, config, default_key_schema=None,
                  default_value_schema=None, schema_registry=None, **kwargs):
         warnings.warn(
-            "AvroProducer has been deprecated. Use SchemaRegistryClient, SerializingProducer "
-            "and AvroSerializer instead.", category=DeprecationWarning, stacklevel=2)
+            "AvroProducer has been deprecated. Use AvroSerializer instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}
@@ -137,8 +137,8 @@ class AvroConsumer(Consumer):
 
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
         warnings.warn(
-            "AvroConsumer has been deprecated. Use SchemaRegistryClient, DeserializingConsumer "
-            "and AvroDeserializer instead.", category=DeprecationWarning, stacklevel=2)
+            "AvroConsumer has been deprecated. Use AvroDeserializer instead.",
+            category = DeprecationWarning, stacklevel = 2)
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}

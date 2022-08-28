@@ -133,7 +133,7 @@ class AvroSerializer(Serializer):
     Note:
         Prior to serialization, all values must first be converted to
         a dict instance. This may handled manually prior to calling
-        :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
+        :py:func:`Producer.produce()` or by registering a `to_dict`
         callable with AvroSerializer.
 
         See ``avro_producer.py`` in the examples directory for example usage.

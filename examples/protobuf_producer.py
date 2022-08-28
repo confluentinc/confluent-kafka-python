@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-# This is a simple example of the SerializingProducer using protobuf.
+# A simple example demonstrating use of ProtobufSerializer.
 #
 # To create Protobuf classes you must first install the protobuf
 # compiler. Once installed you may call protoc directly or use make.
@@ -27,7 +27,7 @@
 # After installing protoc execute the following command from the examples
 # directory to regenerate the user_pb2 module.
 # `make`
-#
+
 import argparse
 from uuid import uuid4
 
@@ -35,7 +35,7 @@ from six.moves import input
 
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
-from confluent_kafka import SerializingProducer
+from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer
@@ -80,13 +80,13 @@ def main(args):
             user_name = input("Enter name: ")
             user_favorite_number = int(input("Enter favorite number: "))
             user_favorite_color = input("Enter favorite color: ")
-            user = user_pb2.User(name=user_name,
-                                 favorite_color=user_favorite_color,
-                                 favorite_number=user_favorite_number)
-            producer.produce(topic=topic, partition=0,
-                             key=string_serializer.serialize(str(uuid4())),
-                             value=protobuf_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
-                             on_delivery=delivery_report)
+            user = user_pb2.User(name = user_name,
+                                 favorite_color = user_favorite_color,
+                                 favorite_number = user_favorite_number)
+            producer.produce(topic = topic, partition = 0,
+                             key = string_serializer.serialize(str(uuid4())),
+                             value = protobuf_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
+                             on_delivery = delivery_report)
         except (KeyboardInterrupt, EOFError):
             break
         except ValueError:
@@ -98,7 +98,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="SerializingProducer Example")
+    parser = argparse.ArgumentParser(description="ProtobufSerializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,

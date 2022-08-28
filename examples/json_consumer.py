@@ -14,14 +14,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using JSON.
-#
+
+# A simple example demonstrating use of JSONDeserializer.
+
 import argparse
 
-from confluent_kafka import DeserializingConsumer
+from confluent_kafka import Consumer
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer
 
 
@@ -88,13 +87,12 @@ def main(args):
     """
     json_deserializer = JSONDeserializer(schema_str,
                                          from_dict=dict_to_user)
-    string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 
-    consumer = DeserializingConsumer(consumer_conf)
+    consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -104,7 +102,8 @@ def main(args):
             if msg is None:
                 continue
 
-            user = msg.value()
+            user = json_deserializer.deserialize(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+
             if user is not None:
                 print("User record {}: name: {}\n"
                       "\tfavorite_number: {}\n"
@@ -119,7 +118,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="DeserializingConsumer Example")
+    parser = argparse.ArgumentParser(description="JSONDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
