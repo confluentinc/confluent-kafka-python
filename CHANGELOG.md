@@ -4,6 +4,7 @@
 
 v1.9.3 is a maintenance release with the following fixes and enhancements:
 
+ - Wheel for Linux arm64.
  - Added normalize.schemas config to SR client (@rayokota, #1406).
 
 confluent-kafka-python is based on librdkafka v1.9.3, see the
