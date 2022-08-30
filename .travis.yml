@@ -4,62 +4,72 @@ env:
 
 jobs:
  include:
-  - name: "Source package verification with Python 3.8 (Linux)"
-    os: linux
+  # - name: "Source package verification with Python 3.8 (Linux)"
+  #   os: linux
+  #   language: python
+  #   dist: xenial
+  #   python: "3.8"
+  #   env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
+  #   services: docker
+
+  # - name: "Wheels: Windows x64"
+  #   if: tag is present
+  #   os: windows
+  #   language: shell
+  #   env: BUILD_WHEELS=1
+  #   before_install:
+  #     - choco install python --version 3.8.0
+  #     - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+  #     # make sure it's on PATH as 'python3'
+  #     - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+  #   install:
+  #     - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+  #   script:
+  #     - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+
+  # - name: "Wheels: Windows x86"
+  #   if: tag is present
+  #   os: windows
+  #   language: shell
+  #   env: BUILD_WHEELS=1
+  #   before_install:
+  #     - choco install python --version 3.8.0
+  #     - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+  #     # make sure it's on PATH as 'python3'
+  #     - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+  #   install:
+  #     - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+  #   script:
+  #     - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
+
+  # - name: "Wheels: Linux x64"
+  #   if: tag is present
+  #   language: python
+  #   python: "3.8"
+  #   services: docker
+  #   env: BUILD_WHEELS=1
+  #   script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
+  # - name: "Wheels: MacOSX x64"
+  #   if: tag is present
+  #   os: osx
+  #   language: shell
+  #   env: BUILD_WHEELS=1
+  #   script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+
+  - name: "Wheels: Linux arm64"
+    if: tag is present
+    arch: arm64
+    dist: bionic
     language: python
-    dist: xenial
-    python: "3.8"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
-
-  - name: "Wheels: Windows x64"
-    if: tag is present
-    os: windows
-    language: shell
-    env: BUILD_WHEELS=1
-    before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
-    install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
-    script:
-      - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-
-  - name: "Wheels: Windows x86"
-    if: tag is present
-    os: windows
-    language: shell
-    env: BUILD_WHEELS=1
-    before_install:
-      - choco install python --version 3.8.0
-      - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-      # make sure it's on PATH as 'python3'
-      - ln -s /c/Python38/python.exe /c/Python38/python3.exe
-    install:
-      - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
-    script:
-      - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
-
-  - name: "Wheels: Linux x64"
-    if: tag is present
-    language: python
     python: "3.8"
     services: docker
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
-    env: BUILD_WHEELS=1
+    env: BUILD_WHEELS=1 INSTALL_INTERCEPTORS=0 ARCH=arm64
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
 install:
  # Install interceptors
- - tools/install-interceptors.sh
+ - if [[ $INSTALL_INTERCEPTORS != 0 ]]; then tools/install-interceptors.sh; fi
  - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  # Install librdkafka and confluent_kafka[avro] if not building wheels
