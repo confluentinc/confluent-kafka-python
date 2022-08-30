@@ -28,8 +28,9 @@ ARCH=${ARCH:-x64}
 if [[ $OSTYPE == linux* ]]; then
     # Linux
 
-    # Copy the librdkafka build with least dependencies to librdkafka.so.1
-    cp -v runtimes/linux-$ARCH/native/{centos6-librdkafka.so,librdkafka.so.1}
+    # Copy the librdkafka build with least dependencies to librdkafka.so.1,
+    # no error if centos6-librdkafka.so is not available
+    cp -v runtimes/linux-$ARCH/native/{centos6-librdkafka.so,librdkafka.so.1} || true
     ldd runtimes/linux-$ARCH/native/librdkafka.so.1
 
 elif [[ $OSTYPE == darwin* ]]; then
