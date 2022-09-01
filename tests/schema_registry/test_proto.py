@@ -19,7 +19,6 @@ import binascii
 from io import BytesIO
 
 import pytest
-from google.protobuf.message_factory import MessageFactory
 
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
                                                       ProtobufDeserializer,
@@ -27,33 +26,9 @@ from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
 from confluent_kafka.serialization import SerializationContext, MessageField
 from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb2,
                                                           metadata_proto_pb2,
-                                                          TestProto_pb2,
-                                                          PublicTestProto_pb2,
-                                                          NestedTestProto_pb2)
+                                                          TestProto_pb2)
 from tests.schema_registry.test_api_client import TEST_URL
 
-TEST_DATA = [
-    (TestProto_pb2.TestMessage, {'test_string': "abc",
-                                 'test_bool': True,
-                                 'test_bytes': b'look at these bytes',
-                                 'test_double': 1.0,
-                                 'test_float': 12.0}),
-    (PublicTestProto_pb2.TestMessage, {'test_string': "abc",
-                                       'test_bool': True,
-                                       'test_bytes': b'look at these bytes',
-                                       'test_double': 1.0,
-                                       'test_float': 12.0}),
-    (NestedTestProto_pb2.NestedMessage, {'user_id':
-     NestedTestProto_pb2.UserId(
-            kafka_user_id='oneof_str'),
-        'is_active': True,
-        'experiments_active': ['x', 'y', '1'],
-        'status': NestedTestProto_pb2.INACTIVE,
-        'complex_type':
-            NestedTestProto_pb2.ComplexType(
-                one_id='oneof_str',
-                is_active=False)})
-]
 
 @pytest.mark.parametrize("pb2, coordinates", [
     (DependencyTestProto_pb2.DependencyMessage, [0]),
@@ -89,7 +64,7 @@ def test_index_serialization(pb2, zigzag):
 
 @pytest.mark.parametrize("msg_idx, zigzag, expected_hex", [
     # b2a_hex returns hex pairs
-    ([0], True, b'00'),   # special case [0]
+    ([0], True, b'00'),  # special case [0]
     ([0], False, b'00'),  # special case [0]
     ([1], True, b'0202'),
     ([1], False, b'0101'),
@@ -113,25 +88,23 @@ def test_index_encoder(msg_idx, zigzag, expected_hex):
     assert decoded_msg_idx == msg_idx
 
 
-@pytest.mark.parametrize("pb2, data", TEST_DATA)
-def test_round_trip(mock_schema_registry, pb2, data):
-
+def test_can_serialize_message_coming_from_deserializer(mock_schema_registry):
     conf = {"use.deprecated.format": False}
     test_client = mock_schema_registry({"url": TEST_URL})
     context = SerializationContext("topic-name", MessageField.VALUE)
-    serializer = ProtobufSerializer(pb2, test_client, conf=conf)
-    deserializer = ProtobufDeserializer(pb2, conf=conf)
+    serializer = ProtobufSerializer(TestProto_pb2.TestMessage, test_client, conf=conf)
+    deserializer = ProtobufDeserializer(TestProto_pb2.TestMessage, conf=conf)
 
-    message_before = pb2(**data)
-    bytes_before = serializer(message_before, context)
-    message_after = deserializer(bytes_before, context)
-    bytes_after = serializer(message_after, context)
-    assert isinstance(message_after, pb2)
+    original_message = TestProto_pb2.TestMessage(
+        test_string="abc",
+        test_bool=True,
+        test_bytes=b'look at these bytes',
+        test_double=1.0,
+        test_float=12.0)
+    original_message_bytes = serializer(original_message, context)
+    deserialized_message = deserializer(original_message_bytes, context)
+    deserialized_message_bytes = serializer(deserialized_message, context)
 
-    assert message_before == message_after
-    assert bytes_after == bytes_before
-
-
-def test_foo_bar():
-    message =TestProto_pb2.TestMessage
-    assert MessageFactory().GetPrototype(message.DESCRIPTOR) is message
+    assert isinstance(deserialized_message, TestProto_pb2.TestMessage)
+    assert original_message == deserialized_message
+    assert deserialized_message_bytes == original_message_bytes
