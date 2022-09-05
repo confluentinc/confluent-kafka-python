@@ -22,7 +22,7 @@ import pytest
 
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
                                                       ProtobufDeserializer,
-                                                      _create_msg_index)
+                                                      _create_index_array)
 from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb2,
                                                           metadata_proto_pb2)
 
@@ -34,7 +34,7 @@ from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb
      [4, 0, 1, 2])  # [HdfsOptions, ImportOptions, Generator, KacohaConfig ]
 ])
 def test_create_index(pb2, coordinates):
-    msg_idx = _create_msg_index(pb2.DESCRIPTOR)
+    msg_idx = _create_index_array(pb2.DESCRIPTOR)
 
     assert msg_idx == coordinates
 
@@ -46,14 +46,14 @@ def test_create_index(pb2, coordinates):
 ])
 @pytest.mark.parametrize("zigzag", [True, False])
 def test_index_serialization(pb2, zigzag):
-    msg_idx = _create_msg_index(pb2.DESCRIPTOR)
+    msg_idx = _create_index_array(pb2.DESCRIPTOR)
     buf = BytesIO()
     ProtobufSerializer._encode_varints(buf, msg_idx, zigzag=zigzag)
     buf.flush()
 
     # reset buffer cursor
     buf.seek(0)
-    decoded_msg_idx = ProtobufDeserializer._decode_index(buf, zigzag=zigzag)
+    decoded_msg_idx = ProtobufDeserializer._read_index_array(buf, zigzag=zigzag)
     buf.close()
 
     assert decoded_msg_idx == msg_idx
@@ -81,5 +81,5 @@ def test_index_encoder(msg_idx, zigzag, expected_hex):
 
     # reset reader and test decoder
     buf.seek(0)
-    decoded_msg_idx = ProtobufDeserializer._decode_index(buf, zigzag=zigzag)
+    decoded_msg_idx = ProtobufDeserializer._read_index_array(buf, zigzag=zigzag)
     assert decoded_msg_idx == msg_idx
