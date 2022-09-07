@@ -36,7 +36,7 @@ from six.moves import input
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
 from confluent_kafka import Producer
-from confluent_kafka.serialization import StringSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer
 
@@ -80,13 +80,13 @@ def main(args):
             user_name = input("Enter name: ")
             user_favorite_number = int(input("Enter favorite number: "))
             user_favorite_color = input("Enter favorite color: ")
-            user = user_pb2.User(name = user_name,
-                                 favorite_color = user_favorite_color,
-                                 favorite_number = user_favorite_number)
-            producer.produce(topic = topic, partition = 0,
-                             key = string_serializer.serialize(str(uuid4())),
-                             value = protobuf_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
-                             on_delivery = delivery_report)
+            user = user_pb2.User(name=user_name,
+                                 favorite_color=user_favorite_color,
+                                 favorite_number=user_favorite_number)
+            producer.produce(topic=topic, partition=0,
+                             key=string_serializer.serialize(str(uuid4())),
+                             value=protobuf_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
+                             on_delivery=delivery_report)
         except (KeyboardInterrupt, EOFError):
             break
         except ValueError:

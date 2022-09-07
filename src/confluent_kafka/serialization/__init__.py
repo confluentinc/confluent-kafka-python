@@ -194,7 +194,7 @@ class DoubleSerializer(Serializer):
         `DoubleSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html>`_
 
     """  # noqa: E501
-    def __call__(self, obj, ctx = None):
+    def __call__(self, obj, ctx=None):
         """
         Args:
             obj (object): object to be serialized
@@ -229,7 +229,7 @@ class DoubleDeserializer(Deserializer):
         `DoubleDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, value, ctx = None):
+    def __call__(self, value, ctx=None):
         """
         Deserializes float from IEEE 764 binary64 bytes.
 
@@ -263,7 +263,7 @@ class IntegerSerializer(Serializer):
         `IntegerSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, obj, ctx = None):
+    def __call__(self, obj, ctx=None):
         """
         Serializes int as int32 bytes.
 
@@ -300,7 +300,7 @@ class IntegerDeserializer(Deserializer):
         `IntegerDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, value, ctx = None):
+    def __call__(self, value, ctx=None):
         """
         Deserializes int from int32 bytes.
 
@@ -345,7 +345,7 @@ class StringSerializer(Serializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, obj, ctx = None):
+    def __call__(self, obj, ctx=None):
         """
         Serializes a str(py2:unicode) to bytes.
 
@@ -391,7 +391,7 @@ class StringDeserializer(Deserializer):
     def __init__(self, codec='utf_8'):
         self.codec = codec
 
-    def __call__(self, value, ctx = None):
+    def __call__(self, value, ctx=None):
         """
         Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 

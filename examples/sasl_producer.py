@@ -88,14 +88,14 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic = topic,
-                                 key = serializer.serialize(msg[0]),
-                                 value = serializer.serialize(msg[1]),
-                                 on_delivery = delivery_report)
+                producer.produce(topic=topic,
+                                 key=serializer.serialize(msg[0]),
+                                 value=serializer.serialize(msg[1]),
+                                 on_delivery=delivery_report)
             else:
-                producer.produce(topic = topic,
-                                 value = serializer.serialize(msg[0]),
-                                 on_delivery = delivery_report)
+                producer.produce(topic=topic,
+                                 value=serializer.serialize(msg[0]),
+                                 on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
 
