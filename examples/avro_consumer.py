@@ -14,18 +14,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using Avro.
-#
+
+# A simple example demonstrating use of AvroDeserializer.
+
 import argparse
 import os
 
-from confluent_kafka import DeserializingConsumer
+from confluent_kafka import Consumer
+from confluent_kafka.serialization import SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
-from confluent_kafka.serialization import StringDeserializer
 
 
 class User(object):
@@ -38,8 +37,8 @@ class User(object):
         favorite_number (int): User's favorite number
 
         favorite_color (str): User's favorite color
-
     """
+
     def __init__(self, name=None, favorite_number=None, favorite_color=None):
         self.name = name
         self.favorite_number = favorite_number
@@ -55,8 +54,8 @@ def dict_to_user(obj, ctx):
 
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
-
     """
+
     if obj is None:
         return None
 
@@ -84,15 +83,12 @@ def main(args):
     avro_deserializer = AvroDeserializer(schema_registry_client,
                                          schema_str,
                                          dict_to_user)
-    string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.deserializer': string_deserializer,
-                     'value.deserializer': avro_deserializer,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 
-    consumer = DeserializingConsumer(consumer_conf)
+    consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -102,7 +98,7 @@ def main(args):
             if msg is None:
                 continue
 
-            user = msg.value()
+            user = avro_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
             if user is not None:
                 print("User record {}: name: {}\n"
                       "\tfavorite_number: {}\n"
@@ -117,8 +113,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Consumer Example client with "
-                                                 "serialization capabilities")
+    parser = argparse.ArgumentParser(description="AvroDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,

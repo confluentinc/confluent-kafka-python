@@ -14,16 +14,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using SASL authentication.
-#
+
+# This is a simple example demonstrating SASL authentication.
+
 import argparse
 
 from six.moves import input
 
-from confluent_kafka import SerializingProducer
+from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 
 
@@ -76,13 +75,10 @@ def sasl_conf(args):
 def main(args):
     topic = args.topic
     delimiter = args.delimiter
-    producer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.serializer': StringSerializer('utf_8'),
-                     'value.serializer': StringSerializer('utf_8')}
-
+    producer_conf = {'bootstrap.servers': args.bootstrap_servers}
     producer_conf.update(sasl_conf(args))
-
-    producer = SerializingProducer(producer_conf)
+    producer = Producer(producer_conf)
+    serializer = StringSerializer('utf_8')
 
     print("Producing records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -92,10 +88,13 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic=topic, key=msg[0], value=msg[1],
+                producer.produce(topic=topic,
+                                 key=serializer(msg[0]),
+                                 value=serializer(msg[1]),
                                  on_delivery=delivery_report)
             else:
-                producer.produce(topic=topic, value=msg[0],
+                producer.produce(topic=topic,
+                                 value=serializer(msg[0]),
                                  on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
@@ -105,8 +104,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="SerializingProducer"
-                                                 " SASL Example")
+    parser = argparse.ArgumentParser(description="SASL Example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-t', dest="topic", default="example_producer_sasl",

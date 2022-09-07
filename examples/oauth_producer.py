@@ -14,19 +14,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
+
 # This uses OAuth client credentials grant:
 # https://www.oauth.com/oauth2-servers/access-tokens/client-credentials/
 # where client_id and client_secret are passed as HTTP Authorization header
-#
 
 import logging
 import functools
 import argparse
 import time
-from confluent_kafka import SerializingProducer
+from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer
 import requests
 
@@ -51,8 +49,6 @@ def producer_config(args):
     logger = logging.getLogger(__name__)
     return {
         'bootstrap.servers': args.bootstrap_servers,
-        'key.serializer': StringSerializer('utf_8'),
-        'value.serializer': StringSerializer('utf_8'),
         'security.protocol': 'sasl_plaintext',
         'sasl.mechanisms': 'OAUTHBEARER',
         # sasl.oauthbearer.config can be used to pass argument to your oauth_cb
@@ -92,10 +88,9 @@ def delivery_report(err, msg):
 def main(args):
     topic = args.topic
     delimiter = args.delimiter
-
     producer_conf = producer_config(args)
-
-    producer = SerializingProducer(producer_conf)
+    producer = Producer(producer_conf)
+    serializer = StringSerializer('utf_8')
 
     print('Producing records to topic {}. ^C to exit.'.format(topic))
     while True:
@@ -105,10 +100,13 @@ def main(args):
             msg_data = input(">")
             msg = msg_data.split(delimiter)
             if len(msg) == 2:
-                producer.produce(topic=topic, key=msg[0], value=msg[1],
+                producer.produce(topic=topic,
+                                 key=serializer(msg[0]),
+                                 value=serializer(msg[1]),
                                  on_delivery=delivery_report)
             else:
-                producer.produce(topic=topic, value=msg[0],
+                producer.produce(topic=topic,
+                                 value=serializer(msg[0]),
                                  on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
@@ -118,8 +116,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="SerializingProducer OAUTH Example"
-                                                 " with client credentials grant")
+    parser = argparse.ArgumentParser(description="OAUTH example with client credentials grant")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-t', dest="topic", default="example_producer_oauth",
