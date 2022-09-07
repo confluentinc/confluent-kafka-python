@@ -57,7 +57,7 @@ def main(args):
             if msg is None:
                 continue
 
-            user = protobuf_deserializer.deserialize(msg.value(), new SerializationContext(topic, MessageField.VALUE))
+            user = protobuf_deserializer.deserialize(msg.value(), SerializationContext(topic, MessageField.VALUE))
 
             if user is not None:
                 print("User record {}:\n"
