@@ -138,7 +138,7 @@ class AvroConsumer(Consumer):
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
         warnings.warn(
             "AvroConsumer has been deprecated. Use AvroDeserializer instead.",
-            category = DeprecationWarning, stacklevel = 2)
+            category=DeprecationWarning, stacklevel=2)
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}

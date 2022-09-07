@@ -77,7 +77,6 @@ class DeserializingConsumer(_ConsumerImpl):
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-
     def poll(self, timeout=-1):
         """
         Consume messages and calls callbacks.
@@ -123,7 +122,6 @@ class DeserializingConsumer(_ConsumerImpl):
         msg.set_key(key)
         msg.set_value(value)
         return msg
-
 
     def consume(self, num_messages=1, timeout=-1):
         """

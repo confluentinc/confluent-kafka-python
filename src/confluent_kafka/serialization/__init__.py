@@ -125,7 +125,7 @@ class Serializer(object):
         Returns:
             bytes if obj is not None, otherwise None
         """
-    
+
         raise NotImplementedError
 
 

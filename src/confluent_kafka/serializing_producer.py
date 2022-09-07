@@ -74,7 +74,6 @@ class SerializingProducer(_ProducerImpl):
 
         super(SerializingProducer, self).__init__(conf_copy)
 
-
     def produce(self, topic, key=None, value=None, partition=-1,
                 on_delivery=None, timestamp=0, headers=None):
         """

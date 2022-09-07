@@ -132,14 +132,14 @@ def main(args):
             user_address = input("Enter address: ")
             user_favorite_number = int(input("Enter favorite number: "))
             user_favorite_color = input("Enter favorite color: ")
-            user = User(name = user_name,
-                        address = user_address,
-                        favorite_color = user_favorite_color,
-                        favorite_number = user_favorite_number)
-            producer.produce(topic = topic,
-                             key = string_serializer.serialize(str(uuid4())),
-                             value = avro_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
-                             on_delivery = delivery_report)
+            user = User(name=user_name,
+                        address=user_address,
+                        favorite_color=user_favorite_color,
+                        favorite_number=user_favorite_number)
+            producer.produce(topic=topic,
+                             key=string_serializer.serialize(str(uuid4())),
+                             value=avro_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
+                             on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
         except ValueError:
