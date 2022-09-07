@@ -118,7 +118,7 @@ class JSONSerializer(Serializer):
 
         Prior to serialization, all objects must first be converted to
         a dict instance. This may be handled manually prior to calling
-        :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
+        :py:func:`Producer.produce()` or by registering a `to_dict`
         callable with JSONSerializer.
 
     Args:

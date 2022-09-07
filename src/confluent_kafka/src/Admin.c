@@ -2191,7 +2191,3 @@ PyTypeObject AdminType = {
         0,                         /* tp_alloc */
         Admin_new                  /* tp_new */
 };
-
-
-
-
