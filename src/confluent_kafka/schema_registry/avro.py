@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
+
 from io import BytesIO
 from json import loads
 from struct import pack, unpack
@@ -34,7 +34,6 @@ from confluent_kafka.serialization import (Deserializer,
 class _ContextStringIO(BytesIO):
     """
     Wrapper to allow use of StringIO via 'with' constructs.
-
     """
 
     def __enter__(self):
@@ -47,7 +46,7 @@ class _ContextStringIO(BytesIO):
 
 def _schema_loads(schema_str):
     """
-    Instantiates a Schema instance from a declaration string
+    Instantiate a Schema instance from a declaration string.
 
     Args:
         schema_str (str): Avro Schema declaration.
@@ -56,9 +55,9 @@ def _schema_loads(schema_str):
         https://avro.apache.org/docs/current/spec.html#schemas
 
     Returns:
-        Schema: Schema instance
-
+        Schema: A Schema instance.
     """
+
     schema_str = schema_str.strip()
 
     # canonical form primitive declarations are not supported
@@ -70,17 +69,18 @@ def _schema_loads(schema_str):
 
 class AvroSerializer(Serializer):
     """
-    AvroSerializer serializes objects in the Confluent Schema Registry binary
-    format for Avro.
+    Serializer that outputs Avro binary encoded data with Confluent Schema Registry framing.
 
-
-    AvroSerializer configuration properties:
+    Configuration properties:
 
     +---------------------------+----------+--------------------------------------------------+
     | Property Name             | Type     | Description                                      |
     +===========================+==========+==================================================+
-    |                           |          | Registers schemas automatically if not           |
-    | ``auto.register.schemas`` | bool     | previously associated with a particular subject. |
+    |                           |          | If True, automatically register the configured   |
+    | ``auto.register.schemas`` | bool     | schema with Confluent Schema Registry if it has  |
+    |                           |          | not previously been associated with the relevant |
+    |                           |          | subject (determined via subject.name.strategy).  |
+    |                           |          |                                                  |
     |                           |          | Defaults to True.                                |
     +---------------------------+----------+--------------------------------------------------+
     |                           |          | Whether to normalize schemas, which will         |
@@ -89,21 +89,27 @@ class AvroSerializer(Serializer):
     +---------------------------+----------+--------------------------------------------------+
     |                           |          | Whether to use the latest subject version for    |
     | ``use.latest.version``    | bool     | serialization.                                   |
+    |                           |          |                                                  |
     |                           |          | WARNING: There is no check that the latest       |
     |                           |          | schema is backwards compatible with the object   |
     |                           |          | being serialized.                                |
+    |                           |          |                                                  |
     |                           |          | Defaults to False.                               |
-    +-------------------------------------+----------+----------------------------------------+
+    +---------------------------+----------+--------------------------------------------------+
     |                           |          | Callable(SerializationContext, str) -> str       |
     |                           |          |                                                  |
-    | ``subject.name.strategy`` | callable | Instructs the AvroSerializer on how to construct |
-    |                           |          | Schema Registry subject names.                   |
+    | ``subject.name.strategy`` | callable | Defines how Schema Registry subject names are    |
+    |                           |          | constructed. Standard naming strategies are      |
+    |                           |          | defined in the confluent_kafka.schema_registry   |
+    |                           |          | namespace.                                       |
+    |                           |          |                                                  |
     |                           |          | Defaults to topic_subject_name_strategy.         |
     +---------------------------+----------+--------------------------------------------------+
 
-    Schemas are registered to namespaces known as Subjects which define how a
-    schema may evolve over time. By default the subject name is formed by
-    concatenating the topic name with the message field separated by a hyphen.
+    Schemas are registered against subject names in Confluent Schema Registry that
+    define a scope in which the schemas can be evolved. By default, the subject name
+    is formed by concatenating the topic name with the message field (key or value)
+    separated by a hyphen.
 
     i.e. {topic name}-{message field}
 
@@ -125,10 +131,10 @@ class AvroSerializer(Serializer):
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
 
     Note:
-        Prior to serialization all ``Complex Types`` must first be converted to
+        Prior to serialization, all values must first be converted to
         a dict instance. This may handled manually prior to calling
-        :py:func:`SerializingProducer.produce()` or by registering a `to_dict`
-        callable with the AvroSerializer.
+        :py:func:`Producer.produce()` or by registering a `to_dict`
+        callable with AvroSerializer.
 
         See ``avro_producer.py`` in the examples directory for example usage.
 
@@ -145,14 +151,12 @@ class AvroSerializer(Serializer):
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
         conf (dict): AvroSerializer configuration.
-
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
                  '_subject_name_func', '_to_dict']
 
-    # default configuration
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
@@ -162,16 +166,14 @@ class AvroSerializer(Serializer):
                  to_dict=None, conf=None):
         self._registry = schema_registry_client
         self._schema_id = None
-        # Avoid calling registry if schema is known to be registered
         self._known_subjects = set()
 
         if to_dict is not None and not callable(to_dict):
-            raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(object, SerializationContext)->dict")
+            raise ValueError("to_dict must be callable with the signature "
+                             "to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
 
-        # handle configuration
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -198,7 +200,6 @@ class AvroSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        # convert schema_str to Schema instance
         schema = _schema_loads(schema_str)
         schema_dict = loads(schema.schema_str)
         parsed_schema = parse_schema(schema_dict)
@@ -223,24 +224,24 @@ class AvroSerializer(Serializer):
 
     def __call__(self, obj, ctx):
         """
-        Serializes an object to the Confluent Schema Registry's Avro binary
-        format.
+        Serializes an object to Avro binary format, prepending it with Confluent
+        Schema Registry framing.
 
         Args:
-            obj (object): object instance to serializes.
+            obj (object): The object instance to serialize.
 
             ctx (SerializationContext): Metadata pertaining to the serialization operation.
 
-        Note:
-            None objects are represented as Kafka Null.
-
         Raises:
-            SerializerError: if any error occurs serializing obj
+            SerializerError: If any error occurs serializing obj.
+            SchemaRegistryError: If there was an error registering the schema with
+                                 Schema Registry, or auto.register.schemas is
+                                 false and the schema was not registered.
 
         Returns:
-            bytes: Confluent Schema Registry formatted Avro bytes
-
+            bytes: Confluent Schema Registry encoded Avro bytes
         """
+
         if obj is None:
             return None
 
@@ -283,13 +284,13 @@ class AvroSerializer(Serializer):
 
 class AvroDeserializer(Deserializer):
     """
-    AvroDeserializer decodes bytes written in the Schema Registry
-    Avro format to an object.
+    Deserializer for Avro binary encoded data with Confluent Schema Registry
+    framing.
 
     Note:
-        ``Complex Types`` are returned as dicts. If a more specific instance
-        type is desired a callable, ``from_dict``, may be registered with
-        the AvroDeserializer which converts a dict to the desired type.
+        By default, Avro complex types are returned as dicts. This behavior can
+        be overriden by registering a callable ``from_dict`` with the deserializer to
+        convert the dicts to the desired type.
 
         See ``avro_consumer.py`` in the examples directory in the examples
         directory for example usage.
@@ -298,11 +299,11 @@ class AvroDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
 
-        schema_str (str, optional): Avro reader schema declaration.
-            If not provided, writer schema is used for deserialization.
+        schema_str (str, optional): The reader schema.
+            If not provided, the writer schema will be used as the reader schema.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
-            Converts dict to an instance of some object.
+            Converts a dict to an instance of some object.
 
         return_record_name (bool): If True, when reading a union of records, the result will
                                    be a tuple where the first value is the name of the record and the second value is
@@ -312,8 +313,8 @@ class AvroDeserializer(Deserializer):
         `Apache Avro Schema Declaration <https://avro.apache.org/docs/current/spec.html#schemas>`_
 
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
-
     """
+
     __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name']
 
     def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False):
@@ -323,45 +324,48 @@ class AvroDeserializer(Deserializer):
         self._reader_schema = parse_schema(loads(schema_str)) if schema_str else None
 
         if from_dict is not None and not callable(from_dict):
-            raise ValueError("from_dict must be callable with the signature"
-                             " from_dict(SerializationContext, dict) -> object")
+            raise ValueError("from_dict must be callable with the signature "
+                             "from_dict(SerializationContext, dict) -> object")
         self._from_dict = from_dict
 
         self._return_record_name = return_record_name
         if not isinstance(self._return_record_name, bool):
             raise ValueError("return_record_name must be a boolean value")
 
-    def __call__(self, value, ctx):
+    def __call__(self, data, ctx):
         """
-        Decodes a Confluent Schema Registry formatted Avro bytes to an object.
+        Deserialize Avro binary encoded data with Confluent Schema Registry framing to
+        a dict, or object instance according to from_dict, if specified.
 
         Arguments:
-            value (bytes): bytes
+            data (bytes): bytes
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization
                 operation.
 
         Raises:
-            SerializerError: if an error occurs ready data.
+            SerializerError: if an error occurs parsing data.
 
         Returns:
-            object: object if ``from_dict`` is set, otherwise dict. If no value is supplied None is returned.
-
+            object: If data is None, then None. Else, a dict, or object instance according
+                    to from_dict, if specified.
         """  # noqa: E501
-        if value is None:
+
+        if data is None:
             return None
 
-        if len(value) <= 5:
-            raise SerializationError("Message too small. This message was not"
-                                     " produced with a Confluent"
-                                     " Schema Registry serializer")
+        if len(data) <= 5:
+            raise SerializationError("Expecting data framing of length 6 bytes or "
+                                     "more but total data size is {} bytes. This "
+                                     "message was not produced with a Confluent "
+                                     "Schema Registry serializer".format(len(data)))
 
-        with _ContextStringIO(value) as payload:
+        with _ContextStringIO(data) as payload:
             magic, schema_id = unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was"
-                                         " not produced with a Confluent"
-                                         " Schema Registry serializer")
+                raise SerializationError("Unexpected magic byte {}. This message "
+                                         "was not produced with a Confluent "
+                                         "Schema Registry serializer".format(magic))
 
             writer_schema = self._writer_schemas.get(schema_id, None)
 

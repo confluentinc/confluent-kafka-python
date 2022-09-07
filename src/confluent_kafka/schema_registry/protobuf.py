@@ -151,7 +151,7 @@ class ProtobufSerializer(object):
     |                                     |          | Whether to normalize schemas, which will             |
     | ``normalize.schemas``               | bool     | transform schemas to have a consistent format,       |
     |                                     |          | including ordering properties and references.        |
-    +---------------------------+----------+----------------------------------------------------------------+
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
