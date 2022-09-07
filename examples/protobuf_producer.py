@@ -85,8 +85,7 @@ def main(args):
                                  favorite_number=user_favorite_number)
             producer.produce(topic=topic, partition=0,
                              key=string_serializer(str(uuid4())),
-                             value=protobuf_serializer(user,
-                                                                 SerializationContext(topic, MessageField.VALUE)),
+                             value=protobuf_serializer(user, SerializationContext(topic, MessageField.VALUE)),
                              on_delivery=delivery_report)
         except (KeyboardInterrupt, EOFError):
             break
