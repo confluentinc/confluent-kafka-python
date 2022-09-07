@@ -103,7 +103,7 @@ def main(args):
             if msg is None:
                 continue
 
-            user = json_deserializer.deserialize(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+            user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
 
             if user is not None:
                 print("User record {}: name: {}\n"

@@ -136,8 +136,8 @@ def main(args):
                         favorite_color=user_favorite_color,
                         favorite_number=user_favorite_number)
             producer.produce(topic=topic,
-                             key=string_serializer.serialize(str(uuid4())),
-                             value=json_serializer.serialize(user, SerializationContext(topic, MessageField.VALUE)),
+                             key=string_serializer(str(uuid4())),
+                             value=json_serializer(user, SerializationContext(topic, MessageField.VALUE)),
                              on_delivery=delivery_report)
         except KeyboardInterrupt:
             break

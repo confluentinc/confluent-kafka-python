@@ -98,7 +98,7 @@ def main(args):
             if msg is None:
                 continue
 
-            user = avro_deserializer.deserialize(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+            user = avro_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
             if user is not None:
                 print("User record {}: name: {}\n"
                       "\tfavorite_number: {}\n"

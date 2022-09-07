@@ -109,7 +109,7 @@ class Serializer(object):
 
     __slots__ = []
 
-    def __call__(self, obj, ctx):
+    def __call__(self, obj, ctx=None):
         """
         Converts obj to bytes.
 
@@ -166,7 +166,7 @@ class Deserializer(object):
 
     __slots__ = []
 
-    def __call__(self, value, ctx):
+    def __call__(self, value, ctx=None):
         """
         Convert bytes to object
 
