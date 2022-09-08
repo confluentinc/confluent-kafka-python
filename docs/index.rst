@@ -19,20 +19,20 @@ Client API
 
 Serialization API
    - Serializer
-      - :ref:`AvroDeserializer <schemaregistry_avro_deserializer>`
-      - :ref:`DoubleDeserializer <serde_deserializer_double>`
-      - :ref:`JSONDeserializer <schemaregistry_json_deserializer>`
-      - :ref:`IntegerDeserializer <serde_deserializer_integer>`
-      - :ref:`ProtobufDeserializer <schemaregistry_protobuf_deserializer>`
-      - :ref:`StringDeserializer <serde_deserializer_string>`
-
-   - Deserializer
       - :ref:`AvroSerializer <schemaregistry_avro_serializer>`
       - :ref:`DoubleSerializer <serde_serializer_double>`
       - :ref:`JSONSerializer <schemaregistry_json_serializer>`
       - :ref:`IntegerSerializer <serde_serializer_integer>`
       - :ref:`ProtobufSerializer <schemaregistry_protobuf_serializer>`
       - :ref:`StringSerializer <serde_serializer_string>`
+
+   - Deserializer
+      - :ref:`AvroDeserializer <schemaregistry_avro_deserializer>`
+      - :ref:`DoubleDeserializer <serde_deserializer_double>`
+      - :ref:`JSONDeserializer <schemaregistry_json_deserializer>`
+      - :ref:`IntegerDeserializer <serde_deserializer_integer>`
+      - :ref:`ProtobufDeserializer <schemaregistry_protobuf_deserializer>`
+      - :ref:`StringDeserializer <serde_deserializer_string>`
 
 
 Supporting classes
