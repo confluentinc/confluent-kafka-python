@@ -176,7 +176,7 @@ class ProtobufSerializer(object):
     |                                     |          | If the consumers of the topic being produced to are  |
     |                                     |          | using confluent-kafka-python <1.8 then this property |
     |                                     |          | must be set to True until all old consumers have     |
-    |                                     |          | have been upgraded.                                 |
+    |                                     |          | have been upgraded.                                  |
     |                                     |          | Warning: This configuration property will be removed |
     |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
