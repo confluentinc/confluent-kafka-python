@@ -102,28 +102,7 @@ class DeserializingConsumer(_ConsumerImpl):
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout=-1):
-        """
-        Consume messages and calls callbacks.
-
-        Args:
-            timeout (float): Maximum time to block waiting for message(Seconds).
-
-        Returns:
-            :py:class:`Message` or None on timeout
-
-        Raises:
-            KeyDeserializationError: If an error occurs during key
-            deserialization.
-
-            ValueDeserializationError: If an error occurs during value
-            deserialization.
-
-            ConsumeError if an error was encountered while polling.
-
-        """
-        msg = super(DeserializingConsumer, self).poll(timeout)
-
+    def _handle_msg(self, msg):
         if msg is None:
             return None
 
@@ -150,9 +129,37 @@ class DeserializingConsumer(_ConsumerImpl):
         msg.set_value(value)
         return msg
 
+    def poll(self, timeout=-1):
+        """
+        Consume messages and calls callbacks.
+
+        Args:
+            timeout (float): Maximum time to block waiting for message(Seconds).
+
+        Returns:
+            :py:class:`Message` or None on timeout
+
+        Raises:
+            KeyDeserializationError: If an error occurs during key
+            deserialization.
+
+            ValueDeserializationError: If an error occurs during value
+            deserialization.
+
+            ConsumeError if an error was encountered while polling.
+
+        """
+        msg = super(DeserializingConsumer, self).poll(timeout)
+
+        return self._handle_msg(msg)
+
     def consume(self, num_messages=1, timeout=-1):
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead
         """
-        raise NotImplementedError
+        msgs = super(DeserializingConsumer, self).consume(num_messages, timeout)
+
+        msgs = [self._handle_msg(msg) for msg in msgs]
+
+        return msgs
