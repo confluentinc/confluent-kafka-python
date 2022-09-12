@@ -3,7 +3,7 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 
 **confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
 [Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
-and the [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
+and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
 - **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
 
@@ -20,8 +20,8 @@ pace with core Apache Kafka and components of the [Confluent Platform](https://w
 For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
 
 Aditional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo, which include demonstration of:
-- Exactly once data processing using the Transactional API.
-- Integration with AsyncIO.
+- Exactly once data processing using the transactional API.
+- Integration with asyncio.
 - (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
 - [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
 
