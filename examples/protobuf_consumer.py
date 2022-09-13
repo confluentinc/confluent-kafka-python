@@ -14,10 +14,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using protobuf.
+
+# A simple example demonstrating use of ProtobufDeserializer.
 #
 # To regenerate Protobuf classes you must first install the protobuf
 # compiler. Once installed you may call protoc directly or use make.
@@ -28,14 +27,14 @@
 # After installing protoc execute the following command from the examples
 # directory to regenerate the user_pb2 module.
 # `make`
-#
+
 import argparse
 
 # Protobuf generated class; resides at ./protobuf/user_pb2.py
 import protobuf.user_pb2 as user_pb2
-from confluent_kafka import DeserializingConsumer
+from confluent_kafka import Consumer
+from confluent_kafka.serialization import SerializationContext, MessageField
 from confluent_kafka.schema_registry.protobuf import ProtobufDeserializer
-from confluent_kafka.serialization import StringDeserializer
 
 
 def main(args):
@@ -43,15 +42,12 @@ def main(args):
 
     protobuf_deserializer = ProtobufDeserializer(user_pb2.User,
                                                  {'use.deprecated.format': False})
-    string_deserializer = StringDeserializer('utf_8')
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.deserializer': string_deserializer,
-                     'value.deserializer': protobuf_deserializer,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 
-    consumer = DeserializingConsumer(consumer_conf)
+    consumer = Consumer(consumer_conf)
     consumer.subscribe([topic])
 
     while True:
@@ -61,7 +57,8 @@ def main(args):
             if msg is None:
                 continue
 
-            user = msg.value()
+            user = protobuf_deserializer(msg.value(), SerializationContext(topic, MessageField.VALUE))
+
             if user is not None:
                 print("User record {}:\n"
                       "\tname: {}\n"
@@ -77,7 +74,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="DeserializingConsumer Example")
+    parser = argparse.ArgumentParser(description="ProtobufDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,

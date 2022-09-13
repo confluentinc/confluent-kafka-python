@@ -923,7 +923,3 @@ PyTypeObject ProducerType = {
 	0,                         /* tp_alloc */
 	Producer_new           /* tp_new */
 };
-
-
-
-
