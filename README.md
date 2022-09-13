@@ -3,7 +3,7 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 
 **confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
 [Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
-and the [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
+and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
 - **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
 
@@ -15,18 +15,21 @@ with Apache Kafka at its core. It's high priority for us that client features ke
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 
-See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
+## Usage
 
 For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
 
+Aditional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo, which include demonstration of:
+- Exactly once data processing using the transactional API.
+- Integration with asyncio.
+- (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
+- [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
 
-Usage
-=====
+Also refer to the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html).
 
-Below are some examples of typical usage. For more examples, see the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo for a [Confluent Cloud](https://www.confluent.io/confluent-cloud/) example. In particular, (de)serializers for Protobuf, JSON, and Avro with Confluent Schema Registry integration are now provided out-of-the-box.
+Finally, the [tests](tests) are useful as a reference for example usage.
 
-
-**Producer**
+### Basic Producer Example
 
 ```python
 from confluent_kafka import Producer
@@ -60,7 +63,7 @@ For a discussion on the poll based producer API, refer to the
 blog post.
 
 
-**Consumer**
+### Basic Consumer Example
 
 ```python
 from confluent_kafka import Consumer
@@ -88,7 +91,7 @@ c.close()
 ```
 
 
-**AdminClient**
+### Basic AdminClient Example
 
 Create topics:
 
@@ -114,14 +117,12 @@ for topic, f in fs.items():
 ```
 
 
-Thread Safety
--------------
+## Thread Safety
 
 The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 
-Install
-=======
+## Install
 
 **Install self-contained binary wheels**
 
@@ -138,8 +139,8 @@ Install
 For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
 
-Broker Compatibility
-====================
+## Broker Compatibility
+
 The Python client (as well as the underlying C library librdkafka) supports
 all broker versions &gt;= 0.8.
 But due to the nature of the Kafka protocol in broker versions 0.8 and 0.9 it
@@ -161,8 +162,8 @@ More info here:
 https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 
 
-SSL certificates
-================
+## SSL certificates
+
 If you're connecting to a Kafka cluster through SSL you will need to configure
 the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
 authentication is used).
@@ -181,8 +182,7 @@ Python package. To use certifi, add an `import certifi` line and configure the
 client's CA location with `'ssl.ca.location': certifi.where()`.
 
 
-License
-=======
+## License
 
 [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
@@ -191,13 +191,11 @@ by confluent-kafka-python. confluent-kafka-python has no affiliation with and is
 The Apache Software Foundation.
 
 
-Developer Notes
-===============
+## Developer Notes
 
 Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
 
 
-Confluent Cloud
-===============
+## Confluent Cloud
 
 For a step-by-step guide on using the Python client with Confluent Cloud see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
