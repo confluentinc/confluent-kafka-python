@@ -549,12 +549,8 @@ providing a dict of configuration properties to the instance constructor, e.g.
   consumer = confluent_kafka.Consumer(conf)
 
 
-The supported configuration values are dictated by the underlying
-librdkafka C library. For the full range of configuration properties
-please consult librdkafka's documentation:
-https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-
-The Python bindings also provide some additional configuration properties:
+The Python client provides the following configuration properties in 
+addition to the properties dictated by the underlying librdkafka C library:
 
 * ``default.topic.config``: value is a dict of client topic-level configuration
   properties that are applied to all used topics for the instance. **DEPRECATED:**
@@ -606,6 +602,12 @@ The Python bindings also provide some additional configuration properties:
     mylogger = logging.getLogger()
     mylogger.addHandler(logging.StreamHandler())
     producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
+
+.. note::
+   In Python client, ``logger`` configuration property is used for log handler instead of ``log_cb``.
+
+For the full range of configuration properties, please consult librdkafka's documentation:
+https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
 Supporting Classes
 ==================
