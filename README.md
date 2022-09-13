@@ -27,7 +27,7 @@ Aditional examples can be found in the [examples](examples) directory or the [co
 
 Also refer to the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html).
 
-Finally, the [tests](tests) are sometimes useful as a reference for example usage.
+Finally, the [tests](tests) are useful as a reference for example usage.
 
 ### Basic Producer Example
 
