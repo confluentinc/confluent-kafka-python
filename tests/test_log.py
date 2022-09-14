@@ -118,13 +118,13 @@ def test_logging_constructor():
 
 
 def test_producer_logger_logging_in_given_format():
-    """Test that asserts that logging is working by matching the log message"""
+    """Test that asserts that logging is working by matching part of the log message"""
 
     stringBuffer = StringIO()
-    logger = logging.getLogger('Producer logger')
+    logger = logging.getLogger('Producer')
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('The logger is - %(name)s'))
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
     logger.addHandler(handler)
 
     p = confluent_kafka.Producer(
@@ -134,28 +134,27 @@ def test_producer_logger_logging_in_given_format():
         val = p.flush()
     logMessage = stringBuffer.getvalue().strip()
     stringBuffer.close()
+    print(logMessage)
 
-    assert logMessage.startswith('The logger is - Producer logger')
-    assert logMessage.endswith('The logger is - Producer logger')
+    assert "Producer Logger | INIT" in logMessage
 
 
 def test_consumer_logger_logging_in_given_format():
-    """Test that asserts that logging is working by matching the log message"""
+    """Test that asserts that logging is working by matching part of the log message"""
 
     stringBuffer = StringIO()
-    logger = logging.getLogger('Producer logger')
+    logger = logging.getLogger('Consumer')
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('The logger is - %(name)s'))
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
     logger.addHandler(handler)
 
     c = confluent_kafka.Consumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
     c.poll(0)
-    
+
     logMessage = stringBuffer.getvalue().strip()
     stringBuffer.close()
     c.close()
 
-    assert logMessage.startswith('The logger is - Producer logger')
-    assert logMessage.endswith('The logger is - Producer logger')
+    assert "Consumer Logger | INIT" in logMessage
