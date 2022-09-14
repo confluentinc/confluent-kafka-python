@@ -779,4 +779,3 @@ addition to the properties dictated by the underlying librdkafka C library:
 
 For the full range of configuration properties, please consult librdkafka's documentation:
 https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-
