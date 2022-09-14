@@ -10,6 +10,7 @@ set -e
 # Checkout supporting scripts
 # Used by add_suffix_to_latest_results function above and jenkins/upload-tests.sh
 rm -rf jenkins-common
+# revert the below back to: git clone git@github.com:confluentinc/jenkins-common.git
 git clone git@github.com:jliunyu/jenkins-common.git
 cd jenkins-common
 git pull
@@ -28,8 +29,11 @@ export PYTHONUNBUFFERED=1
 TEST_PATH=tests/kafkatest/tests/client/consumer_test.py::OffsetValidationTest
 
 LIBRDKAFKA_BRANCH=master
-KAFKA_BRANCH=forSystemTest  # Tag
-REPO=https://github.com/jliunyu/kafka.git
+# KAFKA_BRANCH=forSystemTest  # Tag
+# REPO=https://github.com/jliunyu/kafka.git
+KAFKA_BRANCH=2.6.0  # Tag
+REPO=https://github.com/apache/kafka.git
+
 
 CACHE=$WORKSPACE/cache  # Helps with reusing vagrant cluster
 RESULTS=$WORKSPACE/results
