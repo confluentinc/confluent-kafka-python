@@ -2,7 +2,7 @@ version: v1.0
 name: Test on PR or create and upload wheels on tag.
 agent:
   machine:
-    type: s1-prod-mac-m1
+    type: s1-prod-macos-arm64
 global_job_config:
   secrets:
     - name: vault_sem2_approle
@@ -11,8 +11,6 @@ global_job_config:
       value: v1.9.2
 blocks:
   - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -35,8 +33,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       env_vars:
