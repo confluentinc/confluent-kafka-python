@@ -73,38 +73,52 @@ class AvroSerializer(Serializer):
 
     Configuration properties:
 
-    +---------------------------+----------+--------------------------------------------------+
-    | Property Name             | Type     | Description                                      |
-    +===========================+==========+==================================================+
-    |                           |          | If True, automatically register the configured   |
-    | ``auto.register.schemas`` | bool     | schema with Confluent Schema Registry if it has  |
-    |                           |          | not previously been associated with the relevant |
-    |                           |          | subject (determined via subject.name.strategy).  |
-    |                           |          |                                                  |
-    |                           |          | Defaults to True.                                |
-    +---------------------------+----------+--------------------------------------------------+
-    |                           |          | Whether to normalize schemas, which will         |
-    | ``normalize.schemas``     | bool     | transform schemas to have a consistent format,   |
-    |                           |          | including ordering properties and references.    |
-    +---------------------------+----------+--------------------------------------------------+
-    |                           |          | Whether to use the latest subject version for    |
-    | ``use.latest.version``    | bool     | serialization.                                   |
-    |                           |          |                                                  |
-    |                           |          | WARNING: There is no check that the latest       |
-    |                           |          | schema is backwards compatible with the object   |
-    |                           |          | being serialized.                                |
-    |                           |          |                                                  |
-    |                           |          | Defaults to False.                               |
-    +---------------------------+----------+--------------------------------------------------+
-    |                           |          | Callable(SerializationContext, str) -> str       |
-    |                           |          |                                                  |
-    | ``subject.name.strategy`` | callable | Defines how Schema Registry subject names are    |
-    |                           |          | constructed. Standard naming strategies are      |
-    |                           |          | defined in the confluent_kafka.schema_registry   |
-    |                           |          | namespace.                                       |
-    |                           |          |                                                  |
-    |                           |          | Defaults to topic_subject_name_strategy.         |
-    +---------------------------+----------+--------------------------------------------------+
+    +-----------------------------------+----------+--------------------------------------------------+
+    | Property Name                     | Type     | Description                                      |
+    +===================================+==========+==================================================+
+    |                                   |          | If True, automatically register the configured   |
+    | ``auto.register.schemas``         | bool     | schema with Confluent Schema Registry if it has  |
+    |                                   |          | not previously been associated with the relevant |
+    |                                   |          | subject (determined via subject.name.strategy).  |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to True.                                |
+    +-----------------------------------+----------+--------------------------------------------------+
+    |                                   |          | Whether to normalize schemas, which will         |
+    | ``normalize.schemas``             | bool     | transform schemas to have a consistent format,   |
+    |                                   |          | including ordering properties and references.    |
+    +-----------------------------------+----------+--------------------------------------------------+
+    |                                   |          | Whether to use the latest subject version for    |
+    | ``use.latest.version``            | bool     | serialization.                                   |
+    |                                   |          |                                                  |
+    |                                   |          | WARNING: There is no check that the latest       |
+    |                                   |          | schema is backwards compatible with the object   |
+    |                                   |          | being serialized.                                |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to False.                               |
+    +-----------------------------------+----------+--------------------------------------------------+
+    |                                   |          | Callable(SerializationContext, str) -> str       |
+    |                                   |          |                                                  |
+    | ``subject.name.strategy``         | callable | Defines how Schema Registry subject names are    |
+    |                                   |          | constructed. Standard naming strategies are      |
+    |                                   |          | defined in the confluent_kafka.schema_registry   |
+    |                                   |          | namespace.                                       |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to topic_subject_name_strategy.         |
+    +-----------------------------------+----------+--------------------------------------------------+
+    |                                   |          | If set to True, an error will be raised if       |
+    |                                   |          | records do not contain exactly the same          |
+    | ``validate.strict``               | bool     | fields that the schema states.                   |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to False.                               |
+    +-----------------------------------+----------+--------------------------------------------------+
+    |                                   |          | If set to True, an error will be raised          |
+    |                                   |          | if records do not contain exactly the same       |
+    | ``validate.strict.allow.default`` | bool     | fields that the schema states, unless it is a    |
+    |                                   |          | missing field that has a default value in the    |
+    |                                   |          | schema.                                          |
+    |                                   |          |                                                  |
+    |                                   |          | Defaults to False.                               |
+    +-----------------------------------+----------+--------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -155,12 +169,14 @@ class AvroSerializer(Serializer):
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', '_to_dict']
+                 '_subject_name_func', '_to_dict', '_strict', '_strict_allow_default']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
-                     'subject.name.strategy': topic_subject_name_strategy}
+                     'subject.name.strategy': topic_subject_name_strategy,
+                     'validate.strict': False,
+                     'validate.strict.allow.default': False}
 
     def __init__(self, schema_registry_client, schema_str,
                  to_dict=None, conf=None):
@@ -189,12 +205,21 @@ class AvroSerializer(Serializer):
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
+
         if self._use_latest_version and self._auto_register:
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._strict = conf_copy.pop('validate.strict')
+        if not isinstance(self._strict, bool):
+            raise ValueError("validate.strict must be a boolean value")
+
+        self._strict_allow_default = conf_copy.pop('validate.strict.allow.default')
+        if not isinstance(self._strict, bool):
+            raise ValueError("validate.strict.allow.default must be a boolean value")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -277,7 +302,8 @@ class AvroSerializer(Serializer):
             # Write the magic byte and schema ID in network byte order (big endian)
             fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
-            schemaless_writer(fo, self._parsed_schema, value)
+            schemaless_writer(fo, self._parsed_schema, value, strict=self._strict, 
+                              strict_allow_default=self._strict_allow_default)
 
             return fo.getvalue()
 
