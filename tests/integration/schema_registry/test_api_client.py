@@ -212,13 +212,13 @@ def test_api_get_schema_versions(kafka_cluster, load_file):
     registered_schema = sr.lookup_schema(subject_a, schema)
     schema_id = registered_schema.schema_id
 
-    schema_versions = [{'subject':subject_a, 'version':1}, {'subject':subject_b, 'version':1}]
+    schema_versions = [{'subject': subject_a, 'version': 1}, {'subject': subject_b, 'version': 1}]
     schema_versions_reverse = schema_versions[::-1]
 
     schema_versions2 = sr.get_schema_versions(schema_id)
     assert schema_versions2 == schema_versions or schema_versions2 == schema_versions_reverse
 
-  
+
 def test_api_get_schema_versions_not_found(kafka_cluster):
     """
     Attempts to fetch versions by an unknown schema by id, validates the error.
@@ -249,7 +249,7 @@ def test_api_get_schema_by_subject_version(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry()
     schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
     subject = _subject_name('get_schema_by_subject_version')
-    schema_id = sr.register_schema(subject, schema)
+    sr.register_schema(subject, schema)
     version = 1
 
     schema2 = sr.get_schema_by_subject_version(subject_name=subject, version=version)
@@ -323,7 +323,7 @@ def test_api_get_referencedby(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry()
     parent_schema = Schema(load_file('referenced_schema.avsc'), schema_type='AVRO', references=[])
     parent_subject = _subject_name('get_referencedby')
-    parent_schema_id = sr.register_schema(parent_subject, parent_schema)
+    sr.register_schema(parent_subject, parent_schema)
     parent_version = 1
     schema_reference = SchemaReference(name="schema_name", subject=parent_subject, version=parent_version)
 

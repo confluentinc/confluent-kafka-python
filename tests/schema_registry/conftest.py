@@ -166,7 +166,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SUBJECTS = ['subject1', 'subject2']
     USERINFO = 'mock_user:mock_password'
     SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
-    SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
+    SCHEMA_VERSIONS = [{'subject': 'subject1', 'version': 3}]
     REFERENCEDBY = [42, 17]
 
     # Counts requests handled per path by HTTP method
@@ -350,7 +350,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             return {'error_code': 40401,
                     'message': "Subject not found"}
         context.status_code = 200
-        return self._load_avsc(self.SCHEMA)  # NOTE: schema_str is returned as unescaped string, i.e. json for type=AVRO.
+        return self._load_avsc(self.SCHEMA)
+        # NOTE: schema_str is returned as unescaped string, i.e. json for type=AVRO.
 
     def get_subject_version_referencedby_callback(self, request, context):
         self.counter['GET'][request.path] += 1

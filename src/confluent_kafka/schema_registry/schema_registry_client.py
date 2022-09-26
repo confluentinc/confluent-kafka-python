@@ -397,7 +397,7 @@ class SchemaRegistryClient(object):
     def get_schema_versions(self, schema_id):
         """
         List all subject-version pairs identified by the ``schema_id``.
-        Returns a list of dicts with keys: 	
+        Returns a list of dicts with keys:
             - subject (str): Name of the subject
             - version (int): Version of the returned schema
 
@@ -445,11 +445,11 @@ class SchemaRegistryClient(object):
         #   How to support other schema types? (json/proto)
         #   Should we return str (unescaped), dict, or Schema class?
         #   Add protobuf/json tests.
-        schema_str = str(response) # TODO: Avoid str-json-dict-str roundtrip
+        schema_str = str(response)  # TODO: Avoid str-json-dict-str roundtrip
 
         schema = Schema(schema_str=schema_str,
                         schema_type='AVRO')  # TODO: Hard AVRO assumption.
-        return schema        
+        return schema
 
     def get_referencedby(self, subject_name, version):
         """
