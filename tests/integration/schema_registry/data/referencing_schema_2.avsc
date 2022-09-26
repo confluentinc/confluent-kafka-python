@@ -1,0 +1,12 @@
+{
+    "name": "parent_2",
+    "type": "record",
+    "namespace": "python.test",
+    "doc": "parent schema with a schema reference",
+    "fields": [
+        {
+            "name": "name",
+            "type": "python.test.child"
+        }
+    ]
+}

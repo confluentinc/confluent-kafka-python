@@ -206,6 +206,54 @@ def test_get_schema_versions_not_found(mock_schema_registry):
     assert e.value.error_code == 40403
 
 
+def test_get_referencedby(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    referencedby = sr.get_referencedby('subject1', 3)
+
+    assert set(referencedby) == set(mock_schema_registry.REFERENCEDBY)
+
+
+def test_get_referencedby_no_version(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_referencedby"
+    version = 404
+
+    with pytest.raises(SchemaRegistryError, match="Version not found") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_get_referencedby_invalid(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_referencedby"
+    version = 422
+
+    with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_get_referencedby_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "notfound"
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)

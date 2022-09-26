@@ -417,6 +417,32 @@ class SchemaRegistryClient(object):
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
         return response
 
+    def get_referencedby(self, subject_name, version):
+        """
+        List all schema_id's that reference the schema with the given ``subject_name``
+        and ``version``.
+
+        Args:
+            subject_name (str) Subject name
+
+            version (int): Version number
+
+        Returns:
+            list(int): Referencing ``schema_id``s
+
+
+        Raises:
+            SchemaRegistryError: If schema can't be found.
+
+        See Also:
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+
+        response = self._rest_client.get('subjects/{}/versions/{}/referencedby'
+                                         .format(_urlencode(subject_name),
+                                                 version))
+        return response
+
     def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.

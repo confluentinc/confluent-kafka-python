@@ -67,6 +67,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         - SUBJECTS = ['subject1', 'subject2']
         - SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
         - SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
+        - REFERENCEDBY = [42, 17]
 
     Trigger keywords may also be used in the body of the requests. At this time
     the only endpoint which supports this is /config which will return an
@@ -90,6 +91,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     | GET    | /subjects/notfound/versions/404                 | 40402 | Version not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
     | GET    | /subjects/notfound/versions/422                 | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/[0-9]/referencedby  | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/404/referencedby    | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/422/referencedby    | 42202 | Invalid version              |
     +--------+-------------------------------------------------+-------+------------------------------+
     | DELETE | /subjects/notfound                              | 40401 | Subject not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
@@ -140,6 +147,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     schemas_versions = re.compile("/schemas/ids/([0-9]*)/versions/?(.*)$")
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
+    subject_versions_referencedby = re.compile("/subjects/(.*)/versions/(.*)/referencedby/?$")
     compatibility = re.compile("/config/?(.*)$")
     compatibility_subjects_versions = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
 
@@ -152,6 +160,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     USERINFO = 'mock_user:mock_password'
     SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
     SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
+    REFERENCEDBY = [42, 17]
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -189,6 +198,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                              json=self.delete_subject_version_callback)
         adapter.register_uri('POST', self.subject_versions,
                              json=self.post_subject_version_callback)
+        adapter.register_uri('GET', self.subject_versions_referencedby,
+                             json=self.get_subject_version_referencedby_callback)
         adapter.register_uri('POST', self.compatibility_subjects_versions,
                              json=self.post_compatibility_subjects_versions_callback)
 
@@ -308,6 +319,30 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         context.status_code = 200
         return self.SCHEMA_VERSIONS
+
+    def get_subject_version_referencedby_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        path_match = re.match(self.subject_versions_referencedby, request.path)
+        subject_name = path_match.group(1)
+        version = path_match.group(2)
+        version_num = -1 if version == 'latest' else int(version)
+
+        if version_num == 404:
+            context.status_code = 404
+            return {'error_code': 40402,
+                    'message': "Version not found"}
+        if version_num == 422:
+            context.status_code = 422
+            return {'error_code': 42202,
+                    'message': "Invalid version"}
+        if subject_name == 'notfound':
+            context.status_code = 404
+            return {'error_code': 40401,
+                    'message': "Subject not found"}
+        context.status_code = 200
+        return self.REFERENCEDBY
+
     def get_schemas_callback(self, request, context):
         self.counter['GET'][request.path] += 1
 

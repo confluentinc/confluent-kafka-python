@@ -23,6 +23,7 @@ import pytest
 
 from confluent_kafka.schema_registry import Schema
 from confluent_kafka.schema_registry.error import SchemaRegistryError
+from confluent_kafka.schema_registry.schema_registry_client import SchemaReference
 from tests.integration.conftest import kafka_cluster_fixture
 
 
@@ -233,6 +234,86 @@ def test_api_get_schema_versions_not_found(kafka_cluster):
 
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40403
+def test_api_get_referencedby(kafka_cluster, load_file):
+    pass
+    """
+    Register a "child" schema and two "parent" schemas referencing it.
+    Use the child schemas ``subject_name`` and ``version`` to fetch the
+    referencedby list of parent "schema_id"'s.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+        load_file (callable(str)): Schema fixture constructor
+
+    """
+    sr = kafka_cluster.schema_registry()
+    parent_schema = Schema(load_file('referenced_schema.avsc'), schema_type='AVRO', references=[])
+    parent_subject = _subject_name('get_referencedby')
+    parent_schema_id = sr.register_schema(parent_subject, parent_schema)
+    parent_version = 1
+    schema_reference = SchemaReference(name="schema_name", subject=parent_subject, version=parent_version)
+
+    referencedby = []
+    for file in ['referencing_schema_1.avsc', 'referencing_schema_2.avsc']:
+        child_schema = Schema(load_file(file), schema_type='AVRO', references=[schema_reference])
+        child_subject = _subject_name('get_referencedby')
+        child_schema_id = sr.register_schema(child_subject, child_schema)
+        referencedby.append(child_schema_id)
+
+    referencedby2 = sr.get_referencedby(parent_subject, parent_version)
+
+    assert set(referencedby2) == set(referencedby)
+
+
+def test_api_get_referencedby_no_version(kafka_cluster, load_file):
+    sr = kafka_cluster.schema_registry()
+
+    # ensures subject exists and has a single version
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = _subject_name('test-get_referencedby')
+    sr.register_schema(subject, schema)
+
+    with pytest.raises(SchemaRegistryError, match="Version .*not found") as e:
+        sr.get_referencedby(subject, version=3)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_api_get_referencedby_invalid(kafka_cluster, load_file):
+    sr = kafka_cluster.schema_registry()
+
+    # ensures subject exists and has a single version
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = _subject_name('test-get_referencedby')
+    sr.register_schema(subject, schema)
+
+    with pytest.raises(SchemaRegistryError,
+                       match="The specified version .*is not"
+                       " a valid version id.*") as e:
+        sr.get_referencedby(subject, version='a')
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_api_get_referencedby_not_found(kafka_cluster):
+    """
+    Attempts to schema reference id's by an unknown subject, validates the error.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+
+    """
+    sr = kafka_cluster.schema_registry()
+
+    subject = _subject_name('test-get_referencedby')
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject .*not found.*") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     """
     Attempts to obtain information about a schema's subject registration for
