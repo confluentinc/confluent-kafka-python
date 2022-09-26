@@ -234,6 +234,80 @@ def test_api_get_schema_versions_not_found(kafka_cluster):
 
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40403
+
+
+def test_api_get_schema_by_subject_version(kafka_cluster, load_file):
+    """
+    Registers a schema under a unique ``subject_name``, then retrieves it using
+    ``subject_name`` and ``version=1``.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+        load_file (callable(str)): Schema fixture constructor
+
+    """
+    sr = kafka_cluster.schema_registry()
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = _subject_name('get_schema_by_subject_version')
+    schema_id = sr.register_schema(subject, schema)
+    version = 1
+
+    schema2 = sr.get_schema_by_subject_version(subject_name=subject, version=version)
+
+    assert schema.schema_str, schema2.schema_str  # NOTE the schema_str formatting may have changed in the round-trip.
+    assert schema2.schema_type == schema.schema_type
+    assert schema2.references == schema.references
+
+
+def test_api_get_schema_by_subject_version_no_version(kafka_cluster, load_file):
+    sr = kafka_cluster.schema_registry()
+
+    # ensures subject exists and has a single version
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = _subject_name('test-get_schema_by_subject_version')
+    sr.register_schema(subject, schema)
+
+    with pytest.raises(SchemaRegistryError, match="Version .*not found") as e:
+        sr.get_schema_by_subject_version(subject, version=3)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_api_get_schema_by_subject_version_invalid(kafka_cluster, load_file):
+    sr = kafka_cluster.schema_registry()
+
+    # ensures subject exists and has a single version
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = _subject_name('test-get_schema_by_subject_version')
+    sr.register_schema(subject, schema)
+
+    with pytest.raises(SchemaRegistryError,
+                       match="The specified version .*is not"
+                       " a valid version id.*") as e:
+        sr.get_schema_by_subject_version(subject, version='a')
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_api_get_schema_by_subject_version_not_found(kafka_cluster):
+    """
+    Attempts to fetch schema by an unknown subject, validates the error.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+
+    """
+    sr = kafka_cluster.schema_registry()
+
+    subject = _subject_name('test-get_schema_by_subject_version')
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject .*not found.*") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_api_get_referencedby(kafka_cluster, load_file):
     pass
     """

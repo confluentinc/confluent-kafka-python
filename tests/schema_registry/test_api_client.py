@@ -206,6 +206,55 @@ def test_get_schema_versions_not_found(mock_schema_registry):
     assert e.value.error_code == 40403
 
 
+def test_get_schema_by_subject_version(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema2 = sr.get_schema_by_subject_version('subject1', 3)
+
+    assert cmp_schema(schema, schema2)
+
+
+def test_get_schema_by_subject_version_no_version(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_schema_by_subject_version"
+    version = 404
+
+    with pytest.raises(SchemaRegistryError, match="Version not found") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_get_schema_by_subject_version_invalid(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_schema_by_subject_version"
+    version = 422
+
+    with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_get_schema_by_subject_version_subject_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "notfound"
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_get_referencedby(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)
