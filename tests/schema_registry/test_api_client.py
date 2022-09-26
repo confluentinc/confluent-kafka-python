@@ -186,6 +186,26 @@ def test_get_schema_types(mock_schema_registry):
     assert result == mock_schema_registry.SCHEMA_TYPES
 
 
+def test_get_schema_versions(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    schema_version = mock_schema_registry.SCHEMA_VERSIONS
+    schema_versions2 = sr.get_schema_versions(47)
+
+    assert schema_version == schema_versions2
+
+
+def test_get_schema_versions_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
+        sr.get_schema_versions(404)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40403
+
+
 def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)

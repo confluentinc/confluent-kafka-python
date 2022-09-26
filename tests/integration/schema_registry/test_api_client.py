@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from random import choices
+from string import ascii_lowercase
 from uuid import uuid1
 
 import pytest
@@ -188,6 +190,49 @@ def test_api_get_schema_types(kafka_cluster):
     assert set(schema_types) <= set(schema_types2)
 
 
+def test_api_get_schema_versions(kafka_cluster, load_file):
+    """
+    Registers a schema, on two different unique subject names, and fetches that schema's schema_id'.
+    Use schema_id to get a list of subject-version tuples.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+        load_file (callable(str)): Schema fixture constructor
+
+    """
+    sr = kafka_cluster.schema_registry()
+
+    unique_name = ''.join(choices(ascii_lowercase, k=10))
+    schema = Schema(load_file('unique_schema.avsc').replace('$UNIQ', unique_name), schema_type='AVRO')
+    subject_a = _subject_name('test-get_schema_versions')
+    subject_b = _subject_name('test-get_schema_versions')
+    sr.register_schema(subject_a, schema)
+    sr.register_schema(subject_b, schema)
+    registered_schema = sr.lookup_schema(subject_a, schema)
+    schema_id = registered_schema.schema_id
+
+    schema_versions = [{'subject':subject_a, 'version':1}, {'subject':subject_b, 'version':1}]
+    schema_versions_reverse = schema_versions[::-1]
+
+    schema_versions2 = sr.get_schema_versions(schema_id)
+    assert schema_versions2 == schema_versions or schema_versions2 == schema_versions_reverse
+
+  
+def test_api_get_schema_versions_not_found(kafka_cluster):
+    """
+    Attempts to fetch versions by an unknown schema by id, validates the error.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+
+    """
+    sr = kafka_cluster.schema_registry()
+
+    with pytest.raises(SchemaRegistryError, match="Schema .*not found.*") as e:
+        sr.get_schema_versions(999999)
+
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40403
 def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     """
     Attempts to obtain information about a schema's subject registration for

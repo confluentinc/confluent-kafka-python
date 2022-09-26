@@ -394,6 +394,29 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('schemas/types')
 
+    def get_schema_versions(self, schema_id):
+        """
+        List all subject-version pairs identified by the ``schema_id``.
+        Returns a list of dicts with keys: 	
+            - subject (str): Name of the subject
+            - version (int): Version of the returned schema
+
+        Args:
+            schema_id (int): Schema id
+
+        Returns:
+            list(dict)
+
+        Raises:
+            SchemaRegistryError: if subjects can't be found
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+        """  # noqa: E501
+
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
+        return response
+
     def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.

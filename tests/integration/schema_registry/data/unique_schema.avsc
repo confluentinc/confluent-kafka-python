@@ -1,0 +1,5 @@
+{
+  "type": "enum",
+  "name": "unique_schema",
+  "symbols" : ["$UNIQ"]
+}

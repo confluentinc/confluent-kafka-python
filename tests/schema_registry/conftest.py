@@ -66,6 +66,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         - SCHEMA = 'basic_schema.avsc'
         - SUBJECTS = ['subject1', 'subject2']
         - SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
+        - SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
 
     Trigger keywords may also be used in the body of the requests. At this time
     the only endpoint which supports this is /config which will return an
@@ -79,6 +80,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     | Method |         Request Path                            | Code  |      Description             |
     +========+=================================================+=======+==============================+
     | GET    | /schemas/ids/404                                | 40403 | Schema not found             |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /schemas/ids/404/versions                       | 40403 | Schema not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
     | GET    | /subjects/notfound/versions                     | 40401 | Subject not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
@@ -134,6 +137,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     # request paths
     schemas_types = re.compile("/schemas/types/?(.*)$")
     schemas = re.compile("/schemas/ids/([0-9]*)$")
+    schemas_versions = re.compile("/schemas/ids/([0-9]*)/versions/?(.*)$")
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
     compatibility = re.compile("/config/?(.*)$")
@@ -147,6 +151,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SUBJECTS = ['subject1', 'subject2']
     USERINFO = 'mock_user:mock_password'
     SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
+    SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -168,6 +173,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                              json=self.get_schemas_types_callback)
         adapter.register_uri('GET', self.schemas,
                              json=self.get_schemas_callback)
+        adapter.register_uri('GET', self.schemas_versions,
+                             json=self.get_schemas_versions_callback)
 
         adapter.register_uri('DELETE', self.subjects,
                              json=self.delete_subject_callback)
@@ -288,6 +295,19 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         context.status_code = 200
         return self.SCHEMA_TYPES
 
+    def get_schemas_versions_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        path_match = re.match(self.schemas_versions, request.path)
+        schema_id = path_match.group(1)
+
+        if int(schema_id) == 404:
+            context.status_code = 404
+            return {'error_code': 40403,
+                    'message': "Schema not found"}
+
+        context.status_code = 200
+        return self.SCHEMA_VERSIONS
     def get_schemas_callback(self, request, context):
         self.counter['GET'][request.path] += 1
 
