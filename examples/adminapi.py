@@ -17,9 +17,9 @@
 
 # Example use of AdminClient operations.
 
-from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
+from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
-                                   AclOperation, AclPermissionType)
+                                   AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest, AlterConsumerGroupOffsetsRequest)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -430,6 +430,67 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
+def example_list_consumer_group_offsets(a, args):
+    """ TODO: Add doc
+    """
+
+    topic_partition_list = []
+    for topic, partition in zip(args[1::2],args[2::2]):
+        topic_partition_list.append(TopicPartition(topic, int(partition)))
+    if len(topic_partition_list) == 0:
+        topic_partition_list = None
+    groups = [ListConsumerGroupOffsetsRequest(args[0], topic_partition_list)]
+
+    futureMap = a.list_consumer_group_offsets(groups)
+
+    # Wait for operation to finish.
+    for request, future in futureMap.items():
+        try:
+            response_offset_info = future.result()
+            print("Group: " + response_offset_info.group_name)
+            for topic_partition in response_offset_info.topic_partition_list:
+                if topic_partition.error:
+                    print("    Error: " + topic_partition.error.str() + " occured with " + 
+                        topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                else:
+                    print("    " + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+
+        except KafkaException as e:
+            print("Failed to describe {}: {}".format(groups, e))
+        except Exception:
+            raise
+
+
+def example_alter_consumer_group_offsets(a, args):
+    """ TODO: Add doc
+    """
+
+    topic_partition_list = []
+    for topic, partition, offset in zip(args[1::3],args[2::3],args[3::3]):
+        topic_partition_list.append(TopicPartition(topic, int(partition), int(offset)))
+    if len(topic_partition_list) == 0:
+        topic_partition_list = None
+    groups = [AlterConsumerGroupOffsetsRequest(args[0], topic_partition_list)]
+
+    futureMap = a.alter_consumer_group_offsets(groups)
+
+    # Wait for operation to finish.
+    for request, future in futureMap.items():
+        try:
+            response_offset_info = future.result()
+            print("Group: " + response_offset_info.group_name)
+            for topic_partition in response_offset_info.topic_partition_list:
+                if topic_partition.error:
+                    print("    Error: " + topic_partition.error.str() + " occured with " + 
+                        topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                else:
+                    print("    " + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+
+        except KafkaException as e:
+            print("Failed to describe {}: {}".format(groups, e))
+        except Exception:
+            raise
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -449,6 +510,8 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
+        sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
+        sys.stderr.write(' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> <topic2> <partition2> <offset2> ..\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -467,7 +530,9 @@ if __name__ == '__main__':
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,
               'delete_acls': example_delete_acls,
-              'list': example_list}
+              'list': example_list,
+              'list_consumer_group_offsets': example_list_consumer_group_offsets,
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
