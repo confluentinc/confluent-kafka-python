@@ -75,16 +75,18 @@ struct Admin_options {
         float request_timeout;    /* parser: f */
         float operation_timeout;  /* parser: f */
         int   broker;             /* parser: i */
-//        int request_stable;       /* needs special bool parsing */
+        int require_stable;       /* needs special bool parsing */
 };
 
 /**@brief "unset" value initializers for Admin_options
  * Make sure this is kept up to date with Admin_options above. */
-// TODO: Initialize request_stable
-#define Admin_options_INITIALIZER {                                     \
-                Admin_options_def_int, Admin_options_def_float,         \
-                        Admin_options_def_float, Admin_options_def_int, \
-                        }
+#define Admin_options_INITIALIZER {              \
+                Admin_options_def_int,           \
+                Admin_options_def_float,         \
+                Admin_options_def_float,         \
+                Admin_options_def_int,           \
+                Admin_options_def_int,           \
+        }
 
 #define Admin_options_is_set_int(v) ((v) != Admin_options_def_int)
 #define Admin_options_is_set_float(v) Admin_options_is_set_int((int)(v))
@@ -140,6 +142,12 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->broker) &&
             (err = rd_kafka_AdminOptions_set_broker(
                     c_options, (int32_t)options->broker,
+                    errstr, sizeof(errstr))))
+                goto err;
+
+        if (Admin_options_is_set_int(options->require_stable) &&
+            (err = rd_kafka_AdminOptions_set_require_stable(
+                    c_options, options->require_stable,
                     errstr, sizeof(errstr))))
                 goto err;
 
@@ -1397,7 +1405,7 @@ static const char Admin_delete_acls_doc[] = PyDoc_STR(
  * @brief List consumer groups offsets
  */
 PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *request, *future;
+        PyObject *request, *future, *require_stable_obj = NULL;
         int requests_cnt;
         struct Admin_options options = Admin_options_INITIALIZER;
         PyObject *ConsumerGroupTopicPartition_type = NULL;
@@ -1413,15 +1421,22 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         static char *kws[] = {"request", 
                              "future",
                              /* options */
+                             "require_stable",
                              "request_timeout",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
                                          &request,
                                          &future,
+                                         &require_stable_obj,
                                          &options.request_timeout)) {
                 goto err;
         }
+
+        if (require_stable_obj &&
+            !cfl_PyBool_get(require_stable_obj, "require_stable",
+                            &options.require_stable))
+                return NULL;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
                                        &options, future);
