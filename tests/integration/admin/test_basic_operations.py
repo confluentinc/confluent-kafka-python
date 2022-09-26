@@ -161,6 +161,12 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
             is_any_message_consumed = True
     assert is_any_message_consumed
 
+    # print("------------------------" + res.group_name + "--------------------------")
+    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
+    # for topic_partition in res.topic_partition_list:
+    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
+
+
     # Alter Consumer Group Offsets check
     alter_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
                                                                                        topic_partition.partition, 
@@ -178,6 +184,11 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
 
+    # print("------------------------" + ares.group_name + "--------------------------")
+    # print("------------------------" + str(len(ares.topic_partition_list)) + "--------------------------")
+    # for topic_partition in ares.topic_partition_list:
+    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
+
     # List Consumer Group Offsets check with just group name
     list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
                                                                                       topic_partition.partition), 
@@ -187,6 +198,11 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
     lf = lfs[list_group_topic_partition_request]
     lres = lf.result()
+
+    # print("------------------------" + lres.group_name + "--------------------------")
+    # print("------------------------" + str(len(lres.topic_partition_list)) + "--------------------------")
+    # for topic_partition in lres.topic_partition_list:
+    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
 
     assert isinstance(lres, ListConsumerGroupOffsetsResponse)
     assert lres.group_name == group_name
@@ -289,7 +305,24 @@ def test_basic_operations(kafka_cluster):
     group1 = 'test-group-1'
     group2 = 'test-group-2'
     consume_messages(group1, 2)
+    # fs = admin_client.list_consumer_group_offsets([ListConsumerGroupOffsetsRequest(group1)])
+    # f = list(fs.items())[0][1]
+    # res = f.result()
+    # print("------------------------" + res.group_name + "--------------------------")
+    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
+    # for topic_partition in res.topic_partition_list:
+    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
+
     consume_messages(group2, 2)
+
+    # fs = admin_client.list_consumer_group_offsets([ListConsumerGroupOffsetsRequest(group2)])
+    # f = list(fs.items())[0][1]
+    # res = f.result()
+    # print("------------------------" + res.group_name + "--------------------------")
+    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
+    # for topic_partition in res.topic_partition_list:
+    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
+
     # list_groups without group argument
     groups = set(group.id for group in admin_client.list_groups(timeout=10))
     assert group1 in groups, "Consumer group {} not found".format(group1)
