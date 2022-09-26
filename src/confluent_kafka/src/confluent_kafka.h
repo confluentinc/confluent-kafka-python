@@ -319,11 +319,15 @@ void CallState_crash (CallState *cs);
 #define cfl_PyInt_FromInt(v) PyInt_FromLong(v)
 #endif
 
+#define cfl_PyLong_Check(o) PyLong_Check(o)
+#define cfl_PyLong_AsLong(o) (int)PyLong_AsLong(o)
+#define cfl_PyLong_FromLong(v) PyLong_FromLong(v)
 
 PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val);
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val);
 int cfl_PyObject_SetInt (PyObject *o, const char *name, int val);
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
