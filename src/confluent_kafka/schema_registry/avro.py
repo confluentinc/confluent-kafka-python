@@ -302,7 +302,7 @@ class AvroSerializer(Serializer):
             # Write the magic byte and schema ID in network byte order (big endian)
             fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
-            schemaless_writer(fo, self._parsed_schema, value, strict=self._strict, 
+            schemaless_writer(fo, self._parsed_schema, value, strict=self._strict,
                               strict_allow_default=self._strict_allow_default)
 
             return fo.getvalue()
