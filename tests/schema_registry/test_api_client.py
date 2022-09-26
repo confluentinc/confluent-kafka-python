@@ -177,6 +177,15 @@ def test_get_schema_cache(mock_schema_registry):
     assert count_after - count_before == 1
 
 
+def test_get_schema_types(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    result = sr.get_schema_types()
+
+    assert result == mock_schema_registry.SCHEMA_TYPES
+
+
 def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)

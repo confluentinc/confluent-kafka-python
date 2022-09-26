@@ -381,6 +381,19 @@ class SchemaRegistryClient(object):
 
         return schema
 
+    def get_schema_types(self):
+        """
+        List all schema types registered with the Schema Registry
+
+        Returns:
+            list(str): Registered schema types
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types->`_
+        """  # noqa: E501
+
+        return self._rest_client.get('schemas/types')
+
     def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.

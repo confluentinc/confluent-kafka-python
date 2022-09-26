@@ -64,7 +64,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         - VERSION = 3
         - VERSIONS = [1, 2, 3, 4]
         - SCHEMA = 'basic_schema.avsc'
-        - SUBJECTS = ['subject1', 'subject2'].
+        - SUBJECTS = ['subject1', 'subject2']
+        - SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
 
     Trigger keywords may also be used in the body of the requests. At this time
     the only endpoint which supports this is /config which will return an
@@ -131,6 +132,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     """
     # request paths
+    schemas_types = re.compile("/schemas/types/?(.*)$")
     schemas = re.compile("/schemas/ids/([0-9]*)$")
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
@@ -144,6 +146,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SCHEMA = 'basic_schema.avsc'
     SUBJECTS = ['subject1', 'subject2']
     USERINFO = 'mock_user:mock_password'
+    SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -161,6 +164,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         adapter.register_uri('PUT', self.compatibility,
                              json=self.put_compatibility_callback)
 
+        adapter.register_uri('GET', self.schemas_types,
+                             json=self.get_schemas_types_callback)
         adapter.register_uri('GET', self.schemas,
                              json=self.get_schemas_callback)
 
@@ -276,6 +281,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                 "id": self.SCHEMA_ID,
                 "version": self.VERSION,
                 "schema": request.json()['schema']}
+
+    def get_schemas_types_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        context.status_code = 200
+        return self.SCHEMA_TYPES
 
     def get_schemas_callback(self, request, context):
         self.counter['GET'][request.path] += 1

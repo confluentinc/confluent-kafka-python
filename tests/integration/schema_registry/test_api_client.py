@@ -174,6 +174,20 @@ def test_api_get_schema_not_found(kafka_cluster, load_file):
     assert e.value.error_code == 40403
 
 
+def test_api_get_schema_types(kafka_cluster):
+    """
+    Retrieves schema types from schema registry and compares with current known types.
+
+    Args:
+        kafka_cluster (KafkaClusterFixture): Kafka Cluster fixture
+
+    """
+    sr = kafka_cluster.schema_registry()
+    schema_types = ['JSON', 'PROTOBUF', 'AVRO']
+    schema_types2 = sr.get_schema_types()
+    assert set(schema_types) <= set(schema_types2)
+
+
 def test_api_get_registration_subject_not_found(kafka_cluster, load_file):
     """
     Attempts to obtain information about a schema's subject registration for
