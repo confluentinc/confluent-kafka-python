@@ -13,12 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from re import T
+from tkinter import Grid
 import confluent_kafka
 import struct
 import time
-from confluent_kafka.admin import (NewPartitions, ConfigResource,
+from confluent_kafka import admin
+from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType)
+                                   ResourcePatternType, AclOperation, AclPermissionType,
+                                   ListConsumerGroupOffsetsRequest, ListConsumerGroupOffsetsResponse, 
+                                   AlterConsumerGroupOffsetsRequest, AlterConsumerGroupOffsetsResponse)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -139,6 +144,59 @@ def verify_topic_metadata(client, exp_topics, *args, **kwargs):
         time.sleep(1)
 
 
+def verify_consumer_group_offsets_operations(client, our_topic, group_name):
+
+    # List Consumer Group Offsets check with just group name
+    request = ListConsumerGroupOffsetsRequest(group_name)
+    fs = client.list_consumer_group_offsets([request])
+    f = fs[request]
+    res = f.result()
+    assert isinstance(res, ListConsumerGroupOffsetsResponse)
+    assert res.group_name == group_name
+    assert len(res.topic_partition_list) == 2
+    is_any_message_consumed = False
+    for topic_partition in res.topic_partition_list:
+        assert topic_partition.topic == our_topic
+        if topic_partition.offset > 0:
+            is_any_message_consumed = True
+    assert is_any_message_consumed
+
+    # Alter Consumer Group Offsets check
+    alter_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
+                                                                                       topic_partition.partition, 
+                                                                                       0), 
+                                                res.topic_partition_list))
+    alter_group_topic_partition_request = AlterConsumerGroupOffsetsRequest(group_name, 
+                                                                           alter_group_topic_partition_list)
+    afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
+    af = afs[alter_group_topic_partition_request]
+    ares = af.result()
+    assert isinstance(ares, AlterConsumerGroupOffsetsResponse)
+    assert ares.group_name == group_name
+    assert len(ares.topic_partition_list) == 2
+    for topic_partition in ares.topic_partition_list:
+        assert topic_partition.topic == our_topic
+        assert topic_partition.offset == 0
+
+    # List Consumer Group Offsets check with just group name
+    list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
+                                                                                      topic_partition.partition), 
+                                           ares.topic_partition_list))
+    list_group_topic_partition_request = ListConsumerGroupOffsetsRequest(group_name, 
+                                                                         list_group_topic_partition_list)
+    lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
+    lf = lfs[list_group_topic_partition_request]
+    lres = lf.result()
+
+    assert isinstance(lres, ListConsumerGroupOffsetsResponse)
+    assert lres.group_name == group_name
+    assert len(lres.topic_partition_list) == 2
+    for topic_partition in lres.topic_partition_list:
+        assert topic_partition.topic == our_topic
+        assert topic_partition.offset == 0
+
+
+
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
@@ -190,6 +248,7 @@ def test_basic_operations(kafka_cluster):
     p = kafka_cluster.producer()
     p.produce(our_topic, 'Hello Python!', headers=produce_headers)
     p.produce(our_topic, key='Just a key and headers', headers=produce_headers)
+    p.flush()
 
     def consume_messages(group_id, num_messages=None):
         # Consume messages
@@ -286,6 +345,10 @@ def test_basic_operations(kafka_cluster):
 
     # Verify ACL operations
     verify_admin_acls(admin_client, our_topic, group1)
+
+    time.sleep(5)
+    # Verify Consumer Offset Operations
+    verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
 
     #
     # Delete the topic
