@@ -161,12 +161,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
             is_any_message_consumed = True
     assert is_any_message_consumed
 
-    # print("------------------------" + res.group_name + "--------------------------")
-    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
-    # for topic_partition in res.topic_partition_list:
-    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
-
-
     # Alter Consumer Group Offsets check
     alter_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
                                                                                        topic_partition.partition, 
@@ -184,11 +178,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
 
-    # print("------------------------" + ares.group_name + "--------------------------")
-    # print("------------------------" + str(len(ares.topic_partition_list)) + "--------------------------")
-    # for topic_partition in ares.topic_partition_list:
-    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
-
     # List Consumer Group Offsets check with just group name
     list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
                                                                                       topic_partition.partition), 
@@ -199,18 +188,12 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
     lf = lfs[list_group_topic_partition_request]
     lres = lf.result()
 
-    # print("------------------------" + lres.group_name + "--------------------------")
-    # print("------------------------" + str(len(lres.topic_partition_list)) + "--------------------------")
-    # for topic_partition in lres.topic_partition_list:
-    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
-
     assert isinstance(lres, ListConsumerGroupOffsetsResponse)
     assert lres.group_name == group_name
     assert len(lres.topic_partition_list) == 2
     for topic_partition in lres.topic_partition_list:
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
-
 
 
 def test_basic_operations(kafka_cluster):
@@ -301,27 +284,12 @@ def test_basic_operations(kafka_cluster):
                 else:
                     print('Consumer error: %s: ignoring' % str(e))
                     break
+        c.close()
 
     group1 = 'test-group-1'
     group2 = 'test-group-2'
     consume_messages(group1, 2)
-    # fs = admin_client.list_consumer_group_offsets([ListConsumerGroupOffsetsRequest(group1)])
-    # f = list(fs.items())[0][1]
-    # res = f.result()
-    # print("------------------------" + res.group_name + "--------------------------")
-    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
-    # for topic_partition in res.topic_partition_list:
-    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
-
     consume_messages(group2, 2)
-
-    # fs = admin_client.list_consumer_group_offsets([ListConsumerGroupOffsetsRequest(group2)])
-    # f = list(fs.items())[0][1]
-    # res = f.result()
-    # print("------------------------" + res.group_name + "--------------------------")
-    # print("------------------------" + str(len(res.topic_partition_list)) + "--------------------------")
-    # for topic_partition in res.topic_partition_list:
-    #     print("------------------------" + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset) + " --------------------------")
 
     # list_groups without group argument
     groups = set(group.id for group in admin_client.list_groups(timeout=10))
@@ -379,7 +347,6 @@ def test_basic_operations(kafka_cluster):
     # Verify ACL operations
     verify_admin_acls(admin_client, our_topic, group1)
 
-    time.sleep(5)
     # Verify Consumer Offset Operations
     verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
 
