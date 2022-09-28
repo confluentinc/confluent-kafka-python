@@ -25,7 +25,7 @@ except NameError:
 # Add __repr__ function
 # Make properties readonly once it is set
 class ConsumerGroupTopicPartitions(ABC):
-    def __init__(self, group_name: str = None, topic_partition_list:list = None):
+    def __init__(self, group_name: str = None, topic_partition_list: list = None):
         self.group_name = group_name
         self.topic_partition_list = topic_partition_list
         self._check_valid_group_name()
@@ -43,7 +43,7 @@ class ConsumerGroupTopicPartitions(ABC):
         pass
 
 
-# Relook at __eq__ and __hash__ logic when the ListConsumerGroupOffsets 
+# Relook at __eq__ and __hash__ logic when the ListConsumerGroupOffsets
 # API of librdkafka accepts multiple group names
 class ListConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
     """
@@ -58,6 +58,7 @@ class ListConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
         * Can be null
         * Cannot be empty
     """
+
     def _check_valid_group_name(self):
         if self.group_name is None:
             raise TypeError("'group_name' cannot be None")
@@ -102,6 +103,7 @@ class ListConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
     topic_partition_list : list
         List of :class:`TopicPartition` containing offset information.
     """
+
     def _check_valid_group_name(self):
         pass
 
@@ -109,7 +111,7 @@ class ListConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
         pass
 
 
-# Relook at __eq__ and __hash__ logic when the AlterConsumerGroupOffsets 
+# Relook at __eq__ and __hash__ logic when the AlterConsumerGroupOffsets
 # API of librdkafka accepts multiple group information
 class AlterConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
     """
@@ -123,6 +125,7 @@ class AlterConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
         List of :class:`TopicPartition` for which offset information is expected. . **Mandatory**
         * Cannot be empty or null
     """
+
     def _check_valid_group_name(self):
         if self.group_name is None:
             raise TypeError("'group_name' cannot be None")
@@ -157,7 +160,6 @@ class AlterConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
             raise ValueError("Element of 'topic_partition_list' must not have negative value for 'offset' field")
 
 
-
 class AlterConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
     """
     Response object for alter consumer group offset API.
@@ -169,6 +171,7 @@ class AlterConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
     topic_partition_list : list
         List of :class:`TopicPartition` showing offset information after completion of the operation.
     """
+
     def _check_valid_group_name(self):
         pass
 
