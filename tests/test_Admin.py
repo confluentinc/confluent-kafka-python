@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-from multiprocessing.sharedctypes import Value
 import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \

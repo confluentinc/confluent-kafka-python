@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from tkinter import OFF
 from confluent_kafka import TopicPartition, OFFSET_INVALID
 from abc import ABC, abstractmethod
 
