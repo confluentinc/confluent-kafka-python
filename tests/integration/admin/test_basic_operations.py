@@ -19,7 +19,7 @@ import time
 from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
-                                   ListConsumerGroupOffsetsRequest, ListConsumerGroupOffsetsResponse, 
+                                   ListConsumerGroupOffsetsRequest, ListConsumerGroupOffsetsResponse,
                                    AlterConsumerGroupOffsetsRequest, AlterConsumerGroupOffsetsResponse)
 from confluent_kafka.error import ConsumeError
 
@@ -159,11 +159,11 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
     assert is_any_message_consumed
 
     # Alter Consumer Group Offsets check
-    alter_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
-                                                                                       topic_partition.partition, 
-                                                                                       0), 
+    alter_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
+                                                                                       topic_partition.partition,
+                                                                                       0),
                                                 res.topic_partition_list))
-    alter_group_topic_partition_request = AlterConsumerGroupOffsetsRequest(group_name, 
+    alter_group_topic_partition_request = AlterConsumerGroupOffsetsRequest(group_name,
                                                                            alter_group_topic_partition_list)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
     af = afs[alter_group_topic_partition_request]
@@ -176,10 +176,10 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
         assert topic_partition.offset == 0
 
     # List Consumer Group Offsets check with just group name
-    list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic, 
-                                                                                      topic_partition.partition), 
+    list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
+                                                                                      topic_partition.partition),
                                            ares.topic_partition_list))
-    list_group_topic_partition_request = ListConsumerGroupOffsetsRequest(group_name, 
+    list_group_topic_partition_request = ListConsumerGroupOffsetsRequest(group_name,
                                                                          list_group_topic_partition_list)
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
     lf = lfs[list_group_topic_partition_request]
