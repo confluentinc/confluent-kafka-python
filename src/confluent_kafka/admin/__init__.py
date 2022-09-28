@@ -27,11 +27,17 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclPermissionType,
                    AclBinding,
                    AclBindingFilter)
+from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
+                      ListConsumerGroupOffsetsRequest,
+                      ListConsumerGroupOffsetsResponse,
+                      AlterConsumerGroupOffsetsRequest,
+                      AlterConsumerGroupOffsetsResponse)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
                      NewTopic,
                      NewPartitions,
+                     TopicPartition,
                      CONFIG_SOURCE_UNKNOWN_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
@@ -126,6 +132,33 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             # Request-level exception, raise the same for all resources
             for resource, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_consumer_group_offsets_result(f, futmap):
+        # Improve this doc
+        """
+        Map per-group results to per-group futures in futmap.
+        The result value of each (successful) future is None.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for topic, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -465,6 +498,88 @@ class AdminClient (_AdminClientImpl):
                                               AdminClient._make_acls_result)
 
         super(AdminClient, self).delete_acls(acl_binding_filters, f, **kwargs)
+
+        return futmap
+
+    # Add error in the doc
+    def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
+        """
+        List offset information for the consumer group and (optional) topic partition provided in the request.
+
+        :note: Currently, the API supports only a single group.
+
+        :param list(ListConsumerGroupOffsetsRequest) list_consumer_group_offsets_request: List of
+                    :class:`ListConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition information for which offset detail is expected. If only group name is
+                    provided, then offset information of all the topic and partition associated with
+                    that group is returned.
+        :param bool require_stable: If True, fetches stable offsets. Default - False
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the :class:`ListConsumerGroupOffsetsRequest` object.
+                  The future result() method returns a list of :class:`ListConsumerGroupOffsetsResponse`.
+
+        :rtype: dict[ListConsumerGroupOffsetsRequest, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(list_consumer_group_offsets_request, list):
+            raise TypeError("Expected input to be list of ListConsumerGroupOffsetsRequest")
+
+        if len(list_consumer_group_offsets_request) == 0:
+            raise ValueError("Expected atleast one ListConsumerGroupOffsetsRequest request")
+
+        if len(list_consumer_group_offsets_request) > 1:
+            raise ValueError("Currently we support only 1 ListConsumerGroupOffsetsRequest request")
+
+        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ListConsumerGroupOffsetsRequest,
+                                              AdminClient._make_consumer_group_offsets_result)
+
+        super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
+
+        return futmap
+
+    # Add error in the doc
+
+    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
+        """
+        Alter offset for the consumer group and topic partition provided in the request.
+
+        :note: Currently, the API supports only a single group.
+
+        :param list(AlterConsumerGroupOffsetsRequest) alter_consumer_group_offsets_request: List of
+                    :class:`AlterConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition; and corresponding offset to be updated.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the :class:`AlterConsumerGroupOffsetsRequest` object.
+                  The future result() method returns a list of :class:`AlterConsumerGroupOffsetsResponse`.
+
+        :rtype: dict[AlterConsumerGroupOffsetsRequest, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(alter_consumer_group_offsets_request, list):
+            raise TypeError("Expected input to be list of AlterConsumerGroupOffsetsRequest")
+
+        if len(alter_consumer_group_offsets_request) == 0:
+            raise ValueError("Expected atleast one AlterConsumerGroupOffsetsRequest request")
+
+        if len(alter_consumer_group_offsets_request) > 1:
+            raise ValueError("Currently we support only 1 AlterConsumerGroupOffsetsRequest request")
+
+        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, AlterConsumerGroupOffsetsRequest,
+                                              AdminClient._make_consumer_group_offsets_result)
+
+        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
