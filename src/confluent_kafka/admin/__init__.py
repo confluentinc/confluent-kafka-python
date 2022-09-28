@@ -28,7 +28,7 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclBinding,
                    AclBindingFilter)
 from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
-                      ListConsumerGroupOffsetsRequest, 
+                      ListConsumerGroupOffsetsRequest,
                       ListConsumerGroupOffsetsResponse,
                       AlterConsumerGroupOffsetsRequest,
                       AlterConsumerGroupOffsetsResponse)
@@ -508,10 +508,10 @@ class AdminClient (_AdminClientImpl):
 
         :note: Currently, the API supports only a single group.
 
-        :param list(ListConsumerGroupOffsetsRequest) list_consumer_group_offsets_request: List of 
-                    :class:`ListConsumerGroupOffsetsRequest` which consist of group name and topic 
-                    partition information for which offset detail is expected. If only group name is 
-                    provided, then offset information of all the topic and partition associated with 
+        :param list(ListConsumerGroupOffsetsRequest) list_consumer_group_offsets_request: List of
+                    :class:`ListConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition information for which offset detail is expected. If only group name is
+                    provided, then offset information of all the topic and partition associated with
                     that group is returned.
         :param bool require_stable: If True, fetches stable offsets. Default - False
         :param float request_timeout: The overall request timeout in seconds,
@@ -543,17 +543,17 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-
     # Add error in the doc
+
     def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
         """
         Alter offset for the consumer group and topic partition provided in the request.
 
         :note: Currently, the API supports only a single group.
 
-        :param list(AlterConsumerGroupOffsetsRequest) alter_consumer_group_offsets_request: List of 
-                    :class:`AlterConsumerGroupOffsetsRequest` which consist of group name and topic 
-                    partition; and corresponding offset to be updated. 
+        :param list(AlterConsumerGroupOffsetsRequest) alter_consumer_group_offsets_request: List of
+                    :class:`AlterConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition; and corresponding offset to be updated.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`

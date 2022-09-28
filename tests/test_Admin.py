@@ -377,9 +377,9 @@ def test_delete_acls_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY,  None, ResourcePatternType.ANY,
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY,  "topic2", ResourcePatternType.MATCH,
+    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, "topic2", ResourcePatternType.MATCH,
                                            None, "*", AclOperation.WRITE, AclPermissionType.ALLOW)
 
     fs = a.delete_acls([acl_binding_filter1])
@@ -424,7 +424,7 @@ def test_describe_acls_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY,  None, ResourcePatternType.ANY,
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
                               "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
@@ -462,7 +462,8 @@ def test_list_consumer_group_offsets():
     a = AdminClient({"socket.timeout.ms": 10})
 
     only_group_name_request = ListConsumerGroupOffsetsRequest("test-group1")
-    request_with_group_and_topic_partition = ListConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 1)])
+    request_with_group_and_topic_partition = ListConsumerGroupOffsetsRequest(
+        "test-group2", [TopicPartition("test-topic1", 1)])
     same_name_request = ListConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 3)])
 
     a.list_consumer_group_offsets([only_group_name_request])
@@ -480,11 +481,11 @@ def test_list_consumer_group_offsets():
         a.list_consumer_group_offsets([])
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([only_group_name_request, 
+        a.list_consumer_group_offsets([only_group_name_request,
                                        request_with_group_and_topic_partition])
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([request_with_group_and_topic_partition, 
+        a.list_consumer_group_offsets([request_with_group_and_topic_partition,
                                        same_name_request])
 
     fs = a.list_consumer_group_offsets([only_group_name_request])
@@ -493,7 +494,7 @@ def test_list_consumer_group_offsets():
             f.result(timeout=10)
 
     fs = a.list_consumer_group_offsets([only_group_name_request],
-                                        request_timeout=0.5)
+                                       request_timeout=0.5)
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
         assert isinstance(e, KafkaException)
@@ -501,7 +502,7 @@ def test_list_consumer_group_offsets():
 
     with pytest.raises(ValueError):
         a.list_consumer_group_offsets([only_group_name_request],
-                                       request_timeout=-5)
+                                      request_timeout=-5)
 
 
 def test_list_consumer_group_offsets_request():
@@ -553,9 +554,11 @@ def test_alter_consumer_group_offsets():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    request_with_group_and_topic_partition_offset1 = AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic1", 1, 5)])
+    request_with_group_and_topic_partition_offset1 = AlterConsumerGroupOffsetsRequest(
+        "test-group1", [TopicPartition("test-topic1", 1, 5)])
     same_name_request = AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic2", 4, 3)])
-    request_with_group_and_topic_partition_offset2 = AlterConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic2", 1, 5)])
+    request_with_group_and_topic_partition_offset2 = AlterConsumerGroupOffsetsRequest(
+        "test-group2", [TopicPartition("test-topic2", 1, 5)])
 
     a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
 
@@ -572,11 +575,11 @@ def test_alter_consumer_group_offsets():
         a.alter_consumer_group_offsets([])
 
     with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1, 
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
                                        request_with_group_and_topic_partition_offset2])
 
     with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1, 
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
                                         same_name_request])
 
     fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
