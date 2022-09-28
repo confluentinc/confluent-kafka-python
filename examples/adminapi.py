@@ -18,7 +18,8 @@
 
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
-                                   AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest, AlterConsumerGroupOffsetsRequest)
+                                   AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
+                                   AlterConsumerGroupOffsetsRequest)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -434,7 +435,7 @@ def example_list_consumer_group_offsets(a, args):
     """
 
     topic_partition_list = []
-    for topic, partition in zip(args[1::2],args[2::2]):
+    for topic, partition in zip(args[1::2], args[2::2]):
         topic_partition_list.append(TopicPartition(topic, int(partition)))
     if len(topic_partition_list) == 0:
         topic_partition_list = None
@@ -449,10 +450,11 @@ def example_list_consumer_group_offsets(a, args):
             print("Group: " + response_offset_info.group_name)
             for topic_partition in response_offset_info.topic_partition_list:
                 if topic_partition.error:
-                    print("    Error: " + topic_partition.error.str() + " occured with " + 
-                        topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                    print("    Error: " + topic_partition.error.str() + " occured with " +
+                          topic_partition.topic + " [" + str(topic_partition.partition) + "]")
                 else:
-                    print("    " + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+                    print("    " + topic_partition.topic +
+                          " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
             print("Failed to describe {}: {}".format(groups, e))
@@ -465,7 +467,7 @@ def example_alter_consumer_group_offsets(a, args):
     """
 
     topic_partition_list = []
-    for topic, partition, offset in zip(args[1::3],args[2::3],args[3::3]):
+    for topic, partition, offset in zip(args[1::3], args[2::3], args[3::3]):
         topic_partition_list.append(TopicPartition(topic, int(partition), int(offset)))
     if len(topic_partition_list) == 0:
         topic_partition_list = None
@@ -480,15 +482,17 @@ def example_alter_consumer_group_offsets(a, args):
             print("Group: " + response_offset_info.group_name)
             for topic_partition in response_offset_info.topic_partition_list:
                 if topic_partition.error:
-                    print("    Error: " + topic_partition.error.str() + " occured with " + 
-                        topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                    print("    Error: " + topic_partition.error.str() + " occured with " +
+                          topic_partition.topic + " [" + str(topic_partition.partition) + "]")
                 else:
-                    print("    " + topic_partition.topic + " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+                    print("    " + topic_partition.topic +
+                          " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
             print("Failed to describe {}: {}".format(groups, e))
         except Exception:
             raise
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -510,7 +514,9 @@ if __name__ == '__main__':
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
         sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
-        sys.stderr.write(' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> <topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(
+            ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
+            '<topic2> <partition2> <offset2> ..\n')
         sys.exit(1)
 
     broker = sys.argv[1]
