@@ -27,7 +27,7 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclPermissionType,
                    AclBinding,
                    AclBindingFilter)
-from ._offset import (ConsumerGroupTopicPartitions, 
+from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
                       ListConsumerGroupOffsetsRequest, 
                       ListConsumerGroupOffsetsResponse,
                       AlterConsumerGroupOffsetsRequest,
