@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka import TopicPartition, OFFSET_INVALID
+from ..cimpl import TopicPartition, OFFSET_INVALID
 from abc import ABC, abstractmethod
 
 try:
