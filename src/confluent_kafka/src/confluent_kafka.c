@@ -825,7 +825,7 @@ static void TopicPartition_setup (TopicPartition *self, const char *topic,
 	self->topic = strdup(topic);
 	self->partition = partition;
 	self->offset = offset;
-	self->error = KafkaError_new_or_None(err, NULL);
+	self->error = KafkaError_new_or_None(err, NULL); //Add error string?
 }
 
 
@@ -2317,6 +2317,11 @@ void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
         Py_DECREF(vo);
 }
 
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val) {
+        PyObject *vo = cfl_PyLong_FromLong(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
 
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
         PyObject *vo = cfl_PyUnistr(_FromString(val));
