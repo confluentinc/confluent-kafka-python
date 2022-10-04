@@ -382,6 +382,8 @@ def example_list(a, args):
     else:
         what = args[0]
 
+    args = args[1:]
+
     md = a.list_topics(timeout=10)
 
     print("Cluster {} metadata (response from broker {}):".format(md.cluster_id, md.orig_broker_name))
@@ -414,23 +416,33 @@ def example_list(a, args):
                       " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
                                                     p.isrs, errstr))
 
-    if what in ("all", "groups"):
-        groups = a.list_groups(timeout=10)
-        print(" {} consumer groups".format(len(groups)))
-        for g in groups:
-            if g.error is not None:
-                errstr = ": {}".format(g.error)
-            else:
-                errstr = ""
+    # if what in ("all", "groups"):
+    #     groups = a.list_groups(timeout=10)
+    #     print(" {} consumer groups".format(len(groups)))
+    #     for g in groups:
+    #         if g.error is not None:
+    #             errstr = ": {}".format(g.error)
+    #         else:
+    #             errstr = ""
 
-            print(" \"{}\" with {} member(s), protocol: {}, protocol_type: {}{}".format(
-                  g, len(g.members), g.protocol, g.protocol_type, errstr))
+    #         print(" \"{}\" with {} member(s), protocol: {}, protocol_type: {}{}".format(
+    #               g, len(g.members), g.protocol, g.protocol_type, errstr))
 
-            for m in g.members:
-                print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+    #         for m in g.members:
+    #             print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
     if what in ("all", "consumer_groups"):
-        groups = a.list_consumer_groups(request_timeout=10, states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+        groups = None
+        if what == "consumer_groups" and len(args) > 0:
+            request_states = []
+            for arg in args:
+                try:
+                    request_states.append(ConsumerGroupState[arg.upper()])
+                except KeyError:
+                    raise ValueError("Unknown value '%s': should be a %s" % (arg, ConsumerGroupState))
+            groups = a.list_consumer_groups(request_timeout=10, states=request_states)
+        else:
+            groups = a.list_consumer_groups(request_timeout=10)
         print(" {} consumer groups".format(len(groups)))
         for g in groups:
             if g.error is not None:
@@ -447,14 +459,31 @@ def example_describe_consumer_groups(a, args):
     for g in groups:
         if g.error is not None:
             errstr = ": {}".format(g.error)
+            print("Error '" + errstr +"' for group -> '" + g + "'")
         else:
             errstr = ""
 
-        print(" Group -> '{}' with {} member(s), state: {}, protocol: {}, protocol_type: {}{}".format(
-                g, len(g.members), g.state, g.protocol, g.protocol_type, errstr))
+            print("----------------------- " + g.id + " ------------------------------")
+            print("       state                      : " + g.state)
+            print("       is_simple_consumer_group   : " + str(g.is_simple_consumer_group))
+            print("       protocol/partitionAssignor : " + g.protocol)
+            print("       broker/coordinator         : " + str(g.broker))
+            print("       members (" + str(len(g.members)) + ")")
 
-        for m in g.members:
-            print("        id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+            for m in g.members:
+                print("       =========== " + m.id + " =============" + m.id)
+                print("              client_id                    : " + m.client_id)
+                print("              client_host/host             : " + m.client_host)
+                print("              assignment topic partitions  : ")
+                i = 1
+                for topic_partition in m.assignment_topic_partitions:
+                    if topic_partition.error:
+                        print("                      " + str(i) + ") Error: " + topic_partition.error.str() + " occured with " +
+                            topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                    else:
+                        print("                      " + str(i) + ") "+ topic_partition.topic +
+                            " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+                    i += 1
 
 
 def example_delete_consumer_groups(a, args):

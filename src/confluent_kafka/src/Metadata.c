@@ -442,7 +442,7 @@ c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_m
                 goto err;
 
         for (i = 0; i < member_cnt; i++) {
-                PyObject *member, *metadata, *assignment;
+                PyObject *member, *metadata, *assignment, *assignment_topic_partitions;
 
                 member = PyObject_CallObject(GroupMember_type, NULL);
                 if (!member)
@@ -482,6 +482,15 @@ c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_m
                 }
                 Py_DECREF(assignment);
 
+                assignment_topic_partitions = c_parts_to_py(c_members[i].member_assignment_toppars);
+                if (PyObject_SetAttrString(member, 
+                                           "assignment_topic_partitions", 
+                                           assignment_topic_partitions) == -1) {
+                        Py_DECREF(assignment_topic_partitions);
+                        goto err;
+                }
+                Py_DECREF(assignment_topic_partitions);
+
                 PyList_SET_ITEM(list, i, member);
         }
         Py_DECREF(GroupMember_type);
@@ -519,7 +528,7 @@ c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
         if (!groups)
                 goto err;
         for (i = 0; i < group_list->group_cnt; i++) {
-                PyObject *group, *error, *broker, *members;
+                PyObject *group, *error, *broker, *members, *py_is_simple_consumer_group;
 
                 group = PyObject_CallObject(GroupMetadata_type, NULL);
                 if (!group)
@@ -537,6 +546,13 @@ c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
                 }
 
                 Py_DECREF(error);
+
+                py_is_simple_consumer_group = PyBool_FromLong(group_list->groups[i].is_simple_consumer_group);
+                if(PyObject_SetAttrString(group, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
+                        Py_DECREF(py_is_simple_consumer_group);
+                        goto err;
+                }
+                Py_DECREF(py_is_simple_consumer_group);
 
                 if (cfl_PyObject_SetString(group, "state",
                                            group_list->groups[i].state) == -1)
@@ -716,30 +732,35 @@ int list_consumer_groups_options_py_to_c(PyObject *states_int, double request_ti
                                       rd_kafka_list_consumer_groups_options_t **c_options) {
 
         rd_kafka_consumer_group_state_t *c_states = NULL;
+        int c_states_cnt = 0;
 
-        if (!PyList_Check(states_int)) {
-                PyErr_SetString(PyExc_TypeError,
-                                "'states_int' property of options should be of list type");
-                goto err;
-        }
+        if(states_int != NULL) {
 
-        int c_states_cnt = (size_t) PyList_Size(states_int);
-        c_states = malloc(c_states_cnt*sizeof(rd_kafka_consumer_group_state_t));
-        int i;
-
-        for(i = 0 ; i < c_states_cnt ; i++) {
-                PyObject *state_int = PyList_GET_ITEM(states_int, i);
-                if(!PyLong_Check(state_int)) {
+                if (!PyList_Check(states_int)) {
                         PyErr_SetString(PyExc_TypeError,
-                                        "'states_int' should only contain integer values");
+                                        "'states_int' property of options should be of list type");
                         goto err;
                 }
-                /**
-                 * TODO: Assuming that the state will be in int range as we are 
-                 * the one generating states_int in the first place 
-                 * or Shall I verify it in the range using RD_KAFKA_CGRP_STATE__CNT?
-                 */
-                c_states[i] = (rd_kafka_consumer_group_state_t) PyLong_AS_LONG(state_int);
+
+                c_states_cnt = (size_t) PyList_Size(states_int);
+                c_states = malloc(c_states_cnt*sizeof(rd_kafka_consumer_group_state_t));
+                int i;
+
+                for(i = 0 ; i < c_states_cnt ; i++) {
+                        PyObject *state_int = PyList_GET_ITEM(states_int, i);
+                        if(!PyLong_Check(state_int)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "'states_int' should only contain integer values");
+                                goto err;
+                        }
+                        /**
+                         * TODO: Assuming that the state will be in int range as we are 
+                         * the one generating states_int in the first place 
+                         * or Shall I verify it in the range using RD_KAFKA_CGRP_STATE__CNT?
+                         */
+                        c_states[i] = (rd_kafka_consumer_group_state_t) PyLong_AS_LONG(state_int);
+                }
+
         }
 
         *c_options = rd_kafka_list_consumer_groups_options_new(cfl_timeout_ms(request_timeout), 
@@ -839,7 +860,6 @@ describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout = -1.0f;
         static char *kws[] = {"group_ids", "request_timeout", NULL};
 
-        // Adding groupIds as mandatory parameter
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
                                          &groups, &tmout))
                 return NULL;
