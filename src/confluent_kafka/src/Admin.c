@@ -1471,6 +1471,12 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
                 goto err;
         }
 
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
         cfl_PyObject_GetString(single_request, "group_name", &group_name, NULL, 1, 0);
 
         if(group_name == NULL) {
@@ -1603,6 +1609,12 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
                 goto err;
         }
 
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
         cfl_PyObject_GetString(single_request, "group_name", &group_name, NULL, 1, 0);
 
         if(group_name == NULL) {
@@ -1672,6 +1684,117 @@ const char alter_consumer_group_offsets_doc[] = PyDoc_STR(
         "\n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.alter_consumer_group_offsets()\n");
 
+
+/**
+ * @brief List consumer groups offsets
+ */
+PyObject *delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *group_ids, *future;
+        PyObject *group_id;
+        int group_ids_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_DeleteGroup_t **c_delete_group_ids = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        int i;
+
+        static char *kws[] = {"group_ids", 
+                             "future",
+                             /* options */
+                             "timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &group_ids,
+                                         &future,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETEGROUPS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (!PyList_Check(group_ids)) {
+                PyErr_SetString(PyExc_ValueError, "Expected 'group_ids' to be a list");
+                goto err;
+        }
+
+        group_ids_cnt = (int)PyList_Size(group_ids);
+
+        c_delete_group_ids = malloc(sizeof(rd_kafka_DeleteGroup_t *) * group_ids_cnt);
+        for(i = 0 ; i < group_ids_cnt ; i++) {
+                group_id = PyList_GET_ITEM(group_ids, i);
+
+                /**
+                 * TODO: Use function to convert pyobject * to string. 
+                 * If no functions available, extract one.
+                 * 
+                 */
+                PyObject *ks, *ks8;
+                const char *group_id_string;
+                if (!(ks = cfl_PyObject_Unistr(group_id))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "Expected element of 'group_ids' " 
+                                        "to be unicode string");
+                        goto err;
+                }
+
+                group_id_string = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+
+                c_delete_group_ids[i] = rd_kafka_DeleteGroup_new(group_id_string);
+        }
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call DeleteGroups
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_DeleteGroups(self->rk, c_delete_group_ids, group_ids_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, group_ids_cnt);
+        free(c_delete_group_ids);
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if (c_delete_group_ids) {
+                rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, i);
+                free(c_delete_group_ids);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char delete_consumer_groups_doc[] = PyDoc_STR(
+        ".. py:function:: delete_consumer_groups(request, future, [request_timeout])\n"
+        "\n"
+        "  Deletes consumer groups provided in the request .\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.delete_consumer_groups()\n");
 
 
 /**
@@ -1772,6 +1895,18 @@ static PyMethodDef Admin_methods[] = {
 
         { "list_groups", (PyCFunction)list_groups, METH_VARARGS|METH_KEYWORDS,
           list_groups_doc
+        },
+
+        { "list_consumer_groups", (PyCFunction)list_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          list_consumer_groups_doc
+        },
+
+        { "describe_consumer_groups", (PyCFunction)describe_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          describe_consumer_groups_doc
+        },
+
+        { "delete_consumer_groups", (PyCFunction)delete_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          delete_consumer_groups_doc
         },
 
         { "list_consumer_group_offsets", (PyCFunction)list_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
@@ -2130,7 +2265,7 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
 
         PyObject *args, *kwargs, *GroupResult_type, *group_topic_partition_offset_list;
         const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list; 
-        PyObject *topic_partition_offset_list;
+        PyObject *topic_partition_offset_list = NULL;
 
         GroupResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                             group_result_type);
@@ -2138,18 +2273,23 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
                 return NULL;
         }
 
-        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_result_response);
-        topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
-
         kwargs = PyDict_New();
+
         cfl_PyDict_SetString(kwargs, "group_name", rd_kafka_group_result_name(c_result_response));
-        PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
+
+        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_result_response);
+        if(c_topic_partition_offset_list) {
+                topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
+                PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
+        }
+
         args = PyTuple_New(0);
         group_topic_partition_offset_list = PyObject_Call(GroupResult_type, args, kwargs);
 
         Py_DECREF(args);
         Py_DECREF(kwargs);
         Py_DECREF(GroupResult_type);
+        Py_XDECREF(topic_partition_offset_list);
 
         return group_topic_partition_offset_list;
 }
@@ -2404,6 +2544,35 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         rd_kafka_AlterConsumerGroupOffsets_result_groups(c_alter_group_offset_res, &c_alter_group_offset_res_cnt);
 
                 result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses, c_alter_group_offset_res_cnt, "AlterConsumerGroupOffsetsResponse");
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_DELETEGROUPS_RESULT:
+        {
+
+                const  rd_kafka_DeleteGroups_result_t *c_delete_groups_res;
+                const rd_kafka_group_result_t **c_delete_groups_res_responses;
+                size_t c_delete_groups_res_cnt;
+
+                c_delete_groups_res = rd_kafka_event_DeleteGroups_result(rkev);
+
+                c_delete_groups_res_responses = 
+                        rd_kafka_DeleteConsumerGroupOffsets_result_groups(c_delete_groups_res, &c_delete_groups_res_cnt);
+
+                /**
+                 * TODO: Change this to response object of DeleteConsumerGroups.
+                 */
+                result = Admin_c_GroupResults_to_py(c_delete_groups_res_responses, 
+                                                    c_delete_groups_res_cnt, 
+                                                    "DeleteConsumerGroupsResponse");
 
                 if (!result)
                 {

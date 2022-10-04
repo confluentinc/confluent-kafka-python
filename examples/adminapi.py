@@ -19,7 +19,7 @@
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
-                                   AlterConsumerGroupOffsetsRequest)
+                                   AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -419,7 +419,7 @@ def example_list(a, args):
         print(" {} consumer groups".format(len(groups)))
         for g in groups:
             if g.error is not None:
-                errstr = ": {}".format(t.error)
+                errstr = ": {}".format(g.error)
             else:
                 errstr = ""
 
@@ -428,6 +428,48 @@ def example_list(a, args):
 
             for m in g.members:
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+
+    if what in ("all", "consumer_groups"):
+        groups = a.list_consumer_groups(request_timeout=10, states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+        print(" {} consumer groups".format(len(groups)))
+        for g in groups:
+            if g.error is not None:
+                errstr = ": {}".format(g.error)
+                print(" Group '{}' with error {}".format(g.group_id, errstr))
+            else:
+                print(" Group '{}' with is_simple_consumer_group '{}' and state '{}'".format(
+                    g.group_id, g.is_simple_consumer_group, g.state))
+
+
+def example_describe_consumer_groups(a, args):
+    groups = a.describe_consumer_groups(args, request_timeout=10)
+    print(" {} consumer groups".format(len(groups)))
+    for g in groups:
+        if g.error is not None:
+            errstr = ": {}".format(g.error)
+        else:
+            errstr = ""
+
+        print(" Group -> '{}' with {} member(s), state: {}, protocol: {}, protocol_type: {}{}".format(
+                g, len(g.members), g.state, g.protocol, g.protocol_type, errstr))
+
+        for m in g.members:
+            print("        id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+
+
+def example_delete_consumer_groups(a, args):
+    groups = a.delete_consumer_groups(args, timeout=10)
+    # Wait for all the results?
+    for group_id, future in groups.items():
+        try:
+            response = future.result()
+            print("Deleted group id '" + group_id + "' succesfully")
+
+        except KafkaException as e:
+            print("Failed to delete group '{}': {}".format(group_id, e))
+        except Exception:
+            raise
+
 
 
 def example_list_consumer_group_offsets(a, args):
@@ -512,11 +554,14 @@ if __name__ == '__main__':
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
-        sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
+        sys.stderr.write(' list [<all|topics|brokers|groups|consumer_groups>]\n')
         sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
+        
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -537,7 +582,9 @@ if __name__ == '__main__':
               'delete_acls': example_delete_acls,
               'list': example_list,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'describe_consumer_groups': example_describe_consumer_groups,
+              'delete_consumer_groups': example_delete_consumer_groups}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
