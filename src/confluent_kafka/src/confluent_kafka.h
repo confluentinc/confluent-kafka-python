@@ -319,11 +319,15 @@ void CallState_crash (CallState *cs);
 #define cfl_PyInt_FromInt(v) PyInt_FromLong(v)
 #endif
 
+#define cfl_PyLong_Check(o) PyLong_Check(o)
+#define cfl_PyLong_AsLong(o) (int)PyLong_AsLong(o)
+#define cfl_PyLong_FromLong(v) PyLong_FromLong(v)
 
 PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val);
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val);
 int cfl_PyObject_SetInt (PyObject *o, const char *name, int val);
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
@@ -380,10 +384,14 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs);
 
 
 extern const char list_topics_doc[];
 extern const char list_groups_doc[];
+extern const char list_consumer_groups_doc[];
+extern const char describe_consumer_groups_doc[];
 
 
 #ifdef RD_KAFKA_V_HEADERS
