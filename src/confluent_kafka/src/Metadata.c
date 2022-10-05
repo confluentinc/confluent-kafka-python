@@ -442,7 +442,7 @@ c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_m
                 goto err;
 
         for (i = 0; i < member_cnt; i++) {
-                PyObject *member, *metadata, *assignment;
+                PyObject *member, *metadata, *assignment, *assignment_topic_partitions;
 
                 member = PyObject_CallObject(GroupMember_type, NULL);
                 if (!member)
@@ -482,6 +482,15 @@ c_group_members_to_py(Handle *self, const struct rd_kafka_group_member_info *c_m
                 }
                 Py_DECREF(assignment);
 
+                assignment_topic_partitions = c_parts_to_py(c_members[i].member_assignment_toppars);
+                if (PyObject_SetAttrString(member, 
+                                           "assignment_topic_partitions", 
+                                           assignment_topic_partitions) == -1) {
+                        Py_DECREF(assignment_topic_partitions);
+                        goto err;
+                }
+                Py_DECREF(assignment_topic_partitions);
+
                 PyList_SET_ITEM(list, i, member);
         }
         Py_DECREF(GroupMember_type);
@@ -519,7 +528,7 @@ c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
         if (!groups)
                 goto err;
         for (i = 0; i < group_list->group_cnt; i++) {
-                PyObject *group, *error, *broker, *members;
+                PyObject *group, *error, *broker, *members, *py_is_simple_consumer_group;
 
                 group = PyObject_CallObject(GroupMetadata_type, NULL);
                 if (!group)
@@ -537,6 +546,13 @@ c_groups_to_py (Handle *self, const struct rd_kafka_group_list *group_list) {
                 }
 
                 Py_DECREF(error);
+
+                py_is_simple_consumer_group = PyBool_FromLong(group_list->groups[i].is_simple_consumer_group);
+                if(PyObject_SetAttrString(group, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
+                        Py_DECREF(py_is_simple_consumer_group);
+                        goto err;
+                }
+                Py_DECREF(py_is_simple_consumer_group);
 
                 if (cfl_PyObject_SetString(group, "state",
                                            group_list->groups[i].state) == -1)
@@ -583,7 +599,75 @@ err:
 
 
 /**
- * @brief List consumer groups
+ * @returns a GroupMetadata object populated with all metadata information
+ *          from \p metadata, or NULL on error in which case an exception
+ *          has been raised.
+ */
+static PyObject *
+c_groups_to_consumer_group_listing_py (Handle *self, const struct rd_kafka_group_list *group_list) {
+        PyObject *ConsumerGroupListing_type = NULL;
+        PyObject *groups = NULL;
+        int i;
+
+        ConsumerGroupListing_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                        "ConsumerGroupListing");
+        if (!ConsumerGroupListing_type) {
+                goto err;
+        }
+
+        groups = PyList_New(group_list->group_cnt);
+        if (!groups) {
+                goto err;
+        }
+
+        for (i = 0; i < group_list->group_cnt; i++) {
+
+                PyObject *args, *kwargs;
+                PyObject *consumer_group_listing;
+                PyObject *error = NULL;
+                PyObject *py_is_simple_consumer_group = NULL;
+                const struct rd_kafka_group_info c_current_consumer_group = group_list->groups[i];
+
+                kwargs = PyDict_New();
+
+                cfl_PyDict_SetString(kwargs, "group_id", c_current_consumer_group.group);
+
+                py_is_simple_consumer_group = PyBool_FromLong(c_current_consumer_group.is_simple_consumer_group);
+                if(PyDict_SetItemString(kwargs, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
+                        Py_DECREF(py_is_simple_consumer_group);
+                        goto err;
+                }
+                Py_DECREF(py_is_simple_consumer_group);
+
+                cfl_PyDict_SetInt(kwargs, "state", c_current_consumer_group.state_code);
+
+                error = KafkaError_new_or_None(c_current_consumer_group.err, NULL);
+                if(PyDict_SetItemString(kwargs, "error", error) == -1) {
+                        Py_DECREF(error);
+                        goto err;
+                }
+                Py_DECREF(error);
+
+                args = PyTuple_New(0);
+                consumer_group_listing = PyObject_Call(ConsumerGroupListing_type, args, kwargs);
+
+                Py_DECREF(args);
+                Py_DECREF(kwargs);
+                PyList_SET_ITEM(groups, i, consumer_group_listing);
+        }
+        Py_DECREF(ConsumerGroupListing_type);
+        return groups;
+err:
+        Py_XDECREF(ConsumerGroupListing_type);
+        Py_XDECREF(groups);
+        return NULL;
+}
+
+
+/**
+ * @brief Older Method for describing consumer groups
+ * 
+ * TODO: Deprecation Note
  */
 PyObject *
 list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
@@ -624,6 +708,7 @@ end:
         return result;
 }
 
+
 const char list_groups_doc[] = PyDoc_STR(
         ".. py:function:: list_groups([group=None], [timeout=-1])\n"
         "\n"
@@ -635,3 +720,208 @@ const char list_groups_doc[] = PyDoc_STR(
         " :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.\n"
         " :rtype: GroupMetadata\n"
         " :raises: KafkaException\n");
+
+/**
+ * @brief Converts list consumer groups Python options to C options
+ * 
+ * @param options Python options
+ * @param c_options Pointer to the C options
+ * @return 1 for success and 0 for failure
+ */
+int list_consumer_groups_options_py_to_c(PyObject *states_int, double request_timeout,
+                                      rd_kafka_list_consumer_groups_options_t **c_options) {
+
+        rd_kafka_consumer_group_state_t *c_states = NULL;
+        int c_states_cnt = 0;
+
+        if(states_int != NULL) {
+
+                if (!PyList_Check(states_int)) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "'states_int' property of options should be of list type");
+                        goto err;
+                }
+
+                c_states_cnt = (size_t) PyList_Size(states_int);
+                c_states = malloc(c_states_cnt*sizeof(rd_kafka_consumer_group_state_t));
+                int i;
+
+                for(i = 0 ; i < c_states_cnt ; i++) {
+                        PyObject *state_int = PyList_GET_ITEM(states_int, i);
+                        if(!PyLong_Check(state_int)) {
+                                PyErr_SetString(PyExc_TypeError,
+                                                "'states_int' should only contain integer values");
+                                goto err;
+                        }
+                        /**
+                         * TODO: Assuming that the state will be in int range as we are 
+                         * the one generating states_int in the first place 
+                         * or Shall I verify it in the range using RD_KAFKA_CGRP_STATE__CNT?
+                         */
+                        c_states[i] = (rd_kafka_consumer_group_state_t) PyLong_AS_LONG(state_int);
+                }
+
+        }
+
+        *c_options = rd_kafka_list_consumer_groups_options_new(cfl_timeout_ms(request_timeout), 
+                                                               c_states, 
+                                                               c_states_cnt);
+        free(c_states);
+        return 1;
+
+err:
+        if(c_states != NULL) {
+                free(c_states);
+        }
+        return 0;
+}
+
+/**
+ * @brief List Consumer Group
+ * 
+ * TODO: Proper doc
+ */
+PyObject *
+list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        CallState cs;
+        PyObject *result = NULL;
+        PyObject *states_int = NULL;
+        rd_kafka_list_consumer_groups_options_t *c_options = NULL;
+
+        rd_kafka_resp_err_t err;
+        const struct rd_kafka_group_list *group_list = NULL;
+        double request_timeout = -1.0f;
+        static char *kws[] = {"states_int", "request_timeout", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Od", kws, &states_int, &request_timeout)) {
+                return NULL;
+        }
+
+        if(!list_consumer_groups_options_py_to_c(states_int, request_timeout, &c_options)) {
+                goto end;
+        }
+
+        CallState_begin(self, &cs);
+
+        err = rd_kafka_list_consumer_groups(self->rk, &group_list, c_options);
+
+        if (!CallState_end(self, &cs)) {
+                /* Exception raised */
+                goto end;
+        }
+
+        if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                cfl_PyErr_Format(err,
+                                 "Failed to list groups: %s",
+                                 rd_kafka_err2str(err));
+
+                goto end;
+        }
+        result = c_groups_to_consumer_group_listing_py(self, group_list);
+end:
+        if (group_list != NULL) {
+                rd_kafka_group_list_destroy(group_list);
+        }
+        if(c_options != NULL) {
+
+                rd_kafka_list_consumer_groups_options_destroy(c_options);
+        }
+        return result;
+}
+
+
+const char list_consumer_groups_doc[] = PyDoc_STR(
+        ".. py:function:: list_consumer_groups([timeout=-1])\n"
+        "\n"
+        " Request Groups from the cluster.\n"
+        " This method provides the same information as"
+        " listConsumerGroups() in the Java Admin client.\n"
+        "\n"
+        " :param float timeout: Maximum response time (approx.) before timing out, or -1 for infinite timeout.\n"
+        " :rtype: GroupMetadata\n"
+        " :raises: KafkaException\n");
+
+
+/**
+ * @brief Older Method for describing consumer groups
+ * 
+ * TODO: Deprecation Note
+ */
+PyObject *
+describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        CallState cs;
+        PyObject *result = NULL;
+        rd_kafka_resp_err_t err;
+        const struct rd_kafka_group_list *group_list = NULL;
+        PyObject *groups;
+        int c_groups_cnt;
+        int i;
+        const char **c_groups = NULL;
+        double tmout = -1.0f;
+        static char *kws[] = {"group_ids", "request_timeout", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
+                                         &groups, &tmout))
+                return NULL;
+
+        rd_kafka_describe_consumer_groups_options_t *c_options = 
+                rd_kafka_describe_consumer_groups_options_new(cfl_timeout_ms(tmout));
+
+        if (!PyList_Check(groups) || (c_groups_cnt = (int)PyList_Size(groups)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                                "Expected non-empty list of groups objects");
+                return NULL;
+        }
+
+        c_groups = malloc(sizeof(*c_groups)*c_groups_cnt);
+
+        for(i = 0 ; i < c_groups_cnt; i++) {
+                PyObject *group = PyList_GET_ITEM(groups, i);
+                PyObject *ugroup;
+                PyObject *uogroup = NULL;
+                if (group == Py_None ||
+                    !(ugroup = cfl_PyObject_Unistr(group))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "Expected list of group strings, "
+                                     "not %s",
+                                     ((PyTypeObject *)PyObject_Type(group))->
+                                     tp_name);
+                        goto end;
+                }
+                c_groups[i] = cfl_PyUnistr_AsUTF8(ugroup, &uogroup);
+
+                Py_XDECREF(ugroup);
+                Py_XDECREF(uogroup);
+        }
+
+        CallState_begin(self, &cs);
+
+        err = rd_kafka_describe_consumer_groups(self->rk, c_groups, c_groups_cnt, &group_list, c_options);
+
+        if (!CallState_end(self, &cs)) {
+                /* Exception raised */
+                goto end;
+        }
+
+        if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+                cfl_PyErr_Format(err,
+                                 "Failed to list groups: %s",
+                                 rd_kafka_err2str(err));
+
+                goto end;
+        }
+        result = c_groups_to_py(self, group_list);
+end:
+        if (group_list != NULL) {
+                rd_kafka_group_list_destroy(group_list);
+        }
+        if(c_groups != NULL) {
+                free(c_groups);
+        }
+        return result;
+}
+
+/** 
+ * TODO: Write Doc
+ */
+const char describe_consumer_groups_doc[] = PyDoc_STR("Improve");
