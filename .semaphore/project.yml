@@ -1,0 +1,24 @@
+apiVersion: v1alpha
+kind: Project
+metadata:
+  name: confluent-kafka-python
+  description: ""
+spec:
+  visibility: private
+  repository:
+    url: git@github.com:confluentinc/confluent-kafka-python.git
+    run_on:
+    - branches
+    - tags
+    - pull_requests
+    pipeline_file: .semaphore/semaphore.yml
+    integration_type: github_app
+    status:
+      pipeline_files:
+      - path: .semaphore/semaphore.yml
+        level: pipeline
+    whitelist:
+      branches:
+      - master
+      - main
+      - "/^v\\d+\\.\\d+\\.x$/"
