@@ -832,9 +832,9 @@ static void TopicPartition_setup (TopicPartition *self, const char *topic,
 	self->offset = offset;
 
 	if (metadata != NULL) {
-	        self->metadata = strdup(metadata);
+		self->metadata = strdup(metadata);
 	} else {
-	        self->metadata = NULL;
+		self->metadata = NULL;
 	}
 
 	self->error = KafkaError_new_or_None(err, NULL);
@@ -866,8 +866,7 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLs", kws,
 					 &topic, &partition, &offset,
 					 &metadata)) {
-                return -1;
-
+		return -1;
 	}
 
 	TopicPartition_setup((TopicPartition *)self,
@@ -1137,6 +1136,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 		if (tp->metadata != NULL) {
 			rktpar->metadata_size = strlen(tp->metadata) + 1;
 			rktpar->metadata = strdup(tp->metadata);
+		} else {
+			rktpar->metadata_size = 0;
+			rktpar->metadata = NULL;
 		}
 	}
 

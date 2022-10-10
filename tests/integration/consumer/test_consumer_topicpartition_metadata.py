@@ -14,30 +14,30 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limit
-#
 
 from confluent_kafka import TopicPartition
 
 
 def commit_and_check(consumer, topic, metadata):
-    consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+    if metadata != None:
+        consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
+    else:
+        consumer.commit(offsets=[TopicPartition(topic, 0, 1)], asynchronous=False)
+
     offsets = consumer.committed([TopicPartition(topic, 0)], timeout=100)
     assert len(offsets) == 1
     assert offsets[0].metadata == metadata
 
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
-
     topic = kafka_cluster.create_topic("test_topicpartition")
     consumer_conf = {'group.id': 'pytest'}
 
     c = kafka_cluster.consumer(consumer_conf)
 
     # Commit without any metadata.
-    c.commit(offsets=[TopicPartition(topic, 0, 0)], asynchronous=False)
-    offsets = c.committed([TopicPartition(topic, 0)])
-    assert len(offsets) == 1
-    assert offsets[0].metadata is None
+    metadata = None
+    commit_and_check(c, topic, metadata)
 
     # Commit with only ASCII metadata.
     metadata = 'hello world'
@@ -47,10 +47,16 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
     metadata = 'नमस्ते दुनिया'
     commit_and_check(c, topic, metadata)
 
+    # Commit with empty string as metadata.
+    metadata = ''
+    commit_and_check(c, topic, metadata)
+
     # Commit with invalid metadata (with null byte in the middle).
     metadata = 'xyz\x00abc'
     try:
         commit_and_check(c, topic, metadata)
+        # We should never reach this point, since the prior statement should throw.
+        assert False
     except ValueError as ve:
         assert 'embedded null character' in str(ve)
 
