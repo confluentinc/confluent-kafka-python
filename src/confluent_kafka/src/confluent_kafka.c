@@ -816,15 +816,27 @@ static int TopicPartition_clear (TopicPartition *self) {
 		Py_DECREF(self->error);
 		self->error = NULL;
 	}
+	if (self->metadata) {
+		free(self->metadata);
+		self->metadata = NULL;
+	}
 	return 0;
 }
 
 static void TopicPartition_setup (TopicPartition *self, const char *topic,
 				  int partition, long long offset,
+				  const char *metadata,
 				  rd_kafka_resp_err_t err) {
 	self->topic = strdup(topic);
 	self->partition = partition;
 	self->offset = offset;
+
+	if (metadata != NULL) {
+		self->metadata = strdup(metadata);
+	} else {
+		self->metadata = NULL;
+	}
+
 	self->error = KafkaError_new_or_None(err, NULL);
 }
 
@@ -843,18 +855,22 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 	const char *topic;
 	int partition = RD_KAFKA_PARTITION_UA;
 	long long offset = RD_KAFKA_OFFSET_INVALID;
+	const char *metadata = NULL;
+
 	static char *kws[] = { "topic",
 			       "partition",
 			       "offset",
+			       "metadata",
 			       NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iL", kws,
-					 &topic, &partition, &offset))
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLs", kws,
+					 &topic, &partition, &offset,
+					 &metadata)) {
 		return -1;
+	}
 
 	TopicPartition_setup((TopicPartition *)self,
-			     topic, partition, offset, 0);
-
+			     topic, partition, offset, metadata, 0);
 	return 0;
 }
 
@@ -889,6 +905,9 @@ static PyMemberDef TopicPartition_members[] = {
           " :py:const:`OFFSET_STORED`,"
           " :py:const:`OFFSET_INVALID`\n"
         },
+        {"metadata", T_STRING, offsetof(TopicPartition, metadata), READONLY,
+         "attribute metadata: Optional application metadata committed with the "
+         "offset (string)"},
         { "error", T_OBJECT, offsetof(TopicPartition, error), READONLY,
           ":attribute error: Indicates an error (with :py:class:`KafkaError`) unless None." },
         { NULL }
@@ -1038,14 +1057,15 @@ PyTypeObject TopicPartitionType = {
  * @brief Internal factory to create a TopicPartition object.
  */
 static PyObject *TopicPartition_new0 (const char *topic, int partition,
-				      long long offset,
+				      long long offset, const char *metadata,
 				      rd_kafka_resp_err_t err) {
 	TopicPartition *self;
 
 	self = (TopicPartition *)TopicPartitionType.tp_new(
 		&TopicPartitionType, NULL, NULL);
 
-	TopicPartition_setup(self, topic, partition, offset, err);
+	TopicPartition_setup(self, topic, partition,
+			     offset, metadata, err);
 
 	return (PyObject *)self;
 }
@@ -1069,7 +1089,9 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 		PyList_SET_ITEM(parts, i,
 				TopicPartition_new0(
 					rktpar->topic, rktpar->partition,
-					rktpar->offset, rktpar->err));
+					rktpar->offset,
+					rktpar->metadata,
+					rktpar->err));
 	}
 
 	return parts;
@@ -1094,6 +1116,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
 	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
+		rd_kafka_topic_partition_t *rktpar;
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -1106,10 +1129,17 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 			return NULL;
 		}
 
-		rd_kafka_topic_partition_list_add(c_parts,
-						  tp->topic,
-						  tp->partition)->offset =
-			tp->offset;
+		rktpar = rd_kafka_topic_partition_list_add(c_parts,
+							   tp->topic,
+							   tp->partition);
+		rktpar->offset = tp->offset;
+		if (tp->metadata != NULL) {
+			rktpar->metadata_size = strlen(tp->metadata) + 1;
+			rktpar->metadata = strdup(tp->metadata);
+		} else {
+			rktpar->metadata_size = 0;
+			rktpar->metadata = NULL;
+		}
 	}
 
 	return c_parts;
