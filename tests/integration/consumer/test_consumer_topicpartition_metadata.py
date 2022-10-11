@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2021 Confluent Inc.
+# Copyright 2022 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ from confluent_kafka import TopicPartition
 
 
 def commit_and_check(consumer, topic, metadata):
-    if metadata != None:
-        consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
-    else:
+    if metadata is None:
         consumer.commit(offsets=[TopicPartition(topic, 0, 1)], asynchronous=False)
+    else:
+        consumer.commit(offsets=[TopicPartition(topic, 0, 1, metadata)], asynchronous=False)
 
     offsets = consumer.committed([TopicPartition(topic, 0)], timeout=100)
     assert len(offsets) == 1

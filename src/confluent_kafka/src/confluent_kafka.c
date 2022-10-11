@@ -1116,6 +1116,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	c_parts = rd_kafka_topic_partition_list_new((int)PyList_Size(plist));
 
 	for (i = 0 ; i < (size_t)PyList_Size(plist) ; i++) {
+		rd_kafka_topic_partition_t *rktpar;
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
@@ -1128,10 +1129,9 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 			return NULL;
 		}
 
-		rd_kafka_topic_partition_t *rktpar =
-                        rd_kafka_topic_partition_list_add(c_parts,
-						          tp->topic,
-						          tp->partition);
+		rktpar = rd_kafka_topic_partition_list_add(c_parts,
+							   tp->topic,
+							   tp->partition);
 		rktpar->offset = tp->offset;
 		if (tp->metadata != NULL) {
 			rktpar->metadata_size = strlen(tp->metadata) + 1;
