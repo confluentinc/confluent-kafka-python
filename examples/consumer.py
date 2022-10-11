@@ -80,32 +80,27 @@ if __name__ == '__main__':
 
     # Create Consumer instance
     # Hint: try debug='fetch' to generate some log messages
-    c = Consumer(conf, logger=logger)
+    with Consumer(conf, logger=logger) as c:
+        def print_assignment(consumer, partitions):
+            print('Assignment:', partitions)
 
-    def print_assignment(consumer, partitions):
-        print('Assignment:', partitions)
+        # Subscribe to topics
+        c.subscribe(topics, on_assign=print_assignment)
 
-    # Subscribe to topics
-    c.subscribe(topics, on_assign=print_assignment)
+        # Read messages from Kafka, print to stdout
+        try:
+            while True:
+                msg = c.poll(timeout=1.0)
+                if msg is None:
+                    continue
+                if msg.error():
+                    raise KafkaException(msg.error())
+                else:
+                    # Proper message
+                    sys.stderr.write('%% %s [%d] at offset %d with key %s:\n' %
+                                     (msg.topic(), msg.partition(), msg.offset(),
+                                      str(msg.key())))
+                    print(msg.value())
 
-    # Read messages from Kafka, print to stdout
-    try:
-        while True:
-            msg = c.poll(timeout=1.0)
-            if msg is None:
-                continue
-            if msg.error():
-                raise KafkaException(msg.error())
-            else:
-                # Proper message
-                sys.stderr.write('%% %s [%d] at offset %d with key %s:\n' %
-                                 (msg.topic(), msg.partition(), msg.offset(),
-                                  str(msg.key())))
-                print(msg.value())
-
-    except KeyboardInterrupt:
-        sys.stderr.write('%% Aborted by user\n')
-
-    finally:
-        # Close down consumer to commit final offsets.
-        c.close()
+        except KeyboardInterrupt:
+            sys.stderr.write('%% Aborted by user\n')
