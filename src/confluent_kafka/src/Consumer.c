@@ -1073,6 +1073,16 @@ static PyObject *Consumer_close (Handle *self) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Consumer_enter (PyObject *self) {
+  Py_INCREF(self);
+  return self;
+}
+
+static PyObject *Consumer_exit (PyObject *self, PyObject *ignore) {
+  Consumer_close((Handle *)self);
+  Py_RETURN_NONE;
+}
+
 static PyObject *
 Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
@@ -1425,6 +1435,28 @@ static PyMethodDef Consumer_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
+	{ "__enter__", (PyCFunction)Consumer_enter,
+	  METH_NOARGS,
+      "Enables support for python's `with` syntax.\n"
+      "\n"
+      "Creating a consumer using a `with` statement:\n"
+      "\n"
+      "  with Consumer(...) as c:\n"
+      "      c.subscribe(...)\n"
+      "      ...\n"
+      "\n"
+      "...ensures that the consumer will be automatically closed\n"
+      " when the block exits.\n"
+      "\n"
+      "`with` has been a part of Python since v2.5 and is the\n"
+      " recommended way to manage resource lifecycles\n"
+    },
+	{ "__exit__", (PyCFunction)Consumer_exit,
+	  METH_VARARGS,
+      "Enables support for python's `with` syntax.\n"
+      "\n"
+      "See `__enter__` for usage.\n"
+    },
         { "list_topics", (PyCFunction)list_topics, METH_VARARGS|METH_KEYWORDS,
           list_topics_doc
         },
