@@ -1049,7 +1049,7 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 }
 
 
-static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
+static PyObject *Consumer_close (Handle *self) {
         CallState cs;
 
         if (!self->rk)
