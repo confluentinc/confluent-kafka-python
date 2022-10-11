@@ -93,29 +93,27 @@ def main(args):
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
 
-    consumer = Consumer(consumer_conf)
-    consumer.subscribe([topic])
+    with Consumer(consumer_conf) as consumer:
+        consumer.subscribe([topic])
 
-    while True:
-        try:
-            # SIGINT can't be handled when polling, limit timeout to 1 second.
-            msg = consumer.poll(1.0)
-            if msg is None:
-                continue
+        while True:
+            try:
+                # SIGINT can't be handled when polling, limit timeout to 1 second.
+                msg = consumer.poll(1.0)
+                if msg is None:
+                    continue
 
-            user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+                user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
 
-            if user is not None:
-                print("User record {}: name: {}\n"
-                      "\tfavorite_number: {}\n"
-                      "\tfavorite_color: {}\n"
-                      .format(msg.key(), user.name,
-                              user.favorite_number,
-                              user.favorite_color))
-        except KeyboardInterrupt:
-            break
-
-    consumer.close()
+                if user is not None:
+                    print("User record {}: name: {}\n"
+                          "\tfavorite_number: {}\n"
+                          "\tfavorite_color: {}\n"
+                          .format(msg.key(), user.name,
+                                  user.favorite_number,
+                                  user.favorite_color))
+            except KeyboardInterrupt:
+                break
 
 
 if __name__ == '__main__':
