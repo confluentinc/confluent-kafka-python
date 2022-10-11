@@ -321,3 +321,21 @@ def test_consumer_without_groupid():
     with pytest.raises(ValueError) as ex:
         Consumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')
+
+
+def test_with_statement_calls_close():
+    """ A `with` statement should call close on the consumer when it exits
+    """
+    with Consumer({'group.id': 'test',
+                   'enable.auto.commit': True,
+                   'enable.auto.offset.store': False,
+                   'fetch.wait.max.ms': '100',
+                   'socket.timeout.ms': '1200',
+                   'session.timeout.ms': 100}) as c:
+        c.subscribe(["test"])
+
+        c.unsubscribe()
+
+    with pytest.raises(RuntimeError) as ex:
+        c.offsets_for_times([TopicPartition("test", 0)])
+    assert ex.match('Consumer closed')
