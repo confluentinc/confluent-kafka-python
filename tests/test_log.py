@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from io import StringIO
 import confluent_kafka
 import confluent_kafka.avro
 import logging
@@ -114,3 +115,46 @@ def test_logging_constructor():
             p.poll(timeout=0.5)
 
         print('%s: %s: %d log messages seen' % (how, f.name, f.cnt))
+
+
+def test_producer_logger_logging_in_given_format():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer = StringIO()
+    logger = logging.getLogger('Producer')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+
+    p = confluent_kafka.Producer(
+        {"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
+    val = 1
+    while val > 0:
+        val = p.flush()
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+    print(logMessage)
+
+    assert "Producer Logger | INIT" in logMessage
+
+
+def test_consumer_logger_logging_in_given_format():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer = StringIO()
+    logger = logging.getLogger('Consumer')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+
+    c = confluent_kafka.Consumer(
+        {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
+    c.poll(0)
+
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+    c.close()
+
+    assert "Consumer Logger | INIT" in logMessage
