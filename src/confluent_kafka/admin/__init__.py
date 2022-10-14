@@ -32,6 +32,15 @@ from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
                       ListConsumerGroupOffsetsResponse,
                       AlterConsumerGroupOffsetsRequest,
                       AlterConsumerGroupOffsetsResponse)
+from ._metadata import (BrokerMetadata,  # noqa: F401
+                        ClusterMetadata,
+                        GroupMember,
+                        GroupMetadata,
+                        PartitionMetadata,
+                        TopicMetadata)
+from ._group import (ConsumerGroupListing, #noqa: F401
+                     ConsumerGroupState,
+                     DeleteConsumerGroupsResponse)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -501,7 +510,6 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    # Add error in the doc
     def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
         """
         List offset information for the consumer group and (optional) topic partition provided in the request.
@@ -543,8 +551,6 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    # Add error in the doc
-
     def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
         """
         Alter offset for the consumer group and topic partition provided in the request.
@@ -583,169 +589,21 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def delete_consumer_groups(self, group_ids, **kwargs):
+        """
+        TODO: Add docs
+        """
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids")
 
-class ClusterMetadata (object):
-    """
-    Provides information about the Kafka cluster, brokers, and topics.
-    Returned by list_topics().
+        if len(group_ids) == 0:
+            raise ValueError("Expected atleast one group id to be deleted in the group ids list")
 
-    This class is typically not user instantiated.
-    """
+        if AdminClient._has_duplicates(group_ids):
+            raise ValueError("duplicate group ids not allowed")
 
-    def __init__(self):
-        self.cluster_id = None
-        """Cluster id string, if supported by the broker, else None."""
-        self.controller_id = -1
-        """Current controller broker id, or -1."""
-        self.brokers = {}
-        """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
-        self.topics = {}
-        """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
-        self.orig_broker_id = -1
-        """The broker this metadata originated from."""
-        self.orig_broker_name = None
-        """The broker name/address this metadata originated from."""
+        f, futmap = AdminClient._make_futures(group_ids, str, AdminClient._make_consumer_group_offsets_result)
 
-    def __repr__(self):
-        return "ClusterMetadata({})".format(self.cluster_id)
+        super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
-    def __str__(self):
-        return str(self.cluster_id)
-
-
-class BrokerMetadata (object):
-    """
-    Provides information about a Kafka broker.
-
-    This class is typically not user instantiated.
-    """
-
-    def __init__(self):
-        self.id = -1
-        """Broker id"""
-        self.host = None
-        """Broker hostname"""
-        self.port = -1
-        """Broker port"""
-
-    def __repr__(self):
-        return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
-
-    def __str__(self):
-        return "{}:{}/{}".format(self.host, self.port, self.id)
-
-
-class TopicMetadata (object):
-    """
-    Provides information about a Kafka topic.
-
-    This class is typically not user instantiated.
-    """
-    # The dash in "-topic" and "-error" is needed to circumvent a
-    # Sphinx issue where it tries to reference the same instance variable
-    # on other classes which raises a warning/error.
-
-    def __init__(self):
-        self.topic = None
-        """Topic name"""
-        self.partitions = {}
-        """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
-        self.error = None
-        """Topic error, or None. Value is a KafkaError object."""
-
-    def __repr__(self):
-        if self.error is not None:
-            return "TopicMetadata({}, {} partitions, {})".format(self.topic, len(self.partitions), self.error)
-        else:
-            return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
-
-    def __str__(self):
-        return self.topic
-
-
-class PartitionMetadata (object):
-    """
-    Provides information about a Kafka partition.
-
-    This class is typically not user instantiated.
-
-    :warning: Depending on cluster state the broker ids referenced in
-              leader, replicas and ISRs may temporarily not be reported
-              in ClusterMetadata.brokers. Always check the availability
-              of a broker id in the brokers dict.
-    """
-
-    def __init__(self):
-        self.id = -1
-        """Partition id."""
-        self.leader = -1
-        """Current leader broker for this partition, or -1."""
-        self.replicas = []
-        """List of replica broker ids for this partition."""
-        self.isrs = []
-        """List of in-sync-replica broker ids for this partition."""
-        self.error = None
-        """Partition error, or None. Value is a KafkaError object."""
-
-    def __repr__(self):
-        if self.error is not None:
-            return "PartitionMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "PartitionMetadata({})".format(self.id)
-
-    def __str__(self):
-        return "{}".format(self.id)
-
-
-class GroupMember(object):
-    """Provides information about a group member.
-
-    For more information on the metadata format, refer to:
-    `A Guide To The Kafka Protocol <https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-GroupMembershipAPI>`_.
-
-    This class is typically not user instantiated.
-    """  # noqa: E501
-
-    def __init__(self,):
-        self.id = None
-        """Member id (generated by broker)."""
-        self.client_id = None
-        """Client id."""
-        self.client_host = None
-        """Client hostname."""
-        self.metadata = None
-        """Member metadata(binary), format depends on protocol type."""
-        self.assignment = None
-        """Member assignment(binary), format depends on protocol type."""
-
-
-class GroupMetadata(object):
-    """GroupMetadata provides information about a Kafka consumer group
-
-    This class is typically not user instantiated.
-    """
-
-    def __init__(self):
-        self.broker = None
-        """Originating broker metadata."""
-        self.id = None
-        """Group name."""
-        self.error = None
-        """Broker-originated error, or None. Value is a KafkaError object."""
-        self.state = None
-        """Group state."""
-        self.protocol_type = None
-        """Group protocol type."""
-        self.protocol = None
-        """Group protocol."""
-        self.members = []
-        """Group members."""
-
-    def __repr__(self):
-        if self.error is not None:
-            return "GroupMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "GroupMetadata({})".format(self.id)
-
-    def __str__(self):
-        return self.id
+        return futmap

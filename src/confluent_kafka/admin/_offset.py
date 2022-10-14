@@ -24,6 +24,8 @@ except NameError:
 # Add type checking here
 # Add __repr__ function
 # Make properties readonly once it is set
+# Move this class to other common util or dto file
+# Incorporate errors as well
 class ConsumerGroupTopicPartitions(ABC):
     def __init__(self, group_name: str = None, topic_partition_list: list = None):
         self.group_name = group_name
@@ -92,6 +94,7 @@ class ListConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
             raise ValueError("Element of 'topic_partition_list' must not have 'offset' value")
 
 
+# Inherit from ConsumerGroupTopicPartitionsResponse class which will contain error attribute as well. See rd_kafka_group_result_t
 class ListConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
     """
     Response object for list consumer group offset API.
@@ -160,6 +163,7 @@ class AlterConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
             raise ValueError("Element of 'topic_partition_list' must not have negative value for 'offset' field")
 
 
+# Inherit from ConsumerGroupTopicPartitionsResponse class which will contain error attribute as well. See rd_kafka_group_result_t
 class AlterConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
     """
     Response object for alter consumer group offset API.

@@ -20,7 +20,7 @@
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
-                                   AlterConsumerGroupOffsetsRequest)
+                                   AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -415,20 +415,19 @@ def example_list(a, args):
                       " isrs: {} errstr: {}".format(p.id, p.leader, p.replicas,
                                                     p.isrs, errstr))
 
-    if what in ("all", "groups"):
-        groups = a.list_groups(timeout=10)
-        print(" {} consumer groups".format(len(groups)))
-        for g in groups:
-            if g.error is not None:
-                errstr = ": {}".format(t.error)
-            else:
-                errstr = ""
 
-            print(" \"{}\" with {} member(s), protocol: {}, protocol_type: {}{}".format(
-                  g, len(g.members), g.protocol, g.protocol_type, errstr))
+def example_delete_consumer_groups(a, args):
+    groups = a.delete_consumer_groups(args, timeout=10)
+    # Wait for all the results?
+    for group_id, future in groups.items():
+        try:
+            response = future.result()
+            print("Deleted group id '" + group_id + "' succesfully")
 
-            for m in g.members:
-                print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+        except KafkaException as e:
+            print("Failed to delete group '{}': {}".format(group_id, e))
+        except Exception:
+            raise
 
 
 def example_list_consumer_group_offsets(a, args):
@@ -444,7 +443,6 @@ def example_list_consumer_group_offsets(a, args):
 
     futureMap = a.list_consumer_group_offsets(groups)
 
-    # Wait for operation to finish.
     for request, future in futureMap.items():
         try:
             response_offset_info = future.result()
@@ -476,7 +474,6 @@ def example_alter_consumer_group_offsets(a, args):
 
     futureMap = a.alter_consumer_group_offsets(groups)
 
-    # Wait for operation to finish.
     for request, future in futureMap.items():
         try:
             response_offset_info = future.result()
@@ -518,6 +515,8 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
+        
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -538,7 +537,8 @@ if __name__ == '__main__':
               'delete_acls': example_delete_acls,
               'list': example_list,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'delete_consumer_groups': example_delete_consumer_groups}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
