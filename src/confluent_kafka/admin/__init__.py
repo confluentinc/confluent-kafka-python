@@ -38,9 +38,7 @@ from ._metadata import (BrokerMetadata,  # noqa: F401
                         GroupMetadata,
                         PartitionMetadata,
                         TopicMetadata)
-from ._group import (ConsumerGroupListing, #noqa: F401
-                     ConsumerGroupState,
-                     DeleteConsumerGroupsResponse)
+from ._group import (DeleteConsumerGroupsResponse) #noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
