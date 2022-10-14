@@ -530,6 +530,7 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
         
         sys.exit(1)
 
