@@ -146,8 +146,33 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_consumer_groups_result(f, futmap):
+        """
+        Map per-group results to per-group futures in futmap.
+        The result value of each (successful) future is None.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for topic, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
     def _make_consumer_group_offsets_result(f, futmap):
-        # Improve this doc
         """
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is None.
@@ -529,7 +554,7 @@ class AdminClient (_AdminClientImpl):
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the :class:`ListConsumerGroupOffsetsRequest` object.
-                  The future result() method returns a list of :class:`ListConsumerGroupOffsetsResponse`.
+                  The future result() method returns :class:`ListConsumerGroupOffsetsResponse`.
 
         :rtype: dict[ListConsumerGroupOffsetsRequest, future]
 
@@ -567,7 +592,7 @@ class AdminClient (_AdminClientImpl):
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the :class:`AlterConsumerGroupOffsetsRequest` object.
-                  The future result() method returns a list of :class:`AlterConsumerGroupOffsetsResponse`.
+                  The future result() method returns :class:`AlterConsumerGroupOffsetsResponse`.
 
         :rtype: dict[AlterConsumerGroupOffsetsRequest, future]
 
@@ -593,18 +618,30 @@ class AdminClient (_AdminClientImpl):
 
     def delete_consumer_groups(self, group_ids, **kwargs):
         """
-        TODO: Add docs
+        Delete the given consumer groups.
+
+        :param list(str) group_ids: List of group_ids which need to be deleted.
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns :class:`DeleteConsumerGroupsResponse`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
         """
         if not isinstance(group_ids, list):
             raise TypeError("Expected input to be list of group ids")
 
         if len(group_ids) == 0:
-            raise ValueError("Expected atleast one group id to be deleted in the group ids list")
+            raise ValueError("Expected atleast one group id in the group ids list")
 
         if AdminClient._has_duplicates(group_ids):
             raise ValueError("duplicate group ids not allowed")
 
-        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_group_offsets_result)
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
