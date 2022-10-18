@@ -57,6 +57,10 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER)
 
+try:
+    string_type = basestring
+except NameError:
+    string_type = str
 
 class AdminClient (_AdminClientImpl):
     """
@@ -600,7 +604,7 @@ class AdminClient (_AdminClientImpl):
         if AdminClient._has_duplicates(group_ids):
             raise ValueError("duplicate group ids not allowed")
 
-        f, futmap = AdminClient._make_futures(group_ids, str, AdminClient._make_consumer_group_offsets_result)
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
