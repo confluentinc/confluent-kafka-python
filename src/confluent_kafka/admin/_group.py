@@ -12,14 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ._offset import ConsumerGroupTopicPartitions
 
-class DeleteConsumerGroupsResponse(ConsumerGroupTopicPartitions):
-
-    def _check_valid_group_name(self):
-        pass
-
-    def _check_topic_partition_list(self):
-        if self.topic_partition_list is not None:
-            raise ValueError("Delete consumer groups response" + 
-                             " should not contain 'topic_partition_list'")
+class DeleteConsumerGroupsResponse:
+    def __init__(self, group_name):
+        self.group_name = group_name

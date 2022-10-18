@@ -433,11 +433,10 @@ def example_list(a, args):
 
 def example_delete_consumer_groups(a, args):
     groups = a.delete_consumer_groups(args, timeout=10)
-    # Wait for all the results?
     for group_id, future in groups.items():
         try:
             response = future.result()
-            print("Deleted group id '" + group_id + "' succesfully")
+            print("Deleted group with id '" + group_id + "' succesfully")
 
         except KafkaException as e:
             print("Failed to delete group '{}': {}".format(group_id, e))
