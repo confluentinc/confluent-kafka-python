@@ -27,11 +27,24 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclPermissionType,
                    AclBinding,
                    AclBindingFilter)
+from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
+                      ListConsumerGroupOffsetsRequest,
+                      ListConsumerGroupOffsetsResponse,
+                      AlterConsumerGroupOffsetsRequest,
+                      AlterConsumerGroupOffsetsResponse)
+from ._metadata import (BrokerMetadata,  # noqa: F401
+                        ClusterMetadata,
+                        GroupMember,
+                        GroupMetadata,
+                        PartitionMetadata,
+                        TopicMetadata)
+from ._group import (DeleteConsumerGroupsResponse) #noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
                      NewTopic,
                      NewPartitions,
+                     TopicPartition,
                      CONFIG_SOURCE_UNKNOWN_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
@@ -44,6 +57,10 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER)
 
+try:
+    string_type = basestring
+except NameError:
+    string_type = str
 
 class AdminClient (_AdminClientImpl):
     """
@@ -126,6 +143,58 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             # Request-level exception, raise the same for all resources
             for resource, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_consumer_groups_result(f, futmap):
+        """
+        Map per-group results to per-group futures in futmap.
+        The result value of each (successful) future is None.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for topic, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_consumer_group_offsets_result(f, futmap):
+        """
+        Map per-group results to per-group futures in futmap.
+        The result value of each (successful) future is None.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for topic, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -468,169 +537,112 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
+        """
+        List offset information for the consumer group and (optional) topic partition provided in the request.
 
-class ClusterMetadata (object):
-    """
-    Provides information about the Kafka cluster, brokers, and topics.
-    Returned by list_topics().
+        :note: Currently, the API supports only a single group.
 
-    This class is typically not user instantiated.
-    """
+        :param list(ListConsumerGroupOffsetsRequest) list_consumer_group_offsets_request: List of
+                    :class:`ListConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition information for which offset detail is expected. If only group name is
+                    provided, then offset information of all the topic and partition associated with
+                    that group is returned.
+        :param bool require_stable: If True, fetches stable offsets. Default - False
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-    def __init__(self):
-        self.cluster_id = None
-        """Cluster id string, if supported by the broker, else None."""
-        self.controller_id = -1
-        """Current controller broker id, or -1."""
-        self.brokers = {}
-        """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
-        self.topics = {}
-        """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
-        self.orig_broker_id = -1
-        """The broker this metadata originated from."""
-        self.orig_broker_name = None
-        """The broker name/address this metadata originated from."""
+        :returns: A dict of futures for each group, keyed by the :class:`ListConsumerGroupOffsetsRequest` object.
+                  The future result() method returns :class:`ListConsumerGroupOffsetsResponse`.
 
-    def __repr__(self):
-        return "ClusterMetadata({})".format(self.cluster_id)
+        :rtype: dict[ListConsumerGroupOffsetsRequest, future]
 
-    def __str__(self):
-        return str(self.cluster_id)
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(list_consumer_group_offsets_request, list):
+            raise TypeError("Expected input to be list of ListConsumerGroupOffsetsRequest")
 
+        if len(list_consumer_group_offsets_request) == 0:
+            raise ValueError("Expected atleast one ListConsumerGroupOffsetsRequest request")
 
-class BrokerMetadata (object):
-    """
-    Provides information about a Kafka broker.
+        if len(list_consumer_group_offsets_request) > 1:
+            raise ValueError("Currently we support only 1 ListConsumerGroupOffsetsRequest request")
 
-    This class is typically not user instantiated.
-    """
+        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ListConsumerGroupOffsetsRequest,
+                                              AdminClient._make_consumer_group_offsets_result)
 
-    def __init__(self):
-        self.id = -1
-        """Broker id"""
-        self.host = None
-        """Broker hostname"""
-        self.port = -1
-        """Broker port"""
+        super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
 
-    def __repr__(self):
-        return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
+        return futmap
 
-    def __str__(self):
-        return "{}:{}/{}".format(self.host, self.port, self.id)
+    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
+        """
+        Alter offset for the consumer group and topic partition provided in the request.
 
+        :note: Currently, the API supports only a single group.
 
-class TopicMetadata (object):
-    """
-    Provides information about a Kafka topic.
+        :param list(AlterConsumerGroupOffsetsRequest) alter_consumer_group_offsets_request: List of
+                    :class:`AlterConsumerGroupOffsetsRequest` which consist of group name and topic
+                    partition; and corresponding offset to be updated.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-    This class is typically not user instantiated.
-    """
-    # The dash in "-topic" and "-error" is needed to circumvent a
-    # Sphinx issue where it tries to reference the same instance variable
-    # on other classes which raises a warning/error.
+        :returns: A dict of futures for each group, keyed by the :class:`AlterConsumerGroupOffsetsRequest` object.
+                  The future result() method returns :class:`AlterConsumerGroupOffsetsResponse`.
 
-    def __init__(self):
-        self.topic = None
-        """Topic name"""
-        self.partitions = {}
-        """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
-        self.error = None
-        """Topic error, or None. Value is a KafkaError object."""
+        :rtype: dict[AlterConsumerGroupOffsetsRequest, future]
 
-    def __repr__(self):
-        if self.error is not None:
-            return "TopicMetadata({}, {} partitions, {})".format(self.topic, len(self.partitions), self.error)
-        else:
-            return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(alter_consumer_group_offsets_request, list):
+            raise TypeError("Expected input to be list of AlterConsumerGroupOffsetsRequest")
 
-    def __str__(self):
-        return self.topic
+        if len(alter_consumer_group_offsets_request) == 0:
+            raise ValueError("Expected atleast one AlterConsumerGroupOffsetsRequest request")
 
+        if len(alter_consumer_group_offsets_request) > 1:
+            raise ValueError("Currently we support only 1 AlterConsumerGroupOffsetsRequest request")
 
-class PartitionMetadata (object):
-    """
-    Provides information about a Kafka partition.
+        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, AlterConsumerGroupOffsetsRequest,
+                                              AdminClient._make_consumer_group_offsets_result)
 
-    This class is typically not user instantiated.
+        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
 
-    :warning: Depending on cluster state the broker ids referenced in
-              leader, replicas and ISRs may temporarily not be reported
-              in ClusterMetadata.brokers. Always check the availability
-              of a broker id in the brokers dict.
-    """
+        return futmap
 
-    def __init__(self):
-        self.id = -1
-        """Partition id."""
-        self.leader = -1
-        """Current leader broker for this partition, or -1."""
-        self.replicas = []
-        """List of replica broker ids for this partition."""
-        self.isrs = []
-        """List of in-sync-replica broker ids for this partition."""
-        self.error = None
-        """Partition error, or None. Value is a KafkaError object."""
+    def delete_consumer_groups(self, group_ids, **kwargs):
+        """
+        Delete the given consumer groups.
 
-    def __repr__(self):
-        if self.error is not None:
-            return "PartitionMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "PartitionMetadata({})".format(self.id)
+        :param list(str) group_ids: List of group_ids which need to be deleted.
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
 
-    def __str__(self):
-        return "{}".format(self.id)
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns :class:`DeleteConsumerGroupsResponse`.
 
+        :rtype: dict[str, future]
 
-class GroupMember(object):
-    """Provides information about a group member.
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids")
 
-    For more information on the metadata format, refer to:
-    `A Guide To The Kafka Protocol <https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-GroupMembershipAPI>`_.
+        if len(group_ids) == 0:
+            raise ValueError("Expected atleast one group id in the group ids list")
 
-    This class is typically not user instantiated.
-    """  # noqa: E501
+        if AdminClient._has_duplicates(group_ids):
+            raise ValueError("duplicate group ids not allowed")
 
-    def __init__(self,):
-        self.id = None
-        """Member id (generated by broker)."""
-        self.client_id = None
-        """Client id."""
-        self.client_host = None
-        """Client hostname."""
-        self.metadata = None
-        """Member metadata(binary), format depends on protocol type."""
-        self.assignment = None
-        """Member assignment(binary), format depends on protocol type."""
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
 
+        super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
-class GroupMetadata(object):
-    """GroupMetadata provides information about a Kafka consumer group
-
-    This class is typically not user instantiated.
-    """
-
-    def __init__(self):
-        self.broker = None
-        """Originating broker metadata."""
-        self.id = None
-        """Group name."""
-        self.error = None
-        """Broker-originated error, or None. Value is a KafkaError object."""
-        self.state = None
-        """Group state."""
-        self.protocol_type = None
-        """Group protocol type."""
-        self.protocol = None
-        """Group protocol."""
-        self.members = []
-        """Group members."""
-
-    def __repr__(self):
-        if self.error is not None:
-            return "GroupMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "GroupMetadata({})".format(self.id)
-
-    def __str__(self):
-        return self.id
+        return futmap

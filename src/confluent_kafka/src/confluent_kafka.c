@@ -2347,6 +2347,11 @@ void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
         Py_DECREF(vo);
 }
 
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val) {
+        PyObject *vo = cfl_PyLong_FromLong(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
 
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
         PyObject *vo = cfl_PyUnistr(_FromString(val));
