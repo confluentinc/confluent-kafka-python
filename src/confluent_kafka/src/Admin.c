@@ -2252,10 +2252,10 @@ Admin_c_DeleteAcls_result_responses_to_py (const rd_kafka_DeleteAcls_result_resp
         return result;
 }
 
-static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_result_response, 
+static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_group_result_response, 
                                                   const char *group_result_type) {
 
-        PyObject *args, *kwargs, *GroupResult_type, *group_topic_partition_offset_list;
+        PyObject *args, *kwargs, *GroupResult_type, *group_result;
         const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list; 
         PyObject *topic_partition_offset_list = NULL;
 
@@ -2267,23 +2267,23 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetString(kwargs, "group_name", rd_kafka_group_result_name(c_result_response));
+        cfl_PyDict_SetString(kwargs, "group_name", rd_kafka_group_result_name(c_group_result_response));
 
-        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_result_response);
+        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
         if(c_topic_partition_offset_list) {
                 topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
                 PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
         }
 
         args = PyTuple_New(0);
-        group_topic_partition_offset_list = PyObject_Call(GroupResult_type, args, kwargs);
+        group_result = PyObject_Call(GroupResult_type, args, kwargs);
 
         Py_DECREF(args);
         Py_DECREF(kwargs);
         Py_DECREF(GroupResult_type);
         Py_XDECREF(topic_partition_offset_list);
 
-        return group_topic_partition_offset_list;
+        return group_result;
 }
 
 
@@ -2298,10 +2298,10 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
                             const char *group_result_type) {
 
         size_t i;
-        PyObject *result;
-        PyObject *group_topic_partition_offset_list;
+        PyObject *all_groups_result;
+        PyObject *single_group_result;
 
-        result = PyList_New(cnt);
+        all_groups_result = PyList_New(cnt);
 
         for (i = 0; i < cnt; i++) {
                 PyObject *error;
@@ -2311,20 +2311,20 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
                         error = KafkaError_new_or_None(
                                 rd_kafka_error_code(c_error),
                                 rd_kafka_error_string(c_error));
-                        PyList_SET_ITEM(result, i, error);
+                        PyList_SET_ITEM(all_groups_result, i, error);
                 } else {
-                        group_topic_partition_offset_list = 
+                        single_group_result = 
                                 Admin_c_SingleGroupResult_to_py(c_result_responses[i], 
                                                                 group_result_type);
-                        if (!group_topic_partition_offset_list) {
-                                Py_DECREF(result);
+                        if (!single_group_result) {
+                                Py_DECREF(all_groups_result);
                                 return NULL;
                         }
-                        PyList_SET_ITEM(result, i, group_topic_partition_offset_list);
+                        PyList_SET_ITEM(all_groups_result, i, single_group_result);
                 }
         }
 
-        return result;
+        return all_groups_result;
 }
 
 
