@@ -775,7 +775,7 @@ addition to the properties dictated by the underlying librdkafka C library:
     producer = confluent_kafka.Producer({'bootstrap.servers': 'mybroker.com'}, logger=mylogger)
 
 .. note::
-   In Python client, the ``logger`` configuration property is used for log handler, not ``log_cb``.
+   In the Python client, the ``logger`` configuration property is used for log handler, not ``log_cb``.
 
 For the full range of configuration properties, please consult librdkafka's documentation:
 https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
