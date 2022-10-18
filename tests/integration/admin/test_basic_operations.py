@@ -16,6 +16,7 @@
 import confluent_kafka
 import struct
 import time
+from confluent_kafka import admin
 from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
@@ -341,11 +342,16 @@ def test_basic_operations(kafka_cluster):
     # Verify config matches our expectations
     verify_config(topic_config, configs)
 
+    print("------1------")
+
     # Verify ACL operations
     verify_admin_acls(admin_client, our_topic, group1)
 
     # Verify Consumer Offset Operations
     verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
+
+    # Delete groups
+    admin_client.delete_consumer_groups([group1, group2])
 
     #
     # Delete the topic

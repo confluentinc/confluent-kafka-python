@@ -446,7 +446,7 @@ def example_delete_consumer_groups(a, args):
 
 
 def example_list_consumer_group_offsets(a, args):
-    """ TODO: Add doc
+    """ List consumer group offsets
     """
 
     topic_partition_list = []
@@ -477,7 +477,7 @@ def example_list_consumer_group_offsets(a, args):
 
 
 def example_alter_consumer_group_offsets(a, args):
-    """ TODO: Add doc
+    """ Alter consumer group offsets
     """
 
     topic_partition_list = []

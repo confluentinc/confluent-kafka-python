@@ -647,3 +647,20 @@ def test_alter_consumer_group_offsets_request():
         AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic", 1, -1001)])
 
     AlterConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 1, 23)])
+
+def test_delete_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.delete_consumer_groups(group_ids)
+    # ignore the result
+
+    with pytest.raises(TypeError):
+        a.delete_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups([])
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups(["test-group-1", "test-group-1"])
