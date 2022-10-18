@@ -116,7 +116,6 @@ class AclBinding(object):
             if param_value is not None and not isinstance(param_value, string_type):
                 raise TypeError("Expected %s to be a string" % (param,))
 
-    # TODO: Extract this out to a util
     def _convert_to_enum(self, val, enum_clazz):
         if type(val) == str:
             # Allow it to be specified as case-insensitive string, for convenience.
