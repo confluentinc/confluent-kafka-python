@@ -89,7 +89,7 @@ def main(args):
     input_partition = args.input_partition
     output_topic = args.output_topic
 
-    consumer = Consumer({
+    with Consumer({
         'bootstrap.servers': brokers,
         'group.id': group_id,
         'auto.offset.reset': 'earliest',
@@ -98,87 +98,85 @@ def main(args):
         # using the producer's send_offsets_to_transaction() API.
         'enable.auto.commit': False,
         'enable.partition.eof': True,
-    })
+    }) as consumer:
 
-    # Prior to KIP-447 being supported each input partition requires
-    # its own transactional producer, so in this example we use
-    # assign() to a single partition rather than subscribe().
-    # A more complex alternative is to dynamically create a producer per
-    # partition in subscribe's rebalance callback.
-    consumer.assign([TopicPartition(input_topic, input_partition)])
+        # Prior to KIP-447 being supported each input partition requires
+        # its own transactional producer, so in this example we use
+        # assign() to a single partition rather than subscribe().
+        # A more complex alternative is to dynamically create a producer per
+        # partition in subscribe's rebalance callback.
+        consumer.assign([TopicPartition(input_topic, input_partition)])
 
-    producer = Producer({
-        'bootstrap.servers': brokers,
-        'transactional.id': 'eos-transactions.py'
-    })
+        producer = Producer({
+            'bootstrap.servers': brokers,
+            'transactional.id': 'eos-transactions.py'
+        })
 
-    # Initialize producer transaction.
-    producer.init_transactions()
-    # Start producer transaction.
-    producer.begin_transaction()
+        # Initialize producer transaction.
+        producer.init_transactions()
+        # Start producer transaction.
+        producer.begin_transaction()
 
-    eof = {}
-    msg_cnt = 0
-    print("=== Starting Consume-Transform-Process loop ===")
-    while True:
-        # serve delivery reports from previous produce()s
-        producer.poll(0)
+        eof = {}
+        msg_cnt = 0
+        print("=== Starting Consume-Transform-Process loop ===")
+        while True:
+            # serve delivery reports from previous produce()s
+            producer.poll(0)
 
-        # read message from input_topic
-        msg = consumer.poll(timeout=1.0)
-        if msg is None:
-            continue
+            # read message from input_topic
+            msg = consumer.poll(timeout=1.0)
+            if msg is None:
+                continue
 
-        topic, partition = msg.topic(), msg.partition()
-        if msg.error():
-            if msg.error().code() == KafkaError._PARTITION_EOF:
-                eof[(topic, partition)] = True
-                print("=== Reached the end of {} [{}] at {}====".format(
-                    topic, partition, msg.offset()))
+            topic, partition = msg.topic(), msg.partition()
+            if msg.error():
+                if msg.error().code() == KafkaError._PARTITION_EOF:
+                    eof[(topic, partition)] = True
+                    print("=== Reached the end of {} [{}] at {}====".format(
+                        topic, partition, msg.offset()))
 
-                if len(eof) == len(consumer.assignment()):
-                    print("=== Reached end of input ===")
-                    break
-            continue
-        # clear EOF if a new message has been received
-        eof.pop((topic, partition), None)
+                    if len(eof) == len(consumer.assignment()):
+                        print("=== Reached end of input ===")
+                        break
+                continue
+            # clear EOF if a new message has been received
+            eof.pop((topic, partition), None)
 
-        msg_cnt += 1
+            msg_cnt += 1
 
-        # process message
-        processed_key, processed_value = process_input(msg)
+            # process message
+            processed_key, processed_value = process_input(msg)
 
-        # produce transformed message to output topic
-        producer.produce(output_topic, processed_value, processed_key,
-                         on_delivery=delivery_report)
+            # produce transformed message to output topic
+            producer.produce(output_topic, processed_value, processed_key,
+                             on_delivery=delivery_report)
 
-        if msg_cnt % 100 == 0:
-            print("=== Committing transaction with {} messages at input offset {} ===".format(
-                msg_cnt, msg.offset()))
-            # Send the consumer's position to transaction to commit
-            # them along with the transaction, committing both
-            # input and outputs in the same transaction is what provides EOS.
-            producer.send_offsets_to_transaction(
-                consumer.position(consumer.assignment()),
-                consumer.consumer_group_metadata())
+            if msg_cnt % 100 == 0:
+                print("=== Committing transaction with {} messages at input offset {} ===".format(
+                    msg_cnt, msg.offset()))
+                # Send the consumer's position to transaction to commit
+                # them along with the transaction, committing both
+                # input and outputs in the same transaction is what provides EOS.
+                producer.send_offsets_to_transaction(
+                    consumer.position(consumer.assignment()),
+                    consumer.consumer_group_metadata())
 
-            # Commit the transaction
-            producer.commit_transaction()
+                # Commit the transaction
+                producer.commit_transaction()
 
-            # Begin new transaction
-            producer.begin_transaction()
-            msg_cnt = 0
+                # Begin new transaction
+                producer.begin_transaction()
+                msg_cnt = 0
 
-    print("=== Committing final transaction with {} messages ===".format(msg_cnt))
-    # commit processed message offsets to the transaction
-    producer.send_offsets_to_transaction(
-        consumer.position(consumer.assignment()),
-        consumer.consumer_group_metadata())
+        print("=== Committing final transaction with {} messages ===".format(msg_cnt))
+        # commit processed message offsets to the transaction
+        producer.send_offsets_to_transaction(
+            consumer.position(consumer.assignment()),
+            consumer.consumer_group_metadata())
 
-    # commit transaction
-    producer.commit_transaction()
-
-    consumer.close()
+        # commit transaction
+        producer.commit_transaction()
 
 
 if __name__ == "__main__":
