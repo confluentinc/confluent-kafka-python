@@ -1080,7 +1080,7 @@ static PyObject *Consumer_enter (PyObject *self) {
 
 static PyObject *Consumer_exit (PyObject *self, PyObject *ignore) {
   Consumer_close((Handle *)self);
-  Py_RETURN_NONE;
+  return Py_False;
 }
 
 static PyObject *
