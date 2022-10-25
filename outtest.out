@@ -1,0 +1,708 @@
+------------------------------- Reading messages -------------------------
+Received message: {"t": 823282, "time": 1666648124.187437} partition 0 offset 10183
+Received message: {"t": 323871, "time": 1666648124.1874619} partition 0 offset 10184
+Received message: {"t": 368870, "time": 1666648124.187469} partition 0 offset 10185
+Received message: {"t": 855260, "time": 1666648124.187476} partition 0 offset 10186
+Received message: {"t": 870285, "time": 1666648124.1874828} partition 0 offset 10187
+Received message: {"t": 305641, "time": 1666648124.18749} partition 0 offset 10188
+Received message: {"t": 916913, "time": 1666648124.187497} partition 0 offset 10189
+Received message: {"t": 450227, "time": 1666648124.187504} partition 0 offset 10190
+Received message: {"t": 161223, "time": 1666648124.187511} partition 0 offset 10191
+Received message: {"t": 658014, "time": 1666648124.187517} partition 0 offset 10192
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10183
+Continue deal record: 0 offset: 10184
+Continue deal record: 0 offset: 10185
+Continue deal record: 0 offset: 10186
+Continue deal record: 0 offset: 10187
+Continue deal record: 0 offset: 10188
+Continue deal record: 0 offset: 10189
+Continue deal record: 0 offset: 10190
+Continue deal record: 0 offset: 10191
+Continue deal record: 0 offset: 10192
+------------------------------- Reading messages -------------------------
+Received message: {"t": 396870, "time": 1666648124.187524} partition 0 offset 10193
+Received message: {"t": 432942, "time": 1666648124.187531} partition 0 offset 10194
+Received message: {"t": 674531, "time": 1666648124.187538} partition 0 offset 10195
+Received message: {"t": 502510, "time": 1666648124.187547} partition 0 offset 10196
+Received message: {"t": 984626, "time": 1666648124.187555} partition 0 offset 10197
+Received message: {"t": 941112, "time": 1666648124.187562} partition 0 offset 10198
+Received message: {"t": 111376, "time": 1666648124.187569} partition 0 offset 10199
+Received message: {"t": 950802, "time": 1666648124.187576} partition 0 offset 10200
+Received message: {"t": 443008, "time": 1666648124.187583} partition 0 offset 10201
+Received message: {"t": 460738, "time": 1666648124.1875892} partition 0 offset 10202
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10193
+Continue deal record: 0 offset: 10194
+Continue deal record: 0 offset: 10195
+Continue deal record: 0 offset: 10196
+Continue deal record: 0 offset: 10197
+Continue deal record: 0 offset: 10198
+Continue deal record: 0 offset: 10199
+Continue deal record: 0 offset: 10200
+Continue deal record: 0 offset: 10201
+Continue deal record: 0 offset: 10202
+------------------------------- Reading messages -------------------------
+Received message: {"t": 430047, "time": 1666648124.187596} partition 0 offset 10203
+Received message: {"t": 218297, "time": 1666648124.187603} partition 0 offset 10204
+Received message: {"t": 50975, "time": 1666648124.1876101} partition 0 offset 10205
+Received message: {"t": 468854, "time": 1666648124.187617} partition 0 offset 10206
+Received message: {"t": 654664, "time": 1666648124.187624} partition 0 offset 10207
+Received message: {"t": 183653, "time": 1666648124.1876311} partition 0 offset 10208
+Received message: {"t": 86316, "time": 1666648124.187638} partition 0 offset 10209
+Received message: {"t": 501700, "time": 1666648124.187645} partition 0 offset 10210
+Received message: {"t": 462274, "time": 1666648124.187652} partition 0 offset 10211
+Received message: {"t": 43013, "time": 1666648124.187659} partition 0 offset 10212
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10203
+Continue deal record: 0 offset: 10204
+Continue deal record: 0 offset: 10205
+Continue deal record: 0 offset: 10206
+Continue deal record: 0 offset: 10207
+Continue deal record: 0 offset: 10208
+Continue deal record: 0 offset: 10209
+Continue deal record: 0 offset: 10210
+Continue deal record: 0 offset: 10211
+Continue deal record: 0 offset: 10212
+------------------------------- Reading messages -------------------------
+Received message: {"t": 500736, "time": 1666648124.187666} partition 0 offset 10213
+Received message: {"t": 227983, "time": 1666648124.1876721} partition 0 offset 10214
+Received message: {"t": 463563, "time": 1666648124.187683} partition 0 offset 10215
+Received message: {"t": 251785, "time": 1666648124.18769} partition 0 offset 10216
+Received message: {"t": 527070, "time": 1666648124.187698} partition 0 offset 10217
+Received message: {"t": 121954, "time": 1666648124.187705} partition 0 offset 10218
+Received message: {"t": 198357, "time": 1666648124.187715} partition 0 offset 10219
+Received message: {"t": 857424, "time": 1666648124.187722} partition 0 offset 10220
+Received message: {"t": 41746, "time": 1666648124.187729} partition 0 offset 10221
+Received message: {"t": 960683, "time": 1666648124.187736} partition 0 offset 10222
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10213
+Continue deal record: 0 offset: 10214
+Continue deal record: 0 offset: 10215
+Continue deal record: 0 offset: 10216
+Continue deal record: 0 offset: 10217
+Continue deal record: 0 offset: 10218
+Continue deal record: 0 offset: 10219
+Continue deal record: 0 offset: 10220
+Continue deal record: 0 offset: 10221
+Continue deal record: 0 offset: 10222
+------------------------------- Reading messages -------------------------
+Received message: {"t": 364534, "time": 1666648124.187743} partition 0 offset 10223
+Received message: {"t": 46658, "time": 1666648124.1877491} partition 0 offset 10224
+Received message: {"t": 230105, "time": 1666648124.187756} partition 0 offset 10225
+Received message: {"t": 423423, "time": 1666648124.187455} partition 6 offset 10743
+Received message: {"t": 619652, "time": 1666648124.1874208} partition 4 offset 11053
+Received message: {"t": 403720, "time": 1666648124.187336} partition 5 offset 8817
+Received message: {"t": 734439, "time": 1666648124.187447} partition 7 offset 9013
+Received message: {"t": 229206, "time": 1666648124.187763} partition 0 offset 10226
+Received message: {"t": 788127, "time": 1666648124.1877701} partition 0 offset 10227
+Received message: {"t": 710921, "time": 1666648124.187777} partition 0 offset 10228
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10223
+Continue deal record: 0 offset: 10224
+Continue deal record: 0 offset: 10225
+Continue deal record: 6 offset: 10743
+Continue deal record: 4 offset: 11053
+Continue deal record: 5 offset: 8817
+Continue deal record: 7 offset: 9013
+Continue deal record: 0 offset: 10226
+Continue deal record: 0 offset: 10227
+Continue deal record: 0 offset: 10228
+------------------------------- Reading messages -------------------------
+Received message: {"t": 4664, "time": 1666648124.187784} partition 0 offset 10229
+Received message: {"t": 317955, "time": 1666648124.187791} partition 0 offset 10230
+Received message: {"t": 378719, "time": 1666648124.187798} partition 0 offset 10231
+Received message: {"t": 166884, "time": 1666648124.187804} partition 0 offset 10232
+Received message: {"t": 372227, "time": 1666648124.1878111} partition 0 offset 10233
+Received message: {"t": 715773, "time": 1666648124.187818} partition 0 offset 10234
+Received message: {"t": 232290, "time": 1666648124.187855} partition 0 offset 10235
+Received message: {"t": 375518, "time": 1666648124.1879108} partition 0 offset 10236
+Received message: {"t": 180580, "time": 1666648124.187937} partition 0 offset 10237
+Received message: {"t": 155159, "time": 1666648124.187954} partition 0 offset 10238
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10229
+Continue deal record: 0 offset: 10230
+Continue deal record: 0 offset: 10231
+Continue deal record: 0 offset: 10232
+Continue deal record: 0 offset: 10233
+Continue deal record: 0 offset: 10234
+Continue deal record: 0 offset: 10235
+Continue deal record: 0 offset: 10236
+Continue deal record: 0 offset: 10237
+Continue deal record: 0 offset: 10238
+------------------------------- Reading messages -------------------------
+Received message: {"t": 430129, "time": 1666648124.187969} partition 0 offset 10239
+Received message: {"t": 488930, "time": 1666648124.187979} partition 0 offset 10240
+Received message: {"t": 199252, "time": 1666648124.187989} partition 0 offset 10241
+Received message: {"t": 454494, "time": 1666648124.187998} partition 0 offset 10242
+Received message: {"t": 206106, "time": 1666648124.188009} partition 0 offset 10243
+Received message: {"t": 333079, "time": 1666648124.1880162} partition 0 offset 10244
+Received message: {"t": 376715, "time": 1666648124.188023} partition 0 offset 10245
+Received message: {"t": 801864, "time": 1666648124.188031} partition 0 offset 10246
+Received message: {"t": 304887, "time": 1666648124.188043} partition 0 offset 10247
+Received message: {"t": 852208, "time": 1666648124.188069} partition 0 offset 10248
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10239
+Continue deal record: 0 offset: 10240
+Continue deal record: 0 offset: 10241
+Continue deal record: 0 offset: 10242
+Continue deal record: 0 offset: 10243
+Continue deal record: 0 offset: 10244
+Continue deal record: 0 offset: 10245
+Continue deal record: 0 offset: 10246
+Continue deal record: 0 offset: 10247
+Continue deal record: 0 offset: 10248
+------------------------------- Reading messages -------------------------
+Received message: {"t": 293760, "time": 1666648124.188094} partition 0 offset 10249
+Received message: {"t": 341807, "time": 1666648124.18811} partition 0 offset 10250
+Received message: {"t": 172414, "time": 1666648124.188125} partition 0 offset 10251
+Received message: {"t": 549353, "time": 1666648124.18814} partition 0 offset 10252
+Received message: {"t": 989220, "time": 1666648124.1881542} partition 0 offset 10253
+Received message: {"t": 985262, "time": 1666648124.188179} partition 0 offset 10254
+Received message: {"t": 456090, "time": 1666648124.188192} partition 0 offset 10255
+Received message: {"t": 461042, "time": 1666648124.188201} partition 0 offset 10256
+Received message: {"t": 417645, "time": 1666648124.188208} partition 0 offset 10257
+Received message: {"t": 46020, "time": 1666648124.188221} partition 0 offset 10258
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10249
+Continue deal record: 0 offset: 10250
+Continue deal record: 0 offset: 10251
+Continue deal record: 0 offset: 10252
+Continue deal record: 0 offset: 10253
+Continue deal record: 0 offset: 10254
+Continue deal record: 0 offset: 10255
+Continue deal record: 0 offset: 10256
+Continue deal record: 0 offset: 10257
+Continue deal record: 0 offset: 10258
+------------------------------- Reading messages -------------------------
+Received message: {"t": 471484, "time": 1666648124.1882298} partition 0 offset 10259
+Received message: {"t": 879449, "time": 1666648124.188237} partition 0 offset 10260
+Received message: {"t": 224982, "time": 1666648124.1882439} partition 0 offset 10261
+Received message: {"t": 806104, "time": 1666648124.1882508} partition 0 offset 10262
+Received message: {"t": 492327, "time": 1666648124.188257} partition 0 offset 10263
+Received message: {"t": 224787, "time": 1666648124.188264} partition 0 offset 10264
+Received message: {"t": 699973, "time": 1666648124.188271} partition 0 offset 10265
+Received message: {"t": 322090, "time": 1666648124.188278} partition 0 offset 10266
+Received message: {"t": 263322, "time": 1666648124.1882849} partition 0 offset 10267
+Received message: {"t": 612354, "time": 1666648124.188292} partition 0 offset 10268
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10259
+Continue deal record: 0 offset: 10260
+Continue deal record: 0 offset: 10261
+Continue deal record: 0 offset: 10262
+Continue deal record: 0 offset: 10263
+Continue deal record: 0 offset: 10264
+Continue deal record: 0 offset: 10265
+Continue deal record: 0 offset: 10266
+Continue deal record: 0 offset: 10267
+Continue deal record: 0 offset: 10268
+------------------------------- Reading messages -------------------------
+Received message: {"t": 657378, "time": 1666648124.188299} partition 0 offset 10269
+Received message: {"t": 172299, "time": 1666648124.188307} partition 0 offset 10270
+Received message: {"t": 491908, "time": 1666648124.1883142} partition 0 offset 10271
+Received message: {"t": 745629, "time": 1666648124.188321} partition 0 offset 10272
+Received message: {"t": 707316, "time": 1666648124.188328} partition 0 offset 10273
+Received message: {"t": 513142, "time": 1666648124.188334} partition 0 offset 10274
+Received message: {"t": 263153, "time": 1666648124.188342} partition 0 offset 10275
+Received message: {"t": 956908, "time": 1666648124.188349} partition 0 offset 10276
+Received message: {"t": 844896, "time": 1666648124.1883562} partition 0 offset 10277
+Received message: {"t": 928168, "time": 1666648124.188364} partition 0 offset 10278
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10269
+Continue deal record: 0 offset: 10270
+Continue deal record: 0 offset: 10271
+Continue deal record: 0 offset: 10272
+Continue deal record: 0 offset: 10273
+Continue deal record: 0 offset: 10274
+Continue deal record: 0 offset: 10275
+Continue deal record: 0 offset: 10276
+Continue deal record: 0 offset: 10277
+Continue deal record: 0 offset: 10278
+------------------------------- Reading messages -------------------------
+Received message: {"t": 674229, "time": 1666648124.195791} partition 0 offset 10279
+Received message: {"t": 426716, "time": 1666648124.195829} partition 0 offset 10280
+Received message: {"t": 760927, "time": 1666648124.195843} partition 0 offset 10281
+Received message: {"t": 399136, "time": 1666648124.195853} partition 0 offset 10282
+Received message: {"t": 966695, "time": 1666648124.195862} partition 0 offset 10283
+Received message: {"t": 16652, "time": 1666648124.19587} partition 0 offset 10284
+Received message: {"t": 7493, "time": 1666648124.1958778} partition 0 offset 10285
+Received message: {"t": 768004, "time": 1666648124.1958861} partition 0 offset 10286
+Received message: {"t": 187355, "time": 1666648124.1958988} partition 0 offset 10287
+Received message: {"t": 638377, "time": 1666648124.195907} partition 0 offset 10288
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10279
+Continue deal record: 0 offset: 10280
+Continue deal record: 0 offset: 10281
+Continue deal record: 0 offset: 10282
+Continue deal record: 0 offset: 10283
+Continue deal record: 0 offset: 10284
+Continue deal record: 0 offset: 10285
+Continue deal record: 0 offset: 10286
+Continue deal record: 0 offset: 10287
+Continue deal record: 0 offset: 10288
+------------------------------- Reading messages -------------------------
+Received message: {"t": 286468, "time": 1666648124.195915} partition 0 offset 10289
+Received message: {"t": 279107, "time": 1666648124.1959229} partition 0 offset 10290
+Received message: {"t": 837681, "time": 1666648124.19593} partition 0 offset 10291
+Received message: {"t": 492000, "time": 1666648124.195937} partition 0 offset 10292
+Received message: {"t": 97618, "time": 1666648124.1959438} partition 0 offset 10293
+Received message: {"t": 17864, "time": 1666648124.1959522} partition 0 offset 10294
+Received message: {"t": 342254, "time": 1666648124.195959} partition 0 offset 10295
+Received message: {"t": 612477, "time": 1666648124.195966} partition 0 offset 10296
+Received message: {"t": 355725, "time": 1666648124.1959732} partition 0 offset 10297
+Received message: {"t": 631801, "time": 1666648124.19598} partition 0 offset 10298
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10289
+Continue deal record: 0 offset: 10290
+Continue deal record: 0 offset: 10291
+Continue deal record: 0 offset: 10292
+Continue deal record: 0 offset: 10293
+Continue deal record: 0 offset: 10294
+Continue deal record: 0 offset: 10295
+Continue deal record: 0 offset: 10296
+Continue deal record: 0 offset: 10297
+Continue deal record: 0 offset: 10298
+------------------------------- Reading messages -------------------------
+Received message: {"t": 202905, "time": 1666648124.195987} partition 0 offset 10299
+Received message: {"t": 462749, "time": 1666648124.1959941} partition 0 offset 10300
+Received message: {"t": 679703, "time": 1666648124.196001} partition 0 offset 10301
+Received message: {"t": 163418, "time": 1666648124.196008} partition 0 offset 10302
+Received message: {"t": 438319, "time": 1666648124.1960151} partition 0 offset 10303
+Received message: {"t": 992546, "time": 1666648124.196023} partition 0 offset 10304
+Received message: {"t": 616140, "time": 1666648124.196032} partition 0 offset 10305
+Received message: {"t": 241166, "time": 1666648124.19604} partition 0 offset 10306
+Received message: {"t": 26518, "time": 1666648124.1960478} partition 0 offset 10307
+Received message: {"t": 357048, "time": 1666648124.196055} partition 0 offset 10308
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10299
+Continue deal record: 0 offset: 10300
+Continue deal record: 0 offset: 10301
+Continue deal record: 0 offset: 10302
+Continue deal record: 0 offset: 10303
+Continue deal record: 0 offset: 10304
+Continue deal record: 0 offset: 10305
+Continue deal record: 0 offset: 10306
+Continue deal record: 0 offset: 10307
+Continue deal record: 0 offset: 10308
+------------------------------- Reading messages -------------------------
+Received message: {"t": 77113, "time": 1666648124.1960618} partition 0 offset 10309
+Received message: {"t": 917718, "time": 1666648124.19607} partition 0 offset 10310
+Received message: {"t": 115383, "time": 1666648124.196077} partition 0 offset 10311
+Received message: {"t": 423109, "time": 1666648124.196084} partition 0 offset 10312
+Received message: {"t": 624348, "time": 1666648124.196091} partition 0 offset 10313
+Received message: {"t": 329775, "time": 1666648124.196098} partition 0 offset 10314
+Received message: {"t": 909242, "time": 1666648124.196105} partition 0 offset 10315
+Received message: {"t": 540065, "time": 1666648124.196112} partition 0 offset 10316
+Received message: {"t": 391779, "time": 1666648124.196119} partition 0 offset 10317
+Received message: {"t": 107203, "time": 1666648124.196126} partition 0 offset 10318
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10309
+Continue deal record: 0 offset: 10310
+Continue deal record: 0 offset: 10311
+Continue deal record: 0 offset: 10312
+Continue deal record: 0 offset: 10313
+Continue deal record: 0 offset: 10314
+Continue deal record: 0 offset: 10315
+Continue deal record: 0 offset: 10316
+Continue deal record: 0 offset: 10317
+Continue deal record: 0 offset: 10318
+------------------------------- Reading messages -------------------------
+Received message: {"t": 188347, "time": 1666648124.1961331} partition 0 offset 10319
+Received message: {"t": 943601, "time": 1666648124.19614} partition 0 offset 10320
+Received message: {"t": 265176, "time": 1666648124.196147} partition 0 offset 10321
+Received message: {"t": 731177, "time": 1666648124.196154} partition 0 offset 10322
+Received message: {"t": 904396, "time": 1666648124.196161} partition 0 offset 10323
+Received message: {"t": 628859, "time": 1666648124.196168} partition 0 offset 10324
+Received message: {"t": 135835, "time": 1666648124.196175} partition 0 offset 10325
+Received message: {"t": 350891, "time": 1666648124.1961842} partition 0 offset 10326
+Received message: {"t": 817505, "time": 1666648124.196192} partition 0 offset 10327
+Received message: {"t": 204120, "time": 1666648124.196199} partition 0 offset 10328
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10319
+Continue deal record: 0 offset: 10320
+Continue deal record: 0 offset: 10321
+Continue deal record: 0 offset: 10322
+Continue deal record: 0 offset: 10323
+Continue deal record: 0 offset: 10324
+Continue deal record: 0 offset: 10325
+Continue deal record: 0 offset: 10326
+Continue deal record: 0 offset: 10327
+Continue deal record: 0 offset: 10328
+------------------------------- Reading messages -------------------------
+Received message: {"t": 622355, "time": 1666648124.196206} partition 0 offset 10329
+Received message: {"t": 304423, "time": 1666648124.196213} partition 0 offset 10330
+Received message: {"t": 174725, "time": 1666648124.19622} partition 0 offset 10331
+Received message: {"t": 972065, "time": 1666648124.196227} partition 0 offset 10332
+Received message: {"t": 228963, "time": 1666648124.196235} partition 0 offset 10333
+Received message: {"t": 184757, "time": 1666648124.1962419} partition 0 offset 10334
+Received message: {"t": 944703, "time": 1666648124.196249} partition 0 offset 10335
+Received message: {"t": 437942, "time": 1666648124.196256} partition 0 offset 10336
+Received message: {"t": 899335, "time": 1666648124.1962628} partition 0 offset 10337
+Received message: {"t": 663492, "time": 1666648124.19627} partition 0 offset 10338
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10329
+Continue deal record: 0 offset: 10330
+Continue deal record: 0 offset: 10331
+Continue deal record: 0 offset: 10332
+Continue deal record: 0 offset: 10333
+Continue deal record: 0 offset: 10334
+Continue deal record: 0 offset: 10335
+Continue deal record: 0 offset: 10336
+Continue deal record: 0 offset: 10337
+Continue deal record: 0 offset: 10338
+------------------------------- Reading messages -------------------------
+Received message: {"t": 609178, "time": 1666648124.196277} partition 0 offset 10339
+Received message: {"t": 26405, "time": 1666648124.1962838} partition 0 offset 10340
+Received message: {"t": 489899, "time": 1666648124.196291} partition 0 offset 10341
+Received message: {"t": 597895, "time": 1666648124.196298} partition 0 offset 10342
+Received message: {"t": 811011, "time": 1666648124.196306} partition 0 offset 10343
+Received message: {"t": 955203, "time": 1666648124.1963131} partition 0 offset 10344
+Received message: {"t": 44383, "time": 1666648124.19632} partition 0 offset 10345
+Received message: {"t": 981853, "time": 1666648124.196327} partition 0 offset 10346
+deal failed will retry msg offset 10346 partition 0
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10339
+Continue deal record: 0 offset: 10340
+Continue deal record: 0 offset: 10341
+Continue deal record: 0 offset: 10342
+Continue deal record: 0 offset: 10343
+Continue deal record: 0 offset: 10344
+Continue deal record: 0 offset: 10345
+Creating group partition record: 0 offset: 10346
+Updating group partition record: 0 offset: 10347
+Updating group partition record: 0 offset: 10348
+---------------------------- seeking ------------------------------------
+deal failed will set msg offset 10346 partition 0
+------------------------------- Reading messages -------------------------
+Received message: {"t": 981853, "time": 1666648124.196327} partition 0 offset 10346
+Received message: {"t": 366472, "time": 1666648124.1963341} partition 0 offset 10347
+Received message: {"t": 567816, "time": 1666648124.196341} partition 0 offset 10348
+Received message: {"t": 660675, "time": 1666648124.196349} partition 0 offset 10349
+Received message: {"t": 546222, "time": 1666648124.196357} partition 0 offset 10350
+Received message: {"t": 740879, "time": 1666648124.19637} partition 0 offset 10351
+Received message: {"t": 516534, "time": 1666648124.196379} partition 0 offset 10352
+Received message: {"t": 78512, "time": 1666648124.196387} partition 0 offset 10353
+Received message: {"t": 940340, "time": 1666648124.196394} partition 0 offset 10354
+Received message: {"t": 80918, "time": 1666648124.196401} partition 0 offset 10355
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10346
+Continue deal record: 0 offset: 10347
+Continue deal record: 0 offset: 10348
+Continue deal record: 0 offset: 10349
+Continue deal record: 0 offset: 10350
+Continue deal record: 0 offset: 10351
+Continue deal record: 0 offset: 10352
+Continue deal record: 0 offset: 10353
+Continue deal record: 0 offset: 10354
+Continue deal record: 0 offset: 10355
+------------------------------- Reading messages -------------------------
+Received message: {"t": 515843, "time": 1666648124.196408} partition 0 offset 10356
+Received message: {"t": 539180, "time": 1666648124.196415} partition 0 offset 10357
+Received message: {"t": 159078, "time": 1666648124.1964228} partition 0 offset 10358
+Received message: {"t": 527179, "time": 1666648124.1964312} partition 0 offset 10359
+Received message: {"t": 561738, "time": 1666648124.196439} partition 0 offset 10360
+Received message: {"t": 57901, "time": 1666648124.196446} partition 0 offset 10361
+Received message: {"t": 357989, "time": 1666648124.196453} partition 0 offset 10362
+Received message: {"t": 461935, "time": 1666648124.19646} partition 0 offset 10363
+Received message: {"t": 639302, "time": 1666648124.196467} partition 0 offset 10364
+Received message: {"t": 191773, "time": 1666648124.196474} partition 0 offset 10365
+deal failed will retry msg offset 10365 partition 0
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10356
+Continue deal record: 0 offset: 10357
+Continue deal record: 0 offset: 10358
+Continue deal record: 0 offset: 10359
+Continue deal record: 0 offset: 10360
+Continue deal record: 0 offset: 10361
+Continue deal record: 0 offset: 10362
+Continue deal record: 0 offset: 10363
+Continue deal record: 0 offset: 10364
+Creating group partition record: 0 offset: 10365
+---------------------------- seeking ------------------------------------
+deal failed will set msg offset 10365 partition 0
+------------------------------- Reading messages -------------------------
+Received message: {"t": 191773, "time": 1666648124.196474} partition 0 offset 10365
+Received message: {"t": 570536, "time": 1666648124.196481} partition 0 offset 10366
+Received message: {"t": 95863, "time": 1666648124.196488} partition 0 offset 10367
+Received message: {"t": 313129, "time": 1666648124.196495} partition 0 offset 10368
+Received message: {"t": 207171, "time": 1666648124.196502} partition 0 offset 10369
+Received message: {"t": 665865, "time": 1666648124.196509} partition 0 offset 10370
+Received message: {"t": 599902, "time": 1666648124.1965172} partition 0 offset 10371
+Received message: {"t": 439032, "time": 1666648124.1965241} partition 0 offset 10372
+Received message: {"t": 840337, "time": 1666648124.196531} partition 0 offset 10373
+Received message: {"t": 336210, "time": 1666648124.1965408} partition 0 offset 10374
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10365
+Continue deal record: 0 offset: 10366
+Continue deal record: 0 offset: 10367
+Continue deal record: 0 offset: 10368
+Continue deal record: 0 offset: 10369
+Continue deal record: 0 offset: 10370
+Continue deal record: 0 offset: 10371
+Continue deal record: 0 offset: 10372
+Continue deal record: 0 offset: 10373
+Continue deal record: 0 offset: 10374
+------------------------------- Reading messages -------------------------
+Received message: {"t": 53227, "time": 1666648124.196548} partition 0 offset 10375
+Received message: {"t": 834535, "time": 1666648124.196556} partition 0 offset 10376
+Received message: {"t": 534293, "time": 1666648124.196563} partition 0 offset 10377
+Received message: {"t": 695244, "time": 1666648124.1965702} partition 0 offset 10378
+Received message: {"t": 821223, "time": 1666648124.1977222} partition 0 offset 10379
+Received message: {"t": 590184, "time": 1666648124.1977541} partition 0 offset 10380
+Received message: {"t": 242483, "time": 1666648124.1977658} partition 0 offset 10381
+Received message: {"t": 352617, "time": 1666648124.1977751} partition 0 offset 10382
+Received message: {"t": 20914, "time": 1666648124.197783} partition 0 offset 10383
+Received message: {"t": 887449, "time": 1666648124.19779} partition 0 offset 10384
+deal failed will retry msg offset 10384 partition 0
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10375
+Continue deal record: 0 offset: 10376
+Continue deal record: 0 offset: 10377
+Continue deal record: 0 offset: 10378
+Continue deal record: 0 offset: 10379
+Continue deal record: 0 offset: 10380
+Continue deal record: 0 offset: 10381
+Continue deal record: 0 offset: 10382
+Continue deal record: 0 offset: 10383
+Creating group partition record: 0 offset: 10384
+---------------------------- seeking ------------------------------------
+deal failed will set msg offset 10384 partition 0
+------------------------------- Reading messages -------------------------
+Received message: {"t": 887449, "time": 1666648124.19779} partition 0 offset 10384
+Received message: {"t": 526112, "time": 1666648124.1977978} partition 0 offset 10385
+Received message: {"t": 679461, "time": 1666648124.1978052} partition 0 offset 10386
+Received message: {"t": 504907, "time": 1666648124.197812} partition 0 offset 10387
+Received message: {"t": 511635, "time": 1666648124.19782} partition 0 offset 10388
+Received message: {"t": 397357, "time": 1666648124.197827} partition 0 offset 10389
+Received message: {"t": 400139, "time": 1666648124.197834} partition 0 offset 10390
+deal failed will retry msg offset 10390 partition 0
+-------------------- creating group partition -------------------------
+Continue deal record: 0 offset: 10384
+Continue deal record: 0 offset: 10385
+Continue deal record: 0 offset: 10386
+Continue deal record: 0 offset: 10387
+Continue deal record: 0 offset: 10388
+Continue deal record: 0 offset: 10389
+Creating group partition record: 0 offset: 10390
+Updating group partition record: 0 offset: 10391
+Updating group partition record: 0 offset: 10392
+Updating group partition record: 0 offset: 10393
+---------------------------- seeking ------------------------------------
+deal failed will set msg offset 10390 partition 0
+------------------------------- Reading messages -------------------------
+Received message: {"t": 510326, "time": 1666648124.202556} partition 2 offset 7211
+Received message: {"t": 358355, "time": 1666648124.20257} partition 2 offset 7212
+Received message: {"t": 474790, "time": 1666648124.202579} partition 2 offset 7213
+Received message: {"t": 168447, "time": 1666648124.2025862} partition 2 offset 7214
+Received message: {"t": 391673, "time": 1666648124.202594} partition 2 offset 7215
+Received message: {"t": 873449, "time": 1666648124.202601} partition 2 offset 7216
+Received message: {"t": 52441, "time": 1666648124.202608} partition 2 offset 7217
+Received message: {"t": 979854, "time": 1666648124.202615} partition 2 offset 7218
+Received message: {"t": 102259, "time": 1666648124.202623} partition 2 offset 7219
+Received message: {"t": 276099, "time": 1666648124.2026298} partition 2 offset 7220
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7211
+Continue deal record: 2 offset: 7212
+Continue deal record: 2 offset: 7213
+Continue deal record: 2 offset: 7214
+Continue deal record: 2 offset: 7215
+Continue deal record: 2 offset: 7216
+Continue deal record: 2 offset: 7217
+Continue deal record: 2 offset: 7218
+Continue deal record: 2 offset: 7219
+Continue deal record: 2 offset: 7220
+------------------------------- Reading messages -------------------------
+Received message: {"t": 116351, "time": 1666648124.202637} partition 2 offset 7221
+Received message: {"t": 822973, "time": 1666648124.2026439} partition 2 offset 7222
+Received message: {"t": 400983, "time": 1666648124.20265} partition 2 offset 7223
+Received message: {"t": 924585, "time": 1666648124.202657} partition 2 offset 7224
+Received message: {"t": 693190, "time": 1666648124.202664} partition 2 offset 7225
+Received message: {"t": 33650, "time": 1666648124.202671} partition 2 offset 7226
+Received message: {"t": 390581, "time": 1666648124.202678} partition 2 offset 7227
+Received message: {"t": 937416, "time": 1666648124.2026849} partition 2 offset 7228
+Received message: {"t": 915481, "time": 1666648124.2026932} partition 2 offset 7229
+Received message: {"t": 300895, "time": 1666648124.2027001} partition 2 offset 7230
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7221
+Continue deal record: 2 offset: 7222
+Continue deal record: 2 offset: 7223
+Continue deal record: 2 offset: 7224
+Continue deal record: 2 offset: 7225
+Continue deal record: 2 offset: 7226
+Continue deal record: 2 offset: 7227
+Continue deal record: 2 offset: 7228
+Continue deal record: 2 offset: 7229
+Continue deal record: 2 offset: 7230
+------------------------------- Reading messages -------------------------
+Received message: {"t": 257739, "time": 1666648124.2027059} partition 2 offset 7231
+Received message: {"t": 934704, "time": 1666648124.202713} partition 2 offset 7232
+Received message: {"t": 8105, "time": 1666648124.20272} partition 2 offset 7233
+Received message: {"t": 915403, "time": 1666648124.202728} partition 2 offset 7234
+Received message: {"t": 416789, "time": 1666648124.2027352} partition 2 offset 7235
+Received message: {"t": 413073, "time": 1666648124.202742} partition 2 offset 7236
+Received message: {"t": 773385, "time": 1666648124.202749} partition 2 offset 7237
+Received message: {"t": 936441, "time": 1666648124.2027562} partition 2 offset 7238
+Received message: {"t": 70842, "time": 1666648124.202763} partition 2 offset 7239
+Received message: {"t": 80803, "time": 1666648124.20277} partition 2 offset 7240
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7231
+Continue deal record: 2 offset: 7232
+Continue deal record: 2 offset: 7233
+Continue deal record: 2 offset: 7234
+Continue deal record: 2 offset: 7235
+Continue deal record: 2 offset: 7236
+Continue deal record: 2 offset: 7237
+Continue deal record: 2 offset: 7238
+Continue deal record: 2 offset: 7239
+Continue deal record: 2 offset: 7240
+------------------------------- Reading messages -------------------------
+Received message: {"t": 149488, "time": 1666648124.2027771} partition 2 offset 7241
+Received message: {"t": 141870, "time": 1666648124.202784} partition 2 offset 7242
+Received message: {"t": 305728, "time": 1666648124.202791} partition 2 offset 7243
+Received message: {"t": 523326, "time": 1666648124.2027981} partition 2 offset 7244
+Received message: {"t": 565822, "time": 1666648124.202805} partition 2 offset 7245
+Received message: {"t": 833845, "time": 1666648124.202812} partition 2 offset 7246
+Received message: {"t": 582122, "time": 1666648124.202819} partition 2 offset 7247
+Received message: {"t": 611435, "time": 1666648124.202826} partition 2 offset 7248
+Received message: {"t": 395829, "time": 1666648124.202832} partition 2 offset 7249
+Received message: {"t": 241387, "time": 1666648124.2028391} partition 2 offset 7250
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7241
+Continue deal record: 2 offset: 7242
+Continue deal record: 2 offset: 7243
+Continue deal record: 2 offset: 7244
+Continue deal record: 2 offset: 7245
+Continue deal record: 2 offset: 7246
+Continue deal record: 2 offset: 7247
+Continue deal record: 2 offset: 7248
+Continue deal record: 2 offset: 7249
+Continue deal record: 2 offset: 7250
+------------------------------- Reading messages -------------------------
+Received message: {"t": 284415, "time": 1666648124.202846} partition 2 offset 7251
+Received message: {"t": 293325, "time": 1666648124.2028532} partition 2 offset 7252
+Received message: {"t": 331600, "time": 1666648124.20286} partition 2 offset 7253
+Received message: {"t": 981849, "time": 1666648124.202867} partition 2 offset 7254
+Received message: {"t": 435873, "time": 1666648124.2028742} partition 2 offset 7255
+Received message: {"t": 661662, "time": 1666648124.20288} partition 2 offset 7256
+Received message: {"t": 417011, "time": 1666648124.2028868} partition 2 offset 7257
+Received message: {"t": 432885, "time": 1666648124.202894} partition 2 offset 7258
+Received message: {"t": 882047, "time": 1666648124.202901} partition 2 offset 7259
+Received message: {"t": 953327, "time": 1666648124.2029078} partition 2 offset 7260
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7251
+Continue deal record: 2 offset: 7252
+Continue deal record: 2 offset: 7253
+Continue deal record: 2 offset: 7254
+Continue deal record: 2 offset: 7255
+Continue deal record: 2 offset: 7256
+Continue deal record: 2 offset: 7257
+Continue deal record: 2 offset: 7258
+Continue deal record: 2 offset: 7259
+Continue deal record: 2 offset: 7260
+------------------------------- Reading messages -------------------------
+Received message: {"t": 606370, "time": 1666648124.202915} partition 2 offset 7261
+Received message: {"t": 403778, "time": 1666648124.2029219} partition 2 offset 7262
+Received message: {"t": 290335, "time": 1666648124.2029288} partition 2 offset 7263
+Received message: {"t": 849693, "time": 1666648124.2029362} partition 2 offset 7264
+Received message: {"t": 724501, "time": 1666648124.202943} partition 2 offset 7265
+Received message: {"t": 975813, "time": 1666648124.20295} partition 2 offset 7266
+Received message: {"t": 809509, "time": 1666648124.202956} partition 2 offset 7267
+Received message: {"t": 815864, "time": 1666648124.2029629} partition 2 offset 7268
+Received message: {"t": 424713, "time": 1666648124.20297} partition 2 offset 7269
+Received message: {"t": 591033, "time": 1666648124.202977} partition 2 offset 7270
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7261
+Continue deal record: 2 offset: 7262
+Continue deal record: 2 offset: 7263
+Continue deal record: 2 offset: 7264
+Continue deal record: 2 offset: 7265
+Continue deal record: 2 offset: 7266
+Continue deal record: 2 offset: 7267
+Continue deal record: 2 offset: 7268
+Continue deal record: 2 offset: 7269
+Continue deal record: 2 offset: 7270
+------------------------------- Reading messages -------------------------
+Received message: {"t": 475093, "time": 1666648124.2029839} partition 2 offset 7271
+Received message: {"t": 66364, "time": 1666648124.202991} partition 2 offset 7272
+Received message: {"t": 124383, "time": 1666648124.202998} partition 2 offset 7273
+Received message: {"t": 405073, "time": 1666648124.2030048} partition 2 offset 7274
+Received message: {"t": 898882, "time": 1666648124.203012} partition 2 offset 7275
+Received message: {"t": 665944, "time": 1666648124.203019} partition 2 offset 7276
+Received message: {"t": 649678, "time": 1666648124.2030258} partition 2 offset 7277
+Received message: {"t": 28155, "time": 1666648124.203033} partition 2 offset 7278
+Received message: {"t": 907153, "time": 1666648124.20304} partition 2 offset 7279
+Received message: {"t": 201420, "time": 1666648124.2030468} partition 2 offset 7280
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7271
+Continue deal record: 2 offset: 7272
+Continue deal record: 2 offset: 7273
+Continue deal record: 2 offset: 7274
+Continue deal record: 2 offset: 7275
+Continue deal record: 2 offset: 7276
+Continue deal record: 2 offset: 7277
+Continue deal record: 2 offset: 7278
+Continue deal record: 2 offset: 7279
+Continue deal record: 2 offset: 7280
+------------------------------- Reading messages -------------------------
+Received message: {"t": 563740, "time": 1666648124.203053} partition 2 offset 7281
+Received message: {"t": 600132, "time": 1666648124.20306} partition 2 offset 7282
+Received message: {"t": 545054, "time": 1666648124.2030668} partition 2 offset 7283
+Received message: {"t": 836551, "time": 1666648124.203074} partition 2 offset 7284
+Received message: {"t": 145462, "time": 1666648124.203081} partition 2 offset 7285
+Received message: {"t": 211942, "time": 1666648124.2030878} partition 2 offset 7286
+Received message: {"t": 305890, "time": 1666648124.203094} partition 2 offset 7287
+Received message: {"t": 9933, "time": 1666648124.203101} partition 2 offset 7288
+Received message: {"t": 685125, "time": 1666648124.203108} partition 2 offset 7289
+Received message: {"t": 986631, "time": 1666648124.203115} partition 2 offset 7290
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7281
+Continue deal record: 2 offset: 7282
+Continue deal record: 2 offset: 7283
+Continue deal record: 2 offset: 7284
+Continue deal record: 2 offset: 7285
+Continue deal record: 2 offset: 7286
+Continue deal record: 2 offset: 7287
+Continue deal record: 2 offset: 7288
+Continue deal record: 2 offset: 7289
+Continue deal record: 2 offset: 7290
+------------------------------- Reading messages -------------------------
+Received message: {"t": 589202, "time": 1666648124.203122} partition 2 offset 7291
+Received message: {"t": 615119, "time": 1666648124.203129} partition 2 offset 7292
+Received message: {"t": 939591, "time": 1666648124.203135} partition 2 offset 7293
+Received message: {"t": 227815, "time": 1666648124.203142} partition 2 offset 7294
+Received message: {"t": 435569, "time": 1666648124.203149} partition 2 offset 7295
+Received message: {"t": 91393, "time": 1666648124.203156} partition 2 offset 7296
+Received message: {"t": 689393, "time": 1666648124.203163} partition 2 offset 7297
+Received message: {"t": 459683, "time": 1666648124.20317} partition 2 offset 7298
+Received message: {"t": 758884, "time": 1666648124.203176} partition 2 offset 7299
+Received message: {"t": 41447, "time": 1666648124.2031832} partition 2 offset 7300
+-------------------- creating group partition -------------------------
+Continue deal record: 2 offset: 7291
+Continue deal record: 2 offset: 7292
+Continue deal record: 2 offset: 7293
+Continue deal record: 2 offset: 7294
+Continue deal record: 2 offset: 7295
+Continue deal record: 2 offset: 7296
+Continue deal record: 2 offset: 7297
+Continue deal record: 2 offset: 7298
+Continue deal record: 2 offset: 7299
+Continue deal record: 2 offset: 7300
+------------------------------- Reading messages -------------------------
+Received message: {"t": 5373, "time": 1666648124.204768} partition 2 offset 7310
+----------------------------------------------ERROR-----------------------------------------------
+msg partition: 2 offset: 7310
+msg partition: 2 offset: 7311
+msg partition: 2 offset: 7312
+msg partition: 2 offset: 7313
+msg partition: 2 offset: 7314
+msg partition: 2 offset: 7315
+msg partition: 2 offset: 7316
+msg partition: 2 offset: 7317
+msg partition: 2 offset: 7318
+msg partition: 2 offset: 7319
+Traceback (most recent call last):
+  File "/Users/prathi/work/confluent-kafka-python/./issues/1443/consumer.py", line 103, in <module>
+    test_for_run()
+  File "/Users/prathi/work/confluent-kafka-python/./issues/1443/consumer.py", line 74, in test_for_run
+    raise Exception('deal partition {} except last offset {} current offset {}'.format(t1, map_par[t1], o1))
+Exception: deal partition 2 except last offset 7300 current offset 7310
