@@ -1,7 +1,7 @@
 env:
  global:
   - LIBRDKAFKA_VERSION=v1.9.2
-  - LIBRDKAFKA_SRC_CODE_VERSION=master
+  - LIBRDKAFKA_SRC_VERSION=master
 
 jobs:
  include:
@@ -64,7 +64,7 @@ install:
  - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  # Install librdkafka and confluent_kafka[avro] if not building wheels
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_SRC_CODE_VERSION} tmp-build ; fi
+ - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_SRC_VERSION} tmp-build ; fi
 
 
 
