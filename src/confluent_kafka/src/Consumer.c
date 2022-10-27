@@ -980,6 +980,28 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 }
 
 
+static PyObject *Consumer_memberid (Handle *self, PyObject *args,
+                                    PyObject *kwargs) {
+        char *memberid;
+        PyObject *memberidobj;
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        memberid = rd_kafka_memberid(self->rk);
+
+        if (!memberid)
+                Py_RETURN_NONE;
+
+        memberidobj = Py_BuildValue("s", memberid);
+        rd_kafka_mem_free(self->rk, memberid);
+
+        return memberidobj;
+}
+
+
 static PyObject *Consumer_consume (Handle *self, PyObject *args,
                                         PyObject *kwargs) {
         unsigned int num_messages = 1;
@@ -1406,6 +1428,19 @@ static PyMethodDef Consumer_methods[] = {
           "  :returns: List of topic+partition with offset field set and possibly error set\n"
           "  :rtype: list(TopicPartition)\n"
           "  :raises: KafkaException\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
+          "\n"
+        },
+        { "memberid", (PyCFunction)Consumer_memberid, METH_NOARGS,
+          ".. py:function:: memberid()\n"
+          "\n"
+          " Return this client's broker-assigned group member id.\n"
+          "\n"
+          " The member id is assigned by the group coordinator and"
+          " is propagated to the consumer during rebalance.\n"
+          "\n"
+          "  :returns: Member id string or None\n"
+          "  :rtype: string\n"
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
