@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2021 Confluent Inc.
+# Copyright 2022 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limit
+
+import pytest
 
 
 def test_consumer_memberid(kafka_cluster):
@@ -30,13 +32,19 @@ def test_consumer_memberid(kafka_cluster):
     consumer = kafka_cluster.consumer(consumer_conf)
 
     assert consumer is not None
-    assert len(consumer.memberid()) == 0
+    assert consumer.memberid() is None
     kafka_cluster.seed_topic(topic, value_source=[b'memberid'])
 
     consumer.subscribe([topic])
     msg = consumer.poll(10)
     assert msg is not None
     assert msg.value() == b'memberid'
-    assert isinstance(consumer.memberid(), str) is True
-    assert len(consumer.memberid()) > 0
+    memberid = consumer.memberid()
+    print("Member Id is -----> " + memberid)
+    assert isinstance(memberid, str)
+    assert len(memberid) > 0
     consumer.close()
+
+    with pytest.raises(RuntimeError) as error_info:
+        consumer.memberid()
+    assert error_info.value.args[0] == "Consumer closed"
