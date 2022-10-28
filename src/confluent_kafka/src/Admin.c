@@ -392,8 +392,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         rd_kafka_NewTopic_t **c_objs;
         rd_kafka_queue_t *rkqu;
         CallState cs;
-        int default_partitions = 3;
-        int default_replications = 1;
         /* topics is a list of NewTopic objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
                                          &topics, &future,
@@ -467,7 +465,8 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
-                                    partitions,partitions,  // problem 
+                                    PyList_Size(newt->replica_assignment),
+                                    PyList_Size(newt->replica_assignment), 
                                     "num_partitions")) {
                                 i++;
                                 goto err;
@@ -483,13 +482,10 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         }
                 }
                 if(!newt->replica_assignment){
-                        if(newt->replication_factor!=-1 && newt->num_partitions!=-1){
+                        if((newt->replication_factor!=-1 && newt->num_partitions!=-1) || (newt->replication_factor==-1 && newt->num_partitions==-1)){
                                 continue;
                         }
-                        else if(newt->replication_factor==-1 && newt->num_partitions==-1){
-                                c_objs[i]->replication_factor = default_replications;
-                                c_objs[i]->num_partitions = default_partitions;
-                        }else{
+                        else{
                                 i++;
                                 goto err;
                         }
