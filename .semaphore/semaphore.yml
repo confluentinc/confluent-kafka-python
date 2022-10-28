@@ -11,9 +11,10 @@ global_job_config:
       value: v1.9.2
   prologue:
     commands:
-      - checkout
       - export HOME=$WORKSPACE
+      - mkdir $WORKSPACE/confluent-kafka-python
       - cd $WORKSPACE/confluent-kafka-python
+      - checkout
 blocks:
   - name: "Wheels: OSX x64"
     run:
