@@ -17,8 +17,17 @@ spec:
       pipeline_files:
       - path: .semaphore/semaphore.yml
         level: pipeline
-    whitelist:
-      branches:
-      - master
-      - main
-      - "/^v\\d+\\.\\d+\\.x$/"
+  custom_permissions: true
+  debug_permissions:
+  - empty
+  - default_branch
+  - non_default_branch
+  - pull_request
+  - forked_pull_request
+  - tag
+  attach_permissions:
+  - default_branch
+  - non_default_branch
+  - pull_request
+  - forked_pull_request
+  - tag

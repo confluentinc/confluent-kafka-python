@@ -31,6 +31,8 @@ global_job_config:
 
 blocks:
   - name: "Wheels: OSX x64"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -48,6 +50,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
