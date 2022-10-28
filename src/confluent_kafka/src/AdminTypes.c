@@ -73,6 +73,7 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                                "replica_assignment",
                                "config",
                                NULL };
+                               
         self->num_partitions = -1;
         self->replication_factor = -1;
         self->replica_assignment = NULL;
