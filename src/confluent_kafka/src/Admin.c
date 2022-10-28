@@ -392,6 +392,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         rd_kafka_NewTopic_t **c_objs;
         rd_kafka_queue_t *rkqu;
         CallState cs;
+        
         /* topics is a list of NewTopic objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
                                          &topics, &future,
