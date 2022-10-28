@@ -2,7 +2,7 @@ version: v1.0
 name: Test on PR or create and upload wheels on tag.
 agent:
   machine:
-    type: s1-prod-ubuntu20-04-amd64-1
+    type: s1-prod-macos
 global_job_config:
   secrets:
     - name: vault_sem2_approle
