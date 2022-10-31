@@ -480,7 +480,7 @@ class ClusterMetadata (object):
     def __init__(self):
         self.cluster_id = None
         """Cluster id string, if supported by the broker, else None."""
-        self.controller_id = -1
+        self.controller_id = -1  
         """Current controller broker id, or -1."""
         self.brokers = {}
         """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
