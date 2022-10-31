@@ -75,7 +75,7 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - pip install -r docs/requirements.txt
             - pip install -U protobuf
-            - pip install -r test/requirements.txt
+            - pip install -r tests/requirements.txt
             - flake8
             # install librdkafka
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
