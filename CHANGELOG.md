@@ -1,7 +1,7 @@
 # Confluent's Python client for Apache Kafka
 
 
-## v1.10.0
+## v1.9.3
 
  - Added metadata to `TopicPartition` type and `commit()` (#1410).
  - Added `consumer.memberid()` for getting member id assigned to 
