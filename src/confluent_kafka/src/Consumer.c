@@ -995,7 +995,7 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
         if (!memberid)
                 Py_RETURN_NONE;
 
-        if (strlen(memberid) == 0) {
+        if (!*memberid) {
                 rd_kafka_mem_free(self->rk, memberid);
                 Py_RETURN_NONE;
         }
