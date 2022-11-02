@@ -52,7 +52,7 @@ esac
 
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==2.8.1
+install_pkgs=cibuildwheel==2.11.2
 
 python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
