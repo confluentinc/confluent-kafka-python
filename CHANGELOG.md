@@ -4,6 +4,7 @@
 ## v1.10.0
 
 - Add metadata to TopicPartition type and commit() (#1410).
+- Added Python 3.11 wheel
 
 
 ## v1.9.2
