@@ -129,7 +129,7 @@ class CachedSchemaRegistryClient(object):
             s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
-        s.mount('https://', SSLAdapter(conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None), conf.pop('ssl.key.password', None)))
+        s.mount('https://', SSLAdapter(certfile=conf.pop('ssl.certificate.location', None),keyfile= conf.pop('ssl.key.location', None),password= conf.pop('ssl.key.password', None)))
 
         self.url = utils.urldefragauth(self.url)
 
