@@ -52,7 +52,7 @@ if __name__ == '__main__':
     # Consumer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
     conf = {'bootstrap.servers': broker, 'group.id': group, 'session.timeout.ms': 6000,
-            'auto.offset.reset': 'earliest'}
+            'auto.offset.reset': 'earliest', 'enable.auto.offset.store': False}
 
     # Check to see if -T option exists
     for opt in optlist:
@@ -102,6 +102,10 @@ if __name__ == '__main__':
                                  (msg.topic(), msg.partition(), msg.offset(),
                                   str(msg.key())))
                 print(msg.value())
+                # Store the offset associated with msg to a local cache.
+                # Stored offsets are committed to Kafka by a background thread every 'auto.commit.interval.ms'.
+                # Explicitly storing offsets after processing gives at-least once semantics.
+                c.store_offsets(msg)
 
     except KeyboardInterrupt:
         sys.stderr.write('%% Aborted by user\n')
