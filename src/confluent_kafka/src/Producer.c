@@ -665,7 +665,7 @@ static PyMethodDef Producer_methods[] = {
           "\n"
           "  Upon successful return from this function the application has to\n"
           "  perform at least one of the following operations within \n"
-          "  `transactional.timeout.ms` to avoid timing out the transaction\n"
+          "  `transaction.timeout.ms` to avoid timing out the transaction\n"
           "  on the broker:\n"
           "  * produce() (et.al)\n"
           "  * send_offsets_to_transaction()\n"
