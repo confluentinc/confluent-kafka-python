@@ -1621,7 +1621,7 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
         Py_ssize_t rd_extensions_size = 0;
         char err_msg[2048];
         rd_kafka_resp_err_t err_code;
-
+        int i;
         cs = CallState_get(h);
 
         eo = Py_BuildValue("s", oauthbearer_config);
@@ -1660,7 +1660,7 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                                                   sizeof(err_msg));
         Py_DECREF(result);
         if (rd_extensions) {
-                for(int i = 0; i < rd_extensions_size; i++) {
+                for(i = 0; i < rd_extensions_size; i++) {
                         free(rd_extensions[i]);
                 }
                 free(rd_extensions);
