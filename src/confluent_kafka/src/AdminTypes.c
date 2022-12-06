@@ -87,6 +87,15 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                 return -1;
 
 
+        if(self->replica_assignment){
+                if(self->num_partitions!= -1){
+                        PyErr_SetString(PyExc_TypeError,
+                                        "num_partitions and replica assignment are mutually exclusive");
+                        return -1;
+                }
+                self->num_partitions = PyList_Size(self->replica_assignment);
+        }
+
         if (self->config) {
                 if (!PyDict_Check(self->config)) {
                         PyErr_SetString(PyExc_TypeError,

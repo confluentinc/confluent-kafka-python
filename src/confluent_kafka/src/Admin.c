@@ -454,7 +454,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 }
 
                 if (newt->replica_assignment) {
-                        if (newt->replication_factor != -1 || newt->num_partitions != -1) {
+                        if (newt->replication_factor != -1) {
                                 PyErr_SetString(PyExc_ValueError,
                                                 "replication_factor/num_partitions and "
                                                 "replica_assignment are "
