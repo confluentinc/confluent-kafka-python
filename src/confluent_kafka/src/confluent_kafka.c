@@ -1318,7 +1318,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     while (!rd_kafka_header_get_all(headers, idx++,
                                      &header_key, &header_value, &header_value_size)) {
-            // Create one (key, value) tuple for each header
+            /* Create one (key, value) tuple for each header */
             PyObject *header_tuple = PyTuple_New(2);
             PyTuple_SetItem(header_tuple, 0,
                 cfl_PyUnistr(_FromString(header_key))
@@ -2651,7 +2651,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 	_PRINT("\n");
 
-	return doc; // FIXME: leak
+	return doc; /* FIXME: leak */
 }
 
 
