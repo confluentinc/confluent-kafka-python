@@ -38,7 +38,10 @@ from ._metadata import (BrokerMetadata,  # noqa: F401
                         GroupMetadata,
                         PartitionMetadata,
                         TopicMetadata)
-from ._group import (DeleteConsumerGroupsResponse) #noqa: F401
+from ._group import (DeleteConsumerGroupsResponse,  #noqa: F401
+                     ConsumerGroupListing,
+                     ConsumerGroupState,
+                     ListConsumerGroupsResponse)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -144,6 +147,14 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all resources
             for resource, fut in futmap.items():
                 fut.set_exception(e)
+
+    
+    @staticmethod
+    def _make_list_consumer_groups_result(f, futmap):
+        """
+        TODO
+        """
+        pass
 
     @staticmethod
     def _make_consumer_groups_result(f, futmap):
@@ -325,6 +336,29 @@ class AdminClient (_AdminClientImpl):
     def list_groups(self, *args, **kwargs):
 
         return super(AdminClient, self).list_groups(*args, **kwargs)
+
+    def list_consumer_groups(self, **kwargs):
+        if "states" in kwargs:
+            states = kwargs["states"]
+            if not isinstance(states, list):
+                raise TypeError("'states' must be a list")
+            for state in states:
+                if not isinstance(state, ConsumerGroupState):
+                    raise TypeError("All elements of states must be of type ConsumerGroupState")
+            if AdminClient._has_duplicates(states):
+                raise ValueError("'states' must have unique values")
+            kwargs["states_int"] = list(map(lambda state: state.value, states))
+            kwargs.pop("states")
+
+        f, futMap = AdminClient._make_futures([], None,
+                                      AdminClient._make_list_consumer_groups_result)
+
+        super(AdminClient, self).list_consumer_groups(f, **kwargs)
+
+        return f
+
+    def describe_consumer_groups(self, *args, **kwargs):
+        return super(AdminClient, self).describe_consumer_groups(*args, **kwargs)
 
     def create_partitions(self, new_partitions, **kwargs):
         """
