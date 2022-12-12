@@ -429,6 +429,16 @@ def example_list(a, args):
 
             for m in g.members:
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+    # TODO: Improve
+    if what in ("all", "consumer_groups"):
+        future = a.list_consumer_groups(timeout=10)
+        try:
+            consumer_groups = future.result()
+            print(" {} consumer groups".format(len(consumer_groups.valid)))
+            for valid in consumer_groups.valid:
+                print("id: {} is_simple: {} state: {}".format(valid.group_id, valid.is_simple_consumer_group, valid.state))
+        except Exception as e:
+            raise e
 
 
 def example_delete_consumer_groups(a, args):
@@ -524,7 +534,7 @@ if __name__ == '__main__':
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
-        sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
+        sys.stderr.write(' list [<all|topics|brokers|groups|consumer_groups>]\n')
         sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
