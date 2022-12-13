@@ -20,7 +20,7 @@
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
-                                   AlterConsumerGroupOffsetsRequest)
+                                   AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -431,7 +431,7 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
     # TODO: Improve
     if what in ("all", "consumer_groups"):
-        future = a.list_consumer_groups(timeout=10)
+        future = a.list_consumer_groups(timeout=5, states=[ConsumerGroupState.STABLE])
         try:
             consumer_groups = future.result()
             print(" {} consumer groups".format(len(consumer_groups.valid)))
@@ -548,7 +548,8 @@ if __name__ == '__main__':
     args = sys.argv[3:]
 
     # Create Admin client
-    a = AdminClient({'bootstrap.servers': broker})
+    a = AdminClient({'bootstrap.servers': broker,
+    "debug": "all"})
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,

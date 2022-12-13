@@ -340,6 +340,7 @@ class AdminClient (_AdminClientImpl):
     def list_consumer_groups(self, **kwargs):
         if "states" in kwargs:
             states = kwargs["states"]
+            print(states)
             if not isinstance(states, list):
                 raise TypeError("'states' must be a list")
             for state in states:

@@ -1750,6 +1750,9 @@ PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) 
                         }
                         c_states[i] = (rd_kafka_consumer_group_state_t) cfl_PyInt_AsInt(state);
                 }
+
+                options.states = c_states;
+                options.states_cnt = states_cnt;
         }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS,
@@ -1782,6 +1785,9 @@ PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) 
         }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
+
+        printf("Request sent!!!\n\n");
+        fflush(stdout);
 
         Py_RETURN_NONE;
 err:
@@ -2465,6 +2471,9 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                         const rd_kafka_error_t **c_errors_responses,
                         size_t errors_cnt) {
 
+        printf("Converting Response!!!\n\n");
+        fflush(stdout);
+
         PyObject *result = NULL;
         PyObject *ListConsumerGroupsResponse_type = NULL;
         PyObject *ConsumerGroupListing_type = NULL;
@@ -2564,6 +2573,9 @@ err:
  */
 static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                                        void *opaque) {
+
+        printf("Inside Background Event CB\n\n");
+        fflush(stdout);
         PyObject *future = (PyObject *)rd_kafka_event_opaque(rkev);
         const rd_kafka_topic_result_t **c_topic_res;
         size_t c_topic_res_cnt;
