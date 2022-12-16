@@ -10,6 +10,7 @@ import json
 import pprint
 
 from confluent_kafka import Consumer
+from confluent_kafka import KafkaException
 
 
 assert sys.platform == 'linux', "This example is linux only, cause of eventfd"
@@ -67,7 +68,8 @@ class AsyncConsumer:
             return self._poll_no_timeout()
 
     async def _poll_no_timeout(self):
-        while not (msg := await self._single_poll()): pass
+        while not (msg := await self._single_poll()):
+            pass
         return msg
 
     async def _single_poll(self):
