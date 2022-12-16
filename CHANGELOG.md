@@ -1,5 +1,10 @@
 # Confluent's Python client for Apache Kafka
 
+## Next Version
+
+ - Added `consumer.io_event_enable` to integrate with event-loops like asyncio.
+   (#1448)
+
 ## v2.1.1
 
 v2.1.1 is a maintenance release with the following fixes and enhancements:
