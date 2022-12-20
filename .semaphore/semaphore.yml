@@ -4,8 +4,6 @@ agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
 global_job_config:
-  secrets:
-    - name: vault_sem2_approle
   env_vars:
     - name: LIBRDKAFKA_VERSION
       value: v1.9.2
