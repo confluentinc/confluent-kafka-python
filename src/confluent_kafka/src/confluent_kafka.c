@@ -1388,6 +1388,41 @@ rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj) {
         return cgmd;
 }
 
+PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
+        PyObject *node = NULL;
+        PyObject *Node_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+
+        Node_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                        "Node");
+        if (!Node_type) {
+                // TODO: Add error
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
+        cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
+        cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+
+        args = PyTuple_New(0);
+
+        node = PyObject_Call(Node_type, args, kwargs);
+
+        Py_DECREF(Node_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        return node;
+
+err:
+        Py_XDECREF(Node_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        return NULL;
+}
+
 
 /****************************************************************************
  *

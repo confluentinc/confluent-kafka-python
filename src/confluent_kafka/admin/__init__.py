@@ -41,7 +41,11 @@ from ._metadata import (BrokerMetadata,  # noqa: F401
 from ._group import (DeleteConsumerGroupsResponse,  #noqa: F401
                      ConsumerGroupListing,
                      ConsumerGroupState,
-                     ListConsumerGroupsResponse)
+                     ListConsumerGroupsResponse,
+                     ConsumerGroupDescription,
+                     MemberAssignment,
+                     MemberDescription)
+from ._common import (Node)  # noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -338,6 +342,7 @@ class AdminClient (_AdminClientImpl):
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
     def list_consumer_groups(self, **kwargs):
+        #TODO: Do a None check as well for states
         if "states" in kwargs:
             states = kwargs["states"]
             if not isinstance(states, list):
@@ -357,8 +362,13 @@ class AdminClient (_AdminClientImpl):
 
         return f
 
-    def describe_consumer_groups(self, *args, **kwargs):
-        return super(AdminClient, self).describe_consumer_groups(*args, **kwargs)
+    def describe_consumer_groups(self, group_ids, **kwargs):
+        f, futmap = AdminClient._make_futures(group_ids, None,
+                                              AdminClient._make_consumer_groups_result)
+
+        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
 
     def create_partitions(self, new_partitions, **kwargs):
         """

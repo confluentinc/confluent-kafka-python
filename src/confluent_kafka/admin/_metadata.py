@@ -145,8 +145,6 @@ class GroupMember(object):
         """Member metadata(binary), format depends on protocol type."""
         self.assignment = None
         """Member assignment(binary), format depends on protocol type."""
-        self.assignment_topic_partitions = None
-        """Assignment Topic Partitions"""
 
 
 class GroupMetadata(object):
@@ -170,8 +168,6 @@ class GroupMetadata(object):
         """Group protocol."""
         self.members = []
         """Group members."""
-        self.is_simple_consumer_group = None
-        """Whether consumer group is simple or not"""
 
     def __repr__(self):
         if self.error is not None:
