@@ -14,15 +14,10 @@
 
 
 from enum import Enum
-from re import X
 from .. import cimpl as _cimpl
-from ._offset import ConsumerGroupTopicPartitions
-
-try:
-    string_type = basestring
-except NameError:
-    string_type = str
-
+from ..util._validation_util import ValidationUtil
+from ..util._converstion_util import ConversionUtil
+from ._common import Node
 
 class ConsumerGroupListing:
     def __init__(self, group_id, is_simple_consumer_group, state=None, error=None):
@@ -54,8 +49,7 @@ class ConsumerGroupListing:
 
     def _check_group_id(self):
         if self.group_id is not None:
-            if not isinstance(self.group_id, string_type):
-                raise TypeError("'group_id' must be a string")
+            ValidationUtil.check_is_string(self, "group_id")
             if not self.group_id:
                 raise ValueError("'group_id' cannot be empty")
 
@@ -111,6 +105,56 @@ class ConsumerGroupState(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class MemberAssignment:
+    def __init__(self, topic_partitions=[]):
+        self.topic_partitions = topic_partitions
+        if self.topic_partitions is None:
+            self.topic_partitions = []
+        self._check_topic_partitions()
+
+    def _check_topic_partitions(self):
+        if not isinstance(self.topic_partitions, list):
+            raise TypeError("'topic_partitions' should be a list")
+        for topic_partition in self.topic_partitions:
+            if topic_partition is None:
+                raise ValueError("Element of 'topic_partitions' cannot be None")
+            if not isinstance(topic_partition, _cimpl.TopicPartition):
+                raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+
+
+class MemberDescription:
+    def __init__(self, member_id, client_id, host, assignment, group_instance_id=None):
+        self.member_id = member_id
+        self.client_id = client_id
+        self.host = host
+        self.assignment = assignment
+        self.group_instance_id = group_instance_id
+
+        ValidationUtil.check_multiple_not_none(self, ["member_id", "client_id", "host", "assignment"])
+
+        string_args = ["member_id", "client_id", "host"]
+        if group_instance_id is not None:
+            string_args.append("group_instance_id")
+        ValidationUtil.check_multiple_is_string(self, string_args)
+
+    def _check_assignment(self):
+        if not isinstance(self.assignment, MemberAssignment):
+            raise TypeError("'assignment' should be a MemberAssignment")
+
+
+
+class ConsumerGroupDescription:
+    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state, coordinator, error=None):
+        self.group_id = group_id
+        self.is_simple_consumer_group = is_simple_consumer_group
+        self.members = members
+        self.partition_assignor = partition_assignor
+        self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+        self.coordinator = coordinator
+
+        # TODO Add validations
 
 
 class DeleteConsumerGroupsResponse:
