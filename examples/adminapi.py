@@ -20,7 +20,7 @@
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
-                                   AlterConsumerGroupOffsetsRequest)
+                                   AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -431,7 +431,7 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
     # TODO: Improve
     if what in ("all", "consumer_groups"):
-        future = a.list_consumer_groups(timeout=10)
+        future = a.list_consumer_groups(timeout=5, states=[])
         try:
             consumer_groups = future.result()
             print(" {} consumer groups".format(len(consumer_groups.valid)))
@@ -439,6 +439,26 @@ def example_list(a, args):
                 print("id: {} is_simple: {} state: {}".format(valid.group_id, valid.is_simple_consumer_group, valid.state))
         except Exception as e:
             raise e
+
+
+def example_describe_consumer_groups(a, args):
+
+    futureMap = a.describe_consumer_groups(args, timeout=5)
+
+    for request, future in futureMap.items():
+        try:
+            g = future.result()
+            print("id: {} \n\tis_simple\t\t: {} \n\tstate\t\t\t: {} \n\tpartition_assignor\t: {}".format(g.group_id, g.is_simple_consumer_group, g.state, g.partition_assignor))
+            print("\tCoordinator\t\t: ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            for member in g.members:
+                print()
+                print("\tMember ({}): \n\t\tHost\t\t\t: {}\n\t\tClient Id\t\t: {}\n\t\tGroup Instance Id\t: {}".format(member.member_id, member.host, member.client_id, member.group_instance_id))
+                if member.assignment:
+                    print("\t\tAssignments\t\t:")
+                    for toppar in member.assignment.topic_partitions:
+                        print("\t\t\t{} [{}]".format(toppar.topic, toppar.partition))
+        except Exception as e:
+            raise
 
 
 def example_delete_consumer_groups(a, args):
@@ -540,6 +560,7 @@ if __name__ == '__main__':
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
         
         sys.exit(1)
 
@@ -562,7 +583,8 @@ if __name__ == '__main__':
               'list': example_list,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
-              'delete_consumer_groups': example_delete_consumer_groups}
+              'delete_consumer_groups': example_delete_consumer_groups,
+              'describe_consumer_groups': example_describe_consumer_groups}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
