@@ -339,7 +339,6 @@ class AdminClient (_AdminClientImpl):
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
     def list_consumer_groups(self, **kwargs):
-        #TODO: Do a None check as well for states
         if "states" in kwargs:
             states = kwargs["states"]
             if states is not None:
