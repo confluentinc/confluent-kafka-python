@@ -21,6 +21,7 @@ from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPar
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
                                    AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
+from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys
 import threading
@@ -429,16 +430,21 @@ def example_list(a, args):
 
             for m in g.members:
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
-    # TODO: Improve
-    if what in ("all", "consumer_groups"):
-        future = a.list_consumer_groups(timeout=5, states=[])
-        try:
-            consumer_groups = future.result()
-            print(" {} consumer groups".format(len(consumer_groups.valid)))
-            for valid in consumer_groups.valid:
-                print("id: {} is_simple: {} state: {}".format(valid.group_id, valid.is_simple_consumer_group, valid.state))
-        except Exception as e:
-            raise e
+
+
+def example_list_consumer_groups(a, args):
+    states = [ConversionUtil.convert_to_enum(state, ConsumerGroupState) for state in args]
+    future = a.list_consumer_groups(timeout=10, states=states)
+    try:
+        list_consumer_groups_result = future.result()
+        print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
+        for valid in list_consumer_groups_result.valid:
+            print("    id: {} is_simple: {} state: {}".format(valid.group_id, valid.is_simple_consumer_group, valid.state))
+        print("{} errors".format(len(list_consumer_groups_result.errors)))
+        for error in list_consumer_groups_result.errors:
+            print("    error: {}".format(error.str()))
+    except Exception as e:
+        raise e
 
 
 def example_describe_consumer_groups(a, args):
@@ -452,7 +458,7 @@ def example_describe_consumer_groups(a, args):
             print("\tCoordinator\t\t: ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
             for member in g.members:
                 print()
-                print("\tMember ({}): \n\t\tHost\t\t\t: {}\n\t\tClient Id\t\t: {}\n\t\tGroup Instance Id\t: {}".format(member.member_id, member.host, member.client_id, member.group_instance_id))
+                print("\tMembers: \n\t\tId\t\t\t: {}\n\t\tHost\t\t\t: {}\n\t\tClient Id\t\t: {}\n\t\tGroup Instance Id\t: {}".format(member.member_id, member.host, member.client_id, member.group_instance_id))
                 if member.assignment:
                     print("\t\tAssignments\t\t:")
                     for toppar in member.assignment.topic_partitions:
@@ -490,7 +496,7 @@ def example_list_consumer_group_offsets(a, args):
     for request, future in futureMap.items():
         try:
             response_offset_info = future.result()
-            print("Group: " + response_offset_info.group_name)
+            print("Group: " + response_offset_info.group_id)
             for topic_partition in response_offset_info.topic_partition_list:
                 if topic_partition.error:
                     print("    Error: " + topic_partition.error.str() + " occured with " +
@@ -521,7 +527,7 @@ def example_alter_consumer_group_offsets(a, args):
     for request, future in futureMap.items():
         try:
             response_offset_info = future.result()
-            print("Group: " + response_offset_info.group_name)
+            print("Group: " + response_offset_info.group_id)
             for topic_partition in response_offset_info.topic_partition_list:
                 if topic_partition.error:
                     print("    Error: " + topic_partition.error.str() + " occured with " +
@@ -554,12 +560,13 @@ if __name__ == '__main__':
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
-        sys.stderr.write(' list [<all|topics|brokers|groups|consumer_groups>]\n')
+        sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
         sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' list_consumer_groups <state1> <state2> ..\n')
         sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
         
         sys.exit(1)
@@ -584,6 +591,7 @@ if __name__ == '__main__':
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'delete_consumer_groups': example_delete_consumer_groups,
+              'list_consumer_groups': example_list_consumer_groups,
               'describe_consumer_groups': example_describe_consumer_groups}
 
     if operation not in opsmap:
