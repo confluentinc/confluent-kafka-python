@@ -158,5 +158,5 @@ class ConsumerGroupDescription:
 
 
 class DeleteConsumerGroupsResponse:
-    def __init__(self, group_name):
-        self.group_name = group_name
+    def __init__(self, group_id):
+        self.group_id = group_id

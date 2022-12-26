@@ -155,9 +155,6 @@ class AdminClient (_AdminClientImpl):
     
     @staticmethod
     def _make_list_consumer_groups_result(f, futmap):
-        """
-        TODO
-        """
         pass
 
     @staticmethod
@@ -345,14 +342,15 @@ class AdminClient (_AdminClientImpl):
         #TODO: Do a None check as well for states
         if "states" in kwargs:
             states = kwargs["states"]
-            if not isinstance(states, list):
-                raise TypeError("'states' must be a list")
-            for state in states:
-                if not isinstance(state, ConsumerGroupState):
-                    raise TypeError("All elements of states must be of type ConsumerGroupState")
-            if AdminClient._has_duplicates(states):
-                raise ValueError("'states' must have unique values")
-            kwargs["states_int"] = list(map(lambda state: state.value, states))
+            if states is not None:
+                if not isinstance(states, list):
+                    raise TypeError("'states' must be a list")
+                for state in states:
+                    if not isinstance(state, ConsumerGroupState):
+                        raise TypeError("All elements of states must be of type ConsumerGroupState")
+                if AdminClient._has_duplicates(states):
+                    raise ValueError("'states' must have unique values")
+                kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
 
         f, futMap = AdminClient._make_futures([], None,

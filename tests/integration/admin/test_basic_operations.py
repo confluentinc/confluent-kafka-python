@@ -142,15 +142,15 @@ def verify_topic_metadata(client, exp_topics, *args, **kwargs):
         time.sleep(1)
 
 
-def verify_consumer_group_offsets_operations(client, our_topic, group_name):
+def verify_consumer_group_offsets_operations(client, our_topic, group_id):
 
     # List Consumer Group Offsets check with just group name
-    request = ListConsumerGroupOffsetsRequest(group_name)
+    request = ListConsumerGroupOffsetsRequest(group_id)
     fs = client.list_consumer_group_offsets([request])
     f = fs[request]
     res = f.result()
     assert isinstance(res, ListConsumerGroupOffsetsResponse)
-    assert res.group_name == group_name
+    assert res.group_id == group_id
     assert len(res.topic_partition_list) == 2
     is_any_message_consumed = False
     for topic_partition in res.topic_partition_list:
@@ -164,13 +164,13 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
                                                                                        topic_partition.partition,
                                                                                        0),
                                                 res.topic_partition_list))
-    alter_group_topic_partition_request = AlterConsumerGroupOffsetsRequest(group_name,
+    alter_group_topic_partition_request = AlterConsumerGroupOffsetsRequest(group_id,
                                                                            alter_group_topic_partition_list)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
     af = afs[alter_group_topic_partition_request]
     ares = af.result()
     assert isinstance(ares, AlterConsumerGroupOffsetsResponse)
-    assert ares.group_name == group_name
+    assert ares.group_id == group_id
     assert len(ares.topic_partition_list) == 2
     for topic_partition in ares.topic_partition_list:
         assert topic_partition.topic == our_topic
@@ -180,14 +180,14 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_name):
     list_group_topic_partition_list = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
                                                                                       topic_partition.partition),
                                            ares.topic_partition_list))
-    list_group_topic_partition_request = ListConsumerGroupOffsetsRequest(group_name,
+    list_group_topic_partition_request = ListConsumerGroupOffsetsRequest(group_id,
                                                                          list_group_topic_partition_list)
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
     lf = lfs[list_group_topic_partition_request]
     lres = lf.result()
 
     assert isinstance(lres, ListConsumerGroupOffsetsResponse)
-    assert lres.group_name == group_name
+    assert lres.group_id == group_id
     assert len(lres.topic_partition_list) == 2
     for topic_partition in lres.topic_partition_list:
         assert topic_partition.topic == our_topic

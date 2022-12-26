@@ -27,21 +27,21 @@ except NameError:
 # Move this class to other common util or dto file
 # Incorporate errors as well
 class ConsumerGroupTopicPartitions(ABC):
-    def __init__(self, group_name: str = None, topic_partition_list: list = None):
-        self.group_name = group_name
+    def __init__(self, group_id: str = None, topic_partition_list: list = None):
+        self.group_id = group_id
         self.topic_partition_list = topic_partition_list
-        self._check_valid_group_name()
+        self._check_valid_group_id()
         self._check_topic_partition_list()
 
     def __hash__(self) -> int:
-        return hash(self.group_name)
+        return hash(self.group_id)
 
     @abstractmethod
     def _check_topic_partition_list(self):
         pass
 
     @abstractmethod
-    def _check_valid_group_name(self):
+    def _check_valid_group_id(self):
         pass
 
 
@@ -53,7 +53,7 @@ class ListConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
 
     Parameters
     ----------
-    group_name : str
+    group_id : str
         Group name for which offset information is expected. **Mandatory**
     topic_partition_list : list
         List of :class:`TopicPartition` for which offset information is expected. . **Optional**
@@ -61,13 +61,13 @@ class ListConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
         * Cannot be empty
     """
 
-    def _check_valid_group_name(self):
-        if self.group_name is None:
-            raise TypeError("'group_name' cannot be None")
-        if not isinstance(self.group_name, string_type):
-            raise TypeError("'group_name' must be a string")
-        if not self.group_name:
-            raise ValueError("'group_name' cannot be empty")
+    def _check_valid_group_id(self):
+        if self.group_id is None:
+            raise TypeError("'group_id' cannot be None")
+        if not isinstance(self.group_id, string_type):
+            raise TypeError("'group_id' must be a string")
+        if not self.group_id:
+            raise ValueError("'group_id' cannot be empty")
 
     def _check_topic_partition_list(self):
         if self.topic_partition_list is not None:
@@ -101,13 +101,13 @@ class ListConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
 
     Parameters
     ----------
-    group_name : str
+    group_id : str
         Group name for which offset information is fetched.
     topic_partition_list : list
         List of :class:`TopicPartition` containing offset information.
     """
 
-    def _check_valid_group_name(self):
+    def _check_valid_group_id(self):
         pass
 
     def _check_topic_partition_list(self):
@@ -122,20 +122,20 @@ class AlterConsumerGroupOffsetsRequest(ConsumerGroupTopicPartitions):
 
     Parameters
     ----------
-    group_name : str
+    group_id : str
         Group name for which offset information is expected. **Mandatory**
     topic_partition_list : list
         List of :class:`TopicPartition` for which offset information is expected. . **Mandatory**
         * Cannot be empty or null
     """
 
-    def _check_valid_group_name(self):
-        if self.group_name is None:
-            raise TypeError("'group_name' cannot be None")
-        if not isinstance(self.group_name, string_type):
-            raise TypeError("'group_name' must be a string")
-        if not self.group_name:
-            raise ValueError("'group_name' cannot be empty")
+    def _check_valid_group_id(self):
+        if self.group_id is None:
+            raise TypeError("'group_id' cannot be None")
+        if not isinstance(self.group_id, string_type):
+            raise TypeError("'group_id' must be a string")
+        if not self.group_id:
+            raise ValueError("'group_id' cannot be empty")
 
     def _check_topic_partition_list(self):
         if self.topic_partition_list is None:
@@ -170,13 +170,13 @@ class AlterConsumerGroupOffsetsResponse(ConsumerGroupTopicPartitions):
 
     Parameters
     ----------
-    group_name : str
+    group_id : str
         Group name for which offset information is altered.
     topic_partition_list : list
         List of :class:`TopicPartition` showing offset information after completion of the operation.
     """
 
-    def _check_valid_group_name(self):
+    def _check_valid_group_id(self):
         pass
 
     def _check_topic_partition_list(self):

@@ -461,12 +461,12 @@ def test_list_consumer_group_offsets():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    only_group_name_request = ListConsumerGroupOffsetsRequest("test-group1")
+    only_group_id_request = ListConsumerGroupOffsetsRequest("test-group1")
     request_with_group_and_topic_partition = ListConsumerGroupOffsetsRequest(
         "test-group2", [TopicPartition("test-topic1", 1)])
     same_name_request = ListConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 3)])
 
-    a.list_consumer_group_offsets([only_group_name_request])
+    a.list_consumer_group_offsets([only_group_id_request])
 
     with pytest.raises(TypeError):
         a.list_consumer_group_offsets(None)
@@ -481,19 +481,19 @@ def test_list_consumer_group_offsets():
         a.list_consumer_group_offsets([])
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([only_group_name_request,
+        a.list_consumer_group_offsets([only_group_id_request,
                                        request_with_group_and_topic_partition])
 
     with pytest.raises(ValueError):
         a.list_consumer_group_offsets([request_with_group_and_topic_partition,
                                        same_name_request])
 
-    fs = a.list_consumer_group_offsets([only_group_name_request])
+    fs = a.list_consumer_group_offsets([only_group_id_request])
     with pytest.raises(KafkaException):
         for f in fs.values():
             f.result(timeout=10)
 
-    fs = a.list_consumer_group_offsets([only_group_name_request],
+    fs = a.list_consumer_group_offsets([only_group_id_request],
                                        request_timeout=0.5)
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
@@ -501,7 +501,7 @@ def test_list_consumer_group_offsets():
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([only_group_name_request],
+        a.list_consumer_group_offsets([only_group_id_request],
                                       request_timeout=-5)
 
 
