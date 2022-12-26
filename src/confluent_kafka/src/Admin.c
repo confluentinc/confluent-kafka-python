@@ -1467,7 +1467,6 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        // TODO: recheck this test
         if (PyList_Check(request) &&
             (requests_cnt = (int)PyList_Size(request)) != 1) {
                 PyErr_SetString(PyExc_ValueError,
@@ -2507,10 +2506,6 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
 
         kwargs = PyDict_New();
 
-        /**
-         * TODO: Change group_id to group_id
-         * 
-         */
         cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
 
         c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
@@ -2599,7 +2594,6 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                 ConsumerGroupListing_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                                 "ConsumerGroupListing");
                 if (!ConsumerGroupListing_type) {
-                        // TODO: Add error everywhere like this
                         goto err;
                 }
                 for(i = 0; i < valid_cnt; i++) {
@@ -2683,7 +2677,6 @@ static PyObject *Admin_c_MemberAssignment_to_py(const rd_kafka_MemberAssignment_
         MemberAssignment_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                      "MemberAssignment");
         if (!MemberAssignment_type) {
-                // TODO: Add error
                 goto err;
         }
         c_topic_partitions_list = rd_kafka_MemberAssignment_partitions(c_assignment);
@@ -2845,19 +2838,13 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(const rd_kafka_ConsumerG
 
         members = Admin_c_MemberDescriptions_to_py_from_ConsumerGroupDescription(c_consumer_group_description);
         if(!members) {
-                // PyErr_Format(PyExc_RuntimeError, "Generating 'members' info failed");
                 goto err;
         }
         PyDict_SetItemString(kwargs, "members", members);
 
-        /**
-         * TODO: Extract this into a function?
-         * 
-         */
         c_coordinator = rd_kafka_ConsumerGroupDescription_coordinator(c_consumer_group_description);
         coordinator = c_Node_to_py(c_coordinator);
         if(!coordinator) {
-                // PyErr_Format(PyExc_RuntimeError, "Generating 'coordinator' info failed");
                 goto err;
         }
         PyDict_SetItemString(kwargs, "coordinator", coordinator);
@@ -2869,7 +2856,6 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(const rd_kafka_ConsumerG
         py_is_simple_consumer_group =  PyBool_FromLong(
                 rd_kafka_ConsumerGroupDescription_is_simple_consumer_group(c_consumer_group_description));
         if(PyDict_SetItemString(kwargs, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
-                                PyErr_Format(PyExc_RuntimeError, "Not able to set 'is_simple_consumer_group' in ConsumerGroupDescription");
                 goto err;
         }
 
@@ -3224,16 +3210,9 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 c_delete_groups_res = rd_kafka_event_DeleteGroups_result(rkev);
 
-                /**
-                 * TODO: Use rd_kafka_DeleteConsumerGroup_result_groups instead
-                 * 
-                 */
                 c_delete_groups_res_responses = 
                         rd_kafka_DeleteConsumerGroupOffsets_result_groups(c_delete_groups_res, &c_delete_groups_res_cnt);
 
-                /**
-                 * TODO: Change this to response object of DeleteConsumerGroups.
-                 */
                 result = Admin_c_GroupResults_to_py(c_delete_groups_res_responses, 
                                                     c_delete_groups_res_cnt, 
                                                     "DeleteConsumerGroupsResponse");
