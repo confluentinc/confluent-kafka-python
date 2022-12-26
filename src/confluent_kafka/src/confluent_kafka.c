@@ -1397,7 +1397,6 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         Node_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                         "Node");
         if (!Node_type) {
-                // TODO: Add error
                 goto err;
         }
 
