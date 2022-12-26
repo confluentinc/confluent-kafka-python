@@ -1434,7 +1434,7 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         CallState cs;
         rd_kafka_queue_t *rkqu;
         PyObject *topic_partition_list = NULL;
-        char *group_name = NULL;
+        char *group_id = NULL;
 
         static char *kws[] = {"request", 
                              "future",
@@ -1495,9 +1495,9 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
                 goto err;
         }
 
-        cfl_PyObject_GetString(single_request, "group_name", &group_name, NULL, 1, 0);
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
 
-        if(group_name == NULL) {
+        if(group_id == NULL) {
                 PyErr_SetString(PyExc_ValueError,
                         "Group name is mandatory for list consumer offset operation");
                 goto err;
@@ -1510,7 +1510,7 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         }
 
         c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_name, c_topic_partition_list);
+        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partition_list);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -1529,7 +1529,7 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
         free(c_obj);
-        free(group_name);
+        free(group_id);
         Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
         Py_XDECREF(topic_partition_list);
         rd_kafka_AdminOptions_destroy(c_options);
@@ -1550,8 +1550,8 @@ err:
         if(topic_partition_list) {
                 Py_XDECREF(topic_partition_list);
         }
-        if(group_name) {
-                free(group_name);
+        if(group_id) {
+                free(group_id);
         }
         return NULL;
 }
@@ -1579,7 +1579,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         CallState cs;
         rd_kafka_queue_t *rkqu;
         PyObject *topic_partition_list = NULL;
-        char *group_name = NULL;
+        char *group_id = NULL;
 
         static char *kws[] = {"request", 
                              "future",
@@ -1633,9 +1633,9 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
                 goto err;
         }
 
-        cfl_PyObject_GetString(single_request, "group_name", &group_name, NULL, 1, 0);
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
 
-        if(group_name == NULL) {
+        if(group_id == NULL) {
                 PyErr_SetString(PyExc_ValueError,
                         "Group name is mandatory for alter consumer offset operation");
                 goto err;
@@ -1648,7 +1648,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         }
 
         c_obj = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_name, c_topic_partition_list);
+        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partition_list);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -1667,7 +1667,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
         free(c_obj);
-        free(group_name);
+        free(group_id);
         Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
         Py_XDECREF(topic_partition_list);
         rd_kafka_AdminOptions_destroy(c_options);
@@ -1688,8 +1688,8 @@ err:
         if(topic_partition_list) {
                 Py_XDECREF(topic_partition_list);
         }
-        if(group_name) {
-                free(group_name);
+        if(group_id) {
+                free(group_id);
         }
         return NULL;
 }
@@ -2508,10 +2508,10 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
         kwargs = PyDict_New();
 
         /**
-         * TODO: Change group_name to group_id
+         * TODO: Change group_id to group_id
          * 
          */
-        cfl_PyDict_SetString(kwargs, "group_name", rd_kafka_group_result_name(c_group_result_response));
+        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
 
         c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
         if(c_topic_partition_offset_list) {
