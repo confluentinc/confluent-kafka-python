@@ -28,10 +28,10 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclBinding,
                    AclBindingFilter)
 from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
-                      ListConsumerGroupOffsetsRequest,
-                      ListConsumerGroupOffsetsResponse,
-                      AlterConsumerGroupOffsetsRequest,
-                      AlterConsumerGroupOffsetsResponse)
+                      ConsumerGroupTopicPartitions,
+                      ConsumerGroupTopicPartitions,
+                      ConsumerGroupTopicPartitions,
+                      ConsumerGroupTopicPartitions)
 from ._metadata import (BrokerMetadata,  # noqa: F401
                         ClusterMetadata,
                         GroupMember,
@@ -63,6 +63,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
                      RESOURCE_BROKER)
+from ..util import (ValidationUtil) # noqa: F401
 
 try:
     string_type = basestring
@@ -584,8 +585,8 @@ class AdminClient (_AdminClientImpl):
 
         :note: Currently, the API supports only a single group.
 
-        :param list(ListConsumerGroupOffsetsRequest) list_consumer_group_offsets_request: List of
-                    :class:`ListConsumerGroupOffsetsRequest` which consist of group name and topic
+        :param list(ConsumerGroupTopicPartitions) list_consumer_group_offsets_request: List of
+                    :class:`ConsumerGroupTopicPartitions` which consist of group name and topic
                     partition information for which offset detail is expected. If only group name is
                     provided, then offset information of all the topic and partition associated with
                     that group is returned.
@@ -594,25 +595,19 @@ class AdminClient (_AdminClientImpl):
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures for each group, keyed by the :class:`ListConsumerGroupOffsetsRequest` object.
-                  The future result() method returns :class:`ListConsumerGroupOffsetsResponse`.
+        :returns: A dict of futures for each group, keyed by the :class:`ConsumerGroupTopicPartitions` object.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
 
-        :rtype: dict[ListConsumerGroupOffsetsRequest, future]
+        :rtype: dict[ConsumerGroupTopicPartitions, future]
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-        if not isinstance(list_consumer_group_offsets_request, list):
-            raise TypeError("Expected input to be list of ListConsumerGroupOffsetsRequest")
 
-        if len(list_consumer_group_offsets_request) == 0:
-            raise ValueError("Expected atleast one ListConsumerGroupOffsetsRequest request")
+        ValidationUtil.check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
-        if len(list_consumer_group_offsets_request) > 1:
-            raise ValueError("Currently we support only 1 ListConsumerGroupOffsetsRequest request")
-
-        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ListConsumerGroupOffsetsRequest,
+        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
@@ -625,32 +620,26 @@ class AdminClient (_AdminClientImpl):
 
         :note: Currently, the API supports only a single group.
 
-        :param list(AlterConsumerGroupOffsetsRequest) alter_consumer_group_offsets_request: List of
-                    :class:`AlterConsumerGroupOffsetsRequest` which consist of group name and topic
+        :param list(ConsumerGroupTopicPartitions) alter_consumer_group_offsets_request: List of
+                    :class:`ConsumerGroupTopicPartitions` which consist of group name and topic
                     partition; and corresponding offset to be updated.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures for each group, keyed by the :class:`AlterConsumerGroupOffsetsRequest` object.
-                  The future result() method returns :class:`AlterConsumerGroupOffsetsResponse`.
+        :returns: A dict of futures for each group, keyed by the :class:`ConsumerGroupTopicPartitions` object.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
 
-        :rtype: dict[AlterConsumerGroupOffsetsRequest, future]
+        :rtype: dict[ConsumerGroupTopicPartitions, future]
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-        if not isinstance(alter_consumer_group_offsets_request, list):
-            raise TypeError("Expected input to be list of AlterConsumerGroupOffsetsRequest")
 
-        if len(alter_consumer_group_offsets_request) == 0:
-            raise ValueError("Expected atleast one AlterConsumerGroupOffsetsRequest request")
+        ValidationUtil.check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
-        if len(alter_consumer_group_offsets_request) > 1:
-            raise ValueError("Currently we support only 1 AlterConsumerGroupOffsetsRequest request")
-
-        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, AlterConsumerGroupOffsetsRequest,
+        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)

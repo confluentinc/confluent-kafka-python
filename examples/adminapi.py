@@ -19,8 +19,8 @@
 
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
-                                   AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest,
-                                   AlterConsumerGroupOffsetsRequest, ConsumerGroupState)
+                                   AclOperation, AclPermissionType, ConsumerGroupTopicPartitions,
+                                   ConsumerGroupTopicPartitions, ConsumerGroupState)
 from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys
@@ -489,7 +489,7 @@ def example_list_consumer_group_offsets(a, args):
         topic_partition_list.append(TopicPartition(topic, int(partition)))
     if len(topic_partition_list) == 0:
         topic_partition_list = None
-    groups = [ListConsumerGroupOffsetsRequest(args[0], topic_partition_list)]
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partition_list)]
 
     futureMap = a.list_consumer_group_offsets(groups)
 
@@ -520,7 +520,7 @@ def example_alter_consumer_group_offsets(a, args):
         topic_partition_list.append(TopicPartition(topic, int(partition), int(offset)))
     if len(topic_partition_list) == 0:
         topic_partition_list = None
-    groups = [AlterConsumerGroupOffsetsRequest(args[0], topic_partition_list)]
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partition_list)]
 
     futureMap = a.alter_consumer_group_offsets(groups)
 
