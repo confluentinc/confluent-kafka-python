@@ -3,7 +3,7 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType, ListConsumerGroupOffsetsRequest, AlterConsumerGroupOffsetsRequest
+    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupTopicPartitions
 from confluent_kafka import KafkaException, KafkaError, libversion, TopicPartition
 import concurrent.futures
 
@@ -461,10 +461,10 @@ def test_list_consumer_group_offsets():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    only_group_id_request = ListConsumerGroupOffsetsRequest("test-group1")
-    request_with_group_and_topic_partition = ListConsumerGroupOffsetsRequest(
+    only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
+    request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1)])
-    same_name_request = ListConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 3)])
+    same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
 
     a.list_consumer_group_offsets([only_group_id_request])
 
@@ -504,60 +504,57 @@ def test_list_consumer_group_offsets():
         a.list_consumer_group_offsets([only_group_id_request],
                                       request_timeout=-5)
 
-
-def test_list_consumer_group_offsets_request():
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest()
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest(1)
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest(None)
-
-    with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest([])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("")
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest("test-group1", "test-topic")
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("test-group1", [])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("test-group1", [None])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest("test-group1", ["test"])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
 
     with pytest.raises(TypeError):
-        ListConsumerGroupOffsetsRequest("test-group1", [TopicPartition(None)])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("test-group1", [TopicPartition("")])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic", -1)])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
 
     with pytest.raises(ValueError):
-        ListConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic", 1, 1)])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, 1)])])
 
-    ListConsumerGroupOffsetsRequest("test-group1")
-    ListConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 1)])
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
 
 
 def test_alter_consumer_group_offsets():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    request_with_group_and_topic_partition_offset1 = AlterConsumerGroupOffsetsRequest(
+    request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
         "test-group1", [TopicPartition("test-topic1", 1, 5)])
-    same_name_request = AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic2", 4, 3)])
-    request_with_group_and_topic_partition_offset2 = AlterConsumerGroupOffsetsRequest(
+    same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
+    request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic2", 1, 5)])
 
     a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
@@ -598,55 +595,52 @@ def test_alter_consumer_group_offsets():
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
                                        request_timeout=-5)
 
-
-def test_alter_consumer_group_offsets_request():
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest()
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest(1)
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest(None)
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest([])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("")
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1")
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest("test-group1", "test-topic")
-
-    with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [])
-
-    with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [None])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
 
     with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest("test-group1", ["test"])
-
-    with pytest.raises(TypeError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition(None)])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("")])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic")])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic", -1)])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
 
     with pytest.raises(ValueError):
-        AlterConsumerGroupOffsetsRequest("test-group1", [TopicPartition("test-topic", 1, -1001)])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, -1001)])])
 
-    AlterConsumerGroupOffsetsRequest("test-group2", [TopicPartition("test-topic1", 1, 23)])
+    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1, 23)])])
 
 def test_delete_consumer_groups():
     a = AdminClient({"socket.timeout.ms": 10})
@@ -654,7 +648,6 @@ def test_delete_consumer_groups():
     group_ids = ["test-group-1", "test-group-2"]
 
     a.delete_consumer_groups(group_ids)
-    # ignore the result
 
     with pytest.raises(TypeError):
         a.delete_consumer_groups("test-group-1")
