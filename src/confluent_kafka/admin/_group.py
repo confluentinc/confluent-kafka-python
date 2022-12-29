@@ -63,7 +63,7 @@ class ConsumerGroupListing:
             if not isinstance(self.error, _cimpl.KafkaError):
                 raise TypeError("'error' must be of type KafkaError")
 
-
+# TODO: Change name to Result instead of Response to match with Java
 class ListConsumerGroupsResponse:
     def __init__(self, valid=None, errors=None):
         self.valid = valid

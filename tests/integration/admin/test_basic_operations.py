@@ -299,6 +299,12 @@ def test_basic_operations(kafka_cluster):
     groups = set(group.id for group in admin_client.list_groups(group2))
     assert group2 in groups, "Consumer group {} not found".format(group2)
 
+    future = admin_client.list_consumer_groups(timeout=10)
+    result = future.result()
+    group_ids = [group.group_id for group in result.valid]
+    assert group1 in group_ids, "Consumer group {} not found".format(group1)
+    assert group2 in group_ids, "Consumer group {} not found".format(group2)
+
     def verify_config(expconfig, configs):
         """
         Verify that the config key,values in expconfig are found
@@ -341,8 +347,6 @@ def test_basic_operations(kafka_cluster):
 
     # Verify config matches our expectations
     verify_config(topic_config, configs)
-
-    print("------1------")
 
     # Verify ACL operations
     verify_admin_acls(admin_client, our_topic, group1)
