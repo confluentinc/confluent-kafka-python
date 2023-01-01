@@ -3,8 +3,8 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
-from confluent_kafka import KafkaException, KafkaError, libversion
+    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions
+from confluent_kafka import KafkaException, KafkaError, libversion, TopicPartition
 import concurrent.futures
 
 
@@ -377,9 +377,9 @@ def test_delete_acls_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY,  None, ResourcePatternType.ANY,
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
-    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY,  "topic2", ResourcePatternType.MATCH,
+    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, "topic2", ResourcePatternType.MATCH,
                                            None, "*", AclOperation.WRITE, AclPermissionType.ALLOW)
 
     fs = a.delete_acls([acl_binding_filter1])
@@ -424,7 +424,7 @@ def test_describe_acls_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
-    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY,  None, ResourcePatternType.ANY,
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
                               "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
@@ -455,3 +455,206 @@ def test_describe_acls_api():
     with pytest.raises(TypeError):
         a.describe_acls(acl_binding_filter1,
                         unknown_operation="it is")
+
+
+def test_list_consumer_group_offsets():
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
+    request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic1", 1)])
+    same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
+
+    a.list_consumer_group_offsets([only_group_id_request])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets(None)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets(1)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets("")
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([only_group_id_request,
+                                       request_with_group_and_topic_partition])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([request_with_group_and_topic_partition,
+                                       same_name_request])
+
+    fs = a.list_consumer_group_offsets([only_group_id_request])
+    with pytest.raises(KafkaException):
+        for f in fs.values():
+            f.result(timeout=10)
+
+    fs = a.list_consumer_group_offsets([only_group_id_request],
+                                       request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([only_group_id_request],
+                                      request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, 1)])])
+
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
+
+
+def test_alter_consumer_group_offsets():
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
+        "test-group1", [TopicPartition("test-topic1", 1, 5)])
+    same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
+    request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic2", 1, 5)])
+
+    a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets(None)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets(1)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets("")
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                       request_with_group_and_topic_partition_offset2])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                        same_name_request])
+
+    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+    with pytest.raises(KafkaException):
+        for f in fs.values():
+            f.result(timeout=10)
+
+    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+                                        request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+                                       request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, -1001)])])
+
+    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
+
+def test_delete_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.delete_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.delete_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups([])
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups(["test-group-1", "test-group-1"])
