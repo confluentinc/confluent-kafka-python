@@ -12,5 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ._validation_util import ValidationUtil  # noqa: F401
-from ._converstion_util import ConversionUtil  # noqa: F401
+# TODO: Check about rack with Emanuele
+class Node:
+    def __init__(self, id, host, port, rack=None):
+        self.id = id
+        self.id_string = str(id)
+        self.host = host
+        self.port = port
+        self.rack = rack

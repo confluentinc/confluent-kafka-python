@@ -18,9 +18,8 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
-                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
-                                   AclOperation, AclPermissionType, ConsumerGroupTopicPartitions,
-                                   ConsumerGroupTopicPartitions, ConsumerGroupState)
+                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
+                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState)
 from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys
@@ -471,7 +470,8 @@ def example_delete_consumer_groups(a, args):
     groups = a.delete_consumer_groups(args, timeout=10)
     for group_id, future in groups.items():
         try:
-            response = future.result()
+            # TODO: Improve usage - use reponse as well
+            future.result()
             print("Deleted group with id '" + group_id + "' succesfully")
 
         except KafkaException as e:
@@ -561,13 +561,13 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
+        sys.stderr.write(' list_consumer_groups <state1> <state2> ..\n')
+        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
         sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
-        sys.stderr.write(' list_consumer_groups <state1> <state2> ..\n')
-        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
         
         sys.exit(1)
 
@@ -588,11 +588,11 @@ if __name__ == '__main__':
               'describe_acls': example_describe_acls,
               'delete_acls': example_delete_acls,
               'list': example_list,
-              'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
-              'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_groups': example_list_consumer_groups,
-              'describe_consumer_groups': example_describe_consumer_groups}
+              'describe_consumer_groups': example_describe_consumer_groups,
+              'delete_consumer_groups': example_delete_consumer_groups,
+              'list_consumer_group_offsets': example_list_consumer_group_offsets,
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

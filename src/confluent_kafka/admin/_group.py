@@ -15,9 +15,9 @@
 
 from enum import Enum
 from .. import cimpl as _cimpl
-from ..util._validation_util import ValidationUtil
-from ..util._converstion_util import ConversionUtil
-from ._common import Node
+from ..util import ValidationUtil
+from ..util import ConversionUtil
+
 
 class ConsumerGroupListing:
     def __init__(self, group_id, is_simple_consumer_group, state=None, error=None):
@@ -28,24 +28,7 @@ class ConsumerGroupListing:
         self._check_is_simple_consumer_group()
         self._check_error()
         if state is not None:
-            self.state = self._convert_to_enum(state, ConsumerGroupState)
-
-    def _convert_to_enum(self, val, enum_clazz):
-        if type(val) == str:
-            # Allow it to be specified as case-insensitive string, for convenience.
-            try:
-                val = enum_clazz[val.upper()]
-            except KeyError:
-                raise ValueError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
-
-        elif type(val) == int:
-            # The C-code passes restype as an int, convert to enum.
-            val = enum_clazz(val)
-
-        elif type(val) != enum_clazz:
-            raise TypeError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
-
-        return val
+            self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
 
     def _check_group_id(self):
         if self.group_id is not None:
@@ -63,8 +46,9 @@ class ConsumerGroupListing:
             if not isinstance(self.error, _cimpl.KafkaError):
                 raise TypeError("'error' must be of type KafkaError")
 
+
 # TODO: Change name to Result instead of Response to match with Java
-class ListConsumerGroupsResponse:
+class ListConsumerGroupsResult:
     def __init__(self, valid=None, errors=None):
         self.valid = valid
         self.errors = errors
@@ -144,7 +128,6 @@ class MemberDescription:
             raise TypeError("'assignment' should be a MemberAssignment")
 
 
-
 class ConsumerGroupDescription:
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state, coordinator, error=None):
         self.group_id = group_id
@@ -154,9 +137,10 @@ class ConsumerGroupDescription:
         self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
 
-        # TODO Add validations
+    # TODO: Add validations?
 
 
-class DeleteConsumerGroupsResponse:
+# TODO: Check return type for DeleteConsumerGroups
+class DeleteConsumerGroupsResult:
     def __init__(self, group_id):
         self.group_id = group_id

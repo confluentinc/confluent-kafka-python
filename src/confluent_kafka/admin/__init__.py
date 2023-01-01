@@ -27,25 +27,21 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclPermissionType,
                    AclBinding,
                    AclBindingFilter)
-from ._offset import (ConsumerGroupTopicPartitions,  # noqa: F401
-                      ConsumerGroupTopicPartitions,
-                      ConsumerGroupTopicPartitions,
-                      ConsumerGroupTopicPartitions,
-                      ConsumerGroupTopicPartitions)
+from ._offset import (ConsumerGroupTopicPartitions)  # noqa: F401
 from ._metadata import (BrokerMetadata,  # noqa: F401
                         ClusterMetadata,
                         GroupMember,
                         GroupMetadata,
                         PartitionMetadata,
                         TopicMetadata)
-from ._group import (DeleteConsumerGroupsResponse,  #noqa: F401
+from ._group import (DeleteConsumerGroupsResult,  # noqa: F401
                      ConsumerGroupListing,
                      ConsumerGroupState,
-                     ListConsumerGroupsResponse,
+                     ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
                      MemberDescription)
-from ._common import (Node)  # noqa: F401
+from ..model import (Node)  # noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -63,12 +59,13 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
                      RESOURCE_BROKER)
-from ..util import (ValidationUtil) # noqa: F401
+from ..util import (ValidationUtil)  # noqa: F401
 
 try:
     string_type = basestring
 except NameError:
     string_type = str
+
 
 class AdminClient (_AdminClientImpl):
     """
@@ -153,7 +150,6 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
-    
     @staticmethod
     def _make_list_consumer_groups_result(f, futmap):
         pass
@@ -353,8 +349,7 @@ class AdminClient (_AdminClientImpl):
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
 
-        f, futMap = AdminClient._make_futures([], None,
-                                      AdminClient._make_list_consumer_groups_result)
+        f, futMap = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
 
         super(AdminClient, self).list_consumer_groups(f, **kwargs)
 
@@ -654,7 +649,7 @@ class AdminClient (_AdminClientImpl):
         :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
 
         :returns: A dict of futures for each group, keyed by the group_id.
-                  The future result() method returns :class:`DeleteConsumerGroupsResponse`.
+                  The future result() method returns :class:`DeleteConsumerGroupsResult`.
 
         :rtype: dict[str, future]
 

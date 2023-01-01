@@ -16,12 +16,10 @@
 import confluent_kafka
 import struct
 import time
-from confluent_kafka import admin
 from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
-                                   ConsumerGroupTopicPartitions, ConsumerGroupTopicPartitions,
-                                   ConsumerGroupTopicPartitions, ConsumerGroupTopicPartitions)
+                                   ConsumerGroupTopicPartitions)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -165,7 +163,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
                                                                                        0),
                                                 res.topic_partition_list))
     alter_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
-                                                                           alter_group_topic_partition_list)
+                                                                       alter_group_topic_partition_list)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
     af = afs[alter_group_topic_partition_request]
     ares = af.result()
@@ -181,7 +179,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
                                                                                       topic_partition.partition),
                                            ares.topic_partition_list))
     list_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
-                                                                         list_group_topic_partition_list)
+                                                                      list_group_topic_partition_list)
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
     lf = lfs[list_group_topic_partition_request]
     lres = lf.result()

@@ -3,7 +3,7 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupTopicPartitions
+    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions
 from confluent_kafka import KafkaException, KafkaError, libversion, TopicPartition
 import concurrent.futures
 
@@ -641,6 +641,7 @@ def test_alter_consumer_group_offsets():
         a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, -1001)])])
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
 
 def test_delete_consumer_groups():
     a = AdminClient({"socket.timeout.ms": 10})
