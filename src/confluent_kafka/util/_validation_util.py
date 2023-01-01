@@ -126,6 +126,8 @@ class ValidationUtil:
                 if not topic_partition.topic:
                     raise ValueError("Element of 'topic_partition_list' must not have 'topic' attibute as Empty")
                 if topic_partition.partition < 0:
-                    raise ValueError("Element of 'topic_partition_list' must not have negative value for 'partition' field")
+                    raise ValueError(
+                        "Element of 'topic_partition_list' must not have negative value for 'partition' field")
                 if topic_partition.offset < 0:
-                    raise ValueError("Element of 'topic_partition_list' must not have negative value for 'offset' field")
+                    raise ValueError(
+                        "Element of 'topic_partition_list' must not have negative value for 'offset' field")

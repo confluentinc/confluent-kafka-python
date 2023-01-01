@@ -79,8 +79,10 @@ class ConsumerGroupState(Enum):
     TODO: Add proper descriptions for the Enums
     """
     UNKOWN = _cimpl.CONSUMER_GROUP_STATE_UNKNOWN  #: State is not known or not set.
-    PREPARING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE  #: Preparing rebalance for the consumer group.
-    COMPLETING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE  #: Consumer Group is completing rebalancing.
+    #: Preparing rebalance for the consumer group.
+    PREPARING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
+    #: Consumer Group is completing rebalancing.
+    COMPLETING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
     STABLE = _cimpl.CONSUMER_GROUP_STATE_STABLE  #: Consumer Group is stable.
     DEAD = _cimpl.CONSUMER_GROUP_STATE_DEAD  #: Consumer Group is Dead.
     EMPTY = _cimpl.CONSUMER_GROUP_STATE_EMPTY  #: Consumer Group is Empty.
@@ -129,7 +131,8 @@ class MemberDescription:
 
 
 class ConsumerGroupDescription:
-    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state, coordinator, error=None):
+    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
+                 coordinator, error=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members

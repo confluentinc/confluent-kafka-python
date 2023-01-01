@@ -538,10 +538,12 @@ def test_list_consumer_group_offsets():
         a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", -1)])])
 
     with pytest.raises(ValueError):
-        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, 1)])])
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", 1, 1)])])
 
     a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
     a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
@@ -635,12 +637,15 @@ def test_alter_consumer_group_offsets():
         a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
 
     with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", -1)])])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", -1)])])
 
     with pytest.raises(ValueError):
-        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic", 1, -1001)])])
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", 1, -1001)])])
 
-    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1, 23)])])
+    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic1", 1, 23)])])
 
 
 def test_delete_consumer_groups():
