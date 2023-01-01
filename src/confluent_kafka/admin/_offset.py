@@ -13,10 +13,9 @@
 # limitations under the License.
 
 class ConsumerGroupTopicPartitions:
-    def __init__(self, group_id = None, topic_partition_list = None):
+    def __init__(self, group_id=None, topic_partition_list=None):
         self.group_id = group_id
         self.topic_partition_list = topic_partition_list
 
     def __hash__(self) -> int:
         return hash(self.group_id)
-
