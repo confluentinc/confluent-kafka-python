@@ -438,7 +438,8 @@ def example_list_consumer_groups(a, args):
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
         for valid in list_consumer_groups_result.valid:
-            print("    id: {} is_simple: {} state: {}".format(valid.group_id, valid.is_simple_consumer_group, valid.state))
+            print("    id: {} is_simple: {} state: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
             print("    error: {}".format(error.str()))
@@ -453,16 +454,23 @@ def example_describe_consumer_groups(a, args):
     for request, future in futureMap.items():
         try:
             g = future.result()
-            print("id: {} \n\tis_simple\t\t: {} \n\tstate\t\t\t: {} \n\tpartition_assignor\t: {}".format(g.group_id, g.is_simple_consumer_group, g.state, g.partition_assignor))
-            print("\tCoordinator\t\t: ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print("Group Id: {}".format(g.group_id))
+            print("  Is Simple          : {}".format(g.is_simple_consumer_group))
+            print("  State              : {}".format(g.state))
+            print("  Partition Assignor : {}".format(g.partition_assignor))
+            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print("  Members: ")
             for member in g.members:
-                print()
-                print("\tMembers: \n\t\tId\t\t\t: {}\n\t\tHost\t\t\t: {}\n\t\tClient Id\t\t: {}\n\t\tGroup Instance Id\t: {}".format(member.member_id, member.host, member.client_id, member.group_instance_id))
+                print("    Id                : {}".format(member.member_id))
+                print("    Host              : {}".format(member.host))
+                print("    Client Id         : {}".format(member.client_id))
+                print("    Group Instance Id : {}".format(member.group_instance_id))
                 if member.assignment:
-                    print("\t\tAssignments\t\t:")
+                    print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
-                        print("\t\t\t{} [{}]".format(toppar.topic, toppar.partition))
-        except Exception as e:
+                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+
+        except Exception:
             raise
 
 
@@ -568,7 +576,7 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-        
+
         sys.exit(1)
 
     broker = sys.argv[1]
