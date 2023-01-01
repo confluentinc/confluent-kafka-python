@@ -20,6 +20,7 @@ try:
 except NameError:
     string_type = str
 
+
 class ValidationUtil:
     @staticmethod
     def check_multiple_not_none(obj, vars_to_check):

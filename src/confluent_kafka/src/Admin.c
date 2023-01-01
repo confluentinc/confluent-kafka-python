@@ -2574,7 +2574,7 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                         size_t errors_cnt) {
 
         PyObject *result = NULL;
-        PyObject *ListConsumerGroupsResponse_type = NULL;
+        PyObject *ListConsumerGroupsResult_type = NULL;
         PyObject *ConsumerGroupListing_type = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
@@ -2634,26 +2634,26 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                 }
         }
 
-        ListConsumerGroupsResponse_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                                              "ListConsumerGroupsResponse");
-        if (!ListConsumerGroupsResponse_type) {
+        ListConsumerGroupsResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                              "ListConsumerGroupsResult");
+        if (!ListConsumerGroupsResult_type) {
                 return NULL;
         }
         kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "valid", valid_results);
         PyDict_SetItemString(kwargs, "errors", error_results);
         args = PyTuple_New(0);
-        result = PyObject_Call(ListConsumerGroupsResponse_type, args, kwargs);
+        result = PyObject_Call(ListConsumerGroupsResult_type, args, kwargs);
 
         Py_DECREF(args);
         Py_DECREF(kwargs);
         Py_DECREF(valid_results);
         Py_DECREF(error_results);
-        Py_DECREF(ListConsumerGroupsResponse_type);
+        Py_DECREF(ListConsumerGroupsResult_type);
 
         return result;
 err:
-        Py_XDECREF(ListConsumerGroupsResponse_type);
+        Py_XDECREF(ListConsumerGroupsResult_type);
         Py_XDECREF(ConsumerGroupListing_type);
         Py_XDECREF(result);
         Py_XDECREF(args);
