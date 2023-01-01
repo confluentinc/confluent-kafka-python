@@ -1,4 +1,4 @@
-# Copyright 2022 Confluent Inc.
+# Copyright 2023 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,4 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-#TODO: Move this to Common POJOs
-#TODO: Check about rack with Emanuele
-class Node:
-    def __init__(self, id, host, port, rack=None):
-        self.id = id
-        self.id_string = str(id)
-        self.host = host
-        self.port = port
-        self.rack = rack
-
-    #TODO Add validations?
+from ._common import Node  # noqa: F401

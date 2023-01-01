@@ -14,6 +14,7 @@
 
 from enum import Enum
 
+
 class ConversionUtil:
     @staticmethod
     def convert_to_enum(val, enum_clazz):
