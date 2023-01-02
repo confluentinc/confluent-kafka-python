@@ -335,34 +335,6 @@ class AdminClient (_AdminClientImpl):
 
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
-    def list_consumer_groups(self, **kwargs):
-        if "states" in kwargs:
-            states = kwargs["states"]
-            if states is not None:
-                if not isinstance(states, list):
-                    raise TypeError("'states' must be a list")
-                for state in states:
-                    if not isinstance(state, ConsumerGroupState):
-                        raise TypeError("All elements of states must be of type ConsumerGroupState")
-                if AdminClient._has_duplicates(states):
-                    raise ValueError("'states' must have unique values")
-                kwargs["states_int"] = [state.value for state in states]
-            kwargs.pop("states")
-
-        f, futMap = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
-
-        super(AdminClient, self).list_consumer_groups(f, **kwargs)
-
-        return f
-
-    def describe_consumer_groups(self, group_ids, **kwargs):
-        f, futmap = AdminClient._make_futures(group_ids, None,
-                                              AdminClient._make_consumer_groups_result)
-
-        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
-
-        return futmap
-
     def create_partitions(self, new_partitions, **kwargs):
         """
         Create additional partitions for the given topics.
@@ -574,6 +546,65 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def list_consumer_groups(self, **kwargs):
+        if "states" in kwargs:
+            states = kwargs["states"]
+            if states is not None:
+                if not isinstance(states, list):
+                    raise TypeError("'states' must be a list")
+                for state in states:
+                    if not isinstance(state, ConsumerGroupState):
+                        raise TypeError("All elements of states must be of type ConsumerGroupState")
+                if AdminClient._has_duplicates(states):
+                    raise ValueError("'states' must have unique values")
+                kwargs["states_int"] = [state.value for state in states]
+            kwargs.pop("states")
+
+        f, futMap = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
+
+        super(AdminClient, self).list_consumer_groups(f, **kwargs)
+
+        return f
+
+    def describe_consumer_groups(self, group_ids, **kwargs):
+        f, futmap = AdminClient._make_futures(group_ids, None,
+                                              AdminClient._make_consumer_groups_result)
+
+        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
+
+    def delete_consumer_groups(self, group_ids, **kwargs):
+        """
+        Delete the given consumer groups.
+
+        :param list(str) group_ids: List of group_ids which need to be deleted.
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns :class:`DeleteConsumerGroupsResult`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids")
+
+        if len(group_ids) == 0:
+            raise ValueError("Expected atleast one group id in the group ids list")
+
+        if AdminClient._has_duplicates(group_ids):
+            raise ValueError("duplicate group ids not allowed")
+
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
+
+        super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
+
     def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
         """
         List offset information for the consumer group and (optional) topic partition provided in the request.
@@ -638,36 +669,5 @@ class AdminClient (_AdminClientImpl):
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
-
-        return futmap
-
-    def delete_consumer_groups(self, group_ids, **kwargs):
-        """
-        Delete the given consumer groups.
-
-        :param list(str) group_ids: List of group_ids which need to be deleted.
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
-
-        :returns: A dict of futures for each group, keyed by the group_id.
-                  The future result() method returns :class:`DeleteConsumerGroupsResult`.
-
-        :rtype: dict[str, future]
-
-        :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
-        """
-        if not isinstance(group_ids, list):
-            raise TypeError("Expected input to be list of group ids")
-
-        if len(group_ids) == 0:
-            raise ValueError("Expected atleast one group id in the group ids list")
-
-        if AdminClient._has_duplicates(group_ids):
-            raise ValueError("duplicate group ids not allowed")
-
-        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
-
-        super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
