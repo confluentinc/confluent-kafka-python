@@ -17,6 +17,7 @@ from enum import Enum
 from .. import cimpl as _cimpl
 from ..util import ValidationUtil
 from ..util import ConversionUtil
+from ..model import Node
 
 
 class ConsumerGroupListing:
@@ -53,7 +54,8 @@ class ListConsumerGroupsResult:
         self.valid = valid
         self.errors = errors
         self._check_valid()
-        self._check_errors()
+        if self.errors is not None:
+            ValidationUtil.check_kafka_errors(self.errors)
 
     def _check_valid(self):
         if self.valid is not None:
@@ -63,14 +65,6 @@ class ListConsumerGroupsResult:
                 if not isinstance(v, ConsumerGroupListing):
                     raise TypeError("Element of 'valid' must be of type ConsumerGroupListing")
 
-    def _check_errors(self):
-        if self.errors is not None:
-            if not isinstance(self.errors, list):
-                raise TypeError("'errors' should be None or a list")
-            for error in self.errors:
-                if not isinstance(error, _cimpl.KafkaError):
-                    raise TypeError("Element of 'errors' must be of type KafkaError")
-
 
 class ConsumerGroupState(Enum):
     """
@@ -78,14 +72,18 @@ class ConsumerGroupState(Enum):
 
     TODO: Add proper descriptions for the Enums
     """
-    UNKOWN = _cimpl.CONSUMER_GROUP_STATE_UNKNOWN  #: State is not known or not set.
+    #: State is not known or not set.
+    UNKOWN = _cimpl.CONSUMER_GROUP_STATE_UNKNOWN
     #: Preparing rebalance for the consumer group.
     PREPARING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
     #: Consumer Group is completing rebalancing.
     COMPLETING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
-    STABLE = _cimpl.CONSUMER_GROUP_STATE_STABLE  #: Consumer Group is stable.
-    DEAD = _cimpl.CONSUMER_GROUP_STATE_DEAD  #: Consumer Group is Dead.
-    EMPTY = _cimpl.CONSUMER_GROUP_STATE_EMPTY  #: Consumer Group is Empty.
+    #: Consumer Group is stable.
+    STABLE = _cimpl.CONSUMER_GROUP_STATE_STABLE
+    #: Consumer Group is Dead.
+    DEAD = _cimpl.CONSUMER_GROUP_STATE_DEAD
+    #: Consumer Group is Empty.
+    EMPTY = _cimpl.CONSUMER_GROUP_STATE_EMPTY
 
     def __lt__(self, other):
         if self.__class__ != other.__class__:
@@ -117,17 +115,25 @@ class MemberDescription:
         self.host = host
         self.assignment = assignment
         self.group_instance_id = group_instance_id
+        self._check_string_fields()
+        self._check_assignment()
 
-        ValidationUtil.check_multiple_not_none(self, ["member_id", "client_id", "host", "assignment"])
-
-        string_args = ["member_id", "client_id", "host"]
-        if group_instance_id is not None:
+    def _check_string_fields(self):
+        string_args = []
+        if self.group_instance_id is not None:
             string_args.append("group_instance_id")
+        if self.member_id is not None:
+            string_args.append("member_id")
+        if self.client_id is not None:
+            string_args.append("client_id")
+        if self.host is not None:
+            string_args.append("host")
         ValidationUtil.check_multiple_is_string(self, string_args)
 
     def _check_assignment(self):
-        if not isinstance(self.assignment, MemberAssignment):
-            raise TypeError("'assignment' should be a MemberAssignment")
+        if self.assignment is not None:
+            if not isinstance(self.assignment, MemberAssignment):
+                raise TypeError("'assignment' should be a MemberAssignment")
 
 
 class ConsumerGroupDescription:
@@ -137,10 +143,39 @@ class ConsumerGroupDescription:
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
         self.partition_assignor = partition_assignor
-        self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+        if state is not None:
+            self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
+        self._check_string_fields()
+        self._check_is_simple_consumer_group()
+        self._check_coordinator()
+        self._check_members()
 
-    # TODO: Add validations?
+    def _check_string_fields(self):
+        string_args = []
+        if self.group_id is not None:
+            string_args.append("group_id")
+        if self.partition_assignor is not None:
+            string_args.append("partition_assignor")
+        ValidationUtil.check_multiple_is_string(self, string_args)
+
+    def _check_is_simple_consumer_group(self):
+        if self.is_simple_consumer_group is not None:
+            if not isinstance(self.is_simple_consumer_group, bool):
+                raise TypeError("'is_simple_consumer_group' should be a bool")
+
+    def _check_coordinator(self):
+        if self.coordinator is not None:
+            if not isinstance(self.coordinator, Node):
+                raise TypeError("'coordinator' should be a Node")
+
+    def _check_members(self):
+        if self.members is not None:
+            if not isinstance(self.members, list):
+                raise TypeError("'members' should be a list")
+            for member in self.members:
+                if not isinstance(member, MemberDescription):
+                    raise TypeError("Expected list of MemberDescriptions")
 
 
 # TODO: Check return type for DeleteConsumerGroups
