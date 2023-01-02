@@ -19,7 +19,7 @@ import time
 from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
-                                   ConsumerGroupTopicPartitions)
+                                   ConsumerGroupTopicPartitions, ConsumerGroupState)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -297,11 +297,20 @@ def test_basic_operations(kafka_cluster):
     groups = set(group.id for group in admin_client.list_groups(group2))
     assert group2 in groups, "Consumer group {} not found".format(group2)
 
+    # List Consumer Groups new API test
     future = admin_client.list_consumer_groups(timeout=10)
     result = future.result()
     group_ids = [group.group_id for group in result.valid]
     assert group1 in group_ids, "Consumer group {} not found".format(group1)
     assert group2 in group_ids, "Consumer group {} not found".format(group2)
+
+    # Describe Consumer Groups API test
+    futureMap = admin_client.describe_consumer_groups([group1, group2], timeout=10)
+    for group_id, future in futureMap.items():
+        g = future.result()
+        assert group_id == g.group_id
+        assert g.is_simple_consumer_group is False
+        assert g.state == ConsumerGroupState.EMPTY
 
     def verify_config(expconfig, configs):
         """
