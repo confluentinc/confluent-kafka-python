@@ -1669,6 +1669,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
         Py_XDECREF(topic_partition_list);
         rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
 
         Py_RETURN_NONE;
 err:
@@ -1682,6 +1683,9 @@ err:
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
+        }
+        if(c_topic_partition_list) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
         }
         if(topic_partition_list) {
                 Py_XDECREF(topic_partition_list);
