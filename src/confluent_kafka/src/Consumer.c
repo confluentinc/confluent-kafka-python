@@ -1427,6 +1427,7 @@ static PyMethodDef Consumer_methods[] = {
           " timestamp is greater than or equal to the given timestamp in the\n"
           " corresponding partition. If the provided timestamp exceeds that of the\n"
           " last message in the partition, a value of -1 will be returned.\n"
+          " Timestamps are specified in milliseconds since the UTC epoch.\n"
           "\n"
           "  :param list(TopicPartition) partitions: topic+partitions with timestamps in the TopicPartition.offset field.\n"
           "  :param float timeout: Request timeout (seconds).\n"
