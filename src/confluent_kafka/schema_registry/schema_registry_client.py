@@ -17,34 +17,22 @@
 #
 import json
 import logging
-import urllib
+from typing import Any, Dict, List, Optional, Set, Tuple, Union, cast
 from collections import defaultdict
 from threading import Lock
+from typing_extensions import TypedDict
 
 from requests import (Session,
                       utils)
 
 from .error import SchemaRegistryError
+import six
+import six.moves.urllib.parse as urllib
 
+string_type = six.string_types[0]
 
-# TODO: consider adding `six` dependency or employing a compat file
-# Python 2.7 is officially EOL so compatibility issue will be come more the norm.
-# We need a better way to handle these issues.
-# Six is one possibility but the compat file pattern used by requests
-# is also quite nice.
-#
-# six: https://pypi.org/project/six/
-# compat file : https://github.com/psf/requests/blob/master/requests/compat.py
-try:
-    string_type = basestring  # noqa
-
-    def _urlencode(value):
-        return urllib.quote(value, safe='')
-except NameError:
-    string_type = str
-
-    def _urlencode(value):
-        return urllib.parse.quote(value, safe='')
+def _urlencode(value: str) -> str:
+    return urllib.quote(value, safe='')
 
 log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
@@ -60,7 +48,7 @@ class _RestClient(object):
         conf (dict): Dictionary containing _RestClient configuration
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         self.session = Session()
 
         # copy dict to avoid mutating the original
@@ -105,7 +93,7 @@ class _RestClient(object):
                                  " remove basic.auth.user.info from the"
                                  " configuration")
 
-            userinfo = tuple(conf_copy.pop('basic.auth.user.info', '').split(':'))
+            userinfo = cast(Tuple[str, str], tuple(conf_copy.pop('basic.auth.user.info', '').split(':')))
 
             if len(userinfo) != 2:
                 raise ValueError("basic.auth.user.info must be in the form"
@@ -118,22 +106,22 @@ class _RestClient(object):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-    def _close(self):
+    def _close(self) -> None:
         self.session.close()
 
-    def get(self, url, query=None):
+    def get(self, url: str, query: Optional[Dict]=None) -> Any:
         return self.send_request(url, method='GET', query=query)
 
-    def post(self, url, body, **kwargs):
+    def post(self, url: str, body: Any) -> Any:
         return self.send_request(url, method='POST', body=body)
 
-    def delete(self, url):
+    def delete(self, url: str) -> Any:
         return self.send_request(url, method='DELETE')
 
-    def put(self, url, body=None):
+    def put(self, url: str, body: Any=None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url, method, body=None, query=None):
+    def send_request(self, url: str, method: str, body: Any=None, query: Optional[Dict]=None) -> Any:
         """
         Sends HTTP request to the SchemaRegistry.
 
@@ -148,7 +136,7 @@ class _RestClient(object):
 
             method (str): HTTP method
 
-            body (str): Request content
+            body (object): Request content
 
             query (dict): Query params to attach to the URL
 
@@ -191,13 +179,13 @@ class _SchemaCache(object):
     known subject membership.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.lock = Lock()
-        self.schema_id_index = {}
-        self.schema_index = {}
-        self.subject_schemas = defaultdict(set)
+        self.schema_id_index: Dict[int, Schema] = {}
+        self.schema_index: Dict[Schema, int] = {}
+        self.subject_schemas: Dict[str, Set[Schema]] = defaultdict(set)
 
-    def set(self, schema_id, schema, subject_name=None):
+    def set(self, schema_id: int, schema: "Schema", subject_name: Optional[str]=None) -> None:
         """
         Add a Schema identified by schema_id to the cache.
 
@@ -218,7 +206,7 @@ class _SchemaCache(object):
             if subject_name is not None:
                 self.subject_schemas[subject_name].add(schema)
 
-    def get_schema(self, schema_id):
+    def get_schema(self, schema_id: int) -> Optional["Schema"]:
         """
         Get the schema instance associated with schema_id from the cache.
 
@@ -231,7 +219,7 @@ class _SchemaCache(object):
 
         return self.schema_id_index.get(schema_id, None)
 
-    def get_schema_id_by_subject(self, subject, schema):
+    def get_schema_id_by_subject(self, subject: str, schema: "Schema") -> Optional[int]:
         """
         Get the schema_id associated with this schema registered under subject.
 
@@ -247,6 +235,8 @@ class _SchemaCache(object):
         with self.lock:
             if schema in self.subject_schemas[subject]:
                 return self.schema_index.get(schema, None)
+
+        return None
 
 
 class SchemaRegistryClient(object):
@@ -289,18 +279,18 @@ class SchemaRegistryClient(object):
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
     """  # noqa: E501
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
 
-    def __enter__(self):
+    def __enter__(self) -> "SchemaRegistryClient":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         if self._rest_client is not None:
             self._rest_client._close()
 
-    def register_schema(self, subject_name, schema, normalize_schemas=False):
+    def register_schema(self, subject_name: str, schema: "Schema", normalize_schemas: bool=False) -> int:
         """
         Registers a schema under ``subject_name``.
 
@@ -324,7 +314,7 @@ class SchemaRegistryClient(object):
         if schema_id is not None:
             return schema_id
 
-        request = {'schema': schema.schema_str}
+        request: Dict[str, Any] = {'schema': schema.schema_str}
 
         # CP 5.5 adds new fields (for JSON and Protobuf).
         if len(schema.references) > 0 or schema.schema_type != 'AVRO':
@@ -338,12 +328,12 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        schema_id = response['id']
+        schema_id = cast(int, response['id'])
         self._cache.set(schema_id, schema, subject_name)
 
         return schema_id
 
-    def get_schema(self, schema_id):
+    def get_schema(self, schema_id: int) -> "Schema":
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -381,7 +371,7 @@ class SchemaRegistryClient(object):
 
         return schema
 
-    def lookup_schema(self, subject_name, schema, normalize_schemas=False):
+    def lookup_schema(self, subject_name: str, schema: "Schema", normalize_schemas: bool=False) -> "RegisteredSchema":
         """
         Returns ``schema`` registration information for ``subject``.
 
@@ -400,7 +390,7 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        request = {'schema': schema.schema_str}
+        request: Dict[str, Any] = {'schema': schema.schema_str}
 
         # CP 5.5 adds new fields (for JSON and Protobuf).
         if len(schema.references) > 0 or schema.schema_type != 'AVRO':
@@ -423,7 +413,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_subjects(self):
+    def get_subjects(self) -> List[str]:
         """
         List all subjects registered with the Schema Registry
 
@@ -439,7 +429,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects')
 
-    def delete_subject(self, subject_name, permanent=False):
+    def delete_subject(self, subject_name: str, permanent: bool=False) -> List[int]:
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
@@ -468,7 +458,7 @@ class SchemaRegistryClient(object):
 
         return list
 
-    def get_latest_version(self, subject_name):
+    def get_latest_version(self, subject_name: str) -> "RegisteredSchema":
         """
         Retrieves latest registered version for subject
 
@@ -497,7 +487,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_version(self, subject_name, version):
+    def get_version(self, subject_name: str, version: int) -> "RegisteredSchema":
         """
         Retrieves a specific schema registered under ``subject_name``.
 
@@ -528,7 +518,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_versions(self, subject_name):
+    def get_versions(self, subject_name: str) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
@@ -547,7 +537,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
-    def delete_version(self, subject_name, version):
+    def delete_version(self, subject_name: str, version: int) -> int:
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -571,7 +561,7 @@ class SchemaRegistryClient(object):
                                                    version))
         return response
 
-    def set_compatibility(self, subject_name=None, level=None):
+    def set_compatibility(self, subject_name: Optional[str]=None, level: Optional[str]=None) -> str:
         """
         Update global or subject level compatibility level.
 
@@ -603,7 +593,7 @@ class SchemaRegistryClient(object):
                                      .format(_urlencode(subject_name)),
                                      body={'compatibility': level.upper()})
 
-    def get_compatibility(self, subject_name=None):
+    def get_compatibility(self, subject_name: Optional[str]=None) -> str:
         """
         Get the current compatibility level.
 
@@ -629,7 +619,7 @@ class SchemaRegistryClient(object):
         result = self._rest_client.get(url)
         return result['compatibilityLevel']
 
-    def test_compatibility(self, subject_name, schema, version="latest"):
+    def test_compatibility(self, subject_name: str, schema: "Schema", version: Union[int, str]="latest") -> bool:
         """Test the compatibility of a candidate schema for a given subject and version
 
         Args:
@@ -649,7 +639,9 @@ class SchemaRegistryClient(object):
             `POST Test Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        request = {"schema": schema.schema_str}
+        Reference = TypedDict("Reference", {'name': str, 'subject': str, 'version': int})
+        Request = TypedDict('Request', {'schema': str, 'schemaType': str, 'references': List[Reference]}, total=False)
+        request: Request = {"schema": schema.schema_str}
         if schema.schema_type != "AVRO":
             request['schemaType'] = schema.schema_type
 
@@ -680,7 +672,7 @@ class Schema(object):
 
     __slots__ = ['schema_str', 'references', 'schema_type', '_hash']
 
-    def __init__(self, schema_str, schema_type, references=[]):
+    def __init__(self, schema_str: str, schema_type: str, references: List["SchemaReference"] =[]):
         super(Schema, self).__init__()
 
         self.schema_str = schema_str
@@ -688,11 +680,12 @@ class Schema(object):
         self.references = references
         self._hash = hash(schema_str)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, Schema)
         return all([self.schema_str == other.schema_str,
                     self.schema_type == other.schema_type])
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return self._hash
 
 
@@ -713,7 +706,7 @@ class RegisteredSchema(object):
         version (int): Version of this subject this schema is registered to
     """
 
-    def __init__(self, schema_id, schema, subject, version):
+    def __init__(self, schema_id: int, schema: Schema, subject: str, version: int):
         self.schema_id = schema_id
         self.schema = schema
         self.subject = subject
@@ -736,7 +729,7 @@ class SchemaReference(object):
         version (int): This Schema's version
     """
 
-    def __init__(self, name, subject, version):
+    def __init__(self, name: str, subject: str, version: int):
         super(SchemaReference, self).__init__()
         self.name = name
         self.subject = subject

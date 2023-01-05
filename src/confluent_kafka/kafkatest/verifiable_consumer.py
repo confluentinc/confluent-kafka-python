@@ -18,8 +18,11 @@
 import argparse
 import os
 import time
+from typing import Any, Dict, List, Optional, cast
+from typing_extensions import Literal, TypedDict
 from confluent_kafka import Consumer, KafkaError, KafkaException
-from verifiable_client import VerifiableClient
+from confluent_kafka.cimpl import Message, TopicPartition
+from .verifiable_client import VerifiableClient
 
 
 class VerifiableConsumer(VerifiableClient):
@@ -27,7 +30,7 @@ class VerifiableConsumer(VerifiableClient):
     confluent-kafka-python backed VerifiableConsumer class for use with
     Kafka's kafkatests client tests.
     """
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         """
         conf is a config dict passed to confluent_kafka.Consumer()
         """
@@ -40,16 +43,17 @@ class VerifiableConsumer(VerifiableClient):
         self.use_auto_commit = False
         self.use_async_commit = False
         self.max_msgs = -1
-        self.assignment = []
-        self.assignment_dict = dict()
+        self.assignment: List[AssignedPartition] = []
+        self.assignment_dict: Dict[str, AssignedPartition] = dict()
+        self.verbose: bool = False
 
-    def find_assignment(self, topic, partition):
+    def find_assignment(self, topic: str, partition: int) -> Optional["AssignedPartition"]:
         """ Find and return existing assignment based on topic and partition,
         or None on miss. """
         skey = '%s %d' % (topic, partition)
         return self.assignment_dict.get(skey)
 
-    def send_records_consumed(self, immediate=False):
+    def send_records_consumed(self, immediate: bool=False) -> None:
         """ Send records_consumed, every 100 messages, on timeout,
             or if immediate is set. """
         if self.consumed_msgs <= self.consumed_msgs_last_reported + (0 if immediate else 100):
@@ -58,7 +62,8 @@ class VerifiableConsumer(VerifiableClient):
         if len(self.assignment) == 0:
             return
 
-        d = {'name': 'records_consumed',
+        SendDict = TypedDict("SendDict", {"name": Literal['records_consumed'], 'count': int, 'partitions': List[Dict] })
+        d: SendDict = {'name': 'records_consumed',
              'count': self.consumed_msgs - self.consumed_msgs_last_reported,
              'partitions': []}
 
@@ -70,16 +75,16 @@ class VerifiableConsumer(VerifiableClient):
             d['partitions'].append(a.to_dict())
             a.min_offset = -1
 
-        self.send(d)
+        self.send(cast(Dict, d))
         self.consumed_msgs_last_reported = self.consumed_msgs
 
-    def send_assignment(self, evtype, partitions):
+    def send_assignment(self, evtype: str, partitions: List[TopicPartition]) -> None:
         """ Send assignment update, evtype is either 'assigned' or 'revoked' """
         d = {'name': 'partitions_' + evtype,
              'partitions': [{'topic': x.topic, 'partition': x.partition} for x in partitions]}
         self.send(d)
 
-    def on_assign(self, consumer, partitions):
+    def on_assign(self, consumer: Consumer, partitions: List[TopicPartition]) -> None:
         """ Rebalance on_assign callback """
         old_assignment = self.assignment
         self.assignment = [AssignedPartition(p.topic, p.partition) for p in partitions]
@@ -87,12 +92,13 @@ class VerifiableConsumer(VerifiableClient):
         # minOffset even after a rebalance loop.
         for a in old_assignment:
             b = self.find_assignment(a.topic, a.partition)
+            assert b is not None
             b.min_offset = a.min_offset
 
         self.assignment_dict = {a.skey: a for a in self.assignment}
         self.send_assignment('assigned', partitions)
 
-    def on_revoke(self, consumer, partitions):
+    def on_revoke(self, consumer: Consumer, partitions: List[TopicPartition]) -> None:
         """ Rebalance on_revoke callback """
         # Send final consumed records prior to rebalancing to make sure
         # latest consumed is in par with what is going to be committed.
@@ -102,7 +108,7 @@ class VerifiableConsumer(VerifiableClient):
         self.assignment_dict = dict()
         self.send_assignment('revoked', partitions)
 
-    def on_commit(self, err, partitions):
+    def on_commit(self, err: Optional[KafkaError], partitions: List[TopicPartition]) -> None:
         """ Offsets Committed callback """
         if err is not None and err.code() == KafkaError._NO_OFFSET:
             self.dbg('on_commit(): no offsets to commit')
@@ -111,7 +117,7 @@ class VerifiableConsumer(VerifiableClient):
         # Report consumed messages to make sure consumed position >= committed position
         self.send_records_consumed(immediate=True)
 
-        d = {'name': 'offsets_committed',
+        d: Dict[str, Any] = {'name': 'offsets_committed',
              'offsets': []}
 
         if err is not None:
@@ -133,7 +139,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.send(d)
 
-    def do_commit(self, immediate=False, asynchronous=None):
+    def do_commit(self, immediate: bool=False, asynchronous: Optional[bool]=None) -> None:
         """ Commit every 1000 messages or whenever there is a consume timeout
             or immediate. """
         if (self.use_auto_commit
@@ -185,7 +191,7 @@ class VerifiableConsumer(VerifiableClient):
 
         self.consumed_msgs_at_last_commit = self.consumed_msgs
 
-    def msg_consume(self, msg):
+    def msg_consume(self, msg: Message) -> None:
         """ Handle consumed message (or error event) """
         if msg.error():
             self.err('Consume failed: %s' % msg.error(), term=False)
@@ -208,11 +214,12 @@ class VerifiableConsumer(VerifiableClient):
             self.err('Received message on unassigned partition %s [%d] @ %d' %
                      (msg.topic(), msg.partition(), msg.offset()), term=True)
 
-        a.consumed_msgs += 1
-        if a.min_offset == -1:
-            a.min_offset = msg.offset()
-        if a.max_offset < msg.offset():
-            a.max_offset = msg.offset()
+        else:
+            a.consumed_msgs += 1
+            if a.min_offset == -1:
+                a.min_offset = msg.offset()
+            if a.max_offset < msg.offset():
+                a.max_offset = msg.offset()
 
         self.consumed_msgs += 1
 
@@ -223,7 +230,7 @@ class VerifiableConsumer(VerifiableClient):
 
 class AssignedPartition(object):
     """ Local state container for assigned partition. """
-    def __init__(self, topic, partition):
+    def __init__(self, topic: str, partition: int):
         super(AssignedPartition, self).__init__()
         self.topic = topic
         self.partition = partition
@@ -232,7 +239,7 @@ class AssignedPartition(object):
         self.min_offset = -1
         self.max_offset = 0
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """ Return a dict of this partition's state """
         return {'topic': self.topic, 'partition': self.partition,
                 'minOffset': self.min_offset, 'maxOffset': self.max_offset}

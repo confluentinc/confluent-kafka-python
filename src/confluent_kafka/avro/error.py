@@ -16,16 +16,19 @@
 #
 
 
+from typing import Optional
+
+
 class ClientError(Exception):
     """ Error thrown by Schema Registry clients """
 
-    def __init__(self, message, http_code=None):
+    def __init__(self, message: str, http_code: Optional[int]=None):
         self.message = message
         self.http_code = http_code
         super(ClientError, self).__init__(self.__str__())
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ClientError(error={error})".format(error=self.message)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.message

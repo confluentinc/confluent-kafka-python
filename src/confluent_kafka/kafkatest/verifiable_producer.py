@@ -17,8 +17,10 @@
 
 import argparse
 import time
+from typing import Dict, Optional
 from confluent_kafka import Producer, KafkaException
-from verifiable_client import VerifiableClient
+from confluent_kafka import KafkaError, Message
+from .verifiable_client import VerifiableClient
 
 
 class VerifiableProducer(VerifiableClient):
@@ -26,7 +28,7 @@ class VerifiableProducer(VerifiableClient):
     confluent-kafka-python backed VerifiableProducer class for use with
     Kafka's kafkatests client tests.
     """
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         """
         conf is a config dict passed to confluent_kafka.Producer()
         """
@@ -34,10 +36,11 @@ class VerifiableProducer(VerifiableClient):
         self.conf['on_delivery'] = self.dr_cb
         self.producer = Producer(**self.conf)
         self.num_acked = 0
-        self.num_sent = 0
-        self.num_err = 0
+        self.num_sent: int = 0
+        self.num_err: int = 0
+        self.max_msgs: int = 0
 
-    def dr_cb(self, err, msg):
+    def dr_cb(self, err: KafkaError, msg: Message) -> None:
         """ Per-message Delivery report callback. Called from poll() """
         if err:
             self.num_err += 1
@@ -95,7 +98,7 @@ if __name__ == '__main__':
         value_fmt = '%d'
 
     repeating_keys = args['repeating_keys']
-    key_counter = 0
+    key_counter: int = 0
 
     if throughput > 0:
         delay = 1.0/throughput
@@ -111,6 +114,7 @@ if __name__ == '__main__':
 
             t_end = time.time() + delay
             while vp.run:
+                key: Optional[str]
                 if repeating_keys != 0:
                     key = '%d' % key_counter
                     key_counter = (key_counter + 1) % repeating_keys
@@ -118,7 +122,7 @@ if __name__ == '__main__':
                     key = None
 
                 try:
-                    vp.producer.produce(topic, value=(value_fmt % i), key=key,
+                    vp.producer.produce(topic=topic, value=(value_fmt % i), key=key,
                                         timestamp=args.get('create_time', 0))
                     vp.num_sent += 1
                 except KafkaException as e:

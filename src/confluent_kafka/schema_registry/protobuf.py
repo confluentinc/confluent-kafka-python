@@ -16,28 +16,33 @@
 # limitations under the License.
 
 import io
+from subprocess import call
 import sys
 import base64
 import struct
+from typing import Any, Callable, Deque, Dict, List, Optional, Set, cast
 import warnings
 from collections import deque
+import six
 
-from google.protobuf.message import DecodeError
+from google.protobuf.message import DecodeError, Message
 from google.protobuf.message_factory import MessageFactory
+from google.protobuf.descriptor import Descriptor, FileDescriptor
+from google.protobuf.reflection import GeneratedProtocolMessageType
 
 from . import (_MAGIC_BYTE,
                reference_subject_name_strategy,
                topic_subject_name_strategy,)
 from .schema_registry_client import (Schema,
-                                     SchemaReference)
-from confluent_kafka.serialization import SerializationError
+                                     SchemaReference, SchemaRegistryClient)
+from confluent_kafka.serialization import SerializationContext, SerializationError
 
 
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
 # Python2.chr() -> str(alias for bytes)
-if sys.version > '3':
-    def _bytes(v):
+if six.PY3:
+    def _bytes(v: int) -> bytes:
         """
         Convert int to bytes
 
@@ -46,7 +51,7 @@ if sys.version > '3':
         """
         return bytes((v,))
 else:
-    def _bytes(v):
+    def _bytes(v: int) -> str:
         """
         Convert int to bytes
 
@@ -61,15 +66,14 @@ class _ContextStringIO(io.BytesIO):
     Wrapper to allow use of StringIO via 'with' constructs.
     """
 
-    def __enter__(self):
+    def __enter__(self) -> "_ContextStringIO":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
-        return False
 
 
-def _create_index_array(msg_desc):
+def _create_index_array(msg_desc: Descriptor) -> List[int]:
     """
     Creates an index array specifying the location of msg_desc in
     the referenced FileDescriptor.
@@ -84,14 +88,14 @@ def _create_index_array(msg_desc):
         ValueError: If the message descriptor is malformed.
     """
 
-    msg_idx = deque()
+    msg_idx: Deque[int] = deque()
 
     # Walk the nested MessageDescriptor tree up to the root.
     current = msg_desc
     found = False
     while current.containing_type is not None:
         previous = current
-        current = previous.containing_type
+        current = cast(Descriptor, previous.containing_type)
         # find child's position
         for idx, node in enumerate(current.nested_types):
             if node == previous:
@@ -114,7 +118,7 @@ def _create_index_array(msg_desc):
     return list(msg_idx)
 
 
-def _schema_to_str(file_descriptor):
+def _schema_to_str(file_descriptor: FileDescriptor) -> str:
     """
     Base64 encode a FileDescriptor
 
@@ -245,7 +249,7 @@ class ProtobufSerializer(object):
         'use.deprecated.format': False,
     }
 
-    def __init__(self, msg_type, schema_registry_client, conf=None):
+    def __init__(self, msg_type: GeneratedProtocolMessageType, schema_registry_client: SchemaRegistryClient, conf: Optional[Dict]=None):
 
         if conf is None or 'use.deprecated.format' not in conf:
             raise RuntimeError(
@@ -303,17 +307,17 @@ class ProtobufSerializer(object):
                              .format(", ".join(conf_copy.keys())))
 
         self._registry = schema_registry_client
-        self._schema_id = None
-        self._known_subjects = set()
+        self._schema_id: Optional[int] = None
+        self._known_subjects: Set[str] = set()
         self._msg_class = msg_type
 
-        descriptor = msg_type.DESCRIPTOR
+        descriptor = msg_type.DESCRIPTOR # type:ignore[attr-defined]
         self._index_array = _create_index_array(descriptor)
         self._schema = Schema(_schema_to_str(descriptor.file),
                               schema_type='PROTOBUF')
 
     @staticmethod
-    def _write_varint(buf, val, zigzag=True):
+    def _write_varint(buf: io.BytesIO, val: int, zigzag: bool=True) -> None:
         """
         Writes val to buf, either using zigzag or uvarint encoding.
 
@@ -332,7 +336,7 @@ class ProtobufSerializer(object):
         buf.write(_bytes(val))
 
     @staticmethod
-    def _encode_varints(buf, ints, zigzag=True):
+    def _encode_varints(buf: io.BytesIO, ints: List[int], zigzag: bool=True) -> None:
         """
         Encodes each int as a uvarint onto buf
 
@@ -353,7 +357,7 @@ class ProtobufSerializer(object):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(self, ctx, file_desc):
+    def _resolve_dependencies(self, ctx: SerializationContext, file_desc: FileDescriptor) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -363,11 +367,12 @@ class ProtobufSerializer(object):
             file_desc (FileDescriptor): file descriptor to traverse.
         """
 
-        schema_refs = []
+        schema_refs: List[SchemaReference] = []
         for dep in file_desc.dependencies:
             if self._skip_known_types and dep.name.startswith("google/protobuf/"):
                 continue
             dep_refs = self._resolve_dependencies(ctx, dep)
+            assert callable(self._ref_reference_subject_func)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
                             references=dep_refs,
@@ -382,7 +387,7 @@ class ProtobufSerializer(object):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message, ctx):
+    def __call__(self, message: Message, ctx: SerializationContext) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -408,6 +413,7 @@ class ProtobufSerializer(object):
             raise ValueError("message must be of type {} not {}"
                              .format(self._msg_class, type(message)))
 
+        assert callable(self._subject_name_func)
         subject = self._subject_name_func(ctx,
                                           message.DESCRIPTOR.full_name)
 
@@ -420,6 +426,7 @@ class ProtobufSerializer(object):
                 self._schema.references = self._resolve_dependencies(
                     ctx, message.DESCRIPTOR.file)
 
+                assert isinstance(self._normalize_schemas, bool)
                 if self._auto_register:
                     self._schema_id = self._registry.register_schema(subject,
                                                                      self._schema,
@@ -479,7 +486,7 @@ class ProtobufDeserializer(object):
         'use.deprecated.format': False,
     }
 
-    def __init__(self, message_type, conf=None):
+    def __init__(self, message_type: Any, conf: Optional[Dict]=None):
 
         # Require use.deprecated.format to be explicitly configured
         # during a transitionary period since old/new format are
@@ -513,7 +520,7 @@ class ProtobufDeserializer(object):
         self._msg_class = MessageFactory().GetPrototype(descriptor)
 
     @staticmethod
-    def _decode_varint(buf, zigzag=True):
+    def _decode_varint(buf: io.BytesIO, zigzag: bool=True) -> int:
         """
         Decodes a single varint from a buffer.
 
@@ -548,7 +555,7 @@ class ProtobufDeserializer(object):
             raise EOFError("Unexpected EOF while reading index")
 
     @staticmethod
-    def _read_byte(buf):
+    def _read_byte(buf: io.BytesIO) -> int:
         """
         Read one byte from buf as an int.
 
@@ -565,7 +572,7 @@ class ProtobufDeserializer(object):
         return ord(i)
 
     @staticmethod
-    def _read_index_array(buf, zigzag=True):
+    def _read_index_array(buf: io.BytesIO, zigzag: bool=True) -> List[int]:
         """
         Read an index array from buf that specifies the message
         descriptor of interest in the file descriptor.
@@ -591,7 +598,7 @@ class ProtobufDeserializer(object):
 
         return msg_index
 
-    def __call__(self, data, ctx):
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext]) -> Any:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.

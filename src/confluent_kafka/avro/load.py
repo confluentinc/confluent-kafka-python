@@ -16,30 +16,12 @@
 #
 
 
+from typing import TYPE_CHECKING
 from confluent_kafka.avro.error import ClientError
 
-
-def loads(schema_str):
-    """ Parse a schema given a schema string """
-    try:
-        return schema.parse(schema_str)
-    except SchemaParseException as e:
-        raise ClientError("Schema parse failed: %s" % (str(e)))
-
-
-def load(fp):
-    """ Parse a schema from a file path """
-    with open(fp) as f:
-        return loads(f.read())
-
-
-# avro.schema.RecordSchema and avro.schema.PrimitiveSchema classes are not hashable. Hence defining them explicitly as
-# a quick fix
-def _hash_func(self):
-    return hash(str(self))
-
-
 try:
+    # FIXME: Needs https://github.com/apache/avro/pull/1952
+    # pip install git+https://github.com/apache/avro#subdirectory=lang/py
     from avro import schema
 
     try:
@@ -47,11 +29,38 @@ try:
         from avro.errors import SchemaParseException
     except ImportError:
         # avro < 1.11.0
-        from avro.schema import SchemaParseException
+        from avro.schema import SchemaParseException # type:ignore[attr-defined, no-redef]
 
-    schema.RecordSchema.__hash__ = _hash_func
-    schema.PrimitiveSchema.__hash__ = _hash_func
-    schema.UnionSchema.__hash__ = _hash_func
+    # avro.schema.RecordSchema and avro.schema.PrimitiveSchema classes are not hashable. Hence defining them explicitly as
+    # a quick fix
+    def _hash_func(self: object) -> int:
+        return hash(str(self))
+
+    schema.RecordSchema.__hash__ = _hash_func # type:ignore[assignment]
+    schema.PrimitiveSchema.__hash__ = _hash_func # type:ignore[assignment]
+    schema.UnionSchema.__hash__ = _hash_func # type:ignore[assignment]
+
+    def loads(schema_str: str) -> schema.Schema:
+        """ Parse a schema given a schema string """
+        try:
+            return schema.parse(schema_str)
+        except SchemaParseException as e:
+            raise ClientError("Schema parse failed: %s" % (str(e)))
+
+
+    def load(fp: str) -> schema.Schema:
+        """ Parse a schema from a file path """
+        with open(fp) as f:
+            return loads(f.read())
+
 
 except ImportError:
-    schema = None
+    if TYPE_CHECKING:
+        # Workaround hack so the type checking for Schema objects still works
+        class Schema:
+            pass
+        class TopLevelSchema:
+            Schema = Schema
+        schema = TopLevelSchema # type:ignore[assignment]
+    else:
+        schema = None

@@ -25,11 +25,14 @@ import logging
 import struct
 import sys
 import traceback
+from typing import Any, Callable, Dict, Optional, Union
 
 import avro
 import avro.io
 
+from confluent_kafka.avro import schema
 from confluent_kafka.avro import ClientError
+from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from confluent_kafka.avro.serializer import (SerializerError,
                                              KeySerializerError,
                                              ValueSerializerError)
@@ -53,12 +56,11 @@ class ContextStringIO(io.BytesIO):
     Wrapper to allow use of StringIO via 'with' constructs.
     """
 
-    def __enter__(self):
+    def __enter__(self) -> "ContextStringIO":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
-        return False
 
 
 class MessageSerializer(object):
@@ -70,15 +72,15 @@ class MessageSerializer(object):
     All decode_* methods expect a buffer received from kafka.
     """
 
-    def __init__(self, registry_client, reader_key_schema=None, reader_value_schema=None):
+    def __init__(self, registry_client: CachedSchemaRegistryClient, reader_key_schema: Optional[schema.Schema]=None, reader_value_schema: Optional[schema.Schema]=None):
         self.registry_client = registry_client
-        self.id_to_decoder_func = {}
-        self.id_to_writers = {}
+        self.id_to_decoder_func: Dict[int, Callable] = {}
+        self.id_to_writers: Dict[int, Callable] = {}
         self.reader_key_schema = reader_key_schema
         self.reader_value_schema = reader_value_schema
 
     # Encoder support
-    def _get_encoder_func(self, writer_schema):
+    def _get_encoder_func(self, writer_schema: Optional[schema.Schema]) -> Callable:
         if HAS_FAST:
             schema = json.loads(str(writer_schema))
             parsed_schema = parse_schema(schema)
@@ -86,7 +88,7 @@ class MessageSerializer(object):
         writer = avro.io.DatumWriter(writer_schema)
         return lambda record, fp: writer.write(record, avro.io.BinaryEncoder(fp))
 
-    def encode_record_with_schema(self, topic, schema, record, is_key=False):
+    def encode_record_with_schema(self, topic: str, schema: schema.Schema, record: object, is_key: bool=False) -> bytes:
         """
         Given a parsed avro schema, encode a record for the given topic.  The
         record is expected to be a dictionary.
@@ -119,7 +121,7 @@ class MessageSerializer(object):
 
         return self.encode_record_with_schema_id(schema_id, record, is_key=is_key)
 
-    def encode_record_with_schema_id(self, schema_id, record, is_key=False):
+    def encode_record_with_schema_id(self, schema_id: int, record: object, is_key: bool=False) -> bytes:
         """
         Encode a record with a given schema id.  The record must
         be a python dictionary.
@@ -156,7 +158,7 @@ class MessageSerializer(object):
             return outf.getvalue()
 
     # Decoder support
-    def _get_decoder_func(self, schema_id, payload, is_key=False):
+    def _get_decoder_func(self, schema_id: int, payload: ContextStringIO, is_key: bool=False) -> Callable:
         if schema_id in self.id_to_decoder_func:
             return self.id_to_decoder_func[schema_id]
 
@@ -206,14 +208,14 @@ class MessageSerializer(object):
         # def __init__(self, writer_schema=None, reader_schema=None)
         avro_reader = avro.io.DatumReader(writer_schema_obj, reader_schema_obj)
 
-        def decoder(p):
+        def decoder(p: io.BytesIO) -> object:
             bin_decoder = avro.io.BinaryDecoder(p)
             return avro_reader.read(bin_decoder)
 
         self.id_to_decoder_func[schema_id] = decoder
         return self.id_to_decoder_func[schema_id]
 
-    def decode_message(self, message, is_key=False):
+    def decode_message(self, message: Optional[bytes], is_key: bool=False) -> Optional[Dict]:
         """
         Decode a message from kafka that has been encoded for use with
         the schema registry.

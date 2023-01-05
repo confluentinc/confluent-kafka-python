@@ -16,7 +16,8 @@
 # limitations under the License.
 #
 
-from confluent_kafka.cimpl import Consumer as _ConsumerImpl
+from typing import Dict, Optional
+from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
 from .error import (ConsumeError,
                     KeyDeserializationError,
                     ValueDeserializationError)
@@ -70,14 +71,14 @@ class DeserializingConsumer(_ConsumerImpl):
         ValueError: if configuration validation fails
     """  # noqa: E501
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         conf_copy = conf.copy()
         self._key_deserializer = conf_copy.pop('key.deserializer', None)
         self._value_deserializer = conf_copy.pop('value.deserializer', None)
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout=-1):
+    def poll(self, timeout: float=-1) -> Optional[Message]:
         """
         Consume messages and calls callbacks.
 
@@ -123,7 +124,7 @@ class DeserializingConsumer(_ConsumerImpl):
         msg.set_value(value)
         return msg
 
-    def consume(self, num_messages=1, timeout=-1):
+    def consume(self, num_messages: int =1, timeout: float=-1) -> None:
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead

@@ -19,16 +19,18 @@
     Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
 """
 
+from typing import Dict, Optional, cast
 import warnings
 
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
-from confluent_kafka.avro.load import load, loads  # noqa
+from confluent_kafka.avro.load import load, loads, schema  # noqa
 from confluent_kafka.avro.cached_schema_registry_client import CachedSchemaRegistryClient
 from confluent_kafka.avro.serializer import (SerializerError,  # noqa
                                              KeySerializerError,
                                              ValueSerializerError)
 from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
+from confluent_kafka.cimpl import Message
 
 
 class AvroProducer(Producer):
@@ -48,8 +50,8 @@ class AvroProducer(Producer):
         :param str default_value_schema: Optional default avro schema for value
     """
 
-    def __init__(self, config, default_key_schema=None,
-                 default_value_schema=None, schema_registry=None, **kwargs):
+    def __init__(self, config: Dict, default_key_schema: Optional[schema.Schema]=None,
+                 default_value_schema: Optional[schema.Schema]=None, schema_registry: Optional[CachedSchemaRegistryClient]=None, **kwargs: object):
         warnings.warn(
             "AvroProducer has been deprecated. Use AvroSerializer instead.",
             category=DeprecationWarning, stacklevel=2)
@@ -77,7 +79,7 @@ class AvroProducer(Producer):
         self._key_schema = default_key_schema
         self._value_schema = default_value_schema
 
-    def produce(self, **kwargs):
+    def produce(self, topic: str, **kwargs: object) -> None:
         """
             Asynchronously sends message to Kafka by encoding with specified or default avro schema.
 
@@ -93,12 +95,9 @@ class AvroProducer(Producer):
             :raises BufferError: If producer queue is full.
             :raises KafkaException: For other produce failures.
         """
-        # get schemas from  kwargs if defined
-        key_schema = kwargs.pop('key_schema', self._key_schema)
-        value_schema = kwargs.pop('value_schema', self._value_schema)
-        topic = kwargs.pop('topic', None)
-        if not topic:
-            raise ClientError("Topic name not specified.")
+        # get schemas from kwargs if defined
+        key_schema = cast(Optional[schema.Schema], kwargs.pop('key_schema', self._key_schema))
+        value_schema = cast(Optional[schema.Schema], kwargs.pop('value_schema', self._value_schema))
         value = kwargs.pop('value', None)
         key = kwargs.pop('key', None)
 
@@ -108,13 +107,13 @@ class AvroProducer(Producer):
             else:
                 raise ValueSerializerError("Avro schema required for values")
 
-        if key is not None:
+        if key is not None:            
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:
                 raise KeySerializerError("Avro schema required for key")
 
-        super(AvroProducer, self).produce(topic, value, key, **kwargs)
+        super(AvroProducer, self).produce(topic, value=value, key=key, **kwargs)
 
 
 class AvroConsumer(Consumer):
@@ -135,7 +134,7 @@ class AvroConsumer(Consumer):
     :raises ValueError: For invalid configurations
     """
 
-    def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
+    def __init__(self, config: Dict, schema_registry: Optional[CachedSchemaRegistryClient]=None, reader_key_schema: Optional[schema.Schema]=None, reader_value_schema: Optional[schema.Schema]=None, **kwargs: object):
         warnings.warn(
             "AvroConsumer has been deprecated. Use AvroDeserializer instead.",
             category=DeprecationWarning, stacklevel=2)
@@ -160,7 +159,7 @@ class AvroConsumer(Consumer):
         super(AvroConsumer, self).__init__(ap_conf, **kwargs)
         self._serializer = MessageSerializer(schema_registry, reader_key_schema, reader_value_schema)
 
-    def poll(self, timeout=None):
+    def poll(self, timeout: float=-1) -> Optional[Message]:
         """
         This is an overriden method from confluent_kafka.Consumer class. This handles message
         deserialization using avro schema
@@ -169,8 +168,6 @@ class AvroConsumer(Consumer):
         :returns: message object with deserialized key and value as dict objects
         :rtype: Message
         """
-        if timeout is None:
-            timeout = -1
         message = super(AvroConsumer, self).poll(timeout)
         if message is None:
             return None

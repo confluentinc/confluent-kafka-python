@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from confluent_kafka.serialization import SerializationContext
 from .schema_registry_client import (RegisteredSchema,
                                      Schema,
                                      SchemaRegistryClient,
@@ -33,7 +34,7 @@ __all__ = ["RegisteredSchema",
            "record_subject_name_strategy"]
 
 
-def topic_subject_name_strategy(ctx, record_name):
+def topic_subject_name_strategy(ctx: SerializationContext, record_name: str) -> str:
     """
     Constructs a subject name in the form of {topic}-key|value.
 
@@ -44,10 +45,10 @@ def topic_subject_name_strategy(ctx, record_name):
         record_name (str): Record name.
 
     """
-    return ctx.topic + "-" + ctx.field
+    return ctx.topic + "-" + str(ctx.field)
 
 
-def topic_record_subject_name_strategy(ctx, record_name):
+def topic_record_subject_name_strategy(ctx: SerializationContext, record_name: str) -> str:
     """
     Constructs a subject name in the form of {topic}-{record_name}.
 
@@ -61,7 +62,7 @@ def topic_record_subject_name_strategy(ctx, record_name):
     return ctx.topic + "-" + record_name
 
 
-def record_subject_name_strategy(ctx, record_name):
+def record_subject_name_strategy(ctx: SerializationContext, record_name: str) -> str:
     """
     Constructs a subject name in the form of {record_name}.
 
@@ -75,7 +76,7 @@ def record_subject_name_strategy(ctx, record_name):
     return record_name
 
 
-def reference_subject_name_strategy(ctx, schema_ref):
+def reference_subject_name_strategy(ctx: SerializationContext, schema_ref: SchemaReference) -> str:
     """
     Constructs a subject reference name in the form of {reference name}.
 

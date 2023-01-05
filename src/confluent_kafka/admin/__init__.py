@@ -15,7 +15,10 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
-import concurrent.futures
+from concurrent.futures import Future
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Type, TypeVar
+
+from pytest import Config
 
 # Unused imports are keeped to be accessible using this public module
 from ._config import (ConfigSource,  # noqa: F401
@@ -45,7 +48,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_BROKER)
 
 
-class AdminClient (_AdminClientImpl):
+class AdminClient(_AdminClientImpl):
     """
     AdminClient provides admin operations for Kafka brokers, topics, groups,
     and other resource types supported by the broker.
@@ -67,7 +70,7 @@ class AdminClient (_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         """
         Create a new AdminClient using the provided configuration dictionary.
 
@@ -80,13 +83,14 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).__init__(conf)
 
     @staticmethod
-    def _make_topics_result(f, futmap):
+    def _make_topics_result(f: Future, futmap: Dict[str, Future]) -> None:
         """
         Map per-topic results to per-topic futures in futmap.
         The result value of each (successful) future is None.
         """
         try:
             result = f.result()
+            assert isinstance(result, Dict)
             for topic, error in result.items():
                 fut = futmap.get(topic, None)
                 if fut is None:
@@ -104,13 +108,14 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_resource_result(f, futmap):
+    def _make_resource_result(f: Future, futmap: Dict[ConfigResource, Future]) -> None:
         """
         Map per-resource results to per-resource futures in futmap.
         The result value of each (successful) future is a ConfigResource.
         """
         try:
             result = f.result()
+            assert isinstance(result, Dict)
             for resource, configs in result.items():
                 fut = futmap.get(resource, None)
                 if fut is None:
@@ -128,8 +133,10 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
+    _acl_type = TypeVar("_acl_type", bound=AclBinding)
+
     @staticmethod
-    def _make_acls_result(f, futmap):
+    def _make_acls_result(f: Future, futmap: Dict[_acl_type, Future]) -> None:
         """
         Map create ACL binding results to corresponding futures in futmap.
         For create_acls the result value of each (successful) future is None.
@@ -155,14 +162,16 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _create_future():
-        f = concurrent.futures.Future()
+    def _create_future() -> Future:
+        f: Future = Future()
         if not f.set_running_or_notify_cancel():
             raise RuntimeError("Future was cancelled prematurely")
         return f
 
+    _futures_map_key = TypeVar("_futures_map_key")
+    
     @staticmethod
-    def _make_futures(futmap_keys, class_check, make_result_fn):
+    def _make_futures(futmap_keys: List[_futures_map_key], class_check: Optional[Type], make_result_fn: Callable[[Future, Dict[_futures_map_key, Future]], None]) -> Tuple[Future, Dict[_futures_map_key, Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -182,10 +191,10 @@ class AdminClient (_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _has_duplicates(items):
+    def _has_duplicates(items: Sequence) -> bool:
         return len(set(items)) != len(items)
 
-    def create_topics(self, new_topics, **kwargs):
+    def create_topics(self, new_topics: List[NewTopic], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Create one or more new topics.
 
@@ -219,7 +228,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def delete_topics(self, topics, **kwargs):
+    def delete_topics(self, topics: List[str], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Delete one or more topics.
 
@@ -249,15 +258,15 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def list_topics(self, *args, **kwargs):
+    def list_topics(self, *args: object, **kwargs: object) -> object:
 
         return super(AdminClient, self).list_topics(*args, **kwargs)
 
-    def list_groups(self, *args, **kwargs):
+    def list_groups(self, *args: object, **kwargs: object) -> object:
 
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
-    def create_partitions(self, new_partitions, **kwargs):
+    def create_partitions(self, new_partitions: List[NewPartitions], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Create additional partitions for the given topics.
 
@@ -290,7 +299,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def describe_configs(self, resources, **kwargs):
+    def describe_configs(self, resources: List[ConfigResource], **kwargs: object) -> Dict[ConfigResource, Future]: # type: ignore[override]
         """
         Get the configuration of the specified resources.
 
@@ -322,7 +331,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def alter_configs(self, resources, **kwargs):
+    def alter_configs(self, resources: List[ConfigResource], **kwargs: object) -> Dict[ConfigResource, Future]: # type: ignore[override]
         """
         Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
@@ -365,7 +374,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def create_acls(self, acls, **kwargs):
+    def create_acls(self, acls: List[AclBinding], **kwargs: object) -> Dict[AclBinding, Future]: # type: ignore[override]
         """
         Create one or more ACL bindings.
 
@@ -394,7 +403,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def describe_acls(self, acl_binding_filter, **kwargs):
+    def describe_acls(self, acl_binding_filter: List[AclBindingFilter], **kwargs: object) -> Future: # type: ignore[override]
         """
         Match ACL bindings by filter.
 
@@ -429,7 +438,7 @@ class AdminClient (_AdminClientImpl):
 
         return f
 
-    def delete_acls(self, acl_binding_filters, **kwargs):
+    def delete_acls(self, acl_binding_filters: List[AclBindingFilter], **kwargs: object) -> Dict[AclBindingFilter, Future]: # type: ignore[override]
         """
         Delete ACL bindings matching one or more ACL binding filters.
 
@@ -477,24 +486,24 @@ class ClusterMetadata (object):
     This class is typically not user instantiated.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cluster_id = None
         """Cluster id string, if supported by the broker, else None."""
-        self.controller_id = -1
+        self.controller_id: int = -1
         """Current controller broker id, or -1."""
-        self.brokers = {}
+        self.brokers: Dict[object, object] = {}
         """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
-        self.topics = {}
+        self.topics: Dict[object, object] = {}
         """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
-        self.orig_broker_id = -1
+        self.orig_broker_id: int = -1
         """The broker this metadata originated from."""
         self.orig_broker_name = None
         """The broker name/address this metadata originated from."""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ClusterMetadata({})".format(self.cluster_id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.cluster_id)
 
 
@@ -505,7 +514,7 @@ class BrokerMetadata (object):
     This class is typically not user instantiated.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.id = -1
         """Broker id"""
         self.host = None
@@ -513,10 +522,10 @@ class BrokerMetadata (object):
         self.port = -1
         """Broker port"""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{}:{}/{}".format(self.host, self.port, self.id)
 
 
@@ -530,22 +539,22 @@ class TopicMetadata (object):
     # Sphinx issue where it tries to reference the same instance variable
     # on other classes which raises a warning/error.
 
-    def __init__(self):
-        self.topic = None
+    def __init__(self) -> None:
+        self.topic: Optional[str] = None
         """Topic name"""
-        self.partitions = {}
+        self.partitions: Dict[object, object] = {}
         """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
-        self.error = None
+        self.error: Optional[KafkaError] = None
         """Topic error, or None. Value is a KafkaError object."""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.error is not None:
             return "TopicMetadata({}, {} partitions, {})".format(self.topic, len(self.partitions), self.error)
         else:
             return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
 
-    def __str__(self):
-        return self.topic
+    def __str__(self) -> str:
+        return str(self.topic)
 
 
 class PartitionMetadata (object):
@@ -560,25 +569,25 @@ class PartitionMetadata (object):
               of a broker id in the brokers dict.
     """
 
-    def __init__(self):
-        self.id = -1
+    def __init__(self) -> None:
+        self.id: int = -1
         """Partition id."""
-        self.leader = -1
+        self.leader: int = -1
         """Current leader broker for this partition, or -1."""
-        self.replicas = []
+        self.replicas: List[object] = []
         """List of replica broker ids for this partition."""
-        self.isrs = []
+        self.isrs: List[object] = []
         """List of in-sync-replica broker ids for this partition."""
         self.error = None
         """Partition error, or None. Value is a KafkaError object."""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.error is not None:
             return "PartitionMetadata({}, {})".format(self.id, self.error)
         else:
             return "PartitionMetadata({})".format(self.id)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{}".format(self.id)
 
 
@@ -591,7 +600,7 @@ class GroupMember(object):
     This class is typically not user instantiated.
     """  # noqa: E501
 
-    def __init__(self,):
+    def __init__(self) -> None:
         self.id = None
         """Member id (generated by broker)."""
         self.client_id = None
@@ -610,10 +619,10 @@ class GroupMetadata(object):
     This class is typically not user instantiated.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.broker = None
         """Originating broker metadata."""
-        self.id = None
+        self.id: Optional[str] = None
         """Group name."""
         self.error = None
         """Broker-originated error, or None. Value is a KafkaError object."""
@@ -623,14 +632,14 @@ class GroupMetadata(object):
         """Group protocol type."""
         self.protocol = None
         """Group protocol."""
-        self.members = []
+        self.members: List[object] = []
         """Group members."""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.error is not None:
             return "GroupMetadata({}, {})".format(self.id, self.error)
         else:
             return "GroupMetadata({})".format(self.id)
 
-    def __str__(self):
-        return self.id
+    def __str__(self) -> str:
+        return str(self.id)

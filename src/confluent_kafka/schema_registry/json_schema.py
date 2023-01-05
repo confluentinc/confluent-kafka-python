@@ -19,13 +19,15 @@ from io import BytesIO
 
 import json
 import struct
+from typing import Any, Callable, Dict, Optional, Set, cast
 
 from jsonschema import validate, ValidationError
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
                                              topic_subject_name_strategy)
-from confluent_kafka.serialization import (SerializationError,
+from .schema_registry_client import SchemaRegistryClient
+from confluent_kafka.serialization import (SerializationContext, SerializationError,
                                            Deserializer,
                                            Serializer)
 
@@ -35,12 +37,11 @@ class _ContextStringIO(BytesIO):
     Wrapper to allow use of StringIO via 'with' constructs.
     """
 
-    def __enter__(self):
+    def __enter__(self) -> "_ContextStringIO":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: Any) -> None:
         self.close()
-        return False
 
 
 class JSONSerializer(Serializer):
@@ -141,10 +142,10 @@ class JSONSerializer(Serializer):
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
+    def __init__(self, schema_str: str, schema_registry_client: SchemaRegistryClient, to_dict: Optional[Callable[[object, SerializationContext], Dict]]=None, conf: Optional[Dict]=None):
         self._registry = schema_registry_client
-        self._schema_id = None
-        self._known_subjects = set()
+        self._schema_id: Optional[int] = None
+        self._known_subjects: Set[str] = set()
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
@@ -170,7 +171,7 @@ class JSONSerializer(Serializer):
         if self._use_latest_version and self._auto_register:
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func: Callable = cast(Callable, conf_copy.pop('subject.name.strategy'))
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
@@ -187,7 +188,7 @@ class JSONSerializer(Serializer):
         self._parsed_schema = schema_dict
         self._schema = Schema(schema_str, schema_type="JSON")
 
-    def __call__(self, obj, ctx):
+    def __call__(self, obj: Any, ctx: SerializationContext) -> Optional[bytes]:
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -218,6 +219,7 @@ class JSONSerializer(Serializer):
 
             else:
                 # Check to ensure this schema has been registered under subject_name.
+                assert isinstance(self._normalize_schemas, bool)
                 if self._auto_register:
                     # The schema name will always be the same. We can't however register
                     # a schema without a subject so we set the schema_id here to handle
@@ -266,7 +268,7 @@ class JSONDeserializer(Deserializer):
 
     __slots__ = ['_parsed_schema', '_from_dict']
 
-    def __init__(self, schema_str, from_dict=None):
+    def __init__(self, schema_str: str, from_dict: Optional[Callable]=None):
         self._parsed_schema = json.loads(schema_str)
 
         if from_dict is not None and not callable(from_dict):
@@ -275,7 +277,7 @@ class JSONDeserializer(Deserializer):
 
         self._from_dict = from_dict
 
-    def __call__(self, data, ctx):
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext]=None) -> Any:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.

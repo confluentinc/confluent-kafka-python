@@ -12,13 +12,20 @@ ext_dir = os.path.join(mod_dir, 'src')
 INSTALL_REQUIRES = [
     'futures;python_version<"3.2"',
     'enum34;python_version<"3.4"',
+    'six'
 ]
 
 TEST_REQUIRES = [
     'pytest==4.6.4;python_version<"3.0"',
     'pytest;python_version>="3.0"',
     'pytest-timeout',
-    'flake8'
+    'flake8',
+    # Cap the version to avoid issues with newer editions. Should be periodically updated!
+    'mypy<=0.991',
+    'types-protobuf',
+    'types-jsonschema',
+    'types-requests',
+    'types-six'
 ]
 
 DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']

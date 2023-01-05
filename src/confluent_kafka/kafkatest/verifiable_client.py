@@ -21,6 +21,7 @@ import signal
 import socket
 import sys
 import time
+from typing import Dict
 
 
 class VerifiableClient(object):
@@ -28,7 +29,7 @@ class VerifiableClient(object):
     Generic base class for a kafkatest verifiable client.
     Implements the common kafkatest protocol and semantics.
     """
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         """
         """
         super(VerifiableClient, self).__init__()
@@ -38,26 +39,26 @@ class VerifiableClient(object):
         signal.signal(signal.SIGTERM, self.sig_term)
         self.dbg('Pid is %d' % os.getpid())
 
-    def sig_term(self, sig, frame):
+    def sig_term(self, sig: int, frame: object) -> None:
         self.dbg('SIGTERM')
         self.run = False
 
     @staticmethod
-    def _timestamp():
+    def _timestamp() -> str:
         return time.strftime('%H:%M:%S', time.localtime())
 
-    def dbg(self, s):
+    def dbg(self, s: str) -> None:
         """ Debugging printout """
         sys.stderr.write('%% %s DEBUG: %s\n' % (self._timestamp(), s))
 
-    def err(self, s, term=False):
+    def err(self, s: str, term: bool =False) -> None:
         """ Error printout, if term=True the process will terminate immediately. """
         sys.stderr.write('%% %s ERROR: %s\n' % (self._timestamp(), s))
         if term:
             sys.stderr.write('%% FATAL ERROR ^\n')
             sys.exit(1)
 
-    def send(self, d):
+    def send(self, d: Dict) -> None:
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
         self.dbg('SEND: %s' % json.dumps(d))
@@ -65,9 +66,9 @@ class VerifiableClient(object):
         sys.stdout.flush()
 
     @staticmethod
-    def set_config(conf, args):
+    def set_config(conf: Dict, args: Dict) -> None:
         """ Set client config properties using args dict. """
-        for n, v in args.iteritems():
+        for n, v in args.items():
             if v is None:
                 continue
 
@@ -94,9 +95,9 @@ class VerifiableClient(object):
             conf[n] = v
 
     @staticmethod
-    def read_config_file(path):
+    def read_config_file(path: str) -> Dict[str, str]:
         """Read (java client) config file and return dict with properties"""
-        conf = {}
+        conf: Dict[str, str] = {}
 
         with open(path, 'r') as f:
             for line in f:

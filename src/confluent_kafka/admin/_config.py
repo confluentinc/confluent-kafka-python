@@ -14,6 +14,7 @@
 
 from enum import Enum
 import functools
+from typing import Dict, List, Optional, Union
 from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
@@ -40,13 +41,13 @@ class ConfigEntry(object):
     This class is typically not user instantiated.
     """
 
-    def __init__(self, name, value,
-                 source=ConfigSource.UNKNOWN_CONFIG,
-                 is_read_only=False,
-                 is_default=False,
-                 is_sensitive=False,
-                 is_synonym=False,
-                 synonyms=[]):
+    def __init__(self, name: str, value: str,
+                 source: ConfigSource=ConfigSource.UNKNOWN_CONFIG,
+                 is_read_only: bool=False,
+                 is_default: bool=False,
+                 is_sensitive: bool=False,
+                 is_synonym: bool=False,
+                 synonyms: List[str]=[]):
         """
         This class is typically not user instantiated.
         """
@@ -72,10 +73,10 @@ class ConfigEntry(object):
         self.synonyms = synonyms
         """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "ConfigEntry(%s=\"%s\")" % (self.name, self.value)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "%s=\"%s\"" % (self.name, self.value)
 
 
@@ -98,8 +99,8 @@ class ConfigResource(object):
 
     Type = ResourceType
 
-    def __init__(self, restype, name,
-                 set_config=None, described_configs=None, error=None):
+    def __init__(self, restype: Union[str, int, ResourceType], name: str,
+                 set_config: Optional[Dict[str, str]]=None, described_configs: Optional[object]=None, error: Optional[object]=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.
@@ -113,18 +114,20 @@ class ConfigResource(object):
         if name is None:
             raise ValueError("Expected resource name to be a string")
 
-        if type(restype) == str:
+        if isinstance(restype, str):
             # Allow resource type to be specified as case-insensitive string, for convenience.
             try:
-                restype = ConfigResource.Type[restype.upper()]
+                self.restype = ConfigResource.Type[restype.upper()]
             except KeyError:
                 raise ValueError("Unknown resource type \"%s\": should be a ConfigResource.Type" % restype)
 
-        elif type(restype) == int:
+        elif isinstance(restype, int):
             # The C-code passes restype as an int, convert to Type.
-            restype = ConfigResource.Type(restype)
+            self.restype = ConfigResource.Type(restype)
 
-        self.restype = restype
+        else:
+            self.restype = restype
+
         self.restype_int = int(self.restype.value)  # for the C code
         self.name = name
 
@@ -136,31 +139,33 @@ class ConfigResource(object):
         self.configs = described_configs
         self.error = error
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         if self.error is not None:
             return "ConfigResource(%s,%s,%r)" % (self.restype, self.name, self.error)
         else:
             return "ConfigResource(%s,%s)" % (self.restype, self.name)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash((self.restype, self.name))
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
+        assert isinstance(other, ConfigResource)
         if self.restype < other.restype:
             return True
         return self.name.__lt__(other.name)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, ConfigResource)
         return self.restype == other.restype and self.name == other.name
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         :rtype: int
         :returns: number of configuration entries/operations
         """
         return len(self.set_config_dict)
 
-    def set_config(self, name, value, overwrite=True):
+    def set_config(self, name: str, value: str, overwrite: bool=True) -> None:
         """
         Set/overwrite a configuration value.
 

@@ -14,13 +14,13 @@
 
 from enum import Enum
 import functools
+from typing import Dict, List, Tuple, Type, TypeVar, cast
 from .. import cimpl as _cimpl
 from ._resource import ResourceType, ResourcePatternType
 
-try:
-    string_type = basestring
-except NameError:
-    string_type = str
+import six
+
+string_type = six.string_types[0]
 
 
 class AclOperation(Enum):
@@ -41,9 +41,10 @@ class AclOperation(Enum):
     ALTER_CONFIGS = _cimpl.ACL_OPERATION_ALTER_CONFIGS  #: ALTER_CONFIGS operation
     IDEMPOTENT_WRITE = _cimpl.ACL_OPERATION_IDEMPOTENT_WRITE  #: IDEMPOTENT_WRITE operation
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self.value < other.value
 
 
@@ -56,9 +57,10 @@ class AclPermissionType(Enum):
     DENY = _cimpl.ACL_PERMISSION_TYPE_DENY  #: Disallows access
     ALLOW = _cimpl.ACL_PERMISSION_TYPE_ALLOW  #: Grants access
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self.value < other.value
 
 
@@ -88,9 +90,9 @@ class AclBinding(object):
         The permission type for the specified operation.
     """
 
-    def __init__(self, restype, name,
-                 resource_pattern_type, principal, host,
-                 operation, permission_type):
+    def __init__(self, restype: ResourceType, name: str,
+                 resource_pattern_type: ResourcePatternType, principal: str, host: str,
+                 operation: AclOperation, permission_type: AclPermissionType):
         self.restype = restype
         self.name = name
         self.resource_pattern_type = resource_pattern_type
@@ -105,18 +107,19 @@ class AclBinding(object):
         self.operation_int = int(self.operation.value)
         self.permission_type_int = int(self.permission_type.value)
 
-    def _check_not_none(self, vars_to_check):
+    def _check_not_none(self, vars_to_check: List[str]) -> None:
         for param in vars_to_check:
             if getattr(self, param) is None:
                 raise ValueError("Expected %s to be not None" % (param,))
 
-    def _check_is_string(self, vars_to_check):
+    def _check_is_string(self, vars_to_check: List[str]) -> None:
         for param in vars_to_check:
             param_value = getattr(self, param)
             if param_value is not None and not isinstance(param_value, string_type):
                 raise TypeError("Expected %s to be a string" % (param,))
 
-    def _convert_to_enum(self, val, enum_clazz):
+    # FIXME: Should really return the enum_clazz, but not sure how!
+    def _convert_to_enum(self, val: object, enum_clazz: Type[Enum]) -> object:
         if type(val) == str:
             # Allow it to be specified as case-insensitive string, for convenience.
             try:
@@ -133,26 +136,26 @@ class AclBinding(object):
 
         return val
 
-    def _convert_enums(self):
-        self.restype = self._convert_to_enum(self.restype, ResourceType)
-        self.resource_pattern_type = self._convert_to_enum(self.resource_pattern_type, ResourcePatternType)
-        self.operation = self._convert_to_enum(self.operation, AclOperation)
-        self.permission_type = self._convert_to_enum(self.permission_type, AclPermissionType)
+    def _convert_enums(self) -> None:
+        self.restype = cast(ResourceType, self._convert_to_enum(self.restype, ResourceType))
+        self.resource_pattern_type = cast(ResourcePatternType, self._convert_to_enum(self.resource_pattern_type, ResourcePatternType))
+        self.operation = cast(AclOperation, self._convert_to_enum(self.operation, AclOperation))
+        self.permission_type = cast(AclPermissionType, self._convert_to_enum(self.permission_type, AclPermissionType))
 
-    def _check_forbidden_enums(self, forbidden_enums):
+    def _check_forbidden_enums(self, forbidden_enums: Dict[str, List]) -> None:
         for k, v in forbidden_enums.items():
             enum_value = getattr(self, k)
             if enum_value in v:
                 raise ValueError("Cannot use enum %s, value %s in this class" % (k, enum_value.name))
 
-    def _not_none_args(self):
+    def _not_none_args(self) -> List[str]:
         return ["restype", "name", "resource_pattern_type",
                 "principal", "host", "operation", "permission_type"]
 
-    def _string_args(self):
+    def _string_args(self) -> List[str]:
         return ["name", "principal", "host"]
 
-    def _forbidden_enums(self):
+    def _forbidden_enums(self) -> Dict[str, List[Enum]]:
         return {
             "restype": [ResourceType.ANY],
             "resource_pattern_type": [ResourcePatternType.ANY,
@@ -161,7 +164,7 @@ class AclBinding(object):
             "permission_type": [AclPermissionType.ANY]
         }
 
-    def _convert_args(self):
+    def _convert_args(self) -> None:
         not_none_args = self._not_none_args()
         string_args = self._string_args()
         forbidden_enums = self._forbidden_enums()
@@ -170,26 +173,28 @@ class AclBinding(object):
         self._convert_enums()
         self._check_forbidden_enums(forbidden_enums)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         type_name = type(self).__name__
         return "%s(%s,%s,%s,%s,%s,%s,%s)" % ((type_name,) + self._to_tuple())
 
-    def _to_tuple(self):
+    def _to_tuple(self) -> Tuple:
         return (self.restype, self.name, self.resource_pattern_type,
                 self.principal, self.host, self.operation,
                 self.permission_type)
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self._to_tuple())
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self._to_tuple() < other._to_tuple()
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self._to_tuple() == other._to_tuple()
 
 
@@ -218,11 +223,11 @@ class AclBindingFilter(AclBinding):
         The permission type to match or :attr:`AclPermissionType.ANY` to match any value.
     """
 
-    def _not_none_args(self):
+    def _not_none_args(self) -> List[str]:
         return ["restype", "resource_pattern_type",
                 "operation", "permission_type"]
 
-    def _forbidden_enums(self):
+    def _forbidden_enums(self) -> Dict[str, List[Enum]]:
         return {
             "restype": [ResourceType.UNKNOWN],
             "resource_pattern_type": [ResourcePatternType.UNKNOWN],
