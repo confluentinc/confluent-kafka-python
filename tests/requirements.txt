@@ -8,3 +8,10 @@ fastavro
 avro>=1.11.1,<2
 jsonschema
 protobuf
+
+# Cap the version to avoid issues with newer editions. Should be periodically updated!
+mypy<=0.991
+types-protobuf
+types-jsonschema
+types-requests
+types-six
