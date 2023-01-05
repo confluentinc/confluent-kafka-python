@@ -65,8 +65,10 @@ install:
 script:
  - flake8
  # Build package
- -  pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
+ - pip install --global-option=build_ext --global-option="-Itmp-build/include/" --global-option="-Ltmp-build/lib" . .[avro] .[schema-registry] .[json] .[protobuf]
  - ldd staging/libs/* || otool -L staging/libs/* || true
+ # Run type checks
+ - mypy src/confluent_kafka
  # Run tests
  - if [[ $TRAVIS_OS_NAME == "linux" ]]; then LD_LIBRARY_PATH=$LD_LIBRARY_PATH:staging/libs DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:staging/libs python -m pytest --timeout 600 --ignore=tmp-build || travis_terminate 1; fi
  # Build docs
