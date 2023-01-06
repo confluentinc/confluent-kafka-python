@@ -824,6 +824,23 @@ static PySequenceMethods Producer_seq_methods = {
 	(lenfunc)Producer__len__ /* sq_length */
 };
 
+static int Producer__bool__ (Handle *self) {
+        return 1;
+}
+
+static PyNumberMethods Producer_num_methods = {
+     0, // nb_add
+     0, // nb_subtract
+     0, // nb_multiply
+     0, // nb_remainder
+     0, // nb_divmod
+     0, // nb_power
+     0, // nb_negative
+     0, // nb_positive
+     0, // nb_absolute
+     (inquiry)Producer__bool__ // nb_bool
+};
+
 
 static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
@@ -879,8 +896,8 @@ PyTypeObject ProducerType = {
 	0,                         /*tp_setattr*/
 	0,                         /*tp_compare*/
 	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	&Producer_seq_methods,  /*tp_as_sequence*/
+	&Producer_num_methods,     /*tp_as_number*/
+	&Producer_seq_methods,     /*tp_as_sequence*/
 	0,                         /*tp_as_mapping*/
 	0,                         /*tp_hash */
 	0,                         /*tp_call*/
