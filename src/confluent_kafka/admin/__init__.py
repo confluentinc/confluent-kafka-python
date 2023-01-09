@@ -547,6 +547,10 @@ class AdminClient (_AdminClientImpl):
         return futmap
 
     def list_consumer_groups(self, **kwargs):
+        """
+        List consumer groups.
+        TODO: Improve doc
+        """
         if "states" in kwargs:
             states = kwargs["states"]
             if states is not None:
@@ -567,6 +571,10 @@ class AdminClient (_AdminClientImpl):
         return f
 
     def describe_consumer_groups(self, group_ids, **kwargs):
+        """
+        Describe consumer groups.
+        TODO: Improve doc
+        """
         f, futmap = AdminClient._make_futures(group_ids, None,
                                               AdminClient._make_consumer_groups_result)
 
