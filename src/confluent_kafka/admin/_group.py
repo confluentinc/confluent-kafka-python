@@ -15,55 +15,22 @@
 
 from enum import Enum
 from .. import cimpl as _cimpl
-from ..util import ValidationUtil
 from ..util import ConversionUtil
 from ..model import Node
 
 
 class ConsumerGroupListing:
-    def __init__(self, group_id, is_simple_consumer_group, state=None, error=None):
+    def __init__(self, group_id, is_simple_consumer_group, state=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
-        self.error = error
-        self._check_group_id()
-        self._check_is_simple_consumer_group()
-        self._check_error()
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
 
-    def _check_group_id(self):
-        if self.group_id is not None:
-            ValidationUtil.check_is_string(self, "group_id")
-            if not self.group_id:
-                raise ValueError("'group_id' cannot be empty")
 
-    def _check_is_simple_consumer_group(self):
-        if self.is_simple_consumer_group is not None:
-            if not isinstance(self.is_simple_consumer_group, bool):
-                raise TypeError("'is_simple_consumer_group' must be a bool")
-
-    def _check_error(self):
-        if self.error is not None:
-            if not isinstance(self.error, _cimpl.KafkaError):
-                raise TypeError("'error' must be of type KafkaError")
-
-
-# TODO: Change name to Result instead of Response to match with Java
 class ListConsumerGroupsResult:
     def __init__(self, valid=None, errors=None):
         self.valid = valid
         self.errors = errors
-        self._check_valid()
-        if self.errors is not None:
-            ValidationUtil.check_kafka_errors(self.errors)
-
-    def _check_valid(self):
-        if self.valid is not None:
-            if not isinstance(self.valid, list):
-                raise TypeError("'valid' should be None or a list")
-            for v in self.valid:
-                if not isinstance(v, ConsumerGroupListing):
-                    raise TypeError("Element of 'valid' must be of type ConsumerGroupListing")
 
 
 class ConsumerGroupState(Enum):
@@ -96,16 +63,6 @@ class MemberAssignment:
         self.topic_partitions = topic_partitions
         if self.topic_partitions is None:
             self.topic_partitions = []
-        self._check_topic_partitions()
-
-    def _check_topic_partitions(self):
-        if not isinstance(self.topic_partitions, list):
-            raise TypeError("'topic_partitions' should be a list")
-        for topic_partition in self.topic_partitions:
-            if topic_partition is None:
-                raise ValueError("Element of 'topic_partitions' cannot be None")
-            if not isinstance(topic_partition, _cimpl.TopicPartition):
-                raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
 
 
 class MemberDescription:
@@ -115,30 +72,11 @@ class MemberDescription:
         self.host = host
         self.assignment = assignment
         self.group_instance_id = group_instance_id
-        self._check_string_fields()
-        self._check_assignment()
-
-    def _check_string_fields(self):
-        string_args = []
-        if self.group_instance_id is not None:
-            string_args.append("group_instance_id")
-        if self.member_id is not None:
-            string_args.append("member_id")
-        if self.client_id is not None:
-            string_args.append("client_id")
-        if self.host is not None:
-            string_args.append("host")
-        ValidationUtil.check_multiple_is_string(self, string_args)
-
-    def _check_assignment(self):
-        if self.assignment is not None:
-            if not isinstance(self.assignment, MemberAssignment):
-                raise TypeError("'assignment' should be a MemberAssignment")
 
 
 class ConsumerGroupDescription:
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 coordinator, error=None):
+                 coordinator):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
@@ -146,36 +84,6 @@ class ConsumerGroupDescription:
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
-        self._check_string_fields()
-        self._check_is_simple_consumer_group()
-        self._check_coordinator()
-        self._check_members()
-
-    def _check_string_fields(self):
-        string_args = []
-        if self.group_id is not None:
-            string_args.append("group_id")
-        if self.partition_assignor is not None:
-            string_args.append("partition_assignor")
-        ValidationUtil.check_multiple_is_string(self, string_args)
-
-    def _check_is_simple_consumer_group(self):
-        if self.is_simple_consumer_group is not None:
-            if not isinstance(self.is_simple_consumer_group, bool):
-                raise TypeError("'is_simple_consumer_group' should be a bool")
-
-    def _check_coordinator(self):
-        if self.coordinator is not None:
-            if not isinstance(self.coordinator, Node):
-                raise TypeError("'coordinator' should be a Node")
-
-    def _check_members(self):
-        if self.members is not None:
-            if not isinstance(self.members, list):
-                raise TypeError("'members' should be a list")
-            for member in self.members:
-                if not isinstance(member, MemberDescription):
-                    raise TypeError("Expected list of MemberDescriptions")
 
 
 # TODO: Check return type for DeleteConsumerGroups

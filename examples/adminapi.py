@@ -19,7 +19,8 @@
 
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState)
+                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState,
+                                   ConsumerGroupDescription)
 from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys
@@ -449,26 +450,29 @@ def example_list_consumer_groups(a, args):
 
 def example_describe_consumer_groups(a, args):
 
-    futureMap = a.describe_consumer_groups(args, timeout=5)
+    futureMap = a.describe_consumer_groups(args, timeout=10)
 
-    for request, future in futureMap.items():
+    for group_id, future in futureMap.items():
         try:
             g = future.result()
-            print("Group Id: {}".format(g.group_id))
-            print("  Is Simple          : {}".format(g.is_simple_consumer_group))
-            print("  State              : {}".format(g.state))
-            print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
-            print("  Members: ")
-            for member in g.members:
-                print("    Id                : {}".format(member.member_id))
-                print("    Host              : {}".format(member.host))
-                print("    Client Id         : {}".format(member.client_id))
-                print("    Group Instance Id : {}".format(member.group_instance_id))
-                if member.assignment:
-                    print("    Assignments       :")
-                    for toppar in member.assignment.topic_partitions:
-                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+            if isinstance(g, ConsumerGroupDescription):
+                print("Group Id: {}".format(g.group_id))
+                print("  Is Simple          : {}".format(g.is_simple_consumer_group))
+                print("  State              : {}".format(g.state))
+                print("  Partition Assignor : {}".format(g.partition_assignor))
+                print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+                print("  Members: ")
+                for member in g.members:
+                    print("    Id                : {}".format(member.member_id))
+                    print("    Host              : {}".format(member.host))
+                    print("    Client Id         : {}".format(member.client_id))
+                    print("    Group Instance Id : {}".format(member.group_instance_id))
+                    if member.assignment:
+                        print("    Assignments       :")
+                        for toppar in member.assignment.topic_partitions:
+                            print("      {} [{}]".format(toppar.topic, toppar.partition))
+            else:
+                print("Error with group id '{}': {}".format(group_id, g.str()))
 
         except Exception:
             raise
