@@ -36,8 +36,6 @@ class ListConsumerGroupsResult:
 class ConsumerGroupState(Enum):
     """
     Enumerates the different types of Consumer Group State.
-
-    TODO: Add proper descriptions for the Enums
     """
     #: State is not known or not set.
     UNKOWN = _cimpl.CONSUMER_GROUP_STATE_UNKNOWN

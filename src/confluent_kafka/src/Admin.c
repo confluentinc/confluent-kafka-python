@@ -2695,13 +2695,6 @@ static PyObject *Admin_c_MemberAssignment_to_py(const rd_kafka_MemberAssignment_
         Py_DECREF(args);
         Py_DECREF(kwargs);
         Py_DECREF(topic_partitions_list);
-        /**
-         * TODO: AE -> destroy toppar?
-         * 
-         */
-        // if(c_topic_partitions_list != NULL) {
-        //         rd_kafka_topic_partition_list_destroy(c_topic_partitions_list);
-        // }
         return assignment;
 
 err:
@@ -2710,9 +2703,6 @@ err:
         Py_XDECREF(kwargs);
         Py_XDECREF(topic_partitions_list);
         Py_XDECREF(assignment);
-        // if(c_topic_partitions_list != NULL) {
-        //         rd_kafka_topic_partition_list_destroy(c_topic_partitions_list);
-        // }
         return NULL;
 
 }
@@ -3139,10 +3129,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         case RD_KAFKA_EVENT_LISTCONSUMERGROUPS_RESULT:
         {
-                /**
-                 * TODO: Check with Emanuele on why don't we destroy these values?
-                 * 
-                 */
                 const  rd_kafka_ListConsumerGroups_result_t *c_list_consumer_groups_res;
                 const rd_kafka_ConsumerGroupListing_t **c_list_consumer_groups_valid_responses;
                 size_t c_list_consumer_groups_valid_cnt;
@@ -3175,7 +3161,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         case RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT:
         {
-                const  rd_kafka_DescribeConsumerGroups_result_t *c_describe_consumer_groups_res;
+                const rd_kafka_DescribeConsumerGroups_result_t *c_describe_consumer_groups_res;
                 const rd_kafka_ConsumerGroupDescription_t **c_describe_consumer_groups_res_responses;
                 size_t c_describe_consumer_groups_res_cnt;
 

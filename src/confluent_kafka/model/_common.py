@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# TODO: Check about rack with Emanuele
 class Node:
     def __init__(self, id, host, port, rack=None):
         self.id = id
