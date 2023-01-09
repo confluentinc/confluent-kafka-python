@@ -1,36 +1,22 @@
 version: v1.0
-name: build-test-release
+name: Test on PR or create and upload wheels on tag.
+agent:
+  machine:
+    type: s1-prod-ubuntu20-04-amd64-1
 global_job_config:
-  secrets:
-    - name: vault_sem2_approle
+  env_vars:
+    - name: LIBRDKAFKA_VERSION
+      value: v1.9.2
   prologue:
     commands:
-      - chmod 400 ~/.ssh/id_rsa
-      - sem-version python 3.7
+      - export HOME=$WORKSPACE
+      - mkdir $WORKSPACE/confluent-kafka-python
+      - cd $WORKSPACE/confluent-kafka-python
       - checkout
-      - make install-vault
-      - . mk-include/bin/vault-setup
-      - . vault-sem-get-secret gitconfig
-      - . vault-sem-get-secret ssh_id_rsa
-      - . vault-sem-get-secret ssh_config
-      - . vault-sem-get-secret netrc
-      - . vault-sem-get-secret artifactory-docker-helm
-      - . vault-sem-get-secret maven-settings
-      - . vault-sem-get-secret cpd_gcloud
-      - . vault-sem-get-secret aws_credentials
-      - . vault-sem-get-secret testbreak-reporting
-      - . vault-sem-get-secret python-pipenv
-      - . vault-sem-get-secret v1/ci/kv/service-foundations/cc-mk-include
-      - . vault-sem-get-secret dockerhub-semaphore-cred-ro
-      - exec &> >(tee -a build.log)
-      - make init-ci
-  epilogue:
-    always:
-      commands:
-        - make epilogue-ci
-
 blocks:
   - name: "Wheels: OSX x64"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -48,6 +34,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -66,7 +54,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-
+  
   - name: Source package verification with Python 3 (OSX x64) +docs
     dependencies: []
     task:
@@ -95,14 +83,3 @@ blocks:
             # install confluent-kafka
             - python setup.py build && python setup.py install
             - make docs
-agent:
-  machine:
-    type: s1-prod-ubuntu20-04-amd64-1
-
-auto_cancel:
-  running:
-    when: "branch != 'master'"
-
-execution_time_limit:
-  hours: 1
-
