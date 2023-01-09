@@ -105,6 +105,7 @@ class AclBinding(object):
         self.operation_int = int(self.operation.value)
         self.permission_type_int = int(self.permission_type.value)
 
+    # TODO: Extract these functions to a util
     def _check_not_none(self, vars_to_check):
         for param in vars_to_check:
             if getattr(self, param) is None:
