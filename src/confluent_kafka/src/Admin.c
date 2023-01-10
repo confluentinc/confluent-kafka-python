@@ -1965,11 +1965,6 @@ PyObject *delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs
         for(i = 0 ; i < group_ids_cnt ; i++) {
                 group_id = PyList_GET_ITEM(group_ids, i);
 
-                /**
-                 * TODO: Use function to convert pyobject * to string.
-                 * If no functions available, extract one.
-                 *
-                 */
                 PyObject *ks, *ks8;
                 const char *group_id_string;
                 if (!(ks = cfl_PyObject_Unistr(group_id))) {
@@ -2123,10 +2118,6 @@ static PyMethodDef Admin_methods[] = {
           list_topics_doc
         },
 
-        /**
-         * TODO: Deprecate this API
-         *
-         */
         { "list_groups", (PyCFunction)list_groups, METH_VARARGS|METH_KEYWORDS,
           list_groups_doc
         },
@@ -2535,8 +2526,11 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
 
                         py_is_simple_consumer_group = PyBool_FromLong(
                                 rd_kafka_ConsumerGroupListing_is_simple_consumer_group(c_valid_responses[i]));
-                        if(PyDict_SetItemString(kwargs, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
-                                PyErr_Format(PyExc_RuntimeError, "Not able to set 'is_simple_consumer_group' in ConsumerGroupLising");
+                        if(PyDict_SetItemString(kwargs,
+                                                "is_simple_consumer_group",
+                                                py_is_simple_consumer_group) == -1) {
+                                PyErr_Format(PyExc_RuntimeError,
+                                             "Not able to set 'is_simple_consumer_group' in ConsumerGroupLising");
                                 Py_DECREF(py_is_simple_consumer_group);
                                 goto err;
                         }
@@ -2668,10 +2662,6 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
                 cfl_PyDict_SetString(kwargs, "group_instance_id", c_group_instance_id);
         }
 
-        /**
-         * TODO: Test with no assignment
-         *
-         */
         c_assignment = rd_kafka_MemberDescription_assignment(c_member);
         assignment = Admin_c_MemberAssignment_to_py(c_assignment);
         if (!assignment) {
@@ -2700,7 +2690,8 @@ err:
         return NULL;
 }
 
-static PyObject *Admin_c_MemberDescriptions_to_py_from_ConsumerGroupDescription(const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
+static PyObject *Admin_c_MemberDescriptions_to_py_from_ConsumerGroupDescription(
+    const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
         PyObject *member_description = NULL;
         PyObject *members = NULL;
         size_t c_members_cnt;
@@ -2727,7 +2718,8 @@ err:
 }
 
 
-static PyObject *Admin_c_ConsumerGroupDescription_to_py(const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
+static PyObject *Admin_c_ConsumerGroupDescription_to_py(
+    const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
         PyObject *consumer_group_description = NULL;
         PyObject *ConsumerGroupDescription_type = NULL;
         PyObject *args = NULL;
@@ -2767,11 +2759,7 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(const rd_kafka_ConsumerG
         }
         PyDict_SetItemString(kwargs, "coordinator", coordinator);
 
-        /**
-         * TODO: Extract this into a function cfl_PyBool_set
-         *
-         */
-        py_is_simple_consumer_group =  PyBool_FromLong(
+        py_is_simple_consumer_group = PyBool_FromLong(
                 rd_kafka_ConsumerGroupDescription_is_simple_consumer_group(c_consumer_group_description));
         if(PyDict_SetItemString(kwargs, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
                 goto err;
@@ -2802,7 +2790,9 @@ err:
 
 }
 
-static PyObject *Admin_c_DescribeConsumerGroupsResults_to_py(const rd_kafka_ConsumerGroupDescription_t **c_result_responses, size_t cnt) {
+static PyObject *Admin_c_DescribeConsumerGroupsResults_to_py(
+    const rd_kafka_ConsumerGroupDescription_t **c_result_responses,
+    size_t cnt) {
         PyObject *consumer_group_description = NULL;
         PyObject *results = NULL;
         size_t i = 0;
@@ -2810,7 +2800,8 @@ static PyObject *Admin_c_DescribeConsumerGroupsResults_to_py(const rd_kafka_Cons
         if(cnt > 0) {
                 for(i = 0; i < cnt; i++) {
                         PyObject *error;
-                        const rd_kafka_error_t *c_error = rd_kafka_ConsumerGroupDescription_error(c_result_responses[i]);
+                        const rd_kafka_error_t *c_error =
+                            rd_kafka_ConsumerGroupDescription_error(c_result_responses[i]);
 
                         if (c_error) {
                                 error = KafkaError_new_or_None(
@@ -2818,7 +2809,8 @@ static PyObject *Admin_c_DescribeConsumerGroupsResults_to_py(const rd_kafka_Cons
                                         rd_kafka_error_string(c_error));
                                 PyList_SET_ITEM(results, i, error);
                         } else {
-                                consumer_group_description = Admin_c_ConsumerGroupDescription_to_py(c_result_responses[i]);
+                                consumer_group_description =
+                                    Admin_c_ConsumerGroupDescription_to_py(c_result_responses[i]);
 
                                 if(!consumer_group_description) {
                                         goto err;
@@ -3202,7 +3194,9 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 c_delete_groups_res = rd_kafka_event_DeleteGroups_result(rkev);
 
                 c_delete_groups_res_responses =
-                        rd_kafka_DeleteConsumerGroupOffsets_result_groups(c_delete_groups_res, &c_delete_groups_res_cnt);
+                        rd_kafka_DeleteConsumerGroupOffsets_result_groups(
+                            c_delete_groups_res,
+                            &c_delete_groups_res_cnt);
 
                 result = Admin_c_DeleteGroupResults_to_py(c_delete_groups_res_responses,
                                                           c_delete_groups_res_cnt);
