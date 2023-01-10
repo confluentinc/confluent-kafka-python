@@ -100,3 +100,23 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+    - name: "Wheels: Linux arm64"
+      dependencies: []
+      task:
+        agent:
+          machine:
+            type: s1-prod-ubuntu20-04-arm64-1
+        env_vars:
+          - name: OS_NAME
+            value: linux
+          - name: ARCH
+            value: arm64
+          - name: CIBW_ARCHS
+            value: aarch64
+        jobs:
+          - name: Build
+            commands:
+              - sem-version python 3.8
+              - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+              - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+              - artifact push workflow wheelhouse-linux-${ARCH}.tgz
