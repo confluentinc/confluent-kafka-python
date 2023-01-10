@@ -69,23 +69,34 @@ static int Admin_traverse (Handle *self,
  */
 #define Admin_options_def_int   (-12345)
 #define Admin_options_def_float ((float)Admin_options_def_int)
+#define Admin_options_def_ptr   (NULL)
+#define Admin_options_def_cnt   (0)
 
 struct Admin_options {
-        int   validate_only;      /* needs special bool parsing */
-        float request_timeout;    /* parser: f */
-        float operation_timeout;  /* parser: f */
-        int   broker;             /* parser: i */
+        int   validate_only;                            /* needs special bool parsing */
+        float request_timeout;                          /* parser: f */
+        float operation_timeout;                        /* parser: f */
+        int   broker;                                   /* parser: i */
+        int require_stable_offsets;                     /* needs special bool parsing */
+        rd_kafka_consumer_group_state_t* states;
+        int states_cnt;
 };
 
 /**@brief "unset" value initializers for Admin_options
  * Make sure this is kept up to date with Admin_options above. */
-#define Admin_options_INITIALIZER {                                     \
-                Admin_options_def_int, Admin_options_def_float,         \
-                        Admin_options_def_float, Admin_options_def_int, \
-                        }
+#define Admin_options_INITIALIZER {              \
+                Admin_options_def_int,           \
+                Admin_options_def_float,         \
+                Admin_options_def_float,         \
+                Admin_options_def_int,           \
+                Admin_options_def_int,           \
+                Admin_options_def_ptr,           \
+                Admin_options_def_cnt,           \
+        }
 
 #define Admin_options_is_set_int(v) ((v) != Admin_options_def_int)
 #define Admin_options_is_set_float(v) Admin_options_is_set_int((int)(v))
+#define Admin_options_is_set_ptr(v) ((v) != NULL)
 
 
 /**
@@ -104,6 +115,7 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
                     PyObject *future) {
         rd_kafka_AdminOptions_t *c_options;
         rd_kafka_resp_err_t err;
+        rd_kafka_error_t *err_obj = NULL;
         char errstr[512];
 
         c_options = rd_kafka_AdminOptions_new(self->rk, for_api);
@@ -141,11 +153,28 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
                     errstr, sizeof(errstr))))
                 goto err;
 
+        if (Admin_options_is_set_int(options->require_stable_offsets) &&
+            (err_obj = rd_kafka_AdminOptions_set_require_stable_offsets(
+                    c_options, options->require_stable_offsets))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_ptr(options->states) &&
+            (err_obj = rd_kafka_AdminOptions_set_match_consumer_group_states(
+                c_options, options->states, options->states_cnt))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
         return c_options;
 
  err:
         if (c_options) rd_kafka_AdminOptions_destroy(c_options);
         PyErr_Format(PyExc_ValueError, "%s", errstr);
+        if(err_obj) {
+                rd_kafka_error_destroy(err_obj);
+        }
         return NULL;
 }
 
@@ -1392,6 +1421,609 @@ static const char Admin_delete_acls_doc[] = PyDoc_STR(
 
 
 /**
+ * @brief List consumer groups offsets
+ */
+PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *request, *future, *require_stable_obj = NULL;
+        int requests_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        PyObject *ConsumerGroupTopicPartition_type = NULL;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_ListConsumerGroupOffsets_t **c_obj = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        PyObject *topic_partitions = NULL;
+        char *group_id = NULL;
+
+        static char *kws[] = {"request",
+                             "future",
+                             /* options */
+                             "require_stable",
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
+                                         &request,
+                                         &future,
+                                         &require_stable_obj,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        if (require_stable_obj &&
+            !cfl_PyBool_get(require_stable_obj, "require_stable",
+                            &options.require_stable_offsets))
+                return NULL;
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(request) &&
+            (requests_cnt = (int)PyList_Size(request)) != 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Currently we support listing only 1 consumer groups offset information");
+                goto err;
+        }
+
+        PyObject *single_request = PyList_GET_ITEM(request, 0);
+
+        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConsumerGroupTopicPartition_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConsumerGroupTopicPartitions");
+        if (!ConsumerGroupTopicPartition_type) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Not able to load ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
+
+        if(group_id == NULL) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Group name is mandatory for list consumer offset operation");
+                goto err;
+        }
+
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
+
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
+        }
+
+        c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) * requests_cnt);
+        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ListConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+        free(c_obj);
+        free(group_id);
+        Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
+        Py_XDECREF(topic_partitions);
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if (c_obj) {
+                rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+                free(c_obj);
+        }
+        if (ConsumerGroupTopicPartition_type) {
+                Py_DECREF(ConsumerGroupTopicPartition_type);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(topic_partitions) {
+                Py_XDECREF(topic_partitions);
+        }
+        if(group_id) {
+                free(group_id);
+        }
+        return NULL;
+}
+
+
+const char list_consumer_group_offsets_doc[] = PyDoc_STR(
+        ".. py:function:: list_consumer_group_offsets(request, future, [require_stable], [request_timeout])\n"
+        "\n"
+        "  List offset information for the consumer group and (optional) topic partition provided in the request.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.list_consumer_group_offsets()\n");
+
+
+/**
+ * @brief Alter consumer groups offsets
+ */
+PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *request, *future;
+        int requests_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        PyObject *ConsumerGroupTopicPartition_type = NULL;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_AlterConsumerGroupOffsets_t **c_obj = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        PyObject *topic_partitions = NULL;
+        char *group_id = NULL;
+
+        static char *kws[] = {"request",
+                             "future",
+                             /* options */
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &request,
+                                         &future,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(request) &&
+            (requests_cnt = (int)PyList_Size(request)) != 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Currently we support alter consumer groups offset request for 1 group only");
+                goto err;
+        }
+
+        PyObject *single_request = PyList_GET_ITEM(request, 0);
+
+        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConsumerGroupTopicPartition_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConsumerGroupTopicPartitions");
+        if (!ConsumerGroupTopicPartition_type) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Not able to load ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
+
+        if(group_id == NULL) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Group name is mandatory for alter consumer offset operation");
+                goto err;
+        }
+
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
+
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
+        }
+
+        c_obj = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) * requests_cnt);
+        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call AlterConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_AlterConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+        free(c_obj);
+        free(group_id);
+        Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
+        Py_XDECREF(topic_partitions);
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+
+        Py_RETURN_NONE;
+err:
+        if (c_obj) {
+                rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+                free(c_obj);
+        }
+        if (ConsumerGroupTopicPartition_type) {
+                Py_DECREF(ConsumerGroupTopicPartition_type);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
+        if(topic_partitions) {
+                Py_XDECREF(topic_partitions);
+        }
+        if(group_id) {
+                free(group_id);
+        }
+        return NULL;
+}
+
+
+const char alter_consumer_group_offsets_doc[] = PyDoc_STR(
+        ".. py:function:: alter_consumer_group_offsets(request, future, [request_timeout])\n"
+        "\n"
+        "  Alter offset for the consumer group and topic partition provided in the request.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.alter_consumer_group_offsets()\n");
+
+
+/**
+ * @brief List consumer groups
+ */
+PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *future, *states_int = NULL;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        rd_kafka_consumer_group_state_t *c_states = NULL;
+        int states_cnt = 0;
+        int i = 0;
+
+        static char *kws[] = {"future",
+                             /* options */
+                             "states_int",
+                             "timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,
+                                         &future,
+                                         &states_int,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        if(states_int != NULL && states_int != Py_None) {
+                if(!PyList_Check(states_int)) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "states must of type list");
+                        goto err;
+                }
+
+                states_cnt = (int)PyList_Size(states_int);
+
+                if(states_cnt > 0) {
+                        c_states = (rd_kafka_consumer_group_state_t *)
+                                        malloc(states_cnt*sizeof(rd_kafka_consumer_group_state_t));
+                        for(i = 0 ; i < states_cnt ; i++) {
+                                PyObject *state = PyList_GET_ITEM(states_int, i);
+                                if(!cfl_PyInt_Check(state)) {
+                                        PyErr_SetString(PyExc_ValueError,
+                                                "Element of states must be a valid state");
+                                        goto err;
+                                }
+                                c_states[i] = (rd_kafka_consumer_group_state_t) cfl_PyInt_AsInt(state);
+                        }
+                        options.states = c_states;
+                        options.states_cnt = states_cnt;
+                }
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ListConsumerGroups(self->rk, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        if(c_states) {
+                free(c_states);
+        }
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if(c_states) {
+                free(c_states);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char list_consumer_groups_doc[] = PyDoc_STR(
+        ".. py:function:: list_consumer_groups(future, [states_int], [request_timeout])\n"
+        "\n"
+        "  List all the consumer groups.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.list_consumer_groups()\n");
+
+
+/**
+ * @brief Describe consumer groups
+ */
+PyObject *describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *future, *group_ids;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        const char **c_groups = NULL;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        int groups_cnt = 0;
+        int i = 0;
+
+        static char *kws[] = {"future",
+                             "group_ids",
+                             /* options */
+                             "timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &group_ids,
+                                         &future,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        if (!PyList_Check(group_ids) || (groups_cnt = (int)PyList_Size(group_ids)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                                "Expected non-empty list of group_ids");
+                goto err;
+        }
+
+        c_groups = malloc(sizeof(char *) * groups_cnt);
+
+        for (i = 0 ; i < groups_cnt ; i++) {
+                PyObject *group = PyList_GET_ITEM(group_ids, i);
+                PyObject *ugroup;
+                PyObject *uogroup = NULL;
+
+                if (group == Py_None ||
+                    !(ugroup = cfl_PyObject_Unistr(group))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "Expected list of group strings, "
+                                     "not %s",
+                                     ((PyTypeObject *)PyObject_Type(group))->
+                                     tp_name);
+                        goto err;
+                }
+
+                c_groups[i] = cfl_PyUnistr_AsUTF8(ugroup, &uogroup);
+
+                Py_XDECREF(ugroup);
+                Py_XDECREF(uogroup);
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_DescribeConsumerGroups(self->rk, c_groups, groups_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        if(c_groups) {
+                free(c_groups);
+        }
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if(c_groups) {
+                free(c_groups);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char describe_consumer_groups_doc[] = PyDoc_STR(
+        ".. py:function:: describe_consumer_groups(future, group_ids, [request_timeout])\n"
+        "\n"
+        "  Describes the provided consumer groups.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.describe_consumer_groups()\n");
+
+
+/**
+ * @brief Delete consumer groups offsets
+ */
+PyObject *delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *group_ids, *future;
+        PyObject *group_id;
+        int group_ids_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_DeleteGroup_t **c_delete_group_ids = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        int i;
+
+        static char *kws[] = {"group_ids",
+                             "future",
+                             /* options */
+                             "timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &group_ids,
+                                         &future,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETEGROUPS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (!PyList_Check(group_ids)) {
+                PyErr_SetString(PyExc_ValueError, "Expected 'group_ids' to be a list");
+                goto err;
+        }
+
+        group_ids_cnt = (int)PyList_Size(group_ids);
+
+        c_delete_group_ids = malloc(sizeof(rd_kafka_DeleteGroup_t *) * group_ids_cnt);
+        for(i = 0 ; i < group_ids_cnt ; i++) {
+                group_id = PyList_GET_ITEM(group_ids, i);
+
+                PyObject *ks, *ks8;
+                const char *group_id_string;
+                if (!(ks = cfl_PyObject_Unistr(group_id))) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "Expected element of 'group_ids' "
+                                        "to be unicode string");
+                        goto err;
+                }
+
+                group_id_string = cfl_PyUnistr_AsUTF8(ks, &ks8);
+
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+
+                c_delete_group_ids[i] = rd_kafka_DeleteGroup_new(group_id_string);
+        }
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call DeleteGroups
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_DeleteGroups(self->rk, c_delete_group_ids, group_ids_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, group_ids_cnt);
+        free(c_delete_group_ids);
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if (c_delete_group_ids) {
+                rd_kafka_DeleteGroup_destroy_array(c_delete_group_ids, i);
+                free(c_delete_group_ids);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char delete_consumer_groups_doc[] = PyDoc_STR(
+        ".. py:function:: delete_consumer_groups(request, future, [request_timeout])\n"
+        "\n"
+        "  Deletes consumer groups provided in the request .\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.delete_consumer_groups()\n");
+
+
+/**
  * @brief Call rd_kafka_poll() and keep track of crashing callbacks.
  * @returns -1 if callback crashed (or poll() failed), else the number
  * of events served.
@@ -1468,7 +2100,6 @@ static PyMethodDef Admin_methods[] = {
           "  This method should not be used directly, use confluent_kafka.AdminClient.alter_configs()\n"
         },
 
-
         { "poll", (PyCFunction)Admin_poll, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: poll([timeout])\n"
           "\n"
@@ -1489,6 +2120,26 @@ static PyMethodDef Admin_methods[] = {
 
         { "list_groups", (PyCFunction)list_groups, METH_VARARGS|METH_KEYWORDS,
           list_groups_doc
+        },
+
+        { "describe_consumer_groups", (PyCFunction)describe_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          describe_consumer_groups_doc
+        },
+
+        { "list_consumer_groups", (PyCFunction)list_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          list_consumer_groups_doc
+        },
+
+        { "delete_consumer_groups", (PyCFunction)delete_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          delete_consumer_groups_doc
+        },
+
+        { "list_consumer_group_offsets", (PyCFunction)list_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
+          list_consumer_group_offsets_doc
+        },
+
+        { "alter_consumer_group_offsets", (PyCFunction)alter_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
+          alter_consumer_group_offsets_doc
         },
 
         { "create_acls", (PyCFunction)Admin_create_acls, METH_VARARGS|METH_KEYWORDS,
@@ -1834,6 +2485,480 @@ Admin_c_DeleteAcls_result_responses_to_py (const rd_kafka_DeleteAcls_result_resp
         return result;
 }
 
+
+/**
+ * @brief
+ *
+ */
+static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
+                        const rd_kafka_ConsumerGroupListing_t **c_valid_responses,
+                        size_t valid_cnt,
+                        const rd_kafka_error_t **c_errors_responses,
+                        size_t errors_cnt) {
+
+        PyObject *result = NULL;
+        PyObject *ListConsumerGroupsResult_type = NULL;
+        PyObject *ConsumerGroupListing_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *valid_result = NULL;
+        PyObject *valid_results = NULL;
+        PyObject *error_result = NULL;
+        PyObject *error_results = NULL;
+        PyObject *py_is_simple_consumer_group = NULL;
+        size_t i = 0;
+        valid_results = PyList_New(valid_cnt);
+        error_results = PyList_New(errors_cnt);
+        if(valid_cnt > 0) {
+                ConsumerGroupListing_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                                "ConsumerGroupListing");
+                if (!ConsumerGroupListing_type) {
+                        goto err;
+                }
+                for(i = 0; i < valid_cnt; i++) {
+
+                        kwargs = PyDict_New();
+
+                        cfl_PyDict_SetString(kwargs,
+                                             "group_id",
+                                             rd_kafka_ConsumerGroupListing_group_id(c_valid_responses[i]));
+
+
+                        py_is_simple_consumer_group = PyBool_FromLong(
+                                rd_kafka_ConsumerGroupListing_is_simple_consumer_group(c_valid_responses[i]));
+                        if(PyDict_SetItemString(kwargs,
+                                                "is_simple_consumer_group",
+                                                py_is_simple_consumer_group) == -1) {
+                                PyErr_Format(PyExc_RuntimeError,
+                                             "Not able to set 'is_simple_consumer_group' in ConsumerGroupLising");
+                                Py_DECREF(py_is_simple_consumer_group);
+                                goto err;
+                        }
+                        Py_DECREF(py_is_simple_consumer_group);
+
+                        cfl_PyDict_SetInt(kwargs, "state", rd_kafka_ConsumerGroupListing_state(c_valid_responses[i]));
+
+                        args = PyTuple_New(0);
+
+                        valid_result = PyObject_Call(ConsumerGroupListing_type, args, kwargs);
+                        PyList_SET_ITEM(valid_results, i, valid_result);
+
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
+                }
+                Py_DECREF(ConsumerGroupListing_type);
+        }
+
+        if(errors_cnt > 0) {
+                for(i = 0; i < errors_cnt; i++) {
+
+                        error_result = KafkaError_new_or_None(
+                                rd_kafka_error_code(c_errors_responses[i]),
+                                rd_kafka_error_string(c_errors_responses[i]));
+                        PyList_SET_ITEM(error_results, i, error_result);
+
+                }
+        }
+
+        ListConsumerGroupsResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                              "ListConsumerGroupsResult");
+        if (!ListConsumerGroupsResult_type) {
+                return NULL;
+        }
+        kwargs = PyDict_New();
+        PyDict_SetItemString(kwargs, "valid", valid_results);
+        PyDict_SetItemString(kwargs, "errors", error_results);
+        args = PyTuple_New(0);
+        result = PyObject_Call(ListConsumerGroupsResult_type, args, kwargs);
+
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(valid_results);
+        Py_DECREF(error_results);
+        Py_DECREF(ListConsumerGroupsResult_type);
+
+        return result;
+err:
+        Py_XDECREF(ListConsumerGroupsResult_type);
+        Py_XDECREF(ConsumerGroupListing_type);
+        Py_XDECREF(result);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+
+        return NULL;
+}
+
+static PyObject *Admin_c_MemberAssignment_to_py(const rd_kafka_MemberAssignment_t *c_assignment) {
+        PyObject *MemberAssignment_type = NULL;
+        PyObject *assignment = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *topic_partitions = NULL;
+        const rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+
+        MemberAssignment_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                     "MemberAssignment");
+        if (!MemberAssignment_type) {
+                goto err;
+        }
+        c_topic_partitions = rd_kafka_MemberAssignment_partitions(c_assignment);
+
+        topic_partitions = c_parts_to_py(c_topic_partitions);
+
+        kwargs = PyDict_New();
+
+        PyDict_SetItemString(kwargs, "topic_partitions", topic_partitions);
+
+        args = PyTuple_New(0);
+
+        assignment = PyObject_Call(MemberAssignment_type, args, kwargs);
+
+        Py_DECREF(MemberAssignment_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(topic_partitions);
+        return assignment;
+
+err:
+        Py_XDECREF(MemberAssignment_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(topic_partitions);
+        Py_XDECREF(assignment);
+        return NULL;
+
+}
+
+static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescription_t *c_member) {
+        PyObject *member = NULL;
+        PyObject *MemberDescription_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *assignment = NULL;
+        const rd_kafka_MemberAssignment_t *c_assignment;
+
+        MemberDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                     "MemberDescription");
+        if (!MemberDescription_type) {
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetString(kwargs,
+                             "member_id",
+                             rd_kafka_MemberDescription_consumer_id(c_member));
+
+        cfl_PyDict_SetString(kwargs,
+                             "client_id",
+                             rd_kafka_MemberDescription_client_id(c_member));
+
+        cfl_PyDict_SetString(kwargs,
+                             "host",
+                             rd_kafka_MemberDescription_host(c_member));
+
+        const char * c_group_instance_id = rd_kafka_MemberDescription_group_instance_id(c_member);
+        if(c_group_instance_id) {
+                cfl_PyDict_SetString(kwargs, "group_instance_id", c_group_instance_id);
+        }
+
+        c_assignment = rd_kafka_MemberDescription_assignment(c_member);
+        assignment = Admin_c_MemberAssignment_to_py(c_assignment);
+        if (!assignment) {
+                goto err;
+        }
+
+        PyDict_SetItemString(kwargs, "assignment", assignment);
+
+        args = PyTuple_New(0);
+
+        member = PyObject_Call(MemberDescription_type, args, kwargs);
+
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(MemberDescription_type);
+        Py_DECREF(assignment);
+        return member;
+
+err:
+
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(MemberDescription_type);
+        Py_XDECREF(assignment);
+        Py_XDECREF(member);
+        return NULL;
+}
+
+static PyObject *Admin_c_MemberDescriptions_to_py_from_ConsumerGroupDescription(
+    const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
+        PyObject *member_description = NULL;
+        PyObject *members = NULL;
+        size_t c_members_cnt;
+        const rd_kafka_MemberDescription_t *c_member;
+        size_t i = 0;
+
+        c_members_cnt = rd_kafka_ConsumerGroupDescription_member_count(c_consumer_group_description);
+        members = PyList_New(c_members_cnt);
+        if(c_members_cnt > 0) {
+                for(i = 0; i < c_members_cnt; i++) {
+
+                        c_member = rd_kafka_ConsumerGroupDescription_member(c_consumer_group_description, i);
+                        member_description = Admin_c_MemberDescription_to_py(c_member);
+                        if(!member_description) {
+                                goto err;
+                        }
+                        PyList_SET_ITEM(members, i, member_description);
+                }
+        }
+        return members;
+err:
+        Py_XDECREF(members);
+        return NULL;
+}
+
+
+static PyObject *Admin_c_ConsumerGroupDescription_to_py(
+    const rd_kafka_ConsumerGroupDescription_t *c_consumer_group_description) {
+        PyObject *consumer_group_description = NULL;
+        PyObject *ConsumerGroupDescription_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *py_is_simple_consumer_group = NULL;
+        PyObject *coordinator = NULL;
+        PyObject *members = NULL;
+        const rd_kafka_Node_t *c_coordinator = NULL;
+
+        ConsumerGroupDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                            "ConsumerGroupDescription");
+        if (!ConsumerGroupDescription_type) {
+                PyErr_Format(PyExc_TypeError, "Not able to load ConsumerGroupDescrition type");
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetString(kwargs,
+                             "group_id",
+                             rd_kafka_ConsumerGroupDescription_group_id(c_consumer_group_description));
+
+        cfl_PyDict_SetString(kwargs,
+                             "partition_assignor",
+                             rd_kafka_ConsumerGroupDescription_partition_assignor(c_consumer_group_description));
+
+        members = Admin_c_MemberDescriptions_to_py_from_ConsumerGroupDescription(c_consumer_group_description);
+        if(!members) {
+                goto err;
+        }
+        PyDict_SetItemString(kwargs, "members", members);
+
+        c_coordinator = rd_kafka_ConsumerGroupDescription_coordinator(c_consumer_group_description);
+        coordinator = c_Node_to_py(c_coordinator);
+        if(!coordinator) {
+                goto err;
+        }
+        PyDict_SetItemString(kwargs, "coordinator", coordinator);
+
+        py_is_simple_consumer_group = PyBool_FromLong(
+                rd_kafka_ConsumerGroupDescription_is_simple_consumer_group(c_consumer_group_description));
+        if(PyDict_SetItemString(kwargs, "is_simple_consumer_group", py_is_simple_consumer_group) == -1) {
+                goto err;
+        }
+
+        cfl_PyDict_SetInt(kwargs, "state", rd_kafka_ConsumerGroupDescription_state(c_consumer_group_description));
+
+        args = PyTuple_New(0);
+
+        consumer_group_description = PyObject_Call(ConsumerGroupDescription_type, args, kwargs);
+
+        Py_DECREF(py_is_simple_consumer_group);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(ConsumerGroupDescription_type);
+        Py_DECREF(coordinator);
+        Py_DECREF(members);
+        return consumer_group_description;
+
+err:
+        Py_XDECREF(py_is_simple_consumer_group);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(coordinator);
+        Py_XDECREF(ConsumerGroupDescription_type);
+        Py_XDECREF(members);
+        return NULL;
+
+}
+
+static PyObject *Admin_c_DescribeConsumerGroupsResults_to_py(
+    const rd_kafka_ConsumerGroupDescription_t **c_result_responses,
+    size_t cnt) {
+        PyObject *consumer_group_description = NULL;
+        PyObject *results = NULL;
+        size_t i = 0;
+        results = PyList_New(cnt);
+        if(cnt > 0) {
+                for(i = 0; i < cnt; i++) {
+                        PyObject *error;
+                        const rd_kafka_error_t *c_error =
+                            rd_kafka_ConsumerGroupDescription_error(c_result_responses[i]);
+
+                        if (c_error) {
+                                error = KafkaError_new_or_None(
+                                        rd_kafka_error_code(c_error),
+                                        rd_kafka_error_string(c_error));
+                                PyList_SET_ITEM(results, i, error);
+                        } else {
+                                consumer_group_description =
+                                    Admin_c_ConsumerGroupDescription_to_py(c_result_responses[i]);
+
+                                if(!consumer_group_description) {
+                                        goto err;
+                                }
+
+                                PyList_SET_ITEM(results, i, consumer_group_description);
+                        }
+                }
+        }
+        return results;
+err:
+        Py_XDECREF(results);
+        return NULL;
+}
+
+
+/**
+ *
+ * @brief Convert C delete groups result response to pyobject.
+ *
+ */
+static PyObject *
+Admin_c_DeleteGroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
+                                  size_t cnt) {
+
+        size_t i;
+        PyObject *delete_groups_result = NULL;
+        PyObject *DeleteConsumerGroupsResult_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *delete_group_result = NULL;
+
+        DeleteConsumerGroupsResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                              "DeleteConsumerGroupsResult");
+        if (!DeleteConsumerGroupsResult_type) {
+                goto err;
+        }
+
+        delete_groups_result = PyList_New(cnt);
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *error;
+                const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
+
+                if (c_error) {
+                        error = KafkaError_new_or_None(
+                                rd_kafka_error_code(c_error),
+                                rd_kafka_error_string(c_error));
+                        PyList_SET_ITEM(delete_groups_result, i, error);
+                } else {
+                        kwargs = PyDict_New();
+                        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_result_responses[i]));
+                        args = PyTuple_New(0);
+                        delete_group_result = PyObject_Call(DeleteConsumerGroupsResult_type, args, kwargs);
+                        if (!delete_group_result) {
+                                goto err;
+                        }
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
+                        PyList_SET_ITEM(delete_groups_result, i, delete_group_result);
+                }
+        }
+        Py_DECREF(DeleteConsumerGroupsResult_type);
+        return delete_groups_result;
+
+err:
+
+        Py_XDECREF(DeleteConsumerGroupsResult_type);
+        Py_XDECREF(delete_groups_result);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        return NULL;
+}
+
+
+static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_group_result_response) {
+
+        PyObject *args, *kwargs, *GroupResult_type, *group_result;
+        const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list;
+        PyObject *topic_partition_offset_list = NULL;
+
+        GroupResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                               "ConsumerGroupTopicPartitions");
+        if (!GroupResult_type) {
+                return NULL;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
+
+        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
+        if(c_topic_partition_offset_list) {
+                topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
+                PyDict_SetItemString(kwargs, "topic_partitions", topic_partition_offset_list);
+        }
+
+        args = PyTuple_New(0);
+        group_result = PyObject_Call(GroupResult_type, args, kwargs);
+
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(GroupResult_type);
+        Py_XDECREF(topic_partition_offset_list);
+
+        return group_result;
+}
+
+
+/**
+ *
+ * @brief Convert C group result response to pyobject.
+ *
+ */
+static PyObject *
+Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
+                            size_t cnt) {
+
+        size_t i;
+        PyObject *all_groups_result;
+        PyObject *single_group_result;
+
+        all_groups_result = PyList_New(cnt);
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *error;
+                const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
+
+                if (c_error) {
+                        error = KafkaError_new_or_None(
+                                rd_kafka_error_code(c_error),
+                                rd_kafka_error_string(c_error));
+                        PyList_SET_ITEM(all_groups_result, i, error);
+                } else {
+                        single_group_result =
+                                Admin_c_SingleGroupResult_to_py(c_result_responses[i]);
+                        if (!single_group_result) {
+                                Py_DECREF(all_groups_result);
+                                return NULL;
+                        }
+                        PyList_SET_ITEM(all_groups_result, i, single_group_result);
+                }
+        }
+
+        return all_groups_result;
+}
+
+
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -1960,7 +3085,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 size_t c_acl_cnt;
 
                 c_acl_result = rd_kafka_event_DescribeAcls_result(rkev);
-                
 
                 c_acls = rd_kafka_DescribeAcls_result_acls(
                         c_acl_result,
@@ -2000,6 +3124,141 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         error = value;
                         goto raise;
                 }
+                break;
+        }
+
+        case RD_KAFKA_EVENT_LISTCONSUMERGROUPS_RESULT:
+        {
+                const  rd_kafka_ListConsumerGroups_result_t *c_list_consumer_groups_res;
+                const rd_kafka_ConsumerGroupListing_t **c_list_consumer_groups_valid_responses;
+                size_t c_list_consumer_groups_valid_cnt;
+                const rd_kafka_error_t **c_list_consumer_groups_errors_responses;
+                size_t c_list_consumer_groups_errors_cnt;
+
+                c_list_consumer_groups_res = rd_kafka_event_ListConsumerGroups_result(rkev);
+
+                c_list_consumer_groups_valid_responses =
+                        rd_kafka_ListConsumerGroups_result_valid(c_list_consumer_groups_res,
+                                                                 &c_list_consumer_groups_valid_cnt);
+                c_list_consumer_groups_errors_responses =
+                        rd_kafka_ListConsumerGroups_result_errors(c_list_consumer_groups_res,
+                                                                  &c_list_consumer_groups_errors_cnt);
+
+                result = Admin_c_ListConsumerGroupsResults_to_py(c_list_consumer_groups_valid_responses,
+                                                                 c_list_consumer_groups_valid_cnt,
+                                                                 c_list_consumer_groups_errors_responses,
+                                                                 c_list_consumer_groups_errors_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_DESCRIBECONSUMERGROUPS_RESULT:
+        {
+                const rd_kafka_DescribeConsumerGroups_result_t *c_describe_consumer_groups_res;
+                const rd_kafka_ConsumerGroupDescription_t **c_describe_consumer_groups_res_responses;
+                size_t c_describe_consumer_groups_res_cnt;
+
+                c_describe_consumer_groups_res = rd_kafka_event_DescribeConsumerGroups_result(rkev);
+
+                c_describe_consumer_groups_res_responses = rd_kafka_DescribeConsumerGroups_result_groups
+                                                           (c_describe_consumer_groups_res,
+                                                           &c_describe_consumer_groups_res_cnt);
+
+                result = Admin_c_DescribeConsumerGroupsResults_to_py(c_describe_consumer_groups_res_responses,
+                                                                     c_describe_consumer_groups_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_DELETEGROUPS_RESULT:
+        {
+
+                const  rd_kafka_DeleteGroups_result_t *c_delete_groups_res;
+                const rd_kafka_group_result_t **c_delete_groups_res_responses;
+                size_t c_delete_groups_res_cnt;
+
+                c_delete_groups_res = rd_kafka_event_DeleteGroups_result(rkev);
+
+                c_delete_groups_res_responses =
+                        rd_kafka_DeleteConsumerGroupOffsets_result_groups(
+                            c_delete_groups_res,
+                            &c_delete_groups_res_cnt);
+
+                result = Admin_c_DeleteGroupResults_to_py(c_delete_groups_res_responses,
+                                                          c_delete_groups_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT:
+        {
+                const  rd_kafka_ListConsumerGroupOffsets_result_t *c_list_group_offset_res;
+                const rd_kafka_group_result_t **c_list_group_offset_res_responses;
+                size_t c_list_group_offset_res_cnt;
+
+                c_list_group_offset_res = rd_kafka_event_ListConsumerGroupOffsets_result(rkev);
+
+                c_list_group_offset_res_responses =
+                        rd_kafka_ListConsumerGroupOffsets_result_groups(
+                                c_list_group_offset_res,
+                                &c_list_group_offset_res_cnt);
+
+                result = Admin_c_GroupResults_to_py(c_list_group_offset_res_responses,
+                                                    c_list_group_offset_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT:
+        {
+                const  rd_kafka_AlterConsumerGroupOffsets_result_t *c_alter_group_offset_res;
+                const rd_kafka_group_result_t **c_alter_group_offset_res_responses;
+                size_t c_alter_group_offset_res_cnt;
+
+                c_alter_group_offset_res = rd_kafka_event_AlterConsumerGroupOffsets_result(rkev);
+
+                c_alter_group_offset_res_responses =
+                        rd_kafka_AlterConsumerGroupOffsets_result_groups(c_alter_group_offset_res,
+                                                                         &c_alter_group_offset_res_cnt);
+
+                result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses,
+                                                    c_alter_group_offset_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
                 break;
         }
 

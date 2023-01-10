@@ -27,6 +27,7 @@ class VerifiableConsumer(VerifiableClient):
     confluent-kafka-python backed VerifiableConsumer class for use with
     Kafka's kafkatests client tests.
     """
+
     def __init__(self, conf):
         """
         conf is a config dict passed to confluent_kafka.Consumer()
@@ -223,6 +224,7 @@ class VerifiableConsumer(VerifiableClient):
 
 class AssignedPartition(object):
     """ Local state container for assigned partition. """
+
     def __init__(self, topic, partition):
         super(AssignedPartition, self).__init__()
         self.topic = topic
