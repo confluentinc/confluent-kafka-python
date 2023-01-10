@@ -159,9 +159,9 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
 
     # Alter Consumer Group Offsets check
     alter_group_topic_partitions = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
-                                                                                       topic_partition.partition,
-                                                                                       0),
-                                                res.topic_partitions))
+                                                                                   topic_partition.partition,
+                                                                                   0),
+                                            res.topic_partitions))
     alter_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
                                                                        alter_group_topic_partitions)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
@@ -176,7 +176,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
 
     # List Consumer Group Offsets check with just group name
     list_group_topic_partitions = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
-                                                                                      topic_partition.partition),
+                                                                                  topic_partition.partition),
                                            ares.topic_partitions))
     list_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
                                                                       list_group_topic_partitions)

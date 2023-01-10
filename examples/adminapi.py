@@ -19,8 +19,7 @@
 
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState,
-                                   ConsumerGroupDescription, DeleteConsumerGroupsResult)
+                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState)
 from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys

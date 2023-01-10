@@ -16,7 +16,6 @@
 from enum import Enum
 from .. import cimpl as _cimpl
 from ..util import ConversionUtil
-from ..model import Node
 
 
 class ConsumerGroupListing:
