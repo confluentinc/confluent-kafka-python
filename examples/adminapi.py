@@ -502,12 +502,12 @@ def example_list_consumer_group_offsets(a, args):
     List consumer group offsets
     """
 
-    topic_partition_list = []
+    topic_partitions = []
     for topic, partition in zip(args[1::2], args[2::2]):
-        topic_partition_list.append(TopicPartition(topic, int(partition)))
-    if len(topic_partition_list) == 0:
-        topic_partition_list = None
-    groups = [ConsumerGroupTopicPartitions(args[0], topic_partition_list)]
+        topic_partitions.append(TopicPartition(topic, int(partition)))
+    if len(topic_partitions) == 0:
+        topic_partitions = None
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
 
     futureMap = a.list_consumer_group_offsets(groups)
 
@@ -515,7 +515,7 @@ def example_list_consumer_group_offsets(a, args):
         try:
             response_offset_info = future.result()
             print("Group: " + response_offset_info.group_id)
-            for topic_partition in response_offset_info.topic_partition_list:
+            for topic_partition in response_offset_info.topic_partitions:
                 if topic_partition.error:
                     print("    Error: " + topic_partition.error.str() + " occured with " +
                           topic_partition.topic + " [" + str(topic_partition.partition) + "]")
@@ -534,12 +534,12 @@ def example_alter_consumer_group_offsets(a, args):
     Alter consumer group offsets
     """
 
-    topic_partition_list = []
+    topic_partitions = []
     for topic, partition, offset in zip(args[1::3], args[2::3], args[3::3]):
-        topic_partition_list.append(TopicPartition(topic, int(partition), int(offset)))
-    if len(topic_partition_list) == 0:
-        topic_partition_list = None
-    groups = [ConsumerGroupTopicPartitions(args[0], topic_partition_list)]
+        topic_partitions.append(TopicPartition(topic, int(partition), int(offset)))
+    if len(topic_partitions) == 0:
+        topic_partitions = None
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
 
     futureMap = a.alter_consumer_group_offsets(groups)
 
@@ -547,7 +547,7 @@ def example_alter_consumer_group_offsets(a, args):
         try:
             response_offset_info = future.result()
             print("Group: " + response_offset_info.group_id)
-            for topic_partition in response_offset_info.topic_partition_list:
+            for topic_partition in response_offset_info.topic_partitions:
                 if topic_partition.error:
                     print("    Error: " + topic_partition.error.str() + " occured with " +
                           topic_partition.topic + " [" + str(topic_partition.partition) + "]")

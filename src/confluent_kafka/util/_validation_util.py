@@ -75,25 +75,25 @@ class ValidationUtil:
             if not req.group_id:
                 raise ValueError("'group_id' cannot be empty")
 
-            if req.topic_partition_list is not None:
-                if not isinstance(req.topic_partition_list, list):
-                    raise TypeError("'topic_partition_list' must be a list or None")
-                if len(req.topic_partition_list) == 0:
-                    raise ValueError("'topic_partition_list' cannot be empty")
-                for topic_partition in req.topic_partition_list:
+            if req.topic_partitions is not None:
+                if not isinstance(req.topic_partitions, list):
+                    raise TypeError("'topic_partitions' must be a list or None")
+                if len(req.topic_partitions) == 0:
+                    raise ValueError("'topic_partitions' cannot be empty")
+                for topic_partition in req.topic_partitions:
                     if topic_partition is None:
-                        raise ValueError("Element of 'topic_partition_list' cannot be None")
+                        raise ValueError("Element of 'topic_partitions' cannot be None")
                     if not isinstance(topic_partition, TopicPartition):
-                        raise TypeError("Element of 'topic_partition_list' must be of type TopicPartition")
+                        raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
                     if topic_partition.topic is None:
-                        raise TypeError("Element of 'topic_partition_list' must not have 'topic' attibute as None")
+                        raise TypeError("Element of 'topic_partitions' must not have 'topic' attibute as None")
                     if not topic_partition.topic:
-                        raise ValueError("Element of 'topic_partition_list' must not have 'topic' attibute as Empty")
+                        raise ValueError("Element of 'topic_partitions' must not have 'topic' attibute as Empty")
                     if topic_partition.partition < 0:
-                        raise ValueError("Element of 'topic_partition_list' must not have negative 'partition' value")
+                        raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
                     if topic_partition.offset != OFFSET_INVALID:
                         print(topic_partition.offset)
-                        raise ValueError("Element of 'topic_partition_list' must not have 'offset' value")
+                        raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
 
     @staticmethod
     def check_alter_consumer_group_offsets_request(request):
@@ -112,24 +112,24 @@ class ValidationUtil:
                 raise TypeError("'group_id' must be a string")
             if not req.group_id:
                 raise ValueError("'group_id' cannot be empty")
-            if req.topic_partition_list is None:
-                raise ValueError("'topic_partition_list' cannot be null")
-            if not isinstance(req.topic_partition_list, list):
-                raise TypeError("'topic_partition_list' must be a list")
-            if len(req.topic_partition_list) == 0:
-                raise ValueError("'topic_partition_list' cannot be empty")
-            for topic_partition in req.topic_partition_list:
+            if req.topic_partitions is None:
+                raise ValueError("'topic_partitions' cannot be null")
+            if not isinstance(req.topic_partitions, list):
+                raise TypeError("'topic_partitions' must be a list")
+            if len(req.topic_partitions) == 0:
+                raise ValueError("'topic_partitions' cannot be empty")
+            for topic_partition in req.topic_partitions:
                 if topic_partition is None:
-                    raise ValueError("Element of 'topic_partition_list' cannot be None")
+                    raise ValueError("Element of 'topic_partitions' cannot be None")
                 if not isinstance(topic_partition, TopicPartition):
-                    raise TypeError("Element of 'topic_partition_list' must be of type TopicPartition")
+                    raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
                 if topic_partition.topic is None:
-                    raise TypeError("Element of 'topic_partition_list' must not have 'topic' attibute as None")
+                    raise TypeError("Element of 'topic_partitions' must not have 'topic' attibute as None")
                 if not topic_partition.topic:
-                    raise ValueError("Element of 'topic_partition_list' must not have 'topic' attibute as Empty")
+                    raise ValueError("Element of 'topic_partitions' must not have 'topic' attibute as Empty")
                 if topic_partition.partition < 0:
                     raise ValueError(
-                        "Element of 'topic_partition_list' must not have negative value for 'partition' field")
+                        "Element of 'topic_partitions' must not have negative value for 'partition' field")
                 if topic_partition.offset < 0:
                     raise ValueError(
-                        "Element of 'topic_partition_list' must not have negative value for 'offset' field")
+                        "Element of 'topic_partitions' must not have negative value for 'offset' field")

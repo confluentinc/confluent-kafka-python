@@ -1430,10 +1430,10 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         PyObject *ConsumerGroupTopicPartition_type = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
         rd_kafka_ListConsumerGroupOffsets_t **c_obj = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partition_list = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
-        PyObject *topic_partition_list = NULL;
+        PyObject *topic_partitions = NULL;
         char *group_id = NULL;
 
         static char *kws[] = {"request",
@@ -1502,14 +1502,14 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
                 goto err;
         }
 
-        cfl_PyObject_GetAttr(single_request, "topic_partition_list", &topic_partition_list, &PyList_Type, 0, 1);
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
 
-        if(topic_partition_list != Py_None) {
-                c_topic_partition_list = py_to_c_parts(topic_partition_list);
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
         }
 
         c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partition_list);
+        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partitions);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -1530,7 +1530,7 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         free(c_obj);
         free(group_id);
         Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
-        Py_XDECREF(topic_partition_list);
+        Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
 
         Py_RETURN_NONE;
@@ -1546,8 +1546,8 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
-        if(topic_partition_list) {
-                Py_XDECREF(topic_partition_list);
+        if(topic_partitions) {
+                Py_XDECREF(topic_partitions);
         }
         if(group_id) {
                 free(group_id);
@@ -1574,10 +1574,10 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         PyObject *ConsumerGroupTopicPartition_type = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
         rd_kafka_AlterConsumerGroupOffsets_t **c_obj = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partition_list = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
-        PyObject *topic_partition_list = NULL;
+        PyObject *topic_partitions = NULL;
         char *group_id = NULL;
 
         static char *kws[] = {"request",
@@ -1639,14 +1639,14 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
                 goto err;
         }
 
-        cfl_PyObject_GetAttr(single_request, "topic_partition_list", &topic_partition_list, &PyList_Type, 0, 1);
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
 
-        if(topic_partition_list != Py_None) {
-                c_topic_partition_list = py_to_c_parts(topic_partition_list);
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
         }
 
         c_obj = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partition_list);
+        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partitions);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -1667,9 +1667,9 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         free(c_obj);
         free(group_id);
         Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
-        Py_XDECREF(topic_partition_list);
+        Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
         Py_RETURN_NONE;
 err:
@@ -1684,11 +1684,11 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
-        if(c_topic_partition_list) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        if(c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
         }
-        if(topic_partition_list) {
-                Py_XDECREF(topic_partition_list);
+        if(topic_partitions) {
+                Py_XDECREF(topic_partitions);
         }
         if(group_id) {
                 free(group_id);
@@ -2593,21 +2593,21 @@ static PyObject *Admin_c_MemberAssignment_to_py(const rd_kafka_MemberAssignment_
         PyObject *assignment = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
-        PyObject *topic_partitions_list = NULL;
-        const rd_kafka_topic_partition_list_t *c_topic_partitions_list = NULL;
+        PyObject *topic_partitions = NULL;
+        const rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
 
         MemberAssignment_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                      "MemberAssignment");
         if (!MemberAssignment_type) {
                 goto err;
         }
-        c_topic_partitions_list = rd_kafka_MemberAssignment_partitions(c_assignment);
+        c_topic_partitions = rd_kafka_MemberAssignment_partitions(c_assignment);
 
-        topic_partitions_list = c_parts_to_py(c_topic_partitions_list);
+        topic_partitions = c_parts_to_py(c_topic_partitions);
 
         kwargs = PyDict_New();
 
-        PyDict_SetItemString(kwargs, "topic_partitions", topic_partitions_list);
+        PyDict_SetItemString(kwargs, "topic_partitions", topic_partitions);
 
         args = PyTuple_New(0);
 
@@ -2616,14 +2616,14 @@ static PyObject *Admin_c_MemberAssignment_to_py(const rd_kafka_MemberAssignment_
         Py_DECREF(MemberAssignment_type);
         Py_DECREF(args);
         Py_DECREF(kwargs);
-        Py_DECREF(topic_partitions_list);
+        Py_DECREF(topic_partitions);
         return assignment;
 
 err:
         Py_XDECREF(MemberAssignment_type);
         Py_XDECREF(args);
         Py_XDECREF(kwargs);
-        Py_XDECREF(topic_partitions_list);
+        Py_XDECREF(topic_partitions);
         Py_XDECREF(assignment);
         return NULL;
 
@@ -2905,7 +2905,7 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
         c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
         if(c_topic_partition_offset_list) {
                 topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
-                PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
+                PyDict_SetItemString(kwargs, "topic_partitions", topic_partition_offset_list);
         }
 
         args = PyTuple_New(0);
