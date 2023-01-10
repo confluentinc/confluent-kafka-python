@@ -84,7 +84,6 @@ class ConsumerGroupDescription:
         self.coordinator = coordinator
 
 
-# TODO: Check return type for DeleteConsumerGroups
 class DeleteConsumerGroupsResult:
     def __init__(self, group_id):
         self.group_id = group_id
