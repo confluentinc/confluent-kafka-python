@@ -575,6 +575,16 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
         TODO: Improve doc
         """
+
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids to be described")
+
+        if len(group_ids) == 0:
+            raise ValueError("Expected atleast one group to be described")
+
+        if AdminClient._has_duplicates(group_ids):
+            raise ValueError("Duplicate group ids not allowed in the list of group ids to be described")
+
         f, futmap = AdminClient._make_futures(group_ids, None,
                                               AdminClient._make_consumer_groups_result)
 

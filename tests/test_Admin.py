@@ -3,7 +3,7 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions
+    AclOperation, AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState
 from confluent_kafka import KafkaException, KafkaError, libversion, TopicPartition
 import concurrent.futures
 
@@ -663,3 +663,34 @@ def test_delete_consumer_groups():
 
     with pytest.raises(ValueError):
         a.delete_consumer_groups(["test-group-1", "test-group-1"])
+
+
+def test_describe_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.describe_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.describe_consumer_groups([])
+
+    with pytest.raises(ValueError):
+        a.describe_consumer_groups(["test-group-1", "test-group-1"])
+
+
+def test_list_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.list_consumer_groups()
+
+    a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups(states="EMPTY")
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups(states=["EMPTY"])
