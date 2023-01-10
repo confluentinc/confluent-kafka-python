@@ -2494,78 +2494,6 @@ Admin_c_DeleteAcls_result_responses_to_py (const rd_kafka_DeleteAcls_result_resp
         return result;
 }
 
-static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_group_result_response) {
-
-        PyObject *args, *kwargs, *GroupResult_type, *group_result;
-        const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list; 
-        PyObject *topic_partition_offset_list = NULL;
-
-        GroupResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                               "ConsumerGroupTopicPartitions");
-        if (!GroupResult_type) {
-                return NULL;
-        }
-
-        kwargs = PyDict_New();
-
-        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
-
-        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
-        if(c_topic_partition_offset_list) {
-                topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
-                PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
-        }
-
-        args = PyTuple_New(0);
-        group_result = PyObject_Call(GroupResult_type, args, kwargs);
-
-        Py_DECREF(args);
-        Py_DECREF(kwargs);
-        Py_DECREF(GroupResult_type);
-        Py_XDECREF(topic_partition_offset_list);
-
-        return group_result;
-}
-
-
-/**
- * 
- * @brief Convert C group result response to pyobject.
- * 
- */
-static PyObject *
-Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
-                            size_t cnt) {
-
-        size_t i;
-        PyObject *all_groups_result;
-        PyObject *single_group_result;
-
-        all_groups_result = PyList_New(cnt);
-
-        for (i = 0; i < cnt; i++) {
-                PyObject *error;
-                const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
-
-                if (c_error) {
-                        error = KafkaError_new_or_None(
-                                rd_kafka_error_code(c_error),
-                                rd_kafka_error_string(c_error));
-                        PyList_SET_ITEM(all_groups_result, i, error);
-                } else {
-                        single_group_result = 
-                                Admin_c_SingleGroupResult_to_py(c_result_responses[i]);
-                        if (!single_group_result) {
-                                Py_DECREF(all_groups_result);
-                                return NULL;
-                        }
-                        PyList_SET_ITEM(all_groups_result, i, single_group_result);
-                }
-        }
-
-        return all_groups_result;
-}
-
 
 /**
  * @brief 
@@ -2908,6 +2836,138 @@ err:
 
 
 /**
+ * 
+ * @brief Convert C delete groups result response to pyobject.
+ * 
+ */
+static PyObject *
+Admin_c_DeleteGroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
+                                  size_t cnt) {
+
+        size_t i;
+        PyObject *delete_groups_result = NULL;
+        PyObject *DeleteConsumerGroupsResult_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *delete_group_result = NULL;
+
+        DeleteConsumerGroupsResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                              "DeleteConsumerGroupsResult");
+        if (!DeleteConsumerGroupsResult_type) {
+                goto err;
+        }
+
+        delete_groups_result = PyList_New(cnt);
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *error;
+                const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
+
+                if (c_error) {
+                        error = KafkaError_new_or_None(
+                                rd_kafka_error_code(c_error),
+                                rd_kafka_error_string(c_error));
+                        PyList_SET_ITEM(delete_groups_result, i, error);
+                } else {
+                        kwargs = PyDict_New();
+                        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_result_responses[i]));
+                        args = PyTuple_New(0);
+                        delete_group_result = PyObject_Call(DeleteConsumerGroupsResult_type, args, kwargs);
+                        if (!delete_group_result) {
+                                goto err;
+                        }
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
+                        PyList_SET_ITEM(delete_groups_result, i, delete_group_result);
+                }
+        }
+        Py_DECREF(DeleteConsumerGroupsResult_type);
+        return delete_groups_result;
+
+err:
+
+        Py_XDECREF(DeleteConsumerGroupsResult_type);
+        Py_XDECREF(delete_groups_result);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        return NULL;
+}
+
+
+static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_group_result_response) {
+
+        PyObject *args, *kwargs, *GroupResult_type, *group_result;
+        const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list; 
+        PyObject *topic_partition_offset_list = NULL;
+
+        GroupResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                               "ConsumerGroupTopicPartitions");
+        if (!GroupResult_type) {
+                return NULL;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
+
+        c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
+        if(c_topic_partition_offset_list) {
+                topic_partition_offset_list = c_parts_to_py(c_topic_partition_offset_list);
+                PyDict_SetItemString(kwargs, "topic_partition_list", topic_partition_offset_list);
+        }
+
+        args = PyTuple_New(0);
+        group_result = PyObject_Call(GroupResult_type, args, kwargs);
+
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        Py_DECREF(GroupResult_type);
+        Py_XDECREF(topic_partition_offset_list);
+
+        return group_result;
+}
+
+
+/**
+ * 
+ * @brief Convert C group result response to pyobject.
+ * 
+ */
+static PyObject *
+Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
+                            size_t cnt) {
+
+        size_t i;
+        PyObject *all_groups_result;
+        PyObject *single_group_result;
+
+        all_groups_result = PyList_New(cnt);
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *error;
+                const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
+
+                if (c_error) {
+                        error = KafkaError_new_or_None(
+                                rd_kafka_error_code(c_error),
+                                rd_kafka_error_string(c_error));
+                        PyList_SET_ITEM(all_groups_result, i, error);
+                } else {
+                        single_group_result = 
+                                Admin_c_SingleGroupResult_to_py(c_result_responses[i]);
+                        if (!single_group_result) {
+                                Py_DECREF(all_groups_result);
+                                return NULL;
+                        }
+                        PyList_SET_ITEM(all_groups_result, i, single_group_result);
+                }
+        }
+
+        return all_groups_result;
+}
+
+
+/**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
  *
@@ -3076,57 +3136,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 break;
         }
 
-        case RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT:
-        {
-                const  rd_kafka_ListConsumerGroupOffsets_result_t *c_list_group_offset_res;
-                const rd_kafka_group_result_t **c_list_group_offset_res_responses;
-                size_t c_list_group_offset_res_cnt;
-
-                c_list_group_offset_res = rd_kafka_event_ListConsumerGroupOffsets_result(rkev);
-
-                c_list_group_offset_res_responses = 
-                        rd_kafka_ListConsumerGroupOffsets_result_groups(
-                                c_list_group_offset_res, 
-                                &c_list_group_offset_res_cnt);
-
-                result = Admin_c_GroupResults_to_py(c_list_group_offset_res_responses, 
-                                                    c_list_group_offset_res_cnt);
-
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
-
-                break;
-        }
-
-        case RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT:
-        {
-                const  rd_kafka_AlterConsumerGroupOffsets_result_t *c_alter_group_offset_res;
-                const rd_kafka_group_result_t **c_alter_group_offset_res_responses;
-                size_t c_alter_group_offset_res_cnt;
-
-                c_alter_group_offset_res = rd_kafka_event_AlterConsumerGroupOffsets_result(rkev);
-
-                c_alter_group_offset_res_responses = 
-                        rd_kafka_AlterConsumerGroupOffsets_result_groups(c_alter_group_offset_res, 
-                                                                         &c_alter_group_offset_res_cnt);
-
-                result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses,
-                                                    c_alter_group_offset_res_cnt);
-
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
-
-                break;
-        }
-
         case RD_KAFKA_EVENT_LISTCONSUMERGROUPS_RESULT:
         {
                 const  rd_kafka_ListConsumerGroups_result_t *c_list_consumer_groups_res;
@@ -3197,8 +3206,59 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         rd_kafka_DeleteConsumerGroupOffsets_result_groups(c_delete_groups_res, &c_delete_groups_res_cnt);
 
                 // TODO: Change this to its correct type
-                result = Admin_c_GroupResults_to_py(c_delete_groups_res_responses, 
-                                                    c_delete_groups_res_cnt);
+                result = Admin_c_DeleteGroupResults_to_py(c_delete_groups_res_responses, 
+                                                          c_delete_groups_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_LISTCONSUMERGROUPOFFSETS_RESULT:
+        {
+                const  rd_kafka_ListConsumerGroupOffsets_result_t *c_list_group_offset_res;
+                const rd_kafka_group_result_t **c_list_group_offset_res_responses;
+                size_t c_list_group_offset_res_cnt;
+
+                c_list_group_offset_res = rd_kafka_event_ListConsumerGroupOffsets_result(rkev);
+
+                c_list_group_offset_res_responses = 
+                        rd_kafka_ListConsumerGroupOffsets_result_groups(
+                                c_list_group_offset_res, 
+                                &c_list_group_offset_res_cnt);
+
+                result = Admin_c_GroupResults_to_py(c_list_group_offset_res_responses, 
+                                                    c_list_group_offset_res_cnt);
+
+                if (!result)
+                {
+                        PyErr_Fetch(&type, &value, &traceback);
+                        error = value;
+                        goto raise;
+                }
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_ALTERCONSUMERGROUPOFFSETS_RESULT:
+        {
+                const  rd_kafka_AlterConsumerGroupOffsets_result_t *c_alter_group_offset_res;
+                const rd_kafka_group_result_t **c_alter_group_offset_res_responses;
+                size_t c_alter_group_offset_res_cnt;
+
+                c_alter_group_offset_res = rd_kafka_event_AlterConsumerGroupOffsets_result(rkev);
+
+                c_alter_group_offset_res_responses = 
+                        rd_kafka_AlterConsumerGroupOffsets_result_groups(c_alter_group_offset_res, 
+                                                                         &c_alter_group_offset_res_cnt);
+
+                result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses,
+                                                    c_alter_group_offset_res_cnt);
 
                 if (!result)
                 {

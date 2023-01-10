@@ -599,13 +599,13 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
         if not isinstance(group_ids, list):
-            raise TypeError("Expected input to be list of group ids")
+            raise TypeError("Expected input to be list of group ids to be deleted")
 
         if len(group_ids) == 0:
-            raise ValueError("Expected atleast one group id in the group ids list")
+            raise ValueError("Expected atleast one group to be deleted")
 
         if AdminClient._has_duplicates(group_ids):
-            raise ValueError("duplicate group ids not allowed")
+            raise ValueError("Duplicate group ids not allowed in the list of group ids to be deleted")
 
         f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
 

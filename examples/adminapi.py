@@ -20,7 +20,7 @@
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState,
-                                   ConsumerGroupDescription)
+                                   ConsumerGroupDescription, DeleteConsumerGroupsResult)
 from confluent_kafka.util import (ConversionUtil)
 from confluent_kafka import KafkaException
 import sys
@@ -433,6 +433,9 @@ def example_list(a, args):
 
 
 def example_list_consumer_groups(a, args):
+    """
+    List Consumer Groups
+    """
     states = [ConversionUtil.convert_to_enum(state, ConsumerGroupState) for state in args]
     future = a.list_consumer_groups(timeout=10, states=states)
     try:
@@ -443,57 +446,60 @@ def example_list_consumer_groups(a, args):
                 valid.group_id, valid.is_simple_consumer_group, valid.state))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
-            print("    error: {}".format(error.str()))
-    except Exception as e:
-        raise e
+            print("    error: {}".format(error))
+    except Exception:
+        raise
 
 
 def example_describe_consumer_groups(a, args):
+    """
+    Describe Consumer Groups
+    """
 
     futureMap = a.describe_consumer_groups(args, timeout=10)
 
     for group_id, future in futureMap.items():
         try:
             g = future.result()
-            if isinstance(g, ConsumerGroupDescription):
-                print("Group Id: {}".format(g.group_id))
-                print("  Is Simple          : {}".format(g.is_simple_consumer_group))
-                print("  State              : {}".format(g.state))
-                print("  Partition Assignor : {}".format(g.partition_assignor))
-                print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
-                print("  Members: ")
-                for member in g.members:
-                    print("    Id                : {}".format(member.member_id))
-                    print("    Host              : {}".format(member.host))
-                    print("    Client Id         : {}".format(member.client_id))
-                    print("    Group Instance Id : {}".format(member.group_instance_id))
-                    if member.assignment:
-                        print("    Assignments       :")
-                        for toppar in member.assignment.topic_partitions:
-                            print("      {} [{}]".format(toppar.topic, toppar.partition))
-            else:
-                print("Error with group id '{}': {}".format(group_id, g.str()))
-
+            print("Group Id: {}".format(g.group_id))
+            print("  Is Simple          : {}".format(g.is_simple_consumer_group))
+            print("  State              : {}".format(g.state))
+            print("  Partition Assignor : {}".format(g.partition_assignor))
+            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print("  Members: ")
+            for member in g.members:
+                print("    Id                : {}".format(member.member_id))
+                print("    Host              : {}".format(member.host))
+                print("    Client Id         : {}".format(member.client_id))
+                print("    Group Instance Id : {}".format(member.group_instance_id))
+                if member.assignment:
+                    print("    Assignments       :")
+                    for toppar in member.assignment.topic_partitions:
+                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+        except KafkaException as e:
+            print("Error while describing group id '{}': {}".format(group_id, e))
         except Exception:
             raise
 
 
 def example_delete_consumer_groups(a, args):
+    """
+    Delete Consumer Groups
+    """
     groups = a.delete_consumer_groups(args, timeout=10)
     for group_id, future in groups.items():
         try:
-            # TODO: Improve usage - use reponse as well
-            future.result()
-            print("Deleted group with id '" + group_id + "' succesfully")
-
+            response = future.result()
+            print("Deleted group with id '" + response.group_id + "' succesfully")
         except KafkaException as e:
-            print("Failed to delete group '{}': {}".format(group_id, e))
+            print("Error deleting group id '{}': {}".format(group_id, e))
         except Exception:
             raise
 
 
 def example_list_consumer_group_offsets(a, args):
-    """ List consumer group offsets
+    """
+    List consumer group offsets
     """
 
     topic_partition_list = []
@@ -524,7 +530,8 @@ def example_list_consumer_group_offsets(a, args):
 
 
 def example_alter_consumer_group_offsets(a, args):
-    """ Alter consumer group offsets
+    """
+    Alter consumer group offsets
     """
 
     topic_partition_list = []
@@ -573,10 +580,10 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
-        sys.stderr.write(' list_consumer_groups <state1> <state2> ..\n')
+        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
         sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
-        sys.stderr.write(' list_consumer_group_offsets <group> <topic1> <partition1> <topic2> <partition2> ..\n')
+        sys.stderr.write(' list_consumer_group_offsets <group> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
