@@ -90,7 +90,7 @@ blocks:
           type: s1-prod-ubuntu20-04-amd64-2
       env_vars:
         - name: OS_NAME
-          value: osx
+          value: linux
         - name: ARCH
           value: x64
       jobs:
