@@ -27,6 +27,8 @@ set -ex
 
 [[ -d $wheeldir ]] || mkdir -p "$wheeldir"
 
+yum install -y python3
+
 ARCH=${ARCH:-x64}
 
 case $OSTYPE in
@@ -73,4 +75,3 @@ for f in $wheeldir/*whl ; do
     echo $f
     unzip -l $f
 done
-
