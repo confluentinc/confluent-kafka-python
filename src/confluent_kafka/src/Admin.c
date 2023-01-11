@@ -487,6 +487,9 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 continue;
                         }
                         else{
+                                PyErr_SetString(PyExc_ValueError,
+                                                "either both num_partitions and replication_factor "
+                                                "be set or none");
                                 i++;
                                 goto err;
                         }
