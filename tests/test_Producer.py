@@ -206,8 +206,8 @@ def test_transaction_api():
     # Any subsequent APIs will fail since init did not succeed.
     with pytest.raises(KafkaException) as ex:
         p.begin_transaction()
-    assert ex.value.args[0].code() == KafkaError._CONFLICT
-    assert ex.value.args[0].retriable() is True
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
@@ -218,22 +218,22 @@ def test_transaction_api():
     with pytest.raises(KafkaException) as ex:
         p.send_offsets_to_transaction([TopicPartition("topic", 0, 123)],
                                       group_metadata)
-    assert ex.value.args[0].code() == KafkaError._CONFLICT
-    assert ex.value.args[0].retriable() is True
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
     with pytest.raises(KafkaException) as ex:
         p.commit_transaction(0.5)
-    assert ex.value.args[0].code() == KafkaError._CONFLICT
-    assert ex.value.args[0].retriable() is True
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
     with pytest.raises(KafkaException) as ex:
         p.abort_transaction(0.5)
-    assert ex.value.args[0].code() == KafkaError._CONFLICT
-    assert ex.value.args[0].retriable() is True
+    assert ex.value.args[0].code() == KafkaError._STATE
+    assert ex.value.args[0].retriable() is False
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
