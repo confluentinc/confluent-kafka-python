@@ -126,6 +126,7 @@ blocks:
           commands:
             - sem-version python 3.8
             - python -m pip install --upgrade pip
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - ls -lrt
+            - docker run -e OS_NAME='linux' -e ARCH='arm64' -e CIBW_ARCHS='aarch64' -w /io/ -v `pwd`:/io quay.io/pypa/manylinux2014_aarch64 tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
