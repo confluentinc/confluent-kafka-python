@@ -26,6 +26,8 @@ set -ex
 
 [[ -d $wheeldir ]] || mkdir -p "$wheeldir"
 
+yum install -y python3
+
 ARCH=${ARCH:-x64}
 
 case $OSTYPE in
@@ -49,7 +51,6 @@ case $OSTYPE in
         ;;
 esac
 
-
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==2.11.2
@@ -69,4 +70,3 @@ for f in $wheeldir/*whl ; do
     echo $f
     unzip -l $f
 done
-
