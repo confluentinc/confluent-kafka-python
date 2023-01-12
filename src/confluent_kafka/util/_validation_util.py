@@ -12,8 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ..cimpl import TopicPartition, OFFSET_INVALID, KafkaError
-from ..admin import ConsumerGroupTopicPartitions
+from ..cimpl import KafkaError
 
 try:
     string_type = basestring
@@ -21,11 +20,11 @@ except NameError:
     string_type = str
 
 
-class ValidationUtil:
+class _ValidationUtil:
     @staticmethod
     def check_multiple_not_none(obj, vars_to_check):
         for param in vars_to_check:
-            ValidationUtil.check_not_none(obj, param)
+            _ValidationUtil.check_not_none(obj, param)
 
     @staticmethod
     def check_not_none(obj, param):
@@ -35,7 +34,7 @@ class ValidationUtil:
     @staticmethod
     def check_multiple_is_string(obj, vars_to_check):
         for param in vars_to_check:
-            ValidationUtil.check_is_string(obj, param)
+            _ValidationUtil.check_is_string(obj, param)
 
     @staticmethod
     def check_is_string(obj, param):
@@ -55,81 +54,3 @@ class ValidationUtil:
     def check_kafka_error(error):
         if not isinstance(error, KafkaError):
             raise TypeError("Expected error to be a KafkaError")
-
-    @staticmethod
-    def check_list_consumer_group_offsets_request(request):
-        if request is None:
-            raise TypeError("request cannot be None")
-        if not isinstance(request, list):
-            raise TypeError("request must be a list")
-        if len(request) != 1:
-            raise ValueError("Currently we support listing only 1 consumer groups offset information")
-        for req in request:
-            if not isinstance(req, ConsumerGroupTopicPartitions):
-                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
-
-            if req.group_id is None:
-                raise TypeError("'group_id' cannot be None")
-            if not isinstance(req.group_id, string_type):
-                raise TypeError("'group_id' must be a string")
-            if not req.group_id:
-                raise ValueError("'group_id' cannot be empty")
-
-            if req.topic_partitions is not None:
-                if not isinstance(req.topic_partitions, list):
-                    raise TypeError("'topic_partitions' must be a list or None")
-                if len(req.topic_partitions) == 0:
-                    raise ValueError("'topic_partitions' cannot be empty")
-                for topic_partition in req.topic_partitions:
-                    if topic_partition is None:
-                        raise ValueError("Element of 'topic_partitions' cannot be None")
-                    if not isinstance(topic_partition, TopicPartition):
-                        raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
-                    if topic_partition.topic is None:
-                        raise TypeError("Element of 'topic_partitions' must not have 'topic' attibute as None")
-                    if not topic_partition.topic:
-                        raise ValueError("Element of 'topic_partitions' must not have 'topic' attibute as Empty")
-                    if topic_partition.partition < 0:
-                        raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
-                    if topic_partition.offset != OFFSET_INVALID:
-                        print(topic_partition.offset)
-                        raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
-
-    @staticmethod
-    def check_alter_consumer_group_offsets_request(request):
-        if request is None:
-            raise TypeError("request cannot be None")
-        if not isinstance(request, list):
-            raise TypeError("request must be a list")
-        if len(request) != 1:
-            raise ValueError("Currently we support alter consumer groups offset request for 1 group only")
-        for req in request:
-            if not isinstance(req, ConsumerGroupTopicPartitions):
-                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
-            if req.group_id is None:
-                raise TypeError("'group_id' cannot be None")
-            if not isinstance(req.group_id, string_type):
-                raise TypeError("'group_id' must be a string")
-            if not req.group_id:
-                raise ValueError("'group_id' cannot be empty")
-            if req.topic_partitions is None:
-                raise ValueError("'topic_partitions' cannot be null")
-            if not isinstance(req.topic_partitions, list):
-                raise TypeError("'topic_partitions' must be a list")
-            if len(req.topic_partitions) == 0:
-                raise ValueError("'topic_partitions' cannot be empty")
-            for topic_partition in req.topic_partitions:
-                if topic_partition is None:
-                    raise ValueError("Element of 'topic_partitions' cannot be None")
-                if not isinstance(topic_partition, TopicPartition):
-                    raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
-                if topic_partition.topic is None:
-                    raise TypeError("Element of 'topic_partitions' must not have 'topic' attibute as None")
-                if not topic_partition.topic:
-                    raise ValueError("Element of 'topic_partitions' must not have 'topic' attibute as Empty")
-                if topic_partition.partition < 0:
-                    raise ValueError(
-                        "Element of 'topic_partitions' must not have negative value for 'partition' field")
-                if topic_partition.offset < 0:
-                    raise ValueError(
-                        "Element of 'topic_partitions' must not have negative value for 'offset' field")

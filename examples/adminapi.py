@@ -17,11 +17,10 @@
 
 # Example use of AdminClient operations.
 
+from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions)
 from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, ConsumerGroupTopicPartitions, ConsumerGroupState)
-from confluent_kafka.util import (ConversionUtil)
-from confluent_kafka import KafkaException
+                                   AclPermissionType, ConsumerGroupState)
 import sys
 import threading
 import logging
@@ -435,7 +434,7 @@ def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = [ConversionUtil.convert_to_enum(state, ConsumerGroupState) for state in args]
+    states = [ConsumerGroupState[state] for state in args]
     future = a.list_consumer_groups(timeout=10, states=states)
     try:
         list_consumer_groups_result = future.result()
@@ -489,7 +488,7 @@ def example_delete_consumer_groups(a, args):
     for group_id, future in groups.items():
         try:
             response = future.result()
-            print("Deleted group with id '" + response.group_id + "' succesfully")
+            print("Deleted group with id '" + response.group_id + "' successfully")
         except KafkaException as e:
             print("Error deleting group id '{}': {}".format(group_id, e))
         except Exception:
@@ -516,14 +515,14 @@ def example_list_consumer_group_offsets(a, args):
             print("Group: " + response_offset_info.group_id)
             for topic_partition in response_offset_info.topic_partitions:
                 if topic_partition.error:
-                    print("    Error: " + topic_partition.error.str() + " occured with " +
+                    print("    Error: " + topic_partition.error.str() + " occurred with " +
                           topic_partition.topic + " [" + str(topic_partition.partition) + "]")
                 else:
                     print("    " + topic_partition.topic +
                           " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
-            print("Failed to describe {}: {}".format(groups, e))
+            print("Failed to describe {}: {}".format(request.group_id, e))
         except Exception:
             raise
 
@@ -548,14 +547,14 @@ def example_alter_consumer_group_offsets(a, args):
             print("Group: " + response_offset_info.group_id)
             for topic_partition in response_offset_info.topic_partitions:
                 if topic_partition.error:
-                    print("    Error: " + topic_partition.error.str() + " occured with " +
+                    print("    Error: " + topic_partition.error.str() + " occurred with " +
                           topic_partition.topic + " [" + str(topic_partition.partition) + "]")
                 else:
                     print("    " + topic_partition.topic +
                           " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
-            print("Failed to describe {}: {}".format(groups, e))
+            print("Failed to describe {}: {}".format(request.group_id, e))
         except Exception:
             raise
 

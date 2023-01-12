@@ -1427,7 +1427,7 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         PyObject *request, *future, *require_stable_obj = NULL;
         int requests_cnt;
         struct Admin_options options = Admin_options_INITIALIZER;
-        PyObject *ConsumerGroupTopicPartition_type = NULL;
+        PyObject *ConsumerGroupTopicPartitions_type = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
         rd_kafka_ListConsumerGroupOffsets_t **c_obj = NULL;
         rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
@@ -1480,15 +1480,15 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
          * topics are of correct type.
          * Since this is not in the fast path we treat ourselves
          * to the luxury of looking up this for each call. */
-        ConsumerGroupTopicPartition_type = cfl_PyObject_lookup("confluent_kafka.admin",
+        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
                                                   "ConsumerGroupTopicPartitions");
-        if (!ConsumerGroupTopicPartition_type) {
+        if (!ConsumerGroupTopicPartitions_type) {
                 PyErr_SetString(PyExc_ImportError,
                         "Not able to load ConsumerGroupTopicPartitions type");
                 goto err;
         }
 
-        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
                 PyErr_SetString(PyExc_ImportError,
                         "Each request should be of ConsumerGroupTopicPartitions type");
                 goto err;
@@ -1525,33 +1525,35 @@ PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *k
         rd_kafka_ListConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
         CallState_end(self, &cs);
 
+        if (c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
         free(c_obj);
         free(group_id);
-        Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
+        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
 
         Py_RETURN_NONE;
 err:
+        if (c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
         if (c_obj) {
                 rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
                 free(c_obj);
-        }
-        if (ConsumerGroupTopicPartition_type) {
-                Py_DECREF(ConsumerGroupTopicPartition_type);
         }
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
-        if(topic_partitions) {
-                Py_XDECREF(topic_partitions);
-        }
         if(group_id) {
                 free(group_id);
         }
+        Py_XDECREF(topic_partitions);
+        Py_XDECREF(ConsumerGroupTopicPartitions_type);
         return NULL;
 }
 
@@ -1571,7 +1573,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         PyObject *request, *future;
         int requests_cnt;
         struct Admin_options options = Admin_options_INITIALIZER;
-        PyObject *ConsumerGroupTopicPartition_type = NULL;
+        PyObject *ConsumerGroupTopicPartitions_type = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
         rd_kafka_AlterConsumerGroupOffsets_t **c_obj = NULL;
         rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
@@ -1617,15 +1619,15 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
          * topics are of correct type.
          * Since this is not in the fast path we treat ourselves
          * to the luxury of looking up this for each call. */
-        ConsumerGroupTopicPartition_type = cfl_PyObject_lookup("confluent_kafka.admin",
+        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
                                                   "ConsumerGroupTopicPartitions");
-        if (!ConsumerGroupTopicPartition_type) {
+        if (!ConsumerGroupTopicPartitions_type) {
                 PyErr_SetString(PyExc_ImportError,
                         "Not able to load ConsumerGroupTopicPartitions type");
                 goto err;
         }
 
-        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartition_type)) {
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
                 PyErr_SetString(PyExc_ImportError,
                         "Each request should be of ConsumerGroupTopicPartitions type");
                 goto err;
@@ -1666,7 +1668,7 @@ PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *
         rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
         free(c_obj);
         free(group_id);
-        Py_DECREF(ConsumerGroupTopicPartition_type); /* from lookup() */
+        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
         Py_XDECREF(topic_partitions);
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
@@ -1677,8 +1679,8 @@ err:
                 rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
                 free(c_obj);
         }
-        if (ConsumerGroupTopicPartition_type) {
-                Py_DECREF(ConsumerGroupTopicPartition_type);
+        if (ConsumerGroupTopicPartitions_type) {
+                Py_DECREF(ConsumerGroupTopicPartitions_type);
         }
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
@@ -2892,7 +2894,7 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
         const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list;
         PyObject *topic_partition_offset_list = NULL;
 
-        GroupResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
+        GroupResult_type = cfl_PyObject_lookup("confluent_kafka",
                                                "ConsumerGroupTopicPartitions");
         if (!GroupResult_type) {
                 return NULL;

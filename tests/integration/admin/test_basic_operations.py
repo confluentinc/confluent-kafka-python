@@ -16,10 +16,11 @@
 import confluent_kafka
 import struct
 import time
+from confluent_kafka import ConsumerGroupTopicPartitions
 from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
-                                   ConsumerGroupTopicPartitions, ConsumerGroupState)
+                                   ConsumerGroupState)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -174,7 +175,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
 
-    # List Consumer Group Offsets check with just group name
+    # List Consumer Group Offsets check with group name and partitions
     list_group_topic_partitions = list(map(lambda topic_partition: TopicPartition(topic_partition.topic,
                                                                                   topic_partition.partition),
                                            ares.topic_partitions))

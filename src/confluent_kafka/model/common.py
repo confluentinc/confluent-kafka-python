@@ -12,10 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+class Node:
+    def __init__(self, id, host, port, rack=None):
+        self.id = id
+        self.id_string = str(id)
+        self.host = host
+        self.port = port
+        self.rack = rack
+
+
 class ConsumerGroupTopicPartitions:
-    def __init__(self, group_id=None, topic_partitions=None):
+    def __init__(self, group_id, topic_partitions=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions
-
-    def __hash__(self) -> int:
-        return hash(self.group_id)

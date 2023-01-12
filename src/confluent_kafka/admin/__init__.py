@@ -27,7 +27,6 @@ from ._acl import (AclOperation,  # noqa: F401
                    AclPermissionType,
                    AclBinding,
                    AclBindingFilter)
-from ._offset import (ConsumerGroupTopicPartitions)  # noqa: F401
 from ._metadata import (BrokerMetadata,  # noqa: F401
                         ClusterMetadata,
                         GroupMember,
@@ -41,7 +40,6 @@ from ._group import (DeleteConsumerGroupsResult,  # noqa: F401
                      ConsumerGroupDescription,
                      MemberAssignment,
                      MemberDescription)
-from ..model import (Node)  # noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -58,8 +56,10 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_ANY,
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
-                     RESOURCE_BROKER)
-from ..util import (ValidationUtil)  # noqa: F401
+                     RESOURCE_BROKER,
+                     OFFSET_INVALID)
+from .. import ConsumerGroupTopicPartitions  # noqa: F401
+from ..util import _ValidationUtil  # noqa: F401
 
 try:
     string_type = basestring
@@ -177,7 +177,7 @@ class AdminClient (_AdminClientImpl):
                     fut.set_result(result)
         except Exception as e:
             # Request-level exception, raise the same for all groups
-            for topic, fut in futmap.items():
+            for _, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -203,7 +203,7 @@ class AdminClient (_AdminClientImpl):
                     fut.set_result(result)
         except Exception as e:
             # Request-level exception, raise the same for all groups
-            for topic, fut in futmap.items():
+            for _, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -262,6 +262,84 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _has_duplicates(items):
         return len(set(items)) != len(items)
+
+    @staticmethod
+    def _check_list_consumer_group_offsets_request(request):
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request, list):
+            raise TypeError("request must be a list")
+        if len(request) != 1:
+            raise ValueError("Currently we support listing only 1 consumer groups offset information")
+        for req in request:
+            if not isinstance(req, ConsumerGroupTopicPartitions):
+                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
+
+            if req.group_id is None:
+                raise TypeError("'group_id' cannot be None")
+            if not isinstance(req.group_id, string_type):
+                raise TypeError("'group_id' must be a string")
+            if not req.group_id:
+                raise ValueError("'group_id' cannot be empty")
+
+            if req.topic_partitions is not None:
+                if not isinstance(req.topic_partitions, list):
+                    raise TypeError("'topic_partitions' must be a list or None")
+                if len(req.topic_partitions) == 0:
+                    raise ValueError("'topic_partitions' cannot be empty")
+                for topic_partition in req.topic_partitions:
+                    if topic_partition is None:
+                        raise ValueError("Element of 'topic_partitions' cannot be None")
+                    if not isinstance(topic_partition, TopicPartition):
+                        raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                    if topic_partition.topic is None:
+                        raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                    if not topic_partition.topic:
+                        raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                    if topic_partition.partition < 0:
+                        raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
+                    if topic_partition.offset != OFFSET_INVALID:
+                        print(topic_partition.offset)
+                        raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
+
+    @staticmethod
+    def _check_alter_consumer_group_offsets_request(request):
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request, list):
+            raise TypeError("request must be a list")
+        if len(request) != 1:
+            raise ValueError("Currently we support alter consumer groups offset request for 1 group only")
+        for req in request:
+            if not isinstance(req, ConsumerGroupTopicPartitions):
+                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
+            if req.group_id is None:
+                raise TypeError("'group_id' cannot be None")
+            if not isinstance(req.group_id, string_type):
+                raise TypeError("'group_id' must be a string")
+            if not req.group_id:
+                raise ValueError("'group_id' cannot be empty")
+            if req.topic_partitions is None:
+                raise ValueError("'topic_partitions' cannot be null")
+            if not isinstance(req.topic_partitions, list):
+                raise TypeError("'topic_partitions' must be a list")
+            if len(req.topic_partitions) == 0:
+                raise ValueError("'topic_partitions' cannot be empty")
+            for topic_partition in req.topic_partitions:
+                if topic_partition is None:
+                    raise ValueError("Element of 'topic_partitions' cannot be None")
+                if not isinstance(topic_partition, TopicPartition):
+                    raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                if topic_partition.topic is None:
+                    raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                if not topic_partition.topic:
+                    raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                if topic_partition.partition < 0:
+                    raise ValueError(
+                        "Element of 'topic_partitions' must not have negative value for 'partition' field")
+                if topic_partition.offset < 0:
+                    raise ValueError(
+                        "Element of 'topic_partitions' must not have negative value for 'offset' field")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -580,10 +658,7 @@ class AdminClient (_AdminClientImpl):
             raise TypeError("Expected input to be list of group ids to be described")
 
         if len(group_ids) == 0:
-            raise ValueError("Expected atleast one group to be described")
-
-        if AdminClient._has_duplicates(group_ids):
-            raise ValueError("Duplicate group ids not allowed in the list of group ids to be described")
+            raise ValueError("Expected at least one group to be described")
 
         f, futmap = AdminClient._make_futures(group_ids, None,
                                               AdminClient._make_consumer_groups_result)
@@ -612,10 +687,7 @@ class AdminClient (_AdminClientImpl):
             raise TypeError("Expected input to be list of group ids to be deleted")
 
         if len(group_ids) == 0:
-            raise ValueError("Expected atleast one group to be deleted")
-
-        if AdminClient._has_duplicates(group_ids):
-            raise ValueError("Duplicate group ids not allowed in the list of group ids to be deleted")
+            raise ValueError("Expected at least one group to be deleted")
 
         f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
 
@@ -649,7 +721,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        ValidationUtil.check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
+        AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)
@@ -681,7 +753,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueException: Invalid input.
         """
 
-        ValidationUtil.check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
+        AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)

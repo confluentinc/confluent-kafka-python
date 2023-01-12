@@ -457,6 +457,48 @@ def test_describe_acls_api():
                         unknown_operation="it is")
 
 
+def test_list_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.list_consumer_groups()
+
+    a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups(states="EMPTY")
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups(states=["EMPTY"])
+
+
+def test_describe_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.describe_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.describe_consumer_groups([])
+
+
+def test_delete_consumer_groups():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.delete_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.delete_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups([])
+
+
 def test_list_consumer_group_offsets():
 
     a = AdminClient({"socket.timeout.ms": 10})
@@ -646,51 +688,3 @@ def test_alter_consumer_group_offsets():
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1, 23)])])
-
-
-def test_delete_consumer_groups():
-    a = AdminClient({"socket.timeout.ms": 10})
-
-    group_ids = ["test-group-1", "test-group-2"]
-
-    a.delete_consumer_groups(group_ids)
-
-    with pytest.raises(TypeError):
-        a.delete_consumer_groups("test-group-1")
-
-    with pytest.raises(ValueError):
-        a.delete_consumer_groups([])
-
-    with pytest.raises(ValueError):
-        a.delete_consumer_groups(["test-group-1", "test-group-1"])
-
-
-def test_describe_consumer_groups():
-    a = AdminClient({"socket.timeout.ms": 10})
-
-    group_ids = ["test-group-1", "test-group-2"]
-
-    a.describe_consumer_groups(group_ids)
-
-    with pytest.raises(TypeError):
-        a.describe_consumer_groups("test-group-1")
-
-    with pytest.raises(ValueError):
-        a.describe_consumer_groups([])
-
-    with pytest.raises(ValueError):
-        a.describe_consumer_groups(["test-group-1", "test-group-1"])
-
-
-def test_list_consumer_groups():
-    a = AdminClient({"socket.timeout.ms": 10})
-
-    a.list_consumer_groups()
-
-    a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
-
-    with pytest.raises(TypeError):
-        a.describe_consumer_groups(states="EMPTY")
-
-    with pytest.raises(TypeError):
-        a.describe_consumer_groups(states=["EMPTY"])
