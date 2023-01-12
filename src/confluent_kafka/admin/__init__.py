@@ -627,7 +627,16 @@ class AdminClient (_AdminClientImpl):
     def list_consumer_groups(self, **kwargs):
         """
         List consumer groups.
-        TODO: Improve doc
+
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+
+        :returns: a future. Result method of the future returns :class:`ConsumerGroupDescription`
+
+        :rtype: future
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
         """
         if "states" in kwargs:
             states = kwargs["states"]
@@ -642,7 +651,7 @@ class AdminClient (_AdminClientImpl):
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
 
-        f, futMap = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
+        f, _ = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
 
         super(AdminClient, self).list_consumer_groups(f, **kwargs)
 
@@ -651,7 +660,18 @@ class AdminClient (_AdminClientImpl):
     def describe_consumer_groups(self, group_ids, **kwargs):
         """
         Describe consumer groups.
-        TODO: Improve doc
+
+        :param list(str) group_ids: List of group_ids which need to be described.
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns :class:`ConsumerGroupDescription`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
         """
 
         if not isinstance(group_ids, list):

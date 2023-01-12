@@ -13,6 +13,23 @@
 # limitations under the License.
 
 class Node:
+    """
+    Represents node information.
+    Used by :class:`ConsumerGroupDescription`
+
+    Parameters
+    ----------
+    id: int
+        The node id of this node
+    id_string:
+        String representation of the node id.
+    host:
+        The host name for this node
+    port: int
+        The port for this node
+    rack: str
+        The rack for this node
+    """
     def __init__(self, id, host, port, rack=None):
         self.id = id
         self.id_string = str(id)
@@ -22,6 +39,18 @@ class Node:
 
 
 class ConsumerGroupTopicPartitions:
+    """
+    Represents consumer group and its topic partition information.
+    Used by :meth:`AdminClient.list_consumer_group_offsets` and
+    :meth:`AdminClient.alter_consumer_group_offsets`.
+
+    Parameters
+    ----------
+    group_id: str
+        Id of the consumer group
+    topic_partitions : list(TopicPartition)
+        List of topic partitions information
+    """
     def __init__(self, group_id, topic_partitions=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions

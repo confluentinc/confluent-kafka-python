@@ -19,6 +19,19 @@ from ..util import _ConversionUtil
 
 
 class ConsumerGroupListing:
+    """
+    Represents consumer group listing information for a group used in list consumer group operation.
+    Used by :class:`ListConsumerGroupsResult`.
+
+    Parameters
+    ----------
+    group_id : str
+        The consumer group id.
+    is_simple_consumer_group : bool
+        Whether a consumer group is simple or not.
+    state : ConsumerGroupState
+        Current state of the consumer group.
+    """
     def __init__(self, group_id, is_simple_consumer_group, state=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
@@ -27,6 +40,17 @@ class ConsumerGroupListing:
 
 
 class ListConsumerGroupsResult:
+    """
+    Represents result of List Consumer Group operation.
+    Used by :meth:`AdminClient.list_consumer_groups`.
+
+    Parameters
+    ----------
+    valid : list(ConsumerGroupListing)
+        List of successful consumer group listing responses.
+    errors : list(KafkaException)
+        List of errors encountered during the operation, if any.
+    """
     def __init__(self, valid=None, errors=None):
         self.valid = valid
         self.errors = errors
@@ -56,6 +80,15 @@ class ConsumerGroupState(Enum):
 
 
 class MemberAssignment:
+    """
+    Represents member assignment information.
+    Used by :class:`MemberDescription`.
+
+    Parameters
+    ----------
+    topic_partitions : list(TopicPartition)
+        The topic partitions assigned to a group member
+    """
     def __init__(self, topic_partitions=[]):
         self.topic_partitions = topic_partitions
         if self.topic_partitions is None:
@@ -63,6 +96,23 @@ class MemberAssignment:
 
 
 class MemberDescription:
+    """
+    Represents member information.
+    Used by :class:`ConsumerGroupDescription`.
+
+    Parameters
+    ----------
+    member_id : str
+        The consumer id of the group member
+    client_id : str
+        The client id of the group member
+    host: str
+        The host where the group member is running
+    assignment: MemberAssignment
+        The assignment of the group member
+    group_instance_id : str
+        The instance id of the group member.
+    """
     def __init__(self, member_id, client_id, host, assignment, group_instance_id=None):
         self.member_id = member_id
         self.client_id = client_id
@@ -72,6 +122,25 @@ class MemberDescription:
 
 
 class ConsumerGroupDescription:
+    """
+    Represents consumer group description information for a group used in describe consumer group operation.
+    Used by :meth:`AdminClient.describe_consumer_groups`.
+
+    Parameters
+    ----------
+    group_id : str
+        The consumer group id
+    is_simple_consumer_group : bool
+        Whether a consumer group is simple or not
+    members: list(MemberDescription)
+        Description of the memebers of the consumer group
+    partition_assignor: str
+        Partition assignor
+    state : ConsumerGroupState
+        Current state of the consumer group
+    coordinator: Node
+        Consumer group coordinator
+    """
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
                  coordinator):
         self.group_id = group_id
@@ -84,5 +153,14 @@ class ConsumerGroupDescription:
 
 
 class DeleteConsumerGroupsResult:
+    """
+    Represents Information for a deleted consumer group.
+    Used by :meth:`AdminClient.delete_consumer_groups`.
+
+    Parameters
+    ----------
+    group_id : str
+        Id of the deleted group.
+    """
     def __init__(self, group_id):
         self.group_id = group_id
