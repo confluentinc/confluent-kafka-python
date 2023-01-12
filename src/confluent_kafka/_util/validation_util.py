@@ -20,11 +20,11 @@ except NameError:
     string_type = str
 
 
-class _ValidationUtil:
+class ValidationUtil:
     @staticmethod
     def check_multiple_not_none(obj, vars_to_check):
         for param in vars_to_check:
-            _ValidationUtil.check_not_none(obj, param)
+            ValidationUtil.check_not_none(obj, param)
 
     @staticmethod
     def check_not_none(obj, param):
@@ -34,7 +34,7 @@ class _ValidationUtil:
     @staticmethod
     def check_multiple_is_string(obj, vars_to_check):
         for param in vars_to_check:
-            _ValidationUtil.check_is_string(obj, param)
+            ValidationUtil.check_is_string(obj, param)
 
     @staticmethod
     def check_is_string(obj, param):

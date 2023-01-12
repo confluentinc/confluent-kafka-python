@@ -15,7 +15,7 @@
 
 from enum import Enum
 from .. import cimpl as _cimpl
-from ..util import _ConversionUtil
+from .._util import ConversionUtil
 
 
 class ConsumerGroupListing:
@@ -36,7 +36,7 @@ class ConsumerGroupListing:
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         if state is not None:
-            self.state = _ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+            self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
 
 
 class ListConsumerGroupsResult:
@@ -148,7 +148,7 @@ class ConsumerGroupDescription:
         self.members = members
         self.partition_assignor = partition_assignor
         if state is not None:
-            self.state = _ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+            self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
 
 

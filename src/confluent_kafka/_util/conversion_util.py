@@ -15,7 +15,7 @@
 from enum import Enum
 
 
-class _ConversionUtil:
+class ConversionUtil:
     @staticmethod
     def convert_to_enum(val, enum_clazz):
         if type(enum_clazz) is not type(Enum):

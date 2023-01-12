@@ -16,6 +16,7 @@ from enum import Enum
 import functools
 from .. import cimpl as _cimpl
 from ._resource import ResourceType, ResourcePatternType
+from .._util import ValidationUtil, ConversionUtil
 
 try:
     string_type = basestring
@@ -105,40 +106,14 @@ class AclBinding(object):
         self.operation_int = int(self.operation.value)
         self.permission_type_int = int(self.permission_type.value)
 
-    # TODO: Use validation util functions for the below functions in a new PR
-    def _check_not_none(self, vars_to_check):
-        for param in vars_to_check:
-            if getattr(self, param) is None:
-                raise ValueError("Expected %s to be not None" % (param,))
-
-    def _check_is_string(self, vars_to_check):
-        for param in vars_to_check:
-            param_value = getattr(self, param)
-            if param_value is not None and not isinstance(param_value, string_type):
-                raise TypeError("Expected %s to be a string" % (param,))
-
-    def _convert_to_enum(self, val, enum_clazz):
-        if type(val) == str:
-            # Allow it to be specified as case-insensitive string, for convenience.
-            try:
-                val = enum_clazz[val.upper()]
-            except KeyError:
-                raise ValueError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
-
-        elif type(val) == int:
-            # The C-code passes restype as an int, convert to enum.
-            val = enum_clazz(val)
-
-        elif type(val) != enum_clazz:
-            raise TypeError("Unknown value \"%s\": should be a %s" % (val, enum_clazz.__name__))
-
-        return val
-
     def _convert_enums(self):
-        self.restype = self._convert_to_enum(self.restype, ResourceType)
-        self.resource_pattern_type = self._convert_to_enum(self.resource_pattern_type, ResourcePatternType)
-        self.operation = self._convert_to_enum(self.operation, AclOperation)
-        self.permission_type = self._convert_to_enum(self.permission_type, AclPermissionType)
+        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)
+        self.resource_pattern_type = ConversionUtil.convert_to_enum(
+            self.resource_pattern_type, ResourcePatternType)
+        self.operation = ConversionUtil.convert_to_enum(
+            self.operation, AclOperation)
+        self.permission_type = ConversionUtil.convert_to_enum(
+            self.permission_type, AclPermissionType)
 
     def _check_forbidden_enums(self, forbidden_enums):
         for k, v in forbidden_enums.items():
@@ -166,8 +141,8 @@ class AclBinding(object):
         not_none_args = self._not_none_args()
         string_args = self._string_args()
         forbidden_enums = self._forbidden_enums()
-        self._check_not_none(not_none_args)
-        self._check_is_string(string_args)
+        ValidationUtil.check_multiple_not_none(self, not_none_args)
+        ValidationUtil.check_multiple_is_string(self, string_args)
         self._convert_enums()
         self._check_forbidden_enums(forbidden_enums)
 

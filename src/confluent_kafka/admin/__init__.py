@@ -58,8 +58,9 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
-from .. import ConsumerGroupTopicPartitions  # noqa: F401
-from ..util import _ValidationUtil  # noqa: F401
+
+from confluent_kafka import ConsumerGroupTopicPartitions \
+    as _ConsumerGroupTopicPartitions
 
 try:
     string_type = basestring
@@ -272,7 +273,7 @@ class AdminClient (_AdminClientImpl):
         if len(request) != 1:
             raise ValueError("Currently we support listing only 1 consumer groups offset information")
         for req in request:
-            if not isinstance(req, ConsumerGroupTopicPartitions):
+            if not isinstance(req, _ConsumerGroupTopicPartitions):
                 raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
 
             if req.group_id is None:
@@ -311,7 +312,7 @@ class AdminClient (_AdminClientImpl):
         if len(request) != 1:
             raise ValueError("Currently we support alter consumer groups offset request for 1 group only")
         for req in request:
-            if not isinstance(req, ConsumerGroupTopicPartitions):
+            if not isinstance(req, _ConsumerGroupTopicPartitions):
                 raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
             if req.group_id is None:
                 raise TypeError("'group_id' cannot be None")
@@ -743,7 +744,7 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
+        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, _ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
@@ -775,7 +776,7 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, ConsumerGroupTopicPartitions,
+        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, _ConsumerGroupTopicPartitions,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
