@@ -4,9 +4,29 @@
 ## Next Version
 
  - Added metadata to `TopicPartition` type and `commit()` (#1410).
- - Added `consumer.memberid()` for getting member id assigned to 
+ - Added `consumer.memberid()` for getting member id assigned to
    the consumer in a consumer group (#1154).
- - Added Python 3.11 wheels
+ - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
+   will not be used. This avoids situations where producers with no enqueued items would
+   evaluate to False (#1445).
+ - Added Python 3.11 wheels.
+ - [KIP-222](https://cwiki.apache.org/confluence/display/KAFKA/KIP-222+-+Add+Consumer+Group+operations+to+Admin+API)
+   Add Consumer Group operations to Admin API.
+ - [KIP-518](https://cwiki.apache.org/confluence/display/KAFKA/KIP-518%3A+Allow+listing+consumer+groups+per+state)
+   Allow listing consumer groups per state.
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484)
+   Partially implemented: support for AlterConsumerGroupOffsets.
+ - As result of the above KIPs, added (#1449)
+   - `list_consumer_groups` Admin operation. Supports listing by state.
+   - `describe_consumer_groups` Admin operation. Supports multiple groups.
+   - `delete_consumer_groups` Admin operation. Supports multiple groups.
+   - `list_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple partitions. Supports require_stable option.
+   - `alter_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple offsets.
+ - Added `normalize.schemas` configuration property to Schema Registry client
+
+confluent-kafka-python is based on librdkafka v2.0.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v1.9.2
