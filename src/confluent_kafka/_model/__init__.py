@@ -15,6 +15,7 @@
 from enum import Enum
 from .. import cimpl
 
+
 class Node:
     """
     Represents node information.
