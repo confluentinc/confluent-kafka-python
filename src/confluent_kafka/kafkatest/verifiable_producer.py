@@ -26,6 +26,7 @@ class VerifiableProducer(VerifiableClient):
     confluent-kafka-python backed VerifiableProducer class for use with
     Kafka's kafkatests client tests.
     """
+
     def __init__(self, conf):
         """
         conf is a config dict passed to confluent_kafka.Producer()

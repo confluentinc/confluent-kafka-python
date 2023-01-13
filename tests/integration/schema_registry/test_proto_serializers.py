@@ -38,7 +38,7 @@ from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import 
                                        'test_float': 12.0}),
     (NestedTestProto_pb2.NestedMessage, {'user_id':
      NestedTestProto_pb2.UserId(
-            kafka_user_id='oneof_str'),
+         kafka_user_id='oneof_str'),
         'is_active': True,
         'experiments_active': ['x', 'y', '1'],
         'status': NestedTestProto_pb2.INACTIVE,

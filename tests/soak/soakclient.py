@@ -45,6 +45,7 @@ import datadog
 
 class SoakRecord (object):
     """ A private record type, with JSON serializer and deserializer """
+
     def __init__(self, msgid, name=None):
         self.msgid = msgid
         if name is None:
@@ -222,7 +223,7 @@ class SoakClient (object):
 
             try:
                 # Deserialize message
-                record = SoakRecord.deserialize(msg.value()) # noqa unused variable
+                record = SoakRecord.deserialize(msg.value())  # noqa unused variable
             except ValueError as ex:
                 self.logger.info("consumer: Failed to deserialize message in "
                                  "{} [{}] at offset {} (headers {}): {}".format(
