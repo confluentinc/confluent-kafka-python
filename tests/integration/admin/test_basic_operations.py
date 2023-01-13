@@ -304,6 +304,11 @@ def test_basic_operations(kafka_cluster):
     assert group1 in group_ids, "Consumer group {} not found".format(group1)
     assert group2 in group_ids, "Consumer group {} not found".format(group2)
 
+    future = admin_client.list_consumer_groups(request_timeout=10, states={ConsumerGroupState.STABLE})
+    result = future.result()
+    assert isinstance(result.valid, list)
+    assert not result.valid
+
     # Describe Consumer Groups API test
     futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
     for group_id, future in futureMap.items():

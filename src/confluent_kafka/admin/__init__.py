@@ -631,8 +631,8 @@ class AdminClient (_AdminClientImpl):
 
         :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
-        :param list(ConsumerGroupState) states: only list consumer groups which are currently in
-                  int these states.
+        :param set(ConsumerGroupState) states: only list consumer groups which are currently in
+                  these states.
 
         :returns: a future. Result method of the future returns :class:`ListConsumerGroupsResult`.
 
@@ -645,8 +645,8 @@ class AdminClient (_AdminClientImpl):
         if "states" in kwargs:
             states = kwargs["states"]
             if states is not None:
-                if not isinstance(states, list):
-                    raise TypeError("'states' must be a list")
+                if not isinstance(states, set):
+                    raise TypeError("'states' must be a set")
                 for state in states:
                     if not isinstance(state, _ConsumerGroupState):
                         raise TypeError("All elements of states must be of type ConsumerGroupState")

@@ -463,13 +463,16 @@ def test_list_consumer_groups_api():
 
     a.list_consumer_groups()
 
-    a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+    a.list_consumer_groups(states={ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE})
 
     with pytest.raises(TypeError):
-        a.describe_consumer_groups(states="EMPTY")
+        a.list_consumer_groups(states="EMPTY")
 
     with pytest.raises(TypeError):
-        a.describe_consumer_groups(states=["EMPTY"])
+        a.list_consumer_groups(states=["EMPTY"])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
 
 
 def test_describe_consumer_groups_api():

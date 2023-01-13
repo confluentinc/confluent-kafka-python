@@ -435,7 +435,7 @@ def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = [ConsumerGroupState[state] for state in args]
+    states = {ConsumerGroupState[state] for state in args}
     future = a.list_consumer_groups(request_timeout=10, states=states)
     try:
         list_consumer_groups_result = future.result()
