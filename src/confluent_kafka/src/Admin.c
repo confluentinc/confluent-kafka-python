@@ -1421,293 +1421,6 @@ static const char Admin_delete_acls_doc[] = PyDoc_STR(
 
 
 /**
- * @brief List consumer groups offsets
- */
-PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *request, *future, *require_stable_obj = NULL;
-        int requests_cnt;
-        struct Admin_options options = Admin_options_INITIALIZER;
-        PyObject *ConsumerGroupTopicPartitions_type = NULL;
-        rd_kafka_AdminOptions_t *c_options = NULL;
-        rd_kafka_ListConsumerGroupOffsets_t **c_obj = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
-        CallState cs;
-        rd_kafka_queue_t *rkqu;
-        PyObject *topic_partitions = NULL;
-        char *group_id = NULL;
-
-        static char *kws[] = {"request",
-                             "future",
-                             /* options */
-                             "require_stable",
-                             "request_timeout",
-                             NULL};
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
-                                         &request,
-                                         &future,
-                                         &require_stable_obj,
-                                         &options.request_timeout)) {
-                goto err;
-        }
-
-        if (require_stable_obj &&
-            !cfl_PyBool_get(require_stable_obj, "require_stable",
-                            &options.require_stable_offsets))
-                return NULL;
-
-        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
-                                       &options, future);
-        if (!c_options)  {
-                goto err; /* Exception raised by options_to_c() */
-        }
-
-        /* options_to_c() sets future as the opaque, which is used in the
-         * background_event_cb to set the results on the future as the
-         * admin operation is finished, so we need to keep our own refcount. */
-        Py_INCREF(future);
-
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support listing only 1 consumer groups offset information");
-                goto err;
-        }
-
-        PyObject *single_request = PyList_GET_ITEM(request, 0);
-
-        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
-         * topics are of correct type.
-         * Since this is not in the fast path we treat ourselves
-         * to the luxury of looking up this for each call. */
-        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
-                                                  "ConsumerGroupTopicPartitions");
-        if (!ConsumerGroupTopicPartitions_type) {
-                PyErr_SetString(PyExc_ImportError,
-                        "Not able to load ConsumerGroupTopicPartitions type");
-                goto err;
-        }
-
-        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
-                PyErr_SetString(PyExc_ImportError,
-                        "Each request should be of ConsumerGroupTopicPartitions type");
-                goto err;
-        }
-
-        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
-
-        if(group_id == NULL) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Group name is mandatory for list consumer offset operation");
-                goto err;
-        }
-
-        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
-
-        if(topic_partitions != Py_None) {
-                c_topic_partitions = py_to_c_parts(topic_partitions);
-        }
-
-        c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partitions);
-
-        /* Use librdkafka's background thread queue to automatically dispatch
-        * Admin_background_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_background(self->rk);
-
-        /*
-         * Call ListConsumerGroupOffsets
-         *
-         * We need to set up a CallState and release GIL here since
-         * the event_cb may be triggered immediately.
-         */
-        CallState_begin(self, &cs);
-        rd_kafka_ListConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
-        CallState_end(self, &cs);
-
-        if (c_topic_partitions) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-        }
-        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
-        rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
-        free(c_obj);
-        free(group_id);
-        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
-        Py_XDECREF(topic_partitions);
-        rd_kafka_AdminOptions_destroy(c_options);
-
-        Py_RETURN_NONE;
-err:
-        if (c_topic_partitions) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-        }
-        if (c_obj) {
-                rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
-                free(c_obj);
-        }
-        if (c_options) {
-                rd_kafka_AdminOptions_destroy(c_options);
-                Py_DECREF(future);
-        }
-        if(group_id) {
-                free(group_id);
-        }
-        Py_XDECREF(topic_partitions);
-        Py_XDECREF(ConsumerGroupTopicPartitions_type);
-        return NULL;
-}
-
-
-const char list_consumer_group_offsets_doc[] = PyDoc_STR(
-        ".. py:function:: list_consumer_group_offsets(request, future, [require_stable], [request_timeout])\n"
-        "\n"
-        "  List offset information for the consumer group and (optional) topic partition provided in the request.\n"
-        "\n"
-        "  This method should not be used directly, use confluent_kafka.AdminClient.list_consumer_group_offsets()\n");
-
-
-/**
- * @brief Alter consumer groups offsets
- */
-PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *request, *future;
-        int requests_cnt;
-        struct Admin_options options = Admin_options_INITIALIZER;
-        PyObject *ConsumerGroupTopicPartitions_type = NULL;
-        rd_kafka_AdminOptions_t *c_options = NULL;
-        rd_kafka_AlterConsumerGroupOffsets_t **c_obj = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
-        CallState cs;
-        rd_kafka_queue_t *rkqu;
-        PyObject *topic_partitions = NULL;
-        char *group_id = NULL;
-
-        static char *kws[] = {"request",
-                             "future",
-                             /* options */
-                             "request_timeout",
-                             NULL};
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
-                                         &request,
-                                         &future,
-                                         &options.request_timeout)) {
-                goto err;
-        }
-
-        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS,
-                                       &options, future);
-        if (!c_options)  {
-                goto err; /* Exception raised by options_to_c() */
-        }
-
-        /* options_to_c() sets future as the opaque, which is used in the
-         * background_event_cb to set the results on the future as the
-         * admin operation is finished, so we need to keep our own refcount. */
-        Py_INCREF(future);
-
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support alter consumer groups offset request for 1 group only");
-                goto err;
-        }
-
-        PyObject *single_request = PyList_GET_ITEM(request, 0);
-
-        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
-         * topics are of correct type.
-         * Since this is not in the fast path we treat ourselves
-         * to the luxury of looking up this for each call. */
-        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
-                                                  "ConsumerGroupTopicPartitions");
-        if (!ConsumerGroupTopicPartitions_type) {
-                PyErr_SetString(PyExc_ImportError,
-                        "Not able to load ConsumerGroupTopicPartitions type");
-                goto err;
-        }
-
-        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
-                PyErr_SetString(PyExc_ImportError,
-                        "Each request should be of ConsumerGroupTopicPartitions type");
-                goto err;
-        }
-
-        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
-
-        if(group_id == NULL) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Group name is mandatory for alter consumer offset operation");
-                goto err;
-        }
-
-        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
-
-        if(topic_partitions != Py_None) {
-                c_topic_partitions = py_to_c_parts(topic_partitions);
-        }
-
-        c_obj = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) * requests_cnt);
-        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partitions);
-
-        /* Use librdkafka's background thread queue to automatically dispatch
-        * Admin_background_event_cb() when the admin operation is finished. */
-        rkqu = rd_kafka_queue_get_background(self->rk);
-
-        /*
-         * Call AlterConsumerGroupOffsets
-         *
-         * We need to set up a CallState and release GIL here since
-         * the event_cb may be triggered immediately.
-         */
-        CallState_begin(self, &cs);
-        rd_kafka_AlterConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
-        CallState_end(self, &cs);
-
-        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
-        rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
-        free(c_obj);
-        free(group_id);
-        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
-        Py_XDECREF(topic_partitions);
-        rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-
-        Py_RETURN_NONE;
-err:
-        if (c_obj) {
-                rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
-                free(c_obj);
-        }
-        if (ConsumerGroupTopicPartitions_type) {
-                Py_DECREF(ConsumerGroupTopicPartitions_type);
-        }
-        if (c_options) {
-                rd_kafka_AdminOptions_destroy(c_options);
-                Py_DECREF(future);
-        }
-        if(c_topic_partitions) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-        }
-        if(topic_partitions) {
-                Py_XDECREF(topic_partitions);
-        }
-        if(group_id) {
-                free(group_id);
-        }
-        return NULL;
-}
-
-
-const char alter_consumer_group_offsets_doc[] = PyDoc_STR(
-        ".. py:function:: alter_consumer_group_offsets(request, future, [request_timeout])\n"
-        "\n"
-        "  Alter offset for the consumer group and topic partition provided in the request.\n"
-        "\n"
-        "  This method should not be used directly, use confluent_kafka.AdminClient.alter_consumer_group_offsets()\n");
-
-
-/**
  * @brief List consumer groups
  */
 PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
@@ -2020,9 +1733,296 @@ err:
 const char delete_consumer_groups_doc[] = PyDoc_STR(
         ".. py:function:: delete_consumer_groups(request, future, [request_timeout])\n"
         "\n"
-        "  Deletes consumer groups provided in the request .\n"
+        "  Deletes consumer groups provided in the request.\n"
         "\n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.delete_consumer_groups()\n");
+
+
+/**
+ * @brief List consumer groups offsets
+ */
+PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *request, *future, *require_stable_obj = NULL;
+        int requests_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        PyObject *ConsumerGroupTopicPartitions_type = NULL;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_ListConsumerGroupOffsets_t **c_obj = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        PyObject *topic_partitions = NULL;
+        char *group_id = NULL;
+
+        static char *kws[] = {"request",
+                             "future",
+                             /* options */
+                             "require_stable",
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
+                                         &request,
+                                         &future,
+                                         &require_stable_obj,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        if (require_stable_obj &&
+            !cfl_PyBool_get(require_stable_obj, "require_stable",
+                            &options.require_stable_offsets))
+                return NULL;
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(request) &&
+            (requests_cnt = (int)PyList_Size(request)) != 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Currently we support listing only 1 consumer groups offset information");
+                goto err;
+        }
+
+        PyObject *single_request = PyList_GET_ITEM(request, 0);
+
+        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
+                                                  "ConsumerGroupTopicPartitions");
+        if (!ConsumerGroupTopicPartitions_type) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Not able to load ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
+
+        if(group_id == NULL) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Group name is mandatory for list consumer offset operation");
+                goto err;
+        }
+
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
+
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
+        }
+
+        c_obj = malloc(sizeof(rd_kafka_ListConsumerGroupOffsets_t *) * requests_cnt);
+        c_obj[0] = rd_kafka_ListConsumerGroupOffsets_new(group_id, c_topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ListConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        if (c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+        free(c_obj);
+        free(group_id);
+        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
+        Py_XDECREF(topic_partitions);
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if (c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
+        if (c_obj) {
+                rd_kafka_ListConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+                free(c_obj);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(group_id) {
+                free(group_id);
+        }
+        Py_XDECREF(topic_partitions);
+        Py_XDECREF(ConsumerGroupTopicPartitions_type);
+        return NULL;
+}
+
+
+const char list_consumer_group_offsets_doc[] = PyDoc_STR(
+        ".. py:function:: list_consumer_group_offsets(request, future, [require_stable], [request_timeout])\n"
+        "\n"
+        "  List offset information for the consumer group and (optional) topic partition provided in the request.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.list_consumer_group_offsets()\n");
+
+
+/**
+ * @brief Alter consumer groups offsets
+ */
+PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *request, *future;
+        int requests_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        PyObject *ConsumerGroupTopicPartitions_type = NULL;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_AlterConsumerGroupOffsets_t **c_obj = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        PyObject *topic_partitions = NULL;
+        char *group_id = NULL;
+
+        static char *kws[] = {"request",
+                             "future",
+                             /* options */
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &request,
+                                         &future,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(request) &&
+            (requests_cnt = (int)PyList_Size(request)) != 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Currently we support alter consumer groups offset request for 1 group only");
+                goto err;
+        }
+
+        PyObject *single_request = PyList_GET_ITEM(request, 0);
+
+        /* Look up the ConsumerGroupTopicPartition class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConsumerGroupTopicPartitions_type = cfl_PyObject_lookup("confluent_kafka",
+                                                  "ConsumerGroupTopicPartitions");
+        if (!ConsumerGroupTopicPartitions_type) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Not able to load ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        if(!PyObject_IsInstance(single_request, ConsumerGroupTopicPartitions_type)) {
+                PyErr_SetString(PyExc_ImportError,
+                        "Each request should be of ConsumerGroupTopicPartitions type");
+                goto err;
+        }
+
+        cfl_PyObject_GetString(single_request, "group_id", &group_id, NULL, 1, 0);
+
+        if(group_id == NULL) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Group name is mandatory for alter consumer offset operation");
+                goto err;
+        }
+
+        cfl_PyObject_GetAttr(single_request, "topic_partitions", &topic_partitions, &PyList_Type, 0, 1);
+
+        if(topic_partitions != Py_None) {
+                c_topic_partitions = py_to_c_parts(topic_partitions);
+        }
+
+        c_obj = malloc(sizeof(rd_kafka_AlterConsumerGroupOffsets_t *) * requests_cnt);
+        c_obj[0] = rd_kafka_AlterConsumerGroupOffsets_new(group_id, c_topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call AlterConsumerGroupOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_AlterConsumerGroupOffsets(self->rk, c_obj, requests_cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+        free(c_obj);
+        free(group_id);
+        Py_DECREF(ConsumerGroupTopicPartitions_type); /* from lookup() */
+        Py_XDECREF(topic_partitions);
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+
+        Py_RETURN_NONE;
+err:
+        if (c_obj) {
+                rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
+                free(c_obj);
+        }
+        if (ConsumerGroupTopicPartitions_type) {
+                Py_DECREF(ConsumerGroupTopicPartitions_type);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
+        if(topic_partitions) {
+                Py_XDECREF(topic_partitions);
+        }
+        if(group_id) {
+                free(group_id);
+        }
+        return NULL;
+}
+
+
+const char alter_consumer_group_offsets_doc[] = PyDoc_STR(
+        ".. py:function:: alter_consumer_group_offsets(request, future, [request_timeout])\n"
+        "\n"
+        "  Alter offset for the consumer group and topic partition provided in the request.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.alter_consumer_group_offsets()\n");
 
 
 /**

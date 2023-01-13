@@ -87,7 +87,7 @@ class MemberAssignment:
     Parameters
     ----------
     topic_partitions : list(TopicPartition)
-        The topic partitions assigned to a group member
+        The topic partitions assigned to a group member.
     """
     def __init__(self, topic_partitions=[]):
         self.topic_partitions = topic_partitions
@@ -103,11 +103,11 @@ class MemberDescription:
     Parameters
     ----------
     member_id : str
-        The consumer id of the group member
+        The consumer id of the group member.
     client_id : str
-        The client id of the group member
+        The client id of the group member.
     host: str
-        The host where the group member is running
+        The host where the group member is running.
     assignment: MemberAssignment
         The assignment of the group member
     group_instance_id : str
@@ -129,17 +129,17 @@ class ConsumerGroupDescription:
     Parameters
     ----------
     group_id : str
-        The consumer group id
+        The consumer group id.
     is_simple_consumer_group : bool
-        Whether a consumer group is simple or not
+        Whether a consumer group is simple or not.
     members: list(MemberDescription)
-        Description of the memebers of the consumer group
+        Description of the memebers of the consumer group.
     partition_assignor: str
-        Partition assignor
+        Partition assignor.
     state : ConsumerGroupState
-        Current state of the consumer group
+        Current state of the consumer group.
     coordinator: Node
-        Consumer group coordinator
+        Consumer group coordinator.
     """
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
                  coordinator):

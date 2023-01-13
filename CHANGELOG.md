@@ -6,9 +6,9 @@
  - Added metadata to `TopicPartition` type and `commit()` (#1410).
  - Added `consumer.memberid()` for getting member id assigned to
    the consumer in a consumer group (#1154).
- - Implemented the `nb_bool` method for the Producer, so that the default (which uses len)
-   will not be used. This avoids situations where producers with no enqueued items would have
-   a False truth value (#1427).
+ - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
+   will not be used. This avoids situations where producers with no enqueued items would
+   evaluate to False (#1445).
  - Added Python 3.11 wheels.
  - [KIP-222](https://cwiki.apache.org/confluence/display/KAFKA/KIP-222+-+Add+Consumer+Group+operations+to+Admin+API)
    Add Consumer Group operations to Admin API.

@@ -159,7 +159,6 @@ class AdminClient (_AdminClientImpl):
     def _make_consumer_groups_result(f, futmap):
         """
         Map per-group results to per-group futures in futmap.
-        The result value of each (successful) future is None.
         """
         try:
 
@@ -185,7 +184,7 @@ class AdminClient (_AdminClientImpl):
     def _make_consumer_group_offsets_result(f, futmap):
         """
         Map per-group results to per-group futures in futmap.
-        The result value of each (successful) future is None.
+        The result value of each (successful) future is ConsumerGroupTopicPartitions.
         """
         try:
 
@@ -271,7 +270,7 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(request, list):
             raise TypeError("request must be a list")
         if len(request) != 1:
-            raise ValueError("Currently we support listing only 1 consumer groups offset information")
+            raise ValueError("Currently we support listing offsets for a single consumer group only")
         for req in request:
             if not isinstance(req, _ConsumerGroupTopicPartitions):
                 raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
@@ -310,7 +309,7 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(request, list):
             raise TypeError("request must be a list")
         if len(request) != 1:
-            raise ValueError("Currently we support alter consumer groups offset request for 1 group only")
+            raise ValueError("Currently we support altering offsets for a single consumer group only")
         for req in request:
             if not isinstance(req, _ConsumerGroupTopicPartitions):
                 raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
@@ -629,9 +628,12 @@ class AdminClient (_AdminClientImpl):
         """
         List consumer groups.
 
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+                  Default: `socket.timeout.ms*1000.0`
+        :param list(ConsumerGroupState) states: only list consumer groups which are currently in
+                  int these states.
 
-        :returns: a future. Result method of the future returns :class:`ConsumerGroupDescription`
+        :returns: a future. Result method of the future returns :class:`ListConsumerGroupsResult`.
 
         :rtype: future
 
@@ -647,8 +649,6 @@ class AdminClient (_AdminClientImpl):
                 for state in states:
                     if not isinstance(state, ConsumerGroupState):
                         raise TypeError("All elements of states must be of type ConsumerGroupState")
-                if AdminClient._has_duplicates(states):
-                    raise ValueError("'states' must have unique values")
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
 
@@ -663,7 +663,8 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+                  Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns :class:`ConsumerGroupDescription`.
@@ -693,7 +694,8 @@ class AdminClient (_AdminClientImpl):
         Delete the given consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be deleted.
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.`
+        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+                  Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns :class:`DeleteConsumerGroupsResult`.
@@ -727,7 +729,7 @@ class AdminClient (_AdminClientImpl):
                     partition information for which offset detail is expected. If only group name is
                     provided, then offset information of all the topic and partition associated with
                     that group is returned.
-        :param bool require_stable: If True, fetches stable offsets. Default - False
+        :param bool require_stable: If True, fetches stable offsets. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
