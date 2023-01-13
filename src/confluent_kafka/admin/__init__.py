@@ -45,7 +45,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      _AdminClientImpl,
                      NewTopic,
                      NewPartitions,
-                     TopicPartition,
+                     TopicPartition as _TopicPartition,
                      CONFIG_SOURCE_UNKNOWN_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
@@ -290,7 +290,7 @@ class AdminClient (_AdminClientImpl):
                 for topic_partition in req.topic_partitions:
                     if topic_partition is None:
                         raise ValueError("Element of 'topic_partitions' cannot be None")
-                    if not isinstance(topic_partition, TopicPartition):
+                    if not isinstance(topic_partition, _TopicPartition):
                         raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
                     if topic_partition.topic is None:
                         raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
@@ -328,7 +328,7 @@ class AdminClient (_AdminClientImpl):
             for topic_partition in req.topic_partitions:
                 if topic_partition is None:
                     raise ValueError("Element of 'topic_partitions' cannot be None")
-                if not isinstance(topic_partition, TopicPartition):
+                if not isinstance(topic_partition, _TopicPartition):
                     raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
                 if topic_partition.topic is None:
                     raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
