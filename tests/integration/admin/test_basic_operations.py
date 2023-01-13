@@ -16,8 +16,8 @@
 import confluent_kafka
 import struct
 import time
-from confluent_kafka import ConsumerGroupTopicPartitions
-from confluent_kafka.admin import (NewPartitions, TopicPartition, ConfigResource,
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition
+from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
                                    ConsumerGroupState)
