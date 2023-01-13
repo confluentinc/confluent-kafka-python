@@ -458,7 +458,7 @@ def test_describe_acls_api():
                         unknown_operation="it is")
 
 
-def test_list_consumer_groups():
+def test_list_consumer_groups_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
     a.list_consumer_groups()
@@ -472,7 +472,7 @@ def test_list_consumer_groups():
         a.describe_consumer_groups(states=["EMPTY"])
 
 
-def test_describe_consumer_groups():
+def test_describe_consumer_groups_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
     group_ids = ["test-group-1", "test-group-2"]
@@ -486,7 +486,7 @@ def test_describe_consumer_groups():
         a.describe_consumer_groups([])
 
 
-def test_delete_consumer_groups():
+def test_delete_consumer_groups_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
     group_ids = ["test-group-1", "test-group-2"]
@@ -500,7 +500,7 @@ def test_delete_consumer_groups():
         a.delete_consumer_groups([])
 
 
-def test_list_consumer_group_offsets():
+def test_list_consumer_group_offsets_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 
@@ -592,7 +592,7 @@ def test_list_consumer_group_offsets():
     a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
 
 
-def test_alter_consumer_group_offsets():
+def test_alter_consumer_group_offsets_api():
 
     a = AdminClient({"socket.timeout.ms": 10})
 

@@ -33,8 +33,7 @@ from ._metadata import (BrokerMetadata,  # noqa: F401
                         GroupMetadata,
                         PartitionMetadata,
                         TopicMetadata)
-from ._group import (DeleteConsumerGroupsResult,  # noqa: F401
-                     ConsumerGroupListing,
+from ._group import (ConsumerGroupListing,  # noqa: F401
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
@@ -700,7 +699,7 @@ class AdminClient (_AdminClientImpl):
                   Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
-                  The future result() method returns :class:`DeleteConsumerGroupsResult`.
+                  The future result() method returns None.
 
         :rtype: dict[str, future]
 

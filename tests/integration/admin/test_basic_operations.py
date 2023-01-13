@@ -362,7 +362,9 @@ def test_basic_operations(kafka_cluster):
     verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
 
     # Delete groups
-    admin_client.delete_consumer_groups([group1, group2])
+    fs = admin_client.delete_consumer_groups([group1, group2])
+    fs[group1].result()  # will raise exception on failure
+    fs[group2].result()  # will raise exception on failure
 
     #
     # Delete the topic

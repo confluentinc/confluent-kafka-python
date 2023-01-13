@@ -488,8 +488,8 @@ def example_delete_consumer_groups(a, args):
     groups = a.delete_consumer_groups(args, timeout=10)
     for group_id, future in groups.items():
         try:
-            response = future.result()
-            print("Deleted group with id '" + response.group_id + "' successfully")
+            future.result()  # The result itself is None
+            print("Deleted group with id '" + group_id + "' successfully")
         except KafkaException as e:
             print("Error deleting group id '{}': {}".format(group_id, e))
         except Exception:

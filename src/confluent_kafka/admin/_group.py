@@ -126,17 +126,3 @@ class ConsumerGroupDescription:
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
-
-
-class DeleteConsumerGroupsResult:
-    """
-    Represents Information for a deleted consumer group.
-    Used by :meth:`AdminClient.delete_consumer_groups`.
-
-    Parameters
-    ----------
-    group_id : str
-        Id of the deleted group.
-    """
-    def __init__(self, group_id):
-        self.group_id = group_id

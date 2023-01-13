@@ -2838,53 +2838,21 @@ static PyObject *
 Admin_c_DeleteGroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
                                   size_t cnt) {
 
-        size_t i;
         PyObject *delete_groups_result = NULL;
-        PyObject *DeleteConsumerGroupsResult_type = NULL;
-        PyObject *args = NULL;
-        PyObject *kwargs = NULL;
-        PyObject *delete_group_result = NULL;
-
-        DeleteConsumerGroupsResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                                              "DeleteConsumerGroupsResult");
-        if (!DeleteConsumerGroupsResult_type) {
-                goto err;
-        }
+        size_t i;
 
         delete_groups_result = PyList_New(cnt);
 
         for (i = 0; i < cnt; i++) {
                 PyObject *error;
                 const rd_kafka_error_t *c_error = rd_kafka_group_result_error(c_result_responses[i]);
-
-                if (c_error) {
-                        error = KafkaError_new_or_None(
-                                rd_kafka_error_code(c_error),
-                                rd_kafka_error_string(c_error));
-                        PyList_SET_ITEM(delete_groups_result, i, error);
-                } else {
-                        kwargs = PyDict_New();
-                        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_result_responses[i]));
-                        args = PyTuple_New(0);
-                        delete_group_result = PyObject_Call(DeleteConsumerGroupsResult_type, args, kwargs);
-                        if (!delete_group_result) {
-                                goto err;
-                        }
-                        Py_DECREF(args);
-                        Py_DECREF(kwargs);
-                        PyList_SET_ITEM(delete_groups_result, i, delete_group_result);
-                }
+                error = KafkaError_new_or_None(
+                        rd_kafka_error_code(c_error),
+                        rd_kafka_error_string(c_error));
+                PyList_SET_ITEM(delete_groups_result, i, error);
         }
-        Py_DECREF(DeleteConsumerGroupsResult_type);
+
         return delete_groups_result;
-
-err:
-
-        Py_XDECREF(DeleteConsumerGroupsResult_type);
-        Py_XDECREF(delete_groups_result);
-        Py_XDECREF(args);
-        Py_XDECREF(kwargs);
-        return NULL;
 }
 
 
