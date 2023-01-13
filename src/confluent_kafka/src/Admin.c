@@ -1436,7 +1436,7 @@ PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) 
         static char *kws[] = {"future",
                              /* options */
                              "states_int",
-                             "timeout",
+                             "request_timeout",
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,
@@ -1540,7 +1540,7 @@ PyObject *describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwar
         static char *kws[] = {"future",
                              "group_ids",
                              /* options */
-                             "timeout",
+                             "request_timeout",
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
@@ -1648,7 +1648,7 @@ PyObject *delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs
         static char *kws[] = {"group_ids",
                              "future",
                              /* options */
-                             "timeout",
+                             "request_timeout",
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,

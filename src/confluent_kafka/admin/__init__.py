@@ -629,7 +629,7 @@ class AdminClient (_AdminClientImpl):
         """
         List consumer groups.
 
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
         :param list(ConsumerGroupState) states: only list consumer groups which are currently in
                   int these states.
@@ -664,7 +664,7 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
@@ -695,7 +695,7 @@ class AdminClient (_AdminClientImpl):
         Delete the given consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be deleted.
-        :param float timeout: Maximum response time before timing out, or -1 for infinite timeout.
+        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.

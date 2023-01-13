@@ -436,7 +436,7 @@ def example_list_consumer_groups(a, args):
     List Consumer Groups
     """
     states = [ConsumerGroupState[state] for state in args]
-    future = a.list_consumer_groups(timeout=10, states=states)
+    future = a.list_consumer_groups(request_timeout=10, states=states)
     try:
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
@@ -455,7 +455,7 @@ def example_describe_consumer_groups(a, args):
     Describe Consumer Groups
     """
 
-    futureMap = a.describe_consumer_groups(args, timeout=10)
+    futureMap = a.describe_consumer_groups(args, request_timeout=10)
 
     for group_id, future in futureMap.items():
         try:
@@ -485,7 +485,7 @@ def example_delete_consumer_groups(a, args):
     """
     Delete Consumer Groups
     """
-    groups = a.delete_consumer_groups(args, timeout=10)
+    groups = a.delete_consumer_groups(args, request_timeout=10)
     for group_id, future in groups.items():
         try:
             future.result()  # The result itself is None
