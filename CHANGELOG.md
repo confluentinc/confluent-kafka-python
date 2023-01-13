@@ -22,6 +22,7 @@
    - `delete_consumer_groups` Admin operation. Supports multiple groups.
    - `list_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple partitions. Supports require_stable option.
    - `alter_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple offsets.
+ - Added `normalize.schemas` configuration property to Schema Registry client
 
 confluent-kafka-python is based on librdkafka v2.0.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
