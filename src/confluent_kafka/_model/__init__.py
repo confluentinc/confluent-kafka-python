@@ -52,7 +52,7 @@ class ConsumerGroupTopicPartitions:
     ----------
     group_id: str
         Id of the consumer group.
-    topic_partitions : list(TopicPartition)
+    topic_partitions: list(TopicPartition)
         List of topic partitions information.
     """
     def __init__(self, group_id, topic_partitions=None):
@@ -63,18 +63,21 @@ class ConsumerGroupTopicPartitions:
 class ConsumerGroupState(Enum):
     """
     Enumerates the different types of Consumer Group State.
+
+    Values
+    ------
+    UNKOWN                  : State is not known or not set.
+    PREPARING_REBALANCING   : Preparing rebalance for the consumer group.
+    COMPLETING_REBALANCING  : Consumer Group is completing rebalancing.
+    STABLE                  : Consumer Group is stable.
+    DEAD                    : Consumer Group is Dead.
+    EMPTY                   : Consumer Group is Empty.
     """
-    #: State is not known or not set.
     UNKOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
-    #: Preparing rebalance for the consumer group.
     PREPARING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
-    #: Consumer Group is completing rebalancing.
     COMPLETING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
-    #: Consumer Group is stable.
     STABLE = cimpl.CONSUMER_GROUP_STATE_STABLE
-    #: Consumer Group is Dead.
     DEAD = cimpl.CONSUMER_GROUP_STATE_DEAD
-    #: Consumer Group is Empty.
     EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
 
     def __lt__(self, other):
