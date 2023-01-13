@@ -13,9 +13,8 @@
 # limitations under the License.
 
 
-from enum import Enum
-from .. import cimpl as _cimpl
 from .._util import ConversionUtil
+from .._model import ConsumerGroupState
 
 
 class ConsumerGroupListing:
@@ -54,29 +53,6 @@ class ListConsumerGroupsResult:
     def __init__(self, valid=None, errors=None):
         self.valid = valid
         self.errors = errors
-
-
-class ConsumerGroupState(Enum):
-    """
-    Enumerates the different types of Consumer Group State.
-    """
-    #: State is not known or not set.
-    UNKOWN = _cimpl.CONSUMER_GROUP_STATE_UNKNOWN
-    #: Preparing rebalance for the consumer group.
-    PREPARING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
-    #: Consumer Group is completing rebalancing.
-    COMPLETING_REBALANCING = _cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
-    #: Consumer Group is stable.
-    STABLE = _cimpl.CONSUMER_GROUP_STATE_STABLE
-    #: Consumer Group is Dead.
-    DEAD = _cimpl.CONSUMER_GROUP_STATE_DEAD
-    #: Consumer Group is Empty.
-    EMPTY = _cimpl.CONSUMER_GROUP_STATE_EMPTY
-
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
-            return NotImplemented
-        return self.value < other.value
 
 
 class MemberAssignment:

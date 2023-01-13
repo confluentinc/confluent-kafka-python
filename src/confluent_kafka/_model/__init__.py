@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
+from .. import cimpl
 
 class Node:
     """
@@ -55,3 +57,26 @@ class ConsumerGroupTopicPartitions:
     def __init__(self, group_id, topic_partitions=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions
+
+
+class ConsumerGroupState(Enum):
+    """
+    Enumerates the different types of Consumer Group State.
+    """
+    #: State is not known or not set.
+    UNKOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
+    #: Preparing rebalance for the consumer group.
+    PREPARING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
+    #: Consumer Group is completing rebalancing.
+    COMPLETING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
+    #: Consumer Group is stable.
+    STABLE = cimpl.CONSUMER_GROUP_STATE_STABLE
+    #: Consumer Group is Dead.
+    DEAD = cimpl.CONSUMER_GROUP_STATE_DEAD
+    #: Consumer Group is Empty.
+    EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value

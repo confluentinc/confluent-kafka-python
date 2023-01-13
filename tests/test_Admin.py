@@ -3,9 +3,9 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType, ConsumerGroupState
+    AclOperation, AclPermissionType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
-    TopicPartition, ConsumerGroupTopicPartitions
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
 
 

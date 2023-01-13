@@ -35,7 +35,6 @@ from ._metadata import (BrokerMetadata,  # noqa: F401
                         TopicMetadata)
 from ._group import (DeleteConsumerGroupsResult,  # noqa: F401
                      ConsumerGroupListing,
-                     ConsumerGroupState,
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
@@ -61,6 +60,9 @@ from ..cimpl import (KafkaException,  # noqa: F401
 
 from confluent_kafka import ConsumerGroupTopicPartitions \
     as _ConsumerGroupTopicPartitions
+
+from confluent_kafka import ConsumerGroupState \
+    as _ConsumerGroupState
 
 try:
     string_type = basestring
@@ -647,7 +649,7 @@ class AdminClient (_AdminClientImpl):
                 if not isinstance(states, list):
                     raise TypeError("'states' must be a list")
                 for state in states:
-                    if not isinstance(state, ConsumerGroupState):
+                    if not isinstance(state, _ConsumerGroupState):
                         raise TypeError("All elements of states must be of type ConsumerGroupState")
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")

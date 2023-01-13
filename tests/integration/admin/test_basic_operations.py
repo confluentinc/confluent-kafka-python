@@ -16,11 +16,10 @@
 import confluent_kafka
 import struct
 import time
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType,
-                                   ConsumerGroupState)
+                                   ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
