@@ -17,8 +17,9 @@
 
 # Example use of AdminClient operations.
 
-from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions)
-from confluent_kafka.admin import (AdminClient, TopicPartition, NewTopic, NewPartitions, ConfigResource, ConfigSource,
+from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
+                             TopicPartition)
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType, ConsumerGroupState)
 import sys
