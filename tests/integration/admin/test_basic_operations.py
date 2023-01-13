@@ -145,7 +145,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
     # List Consumer Group Offsets check with just group name
     request = ConsumerGroupTopicPartitions(group_id)
     fs = client.list_consumer_group_offsets([request])
-    f = fs[request]
+    f = fs[group_id]
     res = f.result()
     assert isinstance(res, ConsumerGroupTopicPartitions)
     assert res.group_id == group_id
@@ -165,7 +165,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
     alter_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
                                                                        alter_group_topic_partitions)
     afs = client.alter_consumer_group_offsets([alter_group_topic_partition_request])
-    af = afs[alter_group_topic_partition_request]
+    af = afs[group_id]
     ares = af.result()
     assert isinstance(ares, ConsumerGroupTopicPartitions)
     assert ares.group_id == group_id
@@ -181,7 +181,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
     list_group_topic_partition_request = ConsumerGroupTopicPartitions(group_id,
                                                                       list_group_topic_partitions)
     lfs = client.list_consumer_group_offsets([list_group_topic_partition_request])
-    lf = lfs[list_group_topic_partition_request]
+    lf = lfs[group_id]
     lres = lf.result()
 
     assert isinstance(lres, ConsumerGroupTopicPartitions)
@@ -298,14 +298,14 @@ def test_basic_operations(kafka_cluster):
     assert group2 in groups, "Consumer group {} not found".format(group2)
 
     # List Consumer Groups new API test
-    future = admin_client.list_consumer_groups(timeout=10)
+    future = admin_client.list_consumer_groups(request_timeout=10)
     result = future.result()
     group_ids = [group.group_id for group in result.valid]
     assert group1 in group_ids, "Consumer group {} not found".format(group1)
     assert group2 in group_ids, "Consumer group {} not found".format(group2)
 
     # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], timeout=10)
+    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
     for group_id, future in futureMap.items():
         g = future.result()
         assert group_id == g.group_id
@@ -362,7 +362,7 @@ def test_basic_operations(kafka_cluster):
     verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
 
     # Delete groups
-    fs = admin_client.delete_consumer_groups([group1, group2])
+    fs = admin_client.delete_consumer_groups([group1, group2], request_timeout=10)
     fs[group1].result()  # will raise exception on failure
     fs[group2].result()  # will raise exception on failure
 

@@ -735,10 +735,10 @@ class AdminClient (_AdminClientImpl):
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures for each group, keyed by the :class:`ConsumerGroupTopicPartitions` object.
+        :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
 
-        :rtype: dict[ConsumerGroupTopicPartitions, future]
+        :rtype: dict[str, future]
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeException: Invalid input.
@@ -747,7 +747,8 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures(list_consumer_group_offsets_request, _ConsumerGroupTopicPartitions,
+        f, futmap = AdminClient._make_futures([request.group_id for request in list_consumer_group_offsets_request],
+                                              string_type,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
@@ -767,7 +768,7 @@ class AdminClient (_AdminClientImpl):
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures for each group, keyed by the :class:`ConsumerGroupTopicPartitions` object.
+        :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
 
         :rtype: dict[ConsumerGroupTopicPartitions, future]
@@ -779,7 +780,8 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures(alter_consumer_group_offsets_request, _ConsumerGroupTopicPartitions,
+        f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
+                                              string_type,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
