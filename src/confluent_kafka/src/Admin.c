@@ -1997,9 +1997,6 @@ err:
                 rd_kafka_AlterConsumerGroupOffsets_destroy_array(c_obj, requests_cnt);
                 free(c_obj);
         }
-        if (ConsumerGroupTopicPartitions_type) {
-                Py_DECREF(ConsumerGroupTopicPartitions_type);
-        }
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
@@ -2007,12 +2004,11 @@ err:
         if(c_topic_partitions) {
                 rd_kafka_topic_partition_list_destroy(c_topic_partitions);
         }
-        if(topic_partitions) {
-                Py_XDECREF(topic_partitions);
-        }
         if(group_id) {
                 free(group_id);
         }
+        Py_XDECREF(topic_partitions);
+        Py_XDECREF(ConsumerGroupTopicPartitions_type);
         return NULL;
 }
 
