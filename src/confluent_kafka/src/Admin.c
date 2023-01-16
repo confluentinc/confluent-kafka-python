@@ -2511,6 +2511,8 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                 ConsumerGroupListing_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                                 "ConsumerGroupListing");
                 if (!ConsumerGroupListing_type) {
+                        PyErr_Format(PyExc_TypeError,
+                                "Not able to load ConsumerGroupListing type");
                         goto err;
                 }
                 for(i = 0; i < valid_cnt; i++) {
@@ -2861,6 +2863,8 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
         GroupResult_type = cfl_PyObject_lookup("confluent_kafka",
                                                "ConsumerGroupTopicPartitions");
         if (!GroupResult_type) {
+                PyErr_Format(PyExc_TypeError,
+                        "Not able to load ConsumerGroupTopicPartitions type");
                 return NULL;
         }
 
