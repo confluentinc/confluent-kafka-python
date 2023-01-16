@@ -73,18 +73,28 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                                "replica_assignment",
                                "config",
                                NULL };
-
+                               
+        self->num_partitions = -1;
         self->replication_factor = -1;
         self->replica_assignment = NULL;
         self->config = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|iOO", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iiOO", kws,
                                          &topic, &self->num_partitions,
                                          &self->replication_factor,
                                          &self->replica_assignment,
                                          &self->config))
                 return -1;
 
+
+        if(self->replica_assignment){
+                if(self->num_partitions!= -1){
+                        PyErr_SetString(PyExc_TypeError,
+                                        "num_partitions and replica assignment are mutually exclusive");
+                        return -1;
+                }
+                self->num_partitions = PyList_Size(self->replica_assignment);
+        }
 
         if (self->config) {
                 if (!PyDict_Check(self->config)) {
