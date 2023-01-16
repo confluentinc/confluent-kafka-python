@@ -523,7 +523,7 @@ def example_list_consumer_group_offsets(a, args):
                           " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
-            print("Failed to describe {}: {}".format(group_id, e))
+            print("Failed to list {}: {}".format(group_id, e))
         except Exception:
             raise
 
@@ -555,7 +555,7 @@ def example_alter_consumer_group_offsets(a, args):
                           " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
 
         except KafkaException as e:
-            print("Failed to describe {}: {}".format(group_id, e))
+            print("Failed to alter {}: {}".format(group_id, e))
         except Exception:
             raise
 
