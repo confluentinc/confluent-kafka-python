@@ -284,6 +284,8 @@ def test_basic_operations(kafka_cluster):
 
     group1 = 'test-group-1'
     group2 = 'test-group-2'
+    acls_topic = our_topic + "-acls"
+    acls_group = "test-group-acls"
     consume_messages(group1, 2)
     consume_messages(group2, 2)
 
@@ -360,9 +362,6 @@ def test_basic_operations(kafka_cluster):
     # Verify config matches our expectations
     verify_config(topic_config, configs)
 
-    # Verify ACL operations
-    verify_admin_acls(admin_client, our_topic, group1)
-
     # Verify Consumer Offset Operations
     verify_consumer_group_offsets_operations(admin_client, our_topic, group1)
 
@@ -377,3 +376,6 @@ def test_basic_operations(kafka_cluster):
     fs = admin_client.delete_topics([our_topic])
     fs[our_topic].result()  # will raise exception on failure
     print("Topic {} marked for deletion".format(our_topic))
+
+    # Verify ACL operations
+    verify_admin_acls(admin_client, acls_topic, acls_group)
