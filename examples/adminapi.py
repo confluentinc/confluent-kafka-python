@@ -38,7 +38,7 @@ def parse_nullable_string(s):
 def example_create_topics(a, topics):
     """ Create topics """
 
-    new_topics = [NewTopic(topic,replica_assignment=[[1,3],[2,8]],config={'message.downconversion.enable':True}) for topic in topics]
+    new_topics = [NewTopic(topic,replica_assignment=[[0]]) for topic in topics]
     # Call create_topics to asynchronously create topics, a dict
     # of <topic,future> is returned.
     fs = a.create_topics(new_topics)
