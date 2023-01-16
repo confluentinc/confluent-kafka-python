@@ -93,7 +93,7 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                                         "num_partitions and replica assignment are mutually exclusive");
                         return -1;
                 }
-                // self->num_partitions = PyList_Size(self->replica_assignment);
+                self->num_partitions = PyList_Size(self->replica_assignment);
         }
 
         if (self->config) {
