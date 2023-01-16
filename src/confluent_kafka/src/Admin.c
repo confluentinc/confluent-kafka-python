@@ -1423,7 +1423,7 @@ static const char Admin_delete_acls_doc[] = PyDoc_STR(
 /**
  * @brief List consumer groups
  */
-PyObject *list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *future, *states_int = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -1516,7 +1516,7 @@ err:
 }
 
 
-const char list_consumer_groups_doc[] = PyDoc_STR(
+const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
         ".. py:function:: list_consumer_groups(future, [states_int], [request_timeout])\n"
         "\n"
         "  List all the consumer groups.\n"
@@ -1527,7 +1527,7 @@ const char list_consumer_groups_doc[] = PyDoc_STR(
 /**
  * @brief Describe consumer groups
  */
-PyObject *describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *future, *group_ids;
         struct Admin_options options = Admin_options_INITIALIZER;
         const char **c_groups = NULL;
@@ -1623,7 +1623,7 @@ err:
 }
 
 
-const char describe_consumer_groups_doc[] = PyDoc_STR(
+const char Admin_describe_consumer_groups_doc[] = PyDoc_STR(
         ".. py:function:: describe_consumer_groups(future, group_ids, [request_timeout])\n"
         "\n"
         "  Describes the provided consumer groups.\n"
@@ -1634,7 +1634,7 @@ const char describe_consumer_groups_doc[] = PyDoc_STR(
 /**
  * @brief Delete consumer groups offsets
  */
-PyObject *delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
+PyObject *Admin_delete_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *group_ids, *future;
         PyObject *group_id;
         int group_ids_cnt;
@@ -1730,7 +1730,7 @@ err:
 }
 
 
-const char delete_consumer_groups_doc[] = PyDoc_STR(
+const char Admin_delete_consumer_groups_doc[] = PyDoc_STR(
         ".. py:function:: delete_consumer_groups(request, future, [request_timeout])\n"
         "\n"
         "  Deletes consumer groups provided in the request.\n"
@@ -1741,7 +1741,7 @@ const char delete_consumer_groups_doc[] = PyDoc_STR(
 /**
  * @brief List consumer groups offsets
  */
-PyObject *list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *request, *future, *require_stable_obj = NULL;
         int requests_cnt;
         struct Admin_options options = Admin_options_INITIALIZER;
@@ -1876,7 +1876,7 @@ err:
 }
 
 
-const char list_consumer_group_offsets_doc[] = PyDoc_STR(
+const char Admin_list_consumer_group_offsets_doc[] = PyDoc_STR(
         ".. py:function:: list_consumer_group_offsets(request, future, [require_stable], [request_timeout])\n"
         "\n"
         "  List offset information for the consumer group and (optional) topic partition provided in the request.\n"
@@ -1887,7 +1887,7 @@ const char list_consumer_group_offsets_doc[] = PyDoc_STR(
 /**
  * @brief Alter consumer groups offsets
  */
-PyObject *alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
+PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyObject *kwargs) {
         PyObject *request, *future;
         int requests_cnt;
         struct Admin_options options = Admin_options_INITIALIZER;
@@ -2013,7 +2013,7 @@ err:
 }
 
 
-const char alter_consumer_group_offsets_doc[] = PyDoc_STR(
+const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
         ".. py:function:: alter_consumer_group_offsets(request, future, [request_timeout])\n"
         "\n"
         "  Alter offset for the consumer group and topic partition provided in the request.\n"
@@ -2120,24 +2120,24 @@ static PyMethodDef Admin_methods[] = {
           list_groups_doc
         },
 
-        { "describe_consumer_groups", (PyCFunction)describe_consumer_groups, METH_VARARGS|METH_KEYWORDS,
-          describe_consumer_groups_doc
+        { "list_consumer_groups", (PyCFunction)Admin_list_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          Admin_list_consumer_groups_doc
         },
 
-        { "list_consumer_groups", (PyCFunction)list_consumer_groups, METH_VARARGS|METH_KEYWORDS,
-          list_consumer_groups_doc
+        { "describe_consumer_groups", (PyCFunction)Admin_describe_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          Admin_describe_consumer_groups_doc
         },
 
-        { "delete_consumer_groups", (PyCFunction)delete_consumer_groups, METH_VARARGS|METH_KEYWORDS,
-          delete_consumer_groups_doc
+        { "delete_consumer_groups", (PyCFunction)Admin_delete_consumer_groups, METH_VARARGS|METH_KEYWORDS,
+          Admin_delete_consumer_groups_doc
         },
 
-        { "list_consumer_group_offsets", (PyCFunction)list_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
-          list_consumer_group_offsets_doc
+        { "list_consumer_group_offsets", (PyCFunction)Admin_list_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
+          Admin_list_consumer_group_offsets_doc
         },
 
-        { "alter_consumer_group_offsets", (PyCFunction)alter_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
-          alter_consumer_group_offsets_doc
+        { "alter_consumer_group_offsets", (PyCFunction)Admin_alter_consumer_group_offsets, METH_VARARGS|METH_KEYWORDS,
+          Admin_alter_consumer_group_offsets_doc
         },
 
         { "create_acls", (PyCFunction)Admin_create_acls, METH_VARARGS|METH_KEYWORDS,
@@ -2854,7 +2854,10 @@ Admin_c_DeleteGroupResults_to_py (const rd_kafka_group_result_t **c_result_respo
 
 static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t *c_group_result_response) {
 
-        PyObject *args, *kwargs, *GroupResult_type, *group_result;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *GroupResult_type = NULL;
+        PyObject *group_result = NULL;
         const rd_kafka_topic_partition_list_t *c_topic_partition_offset_list;
         PyObject *topic_partition_offset_list = NULL;
 
@@ -2896,8 +2899,8 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
                             size_t cnt) {
 
         size_t i;
-        PyObject *all_groups_result;
-        PyObject *single_group_result;
+        PyObject *all_groups_result = NULL;
+        PyObject *single_group_result = NULL;
 
         all_groups_result = PyList_New(cnt);
 
@@ -2914,7 +2917,7 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
                         single_group_result =
                                 Admin_c_SingleGroupResult_to_py(c_result_responses[i]);
                         if (!single_group_result) {
-                                Py_DECREF(all_groups_result);
+                                Py_XDECREF(all_groups_result);
                                 return NULL;
                         }
                         PyList_SET_ITEM(all_groups_result, i, single_group_result);
@@ -2943,7 +2946,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         PyObject *error, *method, *ret;
         PyObject *result = NULL;
         PyObject *exctype = NULL, *exc = NULL, *excargs = NULL;
-        PyObject *type, *value, *traceback;
 
         /* Acquire GIL */
         gstate = PyGILState_Ensure();
@@ -3059,12 +3061,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 result = Admin_c_AclBindings_to_py(c_acls,
                                                    c_acl_cnt);
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
+
                 break;
         }
 
@@ -3084,12 +3081,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 result = Admin_c_DeleteAcls_result_responses_to_py(c_acl_result_responses,
                                                         c_acl_results_cnt);
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
+
                 break;
         }
 
@@ -3115,13 +3107,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                                                                  c_list_consumer_groups_errors_responses,
                                                                  c_list_consumer_groups_errors_cnt);
 
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
-
                 break;
         }
 
@@ -3139,13 +3124,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 result = Admin_c_DescribeConsumerGroupsResults_to_py(c_describe_consumer_groups_res_responses,
                                                                      c_describe_consumer_groups_res_cnt);
-
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
 
                 break;
         }
@@ -3167,13 +3145,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 result = Admin_c_DeleteGroupResults_to_py(c_delete_groups_res_responses,
                                                           c_delete_groups_res_cnt);
 
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
-
                 break;
         }
 
@@ -3193,13 +3164,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 result = Admin_c_GroupResults_to_py(c_list_group_offset_res_responses,
                                                     c_list_group_offset_res_cnt);
 
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
-
                 break;
         }
 
@@ -3217,13 +3181,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses,
                                                     c_alter_group_offset_res_cnt);
-
-                if (!result)
-                {
-                        PyErr_Fetch(&type, &value, &traceback);
-                        error = value;
-                        goto raise;
-                }
 
                 break;
         }
