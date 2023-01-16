@@ -85,7 +85,7 @@ class CachedSchemaRegistryClient(object):
     :param str key_location: Path to client's private key used for authentication.
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None,key_password=None):
+    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None, key_password=None):
         # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.
         conf = url
         if not isinstance(url, dict):
@@ -172,7 +172,7 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _configure_client_tls(conf):
-        cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)
+        cert = [conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)] # should be an added field of password since private key is encrypted
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
