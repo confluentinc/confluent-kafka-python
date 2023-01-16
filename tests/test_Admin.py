@@ -121,14 +121,31 @@ def test_create_topics_api():
     with pytest.raises(Exception):
         a.create_topics([None, NewTopic("mytopic", 1, 2)])
 
+    try:
+        a.create_topics([NewTopic("mytopic",config={'some':'thing'})]);
+    except Exception as err:
+        assert False , f"When none of the partitions, replication and assignment is present, the request should not fail, but it does with error {err}"
+   
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic",num_partitions=2)])
+
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic",replication_factor=2)])
+        
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic",num_partitions=3,replica_assignment=[[10, 11], [0, 1, 2], [15, 20]])])
+
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic",replication_factor=2,replica_assignment=[[10, 11], [0, 2], [15, 20]],config={"some":"thing"})])
+
     fs = a.create_topics([NewTopic("mytopic", 3, 2)])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
-    fs = a.create_topics([NewTopic("mytopic", 3,
-                                   replica_assignment=[[10, 11], [0, 1, 2], [15, 20]],
-                                   config={"some": "config"})])
+    fs = a.create_topics([NewTopic("mytopic",
+                                replica_assignment=[[10, 11], [0, 1], [15, 20]],
+                                config={"some": "config"})])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
