@@ -44,7 +44,6 @@ jobs:
       - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
 
   - name: "Wheels: Linux x64"
-    if: tag is present
     language: python
     python: "3.8"
     services: docker
