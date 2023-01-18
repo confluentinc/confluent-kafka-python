@@ -8,7 +8,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
 # Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
-export CIBW_SKIP="pp* cp27-* cp35-* cp36-* *i686 *musllinux* $CIBW_SKIP"
+export CIBW_SKIP="pp* cp27-* cp35-* cp36-* cp38-* cp39-* cp310-* cp311-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
@@ -29,19 +29,19 @@ set -ex
 ARCH=${ARCH:-x64}
 
 case $OSTYPE in
-    linux*)
-        os=linux
-        # Need to set up env vars (in docker) so that setup.py
-        # finds librdkafka.
-        lib_dir=dest/runtimes/linux-$ARCH/native
-        export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
-        ;;
     darwin*)
         os=macos
         # Need to set up env vars so that setup.py finds librdkafka.
         lib_dir=dest/runtimes/osx-$ARCH/native
         export CFLAGS="-I${PWD}/dest/build/native/include"
         export LDFLAGS="-L${PWD}/$lib_dir"
+        tmp="tmp_dnld"
+        [[ -d $tmp ]] || mkdir -p "$tmp"
+        cd $tmp
+        curl "https://www.python.org/ftp/python/3.7.9/python-3.7.9-macosx10.9.pkg" --output Python.pkg
+        sudo installer -pkg Python.pkg -target /
+        cd ..
+        rm -rf $tmp
         ;;
     *)
         echo "$0: Unsupported OSTYPE $OSTYPE"
