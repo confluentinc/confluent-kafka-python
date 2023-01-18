@@ -34,6 +34,7 @@ if [[ $OSTYPE == linux* ]]; then
     else
         cp -v runtimes/linux-$ARCH/native/{centos6-librdkafka.so,librdkafka.so.1}
     fi
+    file runtimes/linux-$ARCH/native/librdkafka.so.1
     ldd runtimes/linux-$ARCH/native/librdkafka.so.1
 
 elif [[ $OSTYPE == darwin* ]]; then
