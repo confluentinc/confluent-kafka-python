@@ -50,12 +50,6 @@ case $OSTYPE in
         ;;
 esac
 
-ls -al
-echo
-whoami
-echo
-groups `whoami`
-
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
