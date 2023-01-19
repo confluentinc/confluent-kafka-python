@@ -10,7 +10,7 @@ global_job_config:
   prologue:
     commands:
       - export HOME=$WORKSPACE
-      - mkdir $WORKSPACE/confluent-kafka-python
+      - sudo mkdir $WORKSPACE/confluent-kafka-python
       - cd $WORKSPACE/confluent-kafka-python
       - checkout
 blocks:
@@ -54,7 +54,26 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  
+  - name: "Wheels: Linux x64"
+    # run:
+    #   when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu20-04-amd64-3
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Build
+          commands:
+            - pip install --user librdkafka=="${LIBRDKAFKA_VERSION#v}"
+            - pip wheel --wheel-dir wheelhouse librdkafka=="${LIBRDKAFKA_VERSION#v}"
+            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: Source package verification with Python 3 (OSX x64) +docs
     dependencies: []
     task:
