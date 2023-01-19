@@ -21,9 +21,11 @@ rem set CIBW_BUILD_VERBOSITY=3
 set include=%cd%\%DEST%\build\native\include
 set lib=%cd%\%DEST%\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v142
 set DLL_DIR=%cd%\%DEST%\runtimes\win-%ARCH%\native
-set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair --ignore-in-wheel --add-path %DLL_DIR% -w {dest_dir} {wheel}
+set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair -v --add-path %DLL_DIR% -w {dest_dir} {wheel}
 
 set PATH=%PATH%;c:\Program Files\Git\bin\
+
+cl
 
 python -m pip install cibuildwheel==2.12.0 || goto :error
 
@@ -34,7 +36,7 @@ dir %WHEELHOUSE%
 goto :eof
 
 :usage
-@echo "Usage: %0 x86|x64 win32|win_amd64 wheelhouse-dir"
+@echo "Usage: %0 x86|x64 win32|win_amd64 librdkafka-dir wheelhouse-dir"
 exit /B 1
 
 :error
