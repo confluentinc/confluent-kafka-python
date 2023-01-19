@@ -10,8 +10,8 @@ global_job_config:
   prologue:
     commands:
       - export HOME=$WORKSPACE
-      - sudo mkdir $WORKSPACE/confluent-kafka-python
-      - cd $WORKSPACE/confluent-kafka-python
+      # - sudo mkdir $WORKSPACE/confluent-kafka-python
+      # - cd $WORKSPACE/confluent-kafka-python
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
