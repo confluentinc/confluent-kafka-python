@@ -62,7 +62,7 @@ if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
 fi
 
-if [[ os == "macos"]]; then
+if [[ $os == "macos" ]]; then
     python3 $this_dir/install-macos-required-python.py $cibuildwheel_version
 fi
 
