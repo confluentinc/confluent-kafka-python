@@ -14,7 +14,7 @@ if [%WHEELHOUSE%]==[] goto usage
 echo on
 
 set CIBW_BUILD=cp37-%BW_ARCH% cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH%
-set CIBW_BEFORE_BUILD=python -m pip install delvewheel==0.0.6
+set CIBW_BEFORE_BUILD=python -m pip install delvewheel==1.2.0
 set CIBW_TEST_REQUIRES=-r tests/requirements.txt
 set CIBW_TEST_COMMAND=pytest {project}\tests\test_Producer.py
 rem set CIBW_BUILD_VERBOSITY=3
@@ -25,7 +25,7 @@ set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair --add-path %DLL_DIR% -
 
 set PATH=%PATH%;c:\Program Files\Git\bin\
 
-python -m pip install cibuildwheel==2.11.2 || goto :error
+python -m pip install cibuildwheel==2.12.0 || goto :error
 
 python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows || goto :error
 
