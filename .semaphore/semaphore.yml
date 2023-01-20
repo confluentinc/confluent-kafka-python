@@ -117,7 +117,7 @@ blocks:
         - name: Build
           commands:
             - setx PIP_INSTALL_OPTIONS "--user"
-            - pip install tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - pip install tools/wheels/build-wheels.bat "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${ARCH}.tgz
 
