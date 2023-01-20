@@ -15,8 +15,8 @@ global_job_config:
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
