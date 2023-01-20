@@ -70,7 +70,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: Source package verification with Python 3 (OSX x64) +docs
