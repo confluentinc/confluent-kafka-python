@@ -16,6 +16,7 @@ export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 
 librdkafka_version=$1
 wheeldir=$2
+cibuildwheel_version="2.12.0"
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"
@@ -49,16 +50,19 @@ case $OSTYPE in
         ;;
 esac
 
-
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==2.11.2
+install_pkgs=cibuildwheel==$cibuildwheel_version
 
 python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
+fi
+
+if [[ $os == "macos" ]]; then
+    python3 $this_dir/install-macos-required-python.py $cibuildwheel_version
 fi
 
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir python3 -m cibuildwheel --output-dir $wheeldir $cibw_args
