@@ -18,17 +18,17 @@ v2.0.2 is a feature release with the following features, fixes and enhancements:
    - `delete_consumer_groups` Admin operation. Supports multiple groups.
    - `list_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple partitions. Supports require_stable option.
    - `alter_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple offsets.
- - Added `normalize.schemas` configuration property to Schema Registry client
+ - Added `normalize.schemas` configuration property to Schema Registry client (@rayokota, #1406)
  - Added metadata to `TopicPartition` type and `commit()` (#1410).
  - Added `consumer.memberid()` for getting member id assigned to
    the consumer in a consumer group (#1154).
  - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
    will not be used. This avoids situations where producers with no enqueued items would
-   evaluate to False (#1445).
+   evaluate to False (@vladz-sternum, #1445).
  - Deprecated AvroProducer and AvroConsumer. Use AvroSerializer and AvroDesearializer instead.
- - Improved Consumer Example to show atleast once semantics (#1463)
+ - Improved Consumer Example to show atleast once semantics.
  - Improved Serialization and Deserialization Examples.
- - Doc Improvements
+ - Documentation Improvements.
 
 confluent-kafka-python is based on librdkafka v2.0.2, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.2)
