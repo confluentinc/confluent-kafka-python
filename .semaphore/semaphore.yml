@@ -54,7 +54,6 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  
   - name: Source package verification with Python 3 (OSX x64) +docs
     dependencies: []
     task:
@@ -83,3 +82,22 @@ blocks:
             # install confluent-kafka
             - python setup.py build && python setup.py install
             - make docs
+  - name: "Wheels: Linux x64"
+    # run:
+    #   when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-arm64
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Build
+          commands:
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
