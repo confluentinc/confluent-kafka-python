@@ -102,11 +102,27 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  # - name: "Wheels: Windows"
-  # dependencies: []
-  # task:
-  #   agent:
-  #       machine:
-  #         type: s1-prod-windows
+  - name: "Wheels: Windows"
+  dependencies: []
+  task:
+    agent:
+        machine:
+          type: s1-prod-windows
+    # prologue:
+    #   commands:
+    #     - export MSYS2_URL=${MSYS2_URL}
+    #     - curl -L -o msys2-base.tar.xz ${MSYS2_URL}
+    #     - tar xJf msys2-base.tar.xz
+    #     - export PATH="$SEMAPHORE_CACHE_DIR/msys64/usr/bin:$PATH"
+    #     - pacman -Syu
+    #     - pacman -S bash
+    jobs:
+      - name: Build
+        commands:
+          - sem-version python 3.8
+          - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+          - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+          - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+
 
 
