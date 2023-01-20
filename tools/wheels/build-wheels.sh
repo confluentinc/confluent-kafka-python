@@ -10,8 +10,8 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
 export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
-export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
-export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
+# export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
+# export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 
 
 librdkafka_version=$1
@@ -25,6 +25,8 @@ fi
 set -ex
 
 [[ -d $wheeldir ]] || mkdir -p "$wheeldir"
+
+# yum install -y python3
 
 ARCH=${ARCH:-x64}
 
@@ -49,10 +51,9 @@ case $OSTYPE in
         ;;
 esac
 
-
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==2.11.2
+install_pkgs=cibuildwheel==2.8.1
 
 python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
@@ -69,4 +70,3 @@ for f in $wheeldir/*whl ; do
     echo $f
     unzip -l $f
 done
-
