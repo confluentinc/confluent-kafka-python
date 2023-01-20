@@ -6,12 +6,9 @@ agent:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.0.0-RC3
+      value: v1.9.2
   prologue:
     commands:
-      - export HOME=$WORKSPACE
-      - mkdir $WORKSPACE/confluent-kafka-python
-      - cd $WORKSPACE/confluent-kafka-python
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
@@ -70,7 +67,8 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
+            - sem-version python 3.8
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: Source package verification with Python 3 (OSX x64) +docs
