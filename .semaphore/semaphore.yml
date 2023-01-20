@@ -116,8 +116,12 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - choco install python --version 3.8.0
+            - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
+            # make sure it's on PATH as 'python3'
+            - ln -s /c/Python38/python.exe /c/Python38/python3.exe
             - setx PIP_INSTALL_OPTIONS "--user"
-            - pip install tools/wheels/build-wheels.bat "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tools/wheels/build-wheels.bat x86 win32 dest wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${ARCH}.tgz
 
