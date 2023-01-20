@@ -15,8 +15,8 @@ global_job_config:
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -102,3 +102,11 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+  # - name: "Wheels: Windows"
+  # dependencies: []
+  # task:
+  #   agent:
+  #       machine:
+  #         type: s1-prod-windows
+
+
