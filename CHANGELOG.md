@@ -25,7 +25,8 @@ v2.0.2 is a feature release with the following features, fixes and enhancements:
  - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
    will not be used. This avoids situations where producers with no enqueued items would
    evaluate to False (@vladz-sternum, #1445).
- - Deprecated AvroProducer and AvroConsumer. Use AvroSerializer and AvroDesearializer instead.
+ - Deprecated `AvroProducer` and `AvroConsumer`. Use `AvroSerializer` and `AvroDesearializer` instead.
+ - Deprecated `list_groups`. Use `list_consumer_groups` and `describe_consumer_groups` instead.
  - Improved Consumer Example to show atleast once semantics.
  - Improved Serialization and Deserialization Examples.
  - Documentation Improvements.
@@ -34,7 +35,7 @@ confluent-kafka-python is based on librdkafka v2.0.2, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.2)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-**Note**: There were no v2.0.0 and v2.0.1 releases.
+**Note: There were no v2.0.0 and v2.0.1 releases.**
 
 ## v1.9.2
 
