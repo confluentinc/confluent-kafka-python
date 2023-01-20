@@ -62,7 +62,7 @@ if [[ -z $TRAVIS ]]; then
 fi
 
 if [[ $os == "macos" ]]; then
-    python3 $this_dir/install-macos-required-python.py $cibuildwheel_version
+    python3 $this_dir/install-macos-python-required-by-cibuildwheel.py $cibuildwheel_version
 fi
 
 LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir python3 -m cibuildwheel --output-dir $wheeldir $cibw_args
