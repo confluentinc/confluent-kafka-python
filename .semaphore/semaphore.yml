@@ -113,6 +113,7 @@ blocks:
       prologue:
         commands:
           - cache restore msys2-x64
+          - ".\\tools\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
           - cache delete msys2-x64
