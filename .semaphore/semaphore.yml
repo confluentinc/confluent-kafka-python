@@ -114,7 +114,7 @@ blocks:
           value: https://github.com/msys2/msys2-installer/releases/download/nightly/msys2-base-x86_64-20201127.tar.xz
       prologue:
         commands:
-          - curl -L -o msys2-base.tar.xz ${MSYS2_URL}
+          - Invoke-WebRequest -Uri ${MSYS2_URL} -OutFile msys2-base.tar.xz
           - tar xJf msys2-base.tar.xz
           - $env:PATH = "$env:SEMAPHORE_CACHE_DIR/msys64/usr/bin;$env:PATH"
           - pacman -Syu
