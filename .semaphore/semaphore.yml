@@ -110,12 +110,13 @@ blocks:
           value: windows
         - name: ARCH
           value: x64
+        - name: MYSYS2_URL
+          value: https://github.com/msys2/msys2-installer/releases/download/nightly/msys2-base-x86_64-20201127.tar.xz
       prologue:
         commands:
-          - export MSYS2_URL=https://github.com/msys2/msys2-installer/releases/download/nightly/msys2-base-x86_64-20201127.tar.xz
-          - curl -L -o msys2-base.tar.xz https://github.com/msys2/msys2-installer/releases/download/nightly/msys2-base-x86_64-20201127.tar.xz
+          - curl -L -o msys2-base.tar.xz ${MSYS2_URL}
           - tar xJf msys2-base.tar.xz
-          - export PATH="$SEMAPHORE_CACHE_DIR/msys64/usr/bin:$PATH"
+          - $env:PATH = "$env:SEMAPHORE_CACHE_DIR/msys64/usr/bin;$env:PATH"
           - pacman -Syu
           - pacman -S bash
       jobs:
