@@ -126,9 +126,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - pacman -S python --version 3.8.0
-            - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-            - ln -s /c/Python38/python.exe /c/Python38/python3.exe
+            - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
