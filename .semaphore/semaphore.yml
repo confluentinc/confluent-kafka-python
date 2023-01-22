@@ -112,17 +112,21 @@ blocks:
           value: x64
       prologue:
         commands:
-          - Invoke-WebRequest -Uri "https://github.com/msys2/msys2-installer/releases/download/nightly/msys2-base-x86_64-20201127.tar.xz" -OutFile msys2-base.tar.xz
-          - tar xJf msys2-base.tar.xz
-          - $env:PATH = "$env:SEMAPHORE_CACHE_DIR/msys64/usr/bin;$env:PATH"
-          - pacman -Syu
-          - pacman -S bash
+          - cache restore msys2-x64
+          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+          - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+          - cache delete msys2-x64
+          - cache store msys2-x64 c:/msys64
       jobs:
         - name: Build
+          env_vars:
+            - name: CHERE_INVOKING
+              value: 'yes'
+            - name: MSYSTEM
+              value: UCRT64
           commands:
-            - choco install python --version 3.8.0 -y
+            - pacman -S python --version 3.8.0
             - export PATH="/c/Python38:/c/Python38/Scripts:$PATH"
-            # make sure it's on PATH as 'python3'
             - ln -s /c/Python38/python.exe /c/Python38/python3.exe
             - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
