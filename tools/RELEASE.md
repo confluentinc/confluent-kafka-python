@@ -116,6 +116,7 @@ tag (e.g., v0.11.4-RC5).
 
 Change to the latest librdkafka version in the following files:
 
+ * `.semaphore/semaphore.yml`
  * `.travis.yml`
  * `examples/docker/Dockerfile.alpine`
 

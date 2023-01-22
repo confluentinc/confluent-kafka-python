@@ -630,6 +630,9 @@ end:
 }
 
 const char list_groups_doc[] = PyDoc_STR(
+        ".. deprecated:: 2.0.2"
+        "   Use :func:`list_consumer_groups` and `describe_consumer_groups` instead."
+        "\n"
         ".. py:function:: list_groups([group=None], [timeout=-1])\n"
         "\n"
         " Request Group Metadata from cluster.\n"
