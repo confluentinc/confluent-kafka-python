@@ -5,6 +5,8 @@ set -ex
 VER="$1"
 DEST="$2"
 
+echo "VER: '$1' ; DEST: '$2'"
+
 if [[ -z $DEST ]]; then
     echo "Usage: $0 <librdkafka-redist-version> <destdir>"
     exit 1
