@@ -31,9 +31,16 @@ v2.0.2 is a feature release with the following features, fixes and enhancements:
  - Improved Serialization and Deserialization Examples.
  - Documentation Improvements.
 
-confluent-kafka-python is based on librdkafka v2.0.2, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.2)
-for a complete list of changes, enhancements, fixes and upgrade considerations.
+## Upgrade considerations
+
+OpenSSL 3.0.x upgrade in librdkafka requires a major version bump, as some
+ legacy ciphers need to be explicitly configured to continue working,
+ but it is highly recommended NOT to use them. The rest of the API remains
+ backward compatible.
+
+confluent-kafka-python is based on librdkafka 2.0.2, see the
+[librdkafka v2.0.0 release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 **Note: There were no v2.0.0 and v2.0.1 releases.**
 
