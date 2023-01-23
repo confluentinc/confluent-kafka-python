@@ -9,77 +9,128 @@ global_job_config:
       value: v2.0.2
   prologue:
     commands:
-      - export HOME=$WORKSPACE
-      - mkdir $WORKSPACE/confluent-kafka-python
-      - cd $WORKSPACE/confluent-kafka-python
       - checkout
 blocks:
-  - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
+  # - name: "Wheels: OSX x64"
+  #   # run:
+  #   #   when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+  # - name: "Wheels: OSX arm64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-arm64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: CIBW_ARCHS
+  #         value: arm64
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+  # - name: Source package verification with Python 3 (OSX x64) +docs
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           # use a virtualenv
+  #           - python3 -m venv _venv && source _venv/bin/activate
+  #           - pip install -r docs/requirements.txt
+  #           - pip install -U protobuf
+  #           # install librdkafka
+  #           - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+  #           - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+  #           - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
+  #           - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
+  #           - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+  #           - export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
+  #           # install confluent-kafka
+  #           - python setup.py build && python setup.py install
+  #           - make docs
+  # - name: "Wheels: Linux x64"
+  #   # run:
+  #   #   when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-amd64-2
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - sem-version python 3.8
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+  - name: "Wheels: Windows"
     dependencies: []
     task:
       agent:
-        machine:
-          type: s1-prod-macos
+          machine:
+            type: s1-prod-windows
       env_vars:
         - name: OS_NAME
-          value: osx
+          value: windows
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - cache restore msys2-x64
+          - ".\\tools\\mingw-w64\\setup-msys2.ps1"
+          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+          - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+          - cache delete msys2-x64
+          - cache store msys2-x64 c:/msys64
       jobs:
         - name: Build
+          env_vars:
+            - name: CHERE_INVOKING
+              value: 'yes'
+            - name: MSYSTEM
+              value: UCRT64
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  - name: "Wheels: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-arm64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: CIBW_ARCHS
-          value: arm64
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  
-  - name: Source package verification with Python 3 (OSX x64) +docs
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - pip install -r docs/requirements.txt
-            - pip install -U protobuf
-            # install librdkafka
-            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
-            - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
-            - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
-            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
-            - export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
-            # install confluent-kafka
-            - python setup.py build && python setup.py install
-            - make docs
+            - bash tools/mingw-w64/semaphore_commands.sh
+            - bash tools/wheels/install-librdkafka.sh ${LIBRDKAFKA_VERSION#v} dest
+            - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+            - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-windows-${ARCH}.tgz
+
+
+
