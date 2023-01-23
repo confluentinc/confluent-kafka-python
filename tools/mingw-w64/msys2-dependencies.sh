@@ -14,3 +14,6 @@ $msys2 pacman -Sy --noconfirm pacman
 
 ## Install more MSYS2 packages from https://packages.msys2.org/base here
 $msys2 pacman --sync --noconfirm --needed mingw-w64-x86_64-gcc
+
+## Install unzip
+$msys2 pacman --sync --noconfirm --needed unzip
