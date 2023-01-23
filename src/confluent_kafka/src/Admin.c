@@ -299,7 +299,105 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
         return 1;
 }
+static int
+Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
+        Py_ssize_t pos = 0;
+        PyObject *ko, *vo;
+        while(PyDict_Next(dict,&pos,&ko,&vo)){
+                PyObject *ks, *ks8;
+                PyObject *vs = NULL, *vs8 = NULL;
+                const char *k;
+                const char *v;
+                const char *op;
+                rd_kafka_resp_err_t err;
+                if (!(ks = cfl_PyObject_Unistr(ko))) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "expected %s config name to be unicode "
+                                     "string", op_name);
+                        Py_DECREF(ks);
+                        return 0;
+                }
+                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
+                
+
+                Py_ssize_t iter = 0;
+                PyObject *internal_ko,*internal_vo;
+                PyObject *internal_ks, *internal_ks8;
+                PyObject *internal_vs = NULL, *internal_vs8 = NULL;
+                const char *internal_k;
+                const char *internal_v;
+                while(PyDict_Next(vo,&iter,&internal_ko,&internal_vo)){
+                        if (!(internal_ks = cfl_PyObject_Unistr(internal_ko))) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "expected property name for to be unicode "
+                                        "string");
+                                Py_DECREF(internal_ks);
+                                return 0;
+                        }
+                        internal_k = cfl_PyUnistr_AsUTF8(internal_ks, &internal_ks8);
+                        if (!(internal_vs = cfl_PyObject_Unistr(internal_vo)) || !(internal_v = cfl_PyUnistr_AsUTF8(internal_vs, &internal_vs8))) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "expected value name to be unicode "
+                                        "string");
+                                Py_XDECREF(internal_vs);
+                                Py_XDECREF(internal_vs8);
+                                Py_DECREF(internal_ks);
+                                Py_XDECREF(internal_ks8);
+                                return 0;
+                        }
+                        
+                        if(!strcmp(internal_k,"operation_type")){
+                                op = internal_v;
+                        }else if(!strcmp(internal_k,"value")){
+                                v = internal_v;
+                        }else{
+                                PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",internal_k);
+                                Py_XDECREF(internal_vs);
+                                Py_XDECREF(internal_vs8);
+                                Py_DECREF(internal_ks);
+                                Py_XDECREF(internal_ks8);
+                                
+                                return 0;
+                        }
+                }
+                if (!strcmp(op, "SET"))
+                        err = rd_kafka_ConfigResource_incremental_set_config(
+                                (rd_kafka_ConfigResource_t *)c_obj,
+                                k, v);
+                else if (!strcmp(op, "APPEND"))
+                        err = rd_kafka_ConfigResource_incremental_append_config(
+                                (rd_kafka_ConfigResource_t *)c_obj,
+                                k, v);
+                else if(!strcmp(op,"REMOVE"))
+                        err = rd_kafka_ConfigResource_incremental_remove_config(
+                                (rd_kafka_ConfigResource_t *)c_obj,
+                                k);
+                else if(!strcmp(op,"SUBTRACT"))
+                        err = rd_kafka_ConfigResource_incremental_subtract_config(
+                                (rd_kafka_ConfigResource_t *)c_obj,
+                                k);
+                else 
+                        err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
+                if (err) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "%s config %s failed: %s",
+                                     op, k, rd_kafka_err2str(err));
+                        Py_XDECREF(vs);
+                        Py_XDECREF(vs8);
+                        Py_DECREF(ks);
+                        Py_XDECREF(ks8);
+                        return 0;
+                }
+
+                Py_XDECREF(vs);
+                Py_XDECREF(vs8);
+                Py_DECREF(ks);
+                Py_XDECREF(ks8);
+
+        }
+        return 1;
+}
 /**
  * @brief Translate a dict to ConfigResource set_config() calls,
  *        or to NewTopic_add_config() calls.
@@ -875,7 +973,122 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         return NULL;
 }
 
+static PyObject *Admin_incremental_alter_config(Handle *self,PyObject* *args,PyObject *kwargs) {
+        PyObject *resources, *future;
+        PyObject *validate_only_obj = NULL;
+        static char *kws[] = { "resources",
+                               "future",
+                               /* options */
+                               "validate_only",
+                               "request_timeout",
+                               "broker",
+                               NULL };
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        PyObject *ConfigResource_type;
+        int cnt, i;
+        rd_kafka_ConfigResource_t **c_objs;
+        rd_kafka_queue_t *rkqu;
+        CallState cs;
 
+        /* topics is a list of NewPartitions_t objects. */
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
+                                         &resources, &future,
+                                         &validate_only_obj,
+                                         &options.request_timeout,
+                                         &options.broker))
+                return NULL;
+
+        if (!PyList_Check(resources) ||
+            (cnt = (int)PyList_Size(resources)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                                "Expected non-empty list of ConfigResource "
+                                "objects");
+                return NULL;
+        }
+
+        if (validate_only_obj &&
+            !cfl_PyBool_get(validate_only_obj, "validate_only",
+                            &options.validate_only))
+                return NULL;
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
+                                       &options, future);
+        if (!c_options)
+                return NULL; /* Exception raised by options_to_c() */
+
+        /* Look up the ConfigResource class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConfigResource");
+        if (!ConfigResource_type) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                return NULL; /* Exception raised by find() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * event_cb to set the results on the future as the admin operation
+         * is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        /*
+         * Parse the list of ConfigResources and convert to
+         * corresponding C types.
+         */
+        c_objs = malloc(sizeof(*c_objs) * cnt);
+
+        for (i = 0 ; i < cnt ; i++) {
+                PyObject *res = PyList_GET_ITEM(resources, i);
+                int r;
+                int restype;
+                char *resname;
+                PyObject *dict;
+
+                r = PyObject_IsInstance(res, ConfigResource_type);
+                if (r == -1)
+                        goto err; /* Exception raised by IsInstance() */
+                else if (r == 0) {
+                        PyErr_SetString(PyExc_ValueError,
+                                        "Expected list of "
+                                        "ConfigResource objects");
+                        goto err;
+                }
+
+                if (!cfl_PyObject_GetInt(res, "restype_int", &restype, 0, 0))
+                        goto err;
+
+                if (!cfl_PyObject_GetString(res, "name", &resname, NULL, 0, 0))
+                        goto err;
+
+                c_objs[i] = rd_kafka_ConfigResource_new(
+                        (rd_kafka_ResourceType_t)restype, resname);
+                if (!c_objs[i]) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "Invalid ConfigResource(%d,%s)",
+                                     restype, resname);
+                        free(resname);
+                        goto err;
+                }
+                free(resname);
+
+                /*
+                 * Translate and apply config entries in the various dicts.
+                 */
+                if (!cfl_PyObject_GetAttr(res, "set_config_dict", &dict,
+                                          &PyDict_Type, 1, 0)) {
+                        i++;
+                        goto err;
+                }
+                if (!Admin_config_dict_to_c(c_objs[i], dict, "set_config")) {
+                        Py_DECREF(dict);
+                        i++;
+                        goto err;
+                }
+                Py_DECREF(dict);
+        }
+}
 
 
 /**

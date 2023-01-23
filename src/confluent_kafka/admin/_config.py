@@ -133,6 +133,7 @@ class ConfigResource(object):
         else:
             self.set_config_dict = dict()
 
+        self.incremental_config = dict()
         self.configs = described_configs
         self.error = error
 
@@ -177,3 +178,9 @@ class ConfigResource(object):
         if not overwrite and name in self.set_config_dict:
             return
         self.set_config_dict[name] = value
+
+    def set_incremental_config(self,key,operation,value):
+        op = operation.upper()
+        if(op not in ['SET','APPEND','REMOVE','SUBTRACT']):
+            raise ValueError('Operation not supported')
+        self.incremental_config[key] = {"operation_type" : op , "value" : value}
