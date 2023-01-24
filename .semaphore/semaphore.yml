@@ -31,8 +31,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -144,7 +144,7 @@ blocks:
         - name: OS_NAME
           value: linux
         - name: ARCH
-          value: amd64
+          value: x64
       jobs:
         - name: Build
           commands:
