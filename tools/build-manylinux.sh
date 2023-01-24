@@ -53,9 +53,6 @@ $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
 echo "# Compile"
 for PYBIN in /opt/python/cp*/bin; do
     echo "## Compiling $PYBIN"
-done
-for PYBIN in /opt/python/cp*/bin; do
-    echo "## Compiling $PYBIN"
     CFLAGS="-Wno-strict-aliasing -Wno-parentheses" \
           "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
 done
