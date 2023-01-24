@@ -27,8 +27,6 @@ set PATH=%PATH%;c:\Program Files\Git\bin\
 
 python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows || goto :error
 
-dir %WHEELHOUSE%
-
 goto :eof
 
 :usage
