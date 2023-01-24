@@ -27,7 +27,9 @@ set PATH=%PATH%;c:\Program Files\Git\bin\
 
 python -m pip install cibuildwheel==2.12.0
 
-python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows || goto :error
+mkdir %WHEELHOUSE%
+
+python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows
 
 dir %WHEELHOUSE%
 
