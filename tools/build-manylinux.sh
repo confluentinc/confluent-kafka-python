@@ -57,7 +57,6 @@ for PYBIN in /opt/python/cp*/bin; do
           "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
 done
 
-export CIBW_ARCHS="aarch64"
 # Bundle external shared libraries into the wheels
 echo "# auditwheel repair"
 mkdir -p /io/wheelhouse
