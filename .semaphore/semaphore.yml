@@ -126,9 +126,12 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.8
-            - python -m pip install --upgrade pip
-            - ls -lrt
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - ./tools/build-manylinux.sh 2.0.2
+            - ls -lrt wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+            # - python -m pip install --upgrade pip
+            # - ls -lrt
+            # - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            # - artifact push workflow wheelhouse-linux-${ARCH}.tgz
