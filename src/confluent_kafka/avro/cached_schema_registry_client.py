@@ -24,8 +24,6 @@ import warnings
 from collections import defaultdict
 
 from requests import Session, utils
-from requests.adapters import HTTPAdapter
-from urllib3.util.ssl_ import create_urllib3_context
 from .error import ClientError
 from . import loads
 
@@ -42,28 +40,6 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
-
-class SSLAdapter(HTTPAdapter):
-    def __init__(self, certfile, keyfile, password=None, *args, **kwargs):
-        self._certfile = certfile
-        self._keyfile = keyfile
-        self._password = password
-        return super(self.__class__, self).__init__(*args, **kwargs)
-
-    def init_poolmanager(self, *args, **kwargs):
-        self._add_ssl_context(kwargs)
-        return super(self.__class__, self).init_poolmanager(*args, **kwargs)
-
-    def proxy_manager_for(self, *args, **kwargs):
-        self._add_ssl_context(kwargs)
-        return super(self.__class__, self).proxy_manager_for(*args, **kwargs)
-
-    def _add_ssl_context(self, kwargs):
-        context = create_urllib3_context()
-        context.load_cert_chain(certfile=self._certfile,
-                                keyfile=self._keyfile,
-                                password=str(self._password))
-        kwargs['ssl_context'] = context
 
 class CachedSchemaRegistryClient(object):
     """
@@ -129,8 +105,7 @@ class CachedSchemaRegistryClient(object):
             s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
-        s.mount('https://', SSLAdapter(certfile=conf.pop('ssl.certificate.location', None),keyfile= conf.pop('ssl.key.location', None),password= conf.pop('ssl.key.password', None)))
-
+        
         self.url = utils.urldefragauth(self.url)
 
         self._session = s
@@ -172,7 +147,7 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _configure_client_tls(conf):
-        cert = [conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)] # should be an added field of password since private key is encrypted
+        cert = [conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)] 
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
