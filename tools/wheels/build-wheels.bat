@@ -25,8 +25,6 @@ set CIBW_REPAIR_WHEEL_COMMAND=python -m delvewheel repair --add-path %DLL_DIR% -
 
 set PATH=%PATH%;c:\Program Files\Git\bin\
 
-python -m pip install cibuildwheel==2.12.0 || goto :error
-
 python -m cibuildwheel --output-dir %WHEELHOUSE% --platform windows || goto :error
 
 dir %WHEELHOUSE%
