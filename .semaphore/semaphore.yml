@@ -9,9 +9,6 @@ global_job_config:
       value: v2.0.2
   prologue:
     commands:
-      - export HOME=$WORKSPACE
-      - mkdir $WORKSPACE/confluent-kafka-python
-      - cd $WORKSPACE/confluent-kafka-python
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
@@ -54,8 +51,10 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  
+
   - name: Source package verification with Python 3 (OSX x64) +docs
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -83,3 +82,56 @@ blocks:
             # install confluent-kafka
             - python setup.py build && python setup.py install
             - make docs
+  - name: "Wheels: Linux"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu20-04-amd64-2
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Build
+          commands:
+            - sem-version python 3.8
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+  - name: "Wheels: Linux arm64"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu20-04-arm64-1
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: arm64
+        - name: CIBW_ARCHS
+          value: aarch64
+        - name: CIBW_ENVIRONMENT
+          value: AUDITWHEEL_PLAT="manylinux_2_28_aarch64"
+        - name: CIBW_MANYLINUX_*_IMAGE
+          value: manylinux_2_28
+        - name: CIBW_REPAIR_WHEEL_COMMAND
+          value: auditwheel repair -w {dest_dir} {wheel} --plat manylinux_2_28_aarch64
+        # - name: CIBW_PROJECT_REQUIRES_PYTHON
+        #   value: ">=3.8"
+        - name: CIBW_BUILD_VERBOSITY
+          value: "3"
+      jobs:
+        - name: Build
+          commands:
+            - ./tools/build-manylinux.sh 2.0.2
+            - ls -lrt wheelhouse
+            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+            # - python -m pip install --upgrade pip
+            # - ls -lrt
+            # - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            # - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+            # - artifact push workflow wheelhouse-linux-${ARCH}.tgz
