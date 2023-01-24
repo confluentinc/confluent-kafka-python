@@ -33,7 +33,7 @@ if [[ ! -f /.dockerenv ]]; then
         exit 1
     fi
 
-    docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
+    docker run -t -v $(pwd):/io quay.io/pypa/manylinux_2_28_aarch64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
 
     exit $?
 fi
@@ -44,7 +44,7 @@ fi
 #
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++
+yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
@@ -53,10 +53,14 @@ $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
 echo "# Compile"
 for PYBIN in /opt/python/*/bin; do
     echo "## Compiling $PYBIN"
-    CFLAGS="-Werror -Wno-strict-aliasing -Wno-parentheses" \
+done
+for PYBIN in /opt/python/*/bin; do
+    echo "## Compiling $PYBIN"
+    CFLAGS="-Wno-strict-aliasing -Wno-parentheses" \
           "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
 done
 
+export CIBW_ARCHS="aarch64"
 # Bundle external shared libraries into the wheels
 echo "# auditwheel repair"
 mkdir -p /io/wheelhouse
@@ -80,6 +84,3 @@ for PYBIN in /opt/python/*/bin/; do
     echo "## Uninstalling $PYBIN"
     "${PYBIN}/pip" uninstall -y confluent_kafka
 done
-
-
-
