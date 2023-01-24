@@ -1011,8 +1011,8 @@ static PyObject *Admin_incremental_alter_config(Handle *self,PyObject* *args,PyO
             !cfl_PyBool_get(validate_only_obj, "validate_only",
                             &options.validate_only))
                 return NULL;
-
-        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
+        // needs change
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS,
                                        &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
@@ -1076,18 +1076,51 @@ static PyObject *Admin_incremental_alter_config(Handle *self,PyObject* *args,PyO
                 /*
                  * Translate and apply config entries in the various dicts.
                  */
-                if (!cfl_PyObject_GetAttr(res, "set_config_dict", &dict,
+                if (!cfl_PyObject_GetAttr(res, "incremental_config", &dict,
                                           &PyDict_Type, 1, 0)) {
                         i++;
                         goto err;
                 }
-                if (!Admin_config_dict_to_c(c_objs[i], dict, "set_config")) {
+                if (!Admin_incremental_config_dict_to_c(c_objs[i], dict)) {
                         Py_DECREF(dict);
                         i++;
                         goto err;
                 }
                 Py_DECREF(dict);
         }
+
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call AlterConfigs
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_IncrementalAlterConfigs(self->rk, c_objs, cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
+        rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        Py_DECREF(ConfigResource_type); /* from lookup() */
+
+        Py_RETURN_NONE;
+
+ err:
+        rd_kafka_ConfigResource_destroy_array(c_objs, i);
+        rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
+        Py_DECREF(ConfigResource_type); /* from lookup() */
+        Py_DECREF(future); /* from options_to_c() */
+
+        return NULL;
 }
 
 
