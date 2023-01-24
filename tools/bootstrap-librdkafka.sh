@@ -29,7 +29,7 @@ mkdir -p "$BUILDDIR/librdkafka"
 pushd "$BUILDDIR/librdkafka"
 
 test -f configure ||
-curl -q -L "https://github.com/edenhill/librdkafka/archive/${VERSION}.tar.gz" | \
+curl -q -L "https://github.com/confluentinc/librdkafka/archive/refs/tags/v${VERSION}.tar.gz" | \
     tar -xz --strip-components=1 -f -
 
 ./configure --clean
@@ -55,4 +55,3 @@ else
     make install
 fi
 popd
-
