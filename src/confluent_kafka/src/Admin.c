@@ -1706,6 +1706,13 @@ static PyMethodDef Admin_methods[] = {
           "\n"
           "  This method should not be used directly, use confluent_kafka.AdminClient.describe_configs()\n"
         },
+        
+        {"incremental_alter_configs", (PyCFunction)Admin_incremental_alter_configs,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: incremental_alter_configs(resources, future, [request_timeout, broker])\n"
+          "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.incremental_alter_configs()\n"
+        },
 
         { "alter_configs", (PyCFunction)Admin_alter_configs,
           METH_VARARGS|METH_KEYWORDS,
@@ -2183,6 +2190,20 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 break;
         }
 
+        case RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT:
+        {
+                const rd_kafka_ConfigResource_t **c_resources;
+                size_t resource_cnt;
+
+                c_resources = rd_kafka_IncrementalAlterConfigs_result_resources(
+                        rd_kafka_event_IncrementalAlterConfigs_result(rkev),
+                        &resource_cnt);
+                result = Admin_c_ConfigResource_result_to_py(
+                        c_resources,
+                        resource_cnt,
+                        0/* return None instead of (the empty) configs */);
+                break;
+        }
 
         case RD_KAFKA_EVENT_CREATEACLS_RESULT:
         {
