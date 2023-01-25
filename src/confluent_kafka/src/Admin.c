@@ -312,8 +312,8 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                 rd_kafka_resp_err_t err;
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
-                                     "expected %s config name to be unicode "
-                                     "string", op_name);
+                                     "expected config name to be unicode "
+                                     "string");
                         Py_DECREF(ks);
                         return 0;
                 }
@@ -973,7 +973,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         return NULL;
 }
 
-static PyObject *Admin_incremental_alter_config(Handle *self,PyObject* *args,PyObject *kwargs) {
+static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject* *args,PyObject *kwargs) {
         PyObject *resources, *future;
         PyObject *validate_only_obj = NULL;
         static char *kws[] = { "resources",
@@ -1081,7 +1081,7 @@ static PyObject *Admin_incremental_alter_config(Handle *self,PyObject* *args,PyO
                         i++;
                         goto err;
                 }
-                if (!Admin_incremental_config_dict_to_c(c_objs[i], dict)) {
+                if (!Admin_incremental_config_to_c(c_objs[i], dict)) {
                         Py_DECREF(dict);
                         i++;
                         goto err;
