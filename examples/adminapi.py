@@ -259,19 +259,34 @@ def example_delete_acls(a, args):
         except Exception:
             raise
 
+def example_incremental_alter_configs(a):
+
+    res1 = ConfigResource('TOPIC','t1')
+    res1.set_incremental_config('follower.replication.throttled.replicas','SET','1:0,2:0')
+    res2 = ConfigResource('TOPIC','t2')
+    res2.set_incremental_config('follower.replication.throttled.replicas','APPEND','1:0,2:0')
+    resources = [res1,res2]
+    fs = a.alter_configs(resources)
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            f.result()  # empty, but raises exception on failure
+            print("{} configuration successfully altered".format(res))
+        except Exception:
+            raise
 
 def example_alter_configs(a, args):
     """ Alter configs atomically, replacing non-specified
     configuration properties with their default values.
     """
-
-    resources = []
+    resources = [ConfigResource('TOPIC','t1',{'follower.replication.throttled.replicas':'1:0,2:0'})]
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
         resource = ConfigResource(restype, resname)
-        resources.append(resource)
         for k, v in [conf.split('=') for conf in configs.split(',')]:
             resource.set_config(k, v)
-
+        resources.append(resource)
+    
     fs = a.alter_configs(resources)
 
     # Wait for operation to finish.
@@ -601,6 +616,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
+              'incremental_alter_config':example_incremental_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,
