@@ -184,7 +184,7 @@ class ConfigResource(object):
         if(op not in ['SET','APPEND','REMOVE','SUBTRACT']):
             raise ValueError('Operation not supported')
         if(not isinstance(value,str) and op!='REMOVE'):
-            raise ValueError("The Value provided should be a string")
+            raise ValueError("The Value provided should be a string for",op)
         if (value is None) and op!='REMOVE':    
             raise ValueError("Value is needed for operation :",op)
         self.incremental_config[key] = {"operation_type" : op , "value" : value}
