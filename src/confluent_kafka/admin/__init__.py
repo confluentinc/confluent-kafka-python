@@ -365,6 +365,36 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def incremental_alter_configs(self,resources,**kwargs):
+        """
+        Update configuration properties for the specified resources.
+        Updates are incremental, i.e only the values mentioned are changed and rest remain 
+        as it it.
+
+        
+        :param list(ConfigResource) resources: Resources to update configuration of.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+        :param bool validate_only: If true, the request is validated only,
+                  without altering the configuration. Default: False
+
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The future result() method returns None.
+
+        :rtype: dict(<ConfigResource, future>)
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        f, futmap = AdminClient._make_futures(resources, ConfigResource,
+                                              AdminClient._make_resource_result)
+
+        super(AdminClient, self).incremental_alter_configs(resources, f, **kwargs)
+
+        return futmap
+
     def create_acls(self, acls, **kwargs):
         """
         Create one or more ACL bindings.
