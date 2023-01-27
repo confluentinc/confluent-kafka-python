@@ -376,7 +376,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                 else if(!strcmp(op,"SUBTRACT"))
                         err = rd_kafka_ConfigResource_incremental_subtract_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
-                                k);
+                                k,v);
                 else 
                         err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
                 if (err) {
@@ -973,7 +973,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         return NULL;
 }
 
-static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject* *args,PyObject *kwargs) {
+static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyObject *kwargs) {
         PyObject *resources, *future;
         PyObject *validate_only_obj = NULL;
         static char *kws[] = { "resources",
@@ -1072,7 +1072,6 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject* *args,Py
                         goto err;
                 }
                 free(resname);
-
                 /*
                  * Translate and apply config entries in the various dicts.
                  */
