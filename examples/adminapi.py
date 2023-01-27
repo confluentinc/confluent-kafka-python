@@ -258,14 +258,22 @@ def example_delete_acls(a, args):
         except Exception:
             raise
 
-def example_incremental_alter_configs(a):
+def example_incremental_alter_configs(a,args):
+    """ Incremental Alter configs atomically, keeping non-specified
+    configuration properties with their previous values.
+    Input Format : TOPIC T1 Key=Operation:Value;Key2=Operation:Value2
+    """
 
-    res1 = ConfigResource('TOPIC','t1')
-    res1.set_incremental_config('follower.replication.throttled.replicas','SET','1:0,2:0')
-    res2 = ConfigResource('TOPIC','t2')
-    res2.set_incremental_config('follower.replication.throttled.replicas','APPEND','1:0,2:0')
-    resources = [res1,res2]
-    fs = a.alter_configs(resources)
+    resources = []
+    for restype, resname, configs in zip(args[0::3],args[1::3],args[2::3]):
+        resource = ConfigResource(restype,resname)
+        for k, residual in [conf.split('=') for conf in configs.split(';')]:
+            operation = residual.split(':')[0]
+            value = residual.split(':')[1]
+            resource.set_incremental_config(k,operation,value)
+        resources.append(resource)
+    
+    fs = a.incremental_alter_configs(resources)
 
     # Wait for operation to finish.
     for res, f in fs.items():
@@ -275,16 +283,17 @@ def example_incremental_alter_configs(a):
         except Exception:
             raise
 
+
 def example_alter_configs(a, args):
     """ Alter configs atomically, replacing non-specified
     configuration properties with their default values.
     """
-    resources = [ConfigResource('TOPIC','t1',{'follower.replication.throttled.replicas':'1:0,2:0'})]
+    resources = []
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
         resource = ConfigResource(restype, resname)
         for k, v in [conf.split('=') for conf in configs.split(',')]:
             resource.set_config(k, v)
-        resources.append(resource)
+    resources.append(resource)
     
     fs = a.alter_configs(resources)
 
@@ -478,7 +487,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
-              'incremental_alter_config':example_incremental_alter_configs,
+              'incremental_alter_configs':example_incremental_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,
