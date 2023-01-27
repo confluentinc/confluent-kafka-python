@@ -133,6 +133,7 @@ class ConfigResource(object):
         else:
             self.set_config_dict = dict()
 
+        self.incremental_config = dict()
         self.configs = described_configs
         self.error = error
 
@@ -177,3 +178,13 @@ class ConfigResource(object):
         if not overwrite and name in self.set_config_dict:
             return
         self.set_config_dict[name] = value
+
+    def set_incremental_config(self,key,operation,value= None):
+        op = operation.upper()
+        if(op not in ['SET','APPEND','REMOVE','SUBTRACT']):
+            raise ValueError('Operation not supported')
+        if(not isinstance(value,str) and op!='REMOVE'):
+            raise ValueError("The Value provided should be a string")
+        if (value is None) and op!='REMOVE':    
+            raise ValueError("Value is needed for operation :",op)
+        self.incremental_config[key] = {"operation_type" : op , "value" : value}
