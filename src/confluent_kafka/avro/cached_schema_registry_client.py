@@ -24,6 +24,7 @@ import warnings
 from collections import defaultdict
 
 from requests import Session, utils
+
 from .error import ClientError
 from . import loads
 
@@ -40,6 +41,7 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 # Common accept header sent
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
+
 
 class CachedSchemaRegistryClient(object):
     """
@@ -61,7 +63,7 @@ class CachedSchemaRegistryClient(object):
     :param str key_location: Path to client's private key used for authentication.
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None, key_password=None):
+    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
         # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.
         conf = url
         if not isinstance(url, dict):
@@ -69,15 +71,14 @@ class CachedSchemaRegistryClient(object):
                 'url': url,
                 'ssl.ca.location': ca_location,
                 'ssl.certificate.location': cert_location,
-                'ssl.key.location': key_location,
-                'ssl.key.password' : key_password
+                'ssl.key.location': key_location
             }
             warnings.warn(
                 "CachedSchemaRegistry constructor is being deprecated. "
                 "Use CachedSchemaRegistryClient(dict: config) instead. "
                 "Existing params ca_location, cert_location and key_location will be replaced with their "
-                "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location`,  "
-                "`ssl.key.location` and `ssl.key.password` respectively",
+                "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location` and "
+                "`ssl.key.location` respectively",
                 category=DeprecationWarning, stacklevel=2)
 
             """Construct a Schema Registry client"""
@@ -105,7 +106,6 @@ class CachedSchemaRegistryClient(object):
             s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
-        
         self.url = utils.urldefragauth(self.url)
 
         self._session = s
@@ -147,7 +147,7 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _configure_client_tls(conf):
-        cert = [conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)] 
+        cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None) 
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
