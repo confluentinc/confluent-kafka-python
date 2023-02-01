@@ -1477,6 +1477,9 @@ static PyMethodDef Consumer_methods[] = {
           "send_offsets_to_transaction() API.\n"
           "\n"
         },
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
+        },
 
 
 	{ NULL }
