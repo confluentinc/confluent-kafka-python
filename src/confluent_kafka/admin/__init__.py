@@ -787,3 +787,25 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
+
+    def set_sasl_credentials(self, username, password):
+        """
+        Sets the SASL credentials used for this client.
+        These credentials will overwrite the old ones, and will be used the
+        next time the client needs to authenticate.
+        This method will not disconnect existing broker connections that
+        have been established with the old credentials.
+        This method is applicable only to SASL PLAIN and SCRAM mechanisms.
+
+        :param str username: The username to set.
+        :param str password: The password to set.
+
+        :returns: A dict of futures for each group, keyed by the group id.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
+
+        :rtype: None
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        """
+        super(AdminClient, self).set_sasl_credentials(username, password)
