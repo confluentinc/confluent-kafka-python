@@ -595,6 +595,11 @@ list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout = -1.0f;
         static char *kws[] = {"group", "timeout", NULL};
 
+        PyErr_WarnEx(PyExc_DeprecationWarning,
+                     "list_groups() is deprecated, use list_consumer_groups() "
+                     "and describe_consumer_groups() instead.",
+                     2);
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws,
                                          &group, &tmout))
                 return NULL;
@@ -625,6 +630,9 @@ end:
 }
 
 const char list_groups_doc[] = PyDoc_STR(
+        ".. deprecated:: 2.0.2"
+        "   Use :func:`list_consumer_groups` and `describe_consumer_groups` instead."
+        "\n"
         ".. py:function:: list_groups([group=None], [timeout=-1])\n"
         "\n"
         " Request Group Metadata from cluster.\n"

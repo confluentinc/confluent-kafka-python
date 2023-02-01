@@ -33,7 +33,7 @@ from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
 class AvroProducer(Producer):
     """
-        .. deprecated:: 1.9.3
+        .. deprecated:: 2.0.2
 
         This class will be removed in a future version of the library.
 
@@ -119,7 +119,7 @@ class AvroProducer(Producer):
 
 class AvroConsumer(Consumer):
     """
-    .. deprecated:: 1.9.3
+    .. deprecated:: 2.0.2
 
     This class will be removed in a future version of the library.
 
