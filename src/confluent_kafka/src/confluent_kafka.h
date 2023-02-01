@@ -386,10 +386,12 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
 
 
 extern const char list_topics_doc[];
 extern const char list_groups_doc[];
+extern const char set_sasl_credentials_doc[];
 
 
 #ifdef RD_KAFKA_V_HEADERS
