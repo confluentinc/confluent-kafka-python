@@ -1,5 +1,10 @@
 # Confluent's Python client for Apache Kafka
 
+## vNext
+
+- Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
+  SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
+
 
 ## v2.0.2
 
