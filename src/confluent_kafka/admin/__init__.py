@@ -800,9 +800,6 @@ class AdminClient (_AdminClientImpl):
         :param str username: The username to set.
         :param str password: The password to set.
 
-        :returns: A dict of futures for each group, keyed by the group id.
-                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
-
         :rtype: None
 
         :raises KafkaException: Operation failed locally or on broker.
