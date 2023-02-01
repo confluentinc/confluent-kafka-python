@@ -263,6 +263,7 @@ def test_topic_config_update():
             pytest.xfail("Timeout exceeded")
         pytest.fail("Timeout exceeded")
 
+
 def test_set_sasl_credentials_api():
     clients = [
         AdminClient({}),

@@ -2601,6 +2601,7 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
         const char *username = NULL;
         const char *password = NULL;
         rd_kafka_error_t* error;
+        CallState cs;
         static char *kws[] = {"username", "password", NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
@@ -2608,7 +2609,14 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
         }
 
+        CallState_begin(self, &cs);
         error = rd_kafka_sasl_set_credentials(self->rk, username, password);
+
+        if (!CallState_end(self, &cs)) {
+                if (error) /* Ignore error in favour of callstate exception */
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
 
         if (error) {
                 cfl_PyErr_from_error_destroy(error);
@@ -2617,7 +2625,6 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
 
         Py_RETURN_NONE;
 }
-
 
 
 /****************************************************************************

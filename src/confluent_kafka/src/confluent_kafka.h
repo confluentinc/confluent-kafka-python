@@ -388,6 +388,7 @@ PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
 
+
 extern const char list_topics_doc[];
 extern const char list_groups_doc[];
 extern const char set_sasl_credentials_doc[];
