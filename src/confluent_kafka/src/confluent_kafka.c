@@ -2758,7 +2758,12 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+// https://docs.python.org/3.9/whatsnew/3.9.html#deprecated -- PyEval_InitThreads() is deprecated since Python 3.9 and slated for removal in Python 3.11.
+#if PY_VERSION_HEX < 0x03090000
         PyEval_InitThreads();
+#else
+        Py_Initialize();
+#endif
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;
