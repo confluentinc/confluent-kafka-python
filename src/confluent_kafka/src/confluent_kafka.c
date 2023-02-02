@@ -2582,6 +2582,55 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
 /****************************************************************************
  *
  *
+ * Methods common across all types of clients.
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+const char set_sasl_credentials_doc[] = PyDoc_STR(
+        ".. py:function:: set_sasl_credentials(username, password)\n"
+        "\n"
+        "  Sets the SASL credentials used for this client.\n"
+        "  These credentials will overwrite the old ones, and will be used the next time the client needs to authenticate.\n"
+        "  This method will not disconnect existing broker connections that have been established with the old credentials.\n"
+        "  This method is applicable only to SASL PLAIN and SCRAM mechanisms.\n");
+
+
+PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
+        const char *username = NULL;
+        const char *password = NULL;
+        rd_kafka_error_t* error;
+        CallState cs;
+        static char *kws[] = {"username", "password", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
+                                         &username, &password)) {
+                return NULL;
+        }
+
+        CallState_begin(self, &cs);
+        error = rd_kafka_sasl_set_credentials(self->rk, username, password);
+
+        if (!CallState_end(self, &cs)) {
+                if (error) /* Ignore error in favour of callstate exception */
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/****************************************************************************
+ *
+ *
  * Base
  *
  *
