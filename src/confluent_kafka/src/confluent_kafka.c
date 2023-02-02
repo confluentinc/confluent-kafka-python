@@ -1318,7 +1318,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     while (!rd_kafka_header_get_all(headers, idx++,
                                      &header_key, &header_value, &header_value_size)) {
-            // Create one (key, value) tuple for each header
+            /* Create one (key, value) tuple for each header */
             PyObject *header_tuple = PyTuple_New(2);
             PyTuple_SetItem(header_tuple, 0,
                 cfl_PyUnistr(_FromString(header_key))
@@ -1694,7 +1694,8 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                                                   sizeof(err_msg));
         Py_DECREF(result);
         if (rd_extensions) {
-                for(int i = 0; i < rd_extensions_size; i++) {
+                int i;
+                for(i = 0; i < rd_extensions_size; i++) {
                         free(rd_extensions[i]);
                 }
                 free(rd_extensions);
@@ -2739,7 +2740,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 	_PRINT("\n");
 
-	return doc; // FIXME: leak
+	return doc; /* FIXME: leak */
 }
 
 
