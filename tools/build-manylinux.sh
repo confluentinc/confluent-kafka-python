@@ -33,7 +33,13 @@ if [[ ! -f /.dockerenv ]]; then
         exit 1
     fi
 
-    docker run -t -v $(pwd):/io quay.io/pypa/manylinux_2_28_aarch64:latest  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
+    if [[ $ARCH == arm64* ]]; then
+        docker_image=quay.io/pypa/manylinux_2_28_aarch64:latest
+    else
+        docker_image=quay.io/pypa/manylinux_2_28_x86_64:latest
+    fi
+
+    docker run -t -v $(pwd):/io $docker_image  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
 
     exit $?
 fi
@@ -80,3 +86,4 @@ for PYBIN in /opt/python/cp*/bin/; do
     echo "## Uninstalling $PYBIN"
     "${PYBIN}/pip" uninstall -y confluent_kafka
 done
+
