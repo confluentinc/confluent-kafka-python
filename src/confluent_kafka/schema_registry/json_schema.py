@@ -19,8 +19,9 @@ from io import BytesIO
 
 import json
 import struct
+from typing import overload
 
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, RefResolver
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
@@ -141,7 +142,23 @@ class JSONSerializer(Serializer):
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
+    @overload
+    def __init__(self, schema: str, schema_registry_client, to_dict=None, conf=None):
+        ...
+
+    @overload
+    def __init__(self, schema: Schema, schema_registry_client, to_dict=None, conf=None):
+        ...
+
+    def __init__(self, schema, schema_registry_client, to_dict=None, conf=None):
+        if isinstance(schema, str):
+            self._schema = Schema(schema, schema_type="JSON")
+        else:
+            if not isinstance(schema, Schema):
+                raise ValueError('You must pass either str or Schema')
+            else:
+                self._schema = schema
+
         self._registry = schema_registry_client
         self._schema_id = None
         self._known_subjects = set()
@@ -178,14 +195,13 @@ class JSONSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema_dict = json.loads(schema_str)
+        schema_dict = json.loads(self._schema.schema_str)
         schema_name = schema_dict.get('title', None)
         if schema_name is None:
             raise ValueError("Missing required JSON schema annotation title")
 
         self._schema_name = schema_name
         self._parsed_schema = schema_dict
-        self._schema = Schema(schema_str, schema_type="JSON")
 
     def __call__(self, obj, ctx):
         """
@@ -238,7 +254,13 @@ class JSONSerializer(Serializer):
             value = obj
 
         try:
-            validate(instance=value, schema=self._parsed_schema)
+            if self._schema.named_schemas is not None and len(self._schema.named_schemas) > 0:
+                validate(instance=value, schema=self._parsed_schema,
+                         resolver=RefResolver(self._parsed_schema["$id"],
+                                              self._parsed_schema,
+                                              store=self._schema.named_schemas))
+            else:
+                validate(instance=value, schema=self._parsed_schema)
         except ValidationError as ve:
             raise SerializationError(ve.message)
 
@@ -258,16 +280,32 @@ class JSONDeserializer(Deserializer):
     framing.
 
     Args:
-        schema_str (str): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ use for validating records.
+        schema (str): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ use for validating records.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to a Python object instance.
     """  # noqa: E501
 
-    __slots__ = ['_parsed_schema', '_from_dict']
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_schema']
 
-    def __init__(self, schema_str, from_dict=None):
-        self._parsed_schema = json.loads(schema_str)
+    @overload
+    def __init__(self, schema: str, from_dict=None, schema_registry_client=None):
+        ...
+
+    @overload
+    def __init__(self, schema: Schema, from_dict=None, schema_registry_client=None):
+        ...
+
+    def __init__(self, schema, from_dict=None, schema_registry_client=None):
+        if isinstance(schema, str):
+            self._schema = Schema(schema, schema_type="JSON")
+        else:
+            if not isinstance(schema, Schema):
+                raise ValueError('You must pass either str or Schema')
+            else:
+                self._schema = schema
+        self._parsed_schema = json.loads(self._schema.schema_str)
+        self._registry = schema_registry_client
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
@@ -309,11 +347,26 @@ class JSONDeserializer(Deserializer):
                                          "was not produced with a Confluent "
                                          "Schema Registry serializer".format(magic))
 
+            named_schemas = None
+            if self._registry is not None:
+                registered_schema: Schema = self._registry.get_schema(schema_id)
+                named_schemas = {}
+                for ref in registered_schema.references:
+                    ref_reg_schema = self._registry.get_version(ref.subject, ref.version)
+                    ref_dict = json.loads(ref_reg_schema.schema.schema_str)
+                    named_schemas[ref_dict["$id"]] = ref_dict
+
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read())
 
             try:
-                validate(instance=obj_dict, schema=self._parsed_schema)
+                if named_schemas is not None and len(named_schemas) > 0:
+                    validate(instance=obj_dict,
+                             schema=self._parsed_schema, resolver=RefResolver(self._parsed_schema["$id"],
+                                                                              self._parsed_schema,
+                                                                              named_schemas))
+                else:
+                    validate(instance=obj_dict, schema=self._parsed_schema)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
 
