@@ -2757,6 +2757,7 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+    if (PY_VERSION_HEX < 0x03090000)
         PyEval_InitThreads();
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
