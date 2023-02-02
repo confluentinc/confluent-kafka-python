@@ -2404,6 +2404,10 @@ static PyMethodDef Admin_methods[] = {
            Admin_delete_acls_doc
         },
 
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
+        },
+
         { NULL }
 };
 

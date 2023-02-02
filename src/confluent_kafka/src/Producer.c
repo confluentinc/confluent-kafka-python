@@ -811,6 +811,9 @@ static PyMethodDef Producer_methods[] = {
           "           Treat any other error as a fatal error.\n"
           "\n"
         },
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
+        },
         { NULL }
 };
 
