@@ -2757,7 +2757,11 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
-        PyEval_InitThreads();
+        if (PY_VERSION_HEX < 0x03070000) {
+//        _PRINT("version 3.7 or higher is required, "
+//               "you are running version %s", PY_VERSION_STRING);
+	    PyEval_InitThreads();
+        }
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;
