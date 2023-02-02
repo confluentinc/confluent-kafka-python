@@ -262,3 +262,21 @@ def test_topic_config_update():
         if "CI" in os.environ:
             pytest.xfail("Timeout exceeded")
         pytest.fail("Timeout exceeded")
+
+
+def test_set_sasl_credentials_api():
+    clients = [
+        AdminClient({}),
+        confluent_kafka.Consumer({"group.id": "dummy"}),
+        confluent_kafka.Producer({})]
+
+    for c in clients:
+        c.set_sasl_credentials('username', 'password')
+
+        c.set_sasl_credentials('override', 'override')
+
+        with pytest.raises(TypeError):
+            c.set_sasl_credentials(None, 'password')
+
+        with pytest.raises(TypeError):
+            c.set_sasl_credentials('username', None)
