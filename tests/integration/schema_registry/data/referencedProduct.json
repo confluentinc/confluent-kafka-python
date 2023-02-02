@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/referencedproduct.schema.json",
+  "title": "ReferencedProduct",
+  "description": "Referenced Product",
+  "type": "object",
+  "properties": {
+    "name": {
+      "description": "Referenced Product Name",
+      "type": "string"
+    },
+    "product": {
+      "description": "Product",
+      "$ref": "http://example.com/product.schema.json",
+      "examples": [
+        {
+          "productId": 1,
+          "productName": "A green door",
+          "price": 12.50,
+          "tags": [
+            "home",
+            "green"
+          ]
+        },
+        {
+          "productId": 2,
+          "productName": "A blue door",
+          "price": 18.99,
+          "tags": [
+            "home"
+          ]
+        }
+      ]
+    }
+  },
+  "required": [ "name", "product"]
+}

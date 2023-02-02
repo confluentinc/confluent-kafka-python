@@ -689,16 +689,19 @@ class Schema(object):
         references ([SchemaReference]): SchemaReferences used in this schema.
 
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
+
+        named_schemas (dict): Named schemas
     """
 
-    __slots__ = ['schema_str', 'references', 'schema_type', '_hash']
+    __slots__ = ['schema_str', 'references', 'schema_type', 'named_schemas', '_hash']
 
-    def __init__(self, schema_str, schema_type, references=[]):
+    def __init__(self, schema_str, schema_type, references=[], named_schemas={}):
         super(Schema, self).__init__()
 
         self.schema_str = schema_str
         self.schema_type = schema_type
         self.references = references
+        self.named_schemas = named_schemas
         self._hash = hash(schema_str)
 
     def __eq__(self, other):
