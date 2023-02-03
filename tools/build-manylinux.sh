@@ -39,7 +39,7 @@ if [[ ! -f /.dockerenv ]]; then
         docker_image=quay.io/pypa/manylinux_2_28_x86_64:latest
     fi
 
-    docker run -t -v $(pwd):/io $docker_image  /io/tools/build-manylinux.sh "$LIBRDKAFKA_VERSION"
+    docker run -t -v $(pwd):/io $docker_image  /io/tools/build-manylinux.sh "v${LIBRDKAFKA_VERSION}"
 
     exit $?
 fi

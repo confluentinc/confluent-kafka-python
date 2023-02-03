@@ -81,6 +81,8 @@ blocks:
             - python setup.py build && python setup.py install
             - make docs
   - name: "Wheels: Linux arm64"
+#    run:
+#      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
