@@ -24,7 +24,6 @@ import warnings
 import urllib3
 import json
 from collections import defaultdict
-from pathlib import Path
 from requests import Session, utils
 from .error import ClientError
 from . import loads
@@ -43,6 +42,7 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO', 'SASL_INHERIT']
 ACCEPT_HDR = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
 log = logging.getLogger(__name__)
 
+
 class CachedSchemaRegistryClient(object):
     """
     A client that talks to a Schema Registry over HTTP
@@ -52,7 +52,9 @@ class CachedSchemaRegistryClient(object):
     .. deprecated:: 1.1.0
 
     Use CachedSchemaRegistryClient(dict: config) instead.
-    Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
+    The Config(dict) will have url, ssl.ca.location, ssl.certificate.location, ssl.key.location and ssl.key.password
+    The support for encrypted private key is only via the Config
+    Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
 
     Errors communicating to the server will result in a ClientError being raised.
@@ -63,7 +65,7 @@ class CachedSchemaRegistryClient(object):
     :param str key_location: Path to client's private key used for authentication.
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None, key_password=None):
+    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
         # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.
         conf = url
         if not isinstance(url, dict):
@@ -71,8 +73,7 @@ class CachedSchemaRegistryClient(object):
                 'url': url,
                 'ssl.ca.location': ca_location,
                 'ssl.certificate.location': cert_location,
-                'ssl.key.location': key_location,
-                'ssl.key.password' : key_password
+                'ssl.key.location': key_location
             }
             warnings.warn(
                 "CachedSchemaRegistry constructor is being deprecated. "
@@ -91,12 +92,7 @@ class CachedSchemaRegistryClient(object):
 
         if not url.startswith('http'):
             raise ValueError("Invalid URL provided for Schema Registry")
-        cert_location = conf.pop('ssl.certificate.location',None)
-        key_location = conf.pop('ssl.key.location',None)
-        key_password = conf.pop('ssl.key.password',None)
-        ca_cert = conf.pop('ssl.ca.location', None)
-        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED',ca_certs=ca_cert,cert_file=cert_location,key_file=key_location,key_password=key_password)
-        self._https_session = _https_session
+
         self.url = url.rstrip('/')
 
         # subj => { schema => id }
@@ -106,16 +102,22 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
         s = Session()
-        
+        ca_cert = conf.pop('ssl.ca.location', None)
         if ca_cert is not None:
             s.verify = ca_cert
-        s.cert = self._configure_client_tls(cert_location,key_location)
+        s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
 
         self.url = utils.urldefragauth(self.url)
 
         self._session = s
-        
+        cert_location = s.cert[0]
+        key_location = s.cert[1]
+        key_password = conf.pop('ssl.key.password', None)
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_cert, cert_file=cert_location,
+                                             key_file=key_location, key_password=key_password)
+        self._https_session = _https_session
+
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
         if len(conf) > 0:
@@ -134,7 +136,7 @@ class CachedSchemaRegistryClient(object):
         # Constructor exceptions may occur prior to _session being set.
         if hasattr(self, '_session'):
             self._session.close()
-        if hasattr(self,'_https_session'):
+        if hasattr(self, '_https_session'):
             self._https_session.clear()
 
     @staticmethod
@@ -154,8 +156,9 @@ class CachedSchemaRegistryClient(object):
         return auth
 
     @staticmethod
-    def _configure_client_tls(cert_location,key_location):
-        cert = [cert_location,key_location] 
+    def _configure_client_tls(conf):
+
+        cert = [conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)]
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
@@ -171,22 +174,20 @@ class CachedSchemaRegistryClient(object):
         if body:
             nbody = json.dumps(body).encode('UTF-8')
             _headers["Content-Length"] = str(len(nbody))
-            # _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json, application/vnd.schemaregistry+json, application/json"
         _headers.update(headers)
         if url.startswith('https'):
-            response = self._https_session.request(method,url,headers=_headers,body=nbody)
+            response = self._https_session.request(method, url, headers=_headers, body=nbody)
             try:
-                    return json.loads(response.data), response.status
+                return json.loads(response.data), response.status
             except ValueError:
-                    return response.content, response.status
-            
+                return response.content, response.status
+
         response = self._session.request(method, url, headers=_headers, json=body)
         try:
             return response.json(), response.status_code
         except ValueError:
             return response.content, response.status_code
 
-        
     @staticmethod
     def _add_to_cache(cache, subject, schema, value):
         sub_cache = cache[subject]
@@ -229,7 +230,7 @@ class CachedSchemaRegistryClient(object):
         # send it up
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
         # body is { schema : json_string }
-        body = {'schema':str(avro_schema)}
+        body = {'schema': str(avro_schema)}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
             raise ClientError("Unauthorized access. Error code:" + str(code)
