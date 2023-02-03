@@ -462,7 +462,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 i++;
                                 goto err;
                         }
-                        
+
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
@@ -482,14 +482,14 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 goto err;
                         }
                 }
-                if(!newt->replica_assignment){
-                        if((newt->replication_factor != -1 && newt->num_partitions != -1) || (newt->replication_factor == -1 && newt->num_partitions == -1)){
+                if (!newt->replica_assignment) {
+                        if ((newt->replication_factor != -1 && newt->num_partitions != -1) ||
+                                 (newt->replication_factor == -1 && newt->num_partitions == -1)) {
                                 continue;
-                        }
-                        else{
+                        } else {
                                 PyErr_SetString(PyExc_ValueError,
-                                                "either both num_partitions and replication_factor "
-                                                "be set or none");
+                                                "either both num_partitions and"
+                                                "replication_factor be set or none");
                                 i++;
                                 goto err;
                         }
