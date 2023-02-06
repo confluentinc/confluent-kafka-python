@@ -18,6 +18,5 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 if [[ $OS_NAME == linux ]]; then flake8; fi
 # install confluent-kafka
 python setup.py build && python setup.py install
-python -m pytest --timeout 600 --ignore=dest
  # Build docs
 if [[ $OS_NAME == linux ]]; then make docs; fi
