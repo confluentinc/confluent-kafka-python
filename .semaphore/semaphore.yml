@@ -12,8 +12,8 @@ global_job_config:
       - checkout
 blocks:
   - name: "Wheels: OSX x64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -31,8 +31,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -67,10 +67,10 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
-            - tools/source-package-verification.sh
+            - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
   - name: "Wheels: Linux arm64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -88,8 +88,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: "Wheels: Windows"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -138,4 +138,4 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
-            - tools/source-package-verification.sh
+            - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
