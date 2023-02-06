@@ -67,6 +67,7 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
             - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
   - name: "Wheels: Linux arm64"
     run:
@@ -138,4 +139,5 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
             - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
