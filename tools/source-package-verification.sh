@@ -6,6 +6,7 @@
 
 pip install -r docs/requirements.txt
 pip install -U protobuf
+pip install -r tests/requirements.txt
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
