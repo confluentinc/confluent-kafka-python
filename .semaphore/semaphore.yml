@@ -67,18 +67,7 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
-            - pip install -r docs/requirements.txt
-            - pip install -U protobuf
-            # install librdkafka
-            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
-            - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
-            - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
-            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
-            - export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
-            # install confluent-kafka
-            - python setup.py build && python setup.py install
-            - make docs
+            - tools/source-package-verification.sh
   - name: "Wheels: Linux arm64"
     # run:
     #   when: "tag =~ '.*'"
@@ -149,15 +138,4 @@ blocks:
           commands:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
-            - pip install -r docs/requirements.txt
-            - pip install -U protobuf
-            # install librdkafka
-            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
-            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
-            - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
-            - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
-            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
-            - export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
-            # install confluent-kafka
-            - python setup.py build && python setup.py install
-            - make docs
+            - tools/source-package-verification.sh
