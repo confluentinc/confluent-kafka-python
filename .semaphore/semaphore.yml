@@ -68,8 +68,7 @@ blocks:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
-            - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
-            - python -m pytest --timeout 600 --ignore=dest
+            - tools/source-package-verification.sh
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -141,5 +140,4 @@ blocks:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
-            - PIP_INSTALL_OPTIONS="--user" tools/source-package-verification.sh
-            - python -m pytest --timeout 600 --ignore=dest
+            - tools/source-package-verification.sh
