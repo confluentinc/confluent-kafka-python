@@ -20,4 +20,8 @@ if [[ $OS_NAME == linux ]]; then flake8; fi
  # Build docs
 if [[ $OS_NAME == linux ]]; then make docs; fi
 python setup.py build && python setup.py install
-python -m pytest --timeout 600 --ignore=dest
+if [[ $OS_NAME == linux ]]; then 
+    python -m pytest --timeout 600 --ignore=dest
+else
+    python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
+fi
