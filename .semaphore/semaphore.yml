@@ -136,11 +136,12 @@ blocks:
               value: 'yes'
             - name: MSYSTEM
               value: UCRT64
+            - name: BUILD_WHEELS
+              value: 1
           commands:
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-            - ls
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${ARCH}.tgz
   - name: Source package verification with Python 3 (Linux x64)
@@ -192,6 +193,8 @@ blocks:
           value: windows
         - name: ARCH
           value: x64
+        - name: BUILD_WHEELS
+          value: 0
       prologue:
         commands:
           - cache restore msys2-x64
@@ -208,7 +211,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - sem-version python 3.8
+            - bash tools/mingw-w64/semaphore_commands.sh
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - bash tools/source-package-verification.sh
