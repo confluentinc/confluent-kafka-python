@@ -5,7 +5,7 @@
 - Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
   SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
 - Wheels for Linux / arm64 (#1496).
-
+- Made support for use of Default num_partitions and replication_factor in NewTopic according to KIP - 464
 
 ## v2.0.2
 
