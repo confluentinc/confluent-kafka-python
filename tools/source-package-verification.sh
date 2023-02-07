@@ -9,7 +9,7 @@ pip install -U protobuf
 pip install -r tests/requirements.txt
 
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
-if [[ $OS_NAME == windows]]; then
+if [[ $OS_NAME == windows ]]; then
     export include="$include -I${PWD}\dest\build\native\include"
     export lib="$LDFLAGS -L${PWD}\dest\build\native\lib\win\%ARCH%\win-${ARCH}-Release\v142"
     export DLL_DIR="$DLL_DIR -L${PWD}\dest\runtimes\win-${ARCH}\native"
