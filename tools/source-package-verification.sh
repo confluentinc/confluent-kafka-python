@@ -15,12 +15,10 @@ export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
-if [[ $OS_NAME == linux ]]; then flake8; fi
-# install confluent-kafka
- # Build docs
-if [[ $OS_NAME == linux ]]; then make docs; fi
 python setup.py build && python setup.py install
-if [[ $OS_NAME == linux ]]; then 
+if [[ $OS_NAME == linux ]]; then
+    flake8
+    make docs
     python -m pytest --timeout 600 --ignore=dest
 else
     python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
