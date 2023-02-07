@@ -137,7 +137,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
             - name: BUILD_WHEELS
-              value: 1
+              value: '1'
           commands:
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
@@ -194,7 +194,7 @@ blocks:
         - name: ARCH
           value: x64
         - name: BUILD_WHEELS
-          value: 0
+          value: '0'
       prologue:
         commands:
           - cache restore msys2-x64
