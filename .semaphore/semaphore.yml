@@ -140,6 +140,7 @@ blocks:
               value: '1'
           commands:
             - bash tools/mingw-w64/semaphore_commands.sh
+            - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${ARCH}.tgz
@@ -212,15 +213,5 @@ blocks:
           commands:
             - bash tools/mingw-w64/semaphore_commands.sh
             # use a virtualenv
-            - python3 -m venv t_venv
-            - t_venv\Scripts\activate
-            - nuget install librdkafka.redist -version $env:LIBRDKAFKA_VERSION.TrimStart("v") -OutputDirectory dest
-            - curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/inttypes.h -o inttypes.h
-            - curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/stdint.h -o stdint.h
-            - call tools\windows-copy-librdkafka.bat $env:LIBRDKAFKA_VERSION.TrimStart("v") C:\Python38
-            - set include=%cd%\dest\build\native\include
-            - set lib=%cd%\dest\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v142
-            - set DLL_DIR=%cd%\dest\runtimes\win-%ARCH%\native
-            - python setup.py build && python setup.py install
-            - python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
-
+            - python3 -m venv _venv && source _venv/bin/activate
+            - bash tools/source-package-verification.sh
