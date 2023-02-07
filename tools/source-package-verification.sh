@@ -15,6 +15,9 @@ export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
+echo LD_LIBRARY_PATH
+
+
 if [[ $OS_NAME == linux ]]; then flake8; fi
 # install confluent-kafka
  # Build docs
