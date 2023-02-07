@@ -186,7 +186,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-amd64-3
+          type: s1-prod-windows
       env_vars:
         - name: OS_NAME
           value: windows
@@ -202,6 +202,11 @@ blocks:
           - cache store msys2-x64 c:/msys64
       jobs:
         - name: Build
+          env_vars:
+            - name: CHERE_INVOKING
+              value: 'yes'
+            - name: MSYSTEM
+              value: UCRT64
           commands:
             - sem-version python 3.8
             # use a virtualenv
