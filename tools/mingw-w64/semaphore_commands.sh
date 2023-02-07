@@ -8,4 +8,4 @@ export MAKE=mingw32-make  # so that Autotools can find it
 
 cmd /c mklink /D C:\Python38\python3.exe C:\Python38\python.exe
 
-if [[ $BUILD_WHEELS != 1 ]]; then python -m pip install cibuildwheel==2.12.0;fi
+if [[ $BUILD_WHEELS == '1' ]]; then python -m pip install cibuildwheel==2.12.0;fi
