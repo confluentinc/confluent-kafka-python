@@ -213,5 +213,5 @@ blocks:
           commands:
             - bash tools/mingw-w64/semaphore_commands.sh
             # use a virtualenv
-            - python3 -m venv _venv -and source _venv/bin/activate
+            - python3 -m venv _venv -and _venv\Scripts\activate
             - bash tools/source-package-verification.sh
