@@ -215,7 +215,7 @@ blocks:
             # use a virtualenv
             - python3 -m venv t_venv
             - t_venv\Scripts\activate
-            - bash tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - set include=%cd%\%DEST%\build\native\include
             - set lib=%cd%\%DEST%\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v142
             - set DLL_DIR=%cd%\%DEST%\runtimes\win-%ARCH%\native
