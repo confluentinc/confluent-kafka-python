@@ -158,7 +158,7 @@ class CachedSchemaRegistryClient(object):
     @staticmethod
     def _configure_client_tls(conf):
 
-        cert = (conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None))
+        cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
             raise ValueError(
