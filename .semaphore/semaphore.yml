@@ -215,4 +215,10 @@ blocks:
             # use a virtualenv
             - python3 -m venv t_venv
             - t_venv\Scripts\activate
-            - bash tools/source-package-verification.sh
+            - bash tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - set include=%cd%\%DEST%\build\native\include
+            - set lib=%cd%\%DEST%\build\native\lib\win\%ARCH%\win-%ARCH%-Release\v142
+            - set DLL_DIR=%cd%\%DEST%\runtimes\win-%ARCH%\native
+            - python setup.py build
+            - python setup.py install
+            - python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
