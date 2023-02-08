@@ -215,4 +215,5 @@ blocks:
             # use a virtualenv
             - python3 -m venv t_venv
             - t_venv\Scripts\activate
+            - call tools/windows-install-librdkafka.bat $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - bash tools/source-package-verification.sh
