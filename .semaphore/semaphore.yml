@@ -51,44 +51,6 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
-  - name: Source package verification with Python 3 (OSX arm64) +docs
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-arm64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
-  - name: Source package verification with Python 3 (OSX x64) +docs
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -109,8 +71,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: "Wheels: Linux x64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -189,6 +151,44 @@ blocks:
       env_vars:
         - name: OS_NAME
           value: linux
+        - name: ARCH
+          value: arm64
+      jobs:
+        - name: Build
+          commands:
+            - sem-version python 3.8
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
+  - name: Source package verification with Python 3 (OSX x64) +docs
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: x64
+      jobs:
+        - name: Build
+          commands:
+            - sem-version python 3.8
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
+  - name: Source package verification with Python 3 (OSX arm64) +docs
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-arm64
+      env_vars:
+        - name: OS_NAME
+          value: osx
         - name: ARCH
           value: arm64
       jobs:
