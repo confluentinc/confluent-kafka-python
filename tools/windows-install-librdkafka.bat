@@ -14,7 +14,7 @@ curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/inttypes.h 
 curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/stdint.h -o stdint.h || exit /b 1
 
 for %%V in (27, 35, 36, 37, 38) do (
-    if %%~V!=38(
+    if %%V!=38(
         if %BUILD_WHEELS%==0(
             continue
         )
