@@ -16,4 +16,3 @@ curl -s https://raw.githubusercontent.com/chemeris/msinttypes/master/stdint.h -o
 for %%V in (27, 35, 36, 37) do (
     call tools\windows-copy-librdkafka.bat %librdkafka_version% c:\Python%%~V || exit /b 1
 )
-
