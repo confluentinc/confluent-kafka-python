@@ -21,4 +21,3 @@ for %%V in (27, 35, 36, 37, 38) do (
     )
     call tools\windows-copy-librdkafka.bat %librdkafka_version% c:\Python%%~V || exit /b 1
 )
-
