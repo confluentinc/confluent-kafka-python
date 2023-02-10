@@ -150,7 +150,7 @@ static PyMemberDef NewTopic_members[] = {
 
 
 static PyObject *NewTopic_str0 (NewTopic *self) {
-        if(self->num_partitions == -1){
+        if (self->num_partitions == -1) {
                 return cfl_PyUnistr(
                 _FromFormat("NewTopic(topic=%s)",
                             self->topic));
@@ -212,7 +212,7 @@ NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
 static long NewTopic_hash (NewTopic *self) {
         PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
         long r;
-        if (self->num_partitions ==-1 ){
+        if (self->num_partitions == -1) {
                 r = PyObject_Hash(topic);
         } else {
                 r = PyObject_Hash(topic) ^ self->num_partitions;
