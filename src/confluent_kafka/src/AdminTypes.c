@@ -128,7 +128,7 @@ static PyMemberDef NewTopic_members[] = {
           ":py:attribute:topic - Topic name (string)" },
         { "num_partitions", T_INT, offsetof(NewTopic, num_partitions), 0,
           ":py:attribute: Number of partitions (int).\n"
-          "Can be set to -1 if a replica_assignment is specified" },
+          "Or -1 if a replica_assignment is specified" },
         { "replication_factor", T_INT, offsetof(NewTopic, replication_factor),
           0,
           " :py:attribute: Replication factor (int).\n"
