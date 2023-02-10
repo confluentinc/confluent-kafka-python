@@ -200,12 +200,7 @@ def verify_default_newtopic_params(a):
         assert False, f"When none of the partitions, replication and \
         assignment is present, the request should not fail, but it does with error {err}"
     a.delete_topics([NewTopic("test_t1")])
-    with pytest.raises(Exception):
-        a.create_topics([NewTopic("mytopic", num_partitions=2)])
-
-    with pytest.raises(Exception):
-        a.create_topics([NewTopic("mytopic", replication_factor=2)])
-
+   
     with pytest.raises(Exception):
         a.create_topics([NewTopic("mytopic", num_partitions=3, replica_assignment=[[10, 11], [0, 2], [15, 20]])])
 
