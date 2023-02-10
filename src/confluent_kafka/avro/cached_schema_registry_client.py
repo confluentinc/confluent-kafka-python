@@ -185,6 +185,7 @@ class CachedSchemaRegistryClient(object):
                 return response.content, response.status
 
         response = self._session.request(method, url, headers=_headers, json=body)
+        # Returned by Jetty not SR so the payload is not json encoded
         try:
             return response.json(), response.status_code
         except ValueError:
