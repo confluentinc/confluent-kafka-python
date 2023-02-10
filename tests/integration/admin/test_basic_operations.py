@@ -17,7 +17,8 @@ import confluent_kafka
 import struct
 import time
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
-from confluent_kafka.admin import (NewPartitions, ConfigResource,
+import pytest
+from confluent_kafka.admin import (NewTopic, NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
@@ -192,6 +193,21 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.offset == 0
 
 
+def verify_default_newtopic_params(a):
+    try:
+        a.create_topics([NewTopic("test_t1")])
+    except Exception as err:
+        assert False, f"When none of the partitions, replication and \
+        assignment is present, the request should not fail, but it does with error {err}"
+    a.delete_topics([NewTopic("test_t1")])
+   
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic", num_partitions=3, replica_assignment=[[10, 11], [0, 2], [15, 20]])])
+
+    with pytest.raises(Exception):
+        a.create_topics([NewTopic("mytopic", replication_factor=2, replica_assignment=[[10, 11], [0, 2], [15, 20]])])
+
+
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
@@ -219,6 +235,8 @@ def test_basic_operations(kafka_cluster):
     verify_topic_metadata(admin_client, {our_topic: num_partitions}, topic=our_topic)
     verify_topic_metadata(admin_client, {our_topic: num_partitions}, our_topic)
 
+    # verify default params in NewTopic
+    verify_default_newtopic_params(admin_client)
     #
     # Increase the partition count
     #
