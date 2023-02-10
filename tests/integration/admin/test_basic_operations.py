@@ -17,7 +17,6 @@ import confluent_kafka
 import struct
 import time
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
-import pytest
 from confluent_kafka.admin import (NewTopic, NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
@@ -200,7 +199,7 @@ def verify_default_newtopic_params(a):
         assert False, f"When none of the partitions, replication and \
         assignment is present, the request should not fail, but it does with error {err}"
     a.delete_topics([NewTopic("test_t1")])
-   
+
 
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
