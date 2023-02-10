@@ -88,9 +88,13 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
 
 
         if(self->replica_assignment){
-                if(self->num_partitions!= -1){
+                if( self->num_partitions!= -1 ){
                         PyErr_SetString(PyExc_TypeError,
                                         "num_partitions and replica assignment are mutually exclusive");
+                        return -1;
+                }else if( self->replication_factor !=-1 ){
+                        PyErr_SetString(PyExc_TypeError,
+                                        "replication_factor and replica assignment are mutually exclusive");
                         return -1;
                 }
                 self->num_partitions = PyList_Size(self->replica_assignment);
@@ -135,7 +139,8 @@ static PyMemberDef NewTopic_members[] = {
         { "topic", T_STRING, offsetof(NewTopic, topic), READONLY,
           ":py:attribute:topic - Topic name (string)" },
         { "num_partitions", T_INT, offsetof(NewTopic, num_partitions), 0,
-          ":py:attribute: Number of partitions (int)" },
+          ":py:attribute: [OPTIONAL] Number of partitions (int).\n"
+          "Must be set to -1 or not be provided if a replica_assignment is specified" },
         { "replication_factor", T_INT, offsetof(NewTopic, replication_factor),
           0,
           " :py:attribute: Replication factor (int).\n"
@@ -157,9 +162,15 @@ static PyMemberDef NewTopic_members[] = {
 
 
 static PyObject *NewTopic_str0 (NewTopic *self) {
-        return cfl_PyUnistr(
+        if(self->num_partitions != -1){
+                return cfl_PyUnistr(
                 _FromFormat("NewTopic(topic=%s,num_partitions=%d)",
                             self->topic, self->num_partitions));
+        
+        }
+        return cfl_PyUnistr(
+                _FromFormat("NewTopic(topic=%s)",
+                            self->topic));
 }
 
 
@@ -212,7 +223,12 @@ NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
 
 static long NewTopic_hash (NewTopic *self) {
         PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
-        long r = PyObject_Hash(topic) ^ self->num_partitions;
+        long r;
+        if( self->num_partitions==-1 ){
+                r = PyObject_Hash(topic);
+        } else {
+                r = PyObject_Hash(topic) ^ self->num_partitions;
+        }
         Py_DECREF(topic);
         return r;
 }
@@ -243,12 +259,12 @@ PyTypeObject NewTopicType = {
         "NewTopic specifies per-topic settings for passing to "
         "AdminClient.create_topics().\n"
         "\n"
-        ".. py:function:: NewTopic(topic, num_partitions, [replication_factor], [replica_assignment], [config])\n"
+        ".. py:function:: NewTopic(topic, [num_partitions], [replication_factor], [replica_assignment], [config])\n"
         "\n"
         "  Instantiate a NewTopic object.\n"
         "\n"
         "  :param string topic: Topic name\n"
-        "  :param int num_partitions: Number of partitions to create\n"
+        "  :param int num_partitions: [OPTIONAL] Number of partitions to create, or (-1 or not be provided) if replica_assignment is used.\n"
         "  :param int replication_factor: Replication factor of partitions, or -1 if replica_assignment is used.\n"
         "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
         "  :param dict config: Dict (str:str) of topic configuration. See http://kafka.apache.org/documentation.html#topicconfigs\n"

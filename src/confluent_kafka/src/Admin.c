@@ -483,15 +483,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 }
 
                 if (newt->replica_assignment) {
-                        if (newt->replication_factor != -1) {
-                                PyErr_SetString(PyExc_ValueError,
-                                                "replication_factor/num_partitions and "
-                                                "replica_assignment are "
-                                                "mutually exclusive");
-                                i++;
-                                goto err;
-                        }
-
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
@@ -507,18 +498,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         if (!Admin_config_dict_to_c((void *)c_objs[i],
                                                     newt->config,
                                                     "newtopic_set_config")) {
-                                i++;
-                                goto err;
-                        }
-                }
-                if (!newt->replica_assignment) {
-                        if ((newt->replication_factor != -1 && newt->num_partitions != -1) ||
-                                 (newt->replication_factor == -1 && newt->num_partitions == -1)) {
-                                continue;
-                        } else {
-                                PyErr_SetString(PyExc_ValueError,
-                                                "either both num_partitions and"
-                                                "replication_factor be set or none");
                                 i++;
                                 goto err;
                         }
