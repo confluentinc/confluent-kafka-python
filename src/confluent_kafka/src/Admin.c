@@ -493,7 +493,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                         }
 
                         int t;
-                        if (newt->num_partitions == -1){
+                        if (newt->num_partitions == -1) {
                                 t = PyList_Size(newt->replica_assignment);
                         } else {
                                 t = newt->num_partitions;
@@ -517,7 +517,6 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 goto err;
                         }
                 }
-
         }
 
 
