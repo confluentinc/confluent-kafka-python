@@ -24,7 +24,9 @@ import warnings
 import urllib3
 import json
 from collections import defaultdict
+
 from requests import Session, utils
+
 from .error import ClientError
 from . import loads
 
@@ -101,10 +103,11 @@ class CachedSchemaRegistryClient(object):
         self.id_to_schema = defaultdict(dict)
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
+
         s = Session()
-        ca_cert = conf.pop('ssl.ca.location', None)
-        if ca_cert is not None:
-            s.verify = ca_cert
+        ca_path = conf.pop('ssl.ca.location', None)
+        if ca_path is not None:
+            s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
         s.auth = self._configure_basic_auth(self.url, conf)
 
@@ -114,7 +117,7 @@ class CachedSchemaRegistryClient(object):
         cert_location = s.cert[0]
         key_location = s.cert[1]
         key_password = conf.pop('ssl.key.password', None)
-        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_cert, cert_file=cert_location,
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_path, cert_file=cert_location,
                                              key_file=key_location, key_password=key_password)
         self._https_session = _https_session
 
@@ -157,7 +160,6 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _configure_client_tls(conf):
-
         cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)
         # Both values can be None or no values can be None
         if bool(cert[0]) != bool(cert[1]):
@@ -230,6 +232,7 @@ class CachedSchemaRegistryClient(object):
         # send it up
         url = '/'.join([self.url, 'subjects', subject, 'versions'])
         # body is { schema : json_string }
+
         body = {'schema': str(avro_schema)}
         result, code = self._send_request(url, method='POST', body=body)
         if (code == 401 or code == 403):
