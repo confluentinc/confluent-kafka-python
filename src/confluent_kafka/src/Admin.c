@@ -483,11 +483,25 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 }
 
                 if (newt->replica_assignment) {
+                        if (newt->replication_factor != -1){
+                                PyErr_SetString(PyExc_ValueError,
+                                                "replication_factor and "
+                                                "replica_assignment are "
+                                                "mutually exclusive");
+                                i++;
+                                goto err;
+                        }
+                        int t;
+                        if( newt->num_partitions == -1 ){
+                                t = PyList_Size(newt->replica_assignment)
+                        } else {
+                                t = newt->num_partitions;
+                        }
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
-                                    PyList_Size(newt->replica_assignment),
-                                    PyList_Size(newt->replica_assignment), 
+                                    t,
+                                    t, 
                                     "num_partitions")) {
                                 i++;
                                 goto err;

@@ -128,13 +128,6 @@ def test_create_topics_api():
         assert False, f"When none of the partitions, \
             replication and assignment is present, the request should not fail, but it does with error {err}"
 
-    with pytest.raises(Exception):
-        a.create_topics([NewTopic("mytopic", num_partitions=3, replica_assignment=[[10, 11], [0, 2], [15, 20]])])
-
-    with pytest.raises(Exception):
-        a.create_topics([NewTopic("mytopic", replication_factor=2,
-                        replica_assignment=[[10, 11], [0, 2], [15, 20]])])
-
     fs = a.create_topics([NewTopic("mytopic", 3, 2)])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):

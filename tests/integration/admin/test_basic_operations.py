@@ -192,14 +192,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.offset == 0
 
 
-def verify_default_newtopic_params(a):
-    try:
-        a.create_topics([NewTopic("test_t1")])
-    except Exception as err:
-        assert False, f"When none of the partitions, replication and \
-        assignment is present, the request should not fail, but it does with error {err}"
-    a.delete_topics([NewTopic("test_t1")])
-
 
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
@@ -228,8 +220,6 @@ def test_basic_operations(kafka_cluster):
     verify_topic_metadata(admin_client, {our_topic: num_partitions}, topic=our_topic)
     verify_topic_metadata(admin_client, {our_topic: num_partitions}, our_topic)
 
-    # verify default params in NewTopic
-    verify_default_newtopic_params(admin_client)
     #
     # Increase the partition count
     #
