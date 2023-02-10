@@ -483,7 +483,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                 }
 
                 if (newt->replica_assignment) {
-                        if (newt->replication_factor != -1){
+                        if (newt->replication_factor != -1) {
                                 PyErr_SetString(PyExc_ValueError,
                                                 "replication_factor and "
                                                 "replica_assignment are "
@@ -491,9 +491,10 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 i++;
                                 goto err;
                         }
+
                         int t;
-                        if( newt->num_partitions == -1 ){
-                                t = PyList_Size(newt->replica_assignment)
+                        if (newt->num_partitions == -1){
+                                t = PyList_Size(newt->replica_assignment);
                         } else {
                                 t = newt->num_partitions;
                         }
