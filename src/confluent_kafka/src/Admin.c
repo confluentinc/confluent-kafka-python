@@ -418,6 +418,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         rd_kafka_AdminOptions_t *c_options = NULL;
         int tcnt;
         int i;
+        int topic_partition_count;
         rd_kafka_NewTopic_t **c_objs;
         rd_kafka_queue_t *rkqu;
         CallState cs;
@@ -492,17 +493,16 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 goto err;
                         }
 
-                        int temp_partitions;
                         if (newt->num_partitions == -1) {
-                                temp_partitions = PyList_Size(newt->replica_assignment);
+                                topic_partition_count = PyList_Size(newt->replica_assignment);
                         } else {
-                                temp_partitions = newt->num_partitions;
+                                topic_partition_count = newt->num_partitions;
                         }
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
-                                    temp_partitions,
-                                    temp_partitions, 
+                                    topic_partition_count,
+                                    topic_partition_count, 
                                     "num_partitions")) {
                                 i++;
                                 goto err;
