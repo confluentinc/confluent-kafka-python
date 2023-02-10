@@ -133,8 +133,8 @@ def test_create_topics_api():
             f.result(timeout=1)
 
     fs = a.create_topics([NewTopic("mytopic", 3,
-                          replica_assignment=[[10, 11], [0, 1], [15, 20]],
-                          config={"some":"config"})])
+                                   replica_assignment=[[10, 11], [0, 1, 2], [15, 20]],
+                                   config={"some": "config"})])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
