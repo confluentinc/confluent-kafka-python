@@ -5,7 +5,7 @@
 - Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
   SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
 - Wheels for Linux / arm64 (#1496).
-- Added support for Default num_partitions(the field is optional now) in CreateTopics Admin API.
+- Added support for Default num_partitions in CreateTopics Admin API.
 
 ## v2.0.2
 

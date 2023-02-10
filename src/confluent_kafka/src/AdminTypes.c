@@ -158,7 +158,6 @@ static PyObject *NewTopic_str0 (NewTopic *self) {
         return cfl_PyUnistr(
                 _FromFormat("NewTopic(topic=%s,num_partitions=%d)",
                             self->topic, self->num_partitions));
-
 }
 
 
