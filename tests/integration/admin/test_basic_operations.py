@@ -17,7 +17,7 @@ import confluent_kafka
 import struct
 import time
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
-from confluent_kafka.admin import (NewTopic, NewPartitions, ConfigResource,
+from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
@@ -190,7 +190,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
     for topic_partition in lres.topic_partitions:
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
-
 
 
 def test_basic_operations(kafka_cluster):

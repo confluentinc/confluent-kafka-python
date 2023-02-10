@@ -516,7 +516,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 goto err;
                         }
                 }
-                
+
         }
 
 
