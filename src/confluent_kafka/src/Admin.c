@@ -492,10 +492,17 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                 goto err;
                         }
 
+                        int temp_partitions;
+                        if (newt->num_partitions == -1) {
+                                temp_partitions = PyList_Size(newt->replica_assignment);
+                        } else {
+                                temp_partitions = newt->num_partitions;
+                        }
                         if (!Admin_set_replica_assignment(
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
-                                    newt->num_partitions, newt->num_partitions,
+                                    temp_partitions,
+                                    temp_partitions, 
                                     "num_partitions")) {
                                 i++;
                                 goto err;
