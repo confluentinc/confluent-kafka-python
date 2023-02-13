@@ -111,7 +111,7 @@ class VerifiableClient(object):
                     raise Exception('%s: invalid line, no key=value pair: %s' % (path, line))
 
                 k = line[:fi]
-                v = line[fi+1:]
+                v = line[fi + 1:]
 
                 conf[k] = v
 
