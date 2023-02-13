@@ -86,7 +86,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}"
+            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz
   - name: "Wheels: Windows"
