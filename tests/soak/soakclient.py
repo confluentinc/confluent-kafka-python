@@ -512,7 +512,7 @@ class SoakClient (object):
         self.last_rusage_time = now
 
         # Current RSS memory
-        rss = float(self.proc.memory_info().rss) / (1024.0*1024.0)
+        rss = float(self.proc.memory_info().rss) / (1024.0 * 1024.0)
         self.dd_gauge("memory.rss", rss)
 
 
@@ -541,7 +541,7 @@ if __name__ == '__main__':
                 raise ValueError("Configuration lines must be `name=value..`, not {}".format(line))
 
             name = line[:i]
-            value = line[i+1:]
+            value = line[i + 1:]
 
             conf[name] = value
 

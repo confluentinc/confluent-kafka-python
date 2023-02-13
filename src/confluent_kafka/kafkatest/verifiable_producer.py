@@ -99,7 +99,7 @@ if __name__ == '__main__':
     key_counter = 0
 
     if throughput > 0:
-        delay = 1.0/throughput
+        delay = 1.0 / throughput
     else:
         delay = 0
 
