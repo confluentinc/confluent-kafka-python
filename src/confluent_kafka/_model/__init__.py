@@ -34,6 +34,7 @@ class Node:
     rack: str
         The rack for this node.
     """
+
     def __init__(self, id, host, port, rack=None):
         self.id = id
         self.id_string = str(id)
@@ -55,6 +56,7 @@ class ConsumerGroupTopicPartitions:
     topic_partitions: list(TopicPartition)
         List of topic partitions information.
     """
+
     def __init__(self, group_id, topic_partitions=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions
