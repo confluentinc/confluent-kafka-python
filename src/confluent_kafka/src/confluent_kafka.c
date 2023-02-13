@@ -52,9 +52,9 @@ typedef struct {
         PyException_HEAD
 #else
         PyObject_HEAD
-            /* Standard fields of PyBaseExceptionObject which we inherit from.
-             */
-                PyObject *dict;
+        /* Standard fields of PyBaseExceptionObject which we inherit from.
+         */
+        PyObject *dict;
         PyObject *args;
         PyObject *message;
 #endif

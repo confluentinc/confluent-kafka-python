@@ -227,7 +227,8 @@ PyObject *KafkaError_new_from_error_destroy(rd_kafka_error_t *error);
  *
  ****************************************************************************/
 typedef struct {
-        PyObject_HEAD rd_kafka_t *rk;
+        PyObject_HEAD
+        rd_kafka_t *rk;
         PyObject *error_cb;
         PyObject *throttle_cb;
         PyObject *stats_cb;
@@ -377,7 +378,8 @@ PyObject *cfl_int32_array_to_py_list(const int32_t *arr, size_t cnt);
  *
  ****************************************************************************/
 typedef struct {
-        PyObject_HEAD char *topic;
+        PyObject_HEAD
+        char *topic;
         int partition;
         int64_t offset;
         char *metadata;
@@ -442,7 +444,8 @@ rd_kafka_consumer_group_metadata_t *py_to_c_cgmd(PyObject *obj);
  * @brief confluent_kafka.Message object
  */
 typedef struct {
-        PyObject_HEAD PyObject *topic;
+        PyObject_HEAD
+        PyObject *topic;
         PyObject *value;
         PyObject *key;
         PyObject *headers;
@@ -504,7 +507,8 @@ extern PyTypeObject ConsumerType;
  ****************************************************************************/
 
 typedef struct {
-        PyObject_HEAD char *topic;
+        PyObject_HEAD
+        char *topic;
         int num_partitions;
         int replication_factor;
         PyObject *replica_assignment; /**< list<int> */
@@ -515,7 +519,8 @@ extern PyTypeObject NewTopicType;
 
 
 typedef struct {
-        PyObject_HEAD char *topic;
+        PyObject_HEAD
+        char *topic;
         int new_total_count;
         PyObject *replica_assignment;
 } NewPartitions;
