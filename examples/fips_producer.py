@@ -34,7 +34,17 @@ if __name__ == '__main__':
 
     # Producer configuration
     # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
-    conf = {'bootstrap.servers': broker}
+    conf = {'bootstrap.servers': broker,
+            'security.protocol': 'SASL_SSL',
+            'sasl.mechanism': 'PLAIN',
+            'sasl.username': 'broker',
+            'sasl.password': 'broker-secret',
+            'ssl.keystore.location': '/Users/prathi/work/docker-arm64/secrets/client.keystore.p12',
+            'ssl.keystore.password': '111111',
+            'ssl.ca.location': '/Users/prathi/work/docker-arm64/secrets/ca-root.crt',
+            'debug': 'security',
+            'ssl.providers': 'fips,base'
+            }
 
     # Create Producer instance
     p = Producer(**conf)
