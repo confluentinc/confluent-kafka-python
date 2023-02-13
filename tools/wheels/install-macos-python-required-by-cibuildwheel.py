@@ -19,7 +19,10 @@ import shutil
 
 
 cibuildwheel_version = sys.argv[1]
-config_url = f"https://raw.githubusercontent.com/pypa/cibuildwheel/v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+raw_github_url = "https://raw.githubusercontent.com"
+cibuildwheel_version_path = f"/pypa/cibuildwheel/v{cibuildwheel_version}"
+platform_config_file_path = "/cibuildwheel/resources/build-platforms.toml"
+config_url = raw_github_url + cibuildwheel_version_path + platform_config_file_path
 print(f"Config URL is '{config_url}'")
 
 response = urllib.request.urlopen(config_url).read()
