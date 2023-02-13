@@ -134,7 +134,7 @@ def test_subclassing():
             super(SubProducer, self).produce(self.topic, value='hi')
 
     sp = SubProducer(dict(), 'atopic')
-    assert type(sp) == SubProducer
+    assert isinstance(sp, SubProducer)
 
     # Invalid config should fail
     with pytest.raises(KafkaException):
