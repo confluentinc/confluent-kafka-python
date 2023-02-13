@@ -163,7 +163,6 @@ static void KafkaError_clear(PyObject *self0) {
 static void KafkaError_dealloc(PyObject *self0) {
         KafkaError *self = (KafkaError *)self0;
         KafkaError_clear(self0);
-        ;
         PyObject_GC_UnTrack(self0);
         Py_TYPE(self)->tp_free(self0);
 }
