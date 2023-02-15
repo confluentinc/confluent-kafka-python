@@ -17,8 +17,9 @@
 
 """
     Avro schema registry module: Deals with encoding and decoding of messages with avro schemas
-
 """
+
+import warnings
 
 from confluent_kafka import Producer, Consumer
 from confluent_kafka.avro.error import ClientError
@@ -32,10 +33,14 @@ from confluent_kafka.avro.serializer.message_serializer import MessageSerializer
 
 class AvroProducer(Producer):
     """
+        .. deprecated:: 2.0.2
+
+        This class will be removed in a future version of the library.
+
         Kafka Producer client which does avro schema encoding to messages.
         Handles schema registration, Message serialization.
 
-        Constructor takes below parameters.
+        Constructor arguments:
 
         :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
                             and the standard Kafka client configuration (``bootstrap.servers`` et.al).
@@ -45,6 +50,9 @@ class AvroProducer(Producer):
 
     def __init__(self, config, default_key_schema=None,
                  default_value_schema=None, schema_registry=None, **kwargs):
+        warnings.warn(
+            "AvroProducer has been deprecated. Use AvroSerializer instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}
@@ -111,10 +119,14 @@ class AvroProducer(Producer):
 
 class AvroConsumer(Consumer):
     """
+    .. deprecated:: 2.0.2
+
+    This class will be removed in a future version of the library.
+
     Kafka Consumer client which does avro schema decoding of messages.
     Handles message deserialization.
 
-    Constructor takes below parameters
+    Constructor arguments:
 
     :param dict config: Config parameters containing url for schema registry (``schema.registry.url``)
                         and the standard Kafka client configuration (``bootstrap.servers`` et.al)
@@ -124,6 +136,9 @@ class AvroConsumer(Consumer):
     """
 
     def __init__(self, config, schema_registry=None, reader_key_schema=None, reader_value_schema=None, **kwargs):
+        warnings.warn(
+            "AvroConsumer has been deprecated. Use AvroDeserializer instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         sr_conf = {key.replace("schema.registry.", ""): value
                    for key, value in config.items() if key.startswith("schema.registry")}

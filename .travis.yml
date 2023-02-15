@@ -1,36 +1,17 @@
 env:
  global:
-  - LIBRDKAFKA_VERSION=v1.8.2
+  - LIBRDKAFKA_VERSION=v2.0.2
+  - LIBRDKAFKA_SRC_VERSION=v2.0.2
 
 jobs:
  include:
-  - name: "Source package verification with Python 2.7 (Linux)"
-    if: false
+  - name: "Source package verification with Python 3.8 (Linux)"
     os: linux
     language: python
     dist: xenial
-    python: "2.7"
+    python: "3.8"
     env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
     services: docker
-
-  - name: "Source package verification with Python 3.6 (Linux)"
-    os: linux
-    language: python
-    dist: xenial
-    python: "3.6"
-    env: LD_LIBRARY_PATH="$PWD/tmp-build/lib"
-    services: docker
-
-  - name: "Source package verification with Python 2.7 (OSX)"
-    if: false
-    os: osx
-    python: "2.7"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" INTERPRETER_VERSION="2.7.17"
-
-  - name: "Source package verification with Python 3.6 (OSX) +docs"
-    os: osx
-    python: "3.6"
-    env: DYLD_LIBRARY_PATH="$PWD/tmp-build/lib" MK_DOCS="y" INTERPRETER_VERSION="3.6.5"
 
   - name: "Wheels: Windows x64"
     if: tag is present
@@ -70,27 +51,13 @@ jobs:
     env: BUILD_WHEELS=1
     script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
 
-  - name: "Wheels: MacOSX x64"
-    if: tag is present
-    os: osx
-    language: shell
-    env: BUILD_WHEELS=1
-    script: tools/wheels/build-wheels.sh ${LIBRDKAFKA_VERSION#v} wheelhouse
-
-
-# Install test dependencies unconditionally
-# Travis OSX envs requires some setup; see tools/prepare-osx.sh
-# Install cibuildwheel if this is a tagged PR
-before_install:
-  - if [[ $TRAVIS_OS_NAME == "osx" && $BUILD_WHEELS != 1 ]]; then tools/prepare-osx.sh ${INTERPRETER_VERSION} /tmp/venv && source /tmp/venv/bin/activate; fi
-
 install:
  # Install interceptors
  - tools/install-interceptors.sh
  - if [[ $BUILD_WHEELS != 1 ]]; then pip install -r tests/requirements.txt ; fi
  - if [[ $MK_DOCS == y ]]; then pip install -r docs/requirements.txt; fi
  # Install librdkafka and confluent_kafka[avro] if not building wheels
- - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} tmp-build ; fi
+ - if [[ $BUILD_WHEELS != 1 ]]; then pip install -U protobuf && tools/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_SRC_VERSION} tmp-build ; fi
 
 
 
@@ -118,7 +85,6 @@ deploy:
  region: us-west-1
  local-dir: wheelhouse
  upload_dir: confluent-kafka-python/p-confluent-kafka-python__bld-travis__plat-${TRAVIS_OS_NAME}__tag-${TRAVIS_TAG}__sha-${TRAVIS_COMMIT}__bid-${TRAVIS_BUILD_ID}__
- acl: public_read
  cleanup: false
  on:
   repo: confluentinc/confluent-kafka-python

@@ -13,19 +13,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# Example Admin clients.
-#
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource
-from confluent_kafka import KafkaException
+# Example use of AdminClient operations.
+
+from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
+                             TopicPartition, ConsumerGroupState)
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
+                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
+                                   AclPermissionType)
 import sys
 import threading
 import logging
 
 logging.basicConfig()
+
+
+def parse_nullable_string(s):
+    if s == "None":
+        return None
+    else:
+        return s
 
 
 def example_create_topics(a, topics):
@@ -113,6 +121,141 @@ def example_describe_configs(a, args):
 
         except KafkaException as e:
             print("Failed to describe {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_create_acls(a, args):
+    """ create acls """
+
+    acl_bindings = [
+        AclBinding(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    try:
+        fs = a.create_acls(acl_bindings, request_timeout=10)
+    except ValueError as e:
+        print(f"create_acls() failed: {e}")
+        return
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            result = f.result()
+            if result is None:
+                print("Created {}".format(res))
+
+        except KafkaException as e:
+            print("Failed to create ACL {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_describe_acls(a, args):
+    """ describe acls """
+
+    acl_binding_filters = [
+        AclBindingFilter(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    fs = [
+        a.describe_acls(acl_binding_filter, request_timeout=10)
+        for acl_binding_filter in acl_binding_filters
+    ]
+    # Wait for operations to finish.
+    for acl_binding_filter, f in zip(acl_binding_filters, fs):
+        try:
+            print("Acls matching filter: {}".format(acl_binding_filter))
+            acl_bindings = f.result()
+            for acl_binding in acl_bindings:
+                print(acl_binding)
+
+        except KafkaException as e:
+            print("Failed to describe {}: {}".format(acl_binding_filter, e))
+        except Exception:
+            raise
+
+
+def example_delete_acls(a, args):
+    """ delete acls """
+
+    acl_binding_filters = [
+        AclBindingFilter(
+            ResourceType[restype],
+            parse_nullable_string(resname),
+            ResourcePatternType[resource_pattern_type],
+            parse_nullable_string(principal),
+            parse_nullable_string(host),
+            AclOperation[operation],
+            AclPermissionType[permission_type]
+        )
+        for restype, resname, resource_pattern_type,
+        principal, host, operation, permission_type
+        in zip(
+            args[0::7],
+            args[1::7],
+            args[2::7],
+            args[3::7],
+            args[4::7],
+            args[5::7],
+            args[6::7],
+        )
+    ]
+
+    try:
+        fs = a.delete_acls(acl_binding_filters, request_timeout=10)
+    except ValueError as e:
+        print(f"delete_acls() failed: {e}")
+        return
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            acl_bindings = f.result()
+            print("Deleted acls matching filter: {}".format(res))
+            for acl_binding in acl_bindings:
+                print(" ", acl_binding)
+
+        except KafkaException as e:
+            print("Failed to delete {}: {}".format(res, e))
         except Exception:
             raise
 
@@ -277,15 +420,144 @@ def example_list(a, args):
         print(" {} consumer groups".format(len(groups)))
         for g in groups:
             if g.error is not None:
-                errstr = ": {}".format(t.error)
+                errstr = ": {}".format(g.error)
             else:
                 errstr = ""
 
             print(" \"{}\" with {} member(s), protocol: {}, protocol_type: {}{}".format(
-                  g, len(g.members), g.protocol, g.protocol_type, errstr))
+                g, len(g.members), g.protocol, g.protocol_type, errstr))
 
             for m in g.members:
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
+
+
+def example_list_consumer_groups(a, args):
+    """
+    List Consumer Groups
+    """
+    states = {ConsumerGroupState[state] for state in args}
+    future = a.list_consumer_groups(request_timeout=10, states=states)
+    try:
+        list_consumer_groups_result = future.result()
+        print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
+        for valid in list_consumer_groups_result.valid:
+            print("    id: {} is_simple: {} state: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state))
+        print("{} errors".format(len(list_consumer_groups_result.errors)))
+        for error in list_consumer_groups_result.errors:
+            print("    error: {}".format(error))
+    except Exception:
+        raise
+
+
+def example_describe_consumer_groups(a, args):
+    """
+    Describe Consumer Groups
+    """
+
+    futureMap = a.describe_consumer_groups(args, request_timeout=10)
+
+    for group_id, future in futureMap.items():
+        try:
+            g = future.result()
+            print("Group Id: {}".format(g.group_id))
+            print("  Is Simple          : {}".format(g.is_simple_consumer_group))
+            print("  State              : {}".format(g.state))
+            print("  Partition Assignor : {}".format(g.partition_assignor))
+            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print("  Members: ")
+            for member in g.members:
+                print("    Id                : {}".format(member.member_id))
+                print("    Host              : {}".format(member.host))
+                print("    Client Id         : {}".format(member.client_id))
+                print("    Group Instance Id : {}".format(member.group_instance_id))
+                if member.assignment:
+                    print("    Assignments       :")
+                    for toppar in member.assignment.topic_partitions:
+                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+        except KafkaException as e:
+            print("Error while describing group id '{}': {}".format(group_id, e))
+        except Exception:
+            raise
+
+
+def example_delete_consumer_groups(a, args):
+    """
+    Delete Consumer Groups
+    """
+    groups = a.delete_consumer_groups(args, request_timeout=10)
+    for group_id, future in groups.items():
+        try:
+            future.result()  # The result itself is None
+            print("Deleted group with id '" + group_id + "' successfully")
+        except KafkaException as e:
+            print("Error deleting group id '{}': {}".format(group_id, e))
+        except Exception:
+            raise
+
+
+def example_list_consumer_group_offsets(a, args):
+    """
+    List consumer group offsets
+    """
+
+    topic_partitions = []
+    for topic, partition in zip(args[1::2], args[2::2]):
+        topic_partitions.append(TopicPartition(topic, int(partition)))
+    if len(topic_partitions) == 0:
+        topic_partitions = None
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
+
+    futureMap = a.list_consumer_group_offsets(groups)
+
+    for group_id, future in futureMap.items():
+        try:
+            response_offset_info = future.result()
+            print("Group: " + response_offset_info.group_id)
+            for topic_partition in response_offset_info.topic_partitions:
+                if topic_partition.error:
+                    print("    Error: " + topic_partition.error.str() + " occurred with " +
+                          topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                else:
+                    print("    " + topic_partition.topic +
+                          " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+
+        except KafkaException as e:
+            print("Failed to list {}: {}".format(group_id, e))
+        except Exception:
+            raise
+
+
+def example_alter_consumer_group_offsets(a, args):
+    """
+    Alter consumer group offsets
+    """
+
+    topic_partitions = []
+    for topic, partition, offset in zip(args[1::3], args[2::3], args[3::3]):
+        topic_partitions.append(TopicPartition(topic, int(partition), int(offset)))
+    if len(topic_partitions) == 0:
+        topic_partitions = None
+    groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
+
+    futureMap = a.alter_consumer_group_offsets(groups)
+
+    for group_id, future in futureMap.items():
+        try:
+            response_offset_info = future.result()
+            print("Group: " + response_offset_info.group_id)
+            for topic_partition in response_offset_info.topic_partitions:
+                if topic_partition.error:
+                    print("    Error: " + topic_partition.error.str() + " occurred with " +
+                          topic_partition.topic + " [" + str(topic_partition.partition) + "]")
+                else:
+                    print("    " + topic_partition.topic +
+                          " [" + str(topic_partition.partition) + "]: " + str(topic_partition.offset))
+
+        except KafkaException as e:
+            print("Failed to alter {}: {}".format(group_id, e))
+        except Exception:
+            raise
 
 
 if __name__ == '__main__':
@@ -300,7 +572,21 @@ if __name__ == '__main__':
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
+        sys.stderr.write(' describe_acls <resource_type1 <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
+        sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
+                         '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
+        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
+        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' list_consumer_group_offsets <group> [<topic1> <partition1> <topic2> <partition2> ..]\n')
+        sys.stderr.write(
+            ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
+            '<topic2> <partition2> <offset2> ..\n')
+
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -316,7 +602,15 @@ if __name__ == '__main__':
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
-              'list': example_list}
+              'create_acls': example_create_acls,
+              'describe_acls': example_describe_acls,
+              'delete_acls': example_delete_acls,
+              'list': example_list,
+              'list_consumer_groups': example_list_consumer_groups,
+              'describe_consumer_groups': example_describe_consumer_groups,
+              'delete_consumer_groups': example_delete_consumer_groups,
+              'list_consumer_group_offsets': example_list_consumer_group_offsets,
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

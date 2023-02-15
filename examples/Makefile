@@ -1,5 +1,5 @@
-user_pb2.py: user.proto
-	protoc -I=. --python_out=. ./user.proto;
+user_pb2.py: protobuf/user.proto
+	cd protobuf && protoc -I=. --python_out=. ./user.proto;
 
 clean:
-	rm -f $(TARGET_DIR)/*_pb2.py
+	rm -f $(TARGET_DIR)/protobuf/*_pb2.py

@@ -60,7 +60,7 @@ The easiest way to arrange for this is:
 
 And also:
 
-    source ./tests/docker/.env
+    source ./tests/docker/.env.sh
 
 which sets environment variables referenced by `./tests/integration/testconf.json`.
 

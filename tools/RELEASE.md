@@ -116,6 +116,7 @@ tag (e.g., v0.11.4-RC5).
 
 Change to the latest librdkafka version in the following files:
 
+ * `.semaphore/semaphore.yml`
  * `.travis.yml`
  * `examples/docker/Dockerfile.alpine`
 
@@ -376,6 +377,14 @@ Write a tweet to announce the new release, something like:
 
 Create a PR to update the confluent-kafka-python version tag for the
 Python API docs on docs.confluent.io.
+
+    # Update the Python API docs to the latest version: includes
+      https://github.com/confluentinc/docs and
+      https://github.com/confluentinc/docs-platform.
+
+    # Update docs.confluent.io: cut the docs release branch of
+      https://github.com/confluentinc/docs-clients-confluent-kafka-python,
+      refers to https://confluentinc.atlassian.net/wiki/spaces/TOOLS/pages/2044330444/Create+a+new+version+of+a+documentation+repo#Create-new-release-branches.
 
 
 ### 6.3. Done!
