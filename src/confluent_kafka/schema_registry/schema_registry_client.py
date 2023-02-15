@@ -682,7 +682,6 @@ class Schema(object):
     """
     __slots__ = ['schema_str', 'schema_type', 'references', 'named_schemas', '_hash']
 
-
     def __init__(self, schema_str, schema_type, references=[], named_schemas={}):
         super(Schema, self).__init__()
 

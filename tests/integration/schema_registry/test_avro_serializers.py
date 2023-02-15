@@ -65,7 +65,7 @@ class AwardedUser(object):
                 {"name": "award", "type": "string"},
                 {"name": "user", "type": "User"}
             ]
-        }    
+        }
     """
 
     def __init__(self, award, user):
@@ -296,4 +296,3 @@ def test_avro_writer_reference(kafka_cluster):
     awarded_user, schema = _get_reference_data()
 
     _reference_common(kafka_cluster, awarded_user, schema, None)
-
