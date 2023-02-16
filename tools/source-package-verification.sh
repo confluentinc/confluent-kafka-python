@@ -17,7 +17,7 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
 python setup.py build && python setup.py install
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
-    flake8
+    flake8 --exclude ./_venv
     make docs
     python -m pytest --timeout 600 --ignore=dest
 else
