@@ -10,6 +10,7 @@ global_job_config:
   prologue:
     commands:
       - checkout
+      - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64"
     # run:
@@ -29,7 +30,7 @@ blocks:
           commands:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+            - artifact push workflow artifacts/wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: OSX arm64"
     # run:
     #   when: "tag =~ '.*'"
@@ -50,7 +51,7 @@ blocks:
           commands:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz
+            - artifact push workflow artifacts/wheelhouse-macOS-${ARCH}.tgz
   - name: "Wheels: Linux arm64"
     # run:
     #   when: "tag =~ '.*'"
@@ -69,7 +70,7 @@ blocks:
           commands:
             - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+            - artifact push workflow artifacts/wheelhouse-linux-${ARCH}.tgz
   - name: "Wheels: Linux x64"
     # run:
     #   when: "tag =~ '.*'"
@@ -88,10 +89,10 @@ blocks:
           commands:
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-linux-${ARCH}.tgz
+            - artifact push workflow artifacts/wheelhouse-linux-${ARCH}.tgz
   - name: "Wheels: Windows"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -122,7 +123,7 @@ blocks:
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-windows-${ARCH}.tgz
+            - artifact push workflow artifacts/wheelhouse-windows-${ARCH}.tgz
   - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
     dependencies: []
     task:
