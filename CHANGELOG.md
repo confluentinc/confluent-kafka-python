@@ -6,6 +6,8 @@
   SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
 - Wheels for Linux / arm64 (#1496).
 - Added support for Default num_partitions in CreateTopics Admin API.
+- Migrated travis jobs to Semaphore CI (#1503)
+
 
 ## v2.0.2
 
