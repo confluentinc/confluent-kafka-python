@@ -1257,7 +1257,7 @@ if __name__ == '__main__':
         verify_avro_https(testconf.get('avro-https', None))
         conf = testconf.get("avro-https-key-with-password", None)
         print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
-               'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
         verify_avro_https(conf)
         print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
         try:
