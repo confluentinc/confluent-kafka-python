@@ -123,7 +123,7 @@ blocks:
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
             - tar -czf wheelhouse-windows-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${ARCH}.tgz
-  - name: Source package verification with Python 3 (Linux x64)
+  - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
     dependencies: []
     task:
       agent:
@@ -142,7 +142,7 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
-  - name: Source package verification with Python 3 (Linux arm64)
+  - name: "Source package verification with Python 3 (Linux arm64)"
     dependencies: []
     task:
       agent:
@@ -161,7 +161,7 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
-  - name: Source package verification with Python 3 (OSX x64) +docs
+  - name: "Source package verification with Python 3 (OSX x64) +docs"
     dependencies: []
     task:
       agent:
@@ -180,7 +180,7 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
-  - name: Source package verification with Python 3 (OSX arm64) +docs
+  - name: "Source package verification with Python 3 (OSX arm64) +docs"
     dependencies: []
     task:
       agent:
@@ -199,3 +199,28 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
+  - name: "Packaging"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: 
+      - "Wheels: OSX x64"
+      - "Wheels: OSX arm64"
+      - "Wheels: Linux arm64"
+      - "Wheels: Linux x64"
+      - "Wheels: Windows"
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu20-04-amd64-3
+    jobs:
+      - name: "Packaging all artifacts"
+        commands:
+          - artifact pull workflow artifacts
+          - mkdir -p packages
+          - cp -v artifacts/wheelhouse-*.tgz packages
+          - cd packages
+          - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tar .
+          - ls -la
+          - sha256sum *
+          - artifact push workflow confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}
+          - echo Thank you
