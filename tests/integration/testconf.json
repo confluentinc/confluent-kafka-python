@@ -14,7 +14,7 @@
         "sasl.username": "ckp_tester",
         "sasl.password": "test_secret"
     },
-    "key-with-password": {
+    "avro-https-key-with-password": {
         "schema.registry.url": "$MY_SCHEMA_REGISTRY_SSL_URL_ENV",
         "schema.registry.ssl.ca.location": "$MY_SCHEMA_REGISTRY_SSL_CA_LOCATION_ENV",
         "schema.registry.ssl.certificate.location": "$MY_SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION_ENV",
