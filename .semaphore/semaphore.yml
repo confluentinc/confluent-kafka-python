@@ -212,15 +212,15 @@ blocks:
       agent:
         machine:
           type: s1-prod-ubuntu20-04-amd64-3
-    jobs:
-      - name: "Packaging all artifacts"
-        commands:
-          - artifact pull workflow artifacts
-          - mkdir -p packages
-          - cp -v artifacts/wheelhouse-*.tgz packages
-          - cd packages
-          - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tar .
-          - ls -la
-          - sha256sum *
-          - artifact push workflow confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}
-          - echo Thank you
+      jobs:
+        - name: "Packaging all artifacts"
+          commands:
+            - artifact pull workflow artifacts
+            - mkdir -p packages
+            - cp -v artifacts/wheelhouse-*.tgz packages
+            - cd packages
+            - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tar .
+            - ls -la
+            - sha256sum *
+            - artifact push workflow confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}
+            - echo Thank you
