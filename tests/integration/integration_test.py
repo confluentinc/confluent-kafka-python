@@ -1150,8 +1150,7 @@ def resolve_envs(_conf):
             _conf[k] = os.getenv(v[1:])
 
 
-test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin',
-              'avro-https', 'avro-basic-auth', 'throttle']
+test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-https', 'avro-basic-auth', 'throttle']
 
 
 def print_usage(exitcode, reason=None):
