@@ -180,19 +180,19 @@ class CachedSchemaRegistryClient(object):
         if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
             _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
                                                  self._https_session.auth[1]))
-        # if url.startswith('http'):
-        response = self._https_session.request(method, url, headers=_headers, body=nbody)
-        try:
-            return json.loads(response.data), response.status
-        except ValueError:
-            return response.content, response.status
+        if url.startswith('http'):
+            response = self._https_session.request(method, url, headers=_headers, body=nbody)
+            try:
+                return json.loads(response.data), response.status
+            except ValueError:
+                return response.content, response.status
 
-        # response = self._session.request(method, url, headers=_headers, json=body)
-        # # Returned by Jetty not SR so the payload is not json encoded
-        # try:
-        #     return response.json(), response.status_code
-        # except ValueError:
-        #     return response.content, response.status_code
+        response = self._session.request(method, url, headers=_headers, json=body)
+        # Returned by Jetty not SR so the payload is not json encoded
+        try:
+            return response.json(), response.status_code
+        except ValueError:
+            return response.content, response.status_code
 
     @staticmethod
     def _add_to_cache(cache, subject, schema, value):
