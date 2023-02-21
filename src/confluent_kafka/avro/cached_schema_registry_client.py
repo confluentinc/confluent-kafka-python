@@ -173,26 +173,29 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        _headers = {'Accept': "application/vnd.schemaregistry.v1+json"}
-        nbody = json.dumps(body).encode('UTF-8')
-        _headers["Content-Length"] = str(len(nbody))
+        _headers = {'Accept': ACCEPT_HDR}
+        nbody = body
+        if body:
+            nbody = json.dumps(body).encode('UTF-8')
+            _headers["Content-Length"] = str(len(nbody))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         _headers.update(headers)
         if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
             _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
                                                  self._https_session.auth[1]))
-        if url.startswith('http'):
-            response = self._https_session.request(method, url, headers=_headers, body=nbody)
-            try:
-                return json.loads(response.data), response.status
-            except ValueError:
-                return response.content, response.status
-
-        response = self._session.request(method, url, headers=_headers, json=body)
-        # Returned by Jetty not SR so the payload is not json encoded
+        # if url.startswith('http'):
+        response = self._https_session.request(method, url, headers=_headers, body=nbody)
         try:
-            return response.json(), response.status_code
+            return json.loads(response.data), response.status
         except ValueError:
-            return response.content, response.status_code
+            return response.content, response.status
+
+        # response = self._session.request(method, url, headers=_headers, json=body)
+        # # Returned by Jetty not SR so the payload is not json encoded
+        # try:
+        #     return response.json(), response.status_code
+        # except ValueError:
+        #     return response.content, response.status_code
 
     @staticmethod
     def _add_to_cache(cache, subject, schema, value):
