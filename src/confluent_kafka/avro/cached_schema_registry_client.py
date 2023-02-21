@@ -177,7 +177,7 @@ class CachedSchemaRegistryClient(object):
         nbody = body
         if body:
             nbody = json.dumps(body).encode('UTF-8')
-            _headers["Content-Length"] = str(len(nbody))
+        _headers["Content-Length"] = str(len(nbody))
         _headers.update(headers)
         if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
             _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
