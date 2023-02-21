@@ -183,7 +183,7 @@ class CachedSchemaRegistryClient(object):
         if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
             _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
                                                  self._https_session.auth[1]))
-        if url.startswith('http'):
+        if url.startswith('https'):
             response = self._https_session.request(method, url, headers=_headers, body=nbody)
             try:
                 return json.loads(response.data), response.status
