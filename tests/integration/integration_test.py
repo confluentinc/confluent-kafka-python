@@ -1254,6 +1254,16 @@ if __name__ == '__main__':
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https(testconf.get('avro-https', None))
+        conf = testconf.get("avro-https-key-with-password", None)
+        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
+              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+        verify_avro_https(conf)
+        print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
+        try:
+            conf['schema.registry.ssl.key.password'] = "WrongPassword"
+            verify_avro_https(conf)
+        except Exception:
+            print("Wrong Password Gives Error -> Successful")
 
     if 'avro-basic-auth' in modes:
         print("=" * 30, 'Verifying AVRO with Basic Auth', '=' * 30)
