@@ -54,10 +54,9 @@ class CachedSchemaRegistryClient(object):
     .. deprecated:: 1.1.0
 
     Use CachedSchemaRegistryClient(dict: config) instead.
-    The Config(dict) will have url, ssl.ca.location, ssl.certificate.location, ssl.key.location and ssl.key.password
-    The support for password-protected private key is only via the Config
     Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
+    The support for password protected private key is via the Config only using 'ssl.key.password' field.
 
     Errors communicating to the server will result in a ClientError being raised.
 
@@ -143,6 +142,19 @@ class CachedSchemaRegistryClient(object):
             self._session.close()
         if hasattr(self, '_https_session'):
             self._https_session.clear()
+    @staticmethod
+    def _make_attributes_urllib3(headers,body,auth):
+        _headers = {'Accept': ACCEPT_HDR}
+        if body:
+            body = json.dumps(body).encode('UTF-8')
+            _headers["Content-Length"] = str(len(body))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        if auth[0] != '' and auth[1] != '':
+            _headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
+                                                 auth[1]))
+        _headers.update(headers)
+        return _headers,body
+        
 
     @staticmethod
     def _configure_basic_auth(url, conf):
@@ -173,23 +185,19 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        _headers = {'Accept': ACCEPT_HDR}
-        nbody = body
-        if body:
-            nbody = json.dumps(body).encode('UTF-8')
-            _headers["Content-Length"] = str(len(nbody))
-            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
-        _headers.update(headers)
-        if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
-            _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
-                                                 self._https_session.auth[1]))
         if url.startswith('https'):
-            response = self._https_session.request(method, url, headers=_headers, body=nbody)
+            _headers, body = self._make_attributes_urllib3(headers,body,self._https_session.auth)
+            response = self._https_session.request(method, url, headers=_headers, body=body)
             try:
                 return json.loads(response.data), response.status
             except ValueError:
                 return response.content, response.status
 
+        _headers = {'Accept': ACCEPT_HDR}
+        if body:
+            _headers["Content-Length"] = str(len(body))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        _headers.update(headers)
         response = self._session.request(method, url, headers=_headers, json=body)
         # Returned by Jetty not SR so the payload is not json encoded
         try:
