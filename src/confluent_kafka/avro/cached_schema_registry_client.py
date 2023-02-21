@@ -173,7 +173,7 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        _headers = {'Accept': ACCEPT_HDR}
+        _headers = {'Accept': "application/vnd.schemaregistry.v1+json"}
         nbody = json.dumps(body).encode('UTF-8')
         _headers["Content-Length"] = str(len(nbody))
         _headers.update(headers)
