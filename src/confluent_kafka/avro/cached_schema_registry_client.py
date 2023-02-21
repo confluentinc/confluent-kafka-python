@@ -174,9 +174,7 @@ class CachedSchemaRegistryClient(object):
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
         _headers = {'Accept': ACCEPT_HDR}
-        nbody = body
-        if body:
-            nbody = json.dumps(body).encode('UTF-8')
+        nbody = json.dumps(body).encode('UTF-8')
         _headers["Content-Length"] = str(len(nbody))
         _headers.update(headers)
         if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
