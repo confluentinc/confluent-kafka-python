@@ -55,7 +55,7 @@ class CachedSchemaRegistryClient(object):
 
     Use CachedSchemaRegistryClient(dict: config) instead.
     The Config(dict) will have url, ssl.ca.location, ssl.certificate.location, ssl.key.location and ssl.key.password
-    The support for encrypted private key is only via the Config
+    The support for password-protected private key is only via the Config
     Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
 
@@ -81,8 +81,8 @@ class CachedSchemaRegistryClient(object):
                 "CachedSchemaRegistry constructor is being deprecated. "
                 "Use CachedSchemaRegistryClient(dict: config) instead. "
                 "Existing params ca_location, cert_location and key_location will be replaced with their "
-                "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location`,  "
-                "`ssl.key.location` and `ssl.key.password` respectively",
+                "librdkafka equivalents as keys in the conf dict: `ssl.ca.location`, `ssl.certificate.location` and "
+                "`ssl.key.location` respectively",
                 category=DeprecationWarning, stacklevel=2)
 
             """Construct a Schema Registry client"""
@@ -107,8 +107,8 @@ class CachedSchemaRegistryClient(object):
         ca_certs = conf.pop('ssl.ca.location', None)
         s = Session()
         s.cert = self._configure_client_tls(conf)
-        s.auth = self._configure_basic_auth(self.url, conf)
-
+        basic_auth = self._configure_basic_auth(self.url, conf)
+        s.auth = basic_auth
         self.url = utils.urldefragauth(self.url)
 
         cert_location = s.cert[0]
@@ -116,6 +116,7 @@ class CachedSchemaRegistryClient(object):
         key_password = conf.pop('ssl.key.password', None)
         _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs, cert_file=cert_location,
                                              key_file=key_location, key_password=key_password)
+        _https_session.auth = basic_auth
         self._https_session = _https_session
 
         if ca_certs is not None:
@@ -177,8 +178,12 @@ class CachedSchemaRegistryClient(object):
         if body:
             nbody = json.dumps(body).encode('UTF-8')
             _headers["Content-Length"] = str(len(nbody))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         _headers.update(headers)
-        if url.startswith('https'):
+        if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
+            _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
+                                                 self._https_session.auth[1]))
+        if url.startswith('http'):
             response = self._https_session.request(method, url, headers=_headers, body=nbody)
             try:
                 return json.loads(response.data), response.status

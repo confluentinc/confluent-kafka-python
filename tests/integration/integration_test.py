@@ -1150,8 +1150,7 @@ def resolve_envs(_conf):
             _conf[k] = os.getenv(v[1:])
 
 
-test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin',
-              'avro-https', 'avro-basic-auth', 'throttle', 'key-with-password']
+test_modes = ['consumer', 'producer', 'avro', 'performance', 'admin', 'avro-https', 'avro-basic-auth', 'throttle']
 
 
 def print_usage(exitcode, reason=None):
@@ -1255,11 +1254,9 @@ if __name__ == '__main__':
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https(testconf.get('avro-https', None))
-
-    if 'key-with-password' in modes:
-        conf = testconf.get("key-with-password", None)
-        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password  \
-               Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+        conf = testconf.get("avro-https-key-with-password", None)
+        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
+              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
         verify_avro_https(conf)
         print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
         try:
