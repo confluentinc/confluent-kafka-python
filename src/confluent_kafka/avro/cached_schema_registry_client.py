@@ -21,6 +21,8 @@
 #
 import logging
 import warnings
+import urllib3
+import json
 from collections import defaultdict
 
 from requests import Session, utils
@@ -52,7 +54,9 @@ class CachedSchemaRegistryClient(object):
     .. deprecated:: 1.1.0
 
     Use CachedSchemaRegistryClient(dict: config) instead.
-    Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
+    The Config(dict) will have url, ssl.ca.location, ssl.certificate.location, ssl.key.location and ssl.key.password
+    The support for password-protected private key is only via the Config
+    Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
 
     Errors communicating to the server will result in a ClientError being raised.
@@ -100,14 +104,23 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
+        ca_certs = conf.pop('ssl.ca.location', None)
         s = Session()
-        ca_path = conf.pop('ssl.ca.location', None)
-        if ca_path is not None:
-            s.verify = ca_path
         s.cert = self._configure_client_tls(conf)
-        s.auth = self._configure_basic_auth(self.url, conf)
+        basic_auth = self._configure_basic_auth(self.url, conf)
+        s.auth = basic_auth
         self.url = utils.urldefragauth(self.url)
 
+        cert_location = s.cert[0]
+        key_location = s.cert[1]
+        key_password = conf.pop('ssl.key.password', None)
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs, cert_file=cert_location,
+                                             key_file=key_location, key_password=key_password)
+        _https_session.auth = basic_auth
+        self._https_session = _https_session
+
+        if ca_certs is not None:
+            s.verify = ca_certs
         self._session = s
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
@@ -128,6 +141,8 @@ class CachedSchemaRegistryClient(object):
         # Constructor exceptions may occur prior to _session being set.
         if hasattr(self, '_session'):
             self._session.close()
+        if hasattr(self, '_https_session'):
+            self._https_session.clear()
 
     @staticmethod
     def _configure_basic_auth(url, conf):
@@ -159,10 +174,18 @@ class CachedSchemaRegistryClient(object):
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
         _headers = {'Accept': ACCEPT_HDR}
-        if body:
-            _headers["Content-Length"] = str(len(body))
-            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        nbody = json.dumps(body).encode('UTF-8')
+        _headers["Content-Length"] = str(len(nbody))
         _headers.update(headers)
+        if self._https_session.auth[0] != '' and self._https_session.auth[1] != '':
+            _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
+                                                 self._https_session.auth[1]))
+        if url.startswith('http'):
+            response = self._https_session.request(method, url, headers=_headers, body=nbody)
+            try:
+                return json.loads(response.data), response.status
+            except ValueError:
+                return response.content, response.status
 
         response = self._session.request(method, url, headers=_headers, json=body)
         # Returned by Jetty not SR so the payload is not json encoded
