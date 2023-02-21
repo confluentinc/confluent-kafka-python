@@ -55,7 +55,7 @@ class CachedSchemaRegistryClient(object):
 
     Use CachedSchemaRegistryClient(dict: config) instead.
     The Config(dict) will have url, ssl.ca.location, ssl.certificate.location, ssl.key.location and ssl.key.password
-    The support for encrypted private key is only via the Config
+    The support for password-protected private key is only via the Config
     Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
 
@@ -179,7 +179,8 @@ class CachedSchemaRegistryClient(object):
             nbody = json.dumps(body).encode('UTF-8')
             _headers["Content-Length"] = str(len(nbody))
         _headers.update(headers)
-        _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0]+":" +self._https_session.auth[1]))
+        _headers.update(urllib3.make_headers(basic_auth=self._https_session.auth[0] + ":" +
+                                             self._https_session.auth[1]))
         if url.startswith('http'):
             response = self._https_session.request(method, url, headers=_headers, body=nbody)
             try:

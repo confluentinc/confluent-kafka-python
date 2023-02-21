@@ -8,7 +8,6 @@
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
 
-
 ## v2.0.2
 
 v2.0.2 is a feature release with the following features, fixes and enhancements:
