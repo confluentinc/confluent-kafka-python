@@ -54,7 +54,7 @@ class CachedSchemaRegistryClient(object):
     .. deprecated:: 1.1.0
 
     Use CachedSchemaRegistryClient(dict: config) instead.
-    Existing params ca_location, cert_location and key_location are replaced with their librdkafka equivalents:
+    Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
     The support for password protected private key is via the Config only using 'ssl.key.password' field.
 
@@ -103,24 +103,23 @@ class CachedSchemaRegistryClient(object):
         # subj => { schema => version }
         self.subject_to_schema_versions = defaultdict(dict)
 
-        ca_certs = conf.pop('ssl.ca.location', None)
         s = Session()
+        ca_path = conf.pop('ssl.ca.location', None)
+        if ca_path is not None:
+            s.verify = ca_path
+        
         s.cert = self._configure_client_tls(conf)
-        basic_auth = self._configure_basic_auth(self.url, conf)
-        s.auth = basic_auth
+        s.auth = self._configure_basic_auth(self.url, conf)
+        self._session = s
         self.url = utils.urldefragauth(self.url)
 
         cert_location = s.cert[0]
         key_location = s.cert[1]
         key_password = conf.pop('ssl.key.password', None)
-        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs, cert_file=cert_location,
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_path, cert_file=cert_location,
                                              key_file=key_location, key_password=key_password)
-        _https_session.auth = basic_auth
+        _https_session.auth = s.auth
         self._https_session = _https_session
-
-        if ca_certs is not None:
-            s.verify = ca_certs
-        self._session = s
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
@@ -198,6 +197,7 @@ class CachedSchemaRegistryClient(object):
             _headers["Content-Length"] = str(len(body))
             _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         _headers.update(headers)
+
         response = self._session.request(method, url, headers=_headers, json=body)
         # Returned by Jetty not SR so the payload is not json encoded
         try:
