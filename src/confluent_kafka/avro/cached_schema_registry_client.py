@@ -21,6 +21,8 @@
 #
 import logging
 import warnings
+import urllib3
+import json
 from collections import defaultdict
 
 from requests import Session, utils
@@ -54,6 +56,7 @@ class CachedSchemaRegistryClient(object):
     Use CachedSchemaRegistryClient(dict: config) instead.
     Existing params ca_location, cert_location and key_location will be replaced with their librdkafka equivalents:
     `ssl.ca.location`, `ssl.certificate.location` and `ssl.key.location` respectively.
+    The support for password protected private key is via the Config only using 'ssl.key.password' field.
 
     Errors communicating to the server will result in a ClientError being raised.
 
@@ -109,6 +112,10 @@ class CachedSchemaRegistryClient(object):
         self.url = utils.urldefragauth(self.url)
 
         self._session = s
+        key_password = conf.pop('ssl.key.password', None)
+        _https_session = self._make_https_session(ca_path, s.cert, s.auth, key_password)
+
+        self._https_session = _https_session
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
@@ -128,6 +135,31 @@ class CachedSchemaRegistryClient(object):
         # Constructor exceptions may occur prior to _session being set.
         if hasattr(self, '_session'):
             self._session.close()
+        if hasattr(self, '_https_session'):
+            self._https_session.clear()
+
+    @staticmethod
+    def _make_https_session(ca_certs, certs, auth, key_password):
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs, cert_file=certs[0],
+                                             key_file=certs[1], key_password=key_password)
+        _https_session.auth = auth
+        _https_session.protected = False
+        if key_password is not None:
+            _https_session.protected = True
+        return _https_session
+
+    @staticmethod
+    def _make_attributes_urllib3(headers, body, auth):
+        _headers = {'Accept': ACCEPT_HDR}
+        if body:
+            body = json.dumps(body).encode('UTF-8')
+            _headers["Content-Length"] = str(len(body))
+            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+        if auth[0] != '' and auth[1] != '':
+            _headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
+                                                 auth[1]))
+        _headers.update(headers)
+        return _headers, body
 
     @staticmethod
     def _configure_basic_auth(url, conf):
@@ -157,6 +189,14 @@ class CachedSchemaRegistryClient(object):
     def _send_request(self, url, method='GET', body=None, headers={}):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
+
+        if url.startswith('https') and self._https_session.protected:
+            _headers, body = self._make_attributes_urllib3(headers, body, self._https_session.auth)
+            response = self._https_session.request(method, url, headers=_headers, body=body)
+            try:
+                return json.loads(response.data), response.status
+            except ValueError:
+                return response.content, response.status
 
         _headers = {'Accept': ACCEPT_HDR}
         if body:
