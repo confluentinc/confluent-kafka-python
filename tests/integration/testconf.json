@@ -3,15 +3,22 @@
     "bootstrap.servers": "$MY_BOOTSTRAP_SERVER_ENV",
     "schema.registry.url": "$MY_SCHEMA_REGISTRY_URL_ENV",
     "avro-https": {
-            "schema.registry.url": "$MY_SCHEMA_REGISTRY_SSL_URL_ENV",
-            "schema.registry.ssl.ca.location": "$MY_SCHEMA_REGISTRY_SSL_CA_LOCATION_ENV",
-            "schema.registry.ssl.certificate.location": "$MY_SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION_ENV",
-            "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_LOCATION_ENV"
+        "schema.registry.url": "$MY_SCHEMA_REGISTRY_SSL_URL_ENV",
+        "schema.registry.ssl.ca.location": "$MY_SCHEMA_REGISTRY_SSL_CA_LOCATION_ENV",
+        "schema.registry.ssl.certificate.location": "$MY_SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION_ENV",
+        "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_LOCATION_ENV"
     },
     "avro-basic-auth": {
         "schema.registry.url": "http://localhost:8083",
         "schema.registry.basic.auth.user.info": "ckp_tester:test_secret",
         "sasl.username": "ckp_tester",
         "sasl.password": "test_secret"
+    },
+    "avro-https-key-with-password": {
+        "schema.registry.url": "$MY_SCHEMA_REGISTRY_SSL_URL_ENV",
+        "schema.registry.ssl.ca.location": "$MY_SCHEMA_REGISTRY_SSL_CA_LOCATION_ENV",
+        "schema.registry.ssl.certificate.location": "$MY_SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION_ENV",
+        "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_WITH_PASSWORD_LOCATION_ENV",
+        "schema.registry.ssl.key.password": "$MY_SCHEMA_REGISTRY_SSL_KEY_PASSWORD"
     }
 }
