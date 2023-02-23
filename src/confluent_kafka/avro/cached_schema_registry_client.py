@@ -113,7 +113,7 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
-        _https_session = self._make_https_session(ca_path, s.cert, s.auth, key_password)
+        _https_session = self.make_https_session(ca_path, s.cert, s.auth, key_password)
 
         self._https_session = _https_session
 
@@ -139,7 +139,7 @@ class CachedSchemaRegistryClient(object):
             self._https_session.clear()
 
     @staticmethod
-    def _make_https_session(ca_certs, certs, auth, key_password):
+    def make_https_session(ca_certs, certs, auth, key_password):
         _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs, cert_file=certs[0],
                                              key_file=certs[1], key_password=key_password)
         _https_session.auth = auth
@@ -149,7 +149,7 @@ class CachedSchemaRegistryClient(object):
         return _https_session
 
     @staticmethod
-    def _make_attributes_urllib3(headers, body, auth):
+    def make_attributes_https_session(headers, body, auth):
         _headers = {'Accept': ACCEPT_HDR}
         if body:
             body = json.dumps(body).encode('UTF-8')
@@ -191,7 +191,7 @@ class CachedSchemaRegistryClient(object):
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
         if url.startswith('https') and self._https_session.protected:
-            _headers, body = self._make_attributes_urllib3(headers, body, self._https_session.auth)
+            _headers, body = self.make_attributes_https_session(headers, body, self._https_session.auth)
             response = self._https_session.request(method, url, headers=_headers, body=body)
             try:
                 return json.loads(response.data), response.status
