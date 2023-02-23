@@ -138,15 +138,14 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def make_https_session(ca_certs_path, cert_location, key_location, auth, key_password):
-        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path, cert_file=cert_location,
-                                             key_file=key_location, key_password=key_password)
+        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
+                                             cert_file=cert_location, key_file=key_location, key_password=key_password)
         _https_session.auth = auth
         _https_session.protected = False
         if key_password is not None:
             _https_session.protected = True
         return _https_session
 
-    
     def send_https_session_request(self, url, method, headers, body):
         _headers = {'Accept': ACCEPT_HDR}
         auth = self._https_session.auth
