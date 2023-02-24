@@ -113,6 +113,9 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
+        self.passwordprotected = False
+        if key_password is not None:
+            self.passwordprotected = True
         self._https_session = self.make_https_session(ca_path, s.cert[0], s.cert[1], s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
@@ -141,9 +144,6 @@ class CachedSchemaRegistryClient(object):
         _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
                                              cert_file=cert_location, key_file=key_location, key_password=key_password)
         _https_session.auth = auth
-        _https_session.protected = False
-        if key_password is not None:
-            _https_session.protected = True
         return _https_session
 
     def send_https_session_request(self, url, method, headers, body):
@@ -189,7 +189,7 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        if url.startswith('https') and self._https_session.protected:
+        if url.startswith('https') and self.passwordprotected:
             response = self.send_https_session_request(url, method, headers, body)
             try:
                 return json.loads(response.data), response.status
