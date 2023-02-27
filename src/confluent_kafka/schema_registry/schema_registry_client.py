@@ -368,14 +368,8 @@ class SchemaRegistryClient(object):
 
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id))
         schema = Schema(schema_str=response['schema'],
-                        schema_type=response.get('schemaType', 'AVRO'))
-
-        refs = []
-        for ref in response.get('references', []):
-            refs.append(SchemaReference(name=ref['name'],
-                                        subject=ref['subject'],
-                                        version=ref['version']))
-        schema.references = refs
+                        schema_type=response.get('schemaType', 'AVRO'),
+                        references=response.get('references', []))
 
         self._cache.set(schema_id, schema)
 
@@ -685,7 +679,7 @@ class Schema(object):
 
         self.schema_str = schema_str
         self.schema_type = schema_type
-        self.references = references
+        self.references = [SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version']) for ref in references]
         self._hash = hash(schema_str)
 
     def __eq__(self, other):
