@@ -113,10 +113,10 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
-        self.passwordprotected = False
+        self.is_key_password_provided = False
         if key_password is not None:
-            self.passwordprotected = True
-        self._https_session = self.make_https_session(ca_path, s.cert[0], s.cert[1], s.auth, key_password)
+            self.is_key_password_provided = True
+        self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
@@ -140,24 +140,24 @@ class CachedSchemaRegistryClient(object):
             self._https_session.clear()
 
     @staticmethod
-    def make_https_session(ca_certs_path, cert_location, key_location, auth, key_password):
-        _https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
+    def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
+        https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
                                              cert_file=cert_location, key_file=key_location, key_password=key_password)
-        _https_session.auth = auth
-        return _https_session
+        https_session.auth = auth
+        return https_session
 
-    def send_https_session_request(self, url, method, headers, body):
-        _headers = {'Accept': ACCEPT_HDR}
+    def _send_https_session_request(self, url, method, headers, body):
+        request_headers = {'Accept': ACCEPT_HDR}
         auth = self._https_session.auth
         if body:
             body = json.dumps(body).encode('UTF-8')
-            _headers["Content-Length"] = str(len(body))
-            _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
+            request_headers["Content-Length"] = str(len(body))
+            request_headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         if auth[0] != '' and auth[1] != '':
-            _headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
+            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
                                                  auth[1]))
-        _headers.update(headers)
-        response = self._https_session.request(method, url, headers=_headers, body=body)
+        request_headers.update(headers)
+        response = self._https_session.request(method, url, headers=request_headers, body=body)
         return response
 
     @staticmethod
