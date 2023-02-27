@@ -114,7 +114,7 @@ class CachedSchemaRegistryClient(object):
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
         self.is_key_password_provided = False
-        if key_password is not None:
+        if key_password is not None and key_password != '':
             self.is_key_password_provided = True
         self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
 
@@ -142,7 +142,7 @@ class CachedSchemaRegistryClient(object):
     @staticmethod
     def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
         https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
-                                             cert_file=cert_location, key_file=key_location, key_password=key_password)
+                                            cert_file=cert_location, key_file=key_location, key_password=key_password)
         https_session.auth = auth
         return https_session
 
@@ -155,7 +155,7 @@ class CachedSchemaRegistryClient(object):
             request_headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         if auth[0] != '' and auth[1] != '':
             request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
-                                                 auth[1]))
+                                                        auth[1]))
         request_headers.update(headers)
         response = self._https_session.request(method, url, headers=request_headers, body=body)
         return response
@@ -189,8 +189,8 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        if url.startswith('https') and self.passwordprotected:
-            response = self.send_https_session_request(url, method, headers, body)
+        if url.startswith('https') and self.is_key_password_provided:
+            response = self._send_https_session_request(url, method, headers, body)
             try:
                 return json.loads(response.data), response.status
             except ValueError:
