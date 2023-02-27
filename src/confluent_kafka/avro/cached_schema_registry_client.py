@@ -113,7 +113,7 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
-        self.is_key_password_provided = not key_password
+        self._is_key_password_provided = not key_password
         self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
@@ -187,7 +187,7 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        if url.startswith('https') and self.is_key_password_provided:
+        if url.startswith('https') and self._is_key_password_provided:
             response = self._send_https_session_request(url, method, headers, body)
             try:
                 return json.loads(response.data), response.status
