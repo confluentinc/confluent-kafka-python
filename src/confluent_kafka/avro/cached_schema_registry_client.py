@@ -113,9 +113,7 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
-        self.is_key_password_provided = False
-        if key_password is not None and key_password != '':
-            self.is_key_password_provided = True
+        self.is_key_password_provided = not key_password
         self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
