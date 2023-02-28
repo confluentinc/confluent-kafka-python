@@ -17,7 +17,6 @@
 #
 import json
 import fastavro
-
 import pytest
 
 from confluent_kafka import TopicPartition
@@ -25,7 +24,6 @@ from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
 from confluent_kafka.schema_registry.avro import (AvroSerializer,
                                                   AvroDeserializer)
-
 from confluent_kafka.schema_registry import Schema, SchemaReference
 
 
@@ -55,6 +53,54 @@ class User(object):
             self.favorite_color == other.favorite_color])
 
 
+class AwardProperties(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "AwardProperties",
+            "type": "record",
+            "fields": [
+                {"name": "year", "type": "int"},
+                {"name": "points", "type": "int"}
+            ]
+        }
+    """
+
+    def __init__(self, points, year):
+        self.points = points
+        self.year = year
+
+    def __eq__(self, other):
+        return all([
+            self.points == other.points,
+            self.year == other.year
+        ])
+
+
+class Award(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "Award",
+            "type": "record",
+            "fields": [
+                {"name": "name", "type": "string"},
+                {"name": "properties", "type": "AwardProperties"}
+            ]
+        }
+    """
+
+    def __init__(self, name, properties):
+        self.name = name
+        self.properties = properties
+
+    def __eq__(self, other):
+        return all([
+            self.name == other.name,
+            self.properties == other.properties
+        ])
+
+
 class AwardedUser(object):
     schema_str = """
         {
@@ -62,7 +108,7 @@ class AwardedUser(object):
             "name": "AwardedUser",
             "type": "record",
             "fields": [
-                {"name": "award", "type": "string"},
+                {"name": "award", "type": "Award"},
                 {"name": "user", "type": "User"}
             ]
         }
@@ -100,7 +146,7 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
     sr = kafka_cluster.schema_registry()
 
     schema_str = load_file(avsc)
-    value_serializer = AvroSerializer(sr, Schema(schema_str, 'AVRO'))
+    value_serializer = AvroSerializer(sr, schema_str)
 
     value_deserializer = AvroDeserializer(sr)
 
@@ -144,7 +190,7 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
     sr = kafka_cluster.schema_registry()
     schema_str = load_file(avsc)
 
-    value_serializer = AvroSerializer(sr, Schema(schema_str, 'AVRO'))
+    value_serializer = AvroSerializer(sr, schema_str)
 
     value_deserializer = AvroDeserializer(sr)
 
@@ -191,13 +237,13 @@ def test_avro_record_serialization_custom(kafka_cluster):
     sr = kafka_cluster.schema_registry()
 
     user = User('Bowie', 47, 'purple')
-    value_serializer = AvroSerializer(sr, Schema(User.schema_str, 'AVRO'),
+    value_serializer = AvroSerializer(sr, User.schema_str,
                                       lambda user, ctx:
                                       dict(name=user.name,
                                            favorite_number=user.favorite_number,
                                            favorite_color=user.favorite_color))
 
-    value_deserializer = AvroDeserializer(sr, Schema(User.schema_str, 'AVRO'),
+    value_deserializer = AvroDeserializer(sr, User.schema_str,
                                           lambda user_dict, ctx:
                                           User(**user_dict))
 
@@ -215,48 +261,57 @@ def test_avro_record_serialization_custom(kafka_cluster):
     assert user2 == user
 
 
-def _get_reference_data():
+def _get_reference_data_and_register_schemas(kafka_cluster):
+    sr = kafka_cluster.schema_registry()
+
     user = User('Bowie', 47, 'purple')
-    awarded_user = AwardedUser("Best In Show", user)
+    award_properties = AwardProperties(10, 2023)
+    award = Award("Best In Show", award_properties)
+    awarded_user = AwardedUser(award, user)
 
-    ref_dict = json.loads(User.schema_str)
-    named_schemas = {}
-    fastavro.parse_schema(ref_dict, named_schemas=named_schemas)
+    user_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.User", "user", 1)
+    award_properties_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.AwardProperties",
+                                                  "award_properties", 1)
+    award_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.Award", "award", 1)
 
-    schema_ref = SchemaReference("confluent.io.examples.serialization.avro.User", "user", 1)
-    references = [schema_ref]
+    sr.register_schema("user", Schema(User.schema_str, 'AVRO'))
+    sr.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
+    sr.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
 
-    schema = Schema(AwardedUser.schema_str, 'AVRO', references, named_schemas)
-
+    references = [user_schema_ref, award_schema_ref]
+    schema = Schema(AwardedUser.schema_str, 'AVRO', references)
     return awarded_user, schema
 
 
 def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
     """
     Common (both reader and writer) avro schema reference test.
-
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-
     """
     topic = kafka_cluster.create_topic("reference-avro")
     sr = kafka_cluster.schema_registry()
 
-    sr.register_schema("user", Schema(User.schema_str, 'AVRO'))
-
     value_serializer = AvroSerializer(sr, serializer_schema,
-                                      lambda awarded_user, ctx:
-                                      dict(award=awarded_user.award,
-                                           user=dict(name=awarded_user.user.name,
-                                                     favorite_number=awarded_user.user.favorite_number,
-                                                     favorite_color=awarded_user.user.favorite_color)))
+                                      lambda user, ctx:
+                                      dict(award=dict(name=user.award.name,
+                                                      properties=dict(year=user.award.properties.year,
+                                                                      points=user.award.properties.points)),
+                                           user=dict(name=user.user.name,
+                                                     favorite_number=user.user.favorite_number,
+                                                     favorite_color=user.user.favorite_color)))
 
     value_deserializer = AvroDeserializer(sr, deserializer_schema,
-                                          lambda awarded_user_dict, ctx:
-                                          AwardedUser(awarded_user_dict.get('award'),
-                                                      User(awarded_user_dict.get('user').get('name'),
-                                                           awarded_user_dict.get('user').get('favorite_number'),
-                                                           awarded_user_dict.get('user').get('favorite_color'))))
+                                          lambda user, ctx:
+                                          AwardedUser(award=Award(name=user.get('award').get('name'),
+                                                                  properties=AwardProperties(
+                                                                      year=user.get('award').get('properties').get(
+                                                                          'year'),
+                                                                      points=user.get('award').get('properties').get(
+                                                                          'points'))),
+                                                      user=User(name=user.get('user').get('name'),
+                                                                favorite_number=user.get('user').get('favorite_number'),
+                                                                favorite_color=user.get('user').get('favorite_color'))))
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
@@ -275,12 +330,10 @@ def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializ
 def test_avro_reader_reference(kafka_cluster):
     """
     Tests Avro schema reference relying on reader schema.
-
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-
     """
-    awarded_user, schema = _get_reference_data()
+    awarded_user, schema = _get_reference_data_and_register_schemas(kafka_cluster)
 
     _reference_common(kafka_cluster, awarded_user, schema, schema)
 
@@ -288,11 +341,9 @@ def test_avro_reader_reference(kafka_cluster):
 def test_avro_writer_reference(kafka_cluster):
     """
     Tests Avro schema reference relying on writer schema.
-
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
-
     """
-    awarded_user, schema = _get_reference_data()
+    awarded_user, schema = _get_reference_data_and_register_schemas(kafka_cluster)
 
     _reference_common(kafka_cluster, awarded_user, schema, None)
