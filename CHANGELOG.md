@@ -7,6 +7,7 @@
 - Wheels for Linux / arm64 (#1496).
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
+- Add reference support in Schema Registry client. (@RickTalken, #1304)
 - Added support for schema references in AvroSerializer and AvroDeserializer. (@slominskir, #1088)
 
 ## v2.0.2

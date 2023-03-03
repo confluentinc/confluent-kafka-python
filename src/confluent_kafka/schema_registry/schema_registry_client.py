@@ -370,12 +370,10 @@ class SchemaRegistryClient(object):
         schema = Schema(schema_str=response['schema'],
                         schema_type=response.get('schemaType', 'AVRO'))
 
-        refs = []
-        for ref in response.get('references', []):
-            refs.append(SchemaReference(name=ref['name'],
-                                        subject=ref['subject'],
-                                        version=ref['version']))
-        schema.references = refs
+        schema.references = [
+            SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version'])
+            for ref in response.get('references', [])
+        ]
 
         self._cache.set(schema_id, schema)
 
@@ -419,7 +417,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -493,7 +496,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -524,7 +532,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 

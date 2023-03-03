@@ -15,8 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
-import fastavro
 import pytest
 
 from confluent_kafka import TopicPartition
@@ -301,17 +299,18 @@ def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializ
                                                      favorite_number=user.user.favorite_number,
                                                      favorite_color=user.user.favorite_color)))
 
-    value_deserializer = AvroDeserializer(sr, deserializer_schema,
-                                          lambda user, ctx:
-                                          AwardedUser(award=Award(name=user.get('award').get('name'),
-                                                                  properties=AwardProperties(
-                                                                      year=user.get('award').get('properties').get(
-                                                                          'year'),
-                                                                      points=user.get('award').get('properties').get(
-                                                                          'points'))),
-                                                      user=User(name=user.get('user').get('name'),
-                                                                favorite_number=user.get('user').get('favorite_number'),
-                                                                favorite_color=user.get('user').get('favorite_color'))))
+    value_deserializer = \
+        AvroDeserializer(sr, deserializer_schema,
+                         lambda user, ctx:
+                         AwardedUser(award=Award(name=user.get('award').get('name'),
+                                                 properties=AwardProperties(
+                                                     year=user.get('award').get('properties').get(
+                                                         'year'),
+                                                     points=user.get('award').get('properties').get(
+                                                         'points'))),
+                                     user=User(name=user.get('user').get('name'),
+                                               favorite_number=user.get('user').get('favorite_number'),
+                                               favorite_color=user.get('user').get('favorite_color'))))
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
