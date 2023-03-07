@@ -5,7 +5,7 @@ set -eu
 PY_DOCKER_BIN="/home/semaphore/confluent-kafka-python/tests/docker/bin"
 export PASS="abcdefgh"
 
-sh ${PY_DOCKER_BIN}/../.env.sh
+source ${PY_DOCKER_BIN}/../.env.sh
 
 mkdir -p ${TLS}
 
