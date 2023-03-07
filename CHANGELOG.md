@@ -8,6 +8,8 @@
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
+- Migrated travis jobs to Semaphore CI (#1503)
+
 
 ## v2.0.2
 
