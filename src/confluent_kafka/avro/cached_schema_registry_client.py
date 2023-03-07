@@ -113,7 +113,7 @@ class CachedSchemaRegistryClient(object):
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
-        self._is_key_password_provided = key_password
+        self._is_key_password_provided = bool(key_password)
         self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
