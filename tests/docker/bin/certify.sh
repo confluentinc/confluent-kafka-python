@@ -14,7 +14,7 @@ if [[ -f ${TLS}/ca-cert ]]; then
     exit 0
 fi
 
-HOST=$(hostname -f)
+HOST=localhost
 
 echo "Creating ca-cert..."
 ${PY_DOCKER_BIN}/gen-ssl-certs.sh ca ${TLS}/ca-cert ${HOST}
