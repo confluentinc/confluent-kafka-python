@@ -2,7 +2,7 @@
 
 set -eu
 
-PY_DOCKER_BIN="/home/semaphore/confluent-kafka-python/tests/docker/bin"
+PY_DOCKER_BIN="$(pwd)"
 export PASS="abcdefgh"
 
 mkdir -p ${TLS}
