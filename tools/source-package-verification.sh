@@ -20,7 +20,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv
     make docs
     python -m pytest --timeout 600 --ignore=dest
-    echo 'Running Integration Tests for SSL Verification'
+    echo 'Running Integration Tests for Avro Basic Auth Flow'
     rm -rf tests/docker/conf/tls
     cd tests/docker
     source .env.sh
@@ -30,7 +30,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     docker-compose up -d
     sleep 50
     cd ../integration
-    python3 integration_test.py --avro-https testconf.json
+    python3 integration_test.py --avro-basic-auth testconf.json
 else
     python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
 fi

@@ -2,7 +2,7 @@
 
 set -eu
 
-PY_DOCKER_BIN="$(pwd)"
+PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 export PASS="abcdefgh"
 
 mkdir -p ${TLS}
@@ -12,7 +12,7 @@ if [[ -f ${TLS}/ca-cert ]]; then
     exit 0
 fi
 
-HOST=localhost
+HOST=$(hostname -f)
 
 echo "Creating ca-cert..."
 ${PY_DOCKER_BIN}/gen-ssl-certs.sh ca ${TLS}/ca-cert ${HOST}
