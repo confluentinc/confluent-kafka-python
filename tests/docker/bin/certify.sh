@@ -2,10 +2,10 @@
 
 set -eu
 
-PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
+PY_DOCKER_BIN="$(pwd)"
 export PASS="abcdefgh"
 
-source ${PY_DOCKER_BIN}/../.env.sh
+sh ${PY_DOCKER_BIN}/../.env.sh
 
 mkdir -p ${TLS}
 
