@@ -21,8 +21,10 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     make docs
     # python -m pytest --timeout 600 --ignore=dest
     rm -rf tests/docker/conf/tls
-    sh tests/docker/bin/certify.sh
-    sh tests/docker/.env.sh
+    cd tests/docker/bin
+    sh certify.sh
+    cd ..
+    sh .env.sh
     cd ../integration
     python3 integration_test.py --avro-https testconf.json
 else
