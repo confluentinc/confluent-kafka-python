@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export PY_DOCKER_SOURCE="$(pwd)"
+export PY_DOCKER_SOURCE="/home/semaphore/confluent-kafka-python/tests/docker"
 export PY_DOCKER_COMPOSE_FILE=$PY_DOCKER_SOURCE/docker-compose.yaml
 export PY_DOCKER_CONTEXT="python-test-$(uuidgen)"
 export PY_DOCKER_BIN=$PY_DOCKER_SOURCE/bin
