@@ -5,8 +5,6 @@ set -eu
 PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 export PASS="abcdefgh"
 
-source ${PY_DOCKER_BIN}/../.env.sh
-
 mkdir -p ${TLS}
 
 if [[ -f ${TLS}/ca-cert ]]; then
