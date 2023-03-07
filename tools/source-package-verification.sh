@@ -25,7 +25,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     cd tests/docker
     source .env.sh
     cd bin
-    certify.sh
+    source certify.sh
     cd ../
     docker-compose up -d
     sleep 50
