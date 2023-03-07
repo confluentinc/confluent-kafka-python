@@ -19,8 +19,8 @@ python setup.py build && python setup.py install
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv
     make docs
-    # python -m pytest --timeout 600 --ignore=dest
-    
+    python -m pytest --timeout 600 --ignore=dest
+    echo 'Running Integration Tests for SSL Verification'
     rm -rf tests/docker/conf/tls
     source tests/docker/.env.sh
     source tests/docker/bin/certify.sh
