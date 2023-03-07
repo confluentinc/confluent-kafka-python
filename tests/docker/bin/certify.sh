@@ -5,8 +5,6 @@ set -eu
 PY_DOCKER_BIN="/home/semaphore/confluent-kafka-python/tests/docker/bin"
 export PASS="abcdefgh"
 
-sh /home/semaphore/confluent-kafka-python/tests/docker/.env.sh
-
 mkdir -p ${TLS}
 
 if [[ -f ${TLS}/ca-cert ]]; then
