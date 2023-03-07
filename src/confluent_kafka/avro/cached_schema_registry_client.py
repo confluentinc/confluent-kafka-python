@@ -184,7 +184,7 @@ class CachedSchemaRegistryClient(object):
         return cert
 
     def _send_request(self, url, method='GET', body=None, headers={}):
-        ClientError("URL is {} and _is_key_password_provided is {}",format(url,str(self._is_key_password_provided)))
+        ClientError("URL is {} and _is_key_password_provided is {}".format(url,str(self._is_key_password_provided)))
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
