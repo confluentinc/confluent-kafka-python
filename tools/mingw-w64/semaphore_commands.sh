@@ -1,5 +1,5 @@
 #!/bin/bash
-pacman -S mingw-w64-x86_64-python38
+$msys2 pacman -S python --version 3.8.0
 
 set -e
 
