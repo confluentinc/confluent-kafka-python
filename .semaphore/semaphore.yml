@@ -97,7 +97,7 @@ blocks:
     task:
       agent:
           machine:
-            type: s1-prod-windows
+            type: s1-nonprod-windows
       env_vars:
         - name: OS_NAME
           value: windows
