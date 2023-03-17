@@ -1,0 +1,11 @@
+name: confluent-kafka-python
+lang: python
+lang_version: 3.7
+git:
+  enable: true
+github:
+  enable: true
+  repo_name: confluentinc/confluent-kafka-python
+semaphore:
+  enable: true
+  pipeline_enable: false

@@ -29,8 +29,8 @@ fi
 
 pyvers_tested=
 
-# Run tests with both python2 and python3 (whatever versions the OS provides)
-for py in 2.7 3.8 ; do
+# Run tests with python3
+for py in 3.8 ; do
     echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then

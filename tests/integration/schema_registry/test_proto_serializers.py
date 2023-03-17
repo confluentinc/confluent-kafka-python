@@ -19,11 +19,10 @@ import pytest
 from confluent_kafka import TopicPartition, KafkaException, KafkaError
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, ProtobufDeserializer
-from .gen import metadata_proto_pb2
-from ..schema_registry.gen import NestedTestProto_pb2, TestProto_pb2, \
+from .data.proto import metadata_proto_pb2, NestedTestProto_pb2, TestProto_pb2, \
     PublicTestProto_pb2
-from tests.integration.schema_registry.gen.DependencyTestProto_pb2 import DependencyMessage
-from tests.integration.schema_registry.gen.exampleProtoCriteo_pb2 import ClickCas
+from tests.integration.schema_registry.data.proto.DependencyTestProto_pb2 import DependencyMessage
+from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import ClickCas
 
 
 @pytest.mark.parametrize("pb2, data", [
@@ -39,7 +38,7 @@ from tests.integration.schema_registry.gen.exampleProtoCriteo_pb2 import ClickCa
                                        'test_float': 12.0}),
     (NestedTestProto_pb2.NestedMessage, {'user_id':
      NestedTestProto_pb2.UserId(
-            kafka_user_id='oneof_str'),
+         kafka_user_id='oneof_str'),
         'is_active': True,
         'experiments_active': ['x', 'y', '1'],
         'status': NestedTestProto_pb2.INACTIVE,
@@ -114,8 +113,8 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
 
     with pytest.raises(KafkaException,
                        match=r"message must be of type <class"
-                             r" 'TestProto_pb2.TestMessage'\> not \<class"
-                             r" 'NestedTestProto_pb2.NestedMessage'\>"):
+                             r" 'tests.integration.schema_registry.data.proto.TestProto_pb2.TestMessage'\> not \<class"
+                             r" 'tests.integration.schema_registry.data.proto.NestedTestProto_pb2.NestedMessage'\>"):
         producer.produce(topic, key=pb2_2())
 
 

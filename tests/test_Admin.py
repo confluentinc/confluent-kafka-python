@@ -1,21 +1,75 @@
 #!/usr/bin/env python
 import pytest
 
-from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, ConfigResource
-from confluent_kafka import KafkaException, KafkaError, libversion
-import confluent_kafka
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
+    ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
+    AclOperation, AclPermissionType
+from confluent_kafka import KafkaException, KafkaError, libversion, \
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
 
 
 def test_types():
-    ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "2")
+    ConfigResource(ResourceType.BROKER, "2")
     ConfigResource("broker", "2")
-    ConfigResource(confluent_kafka.admin.RESOURCE_GROUP, "mygroup")
-    ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "")
+    ConfigResource(ResourceType.GROUP, "mygroup")
+    ConfigResource(ResourceType.TOPIC, "")
     with pytest.raises(ValueError):
         ConfigResource("doesnt exist", "hi")
     with pytest.raises(ValueError):
-        ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, None)
+        ConfigResource(ResourceType.TOPIC, None)
+
+
+def test_acl_binding_type():
+    attrs = [ResourceType.TOPIC, "topic", ResourcePatternType.LITERAL,
+             "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW]
+
+    attrs_nullable_acl_binding_filter = [1, 3, 4]
+
+    # at first it creates correctly
+    AclBinding(*attrs)
+    for i, _ in enumerate(attrs):
+
+        # no attribute is nullable
+        attrs_copy = list(attrs)
+        attrs_copy[i] = None
+        with pytest.raises(ValueError):
+            AclBinding(*attrs_copy)
+
+        # string attributes of AclBindingFilter are nullable
+        if i in attrs_nullable_acl_binding_filter:
+            AclBindingFilter(*attrs_copy)
+        else:
+            with pytest.raises(ValueError):
+                AclBindingFilter(*attrs_copy)
+
+    for (attr_num, attr_value) in [
+        (0, ResourceType.ANY),
+        (2, ResourcePatternType.ANY),
+        (2, ResourcePatternType.MATCH),
+        (5, AclOperation.ANY),
+        (6, AclPermissionType.ANY),
+    ]:
+        attrs_copy = list(attrs)
+        attrs_copy[attr_num] = attr_value
+        # forbidden enums in AclBinding
+        with pytest.raises(ValueError):
+            AclBinding(*attrs_copy)
+
+        # AclBindingFilter can hold all the enum values
+        AclBindingFilter(*attrs_copy)
+
+    # UNKNOWN values are not forbidden, for received values
+    for (attr_num, attr_value) in [
+        (0, ResourceType.UNKNOWN),
+        (2, ResourcePatternType.UNKNOWN),
+        (2, ResourcePatternType.UNKNOWN),
+        (5, AclOperation.UNKNOWN),
+        (6, AclPermissionType.UNKNOWN),
+    ]:
+        attrs_copy = list(attrs)
+        attrs_copy[attr_num] = attr_value
+        AclBinding(*attrs_copy)
 
 
 @pytest.mark.skipif(libversion()[1] < 0x000b0500,
@@ -68,6 +122,11 @@ def test_create_topics_api():
     with pytest.raises(Exception):
         a.create_topics([None, NewTopic("mytopic", 1, 2)])
 
+    try:
+        a.create_topics([NewTopic("mytopic")])
+    except Exception as err:
+        assert False, f"When none of the partitions, \
+            replication and assignment is present, the request should not fail, but it does with error {err}"
     fs = a.create_topics([NewTopic("mytopic", 3, 2)])
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
@@ -206,7 +265,7 @@ def test_describe_configs_api():
         is no broker configured. """
 
     a = AdminClient({"socket.timeout.ms": 10})
-    fs = a.describe_configs([ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "3")])
+    fs = a.describe_configs([ConfigResource(ResourceType.BROKER, "3")])
     # ignore the result
 
     with pytest.raises(Exception):
@@ -219,10 +278,10 @@ def test_describe_configs_api():
         a.describe_configs([])
 
     with pytest.raises(ValueError):
-        a.describe_configs([None, ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "mytopic")])
+        a.describe_configs([None, ConfigResource(ResourceType.TOPIC, "mytopic")])
 
-    fs = a.describe_configs([ConfigResource(confluent_kafka.admin.RESOURCE_TOPIC, "mytopic"),
-                             ConfigResource(confluent_kafka.admin.RESOURCE_GROUP, "mygroup")],
+    fs = a.describe_configs([ConfigResource(ResourceType.TOPIC, "mytopic"),
+                             ConfigResource(ResourceType.GROUP, "mygroup")],
                             request_timeout=0.123)
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
@@ -236,7 +295,7 @@ def test_alter_configs_api():
         is no broker configured. """
 
     a = AdminClient({"socket.timeout.ms": 10})
-    fs = a.alter_configs([ConfigResource(confluent_kafka.admin.RESOURCE_BROKER, "3",
+    fs = a.alter_configs([ConfigResource(ResourceType.BROKER, "3",
                                          set_config={"some": "config"})])
     # ignore the result
 
@@ -252,10 +311,389 @@ def test_alter_configs_api():
     fs = a.alter_configs([ConfigResource("topic", "mytopic",
                                          set_config={"set": "this",
                                                      "and": "this"}),
-                          ConfigResource(confluent_kafka.admin.RESOURCE_GROUP,
+                          ConfigResource(ResourceType.GROUP,
                                          "mygroup")],
                          request_timeout=0.123)
 
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
+
+
+def test_create_acls_api():
+    """ create_acls() tests, these wont really do anything since there is no
+        broker configured. """
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
+                              "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
+    acl_binding2 = AclBinding(ResourceType.TOPIC, "topic2", ResourcePatternType.LITERAL,
+                              "User:u2", "*", AclOperation.READ, AclPermissionType.DENY)
+
+    f = a.create_acls([acl_binding1],
+                      request_timeout=10.0)
+    # ignore the result
+
+    with pytest.raises(TypeError):
+        a.create_acls(None)
+
+    with pytest.raises(ValueError):
+        a.create_acls("topic")
+
+    with pytest.raises(ValueError):
+        a.create_acls([])
+
+    with pytest.raises(ValueError):
+        a.create_acls(["topic"])
+
+    with pytest.raises(ValueError):
+        a.create_acls([None, "topic"])
+
+    with pytest.raises(ValueError):
+        a.create_acls([None, acl_binding1])
+
+    with pytest.raises(ValueError):
+        a.create_acls([acl_binding1, acl_binding1])
+
+    fs = a.create_acls([acl_binding1, acl_binding2])
+    with pytest.raises(KafkaException):
+        for f in fs.values():
+            f.result(timeout=1)
+
+    fs = a.create_acls([acl_binding1, acl_binding2],
+                       request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.create_acls([acl_binding1],
+                      request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.create_acls([acl_binding1],
+                      unknown_operation="it is")
+
+
+def test_delete_acls_api():
+    """ delete_acls() tests, these wont really do anything since there is no
+        broker configured. """
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
+                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
+    acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, "topic2", ResourcePatternType.MATCH,
+                                           None, "*", AclOperation.WRITE, AclPermissionType.ALLOW)
+
+    fs = a.delete_acls([acl_binding_filter1])
+    # ignore the result
+
+    with pytest.raises(TypeError):
+        a.delete_acls(None)
+
+    with pytest.raises(ValueError):
+        a.delete_acls([])
+
+    with pytest.raises(ValueError):
+        a.delete_acls([None, acl_binding_filter1])
+
+    with pytest.raises(ValueError):
+        a.delete_acls([acl_binding_filter1, acl_binding_filter1])
+
+    fs = a.delete_acls([acl_binding_filter1, acl_binding_filter2])
+    with pytest.raises(KafkaException):
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+    fs = a.delete_acls([acl_binding_filter1, acl_binding_filter2],
+                       request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.create_acls([acl_binding_filter1],
+                      request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.delete_acls([acl_binding_filter1],
+                      unknown_operation="it is")
+
+
+def test_describe_acls_api():
+    """ describe_acls() tests, these wont really do anything since there is no
+        broker configured. """
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
+                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
+    acl_binding1 = AclBinding(ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
+                              "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW)
+
+    a.describe_acls(acl_binding_filter1)
+    # ignore the result
+
+    with pytest.raises(TypeError):
+        a.describe_acls(None)
+
+    with pytest.raises(TypeError):
+        a.describe_acls(acl_binding1)
+
+    f = a.describe_acls(acl_binding_filter1)
+    with pytest.raises(KafkaException):
+        f.result(timeout=1)
+
+    f = a.describe_acls(acl_binding_filter1,
+                        request_timeout=0.5)
+    e = f.exception(timeout=1)
+    assert isinstance(e, KafkaException)
+    assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.describe_acls(acl_binding_filter1,
+                        request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.describe_acls(acl_binding_filter1,
+                        unknown_operation="it is")
+
+
+def test_list_consumer_groups_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.list_consumer_groups()
+
+    a.list_consumer_groups(states={ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE})
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(states="EMPTY")
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(states=["EMPTY"])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+
+
+def test_describe_consumer_groups_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.describe_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.describe_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.describe_consumer_groups([])
+
+
+def test_delete_consumer_groups_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    group_ids = ["test-group-1", "test-group-2"]
+
+    a.delete_consumer_groups(group_ids)
+
+    with pytest.raises(TypeError):
+        a.delete_consumer_groups("test-group-1")
+
+    with pytest.raises(ValueError):
+        a.delete_consumer_groups([])
+
+
+def test_list_consumer_group_offsets_api():
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    only_group_id_request = ConsumerGroupTopicPartitions("test-group1")
+    request_with_group_and_topic_partition = ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic1", 1)])
+    same_name_request = ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 3)])
+
+    a.list_consumer_group_offsets([only_group_id_request])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets(None)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets(1)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets("")
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([only_group_id_request,
+                                       request_with_group_and_topic_partition])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([request_with_group_and_topic_partition,
+                                       same_name_request])
+
+    fs = a.list_consumer_group_offsets([only_group_id_request])
+    with pytest.raises(KafkaException):
+        for f in fs.values():
+            f.result(timeout=10)
+
+    fs = a.list_consumer_group_offsets([only_group_id_request],
+                                       request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([only_group_id_request],
+                                      request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", -1)])])
+
+    with pytest.raises(ValueError):
+        a.list_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", 1, 1)])])
+
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+    a.list_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group2", [TopicPartition("test-topic1", 1)])])
+
+
+def test_alter_consumer_group_offsets_api():
+
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    request_with_group_and_topic_partition_offset1 = ConsumerGroupTopicPartitions(
+        "test-group1", [TopicPartition("test-topic1", 1, 5)])
+    same_name_request = ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic2", 4, 3)])
+    request_with_group_and_topic_partition_offset2 = ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic2", 1, 5)])
+
+    a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets(None)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets(1)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets("")
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                       request_with_group_and_topic_partition_offset2])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
+                                        same_name_request])
+
+    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+    with pytest.raises(KafkaException):
+        for f in fs.values():
+            f.result(timeout=10)
+
+    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+                                        request_timeout=0.5)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+                                       request_timeout=-5)
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions()])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(1)])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(None)])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions([])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("")])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1")])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", "test-topic")])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [None])])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", ["test"])])
+
+    with pytest.raises(TypeError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition(None)])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("")])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("test-group1", [TopicPartition("test-topic")])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", -1)])])
+
+    with pytest.raises(ValueError):
+        a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+            "test-group1", [TopicPartition("test-topic", 1, -1001)])])
+
+    a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
+        "test-group2", [TopicPartition("test-topic1", 1, 23)])])

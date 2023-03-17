@@ -970,13 +970,40 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         msgobj = Message_new0(self, rkm);
 #ifdef RD_KAFKA_V_HEADERS
-        // Have to detach headers outside Message_new0 because it declares the
-        // rk message as a const
+        /** Have to detach headers outside Message_new0 because it declares the
+          * rk message as a const */
         rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
 #endif
         rd_kafka_message_destroy(rkm);
 
         return msgobj;
+}
+
+
+static PyObject *Consumer_memberid (Handle *self, PyObject *args,
+                                    PyObject *kwargs) {
+        char *memberid;
+        PyObject *memberidobj;
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer closed");
+                return NULL;
+        }
+
+        memberid = rd_kafka_memberid(self->rk);
+
+        if (!memberid)
+                Py_RETURN_NONE;
+
+        if (!*memberid) {
+                rd_kafka_mem_free(self->rk, memberid);
+                Py_RETURN_NONE;
+        }
+
+        memberidobj = Py_BuildValue("s", memberid);
+        rd_kafka_mem_free(self->rk, memberid);
+
+        return memberidobj;
 }
 
 
@@ -1035,8 +1062,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         for (i = 0; i < n; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
 #ifdef RD_KAFKA_V_HEADERS
-                // Have to detach headers outside Message_new0 because it declares the
-                // rk message as a const
+                /** Have to detach headers outside Message_new0 because it declares the
+                  * rk message as a const */
                 rd_kafka_message_detach_headers(rkmessages[i], &((Message *)msgobj)->c_headers);
 #endif
                 PyList_SET_ITEM(msglist, i, msgobj);
@@ -1409,6 +1436,19 @@ static PyMethodDef Consumer_methods[] = {
           "  :raises: RuntimeError if called on a closed consumer\n"
           "\n"
         },
+        { "memberid", (PyCFunction)Consumer_memberid, METH_NOARGS,
+          ".. py:function:: memberid()\n"
+          "\n"
+          " Return this client's broker-assigned group member id.\n"
+          "\n"
+          " The member id is assigned by the group coordinator and"
+          " is propagated to the consumer during rebalance.\n"
+          "\n"
+          "  :returns: Member id string or None\n"
+          "  :rtype: string\n"
+          "  :raises: RuntimeError if called on a closed consumer\n"
+          "\n"
+        },
 	{ "close", (PyCFunction)Consumer_close, METH_NOARGS,
 	  "\n"
 	  "  Close down and terminate the Kafka Consumer.\n"
@@ -1436,6 +1476,9 @@ static PyMethodDef Consumer_methods[] = {
           "group metadata for passing to the transactional producer's "
           "send_offsets_to_transaction() API.\n"
           "\n"
+        },
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
         },
 
 

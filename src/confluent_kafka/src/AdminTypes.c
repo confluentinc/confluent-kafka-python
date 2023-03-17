@@ -74,16 +74,18 @@ static int NewTopic_init (PyObject *self0, PyObject *args,
                                "config",
                                NULL };
 
+        self->num_partitions = -1;
         self->replication_factor = -1;
         self->replica_assignment = NULL;
         self->config = NULL;
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "si|iOO", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iiOO", kws,
                                          &topic, &self->num_partitions,
                                          &self->replication_factor,
                                          &self->replica_assignment,
                                          &self->config))
                 return -1;
+
 
 
         if (self->config) {
@@ -125,7 +127,8 @@ static PyMemberDef NewTopic_members[] = {
         { "topic", T_STRING, offsetof(NewTopic, topic), READONLY,
           ":py:attribute:topic - Topic name (string)" },
         { "num_partitions", T_INT, offsetof(NewTopic, num_partitions), 0,
-          ":py:attribute: Number of partitions (int)" },
+          ":py:attribute: Number of partitions (int).\n"
+          "Or -1 if a replica_assignment is specified" },
         { "replication_factor", T_INT, offsetof(NewTopic, replication_factor),
           0,
           " :py:attribute: Replication factor (int).\n"
@@ -147,6 +150,11 @@ static PyMemberDef NewTopic_members[] = {
 
 
 static PyObject *NewTopic_str0 (NewTopic *self) {
+        if (self->num_partitions == -1) {
+                return cfl_PyUnistr(
+                _FromFormat("NewTopic(topic=%s)",
+                            self->topic));
+        }
         return cfl_PyUnistr(
                 _FromFormat("NewTopic(topic=%s,num_partitions=%d)",
                             self->topic, self->num_partitions));
@@ -202,7 +210,12 @@ NewTopic_richcompare (NewTopic *self, PyObject *o2, int op) {
 
 static long NewTopic_hash (NewTopic *self) {
         PyObject *topic = cfl_PyUnistr(_FromString(self->topic));
-        long r = PyObject_Hash(topic) ^ self->num_partitions;
+        long r;
+        if (self->num_partitions == -1) {
+                r = PyObject_Hash(topic);
+        } else {
+                r = PyObject_Hash(topic) ^ self->num_partitions;
+        }
         Py_DECREF(topic);
         return r;
 }
@@ -233,12 +246,12 @@ PyTypeObject NewTopicType = {
         "NewTopic specifies per-topic settings for passing to "
         "AdminClient.create_topics().\n"
         "\n"
-        ".. py:function:: NewTopic(topic, num_partitions, [replication_factor], [replica_assignment], [config])\n"
+        ".. py:function:: NewTopic(topic, [num_partitions], [replication_factor], [replica_assignment], [config])\n"
         "\n"
         "  Instantiate a NewTopic object.\n"
         "\n"
         "  :param string topic: Topic name\n"
-        "  :param int num_partitions: Number of partitions to create\n"
+        "  :param int num_partitions: Number of partitions to create, or -1 if replica_assignment is used.\n"
         "  :param int replication_factor: Replication factor of partitions, or -1 if replica_assignment is used.\n"
         "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
         "  :param dict config: Dict (str:str) of topic configuration. See http://kafka.apache.org/documentation.html#topicconfigs\n"
@@ -487,15 +500,7 @@ int AdminTypes_Ready (void) {
 }
 
 
-/**
- * @brief Add Admin types to module
- */
-void AdminTypes_AddObjects (PyObject *m) {
-        Py_INCREF(&NewTopicType);
-        PyModule_AddObject(m, "NewTopic", (PyObject *)&NewTopicType);
-        Py_INCREF(&NewPartitionsType);
-        PyModule_AddObject(m, "NewPartitions", (PyObject *)&NewPartitionsType);
-
+static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
         /* rd_kafka_ConfigSource_t */
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_UNKNOWN_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_UNKNOWN_CONFIG);
@@ -509,11 +514,75 @@ void AdminTypes_AddObjects (PyObject *m) {
                                 RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_DEFAULT_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG);
+}
 
+
+static void AdminTypes_AddObjectsResourceType (PyObject *m) {
         /* rd_kafka_ResourceType_t */
         PyModule_AddIntConstant(m, "RESOURCE_UNKNOWN", RD_KAFKA_RESOURCE_UNKNOWN);
         PyModule_AddIntConstant(m, "RESOURCE_ANY", RD_KAFKA_RESOURCE_ANY);
         PyModule_AddIntConstant(m, "RESOURCE_TOPIC", RD_KAFKA_RESOURCE_TOPIC);
         PyModule_AddIntConstant(m, "RESOURCE_GROUP", RD_KAFKA_RESOURCE_GROUP);
         PyModule_AddIntConstant(m, "RESOURCE_BROKER", RD_KAFKA_RESOURCE_BROKER);
+}
+
+static void AdminTypes_AddObjectsResourcePatternType (PyObject *m) {
+        /* rd_kafka_ResourcePatternType_t */
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_UNKNOWN", RD_KAFKA_RESOURCE_PATTERN_UNKNOWN);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_ANY", RD_KAFKA_RESOURCE_PATTERN_ANY);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_MATCH", RD_KAFKA_RESOURCE_PATTERN_MATCH);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_LITERAL", RD_KAFKA_RESOURCE_PATTERN_LITERAL);
+        PyModule_AddIntConstant(m, "RESOURCE_PATTERN_PREFIXED", RD_KAFKA_RESOURCE_PATTERN_PREFIXED);
+}
+
+static void AdminTypes_AddObjectsAclOperation (PyObject *m) {
+        /* rd_kafka_AclOperation_t */
+        PyModule_AddIntConstant(m, "ACL_OPERATION_UNKNOWN", RD_KAFKA_ACL_OPERATION_UNKNOWN);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ANY", RD_KAFKA_ACL_OPERATION_ANY);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALL", RD_KAFKA_ACL_OPERATION_ALL);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_READ", RD_KAFKA_ACL_OPERATION_READ);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_WRITE", RD_KAFKA_ACL_OPERATION_WRITE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_CREATE", RD_KAFKA_ACL_OPERATION_CREATE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DELETE", RD_KAFKA_ACL_OPERATION_DELETE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER", RD_KAFKA_ACL_OPERATION_ALTER);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE", RD_KAFKA_ACL_OPERATION_DESCRIBE);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_CLUSTER_ACTION", RD_KAFKA_ACL_OPERATION_CLUSTER_ACTION);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_DESCRIBE_CONFIGS", RD_KAFKA_ACL_OPERATION_DESCRIBE_CONFIGS);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_ALTER_CONFIGS", RD_KAFKA_ACL_OPERATION_ALTER_CONFIGS);
+        PyModule_AddIntConstant(m, "ACL_OPERATION_IDEMPOTENT_WRITE", RD_KAFKA_ACL_OPERATION_IDEMPOTENT_WRITE);
+}
+
+static void AdminTypes_AddObjectsAclPermissionType (PyObject *m) {
+        /* rd_kafka_AclPermissionType_t */
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_UNKNOWN", RD_KAFKA_ACL_PERMISSION_TYPE_UNKNOWN);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ANY", RD_KAFKA_ACL_PERMISSION_TYPE_ANY);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_DENY", RD_KAFKA_ACL_PERMISSION_TYPE_DENY);
+        PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ALLOW", RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW);
+}
+
+static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
+        /* rd_kafka_consumer_group_state_t */
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_PREPARING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_COMPLETING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_STABLE", RD_KAFKA_CONSUMER_GROUP_STATE_STABLE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_DEAD", RD_KAFKA_CONSUMER_GROUP_STATE_DEAD);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
+}
+
+/**
+ * @brief Add Admin types to module
+ */
+void AdminTypes_AddObjects (PyObject *m) {
+        Py_INCREF(&NewTopicType);
+        PyModule_AddObject(m, "NewTopic", (PyObject *)&NewTopicType);
+        Py_INCREF(&NewPartitionsType);
+        PyModule_AddObject(m, "NewPartitions", (PyObject *)&NewPartitionsType);
+
+        AdminTypes_AddObjectsConfigSource(m);
+        AdminTypes_AddObjectsResourceType(m);
+        AdminTypes_AddObjectsResourcePatternType(m);
+        AdminTypes_AddObjectsAclOperation(m);
+        AdminTypes_AddObjectsAclPermissionType(m);
+        AdminTypes_AddObjectsConsumerGroupStates(m);
 }

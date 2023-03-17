@@ -26,12 +26,14 @@ from tests.integration.cluster_fixture import ByoFixture
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-def create_trivup_cluster():
-    return TrivupFixture({'with_sr': True,
-                          'debug': True,
-                          'cp_version': 'latest',
-                          'broker_conf': ['transaction.state.log.replication.factor=1',
-                                          'transaction.state.log.min.isr=1']})
+def create_trivup_cluster(conf={}):
+    trivup_fixture_conf = {'with_sr': True,
+                           'debug': True,
+                           'cp_version': 'latest',
+                           'broker_conf': ['transaction.state.log.replication.factor=1',
+                                           'transaction.state.log.min.isr=1']}
+    trivup_fixture_conf.update(conf)
+    return TrivupFixture(trivup_fixture_conf)
 
 
 def create_byo_cluster(conf):
@@ -41,8 +43,11 @@ def create_byo_cluster(conf):
     return ByoFixture(conf)
 
 
-@pytest.fixture(scope="package")
-def kafka_cluster():
+def kafka_cluster_fixture(
+    brokers_env="BROKERS",
+    sr_url_env="SR_URL",
+    trivup_cluster_conf={}
+):
     """
     If BROKERS environment variable is set to a CSV list of bootstrap servers
     an existing cluster is used.
@@ -52,20 +57,26 @@ def kafka_cluster():
     If BROKERS is not set a TrivUp cluster is created and used.
     """
 
-    bootstraps = os.environ.get("BROKERS", "")
+    bootstraps = os.environ.get(brokers_env, "")
     if bootstraps != "":
         conf = {"bootstrap.servers": bootstraps}
-        sr_url = os.environ.get("SR_URL", "")
+        sr_url = os.environ.get(sr_url_env, "")
         if sr_url != "":
             conf["schema.registry.url"] = sr_url
         print("Using ByoFixture with config from env variables: ", conf)
         cluster = create_byo_cluster(conf)
     else:
-        cluster = create_trivup_cluster()
+        cluster = create_trivup_cluster(trivup_cluster_conf)
     try:
         yield cluster
     finally:
         cluster.stop()
+
+
+@pytest.fixture(scope="package")
+def kafka_cluster():
+    for fixture in kafka_cluster_fixture():
+        yield fixture
 
 
 @pytest.fixture()

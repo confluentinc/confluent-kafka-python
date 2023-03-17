@@ -26,6 +26,7 @@ from requests import (Session,
 
 from .error import SchemaRegistryError
 
+
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.
 # We need a better way to handle these issues.
@@ -57,8 +58,8 @@ class _RestClient(object):
 
     Args:
         conf (dict): Dictionary containing _RestClient configuration
-
     """
+
     def __init__(self, conf):
         self.session = Session()
 
@@ -153,8 +154,8 @@ class _RestClient(object):
 
         Returns:
             dict: Schema Registry response content.
-
         """
+
         headers = {'Accept': "application/vnd.schemaregistry.v1+json,"
                              " application/vnd.schemaregistry+json,"
                              " application/json"}
@@ -188,8 +189,8 @@ class _SchemaCache(object):
 
     This cache may be used to retrieve schema ids, schemas or to check
     known subject membership.
-
     """
+
     def __init__(self):
         self.lock = Lock()
         self.schema_id_index = {}
@@ -220,8 +221,8 @@ class _SchemaCache(object):
 
         Returns:
             int: The schema_id
-
         """
+
         with self.lock:
             self.schema_id_index[schema_id] = schema
             self.schema_index[schema] = schema_id
@@ -237,8 +238,8 @@ class _SchemaCache(object):
 
         Returns:
             Schema: The schema if known; else None
-
         """
+
         return self.schema_id_index.get(schema_id, None)
 
     def get_schema_id_by_subject(self, subject, schema):
@@ -252,8 +253,8 @@ class _SchemaCache(object):
 
         Returns:
             int: Schema ID if known; else None
-
         """
+
         with self.lock:
             if schema in self.subject_schemas[subject]:
                 return self.schema_index.get(schema, None)
@@ -261,9 +262,9 @@ class _SchemaCache(object):
 
 class SchemaRegistryClient(object):
     """
-    Schema Registry Client.
+    A Confluent Schema Registry client.
 
-    SchemaRegistryClient configuration properties (* indicates a required field):
+    Configuration properties (* indicates a required field):
 
     +------------------------------+------+-------------------------------------------------+
     | Property name                | type | Description                                     |
@@ -297,8 +298,8 @@ class SchemaRegistryClient(object):
 
     See Also:
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
-
     """  # noqa: E501
+
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
@@ -310,7 +311,7 @@ class SchemaRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client._close()
 
-    def register_schema(self, subject_name, schema):
+    def register_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Registers a schema under ``subject_name``.
 
@@ -328,8 +329,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
-
         """  # noqa: E501
+
         schema_id = self._cache.get_schema_id_by_subject(subject_name, schema)
         if schema_id is not None:
             return schema_id
@@ -345,7 +346,7 @@ class SchemaRegistryClient(object):
                                      for ref in schema.references]
 
         response = self._rest_client.post(
-            'subjects/{}/versions'.format(_urlencode(subject_name)),
+            'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
         schema_id = response['id']
@@ -370,8 +371,8 @@ class SchemaRegistryClient(object):
 
         See Also:
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
-
         """  # noqa: E501
+
         schema = self._cache.get_schema(schema_id)
         if schema is not None:
             return schema
@@ -380,18 +381,16 @@ class SchemaRegistryClient(object):
         schema = Schema(schema_str=response['schema'],
                         schema_type=response.get('schemaType', 'AVRO'))
 
-        refs = []
-        for ref in response.get('references', []):
-            refs.append(SchemaReference(name=ref['name'],
-                                        subject=ref['subject'],
-                                        version=ref['version']))
-        schema.references = refs
+        schema.references = [
+            SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version'])
+            for ref in response.get('references', [])
+        ]
 
         self._cache.set(schema_id, schema)
 
         return schema
 
-    def lookup_schema(self, subject_name, schema):
+    def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.
 
@@ -408,8 +407,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
-
         """  # noqa: E501
+
         request = {'schema': schema.schema_str}
 
         # CP 5.5 adds new fields (for JSON and Protobuf).
@@ -420,8 +419,8 @@ class SchemaRegistryClient(object):
                                       'version': ref.version}
                                      for ref in schema.references]
 
-        response = self._rest_client.post('subjects/{}'
-                                          .format(_urlencode(subject_name)),
+        response = self._rest_client.post('subjects/{}?normalize={}'
+                                          .format(_urlencode(subject_name), normalize_schemas),
                                           body=request)
 
         schema_type = response.get('schemaType', 'AVRO')
@@ -429,7 +428,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -445,8 +449,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
-
         """  # noqa: E501
+
         return self._rest_client.get('subjects')
 
     def delete_subject(self, subject_name, permanent=False):
@@ -467,8 +471,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
-
         """  # noqa: E501
+
         list = self._rest_client.delete('subjects/{}'
                                         .format(_urlencode(subject_name)))
 
@@ -493,8 +497,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
-
         """  # noqa: E501
+
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
                                                  'latest'))
@@ -503,7 +507,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -524,8 +533,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
-
         """  # noqa: E501
+
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
                                                  version))
@@ -534,7 +543,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -553,8 +567,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
-
         """  # noqa: E501
+
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
     def delete_version(self, subject_name, version):
@@ -574,8 +588,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `Delete Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
-
         """  # noqa: E501
+
         response = self._rest_client.delete('subjects/{}/versions/{}'.
                                             format(_urlencode(subject_name),
                                                    version))
@@ -600,8 +614,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `PUT Subject Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--config-(string-%20subject)>`_
-
         """  # noqa: E501
+
         if level is None:
             raise ValueError("level must be set")
 
@@ -629,8 +643,8 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Subject Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--config-(string-%20subject)>`_
-
         """  # noqa: E501
+
         if subject_name is not None:
             url = 'config/{}'.format(_urlencode(subject_name))
         else:
@@ -658,6 +672,7 @@ class SchemaRegistryClient(object):
         See Also:
             `POST Test Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
+
         request = {"schema": schema.schema_str}
         if schema.schema_type != "AVRO":
             request['schemaType'] = schema.schema_type
@@ -685,8 +700,8 @@ class Schema(object):
         references ([SchemaReference]): SchemaReferences used in this schema.
 
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
-
     """
+
     __slots__ = ['schema_str', 'references', 'schema_type', '_hash']
 
     def __init__(self, schema_str, schema_type, references=[]):
@@ -720,8 +735,8 @@ class RegisteredSchema(object):
         subject (str): Subject this schema is registered under
 
         version (int): Version of this subject this schema is registered to
-
     """
+
     def __init__(self, schema_id, schema, subject, version):
         self.schema_id = schema_id
         self.schema = schema
@@ -743,8 +758,8 @@ class SchemaReference(object):
         subject (str): Subject this Schema is registered with
 
         version (int): This Schema's version
-
     """
+
     def __init__(self, name, subject, version):
         super(SchemaReference, self).__init__()
         self.name = name
