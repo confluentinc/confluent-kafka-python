@@ -9,6 +9,10 @@
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
 
+### Fixes
+
+- Fix a typo in the value UNKNOWN of enum ConsumerGroupState.
+
 ## v2.0.2
 
 v2.0.2 is a feature release with the following features, fixes and enhancements:
