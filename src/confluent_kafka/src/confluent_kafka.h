@@ -356,6 +356,7 @@ typedef struct {
 	char *topic;
 	int   partition;
 	int64_t offset;
+	int32_t leader_epoch;
 	char *metadata;
 	PyObject *error;
 } TopicPartition;
@@ -428,6 +429,7 @@ typedef struct {
 	PyObject *error;
 	int32_t partition;
 	int64_t offset;
+	int32_t leader_epoch;
 	int64_t timestamp;
 	rd_kafka_timestamp_type_t tstype;
         int64_t latency;  /**< Producer: time it took to produce message */

@@ -1,6 +1,6 @@
 # Confluent's Python client for Apache Kafka
 
-## vNext
+## v2.1.0
 
 - Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
   SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
@@ -8,6 +8,11 @@
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
+- KIP-320: Add offset leader epoch methods to the TopicPartition and Messageclasses (#1540).
+
+confluent-kafka-python is based on librdkafka 2.1.0, see the
+[librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 ## v2.0.2
 
