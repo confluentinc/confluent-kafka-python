@@ -39,10 +39,16 @@ if __name__ == '__main__':
             'sasl.mechanism': 'PLAIN',
             'sasl.username': 'broker',
             'sasl.password': 'broker-secret',
-            'ssl.keystore.location': '/Users/prathi/work/docker-arm64/secrets/client.keystore.p12',
-            'ssl.keystore.password': '111111',
-            'ssl.ca.location': '/Users/prathi/work/docker-arm64/secrets/ca-root.crt',
-            'debug': 'security'
+            # 'ssl.keystore.location': '/Users/prathi/work/docker-sasl-plain/secrets/client.keystore.p12',
+            # 'ssl.keystore.password': '111111',
+            # 'ssl.providers': 'default,legacy',
+            'ssl.ca.location': '/Users/prathi/work/docker-sasl-plain/secrets/ca-root.crt',
+            'debug': 'security',
+            'ssl.key.location': '/Users/prathi/work/docker-sasl-plain/secrets/localhost_client.key',
+            'ssl.key.password': '111111',
+            'ssl.certificate.location': '/Users/prathi/work/docker-sasl-plain/secrets/localhost_client.crt',
+            'ssl.providers': 'fips,base',
+            # 'ssl.cipher.suites': 'ECDHE-ECDSA-CHACHA20-POLY1305'
             }
 
     # Create Producer instance
