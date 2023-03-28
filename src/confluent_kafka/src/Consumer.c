@@ -486,6 +486,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 	} else if (msg) {
 		Message *m;
                 PyObject *uo8;
+                rd_kafka_topic_partition_t *rktpar;
 
 		if (PyObject_Type((PyObject *)msg) !=
 		    (PyObject *)&MessageType) {
@@ -497,9 +498,12 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		m = (Message *)msg;
 
 		c_offsets = rd_kafka_topic_partition_list_new(1);
-		rd_kafka_topic_partition_list_add(
-			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-			m->partition)->offset =m->offset + 1;
+		rktpar = rd_kafka_topic_partition_list_add(
+			        c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
+			        m->partition);
+                rktpar->offset =m->offset + 1;
+                rd_kafka_topic_partition_set_leader_epoch(rktpar,
+                        m->leader_epoch);
                 Py_XDECREF(uo8);
 
 	} else {
@@ -612,6 +616,7 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	} else {
 		Message *m;
 		PyObject *uo8;
+                rd_kafka_topic_partition_t *rktpar;
 
 		if (PyObject_Type((PyObject *)msg) !=
 		    (PyObject *)&MessageType) {
@@ -623,9 +628,12 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 		m = (Message *)msg;
 
 		c_offsets = rd_kafka_topic_partition_list_new(1);
-		rd_kafka_topic_partition_list_add(
+		rktpar = rd_kafka_topic_partition_list_add(
 			c_offsets, cfl_PyUnistr_AsUTF8(m->topic, &uo8),
-			m->partition)->offset = m->offset + 1;
+			m->partition);
+                rktpar->offset = m->offset + 1;
+                rd_kafka_topic_partition_set_leader_epoch(rktpar,
+                        m->leader_epoch);
 		Py_XDECREF(uo8);
 	}
 
@@ -783,9 +791,11 @@ static PyObject *Consumer_resume (Handle *self, PyObject *args,
 static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) {
 
         TopicPartition *tp;
-        rd_kafka_resp_err_t err;
+        rd_kafka_resp_err_t err = RD_KAFKA_RESP_ERR_NO_ERROR;
         static char *kws[] = { "partition", NULL };
-        rd_kafka_topic_t *rkt;
+        rd_kafka_topic_partition_list_t *seek_partitions;
+        rd_kafka_topic_partition_t *rktpar;
+        rd_kafka_error_t *error;
 
         if (!self->rk) {
                 PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
@@ -803,21 +813,26 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
                 return NULL;
         }
 
-        rkt = rd_kafka_topic_new(self->rk, tp->topic, NULL);
-        if (!rkt) {
-                cfl_PyErr_Format(rd_kafka_last_error(),
-                                 "Failed to get topic object for "
-                                 "topic \"%s\": %s",
-                                 tp->topic,
-                                 rd_kafka_err2str(rd_kafka_last_error()));
-                return NULL;
-        }
+        seek_partitions = rd_kafka_topic_partition_list_new(1);
+        rktpar = rd_kafka_topic_partition_list_add(seek_partitions,
+                        tp->topic, tp->partition);
+        rktpar->offset = tp->offset;
+        rd_kafka_topic_partition_set_leader_epoch(rktpar, tp->leader_epoch);
 
         Py_BEGIN_ALLOW_THREADS;
-        err = rd_kafka_seek(rkt, tp->partition, tp->offset, -1);
+        error = rd_kafka_seek_partitions(self->rk, seek_partitions, -1);
         Py_END_ALLOW_THREADS;
 
-        rd_kafka_topic_destroy(rkt);
+        if (error) {
+                err = rd_kafka_error_code(error);
+                rd_kafka_error_destroy(error);
+        }
+
+        if (!err && seek_partitions->elems[0].err) {
+                err = seek_partitions->elems[0].err;
+        }
+
+        rd_kafka_topic_partition_list_destroy(seek_partitions);
 
         if (err) {
                 cfl_PyErr_Format(err,
