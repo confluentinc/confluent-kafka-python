@@ -689,9 +689,6 @@ class Schema(object):
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
 
         references ([SchemaReference]): SchemaReferences used in this schema.
-
-        named_schemas (dict): Named schemas
-
     """
     __slots__ = ['schema_str', 'schema_type', 'references', '_hash']
 

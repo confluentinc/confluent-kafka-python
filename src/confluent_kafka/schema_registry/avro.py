@@ -164,7 +164,7 @@ class AvroSerializer(Serializer):
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
+        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_ or Schema instance. If you need to reference other schemas, you must pass a Schema object.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
@@ -186,7 +186,7 @@ class AvroSerializer(Serializer):
         elif isinstance(schema_str, Schema):
             schema = schema_str
         else:
-            raise ValueError('You must pass either str or Schema')
+            raise ValueError('You must pass either string or schema object')
 
         self._registry = schema_registry_client
         self._schema_id = None
@@ -325,6 +325,7 @@ class AvroDeserializer(Deserializer):
 
         schema_str (str, Schema, optional): Avro reader schema declaration.
             If not provided, the writer schema will be used as the reader schema.
+            If you need to reference other schemas, you must pass a Schema object.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to an instance of some object.
@@ -350,7 +351,7 @@ class AvroDeserializer(Deserializer):
             elif isinstance(schema_str, Schema):
                 schema = schema_str
             else:
-                raise ValueError('You must pass either str or Schema')
+                raise ValueError('You must pass either string or schema object')
 
         self._schema = schema
         self._registry = schema_registry_client
