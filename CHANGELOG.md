@@ -8,8 +8,8 @@
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
-- KIP-320: Add offset leader epoch methods to the TopicPartition and Message
-  classes (#1540).
+- [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+  add offset leader epoch methods to the TopicPartition and Message classes (#1540).
 
 confluent-kafka-python is based on librdkafka 2.1.0, see the
 [librdkafka v2.1.0 release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.1.0)
