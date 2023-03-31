@@ -218,7 +218,7 @@ blocks:
           commands:
             - artifact pull workflow artifacts
             - cd artifacts
-            - ls *.gz |xargs -n1 tar -xvf
+            - ls *.tgz |xargs -n1 tar -xvf
             - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
             - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
