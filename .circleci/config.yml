@@ -1,0 +1,419 @@
+---
+version: 2.1
+
+architecture-parameter: &architecture-parameter
+  architecture:
+    type: string
+
+pass-architecture-parameter: &pass-architecture-parameter
+  architecture: '<< parameters.architecture >>'
+
+python-cache-key: &python-cache-key 'omadfg89'
+
+commands:
+  restore-python-cache:
+    parameters:
+      <<: *architecture-parameter
+      python-version:
+        type: string
+      cache-key:
+        type: string
+        default: *python-cache-key
+    steps:
+      - restore_cache:
+          key: 'python-<< parameters.python-version >>-<< parameters.architecture >>-<< parameters.cache-key >>'
+
+  save-python-cache:
+    parameters:
+      <<: *architecture-parameter
+      python-version:
+        type: string
+      cache-key:
+        type: string
+        default: *python-cache-key
+    steps:
+      - save_cache:
+          key: 'python-<< parameters.python-version >>-<< parameters.architecture >>-<< parameters.cache-key >>'
+          paths:
+            - '/opt/circleci/.pyenv/versions/<< parameters.python-version >>'
+
+  fetch-source:
+    parameters:
+      library:
+        type: string
+      source-url:
+        type: string
+      sha256sum:
+        type: string
+      cache-key:
+        type: string
+        default: 'fSExCuIs'
+    steps:
+      - restore_cache:
+          key: '<< parameters.library >>-<< parameters.sha256sum >>-<< parameters.cache-key >>'
+      - run:
+          name: 'Fetching source for << parameters.library >>'
+          command: |-
+            set -eux
+
+            declare cache_dir='/var/cache/circleci'
+            if [ ! -d "$cache_dir" ]; then
+                sudo mkdir "$cache_dir"
+                sudo chown "$(id -u):$(id -g)" "$cache_dir"
+            fi
+
+            declare -r tar_cache="${cache_dir}/<< parameters.library >>.tar.gz"
+            if [ -f "$tar_cache" ]; then
+                exit 0
+            fi
+
+            command curl \
+                --proto '=https' --tlsv1.2 --silent --show-error --location \
+                --header 'accept: application/octet-stream' \
+                --url '<< parameters.source-url >>' \
+                --output "$tar_cache"
+      - save_cache:
+          key: '<< parameters.library >>-<< parameters.sha256sum >>-<< parameters.cache-key >>'
+          paths:
+            - '/var/cache/circleci/<< parameters.library >>.tar.gz'
+
+  build-source:
+    parameters:
+      <<: *architecture-parameter
+      library:
+        type: string
+      configure-command:
+        type: string
+        default: ./configure
+      configure-args:
+        type: string
+        default: ''
+      build-command:
+        type: string
+        default: make
+      build-args:
+        type: string
+        default: ''
+      install-command:
+        type: string
+        default: make install
+      install-args:
+        type: string
+        default: ''
+    steps:
+      - run:
+          name: "Building << parameters.library >>"
+          command: |-
+            set -eux
+
+            declare source_tar='/var/cache/circleci/<< parameters.library >>.tar.gz'
+            declare source_dir="${HOME}/project/<< parameters.library >>"
+            if [ -f "$source_tar" ]; then
+                command mkdir -p "${source_dir}"
+                command tar \
+                    --extract --strip-components=1 \
+                    --file '/var/cache/circleci/<< parameters.library >>.tar.gz' \
+                    --directory "$source_dir"
+            fi
+
+            declare target_dir="${HOME}/project/root/<< parameters.architecture >>"
+
+            declare -a configure_command=(
+                << parameters.configure-command >>
+            )
+            declare -a configure_args=(
+                "--prefix=${target_dir}"
+                << parameters.configure-args >>
+            )
+            declare -a build_command=(
+                << parameters.build-command >>
+            )
+            declare -a build_args=(
+                << parameters.build-args >>
+            )
+            declare -a install_command=(
+                << parameters.install-command >>
+            )
+            declare -a install_args=(
+                << parameters.install-args >>
+            )
+
+            declare pkg_config_path
+            declare -a pkg_config_paths=(
+                "$HOME/project/root/<< parameters.architecture >>/lib/pkgconfig"
+                '/usr/lib/aarch64-linux-gnu/pkgconfig'
+                '/usr/lib/pkgconfig'
+                '/usr/share/pkgconfig'
+            )
+            for pkg_config_path in "${pkg_config_paths[@]}"; do
+                test -d "$pkg_config_path" || continue
+                PKG_CONFIG_PATH="${PKG_CONFIG_PATH:-}${PKG_CONFIG_PATH:+:}${pkg_config_path}"
+            done
+            export PKG_CONFIG_PATH
+
+            declare -a possible_libs=(
+                libxml-2.0 libzstd libcurl rdkafka
+            )
+            declare -a libs=()
+            for lib in "${possible_libs[@]}"; do
+                pkg-config --exists "$lib" || continue
+                libs+=("$lib")
+            done
+            export CFLAGS="${CFLAGS:-}${CFLAGS:+ }$(pkg-config --cflags "${libs[@]}" 2>/dev/null)"
+            export LDFLAGS="${LDFLAGS:-}${LDFLAGS:+ }$(pkg-config --libs "${libs[@]}" 2>/dev/null)"
+
+            (
+                command cd "$source_dir" || exit 1
+
+                if [ -n "${configure_command[*]}" ]; then
+                    "${configure_command[@]}" "${configure_args[@]}"
+                fi
+
+                if [ -n "${build_command[*]}" ]; then
+                    "${build_command[@]}" "${build_args[@]}"
+                fi
+
+                if [ -n "${install_command[*]}" ]; then
+                    "${install_command[@]}" "${install_args[@]}"
+                fi
+            )
+
+executor-environment: &executor-environment
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    TERM: xterm
+    CC: clang
+    CXX: clang++
+
+machine-image: &machine-image ubuntu-2004:current
+
+executors:
+  amd64:
+    parameters:
+      architecture:
+        type: string
+        default: 'medium'
+    machine:
+      image: *machine-image
+      resource_class: << parameters.architecture >>
+    <<: *executor-environment
+
+  aarch64:
+    parameters:
+      architecture:
+        type: string
+        default: 'arm.medium'
+    machine:
+      image: *machine-image
+      resource_class: << parameters.architecture >>
+    <<: *executor-environment
+
+architecture-executor: &architecture-executor
+  executor: << parameters.architecture >>
+
+jobs:
+  build-python:
+    parameters:
+      <<: *architecture-parameter
+      python-version:
+        type: string
+      packages:
+        type: string
+        default: ''
+    <<: *architecture-executor
+    steps:
+      - restore-python-cache:
+          <<: *pass-architecture-parameter
+          python-version: '<< parameters.python-version >>'
+      - run:
+          name: "Installing python"
+          command: |-
+            if [ ! -d '/opt/circleci/.pyenv/versions/<< parameters.python-version >>' ]; then
+                pyenv install << parameters.python-version >>
+            fi
+
+            pyenv global << parameters.python-version >>
+
+            python -m pip install --upgrade pip setuptools wheel
+
+            declare -a py_packages=(
+                << parameters.packages >>
+            )
+            if [ -n "${py_packages[*]}" ]; then
+                python -m pip install --upgrade "${py_packages[@]}"
+            fi
+          environment:
+            CC: gcc
+            CXX: gcc++
+      - save-python-cache:
+          <<: *pass-architecture-parameter
+          python-version: << parameters.python-version >>
+
+  build-librdkafka:
+    parameters:
+      <<: *architecture-parameter
+    <<: *architecture-executor
+    steps:
+      - run:
+          name: 'Installing dependencies'
+          command: |-
+            set -eux
+
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends \
+                clang \
+                libcurl4-openssl-dev \
+                liblz4-dev \
+                libsasl2-dev \
+                libxml2-dev
+      - fetch-source:
+          library: 'libzstd'
+          source-url: 'https://github.com/facebook/zstd/releases/download/v1.5.4/zstd-1.5.4.tar.gz'
+          sha256sum: '0f470992aedad543126d06efab344dc5f3e171893810455787d38347343a4424'
+      - fetch-source:
+          library: 'librdkafka'
+          source-url: 'https://github.com/trialspark/librdkafka/archive/refs/heads/master.tar.gz'
+          sha256sum: 'a11f84e0282203079f523eaa593b2ccf707cca043f7d1aa90a53a288ac0d194c'
+      - build-source:
+          <<: *pass-architecture-parameter
+          library: 'libzstd'
+          configure-command: ''
+          build-args: '"PREFIX=$target_dir"'
+          install-command: 'make'
+          install-args: '"PREFIX=$target_dir" install'
+      - build-source:
+          <<: *pass-architecture-parameter
+          library: 'librdkafka'
+      - persist_to_workspace:
+          root: .
+          paths:
+            - root/<< parameters.architecture >>
+
+  build-confluent-kafka-python-wheel:
+    parameters:
+      <<: *architecture-parameter
+      python-version:
+        type: string
+    <<: *architecture-executor
+    steps:
+      - run:
+          name: 'Installing dependencies'
+          command: |-
+            set -eux
+
+            sudo apt-get update
+            sudo apt-get install --yes --no-install-recommends clang patchelf
+      - restore-python-cache:
+          <<: *pass-architecture-parameter
+          python-version: << parameters.python-version >>
+      - checkout:
+          path: ./confluent-kafka-python
+      - attach_workspace:
+          at: .
+      - run:
+          name: 'Enabling python-<< parameters.python-version >>'
+          command: |-
+            set -eux
+
+            pyenv global << parameters.python-version >>
+      - build-source:
+          <<: *pass-architecture-parameter
+          library: 'confluent-kafka-python'
+          configure-command: ''
+          build-command: 'python setup.py'
+          build-args: 'bdist_wheel'
+          install-command: find
+          install-args: dist -name '*.whl' -exec install --verbose -D {} "$HOME"/project/wheelhouse/{} \;
+      - run:
+          name: 'Repairing generated wheel file'
+          command: |-
+            set -eux
+
+            export LD_LIBRARY_PATH="$HOME/project/root/<< parameters.architecture >>/lib"
+            python -m auditwheel repair --plat "manylinux_2_31_$(uname -m)" "$HOME"/project/wheelhouse/dist/*.whl
+            rm -r "$HOME"/project/wheelhouse/dist
+      - persist_to_workspace:
+          root: .
+          paths:
+            - wheelhouse
+
+  upload-wheels:
+    docker:
+      - image: cimg/base:current
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: .
+      - store_artifacts:
+          path: wheelhouse
+          destination: wheelhouse
+      - run:
+          name: 'Uploading wheels'
+          command: |-
+            set -eux
+
+            declare -r shared_services_account_id='622627819221'
+            declare -r shared_services_domain='trialspark'
+
+            # export TWINE_USERNAME=aws
+            # export TWINE_PASSWORD="$(
+            #     aws codeartifact get-authorization-token \
+            #         --domain "$shared_services_domain" \
+            #         --domain-owner "$shared_services_account_id" \
+            #         --query authorizationToken \
+            #         --output text
+            # )"
+            # export TWINE_REPOSITORY_URL="$(
+            #     aws codeartifact get-repository-endpoint \
+            #         --domain "$shared_services_domain" \
+            #         --domain-owner "$shared_services_account_id" \
+            #         --repository 'dist' \
+            #         --format 'pypi' \
+            #         --query 'repositoryEndpoint' \
+            #         --output 'text'
+            # )"
+
+            echo twine upload wheelhouse/*.whl
+
+architecture-values: &architecture-values
+  architecture:
+    - amd64
+    - aarch64
+
+python-version-values: &python-version-values
+  python-version:
+    - 3.8.16
+    - 3.9.16
+    - 3.10.9
+    - 3.11.1
+
+workflows:
+  test:
+    jobs:
+      - build-python:
+          name: 'Build python-<< matrix.python-version >>_<< matrix.architecture >>'
+          matrix:
+            parameters:
+              <<: *architecture-values
+              <<: *python-version-values
+              packages:
+                - |-
+                  'auditwheel==5.3.0'
+      - build-librdkafka:
+          name: 'Build librdkafka_<< matrix.architecture >>'
+          matrix:
+            parameters:
+              <<: *architecture-values
+      - build-confluent-kafka-python-wheel:
+          name: 'Build confluent-kafka wheel for python-<< matrix.python-version >>_<< matrix.architecture >>'
+          matrix:
+            parameters:
+              <<: *architecture-values
+              <<: *python-version-values
+          requires:
+            - 'Build python-<< matrix.python-version >>_<< matrix.architecture >>'
+            - 'Build librdkafka_<< matrix.architecture >>'
+      - upload-wheels:
+          name: 'Upload wheels to AWS CodeArtifact Repository'
+          requires:
+            - build-confluent-kafka-python-wheel
