@@ -311,7 +311,7 @@ class JSONDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas.
     """  # noqa: E501
 
-    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided']
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
 
     def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
         self._are_references_provided = False
@@ -327,6 +327,7 @@ class JSONDeserializer(Deserializer):
             raise ValueError('You must pass either str or Schema')
 
         self._parsed_schema = json.loads(schema.schema_str)
+        self._schema = schema
         self._registry = schema_registry_client
 
         if from_dict is not None and not callable(from_dict):
@@ -374,8 +375,7 @@ class JSONDeserializer(Deserializer):
 
             try:
                 if self._are_references_provided:
-                    registered_schema = self._registry.get_schema(schema_id)
-                    named_schemas = _resolve_named_schema(registered_schema, self._registry)
+                    named_schemas = _resolve_named_schema(self._schema, self._registry)
                     validate(instance=obj_dict,
                              schema=self._parsed_schema, resolver=RefResolver(_id_of(self._parsed_schema),
                                                                               self._parsed_schema,
