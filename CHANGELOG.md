@@ -8,7 +8,8 @@
 - Added support for Default num_partitions in CreateTopics Admin API.
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
-- Add support for passing schema references in JSONSerializer and JSONDeserializer. Need to pass a schema instance to the constructor.
+- Migrated travis jobs to Semaphore CI (#1503)
+- Add support for passing schema references in JSONSerializer and JSONDeserializer. Need to pass a schema instance to the constructor. (#1514)
 
 ## v2.0.2
 
