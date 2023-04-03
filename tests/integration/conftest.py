@@ -57,10 +57,12 @@ def kafka_cluster_fixture(
     If BROKERS is not set a TrivUp cluster is created and used.
     """
 
-    bootstraps = os.environ.get(brokers_env, "")
+    # bootstraps = os.environ.get(brokers_env, "")
+    bootstraps = "localhost:57644"
     if bootstraps != "":
         conf = {"bootstrap.servers": bootstraps}
-        sr_url = os.environ.get(sr_url_env, "")
+        # sr_url = os.environ.get(sr_url_env, "")
+        sr_url = "http://localhost:57647"
         if sr_url != "":
             conf["schema.registry.url"] = sr_url
         print("Using ByoFixture with config from env variables: ", conf)
