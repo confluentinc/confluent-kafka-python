@@ -77,10 +77,11 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
     """
     if named_schemas is None:
         named_schemas = {}
-    for ref in schema.references:
-        referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
-        _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
-        parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=named_schemas)
+    if schema.references is not None:
+        for ref in schema.references:
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
+            parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=named_schemas)
     parse_schema(loads(schema.schema_str), named_schemas=named_schemas)
     return named_schemas
 
@@ -164,7 +165,7 @@ class AvroSerializer(Serializer):
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_ or Schema instance. If you need to reference other schemas, you must pass a Schema object.
+        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_ as either a string or a `Schema` instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
@@ -323,9 +324,9 @@ class AvroDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
 
-        schema_str (str, Schema, optional): Avro reader schema declaration.
-            If not provided, the writer schema will be used as the reader schema.
-            If you need to reference other schemas, you must pass a Schema object.
+        schema_str (str, Schema, optional): Avro reader schema declaration as either a string or a `Schema` instance.
+        If not provided, the writer schema will be used as the reader schema. Note that string definitions cannot
+        reference other schemas. For referencing other schemas, use a Schema instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to an instance of some object.
