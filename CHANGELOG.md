@@ -9,7 +9,7 @@
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
 - Migrated travis jobs to Semaphore CI (#1503)
-
+- Added support for schema references in AvroSerializer and AvroDeserializer. (@slominskir, #1088)
 
 ## v2.0.2
 
