@@ -54,7 +54,7 @@ $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
 
-python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
+python -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
 if [[ -z $TRAVIS ]]; then
