@@ -62,11 +62,12 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
     """
     if named_schemas is None:
         named_schemas = {}
-    for ref in schema.references:
-        referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
-        _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
-        referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
-        named_schemas[_id_of(referenced_schema_dict)] = referenced_schema_dict
+    if schema.references is not None:
+        for ref in schema.references:
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
+            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
+            named_schemas[_id_of(referenced_schema_dict)] = referenced_schema_dict
     schema_dict = json.loads(schema.schema_str)
     named_schemas[_id_of(schema_dict)] = schema_dict
     return named_schemas
@@ -151,7 +152,7 @@ class JSONSerializer(Serializer):
         callable with JSONSerializer.
 
     Args:
-        schema_str (str, Schema): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ or Schema instance. If you need to reference other schemas, use the Schema class.
+        schema_str (str, Schema): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ as either a string or a `Schema` instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         schema_registry_client (SchemaRegistryClient): Schema Registry
             client instance.
@@ -163,7 +164,7 @@ class JSONSerializer(Serializer):
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema', '_registry', '_schema', '_schema_id',
-                 '_schema_name', '_subject_name_func', '_to_dict', '_schema_string_passed']
+                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
@@ -171,12 +172,13 @@ class JSONSerializer(Serializer):
                      'subject.name.strategy': topic_subject_name_strategy}
 
     def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
+        self._are_references_provided = False
         if isinstance(schema_str, str):
             self._schema = Schema(schema_str, schema_type="JSON")
-            self._schema_string_passed = True
         elif isinstance(schema_str, Schema):
             self._schema = schema_str
-            self._schema_string_passed = False
+            if schema_str.references is not None and len(schema_str.references) > 0:
+                self._are_references_provided = True
         else:
             raise ValueError('You must pass either str or Schema')
 
@@ -275,16 +277,13 @@ class JSONSerializer(Serializer):
             value = obj
 
         try:
-            if not self._schema_string_passed:
+            if self._are_references_provided:
                 named_schemas = _resolve_named_schema(self._schema, self._registry)
-            else:
-                named_schemas = {}
-            # If there are any references
-            if len(named_schemas) > 1:
-                validate(instance=value, schema=self._parsed_schema,
-                         resolver=RefResolver(_id_of(self._parsed_schema),
-                                              self._parsed_schema,
-                                              store=named_schemas))
+                if len(named_schemas) > 1:
+                    validate(instance=value, schema=self._parsed_schema,
+                             resolver=RefResolver(_id_of(self._parsed_schema),
+                                                  self._parsed_schema,
+                                                  store=named_schemas))
             else:
                 validate(instance=value, schema=self._parsed_schema)
         except ValidationError as ve:
@@ -306,7 +305,7 @@ class JSONDeserializer(Deserializer):
     framing.
 
     Args:
-        schema_str (str, Schema): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ use for validating records. If you need to reference other schemas, you must pass a Schema object.
+        schema_str (str, Schema): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ as either a string or a `Schema` instance used for validating records. Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to a Python object instance.
@@ -314,15 +313,19 @@ class JSONDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas.
     """  # noqa: E501
 
-    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_schema_string_passed']
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided']
 
     def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
+        self._are_references_provided = False
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
-            self._schema_string_passed = True
         elif isinstance(schema_str, Schema):
             schema = schema_str
-            self._schema_string_passed = False
+            if schema.references is not None and len(schema.references) > 0:
+                self._are_references_provided = True
+            if self._are_references_provided and schema_registry_client is None:
+                raise ValueError("schema_registry_client must be provided if schema_str is a Schema instance with "
+                                 "references")
         else:
             raise ValueError('You must pass either str or Schema')
 
@@ -373,13 +376,9 @@ class JSONDeserializer(Deserializer):
             obj_dict = json.loads(payload.read())
 
             try:
-                if not self._schema_string_passed and self._registry is not None:
+                if self._are_references_provided:
                     registered_schema = self._registry.get_schema(schema_id)
                     named_schemas = _resolve_named_schema(registered_schema, self._registry)
-                else:
-                    named_schemas = {}
-                # If there are any references
-                if len(named_schemas) > 1:
                     validate(instance=obj_dict,
                              schema=self._parsed_schema, resolver=RefResolver(_id_of(self._parsed_schema),
                                                                               self._parsed_schema,
