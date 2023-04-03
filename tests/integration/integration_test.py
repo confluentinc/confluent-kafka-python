@@ -330,9 +330,9 @@ def verify_producer_performance(with_dr_cb=True):
         bar.finish()
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt/t_produce_spent) / (1024*1024)))
+           (bytecnt / t_produce_spent) / (1024 * 1024)))
     print('# %d temporary produce() failures due to backpressure (local queue full)' % msgs_backpressure)
 
     print('waiting for %d/%d deliveries' % (len(p), msgs_produced))
@@ -341,9 +341,9 @@ def verify_producer_performance(with_dr_cb=True):
     t_delivery_spent = time.time() - t_produce_start
 
     print('# producing %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (msgs_produced, bytecnt / (1024*1024), t_produce_spent,
+          (msgs_produced, bytecnt / (1024 * 1024), t_produce_spent,
            msgs_produced / t_produce_spent,
-           (bytecnt/t_produce_spent) / (1024*1024)))
+           (bytecnt / t_produce_spent) / (1024 * 1024)))
 
     # Fake numbers if not using a dr_cb
     if not with_dr_cb:
@@ -352,9 +352,9 @@ def verify_producer_performance(with_dr_cb=True):
         dr.bytes_delivered = bytecnt
 
     print('# delivering %d messages (%.2fMb) took %.3fs: %d msgs/s, %.2f Mb/s' %
-          (dr.msgs_delivered, dr.bytes_delivered / (1024*1024), t_delivery_spent,
+          (dr.msgs_delivered, dr.bytes_delivered / (1024 * 1024), t_delivery_spent,
            dr.msgs_delivered / t_delivery_spent,
-           (dr.bytes_delivered/t_delivery_spent) / (1024*1024)))
+           (dr.bytes_delivered / t_delivery_spent) / (1024 * 1024)))
     print('# post-produce delivery wait took %.3fs' %
           (t_delivery_spent - t_produce_spent))
 
@@ -444,7 +444,7 @@ def verify_consumer():
         elif (msg.offset() % 4) == 0:
             offsets = c.commit(msg, asynchronous=False)
             assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-            assert offsets[0].offset == msg.offset()+1, \
+            assert offsets[0].offset == msg.offset() + 1, \
                 'expected offset %d to be committed, not %s' % \
                 (msg.offset(), offsets)
             print('Sync committed offset: %s' % offsets)
@@ -556,8 +556,8 @@ def verify_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
@@ -634,7 +634,7 @@ def verify_batch_consumer():
             elif (msg.offset() % 4) == 0:
                 offsets = c.commit(msg, asynchronous=False)
                 assert len(offsets) == 1, 'expected 1 offset, not %s' % (offsets)
-                assert offsets[0].offset == msg.offset()+1, \
+                assert offsets[0].offset == msg.offset() + 1, \
                     'expected offset %d to be committed, not %s' % \
                     (msg.offset(), offsets)
                 print('Sync committed offset: %s' % offsets)
@@ -729,8 +729,8 @@ def verify_batch_consumer_performance():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
@@ -1026,8 +1026,8 @@ def verify_stats_cb():
     if msgcnt > 0:
         t_spent = time.time() - t_first_msg
         print('%d messages (%.2fMb) consumed in %.3fs: %d msgs/s, %.2f Mb/s' %
-              (msgcnt, bytecnt / (1024*1024), t_spent, msgcnt / t_spent,
-               (bytecnt / t_spent) / (1024*1024)))
+              (msgcnt, bytecnt / (1024 * 1024), t_spent, msgcnt / t_spent,
+               (bytecnt / t_spent) / (1024 * 1024)))
 
     print('closing consumer')
     c.close()
