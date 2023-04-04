@@ -182,6 +182,31 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_describe_topics_result(f, futmap):
+        """
+        Map per-topic results to per-topic futures in futmap.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all topics
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
     def _make_consumer_group_offsets_result(f, futmap):
         """
         Map per-group results to per-group futures in futmap.
@@ -664,6 +689,7 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
+        :param bool include_authorized_operations: If True, fetches group AclOperations. Default: False
         :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
 
@@ -687,6 +713,38 @@ class AdminClient (_AdminClientImpl):
                                               AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
+    
+    def describe_topic(self, topics, **kwargs):
+        """
+        Describe topics.
+
+        :param list(str) topics: List of topics which need to be described.
+        :param bool include_topic_authorized_operations: If True, fetches topic AclOperations. Default: False
+        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
+                  Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each topic, keyed by the topic.
+                  The future result() method returns :class:`ConsumerGroupDescription`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        if not isinstance(topics, list):
+            raise TypeError("Expected input to be list of group ids to be described")
+
+        if len(topics) == 0:
+            raise ValueError("Expected at least one group to be described")
+
+        f, futmap = AdminClient._make_futures(topics, None,
+                                              AdminClient._make_describe_topics_result)
+
+        super(AdminClient, self).describe_topics(topics, f, **kwargs)
 
         return futmap
 

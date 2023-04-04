@@ -78,6 +78,9 @@ struct Admin_options {
         float operation_timeout;                        /* parser: f */
         int   broker;                                   /* parser: i */
         int require_stable_offsets;                     /* needs special bool parsing */
+        int include_authorized_operations;              /* needs special bool parsing */
+        int include_topic_authorized_operations;        /* needs special bool parsing */
+        int include_cluster_authorized_operations;      /* needs special bool parsing */
         rd_kafka_consumer_group_state_t* states;
         int states_cnt;
 };
@@ -88,6 +91,9 @@ struct Admin_options {
                 Admin_options_def_int,           \
                 Admin_options_def_float,         \
                 Admin_options_def_float,         \
+                Admin_options_def_int,           \
+                Admin_options_def_int,           \
+                Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_ptr,           \
@@ -156,6 +162,27 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->require_stable_offsets) &&
             (err_obj = rd_kafka_AdminOptions_set_require_stable_offsets(
                     c_options, options->require_stable_offsets))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_int(options->include_authorized_operations) &&
+            (err_obj = rd_kafka_AdminOptions_set_include_authorized_operations(
+                    c_options, options->include_authorized_operations))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_int(options->include_topic_authorized_operations) &&
+            (err_obj = rd_kafka_AdminOptions_set_include_topic_authorized_operations(
+                    c_options, options->include_topic_authorized_operations))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_int(options->include_cluster_authorized_operations) &&
+            (err_obj = rd_kafka_AdminOptions_set_include_cluster_authorized_operations(
+                    c_options, options->include_cluster_authorized_operations))) {
                 strcpy(errstr, rd_kafka_error_string(err_obj));
                 goto err;
         }
@@ -1535,7 +1562,7 @@ const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
  * @brief Describe consumer groups
  */
 PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *future, *group_ids;
+        PyObject *future, *group_ids, *include_authorized_operations = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         const char **c_groups = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -1547,15 +1574,24 @@ PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject
         static char *kws[] = {"future",
                              "group_ids",
                              /* options */
+                             "include_authorized_operations",
                              "request_timeout",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
                                          &group_ids,
                                          &future,
-                                         &options.request_timeout)) {
+                                         &include_authorized_operations,
+                                         &options.request_timeout
+                                         )) {
                 goto err;
         }
+
+
+        if (include_authorized_operations &&
+            !cfl_PyBool_get(include_authorized_operations, "include_authorized_operations",
+                            &options.include_authorized_operations))
+                goto err;
 
         if (!PyList_Check(group_ids) || (groups_cnt = (int)PyList_Size(group_ids)) < 1) {
                 PyErr_SetString(PyExc_ValueError,
@@ -1631,7 +1667,7 @@ err:
 
 
 const char Admin_describe_consumer_groups_doc[] = PyDoc_STR(
-        ".. py:function:: describe_consumer_groups(future, group_ids, [request_timeout])\n"
+        ".. py:function:: describe_consumer_groups(future, group_ids, [request_timeout], [include_authorized_operations])\n"
         "\n"
         "  Describes the provided consumer groups.\n"
         "\n"
@@ -2736,7 +2772,10 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(
         PyObject *py_is_simple_consumer_group = NULL;
         PyObject *coordinator = NULL;
         PyObject *members = NULL;
+        PyObject *authorized_operations = NULL;
         const rd_kafka_Node_t *c_coordinator = NULL;
+        size_t c_authorized_operations_cnt = 0;
+        size_t i = 0;
 
         ConsumerGroupDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                             "ConsumerGroupDescription");
@@ -2760,6 +2799,17 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(
                 goto err;
         }
         PyDict_SetItemString(kwargs, "members", members);
+
+        authorized_operations = PyList_New(c_authorized_operations_cnt);
+        for(i = 0; i<c_authorized_operations_cnt; i++){
+                int c_acl_op = 
+                        rd_kafka_ConsumerGroupDescription_authorized_operation(
+                                c_consumer_group_description, i);
+
+                PyObject *acl_op = PyLong_FromLong(c_acl_op);
+                PyList_SET_ITEM(authorized_operations, i, acl_op);
+        }
+        PyDict_SetItemString(kwargs, "authorized_operations", authorized_operations);
 
         c_coordinator = rd_kafka_ConsumerGroupDescription_coordinator(c_consumer_group_description);
         coordinator = c_Node_to_py(c_coordinator);
@@ -2786,6 +2836,7 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(
         Py_DECREF(ConsumerGroupDescription_type);
         Py_DECREF(coordinator);
         Py_DECREF(members);
+        Py_DECREF(authorized_operations);
         return consumer_group_description;
 
 err:
@@ -2795,6 +2846,7 @@ err:
         Py_XDECREF(coordinator);
         Py_XDECREF(ConsumerGroupDescription_type);
         Py_XDECREF(members);
+        Py_DECREF(authorized_operations);
         return NULL;
 
 }
