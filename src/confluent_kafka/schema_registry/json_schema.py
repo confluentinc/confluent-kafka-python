@@ -43,15 +43,6 @@ class _ContextStringIO(BytesIO):
         return False
 
 
-def _id_of(schema):
-    """
-    Returns the schema id if present otherwise None.
-    :param schema: Schema to return id of.
-    :return: Id of schema if present otherwise None.
-    """
-    return schema.get('$id')
-
-
 def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
     """
     Resolves named schemas referenced by the provided schema recursively.
