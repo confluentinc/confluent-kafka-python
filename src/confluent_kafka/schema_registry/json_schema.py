@@ -67,9 +67,7 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
             referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
-            named_schemas[_id_of(referenced_schema_dict)] = referenced_schema_dict
-    schema_dict = json.loads(schema.schema_str)
-    named_schemas[_id_of(schema_dict)] = schema_dict
+            named_schemas[ref.name] = referenced_schema_dict
     return named_schemas
 
 
@@ -279,7 +277,7 @@ class JSONSerializer(Serializer):
             if self._are_references_provided:
                 named_schemas = _resolve_named_schema(self._schema, self._registry)
                 validate(instance=value, schema=self._parsed_schema,
-                         resolver=RefResolver(_id_of(self._parsed_schema),
+                         resolver=RefResolver(self._parsed_schema.get('$id'),
                                               self._parsed_schema,
                                               store=named_schemas))
             else:
@@ -377,7 +375,7 @@ class JSONDeserializer(Deserializer):
                 if self._are_references_provided:
                     named_schemas = _resolve_named_schema(self._schema, self._registry)
                     validate(instance=obj_dict,
-                             schema=self._parsed_schema, resolver=RefResolver(_id_of(self._parsed_schema),
+                             schema=self._parsed_schema, resolver=RefResolver(self._parsed_schema.get('$id'),
                                                                               self._parsed_schema,
                                                                               store=named_schemas))
                 else:
