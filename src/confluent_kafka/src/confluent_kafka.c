@@ -912,7 +912,8 @@ static int TopicPartition_traverse (TopicPartition *self,
 	return 0;
 }
 
-static PyObject *TopicPartition_get_leader_epoch (TopicPartition *tp, void *closure) {
+static PyObject *TopicPartition_get_leader_epoch (PyObject *po, void *closure) {
+        TopicPartition *tp = po;
         if (tp->leader_epoch >= 0) {
                 return cfl_PyInt_FromInt(tp->leader_epoch);
         }
