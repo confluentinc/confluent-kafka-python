@@ -49,7 +49,7 @@ def _id_of(schema):
     :param schema: Schema to return id of.
     :return: Id of schema if present otherwise None.
     """
-    return schema.get('$id', "None")
+    return schema.get('$id')
 
 
 def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
