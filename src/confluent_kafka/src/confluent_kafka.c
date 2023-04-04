@@ -912,8 +912,7 @@ static int TopicPartition_traverse (TopicPartition *self,
 	return 0;
 }
 
-static PyObject *TopicPartition_get_leader_epoch (PyObject *po, void *closure) {
-        TopicPartition *tp = po;
+static PyObject *TopicPartition_get_leader_epoch (TopicPartition *tp, void *closure) {
         if (tp->leader_epoch >= 0) {
                 return cfl_PyInt_FromInt(tp->leader_epoch);
         }
@@ -943,8 +942,9 @@ static PyMemberDef TopicPartition_members[] = {
         { NULL }
 };
 
-static PyGetSetDef TopicPartition_getter_and_setters[] = {
-        { "leader_epoch", TopicPartition_get_leader_epoch,
+static PyGetSetDef TopicPartition_getters_and_setters[] = {
+        { "leader_epoch",
+          (getter) TopicPartition_get_leader_epoch,
           NULL,
           ":attribute leader_epoch: Offset leader epoch (int), or None"},
 };
@@ -1081,20 +1081,20 @@ PyTypeObject TopicPartitionType = {
 	(traverseproc)TopicPartition_traverse, /* tp_traverse */
 	(inquiry)TopicPartition_clear,       /* tp_clear */
 	(richcmpfunc)TopicPartition_richcompare, /* tp_richcompare */
-	0,		                   /* tp_weaklistoffset */
-	0,		                   /* tp_iter */
-	0,		                   /* tp_iternext */
-	0,                                 /* tp_methods */
-	TopicPartition_members,            /* tp_members */
-	TopicPartition_getter_and_setters, /* tp_getset */
-	0,                                 /* tp_base */
-	0,                                 /* tp_dict */
-	0,                                 /* tp_descr_get */
-	0,                                 /* tp_descr_set */
-	0,                                 /* tp_dictoffset */
-	TopicPartition_init,               /* tp_init */
-	0,                                 /* tp_alloc */
-	TopicPartition_new                 /* tp_new */
+	0,		                    /* tp_weaklistoffset */
+	0,		                    /* tp_iter */
+	0,		                    /* tp_iternext */
+	0,                                  /* tp_methods */
+	TopicPartition_members,             /* tp_members */
+	TopicPartition_getters_and_setters, /* tp_getset */
+	0,                                  /* tp_base */
+	0,                                  /* tp_dict */
+	0,                                  /* tp_descr_get */
+	0,                                  /* tp_descr_set */
+	0,                                  /* tp_dictoffset */
+	TopicPartition_init,                /* tp_init */
+	0,                                  /* tp_alloc */
+	TopicPartition_new                  /* tp_new */
 };
 
 /**
