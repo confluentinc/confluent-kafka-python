@@ -229,7 +229,7 @@ def test_avro_serializer_invalid_schema_type():
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    with pytest.raises(ValueError, match="You must pass either string or schema object"):
+    with pytest.raises(TypeError, match="You must pass either string or schema object"):
         AvroSerializer(test_client, 1)
 
 
@@ -239,5 +239,5 @@ def test_avro_deserializer_invalid_schema_type():
     """
     conf = {'url': TEST_URL}
     test_client = SchemaRegistryClient(conf)
-    with pytest.raises(ValueError, match="You must pass either string or schema object"):
+    with pytest.raises(TypeError, match="You must pass either string or schema object"):
         AvroDeserializer(test_client, 1)

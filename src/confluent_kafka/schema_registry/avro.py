@@ -187,7 +187,7 @@ class AvroSerializer(Serializer):
         elif isinstance(schema_str, Schema):
             schema = schema_str
         else:
-            raise ValueError('You must pass either string or schema object')
+            raise TypeError('You must pass either string or schema object')
 
         self._registry = schema_registry_client
         self._schema_id = None
@@ -352,7 +352,7 @@ class AvroDeserializer(Deserializer):
             elif isinstance(schema_str, Schema):
                 schema = schema_str
             else:
-                raise ValueError('You must pass either string or schema object')
+                raise TypeError('You must pass either string or schema object')
 
         self._schema = schema
         self._registry = schema_registry_client
