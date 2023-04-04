@@ -179,7 +179,7 @@ class JSONSerializer(Serializer):
             self._schema = schema_str
             self._are_references_provided = bool(schema_str.references)
         else:
-            raise ValueError('You must pass either str or Schema')
+            raise TypeError('You must pass either str or Schema')
 
         self._registry = schema_registry_client
         self._schema_id = None
@@ -324,7 +324,7 @@ class JSONDeserializer(Deserializer):
                 raise ValueError(
                     """schema_registry_client must be provided if "schema_str" is a Schema instance with references""")
         else:
-            raise ValueError('You must pass either str or Schema')
+            raise TypeError('You must pass either str or Schema')
 
         self._parsed_schema = json.loads(schema.schema_str)
         self._schema = schema
