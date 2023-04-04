@@ -569,7 +569,8 @@ def verify_consumer_seek(c, seek_to_msg):
 
     tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
                                         seek_to_msg.partition(),
-                                        seek_to_msg.offset())
+                                        seek_to_msg.offset(),
+                                        leader_epoch=seek_to_msg.leader_epoch())
     print('seek: Seeking to %s' % tp)
     c.seek(tp)
 
@@ -583,9 +584,14 @@ def verify_consumer_seek(c, seek_to_msg):
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
             continue
 
-        print('seek: message at offset %d' % msg.offset())
-        assert msg.offset() == seek_to_msg.offset(), \
-            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        print('seek: message at offset %d (epoch %d)' %
+              (msg.offset(), msg.leader_epoch()))
+        assert msg.offset() == seek_to_msg.offset() and \
+               msg.leader_epoch() == seek_to_msg.leader_epoch(), \
+               ('expected message at offset %d (epoch %d), ' % (seek_to_msg.offset(),
+                                                                seek_to_msg.leader_epoch())) + \
+               ('not %d (epoch %d)' % (msg.offset(),
+                                       msg.leader_epoch()))
         break
 
 
