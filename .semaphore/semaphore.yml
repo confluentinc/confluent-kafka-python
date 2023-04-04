@@ -12,46 +12,46 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-arm64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: CIBW_ARCHS
-          value: arm64
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: OSX x64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: OSX arm64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-arm64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: CIBW_ARCHS
+  #         value: arm64
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -71,25 +71,25 @@ blocks:
             - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: Linux x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-amd64-3
-      env_vars:
-        - name: OS_NAME
-          value: linux
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: Linux x64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-amd64-3
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
     run:
       when: "tag =~ '.*'"
@@ -204,10 +204,10 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64"
-      - "Wheels: OSX arm64"
+      # - "Wheels: OSX x64"
+      # - "Wheels: OSX arm64"
       - "Wheels: Linux arm64"
-      - "Wheels: Linux x64"
+      # - "Wheels: Linux x64"
       - "Wheels: Windows"
     task:
       agent:
