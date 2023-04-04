@@ -946,7 +946,7 @@ static PyGetSetDef TopicPartition_getters_and_setters[] = {
         { "leader_epoch",
           (getter) TopicPartition_get_leader_epoch,
           NULL,
-          ":attribute leader_epoch: Offset leader epoch (int), or None"},
+          ":attribute leader_epoch: Offset leader epoch (int), or None"}
 };
 
 
