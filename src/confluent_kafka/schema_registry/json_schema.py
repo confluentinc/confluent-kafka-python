@@ -321,8 +321,8 @@ class JSONDeserializer(Deserializer):
             schema = schema_str
             self._are_references_provided = bool(schema_str.references)
             if self._are_references_provided and schema_registry_client is None:
-                raise ValueError("schema_registry_client must be provided if \"schema_str\" is a Schema instance with "
-                                 "references")
+                raise ValueError(
+                    """schema_registry_client must be provided if "schema_str" is a Schema instance with references""")
         else:
             raise ValueError('You must pass either str or Schema')
 
