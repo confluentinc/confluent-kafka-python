@@ -40,7 +40,7 @@ class PartitionDescription:
 
 class TopicDescription:
     """
-    Represents topic description information for a group used in describe topic operation.
+    Represents topic description information for a topic used in describe topic operation.
     Used by :meth:`AdminClient.describe_topics`.
 
     Parameters
