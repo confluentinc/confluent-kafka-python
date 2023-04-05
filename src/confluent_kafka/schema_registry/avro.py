@@ -186,7 +186,7 @@ class AvroSerializer(Serializer):
         elif isinstance(schema_str, Schema):
             schema = schema_str
         else:
-            raise TypeError('You must pass either string or schema object')
+            raise TypeError('You must pass either schema string or schema object')
 
         self._registry = schema_registry_client
         self._schema_id = None
@@ -324,7 +324,7 @@ class AvroDeserializer(Deserializer):
             client instance.
 
         schema_str (str, Schema, optional): Avro reader schema declaration Accepts either a string or a `Schema`(
-        Schema) instance If not provided, the writer schema will be used as the reader schema. Note that string
+        Schema) instance. If not provided, the writer schema will be used as the reader schema. Note that string
         definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
@@ -351,7 +351,7 @@ class AvroDeserializer(Deserializer):
             elif isinstance(schema_str, Schema):
                 schema = schema_str
             else:
-                raise TypeError('You must pass either string or schema object')
+                raise TypeError('You must pass either schema string or schema object')
 
         self._schema = schema
         self._registry = schema_registry_client
