@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://example.com/order_details.schema.json",
+  "title": "Order Details",
+  "description": "Order Details",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Order Id",
+      "type": "integer"
+    },
+    "customer": {
+      "description": "Customer",
+      "$ref": "http://example.com/customer.schema.json"
+    },
+    "payment_id": {
+      "description": "Payment Id",
+      "type": "string"
+    }
+  },
+  "required": [ "id", "customer"]
+}
