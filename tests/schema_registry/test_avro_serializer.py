@@ -20,7 +20,7 @@ import pytest
 from confluent_kafka.schema_registry import (record_subject_name_strategy,
                                              SchemaRegistryClient,
                                              topic_record_subject_name_strategy)
-from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry.avro import AvroSerializer, AvroDeserializer
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
 
@@ -106,7 +106,7 @@ def test_avro_serializer_config_subject_name_strategy():
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+                                               record_subject_name_strategy})
 
     assert test_serializer._subject_name_func is record_subject_name_strategy
 
@@ -132,7 +132,7 @@ def test_avro_serializer_record_subject_name_strategy(load_avsc):
     test_serializer = AvroSerializer(test_client,
                                      load_avsc('basic_schema.avsc'),
                                      conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+                                               record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE, [])
     assert test_serializer._subject_name_func(ctx,
@@ -150,7 +150,7 @@ def test_avro_serializer_record_subject_name_strategy_primitive(load_avsc):
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                           record_subject_name_strategy})
+                                               record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'header value 1'), ])
     assert test_serializer._subject_name_func(ctx,
@@ -167,7 +167,7 @@ def test_avro_serializer_topic_record_subject_name_strategy(load_avsc):
     test_serializer = AvroSerializer(test_client,
                                      load_avsc('basic_schema.avsc'),
                                      conf={'subject.name.strategy':
-                                           topic_record_subject_name_strategy})
+                                               topic_record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
@@ -183,7 +183,7 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                           topic_record_subject_name_strategy})
+                                               topic_record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
@@ -221,3 +221,23 @@ def test_avro_serializer_schema_loads_union(load_avsc):
     assert isinstance(schema, list)
     assert schema[0]["name"] == "RecordOne"
     assert schema[1]["name"] == "RecordTwo"
+
+
+def test_avro_serializer_invalid_schema_type():
+    """
+    Ensures invalid schema types are rejected
+    """
+    conf = {'url': TEST_URL}
+    test_client = SchemaRegistryClient(conf)
+    with pytest.raises(TypeError, match="You must pass either schema string or schema object"):
+        AvroSerializer(test_client, 1)
+
+
+def test_avro_deserializer_invalid_schema_type():
+    """
+    Ensures invalid schema types are rejected
+    """
+    conf = {'url': TEST_URL}
+    test_client = SchemaRegistryClient(conf)
+    with pytest.raises(TypeError, match="You must pass either schema string or schema object"):
+        AvroDeserializer(test_client, 1)
