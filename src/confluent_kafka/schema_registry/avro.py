@@ -414,8 +414,7 @@ class AvroDeserializer(Deserializer):
 
             if writer_schema is None:
                 registered_schema = self._registry.get_schema(schema_id)
-                if self._named_schemas is None:
-                    self._named_schemas = _resolve_named_schema(registered_schema, self._registry)
+                self._named_schemas = _resolve_named_schema(registered_schema, self._registry)
                 prepared_schema = _schema_loads(registered_schema.schema_str)
                 writer_schema = parse_schema(loads(
                     prepared_schema.schema_str), named_schemas=self._named_schemas)
