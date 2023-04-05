@@ -259,7 +259,7 @@ def test_avro_record_serialization_custom(kafka_cluster):
     assert user2 == user
 
 
-def _get_reference_data_and_register_schemas(kafka_cluster):
+def register_avro_schemas_and_build_awarded_user_schema(kafka_cluster):
     sr = kafka_cluster.schema_registry()
 
     user = User('Bowie', 47, 'purple')
@@ -281,7 +281,7 @@ def _get_reference_data_and_register_schemas(kafka_cluster):
     return awarded_user, schema
 
 
-def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
+def _references_test_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
     """
     Common (both reader and writer) avro schema reference test.
     Args:
@@ -326,23 +326,23 @@ def _reference_common(kafka_cluster, awarded_user, serializer_schema, deserializ
     assert awarded_user2 == awarded_user
 
 
-def test_avro_reader_reference(kafka_cluster):
+def _test_avro_reference(kafka_cluster):
     """
-    Tests Avro schema reference relying on reader schema.
+    Tests Avro schema reference with both serializer and deserializer schemas provided.
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
-    awarded_user, schema = _get_reference_data_and_register_schemas(kafka_cluster)
+    awarded_user, schema = register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
 
-    _reference_common(kafka_cluster, awarded_user, schema, schema)
+    _references_test_common(kafka_cluster, awarded_user, schema, schema)
 
 
-def test_avro_writer_reference(kafka_cluster):
+def _test_avro_reference_deserializer_none(kafka_cluster):
     """
-    Tests Avro schema reference relying on writer schema.
+    Tests Avro schema reference with serializer schema provided and deserializer schema set to None.
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
-    awarded_user, schema = _get_reference_data_and_register_schemas(kafka_cluster)
+    awarded_user, schema = register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
 
-    _reference_common(kafka_cluster, awarded_user, schema, None)
+    _references_test_common(kafka_cluster, awarded_user, schema, None)
