@@ -46,6 +46,8 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
+from ._topic import (TopicDescription,  # noqa: F401
+                     PartitionDescription)
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -863,7 +865,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
     
-    def describe_topic(self, topics, **kwargs):
+    def describe_topics(self, topics, **kwargs):
         """
         Describe topics.
 
@@ -873,7 +875,7 @@ class AdminClient (_AdminClientImpl):
                   Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each topic, keyed by the topic.
-                  The future result() method returns :class:`ConsumerGroupDescription`.
+                  The future result() method returns :class:`TopicDescription`.
 
         :rtype: dict[str, future]
 
@@ -883,10 +885,10 @@ class AdminClient (_AdminClientImpl):
         """
 
         if not isinstance(topics, list):
-            raise TypeError("Expected input to be list of group ids to be described")
+            raise TypeError("Expected input to be list of topic names to be described")
 
         if len(topics) == 0:
-            raise ValueError("Expected at least one group to be described")
+            raise ValueError("Expected at least one topic to be described")
 
         f, futmap = AdminClient._make_futures(topics, None,
                                               AdminClient._make_describe_topics_result)

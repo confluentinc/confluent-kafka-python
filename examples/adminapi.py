@@ -516,7 +516,7 @@ def example_describe_consumer_groups(a, args):
             print("  Authorized operations: ")
             op_string = ""
             for acl_op in g.authorized_operations:
-                op_string += acl_op.name
+                op_string += acl_op.name + "  "
             print("    {}".format(op_string))
         except KafkaException as e:
             print("Error while describing group id '{}': {}".format(group_id, e))
@@ -528,28 +528,26 @@ def example_describe_topics(a, args):
     Describe Topics
     """
 
-    futureMap = a.describe_consumer_groups(args, request_timeout=10)
+    futureMap = a.describe_topics(args, request_timeout=10, include_topic_authorized_operations=True)
 
-    for group_id, future in futureMap.items():
+    for topic, future in futureMap.items():
         try:
-            g = future.result()
-            print("Group Id: {}".format(g.group_id))
-            print("  Is Simple          : {}".format(g.is_simple_consumer_group))
-            print("  State              : {}".format(g.state))
-            print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
-            print("  Members: ")
-            for member in g.members:
-                print("    Id                : {}".format(member.member_id))
-                print("    Host              : {}".format(member.host))
-                print("    Client Id         : {}".format(member.client_id))
-                print("    Group Instance Id : {}".format(member.group_instance_id))
-                if member.assignment:
-                    print("    Assignments       :")
-                    for toppar in member.assignment.topic_partitions:
-                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+            t = future.result()
+            print("Topic Name: {}".format(t.topic))
+            print("  Partitions: ")
+            for partition in t.partitions:
+                print("    Id                : {}".format(partition.id))
+                print("    Leader            : {}".format(partition.leader))
+                print("    Replicas          : {}".format(partition.replicas))
+                print("    In-Sync Replicas  : {}".format(partition.isrs))
+                print("")
+            print("  Authorized operations: ")
+            op_string = ""
+            for acl_op in t.authorized_operations:
+                op_string += acl_op.name + "  "
+            print("    {}".format(op_string))
         except KafkaException as e:
-            print("Error while describing group id '{}': {}".format(group_id, e))
+            print("Error while describing topic '{}': {}".format(topic, e))
         except Exception:
             raise
 
@@ -581,7 +579,7 @@ def example_list_consumer_group_offsets(a, args):
         topic_partitions = None
     groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
 
-    futureMap = a.list_consumer_group_offsets(groups,request_timeout=10, require_stable = True)
+    futureMap = a.list_consumer_group_offsets(groups)
 
     for group_id, future in futureMap.items():
         try:
@@ -778,6 +776,7 @@ if __name__ == '__main__':
               'list': example_list,
               'list_consumer_groups': example_list_consumer_groups,
               'describe_consumer_groups': example_describe_consumer_groups,
+              'describe_topics': example_describe_topics,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,

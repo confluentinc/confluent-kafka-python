@@ -15,7 +15,7 @@
 
 from .._util import ConversionUtil
 from .._model import ConsumerGroupState
-from _acl import AclOperation
+from ._acl import AclOperation
 
 class ConsumerGroupListing:
     """
@@ -124,11 +124,10 @@ class ConsumerGroupDescription:
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
+        self.authorized_operations = []
         if authorized_operations:
-            self.authorized_operations = []
             for op in authorized_operations:
                 self.authorized_operations.append(ConversionUtil.convert_to_enum(op, AclOperation))
-        self.authorized_operations = authorized_operations
         self.partition_assignor = partition_assignor
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
