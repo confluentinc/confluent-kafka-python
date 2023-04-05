@@ -755,7 +755,7 @@ PyTypeObject MessageType = {
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
 	0,		           /* tp_iternext */
-	Message_methods,       /* tp_methods */
+	Message_methods,           /* tp_methods */
 	0,                         /* tp_members */
 	0,                         /* tp_getset */
 	0,                         /* tp_base */
@@ -1075,13 +1075,16 @@ PyTypeObject TopicPartitionType = {
 	"It is typically used to provide a list of topics or partitions for "
 	"various operations, such as :py:func:`Consumer.assign()`.\n"
 	"\n"
-	".. py:function:: TopicPartition(topic, [partition], [offset])\n"
+	".. py:function:: TopicPartition(topic, [partition], [offset],"
+        " [metadata], [leader_epoch])\n"
 	"\n"
 	"  Instantiate a TopicPartition object.\n"
 	"\n"
 	"  :param string topic: Topic name\n"
 	"  :param int partition: Partition id\n"
 	"  :param int offset: Initial partition offset\n"
+        "  :param string metadata: Offset metadata\n"
+        "  :param int leader_epoch: Offset leader epoch\n"
 	"  :rtype: TopicPartition\n"
 	"\n"
 	"\n", /*tp_doc*/
