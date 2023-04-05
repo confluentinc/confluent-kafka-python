@@ -12,6 +12,8 @@ v2.1.0 is a feature release with the following features, fixes and enhancements:
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
 - Migrated travis jobs to Semaphore CI (#1503)
 - Added support for schema references. (#1514 and @slominskir #1088)
+- [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
+  add offset leader epoch methods to the TopicPartition and Message classes (#1540).
 
 confluent-kafka-python is based on librdkafka v2.1.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.0)
