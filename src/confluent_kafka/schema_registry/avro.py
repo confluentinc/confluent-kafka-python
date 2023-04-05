@@ -67,6 +67,24 @@ def _schema_loads(schema_str):
     return Schema(schema_str, schema_type='AVRO')
 
 
+def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
+    """
+    Resolves named schemas referenced by the provided schema recursively.
+    :param schema: Schema to resolve named schemas for.
+    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
+    :param named_schemas: Dict of named schemas resolved recursively.
+    :return: named_schemas dict.
+    """
+    if named_schemas is None:
+        named_schemas = {}
+    if schema.references is not None:
+        for ref in schema.references:
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
+            parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=named_schemas)
+    return named_schemas
+
+
 class AvroSerializer(Serializer):
     """
     Serializer that outputs Avro binary encoded data with Confluent Schema Registry framing.
@@ -146,7 +164,7 @@ class AvroSerializer(Serializer):
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        schema_str (str): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
+        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_ Accepts either a string or a `Schema`(Schema) instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         to_dict (callable, optional): Callable(object, SerializationContext) -> dict. Converts object to a dict.
 
@@ -155,15 +173,21 @@ class AvroSerializer(Serializer):
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', '_to_dict']
+                 '_subject_name_func', '_to_dict', '_named_schemas']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client, schema_str,
-                 to_dict=None, conf=None):
+    def __init__(self, schema_registry_client, schema_str, to_dict=None, conf=None):
+        if isinstance(schema_str, str):
+            schema = _schema_loads(schema_str)
+        elif isinstance(schema_str, Schema):
+            schema = schema_str
+        else:
+            raise TypeError('You must pass either schema string or schema object')
+
         self._registry = schema_registry_client
         self._schema_id = None
         self._known_subjects = set()
@@ -200,9 +224,9 @@ class AvroSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema = _schema_loads(schema_str)
         schema_dict = loads(schema.schema_str)
-        parsed_schema = parse_schema(schema_dict)
+        self._named_schemas = _resolve_named_schema(schema, schema_registry_client)
+        parsed_schema = parse_schema(schema_dict, named_schemas=self._named_schemas)
 
         if isinstance(parsed_schema, list):
             # if parsed_schema is a list, we have an Avro union and there
@@ -299,8 +323,9 @@ class AvroDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient): Confluent Schema Registry
             client instance.
 
-        schema_str (str, optional): The reader schema.
-            If not provided, the writer schema will be used as the reader schema.
+        schema_str (str, Schema, optional): Avro reader schema declaration Accepts either a string or a `Schema`(
+        Schema) instance. If not provided, the writer schema will be used as the reader schema. Note that string
+        definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to an instance of some object.
@@ -315,13 +340,31 @@ class AvroDeserializer(Deserializer):
         `Apache Avro Schema Resolution <https://avro.apache.org/docs/1.8.2/spec.html#Schema+Resolution>`_
     """
 
-    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name']
+    __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name', '_schema',
+                 '_named_schemas']
 
     def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False):
+        schema = None
+        if schema_str is not None:
+            if isinstance(schema_str, str):
+                schema = _schema_loads(schema_str)
+            elif isinstance(schema_str, Schema):
+                schema = schema_str
+            else:
+                raise TypeError('You must pass either schema string or schema object')
+
+        self._schema = schema
         self._registry = schema_registry_client
         self._writer_schemas = {}
 
-        self._reader_schema = parse_schema(loads(schema_str)) if schema_str else None
+        if schema:
+            schema_dict = loads(self._schema.schema_str)
+            self._named_schemas = _resolve_named_schema(self._schema, schema_registry_client)
+            self._reader_schema = parse_schema(schema_dict,
+                                               named_schemas=self._named_schemas)
+        else:
+            self._named_schemas = None
+            self._reader_schema = None
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature "
@@ -370,10 +413,11 @@ class AvroDeserializer(Deserializer):
             writer_schema = self._writer_schemas.get(schema_id, None)
 
             if writer_schema is None:
-                schema = self._registry.get_schema(schema_id)
-                prepared_schema = _schema_loads(schema.schema_str)
+                registered_schema = self._registry.get_schema(schema_id)
+                self._named_schemas = _resolve_named_schema(registered_schema, self._registry)
+                prepared_schema = _schema_loads(registered_schema.schema_str)
                 writer_schema = parse_schema(loads(
-                    prepared_schema.schema_str))
+                    prepared_schema.schema_str), named_schemas=self._named_schemas)
                 self._writer_schemas[schema_id] = writer_schema
 
             obj_dict = schemaless_reader(payload,
