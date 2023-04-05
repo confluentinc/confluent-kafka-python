@@ -963,7 +963,7 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
         const char *c_errstr = NULL;
 	PyObject *ret;
 	char offset_str[40];
-        char leader_epoch_str[40];
+        char leader_epoch_str[12];
 
 	snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
         if (self->leader_epoch >= 0)
