@@ -11,7 +11,7 @@ v2.1.0 is a feature release with the following features, fixes and enhancements:
 - Added support for password protected private key in CachedSchemaRegistryClient.
 - Add reference support in Schema Registry client. (@RickTalken, #1304)
 - Migrated travis jobs to Semaphore CI (#1503)
-- Add support for passing schema references in JSONSerializer and JSONDeserializer. (#1514)
+- Added support for schema references. (#1514 and @slominskir #1088)
 - [KIP-320](https://cwiki.apache.org/confluence/display/KAFKA/KIP-320%3A+Allow+fetchers+to+detect+and+handle+log+truncation):
   add offset leader epoch methods to the TopicPartition and Message classes (#1540).
 
