@@ -1,13 +1,65 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.1.0
 
-## Next Version
+v2.1.0 is a feature release with the following features, fixes and enhancements:
 
+- Added `set_sasl_credentials`. This new method (on the Producer, Consumer, and AdminClient) allows modifying the stored
+  SASL PLAIN/SCRAM credentials that will be used for subsequent (new) connections to a broker (#1511).
+- Wheels for Linux / arm64 (#1496).
+- Added support for Default num_partitions in CreateTopics Admin API.
+- Added support for password protected private key in CachedSchemaRegistryClient.
+- Add reference support in Schema Registry client. (@RickTalken, #1304)
+- Migrated travis jobs to Semaphore CI (#1503)
+- Added support for schema references. (#1514 and @slominskir #1088)
+
+confluent-kafka-python is based on librdkafka v2.1.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.0.2
+
+v2.0.2 is a feature release with the following features, fixes and enhancements:
+
+ - Added Python 3.11 wheels.
+ - [KIP-222](https://cwiki.apache.org/confluence/display/KAFKA/KIP-222+-+Add+Consumer+Group+operations+to+Admin+API)
+   Add Consumer Group operations to Admin API.
+ - [KIP-518](https://cwiki.apache.org/confluence/display/KAFKA/KIP-518%3A+Allow+listing+consumer+groups+per+state)
+   Allow listing consumer groups per state.
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484)
+   Partially implemented: support for AlterConsumerGroupOffsets.
+ - As result of the above KIPs, added (#1449)
+   - `list_consumer_groups` Admin operation. Supports listing by state.
+   - `describe_consumer_groups` Admin operation. Supports multiple groups.
+   - `delete_consumer_groups` Admin operation. Supports multiple groups.
+   - `list_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple partitions. Supports require_stable option.
+   - `alter_consumer_group_offsets` Admin operation. Currently, only supports 1 group with multiple offsets.
+ - Added `normalize.schemas` configuration property to Schema Registry client (@rayokota, #1406)
  - Added metadata to `TopicPartition` type and `commit()` (#1410).
- - Added `consumer.memberid()` for getting member id assigned to 
+ - Added `consumer.memberid()` for getting member id assigned to
    the consumer in a consumer group (#1154).
- - Added Python 3.11 wheels
+ - Implemented `nb_bool` method for the Producer, so that the default (which uses len)
+   will not be used. This avoids situations where producers with no enqueued items would
+   evaluate to False (@vladz-sternum, #1445).
+ - Deprecated `AvroProducer` and `AvroConsumer`. Use `AvroSerializer` and `AvroDeserializer` instead.
+ - Deprecated `list_groups`. Use `list_consumer_groups` and `describe_consumer_groups` instead.
+ - Improved Consumer Example to show atleast once semantics.
+ - Improved Serialization and Deserialization Examples.
+ - Documentation Improvements.
 
+## Upgrade considerations
+
+OpenSSL 3.0.x upgrade in librdkafka requires a major version bump, as some
+ legacy ciphers need to be explicitly configured to continue working,
+ but it is highly recommended NOT to use them. The rest of the API remains
+ backward compatible.
+
+confluent-kafka-python is based on librdkafka 2.0.2, see the
+[librdkafka v2.0.0 release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.0.0)
+and later ones for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+**Note: There were no v2.0.0 and v2.0.1 releases.**
 
 ## v1.9.2
 

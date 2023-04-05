@@ -970,8 +970,8 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         msgobj = Message_new0(self, rkm);
 #ifdef RD_KAFKA_V_HEADERS
-        // Have to detach headers outside Message_new0 because it declares the
-        // rk message as a const
+        /** Have to detach headers outside Message_new0 because it declares the
+          * rk message as a const */
         rd_kafka_message_detach_headers(rkm, &((Message *)msgobj)->c_headers);
 #endif
         rd_kafka_message_destroy(rkm);
@@ -1062,8 +1062,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         for (i = 0; i < n; i++) {
                 PyObject *msgobj = Message_new0(self, rkmessages[i]);
 #ifdef RD_KAFKA_V_HEADERS
-                // Have to detach headers outside Message_new0 because it declares the
-                // rk message as a const
+                /** Have to detach headers outside Message_new0 because it declares the
+                  * rk message as a const */
                 rd_kafka_message_detach_headers(rkmessages[i], &((Message *)msgobj)->c_headers);
 #endif
                 PyList_SET_ITEM(msglist, i, msgobj);
@@ -1477,6 +1477,9 @@ static PyMethodDef Consumer_methods[] = {
           "group metadata for passing to the transactional producer's "
           "send_offsets_to_transaction() API.\n"
           "\n"
+        },
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
         },
 
 

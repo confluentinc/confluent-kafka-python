@@ -42,8 +42,8 @@
  *  0xMMmmRRPP
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x01090200
-#define CFL_VERSION_STR "1.9.2"
+#define CFL_VERSION     0x02010000
+#define CFL_VERSION_STR "2.1.0"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -51,19 +51,19 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x010900ff
+#define MIN_RD_KAFKA_VERSION 0x020100ff
 
 #ifdef __APPLE__
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.9.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.1.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v1.9.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.1.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
-#error "confluent-kafka-python requires librdkafka v1.9.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#error "confluent-kafka-python requires librdkafka v2.1.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#error "confluent-kafka-python requires librdkafka v1.9.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#error "confluent-kafka-python requires librdkafka v2.1.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -319,11 +319,15 @@ void CallState_crash (CallState *cs);
 #define cfl_PyInt_FromInt(v) PyInt_FromLong(v)
 #endif
 
+#define cfl_PyLong_Check(o) PyLong_Check(o)
+#define cfl_PyLong_AsLong(o) (int)PyLong_AsLong(o)
+#define cfl_PyLong_FromLong(v) PyLong_FromLong(v)
 
 PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename);
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val);
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val);
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val);
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val);
 int cfl_PyObject_SetInt (PyObject *o, const char *name, int val);
 int cfl_PyObject_GetAttr (PyObject *object, const char *attr_name,
@@ -378,13 +382,16 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *args,
 				    PyObject *kwargs);
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
+PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
+PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
 
 
 extern const char list_topics_doc[];
 extern const char list_groups_doc[];
+extern const char set_sasl_credentials_doc[];
 
 
 #ifdef RD_KAFKA_V_HEADERS

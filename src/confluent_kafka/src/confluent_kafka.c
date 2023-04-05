@@ -1318,7 +1318,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     while (!rd_kafka_header_get_all(headers, idx++,
                                      &header_key, &header_value, &header_value_size)) {
-            // Create one (key, value) tuple for each header
+            /* Create one (key, value) tuple for each header */
             PyObject *header_tuple = PyTuple_New(2);
             PyTuple_SetItem(header_tuple, 0,
                 cfl_PyUnistr(_FromString(header_key))
@@ -1386,6 +1386,40 @@ rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj) {
         }
 
         return cgmd;
+}
+
+PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
+        PyObject *node = NULL;
+        PyObject *Node_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+
+        Node_type = cfl_PyObject_lookup("confluent_kafka",
+                                        "Node");
+        if (!Node_type) {
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
+        cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
+        cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+
+        args = PyTuple_New(0);
+
+        node = PyObject_Call(Node_type, args, kwargs);
+
+        Py_DECREF(Node_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        return node;
+
+err:
+        Py_XDECREF(Node_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        return NULL;
 }
 
 
@@ -1660,7 +1694,8 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                                                   sizeof(err_msg));
         Py_DECREF(result);
         if (rd_extensions) {
-                for(int i = 0; i < rd_extensions_size; i++) {
+                int i;
+                for(i = 0; i < rd_extensions_size; i++) {
                         free(rd_extensions[i]);
                 }
                 free(rd_extensions);
@@ -2347,6 +2382,11 @@ void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
         Py_DECREF(vo);
 }
 
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val) {
+        PyObject *vo = cfl_PyLong_FromLong(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
 
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
         PyObject *vo = cfl_PyUnistr(_FromString(val));
@@ -2542,6 +2582,55 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
 /****************************************************************************
  *
  *
+ * Methods common across all types of clients.
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+const char set_sasl_credentials_doc[] = PyDoc_STR(
+        ".. py:function:: set_sasl_credentials(username, password)\n"
+        "\n"
+        "  Sets the SASL credentials used for this client.\n"
+        "  These credentials will overwrite the old ones, and will be used the next time the client needs to authenticate.\n"
+        "  This method will not disconnect existing broker connections that have been established with the old credentials.\n"
+        "  This method is applicable only to SASL PLAIN and SCRAM mechanisms.\n");
+
+
+PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
+        const char *username = NULL;
+        const char *password = NULL;
+        rd_kafka_error_t* error;
+        CallState cs;
+        static char *kws[] = {"username", "password", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
+                                         &username, &password)) {
+                return NULL;
+        }
+
+        CallState_begin(self, &cs);
+        error = rd_kafka_sasl_set_credentials(self->rk, username, password);
+
+        if (!CallState_end(self, &cs)) {
+                if (error) /* Ignore error in favour of callstate exception */
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/****************************************************************************
+ *
+ *
  * Base
  *
  *
@@ -2651,7 +2740,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 	_PRINT("\n");
 
-	return doc; // FIXME: leak
+	return doc; /* FIXME: leak */
 }
 
 
@@ -2669,7 +2758,11 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+/* PyEval_InitThreads became deprecated in Python 3.9 and will be removed in Python 3.11.
+ * Prior to Python 3.7, this call was required to initialize the GIL. */
+#if PY_VERSION_HEX < 0x03090000
         PyEval_InitThreads();
+#endif
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;
