@@ -38,6 +38,9 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ConsumerGroupDescription,
                      MemberAssignment,
                      MemberDescription)
+from ._topic import (TopicDescription,  # noqa: F401
+                     PartitionDescription)
+from ._cluster import (ClusterDescription)  # noqa: F401
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -178,6 +181,31 @@ class AdminClient (_AdminClientImpl):
                     fut.set_result(result)
         except Exception as e:
             # Request-level exception, raise the same for all groups
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_describe_topics_result(f, futmap):
+        """
+        Map per-topic results to per-topic futures in futmap.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all topics
             for _, fut in futmap.items():
                 fut.set_exception(e)
 
@@ -664,6 +692,7 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
+        :param bool include_authorized_operations: If True, fetches group AclOperations. Default: False
         :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
 
@@ -689,6 +718,61 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
+    
+    def describe_topics(self, topics, **kwargs):
+        """
+        Describe topics.
+
+        :param list(str) topics: List of topics which need to be described.
+        :param bool include_topic_authorized_operations: If True, fetches topic AclOperations. Default: False
+        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
+                  Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each topic, keyed by the topic.
+                  The future result() method returns :class:`TopicDescription`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        if not isinstance(topics, list):
+            raise TypeError("Expected input to be list of topic names to be described")
+
+        if len(topics) == 0:
+            raise ValueError("Expected at least one topic to be described")
+
+        f, futmap = AdminClient._make_futures(topics, None,
+                                              AdminClient._make_describe_topics_result)
+
+        super(AdminClient, self).describe_topics(topics, f, **kwargs)
+
+        return futmap
+    
+    def describe_cluster(self, **kwargs):
+        """
+        Describe cluster.
+
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A future returning description of the cluster as result
+
+        :rtype: future containing the description of the cluster in result.
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        f = AdminClient._create_future()
+
+        super(AdminClient, self).describe_cluster(f, **kwargs)
+
+        return f
 
     def delete_consumer_groups(self, group_ids, **kwargs):
         """
