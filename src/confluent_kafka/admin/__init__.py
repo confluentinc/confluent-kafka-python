@@ -761,7 +761,7 @@ class AdminClient (_AdminClientImpl):
 
         :returns: A future returning description of the cluster as result
 
-        :rtype: future
+        :rtype: future containing the description of the cluster in result.
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeException: Invalid input.
