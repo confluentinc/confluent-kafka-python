@@ -15,7 +15,7 @@
 
 from .._util import ConversionUtil
 from .._model import ConsumerGroupState
-
+from ._acl import AclOperation
 
 class ConsumerGroupListing:
     """
@@ -109,7 +109,9 @@ class ConsumerGroupDescription:
     is_simple_consumer_group : bool
         Whether a consumer group is simple or not.
     members: list(MemberDescription)
-        Description of the memebers of the consumer group.
+        Description of the members of the consumer group.
+    authorized_operations: list(AclOperation)
+        AclOperations allowed for the consumer group.
     partition_assignor: str
         Partition assignor.
     state : ConsumerGroupState
@@ -117,11 +119,15 @@ class ConsumerGroupDescription:
     coordinator: Node
         Consumer group coordinator.
     """
-    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
+    def __init__(self, group_id, is_simple_consumer_group, members, authorized_operations, partition_assignor, state,
                  coordinator):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
+        self.authorized_operations = []
+        if authorized_operations:
+            for op in authorized_operations:
+                self.authorized_operations.append(ConversionUtil.convert_to_enum(op, AclOperation))
         self.partition_assignor = partition_assignor
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
