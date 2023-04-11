@@ -651,10 +651,7 @@ if __name__ == '__main__':
     args = sys.argv[3:]
 
     conf = {'bootstrap.servers': broker}
-    conf['sasl.mechanisms'] = 'SCRAM-SHA-256'
-    conf['security.protocol'] = 'SASL_PLAINTEXT'
-    conf['sasl.username'] = 'broker'
-    conf['sasl.password'] = 'broker'
+
     # Create Admin client
     a = AdminClient(conf)
 
