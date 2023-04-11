@@ -454,8 +454,9 @@ def example_describe_consumer_groups(a, args):
     """
     Describe Consumer Groups
     """
-
-    futureMap = a.describe_consumer_groups(args, include_authorized_operations=True, request_timeout=10)
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    futureMap = a.describe_consumer_groups(args, include_authorized_operations=include_auth_ops, request_timeout=10)
 
     for group_id, future in futureMap.items():
         try:
@@ -489,8 +490,9 @@ def example_describe_topics(a, args):
     """
     Describe Topics
     """
-
-    futureMap = a.describe_topics(args, request_timeout=10, include_topic_authorized_operations=True)
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    futureMap = a.describe_topics(args, request_timeout=10, include_topic_authorized_operations=include_auth_ops)
 
     for topic, future in futureMap.items():
         try:
@@ -517,7 +519,9 @@ def example_describe_cluster(a,args):
     """
     Describe Cluster
     """
-    future = a.describe_cluster(request_timeout=10, include_cluster_authorized_operations=True)
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    future = a.describe_cluster(request_timeout=10, include_cluster_authorized_operations=include_auth_ops)
     try:
         c = future.result()
         print("Cluster_id           : {}".format(c.cluster_id))
@@ -651,7 +655,10 @@ if __name__ == '__main__':
     args = sys.argv[3:]
 
     conf = {'bootstrap.servers': broker}
-
+    conf['sasl.mechanisms'] = 'SCRAM-SHA-256'
+    conf['security.protocol'] = 'SASL_PLAINTEXT'
+    conf['sasl.username'] = 'broker'
+    conf['sasl.password'] = 'broker'
     # Create Admin client
     a = AdminClient(conf)
 
