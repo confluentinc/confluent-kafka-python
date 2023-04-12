@@ -718,7 +718,7 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
-    
+
     def describe_topics(self, topics, **kwargs):
         """
         Describe topics.
@@ -750,7 +750,7 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_topics(topics, f, **kwargs)
 
         return futmap
-    
+
     def describe_cluster(self, **kwargs):
         """
         Describe cluster.

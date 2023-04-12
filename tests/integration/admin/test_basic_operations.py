@@ -312,7 +312,8 @@ def test_basic_operations(kafka_cluster):
     assert not result.valid
 
     # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10, include_authorized_operations = False)
+    futureMap = admin_client.describe_consumer_groups(
+        [group1, group2], request_timeout=10, include_authorized_operations=False)
     for group_id, future in futureMap.items():
         g = future.result()
         assert group_id == g.group_id
@@ -372,27 +373,28 @@ def test_basic_operations(kafka_cluster):
     fs[group2].result()  # will raise exception on failure
 
     # Describe Topics API test
-    futureMap = admin_client.describe_topics([our_topic, "failure"], request_timeout=10, include_topic_authorized_operations = False)
+    futureMap = admin_client.describe_topics(
+        [our_topic, "failure"], request_timeout=10, include_topic_authorized_operations=False)
     for topic, future in futureMap.items():
         try:
             t = future.result()
-            assert t.topic == our_topic # SUCCESS
+            assert t.topic == our_topic  # SUCCESS
             assert t.authorized_operations == []
         except KafkaException as e:
             assert topic == "failure"   # UNKNOWN_TOPIC_OR_PART
         except Exception:
-            raise    
-    futureMap = admin_client.describe_topics([our_topic], request_timeout=10, include_topic_authorized_operations = True)
+            raise
+    futureMap = admin_client.describe_topics([our_topic], request_timeout=10, include_topic_authorized_operations=True)
     for topic, future in futureMap.items():
         try:
             t = future.result()
-            assert t.topic == our_topic 
+            assert t.topic == our_topic
             assert len(t.authorized_operations) > 0
         except KafkaException as e:
             assert False, "DescribeTopics failed"
         except Exception:
-            raise   
-    
+            raise
+
     # Describe Cluster API test
     fs = admin_client.describe_cluster(request_timeout=10)
     try:

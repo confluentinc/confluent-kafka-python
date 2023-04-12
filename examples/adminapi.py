@@ -486,6 +486,7 @@ def example_describe_consumer_groups(a, args):
         except Exception:
             raise
 
+
 def example_describe_topics(a, args):
     """
     Describe Topics
@@ -515,7 +516,8 @@ def example_describe_topics(a, args):
         except Exception:
             raise
 
-def example_describe_cluster(a,args):
+
+def example_describe_cluster(a, args):
     """
     Describe Cluster
     """
