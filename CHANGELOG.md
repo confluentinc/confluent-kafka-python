@@ -1,5 +1,12 @@
 # Confluent's Python client for Apache Kafka
 
+# v2.1.1
+
+v2.1.1 is a maintenance release with the following fixes and enhancements:
+
+* Fix some Admin API documentation stating -1 for infinte timeout incorrectly.
+  Request timeout can't be infinite.
+
 ## v2.1.0
 
 v2.1.0 is a feature release with the following features, fixes and enhancements:
