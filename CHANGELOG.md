@@ -4,7 +4,11 @@
 
 v2.1.1 is a maintenance release with the following fixes and enhancements:
 
-* Fix some Admin API documentation stating -1 for infinte timeout incorrectly.
+
+### Fixes
+
+- Added a new ConsumerGroupState UNKNOWN. The typo state UNKOWN is deprecated and will be removed in the next major version.
+- Fix some Admin API documentation stating -1 for infinite timeout incorrectly.
   Request timeout can't be infinite.
 
 

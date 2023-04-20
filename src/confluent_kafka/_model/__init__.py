@@ -64,16 +64,21 @@ class ConsumerGroupState(Enum):
     """
     Enumerates the different types of Consumer Group State.
 
+    Note that the state UNKOWN (typo one) is deprecated and will be removed in
+    future major release. Use UNKNOWN instead.
+
     Values
     ------
-    UNKOWN                  : State is not known or not set.
+    UNKNOWN                 : State is not known or not set.
+    UNKOWN                  : State is not known or not set. Typo.
     PREPARING_REBALANCING   : Preparing rebalance for the consumer group.
     COMPLETING_REBALANCING  : Consumer Group is completing rebalancing.
     STABLE                  : Consumer Group is stable.
     DEAD                    : Consumer Group is Dead.
     EMPTY                   : Consumer Group is Empty.
     """
-    UNKOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
+    UNKNOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
+    UNKOWN = UNKNOWN
     PREPARING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
     COMPLETING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
     STABLE = cimpl.CONSUMER_GROUP_STATE_STABLE
