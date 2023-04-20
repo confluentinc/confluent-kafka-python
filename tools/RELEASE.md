@@ -9,7 +9,7 @@ librdkafka's version, e.g. v0.11.4 for the final release and
 v0.11.4rc3 for the 3rd v0.11.4 release candidate.
 
 With the addition of prebuilt binary wheels we make use of Semaphore CI
-to build OSX, Linux and Winodws binaries which are uploaded to build's
+to build OSX, Linux and Windows binaries which are uploaded to build's
 artifact directory. These artifacts are downloaded and then uploaded manually
 to PyPi.
 
