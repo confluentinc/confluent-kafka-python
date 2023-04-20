@@ -659,8 +659,9 @@ class AdminClient (_AdminClientImpl):
         """
         List consumer groups.
 
-        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
-                  Default: `socket.timeout.ms*1000.0`
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
         :param set(ConsumerGroupState) states: only list consumer groups which are currently in
                   these states.
 
@@ -694,8 +695,9 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
-        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
-                  Default: `socket.timeout.ms*1000.0`
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns :class:`ConsumerGroupDescription`.
@@ -725,8 +727,9 @@ class AdminClient (_AdminClientImpl):
         Delete the given consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be deleted.
-        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
-                  Default: `socket.timeout.ms*1000.0`
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns None.
