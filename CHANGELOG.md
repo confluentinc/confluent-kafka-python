@@ -12,7 +12,7 @@ v2.1.1 is a maintenance release with the following fixes and enhancements:
   Request timeout can't be infinite.
 
 confluent-kafka-python is based on librdkafka v2.1.1, see the
-[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.0)
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
