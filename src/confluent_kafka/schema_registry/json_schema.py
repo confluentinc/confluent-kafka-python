@@ -20,7 +20,8 @@ from io import BytesIO
 import json
 import struct
 
-from jsonschema import validate, ValidationError, RefResolver
+from jsonschema import ValidationError, RefResolver
+from jsonschema.validators import validator_for
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
@@ -139,6 +140,9 @@ class JSONSerializer(Serializer):
         a dict instance. This may be handled manually prior to calling
         :py:func:`Producer.produce()` or by registering a `to_dict`
         callable with JSONSerializer.
+        
+        Schema is validated once only during serializer initialization.
+        Exception is raised during init if the schema is invalid.
 
     Args:
         schema_str (str, Schema): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ Accepts schema as either a string or a `Schema`(Schema) instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
@@ -153,12 +157,14 @@ class JSONSerializer(Serializer):
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema', '_registry', '_schema', '_schema_id',
-                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided']
+                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided',
+                 '_validator']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
-                     'subject.name.strategy': topic_subject_name_strategy}
+                     'subject.name.strategy': topic_subject_name_strategy,
+                     'schema.validator': None}
 
     def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
         self._are_references_provided = False
@@ -202,6 +208,10 @@ class JSONSerializer(Serializer):
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
+        validator = conf_copy.pop('schema.validator')
+        if not hasattr(validator, "validate"):
+            raise ValueError("schema.validator must implement jsonschema.protocols.Validator")
+
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
@@ -213,6 +223,10 @@ class JSONSerializer(Serializer):
 
         self._schema_name = schema_name
         self._parsed_schema = schema_dict
+
+        validator = validator or validator_for(schema_dict)
+        self._validator = validator(schema_dict)
+        self._validator.check_schema(schema_dict)
 
     def __call__(self, obj, ctx):
         """
@@ -267,12 +281,12 @@ class JSONSerializer(Serializer):
         try:
             if self._are_references_provided:
                 named_schemas = _resolve_named_schema(self._schema, self._registry)
-                validate(instance=value, schema=self._parsed_schema,
-                         resolver=RefResolver(self._parsed_schema.get('$id'),
-                                              self._parsed_schema,
-                                              store=named_schemas))
+                self._validator.validate(instance=value,
+                                         resolver=RefResolver(self._parsed_schema.get('$id'),
+                                                              self._parsed_schema,
+                                                              store=named_schemas))
             else:
-                validate(instance=value, schema=self._parsed_schema)
+                self._validator.validate(instance=value)
         except ValidationError as ve:
             raise SerializationError(ve.message)
 
@@ -300,9 +314,11 @@ class JSONDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas.
     """  # noqa: E501
 
-    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema',
+                 '_validator']
+    _default_conf = {'schema.validator': None}
 
-    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
+    def __init__(self, schema_str, from_dict=None, schema_registry_client=None, conf=None):
         self._are_references_provided = False
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
@@ -315,9 +331,22 @@ class JSONDeserializer(Deserializer):
         else:
             raise TypeError('You must pass either str or Schema')
 
-        self._parsed_schema = json.loads(schema.schema_str)
+        conf_copy = self._default_conf.copy()
+        if conf is not None:
+            conf_copy.update(conf)
+
+        validator = conf_copy.pop('schema.validator')
+        if not hasattr(validator, "validate"):
+            raise ValueError("schema.validator must implement jsonschema.protocols.Validator")
+
+        schema_dict = json.loads(schema.schema_str)
+        self._parsed_schema = schema_dict
         self._schema = schema
         self._registry = schema_registry_client
+
+        validator = validator or validator_for(schema_dict)
+        self._validator = validator(schema_dict)
+        self._validator.check_schema(schema_dict)
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
@@ -365,12 +394,12 @@ class JSONDeserializer(Deserializer):
             try:
                 if self._are_references_provided:
                     named_schemas = _resolve_named_schema(self._schema, self._registry)
-                    validate(instance=obj_dict,
-                             schema=self._parsed_schema, resolver=RefResolver(self._parsed_schema.get('$id'),
-                                                                              self._parsed_schema,
-                                                                              store=named_schemas))
+                    self._validator.validate(instance=obj_dict,
+                                             resolver=RefResolver(self._parsed_schema.get('$id'),
+                                                                  self._parsed_schema,
+                                                                  store=named_schemas))
                 else:
-                    validate(instance=obj_dict, schema=self._parsed_schema)
+                    self._validator.validate(instance=obj_dict)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
 
