@@ -339,6 +339,10 @@ class JSONDeserializer(Deserializer):
         if not hasattr(validator, "validate"):
             raise ValueError("schema.validator must implement jsonschema.protocols.Validator")
 
+        if len(conf_copy) > 0:
+            raise ValueError("Unrecognized properties: {}"
+                             .format(", ".join(conf_copy.keys())))
+
         schema_dict = json.loads(schema.schema_str)
         self._parsed_schema = schema_dict
         self._schema = schema
