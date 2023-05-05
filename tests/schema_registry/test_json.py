@@ -15,8 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
 import pytest
+import json
+from jsonschema import Draft202012Validator, Draft3Validator, SchemaError
 
 from confluent_kafka.schema_registry import SchemaReference, Schema
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
@@ -49,3 +50,29 @@ def test_json_serializer_invalid_schema_type():
     """
     with pytest.raises(TypeError, match="You must pass either str or Schema"):
         deserializer = JSONSerializer(1, schema_registry_client=None)
+
+
+def test_json_serializer_invalid_schema_validator():
+    test_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "TestSchema",
+        "description": "I want to run some tests",
+        "type": "object",
+        "properties": {
+            "name": {
+                "description": "Name",
+                "type": "string"
+            },
+        },
+        "required": [
+            "name"
+        ]
+    }
+
+    schema_str = json.dumps(test_schema)
+    conf_good = {"schema.validator": Draft202012Validator}
+    JSONSerializer(schema_str, None, conf=conf_good)
+
+    conf_bad = {"schema.validator": Draft3Validator}
+    with pytest.raises(SchemaError):
+        JSONSerializer(schema_str, None, conf=conf_bad)
