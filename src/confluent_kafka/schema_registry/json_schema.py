@@ -209,7 +209,7 @@ class JSONSerializer(Serializer):
             raise ValueError("subject.name.strategy must be callable")
 
         validator = conf_copy.pop('schema.validator')
-        if not hasattr(validator, "validate"):
+        if (validator is not None) and not hasattr(validator, "validate"):
             raise ValueError("schema.validator must implement jsonschema.protocols.Validator")
 
         if len(conf_copy) > 0:
@@ -336,7 +336,7 @@ class JSONDeserializer(Deserializer):
             conf_copy.update(conf)
 
         validator = conf_copy.pop('schema.validator')
-        if not hasattr(validator, "validate"):
+        if (validator is not None) and not hasattr(validator, "validate"):
             raise ValueError("schema.validator must implement jsonschema.protocols.Validator")
 
         if len(conf_copy) > 0:
