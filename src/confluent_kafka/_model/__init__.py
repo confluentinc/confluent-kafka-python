@@ -94,3 +94,6 @@ class ScramMechanism(Enum):
     UNKNOWN = cimpl.SCRAM_MECHANISM_UNKNOWN
     SCRAM_SHA_256 = cimpl.SCRAM_MECHANISM_SHA_256
     SCRAM_SHA_512 = cimpl.SCRAM_MECHANISM_SHA_512
+
+    def __init__(self):
+        pass

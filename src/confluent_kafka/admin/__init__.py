@@ -37,7 +37,11 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
-                     MemberDescription)
+                     MemberDescription,
+                     UserScramCredentialAlteration,
+                     UserScramCredentialUpsertion,
+                     UserScramCredentialDeletion,
+                     ScramCredentialInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -56,12 +60,14 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
+from .._model import ScramMechanism
 
 from confluent_kafka import ConsumerGroupTopicPartitions \
     as _ConsumerGroupTopicPartitions
 
 from confluent_kafka import ConsumerGroupState \
     as _ConsumerGroupState
+
 
 try:
     string_type = basestring
@@ -809,3 +815,36 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
+
+    def alter_user_scram_credentials(self,alterations,**kwargs):
+
+        if not isinstance(alterations, list):
+            raise TypeError("Expected input to be list of UserScramCredentialAlteration to be made")
+
+        if len(alterations) == 0:
+            raise ValueError("Expected at least one alteration")
+
+        for alteration in alterations:
+            if (not isinstance(alteration,UserScramCredentialUpsertion)) and (not isinstance(alteration,UserScramCredentialDeletion)):
+                raise TypeError("Expected input to be list of UserScramCredentialAlteration to be made")
+            
+            if isinstance(alteration,UserScramCredentialUpsertion):
+                if not isinstance(alteration.credential_info,ScramCredentialInfo):
+                    raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
+                if not isinstance(alteration.credential_info.mechanism,ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+                alteration.credential_info.mechanism = alteration.credential_info.mechanism.value
+            
+            if isinstance(alteration,UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism,ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+                alteration.mechanism = alteration.mechanism.value
+
+        # Do not know what to do here exactly
+        f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
+                                              string_type,
+                                              AdminClient._make_consumer_group_offsets_result)
+
+        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
+
+        return futmap
