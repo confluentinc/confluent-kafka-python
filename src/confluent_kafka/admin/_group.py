@@ -133,14 +133,37 @@ class ScramCredentialInfo:
         self.iterations = iterations
 
 class UserScramCredentialsDescription:
+    def __init__(self,user,err,errorcode,scram_credential_infos):
+        self.user = user
+        self.err = err
+        self.errorcode = errorcode
+        self.scram_credential_infos = scram_credential_infos
+
+class DescribeUserScramCredentialsResult:
+    def __init__(self,err,errorcode,user_scram_credentials_descriptions):
+        self.err = err
+        self.errorcode = errorcode
+        self.user_scram_credentials_descriptions = user_scram_credentials_descriptions
+
+class UserScramCredentialAlterationResultElement:
     def __init__(self,user,err,errorcode):
         self.user = user
         self.err = err
         self.errorcode = errorcode
-        self.scram_credential_infos = []
 
-class DescribeUserScramCredentialsResult:
-    def __init__(self,err,errorcode):
-        self.err = err
-        self.errorcode = errorcode
-        self.user_scram_credentials_descriptions = []
+class UserScramCredentialAlteration:
+    def __init__(self,user): 
+        self.user = user
+
+class UserScramCredentialUpsertion(UserScramCredentialAlteration):
+    def __init__(self,user,scram_credential_info,salt,password):
+        UserScramCredentialAlteration.__init__(user)
+        self.credential_info = scram_credential_info
+        self.salt = salt
+        self.password = password
+
+class UserScramCredentialDeletion(UserScramCredentialAlteration):
+    def __init__(self,user,mechansim):
+        UserScramCredentialAlteration.__init__(user)
+        self.mechanism = mechansim
+
