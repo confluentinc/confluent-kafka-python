@@ -126,3 +126,21 @@ class ConsumerGroupDescription:
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
+
+class ScramCredentialInfo:
+    def __init__(self,mechanism,iterations):
+        self.mechanism = mechanism
+        self.iterations = iterations
+
+class UserScramCredentialsDescription:
+    def __init__(self,user,err,errorcode):
+        self.user = user
+        self.err = err
+        self.errorcode = errorcode
+        self.scram_credential_infos = []
+
+class DescribeUserScramCredentialsResult:
+    def __init__(self,err,errorcode):
+        self.err = err
+        self.errorcode = errorcode
+        self.user_scram_credentials_descriptions = []
