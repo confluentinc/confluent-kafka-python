@@ -14,8 +14,7 @@
 
 
 from .._util import ConversionUtil
-from .._model import ConsumerGroupState
-
+from .._model import ConsumerGroupState,ScramMechanism
 
 class ConsumerGroupListing:
     """
@@ -128,25 +127,25 @@ class ConsumerGroupDescription:
         self.coordinator = coordinator
 
 class ScramCredentialInfo:
-    def __init__(self,mechanism,iterations):
+    def __init__(self,mechanism:ScramMechanism,iterations:int):
         self.mechanism = mechanism
         self.iterations = iterations
 
 class UserScramCredentialsDescription:
-    def __init__(self,user,err,errorcode,scram_credential_infos):
+    def __init__(self,user,err,errorcode,scram_credential_infos:list[ScramCredentialInfo]):
         self.user = user
         self.err = err
         self.errorcode = errorcode
         self.scram_credential_infos = scram_credential_infos
 
 class DescribeUserScramCredentialsResult:
-    def __init__(self,err,errorcode,user_scram_credentials_descriptions):
+    def __init__(self,err:str,errorcode:int,user_scram_credentials_descriptions:list[UserScramCredentialsDescription]):
         self.err = err
         self.errorcode = errorcode
         self.user_scram_credentials_descriptions = user_scram_credentials_descriptions
 
 class UserScramCredentialAlterationResultElement:
-    def __init__(self,user,err,errorcode):
+    def __init__(self,user:str,err:str,errorcode:int):
         self.user = user
         self.err = err
         self.errorcode = errorcode
@@ -156,14 +155,14 @@ class UserScramCredentialAlteration:
         self.user = user
 
 class UserScramCredentialUpsertion(UserScramCredentialAlteration):
-    def __init__(self,user,scram_credential_info,salt,password):
+    def __init__(self,user:str,scram_credential_info:ScramCredentialInfo,salt:str,password:str):
         UserScramCredentialAlteration.__init__(user)
         self.credential_info = scram_credential_info
         self.salt = salt
         self.password = password
 
 class UserScramCredentialDeletion(UserScramCredentialAlteration):
-    def __init__(self,user,mechansim):
+    def __init__(self,user :str,mechansim :ScramMechanism):
         UserScramCredentialAlteration.__init__(user)
         self.mechanism = mechansim
 

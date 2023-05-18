@@ -21,7 +21,8 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType)
+                                   AclPermissionType,ScramMechanism,ScramCredentialInfo,UserScramCredentialsDescription,DescribeUserScramCredentialsResult,UserScramCredentialDeletion,UserScramCredentialAlteration,
+                                   UserScramCredentialUpsertion,UserScramCredentialAlterationResultElement)
 import sys
 import threading
 import logging
@@ -508,7 +509,7 @@ def example_list_consumer_group_offsets(a, args):
         topic_partitions = None
     groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
 
-    futureMap = a.list_consumer_group_offsets(groups)
+    future = a.list_consumer_group_offsets(groups)
 
     for group_id, future in futureMap.items():
         try:
@@ -558,6 +559,55 @@ def example_alter_consumer_group_offsets(a, args):
             print("Failed to alter {}: {}".format(group_id, e))
         except Exception:
             raise
+
+
+def example_describe_user_scram_credentials(a,args):
+    """
+    Describe User Scram Credentials
+    """
+    future = a.describe_user_scram_credentials([])
+    mechanism_info = {} 
+    mechanism_info[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
+    mechanism_info[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
+    mechanism_info[ScramMechanism.UNKNOWN] = "UNKWOWN"
+    try:
+        describe_user_scram_credentials_result = future.result()
+        print("Request Level Error Code {}".format(describe_user_scram_credentials_result.errorcode))
+        if describe_user_scram_credentials_result.errorcode != 0 :
+            print("Request Level Error Message : {}".format(describe_user_scram_credentials_result.err))
+        descriptions = describe_user_scram_credentials_result.descriptions
+        for description in descriptions:
+            description = UserScramCredentialsDescription(description)
+            print(" Username : {} Errorcode : {}".format(description.user,description.errorcode))
+            print("     Error Message : {}".format(description.err))
+            scram_credential_infos = description.scram_credential_infos
+            for scram_credential_info in scram_credential_infos:
+                scram_credential_info = ScramCredentialInfo(scram_credential_info)
+                print("         Mechanism : {} Iterations : {}".format(mechanism_info[scram_credential_info.mechanism],scram_credential_info.iterations))
+    except Exception:
+        raise
+
+
+def example_alter_user_scram_credentials(a,args):
+    """
+    AlterUserScramCredentials
+    """
+    alterations = []
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
+    upsertion = UserScramCredentialUpsertion("username",scram_credential_info,"salt","password")
+    alterations.append(upsertion)
+    deletion = UserScramCredentialDeletion("username",ScramMechanism.SCRAM_SHA_512)
+    alterations.append(deletion)
+    future = a.alter_user_scram_credentials(alterations)
+    try:
+        alter_user_scram_credentials_result = future.result()
+        for user_scram_credential_alteration_result_element in alter_user_scram_credentials_result:
+            user_scram_credential_alteration_result_element = UserScramCredentialAlterationResultElement(user_scram_credential_alteration_result_element)
+            print("Username : {} Errorcode : {}".format(user_scram_credential_alteration_result_element.user,user_scram_credential_alteration_result_element.errorcode))
+            if user_scram_credential_alteration_result_element.errorcode != 0 :
+                print("     Error Message : {}".format(user_scram_credential_alteration_result_element.err))
+    except Exception:
+        raise
 
 
 if __name__ == '__main__':
