@@ -3147,6 +3147,7 @@ err:
 }
 static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentialInfo_t *scram_credential_info){
         PyObject *result = NULL;
+        PyObject *args = NULL;
         result = PyDict_New();
         cfl_PyDict_SetInt(result,"mechanism",rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info));
         cfl_PyDict_SetInt(result,"iterations",rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info));
@@ -3157,6 +3158,7 @@ static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentia
 }
 static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_UserScramCredentialsDescription_t *description){
         PyObject *result = NULL;
+        PyObject *args = NULL;
         PyObject *scram_credential_infos = NULL;
         int scramcredentialinfo_cnt;
         int i;
@@ -3178,6 +3180,7 @@ static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_Us
 }
 static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka_DescribeUserScramCredentials_result_t *result_event) {
         PyObject *result = NULL;
+        PyObject *args = NULL;
         PyObject *description_list = NULL;
         int description_cnt;
         int i;
@@ -3197,7 +3200,8 @@ static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka
         return result;
 }
 static PyObject *Admin_c_UserScramCredentialAlterationResultElement_to_py(const rd_kafka_UserScramCredentialAlterationResultElement_t *result_element){
-        PyObject result = NULL;
+        PyObject *result = NULL;
+        PyObject *args = NULL;
         rd_kafka_error_t *error;
         result = PyDict_New();
         PyDict_SetItemString(result,"user",rd_kafka_UserScramCredentialAlterationResultElement_get_user(result_element));
@@ -3210,13 +3214,14 @@ static PyObject *Admin_c_UserScramCredentialAlterationResultElement_to_py(const 
         return result;
 }
 static PyObject *Admin_c_AlterUserScramCredentialsResult_to_py(const rd_kafka_AlterUserScramCredentials_result_t *result_event) {
-        PyObject result = NULL;
+        PyObject *result = NULL;
         int cnt;
         int i;
         cnt = rd_kafka_AlterUserScramCredentials_result_get_count(result_event);
         result = PyList_New(cnt);
         for(i=0;i<cnt;i++){
-                PyList_SET_ITEM(result,i,Admin_c_UserScramCredentialAlterationResultElement_to_py(rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i)));        
+                PyList_SET_ITEM(result,i,
+                                Admin_c_UserScramCredentialAlterationResultElement_to_py(rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i)));        
         }
         return result;
 }

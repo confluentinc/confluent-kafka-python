@@ -816,6 +816,14 @@ class AdminClient (_AdminClientImpl):
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
 
+    def describe_user_scram_credentials(self,users,**kwargs):
+        if not isinstance(users,list):
+            raise TypeError("Expected input to be list of String")
+        for user in users:
+            if not isinstance(user,str):
+                raise TypeError("Each value should be a string")
+        # Do not know exactly
+
     def alter_user_scram_credentials(self,alterations,**kwargs):
 
         if not isinstance(alterations, list):
@@ -845,6 +853,8 @@ class AdminClient (_AdminClientImpl):
                                               string_type,
                                               AdminClient._make_consumer_group_offsets_result)
 
-        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
-
+        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs
         return futmap
+
+    def _make_alter_user_scram_credentials(f,futmap):
+        pass
