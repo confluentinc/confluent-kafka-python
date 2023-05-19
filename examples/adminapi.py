@@ -22,6 +22,7 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType)
+from confluent_kafka.admin._group import (OffsetSpec,OffsetSpecForTimestamp,ListOffsetResultInfo)
 import sys
 import threading
 import logging
@@ -559,6 +560,22 @@ def example_alter_consumer_group_offsets(a, args):
         except Exception:
             raise
 
+
+def example_list_offsets(a,args):
+    request = {}
+    topic_partition = TopicPartition("topicname",0)
+    offset_spec = OffsetSpecForTimestamp(999999999)
+    request[topic_partition] = offset_spec
+    futureMap = a.list_offsets(request,isolation_level = 1,request_timeout = 30)
+    for partition,future in futureMap.items():
+        partition = TopicPartition(partition)
+        try:
+            result_info = future.result()
+            result_info = ListOffsetResultInfo(result_info)
+            print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partittion,result_info.offset,result_info.timestamp))
+        except KafkaException as e:
+            print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
+        
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

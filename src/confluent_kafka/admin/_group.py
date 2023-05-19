@@ -126,3 +126,20 @@ class ConsumerGroupDescription:
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
+
+class OffsetSpec:
+    """
+    OffsetSpec
+    """
+    def __init__(self):
+        pass
+
+class OffsetSpecForTimestamp(OffsetSpec):
+    def __init__(self,timestamp:int):
+        self.timestamp = timestamp
+
+class ListOffsetResultInfo:
+    def __init__(self,offset:int,timestamp:int,leaderEpoch:int):
+        self.offset = offset
+        self.timestamp = timestamp
+        self.leaderEpoch = leaderEpoch
