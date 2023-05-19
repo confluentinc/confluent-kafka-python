@@ -3199,29 +3199,24 @@ static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka
         
         return result;
 }
-static PyObject *Admin_c_UserScramCredentialAlterationResultElement_to_py(const rd_kafka_UserScramCredentialAlterationResultElement_t *result_element){
-        PyObject *result = NULL;
-        PyObject *args = NULL;
-        rd_kafka_error_t *error;
-        result = PyDict_New();
-        PyDict_SetItemString(result,"user",rd_kafka_UserScramCredentialAlterationResultElement_get_user(result_element));
-        error = rd_kafka_UserScramCredentialAlterationResultElement_get_error(result_element);
-        PyDict_SetItemString(result,"err",rd_kafka_error_string(error));
-        PyDict_SetItemString(result,"errorcode",rd_kafka_error_code(error));
-        args = PyTuple_New(0);
-        result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
-                                                     "UserScramCredentialAlterationResultElement"), args, result);
-        return result;
-}
+
 static PyObject *Admin_c_AlterUserScramCredentialsResult_to_py(const rd_kafka_AlterUserScramCredentials_result_t *result_event) {
         PyObject *result = NULL;
         int cnt;
         int i;
         cnt = rd_kafka_AlterUserScramCredentials_result_get_count(result_event);
-        result = PyList_New(cnt);
+        result = PyDict_New();
         for(i=0;i<cnt;i++){
-                PyList_SET_ITEM(result,i,
-                                Admin_c_UserScramCredentialAlterationResultElement_to_py(rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i)));        
+                PyObject *error_py = NULL;
+                rd_kafka_AlterUserScramCredentialsResultElement_t *element = rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i);
+                rd_kafka_error_t *error = rd_kafka_UserScramCredentialAlterationResultElement_get_error(element);
+                char *username = rd_kafka_UserScramCredentialAlterationResultElement_get_user(element);
+                char *err = rd_kafka_error_string(error);
+                int errorcode = rd_kafka_error_code(error);
+                error_py = KafkaError_new_or_None(errorcode,err);
+                PyDict_SetItemString(result,username,error_py);  
+                Py_DECREF(error_py); 
+
         }
         return result;
 }

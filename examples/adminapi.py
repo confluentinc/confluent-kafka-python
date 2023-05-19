@@ -509,7 +509,7 @@ def example_list_consumer_group_offsets(a, args):
         topic_partitions = None
     groups = [ConsumerGroupTopicPartitions(args[0], topic_partitions)]
 
-    future = a.list_consumer_group_offsets(groups)
+    futureMap = a.list_consumer_group_offsets(groups)
 
     for group_id, future in futureMap.items():
         try:
@@ -579,7 +579,8 @@ def example_describe_user_scram_credentials(a,args):
         for description in descriptions:
             description = UserScramCredentialsDescription(description)
             print(" Username : {} Errorcode : {}".format(description.user,description.errorcode))
-            print("     Error Message : {}".format(description.err))
+            if description.errorcode != 0:
+                print("    User Error Message : {}".format(description.err))
             scram_credential_infos = description.scram_credential_infos
             for scram_credential_info in scram_credential_infos:
                 scram_credential_info = ScramCredentialInfo(scram_credential_info)
@@ -598,17 +599,13 @@ def example_alter_user_scram_credentials(a,args):
     alterations.append(upsertion)
     deletion = UserScramCredentialDeletion("username",ScramMechanism.SCRAM_SHA_512)
     alterations.append(deletion)
-    future = a.alter_user_scram_credentials(alterations)
-    try:
-        alter_user_scram_credentials_result = future.result()
-        for user_scram_credential_alteration_result_element in alter_user_scram_credentials_result:
-            user_scram_credential_alteration_result_element = UserScramCredentialAlterationResultElement(user_scram_credential_alteration_result_element)
-            print("Username : {} Errorcode : {}".format(user_scram_credential_alteration_result_element.user,user_scram_credential_alteration_result_element.errorcode))
-            if user_scram_credential_alteration_result_element.errorcode != 0 :
-                print("     Error Message : {}".format(user_scram_credential_alteration_result_element.err))
-    except Exception:
-        raise
-
+    futureMap = a.alter_user_scram_credentials(alterations)
+    for user,future in futureMap.items():
+        try:
+            result = future.result()
+            print("Alteration Successful for User : {}".format(user))
+        except KafkaException as e:
+            print("Alteration failed for User : {} with error {}".format(user,e))
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

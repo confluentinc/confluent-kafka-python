@@ -144,12 +144,6 @@ class DescribeUserScramCredentialsResult:
         self.errorcode = errorcode
         self.user_scram_credentials_descriptions = user_scram_credentials_descriptions
 
-class UserScramCredentialAlterationResultElement:
-    def __init__(self,user:str,err:str,errorcode:int):
-        self.user = user
-        self.err = err
-        self.errorcode = errorcode
-
 class UserScramCredentialAlteration:
     def __init__(self,user): 
         self.user = user

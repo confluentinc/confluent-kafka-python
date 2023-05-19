@@ -824,6 +824,26 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("Each value should be a string")
         # Do not know exactly
 
+    def _make_alter_user_scram_credentials_result(f,futmap):
+        try:
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for username, result in results.items():
+                fut = futmap[username]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+
     def alter_user_scram_credentials(self,alterations,**kwargs):
 
         if not isinstance(alterations, list):
@@ -849,12 +869,11 @@ class AdminClient (_AdminClientImpl):
                 alteration.mechanism = alteration.mechanism.value
 
         # Do not know what to do here exactly
-        f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
-                                              string_type,
-                                              AdminClient._make_consumer_group_offsets_result)
+        f, futmap = AdminClient._make_futures([alteration.user for alteration in alterations], None,
+                                              AdminClient._make_alter_user_scram_credentials_result)
 
-        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs
+        super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+
         return futmap
 
-    def _make_alter_user_scram_credentials(f,futmap):
-        pass
+    
