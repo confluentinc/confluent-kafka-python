@@ -2941,7 +2941,7 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
         return all_groups_result;
 }
 
-static PyObject *Admin_c_ListOffsetsResult_to_c (const rd_kafka_ListOffsets_result_t *result_event) {
+static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
         PyObject *result = NULL;
         PyObject *ListOffsetResultInfo_type = NULL;
         ListOffsetResultInfo_type = cfl_PyObject_lookup("confluent_kafka",
@@ -2949,6 +2949,7 @@ static PyObject *Admin_c_ListOffsetsResult_to_c (const rd_kafka_ListOffsets_resu
         if(!ListOffsetResultInfo_type){
                 return NULL;
         }
+        
         int i;
         int cnt = rd_kafka_ListOffsets_result_get_count(result_event);
         rd_kafka_ListOffsetResultInfo_t *result_info;
@@ -2956,6 +2957,10 @@ static PyObject *Admin_c_ListOffsetsResult_to_c (const rd_kafka_ListOffsets_resu
         int64_t timestamp;
         result = PyDict_New();
         for(i=0;i<cnt;i++){
+                TopicPartition *topic_partition_py;
+	        topic_partition_py = (TopicPartition *)TopicPartitionType.tp_new(
+		&TopicPartitionType, "topic", 3);
+                
                 PyObject *value = NULL;
                 result_info = rd_kafka_ListOffsets_result_get_element(result_event,i);
                 topic_partition = rd_kafka_ListOffsetResultInfo_get_topic_partition(result_info);
@@ -2964,13 +2969,15 @@ static PyObject *Admin_c_ListOffsetsResult_to_c (const rd_kafka_ListOffsets_resu
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
                 }else{
                         value = PyDict_New();
-                        PyDict_SetItemString(value,"offset",topic_partition->offset);
-                        PyDict_SetItemString(value,"timestamp",timestamp);
-                        PyDict_SetItemString(value,"leaderEpoch",-1);
+                        
+                        cfl_PyDict_SetInt(value,"offset",topic_partition->offset);
+                        cfl_PyDict_SetInt(value,"timestamp",timestamp);
+                        cfl_PyDict_SetInt(value,"leaderEpoch",-1);
                         args = PyTuple_New(0);
                         value = PyObject_Call(ListOffsetResultInfo_type,args,value);
                 }
-                PyDict_SetItemString(result,tp,value);
+
+                PyDict_SetItemString(result,,value);
         }
         return result;
 }
@@ -3233,7 +3240,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         case RD_KAFKA_EVENT_LISTOFFSETS_RESULT:
         {
                 const rd_kafka_ListOffsets_result_t *c_list_offsets_result = rd_kafka_event_ListOffsets_result(rkev);
-                result = Admin_c_ListOffsetResult_to_py(c_list_offsets_result);
+                result = Admin_c_ListOffsetsResult_to_py(c_list_offsets_result);
                 break;
         }
 
