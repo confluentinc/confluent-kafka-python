@@ -90,6 +90,7 @@ struct Admin_options {
                 Admin_options_def_float,         \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
+                Admin_options_def_int,           \
                 Admin_options_def_ptr,           \
                 Admin_options_def_cnt,           \
         }
@@ -166,6 +167,12 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
                 strcpy(errstr, rd_kafka_error_string(err_obj));
                 goto err;
         }
+
+        if (Admin_options_is_set_int(options->isolation_level) &&
+             (err = rd_kafka_AdminOptions_set_isolation_level(
+                     c_options,options->isolations_level,
+                     errstr,sizeof(errstr))))
+                goto err;
 
         return c_options;
 
@@ -2020,7 +2027,93 @@ err:
 }
 
 PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
+        PyObject *request, *future;
+        int request_cnt;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        rd_kafka_topic_partition_t *c_topic_partition = NULL;
+        PyObject *topic_partition;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+
+        static char *kws[] = {"request",
+                             "future",
+                             /* options */
+                             "request_timeout",
+                             "isolation_level"
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
+                                         &request,
+                                         &future,
+                                         &options.request_timeout,
+                                         &options.isolation_level)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(request) &&
+            (request_cnt = (int)PyList_Size(request)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "Currently we support list offsets request for a list of Topic Partitions");
+                goto err;
+        }
+        c_topic_partitions = rd_kafka_topic_partition_list_new(request_cnt);
+
+        for(i=0;i<request_cnt;i++){
+                rd_kafka_topic_partition_t *rktpar;
+                topic_partition = PyList_GET_ITEM(request, i);
+                c_topic_partition = py_part_to_c(topic_partition);
+                rktpar = rd_kafka_topic_partition_list_add(c_topic_partitions,c_topic_partition->topic,c_topic_partition->partition);
+                rktpar->offset = c_topic_partition->offset;
+                rd_kafka_topic_partition_destroy(c_topic_partition);
+                Py_XDECREF(topic_partition);
+        }
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ListOffsets(self->rk, c_topic_partitions, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+
+        Py_RETURN_NONE;
+err:
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(c_topic_partition) {
+                rd_kafka_topic_partition_destroy(c_topic_partition);
+        }
+        if(c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        }
+        Py_XDECREF(topic_partition);
+        return NULL;
 }
 
 const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
@@ -2680,7 +2773,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
                 goto err;
         }
 
-        PyDict_SetItemString(kwargs, "assignment", assignment);
+        PyDict_SetItemString(kwargs, "assignment", assignment); /* char *assignment */
 
         args = PyTuple_New(0);
 
@@ -2949,7 +3042,33 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         if(!ListOffsetResultInfo_type){
                 return NULL;
         }
-        
+        /**
+         * In the python TopicPartition("topicname",0)
+         *  make_result [python code]
+         *  i will get the value from dict 
+         *      if instance of error set future.exception
+         *      extract out the topic name and partition index
+         *      futmap[tp] = resultinfo
+         * 
+         *      
+         * 
+         *      c_part_to_py(--) -> [TopicPartition]
+         *      partlist[0]
+         * 
+         *      char *value
+         *      when i want to set a string value in pyobject 
+         *      pydict_setitemstring(foo,"user",value); 
+         * 
+         *      in the request flow
+         *              Map<TopicPartition,OffsetSpec> -> {}
+         * 
+         *      
+         *       guide me throught the flow 
+         *              we make a request  -> Admin.c -> entry point of librdkafka -> give back an error code
+         *                                      so now our request is not on queue      
+         *              how to tell the user that unit test 
+        */
+
         int i;
         int cnt = rd_kafka_ListOffsets_result_get_count(result_event);
         rd_kafka_ListOffsetResultInfo_t *result_info;
@@ -2957,28 +3076,28 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         int64_t timestamp;
         result = PyDict_New();
         for(i=0;i<cnt;i++){
-                TopicPartition *topic_partition_py;
+                Top *topic_partition_py;
 	        topic_partition_py = (TopicPartition *)TopicPartitionType.tp_new(
 		&TopicPartitionType, "topic", 3);
-                
+                PyObject *topic_partition_list;
                 PyObject *value = NULL;
                 result_info = rd_kafka_ListOffsets_result_get_element(result_event,i);
                 topic_partition = rd_kafka_ListOffsetResultInfo_get_topic_partition(result_info);
                 timestamp = rd_kafka_ListOffsetResultInfo_get_timestamp(result_info);
+
                 if(topic_partition->err){
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
                 }else{
                         value = PyDict_New();
-                        
                         cfl_PyDict_SetInt(value,"offset",topic_partition->offset);
                         cfl_PyDict_SetInt(value,"timestamp",timestamp);
                         cfl_PyDict_SetInt(value,"leaderEpoch",-1);
                         args = PyTuple_New(0);
                         value = PyObject_Call(ListOffsetResultInfo_type,args,value);
                 }
-
-                PyDict_SetItemString(result,,value);
+                PyDict_SetItemString(result,c_part_to_py(topic_partition),value);
         }
+
         return result;
 }
 /**

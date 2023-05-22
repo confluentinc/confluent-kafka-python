@@ -37,7 +37,13 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
-                     MemberDescription)
+                     MemberDescription,
+                     OffsetSpec,
+                     TimestampOffsetSpec,
+                     MaxTimestampOffsetSpec,
+                     LatestOffsetSpec,
+                     EarliestOffsetSpec,
+                     ListOffsetResultInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -231,6 +237,24 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
             for resource, fut in futmap.items():
+                fut.set_exception(e)
+    @staticmethod
+    def _make_list_offsets_result(f,futmap):
+        try:
+            results = f.result()
+            if len(list(results.values())) != len(list(futmap.values())):
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
+            for topic_partition,value in results.items():
+                fut = futmap[topic_partition]
+                if isinstance(value,KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    value = ListOffsetResultInfo(value)
+                    fut.set_result(value)
+        except Exception as e:
+            # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
+            for _, fut in futmap.items():
                 fut.set_exception(e)
 
     @staticmethod
@@ -809,3 +833,46 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
+    
+    def list_offsets(self,list_offsets_request,**kwargs):
+
+        if not isinstance(list_offsets_request,dict):
+            raise TypeError("Expected input to be dict of <TopicPartitions,OffsetSpec> to list offsets for")
+        
+        if len(list_offsets_request)==0:
+            raise ValueError("Atleast one Topic Partition should be passed")
+
+        for topic_partition, offset_spec in list_offsets_request.items():
+            if topic_partition is None:
+                raise ValueError("Element of 'topic_partitions' cannot be None")
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+            if topic_partition.topic is None:
+                raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+            if not topic_partition.topic:
+                raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+            if topic_partition.partition < 0:
+                raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
+            if offset_spec is None:
+                raise ValueError("OffsetSpec should not be None")        
+            if not (isinstance(offset_spec,TimestampOffsetSpec)  or isinstance(offset_spec,MaxTimestampOffsetSpec)
+                    or isinstance(offset_spec,LatestOffsetSpec) or isinstance(offset_spec,EarliestOffsetSpec)):
+                raise TypeError("Expected the value to be a OffsetSpec Child Class : Earliest, Latest , MaxTimestamp or Timestamp")
+        requests = []        
+        for topic_partition,offset_spec in list_offsets_request.items():
+            offset
+            if isinstance(offset_spec,MaxTimestampOffsetSpec):
+                offset = -1
+            elif isinstance(offset_spec,EarliestOffsetSpec):
+                offset = -2
+            elif isinstance(offset_spec,LatestOffsetSpec):
+                offset = -3
+            else:
+                offset = offset_spec.timestamp                
+
+            requests.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
+        f, futmap = AdminClient._make_futures(requests,
+                                              _TopicPartition,
+                                              AdminClient._make_list_offsets_result)
+        
+        super(AdminClient, self).list_offsets(requests, f, **kwargs)

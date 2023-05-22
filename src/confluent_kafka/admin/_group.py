@@ -134,9 +134,21 @@ class OffsetSpec:
     def __init__(self):
         pass
 
-class OffsetSpecForTimestamp(OffsetSpec):
+class TimestampOffsetSpec(OffsetSpec):
     def __init__(self,timestamp:int):
         self.timestamp = timestamp
+
+class MaxTimestampOffsetSpec(OffsetSpec):
+    def __init__(self):
+        pass
+
+class LatestOffsetSpec(OffsetSpec):
+    def __init__(self):
+        pass
+
+class EarliestOffsetSpec(OffsetSpec):
+    def __init__(self):
+        pass
 
 class ListOffsetResultInfo:
     def __init__(self,offset:int,timestamp:int,leaderEpoch:int):
