@@ -250,7 +250,7 @@ class AdminClient (_AdminClientImpl):
                     "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
             for topic_partition,fut in futmap.items():
                 value = results[_TopicPartition(topic_partition.topic,topic_partition.partition)]
-                if isinstance(value,KafkaError):
+                if isinstance(value,KafkaError) and (value is not None):
                     fut.set_exception(KafkaException(value))
                 else:
                     value = ListOffsetResultInfo(value)
