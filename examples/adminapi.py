@@ -18,11 +18,11 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, KafkaError)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType)
-from confluent_kafka.admin._group import (OffsetSpec,TimestampOffsetSpec,EarliestOffsetSpec,LatestOffsetSpec,MaxTimestampOffsetSpec,ListOffsetResultInfo)
+from confluent_kafka.admin._group import (OffsetSpec,TimestampOffsetSpec,EarliestOffsetSpec,LatestOffsetSpec,MaxTimestampOffsetSpec,ListOffsetResultInfo,IsolationLevel)
 import sys
 import threading
 import logging
@@ -566,13 +566,15 @@ def example_list_offsets(a,args):
     topic_partition = TopicPartition("topicname",0)
     offset_spec = EarliestOffsetSpec()
     request[topic_partition] = offset_spec
-    futureMap = a.list_offsets(request,isolation_level = 1,request_timeout = 30)
-    for partition,future in futureMap.items():
+    futmap = a.list_offsets(request,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    for partition,future in futmap.items():
         partition = TopicPartition(partition)
         try:
-            result_info = future.result()
-            result_info = ListOffsetResultInfo(result_info)
-            print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partittion,result_info.offset,result_info.timestamp))
+            result = future.result()
+            if isinstance(result,KafkaError):
+                print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,result))
+            else:
+                print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partittion,result.offset,result.timestamp))
         except KafkaException as e:
             print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
         

@@ -240,6 +240,7 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
             for resource, fut in futmap.items():
                 fut.set_exception(e)
+    
     @staticmethod
     def _make_list_offsets_result(f,futmap):
         try:
@@ -841,7 +842,7 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(list_offsets_request,dict):
             raise TypeError("Expected input to be dict of <TopicPartitions,OffsetSpec> to list offsets for")
         
-        if len(list_offsets_request)==0:
+        if len(list_offsets_request) == 0:
             raise ValueError("Atleast one Topic Partition should be passed")
 
         for topic_partition, offset_spec in list_offsets_request.items():
@@ -873,8 +874,9 @@ class AdminClient (_AdminClientImpl):
                 offset = offset_spec.timestamp                
 
             requests.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
-        f, futmap = AdminClient._make_futures(requests,
+        f, futmap = AdminClient._make_futures([_TopicPartition(request.topic,request.partition) for request in requests],
                                               _TopicPartition,
                                               AdminClient._make_list_offsets_result)
         
         super(AdminClient, self).list_offsets(requests, f, **kwargs)
+        return futmap
