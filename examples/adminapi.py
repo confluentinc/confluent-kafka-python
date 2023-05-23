@@ -571,7 +571,7 @@ def example_list_offsets(a,args):
         partition = TopicPartition(partition)
         try:
             result = future.result()
-            if isinstance(result,KafkaError):
+            if isinstance(result,KafkaError) and (result is not None):
                 print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,result))
             else:
                 print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partittion,result.offset,result.timestamp))
