@@ -2074,7 +2074,7 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         for(i=0;i<request_cnt;i++){
                 rd_kafka_topic_partition_t *rktpar;
                 topic_partition = PyList_GET_ITEM(request, i);
-                c_topic_partition = py_part_to_c(topic_partition);
+                c_topic_partition = py_to_c_part(topic_partition);
                 rktpar = rd_kafka_topic_partition_list_add(c_topic_partitions,c_topic_partition->topic,c_topic_partition->partition);
                 rktpar->offset = c_topic_partition->offset;
                 rd_kafka_topic_partition_destroy(c_topic_partition);
@@ -3037,43 +3037,19 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
 static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
         PyObject *result = NULL;
         PyObject *ListOffsetResultInfo_type = NULL;
+        int i;
+        int cnt;
+        rd_kafka_ListOffsetResultInfo_t *result_info;
+        rd_kafka_topic_partition_t *topic_partition;
+        int64_t timestamp;
+        
         ListOffsetResultInfo_type = cfl_PyObject_lookup("confluent_kafka",
                                                "ListOffsetResultInfo");
         if(!ListOffsetResultInfo_type){
                 return NULL;
         }
-        /**
-         * In the python TopicPartition("topicname",0)
-         *  make_result [python code]
-         *  i will get the value from dict 
-         *      if instance of error set future.exception
-         *      extract out the topic name and partition index
-         *      futmap[tp] = resultinfo
-         * 
-         *      
-         * 
-         *      c_part_to_py(--) -> [TopicPartition]
-         *      partlist[0]
-         * 
-         *      char *value
-         *      when i want to set a string value in pyobject 
-         *      pydict_setitemstring(foo,"user",value); 
-         * 
-         *      in the request flow
-         *              Map<TopicPartition,OffsetSpec> -> {}
-         * 
-         *      
-         *       guide me throught the flow 
-         *              we make a request  -> Admin.c -> entry point of librdkafka -> give back an error code
-         *                                      so now our request is not on queue      
-         *              how to tell the user that unit test 
-        */
-
-        int i;
-        int cnt = rd_kafka_ListOffsets_result_get_count(result_event);
-        rd_kafka_ListOffsetResultInfo_t *result_info;
-        rd_kafka_topic_partition_t *topic_partition;
-        int64_t timestamp;
+        
+        cnt = rd_kafka_ListOffsets_result_get_count(result_event);
         result = PyDict_New();
         for(i=0;i<cnt;i++){
                 PyObject *value = NULL;
@@ -3092,6 +3068,15 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
                         args = PyTuple_New(0);
                         value = PyObject_Call(ListOffsetResultInfo_type,args,value);
                 }
+                topic_partition->err = 0;
+                topic_partition->offset = 0;
+                topic_partition->metadata_size = 0;
+                rd_free(topic_partition->metadata);
+                rd_free(topic_partition->_private);
+                rd_free(topic_partition->opaque);
+                topic_partition->metadata = NULL;
+                topic_partition->_private = NULL;
+                topic_partition->opaque = NULL;
                 PyDict_SetItemString(result,c_part_to_py(topic_partition),value);
         }
 

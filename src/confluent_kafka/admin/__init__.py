@@ -247,9 +247,8 @@ class AdminClient (_AdminClientImpl):
             if len(list(results.values())) != len(list(futmap.values())):
                 raise RuntimeError(
                     "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
-            for topic_partition,value in results.items():
-                tp = _TopicPartition(topic_partition.topic,topic_partition.partition)
-                fut = futmap[tp]
+            for topic_partition,fut in futmap.items():
+                value = results[_TopicPartition(topic_partition.topic,topic_partition.partition)]
                 if isinstance(value,KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
