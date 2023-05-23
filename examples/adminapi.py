@@ -18,7 +18,7 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, KafkaError)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType,ScramMechanism,ScramCredentialInfo,UserScramCredentialsDescription,DescribeUserScramCredentialsResult,UserScramCredentialDeletion,UserScramCredentialAlteration,
@@ -572,17 +572,19 @@ def example_describe_user_scram_credentials(a,args):
     mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
     try:
         results = future.result()
-        if isinstance(results,dict):
+        if isinstance(results,KafkaError):
+            print("Request Errored with {}".format(results))
+        else:
             for username,value in results.items():
                 print(" Username : {}".format(username))
-                if isinstance(value,UserScramCredentialsDescription):
+                if isinstance(value,KafkaError):
+                    print("     User-level Request Errorred with {}".format(value))
+                else:
                     value = UserScramCredentialsDescription(value)
                     for scram_credential_info in value.scram_credential_infos:
                         print("     Mechanism : {} Iterations : {}".format(mechanism_description[scram_credential_info.mechanism],scram_credential_info.iterations))
-                else:
-                    print(" Errorred with {}".format(value))
-        else:
-            print("Request Errored with {}".format(results))
+                
+        
     except Exception:
         raise
 
@@ -595,15 +597,16 @@ def example_alter_user_scram_credentials(a,args):
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
     upsertion = UserScramCredentialUpsertion("username",scram_credential_info,"salt","password")
     alterations.append(upsertion)
-    deletion = UserScramCredentialDeletion("username",ScramMechanism.SCRAM_SHA_512)
+    deletion = UserScramCredentialDeletion("username2",ScramMechanism.SCRAM_SHA_512)
     alterations.append(deletion)
     futmap = a.alter_user_scram_credentials(alterations)
     for user,future in futmap.items():
         try:
             result = future.result()
-            print("Alteration Successful for User : {}".format(user))
-        except KafkaException as e:
-            print("Alteration failed for User : {} with error {}".format(user,e))
+            if isinstance(result,KafkaError) and result not None:
+                print("Alteration failed for User : {} with error {}".format(user,result))
+            else:
+                print("Alteration Successful for User : {}".format(user))
         except Exception:
             raise
 
