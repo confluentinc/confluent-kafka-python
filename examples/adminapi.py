@@ -566,25 +566,23 @@ def example_describe_user_scram_credentials(a,args):
     Describe User Scram Credentials
     """
     future = a.describe_user_scram_credentials([])
-    mechanism_info = {} 
-    mechanism_info[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
-    mechanism_info[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
-    mechanism_info[ScramMechanism.UNKNOWN] = "UNKWOWN"
+    mechanism_description = {}
+    mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
+    mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
+    mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
     try:
-        describe_user_scram_credentials_result = future.result()
-        print("Request Level Error Code {}".format(describe_user_scram_credentials_result.errorcode))
-        if describe_user_scram_credentials_result.errorcode != 0 :
-            print("Request Level Error Message : {}".format(describe_user_scram_credentials_result.err))
-        descriptions = describe_user_scram_credentials_result.descriptions
-        for description in descriptions:
-            description = UserScramCredentialsDescription(description)
-            print(" Username : {} Errorcode : {}".format(description.user,description.errorcode))
-            if description.errorcode != 0:
-                print("    User Error Message : {}".format(description.err))
-            scram_credential_infos = description.scram_credential_infos
-            for scram_credential_info in scram_credential_infos:
-                scram_credential_info = ScramCredentialInfo(scram_credential_info)
-                print("         Mechanism : {} Iterations : {}".format(mechanism_info[scram_credential_info.mechanism],scram_credential_info.iterations))
+        results = future.result()
+        if isinstance(results,dict):
+            for username,value in results.items():
+                print(" Username : {}".format(username))
+                if isinstance(value,UserScramCredentialsDescription):
+                    value = UserScramCredentialsDescription(value)
+                    for scram_credential_info in value.scram_credential_infos:
+                        print("     Mechanism : {} Iterations : {}".format(mechanism_description[scram_credential_info.mechanism],scram_credential_info.iterations))
+                else:
+                    print(" Errorred with {}".format(value))
+        else:
+            print("Request Errored with {}".format(results))
     except Exception:
         raise
 
@@ -599,13 +597,15 @@ def example_alter_user_scram_credentials(a,args):
     alterations.append(upsertion)
     deletion = UserScramCredentialDeletion("username",ScramMechanism.SCRAM_SHA_512)
     alterations.append(deletion)
-    futureMap = a.alter_user_scram_credentials(alterations)
-    for user,future in futureMap.items():
+    futmap = a.alter_user_scram_credentials(alterations)
+    for user,future in futmap.items():
         try:
             result = future.result()
             print("Alteration Successful for User : {}".format(user))
         except KafkaException as e:
             print("Alteration failed for User : {} with error {}".format(user,e))
+        except Exception:
+            raise
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

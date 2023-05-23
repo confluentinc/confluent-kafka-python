@@ -132,17 +132,15 @@ class ScramCredentialInfo:
         self.iterations = iterations
 
 class UserScramCredentialsDescription:
-    def __init__(self,user,err,errorcode,scram_credential_infos:list[ScramCredentialInfo]):
+    def __init__(self,user,scram_credential_infos:list[ScramCredentialInfo]):
         self.user = user
-        self.err = err
-        self.errorcode = errorcode
         self.scram_credential_infos = scram_credential_infos
 
 class DescribeUserScramCredentialsResult:
-    def __init__(self,err:str,errorcode:int,user_scram_credentials_descriptions:list[UserScramCredentialsDescription]):
-        self.err = err
+    def __init__(self,errorcode,errormessage,descriptions:dict):
         self.errorcode = errorcode
-        self.user_scram_credentials_descriptions = user_scram_credentials_descriptions
+        self.errormessage = errormessage
+        self.descriptions = descriptions
 
 class UserScramCredentialAlteration:
     def __init__(self,user): 
