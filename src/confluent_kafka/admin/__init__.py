@@ -43,6 +43,8 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      MaxTimestampOffsetSpec,
                      LatestOffsetSpec,
                      EarliestOffsetSpec,
+                     OffsetSpecEnumValue,
+                     IsolationLevel,
                      ListOffsetResultInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -246,7 +248,8 @@ class AdminClient (_AdminClientImpl):
                 raise RuntimeError(
                     "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
             for topic_partition,value in results.items():
-                fut = futmap[topic_partition]
+                tp = _TopicPartition(topic_partition.topic,topic_partition.partition)
+                fut = futmap[tp]
                 if isinstance(value,KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -862,11 +865,11 @@ class AdminClient (_AdminClientImpl):
         for topic_partition,offset_spec in list_offsets_request.items():
             offset
             if isinstance(offset_spec,MaxTimestampOffsetSpec):
-                offset = -1
+                offset = OffsetSpecEnumValue.MAX_TIMESTAMP_OFFSET_SPEC
             elif isinstance(offset_spec,EarliestOffsetSpec):
-                offset = -2
+                offset = OffsetSpecEnumValue.EARLIEST_OFFSET_SPEC
             elif isinstance(offset_spec,LatestOffsetSpec):
-                offset = -3
+                offset = OffsetSpecEnumValue.LATEST_OFFSET_SPEC
             else:
                 offset = offset_spec.timestamp                
 

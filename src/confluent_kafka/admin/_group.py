@@ -15,7 +15,8 @@
 
 from .._util import ConversionUtil
 from .._model import ConsumerGroupState
-
+from enum import Enum
+from .. import cimpl
 
 class ConsumerGroupListing:
     """
@@ -155,3 +156,20 @@ class ListOffsetResultInfo:
         self.offset = offset
         self.timestamp = timestamp
         self.leaderEpoch = leaderEpoch
+
+class IsolationLevel(Enum):
+    READ_COMMITTED = cimpl.READ_COMMITTED
+    READ_UNCOMMITTED = cimpl.READ_UNCOMMITTED
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
+
+class OffsetSpecEnumValue(Enum):
+    MAX_TIMESTAMP_OFFSET_SPEC = cimpl.MAX_TIMESTAMP_OFFSET_SPEC
+    EARLIEST_OFFSET_SPEC = cimpl.EARLIEST_OFFSET_SPEC
+    LATEST_OFFSET_SPEC = cimpl.LATEST_OFFSET_SPEC
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value

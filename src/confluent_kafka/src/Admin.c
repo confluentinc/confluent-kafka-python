@@ -3076,13 +3076,10 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         int64_t timestamp;
         result = PyDict_New();
         for(i=0;i<cnt;i++){
-                Top *topic_partition_py;
-	        topic_partition_py = (TopicPartition *)TopicPartitionType.tp_new(
-		&TopicPartitionType, "topic", 3);
-                PyObject *topic_partition_list;
                 PyObject *value = NULL;
                 result_info = rd_kafka_ListOffsets_result_get_element(result_event,i);
                 topic_partition = rd_kafka_ListOffsetResultInfo_get_topic_partition(result_info);
+                
                 timestamp = rd_kafka_ListOffsetResultInfo_get_timestamp(result_info);
 
                 if(topic_partition->err){
