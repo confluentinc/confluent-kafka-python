@@ -136,12 +136,6 @@ class UserScramCredentialsDescription:
         self.user = user
         self.scram_credential_infos = scram_credential_infos
 
-class DescribeUserScramCredentialsResult:
-    def __init__(self,errorcode,errormessage,descriptions:dict):
-        self.errorcode = errorcode
-        self.errormessage = errormessage
-        self.descriptions = descriptions
-
 class UserScramCredentialAlteration:
     def __init__(self,user): 
         self.user = user
@@ -157,4 +151,3 @@ class UserScramCredentialDeletion(UserScramCredentialAlteration):
     def __init__(self,user :str,mechansim :ScramMechanism):
         UserScramCredentialAlteration.__init__(user)
         self.mechanism = mechansim
-
