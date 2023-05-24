@@ -1714,7 +1714,6 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                 "Not able to load ScramCredentialInfo type");
                         goto err;
         }
-        printf("this is done \n\n");
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
                                        &options, future);
         if (!c_options)

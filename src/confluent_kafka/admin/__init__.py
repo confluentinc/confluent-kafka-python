@@ -859,15 +859,16 @@ class AdminClient (_AdminClientImpl):
     def alter_user_scram_credentials(self,alterations,**kwargs):
 
         if not isinstance(alterations, list):
-            raise TypeError("Expected input to be list of UserScramCredentialAlteration to be made")
+            raise TypeError("Expected input to be list")
 
         if len(alterations) == 0:
             raise ValueError("Expected at least one alteration")
 
         for alteration in alterations:
-            if (not isinstance(alteration,UserScramCredentialUpsertion)) and (not isinstance(alteration,UserScramCredentialDeletion)):
-                raise TypeError("Expected input to be list of UserScramCredentialAlteration to be made")
-            
+
+            if not isinstance(alteration,UserScramCredentialAlteration):
+                raise TypeError("Expected each element of list to be SubClass of UserScramCredentialAlteration")
+
             if alteration.user is None:
                 raise TypeError("'user' cannot be None")
             if not isinstance(alteration.user, string_type):
@@ -897,17 +898,19 @@ class AdminClient (_AdminClientImpl):
                 if not isinstance(alteration.credential_info.mechanism,ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
                 alteration.credential_info.mechanism = alteration.credential_info.mechanism.value
-            
-            if isinstance(alteration,UserScramCredentialDeletion):
+            elif isinstance(alteration,UserScramCredentialDeletion):
                 if not isinstance(alteration.mechanism,ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
                 alteration.mechanism = alteration.mechanism.value
-        print("This is great")
+            else:
+                raise TypeError("Expected each element of list to be Sub-class of UserScramCredentialAlteration")
+            
+
         f, futmap = AdminClient._make_futures([alteration.user for alteration in alterations], None,
                                               AdminClient._make_alter_user_scram_credentials_result)
-        print("what up")
+
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
-        print("this up")
+
         return futmap
 
     
