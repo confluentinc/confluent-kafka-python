@@ -42,8 +42,7 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      UserScramCredentialUpsertion,
                      UserScramCredentialDeletion,
                      ScramCredentialInfo,
-                     UserScramCredentialsDescription,
-                     DescribeUserScramCredentialsResult)
+                     UserScramCredentialsDescription)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -162,10 +161,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_list_consumer_groups_result(f, futmap):
-        # results = f.results()
-        # 
         pass
-        FinalObject ,<
 
     @staticmethod
     def _make_consumer_groups_result(f, futmap):
@@ -823,7 +819,7 @@ class AdminClient (_AdminClientImpl):
 
     def _make_describe_user_scram_credentials_result(f,futmap):
         pass
-    
+
     def describe_user_scram_credentials(self,users,**kwargs):
         if not isinstance(users,list):
             raise TypeError("Expected input to be list of String")
@@ -906,12 +902,12 @@ class AdminClient (_AdminClientImpl):
                 if not isinstance(alteration.mechanism,ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
                 alteration.mechanism = alteration.mechanism.value
-
+        print("This is great")
         f, futmap = AdminClient._make_futures([alteration.user for alteration in alterations], None,
                                               AdminClient._make_alter_user_scram_credentials_result)
-
+        print("what up")
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
-
+        print("this up")
         return futmap
 
     

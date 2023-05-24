@@ -95,5 +95,7 @@ class ScramMechanism(Enum):
     SCRAM_SHA_256 = cimpl.SCRAM_MECHANISM_SHA_256
     SCRAM_SHA_512 = cimpl.SCRAM_MECHANISM_SHA_512
 
-    def __init__(self):
-        pass
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value

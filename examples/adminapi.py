@@ -19,10 +19,12 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState, KafkaError)
+from confluent_kafka._util.conversion_util import ConversionUtil
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType,ScramMechanism,ScramCredentialInfo,UserScramCredentialsDescription,DescribeUserScramCredentialsResult,UserScramCredentialDeletion,UserScramCredentialAlteration,
-                                   UserScramCredentialUpsertion,UserScramCredentialAlterationResultElement)
+                                   AclPermissionType, ScramMechanism, ScramCredentialInfo, UserScramCredentialsDescription,
+                                   UserScramCredentialDeletion, UserScramCredentialAlteration,
+                                   UserScramCredentialUpsertion)
 import sys
 import threading
 import logging
@@ -578,7 +580,7 @@ def example_describe_user_scram_credentials(a,args):
             for username,value in results.items():
                 print(" Username : {}".format(username))
                 if isinstance(value,KafkaError):
-                    print("     User-level Request Errorred with {}".format(value))
+                    print("     User-level Request Errorred with : {}".format(value))
                 else:
                     value = UserScramCredentialsDescription(value)
                     for scram_credential_info in value.scram_credential_infos:
@@ -594,16 +596,15 @@ def example_alter_user_scram_credentials(a,args):
     AlterUserScramCredentials
     """
     alterations = []
+    # scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
     upsertion = UserScramCredentialUpsertion("username",scram_credential_info,"salt","password")
     alterations.append(upsertion)
-    deletion = UserScramCredentialDeletion("username2",ScramMechanism.SCRAM_SHA_512)
-    alterations.append(deletion)
     futmap = a.alter_user_scram_credentials(alterations)
     for user,future in futmap.items():
         try:
             result = future.result()
-            if isinstance(result,KafkaError) and result not None:
+            if isinstance(result,KafkaError) and (result is not None):
                 print("Alteration failed for User : {} with error {}".format(user,result))
             else:
                 print("Alteration Successful for User : {}".format(user))
@@ -636,7 +637,8 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-
+        sys.stderr.write(' describe_user_scram_credentials ')
+        sys.stderr.write(' alteruserscramcredentials ')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -660,7 +662,9 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'describe_user_scram_credentials': example_describe_user_scram_credentials,
+              'alter_user_scram_credentials': example_alter_user_scram_credentials}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

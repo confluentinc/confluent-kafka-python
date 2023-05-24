@@ -132,7 +132,7 @@ class ScramCredentialInfo:
         self.iterations = iterations
 
 class UserScramCredentialsDescription:
-    def __init__(self,user,scram_credential_infos:list[ScramCredentialInfo]):
+    def __init__(self,user,scram_credential_infos:list):
         self.user = user
         self.scram_credential_infos = scram_credential_infos
 
@@ -142,12 +142,12 @@ class UserScramCredentialAlteration:
 
 class UserScramCredentialUpsertion(UserScramCredentialAlteration):
     def __init__(self,user:str,scram_credential_info:ScramCredentialInfo,salt:str,password:str):
-        UserScramCredentialAlteration.__init__(user)
+        super(UserScramCredentialUpsertion, self).__init__(user)
         self.credential_info = scram_credential_info
         self.salt = salt
         self.password = password
 
 class UserScramCredentialDeletion(UserScramCredentialAlteration):
     def __init__(self,user :str,mechansim :ScramMechanism):
-        UserScramCredentialAlteration.__init__(user)
+        super(UserScramCredentialDeletion,self).__init__(user)
         self.mechanism = mechansim
