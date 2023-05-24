@@ -823,7 +823,7 @@ class AdminClient (_AdminClientImpl):
 
     def _make_describe_user_scram_credentials_result(f,futmap):
         pass
-
+    
     def describe_user_scram_credentials(self,users,**kwargs):
         if not isinstance(users,list):
             raise TypeError("Expected input to be list of String")

@@ -1536,7 +1536,7 @@ const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
 static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *args,
                                                        PyObject *kwargs){
         PyObject *users, *future;
-        static char *kws[] = { "resources",
+        static char *kws[] = { "users",
                                "future",
                                /* options */
                                "request_timeout",
@@ -1549,12 +1549,12 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         CallState cs;
 
         /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,           /*Do not know exactly*/
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,           /*Do not know exactly*/
                                          &users, &future,
                                          &options.request_timeout))
                 return NULL;
 
-        if (!PyList_Check(resources)) {
+        if (!PyList_Check(users)) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of ConfigResource "
                                 "objects");
@@ -1566,7 +1566,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
 
-        user_cnt = (int)PyList_Size(resources)
+        user_cnt = (int)PyList_Size(users)
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
@@ -1629,13 +1629,11 @@ err:
         }
         return NULL;
 }
-static void foo(PyObject *src,char **dst){
-        *dst = 
-}
+
 static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args,
                                                        PyObject *kwargs){
-        PyObject *resources, *future;
-        static char *kws[] = { "resources",
+        PyObject *alterations, *future;
+        static char *kws[] = { "alterations",
                                "future",
                                /* options */
                                "request_timeout",
@@ -1671,15 +1669,14 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         int32_t iterations;
         
         rd_kafka_resp_err_t entry_point_error = 0;
-        /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,           /*Do not know exactly*/
-                                         &users, &future,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &alterations, &future,
                                          &options.request_timeout))
                 return NULL;
 
-        if (!PyList_Check(resources)) {
+        if (!PyList_Check(alterations)) {
                 PyErr_SetString(PyExc_ValueError,
-                                "Expected non-empty list of ConfigResource "
+                                "Expected non-empty list of Alteration "
                                 "objects");
                 return NULL;
         }
@@ -1718,7 +1715,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
 
-        alteration_cnt = (int)PyList_Size(resources)
+        alteration_cnt = (int)PyList_Size(alterations)
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
@@ -1812,7 +1809,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
          * the event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
-        entry_point_error = rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu)
+        entry_point_error = rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu);
         CallState_end(self, &cs);
         if (entry_point_error){
                 PyErr_SetString(PyExc_ImportError,
@@ -1821,7 +1818,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         }
         
         if(c_alterations) {
-                for(i=0;i<user_cnt;i++)
+                for(i=0;i<alteration_cnt;i++)
                         rd_kafka_UserScramCredentialAlteration_destroy(c_alterations[i]);
                 free(c_alterations);
         }
@@ -1842,7 +1839,7 @@ err:
         Py_XDECREF(uo_password);
 
         if(c_alterations) {
-                for(i=0;i<user_cnt;i++)
+                for(i=0;i<alteration_cnt;i++)
                         rd_kafka_UserScramCredentialAlteration_destroy(c_alterations[i]);
                 free(c_alterations);
         }
