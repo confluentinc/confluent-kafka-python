@@ -567,10 +567,9 @@ def example_list_offsets(a,args):
     offset_spec = EarliestOffsetSpec()
     request[topic_partition] = offset_spec
     futmap = a.list_offsets(request,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
-    for partition,future in futmap.items():
-        partition = TopicPartition(partition)
+    for partition,fut in futmap.items():
         try:
-            result = future.result()
+            result = fut.result()
             if isinstance(result,KafkaError) and (result is not None):
                 print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,result))
             else:
@@ -605,6 +604,7 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(' list_offsets \n')
 
         sys.exit(1)
 
@@ -629,7 +629,8 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'list_offsets': example_list_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

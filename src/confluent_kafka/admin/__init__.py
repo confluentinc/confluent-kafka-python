@@ -248,12 +248,13 @@ class AdminClient (_AdminClientImpl):
             if len(list(results.values())) != len(list(futmap.values())):
                 raise RuntimeError(
                     "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
-            for topic_partition,fut in futmap.items():
-                value = results[_TopicPartition(topic_partition.topic,topic_partition.partition)]
+            for topic_partition,value in results.items():
+                if isinstance(topic_partition,string_type):
+                    print("-->>{}".format(topic_partition))
+                fut = futmap[_TopicPartition(topic_partition.topic,topic_partition.partition)]
                 if isinstance(value,KafkaError) and (value is not None):
                     fut.set_exception(KafkaException(value))
                 else:
-                    value = ListOffsetResultInfo(value)
                     fut.set_result(value)
         except Exception as e:
             # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
@@ -861,15 +862,18 @@ class AdminClient (_AdminClientImpl):
             if not (isinstance(offset_spec,TimestampOffsetSpec)  or isinstance(offset_spec,MaxTimestampOffsetSpec)
                     or isinstance(offset_spec,LatestOffsetSpec) or isinstance(offset_spec,EarliestOffsetSpec)):
                 raise TypeError("Expected the value to be a OffsetSpec Child Class : Earliest, Latest , MaxTimestamp or Timestamp")
-        requests = []        
+        requests = []
+        offset = 0
+        if(kwargs['isolation_level']):
+            kwargs['isolation_level'] = kwargs['isolation_level'].value
+        
         for topic_partition,offset_spec in list_offsets_request.items():
-            offset
             if isinstance(offset_spec,MaxTimestampOffsetSpec):
-                offset = OffsetSpecEnumValue.MAX_TIMESTAMP_OFFSET_SPEC
+                offset = OffsetSpecEnumValue.MAX_TIMESTAMP_OFFSET_SPEC.value
             elif isinstance(offset_spec,EarliestOffsetSpec):
-                offset = OffsetSpecEnumValue.EARLIEST_OFFSET_SPEC
+                offset = OffsetSpecEnumValue.EARLIEST_OFFSET_SPEC.value
             elif isinstance(offset_spec,LatestOffsetSpec):
-                offset = OffsetSpecEnumValue.LATEST_OFFSET_SPEC
+                offset = OffsetSpecEnumValue.LATEST_OFFSET_SPEC.value
             else:
                 offset = offset_spec.timestamp                
 

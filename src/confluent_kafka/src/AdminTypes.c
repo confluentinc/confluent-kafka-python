@@ -598,6 +598,6 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
-        AdminTypes_AddIsolationLevel(m);
-        AdminTypes_AddOffsetSpecEnumValue(m);
+        AdminTypes_AddObjectsIsolationLevel(m);
+        AdminTypes_AddObjectsOffsetSpecEnumValue(m);
 }
