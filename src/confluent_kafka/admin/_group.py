@@ -143,7 +143,7 @@ class UserScramCredentialAlteration:
 class UserScramCredentialUpsertion(UserScramCredentialAlteration):
     def __init__(self,user:str,scram_credential_info:ScramCredentialInfo,salt:str,password:str):
         super(UserScramCredentialUpsertion, self).__init__(user)
-        self.credential_info = scram_credential_info
+        self.scram_credential_info = scram_credential_info
         self.salt = salt
         self.password = password
 
