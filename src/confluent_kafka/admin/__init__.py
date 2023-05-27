@@ -818,7 +818,6 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).set_sasl_credentials(username, password)
 
     def _make_describe_user_scram_credentials_result(f,futmap):
-        print("we came here in the make result of describe\n\n")
         pass
 
     def describe_user_scram_credentials(self,users,**kwargs):
@@ -837,7 +836,6 @@ class AdminClient (_AdminClientImpl):
 
 
     def _make_alter_user_scram_credentials_result(f,futmap):
-
         print("we came here in the make result of alter\n\n")
         try:
             results = f.result()

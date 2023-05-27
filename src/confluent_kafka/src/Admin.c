@@ -1859,7 +1859,6 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         Py_DECREF(UserScramCredentialDeletion_type); /* from lookup() */
         Py_DECREF(ScramCredentialInfo_type); /* from lookup() */
         Py_DECREF(ScramMechanism_type); /* from lookup() */
-        
         Py_RETURN_NONE;
 err:
 
@@ -3207,11 +3206,22 @@ err:
         Py_XDECREF(results);
         return NULL;
 }
+static PyObject *Admin_c_ScramMechanism_to_py(rd_kafka_ScramMechanism_t mechanism){
+        PyObject *result = NULL;
+        PyObject *args = NULL;
+        result = PyDict_New();
+        cfl_PyDict_SetInt(result,"value",(int)mechanism);
+        args = PyTuple_New(0);
+        result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
+                                                     "ScramMechanism"), args, result);
+        return result;
+
+}
 static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentialInfo_t *scram_credential_info){
         PyObject *result = NULL;
         PyObject *args = NULL;
         result = PyDict_New();
-        cfl_PyDict_SetInt(result,"mechanism",rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info));
+        PyDict_SetItemString(result,"mechanism",Admin_c_ScramMechanism_to_py(rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info)));
         cfl_PyDict_SetInt(result,"iterations",rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info));
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
@@ -3225,12 +3235,14 @@ static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_Us
         int scramcredentialinfo_cnt;
         int i;
         result = PyDict_New();
-        PyDict_SetItemString(result,"user",rd_kafka_UserScramCredentialsDescription_get_user(description));
+        cfl_PyDict_SetString(result,"user",rd_kafka_UserScramCredentialsDescription_get_user(description));
+        
         scramcredentialinfo_cnt = rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo_cnt(description);
         scram_credential_infos = PyList_New(scramcredentialinfo_cnt);
         for(i=0;i<scramcredentialinfo_cnt;i++){
                 PyList_SET_ITEM(scram_credential_infos,i,Admin_c_ScramCredentialInfo_to_py(rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo(description,i)));
         }
+
         PyDict_SetItemString(result,"scram_credential_infos",scram_credential_infos);
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
@@ -3259,7 +3271,7 @@ static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka
                 rd_kafka_UserScramCredentialsDescription_t *description = rd_kafka_DescribeUserScramCredentials_result_get_description(result_event,i);
                 username = rd_kafka_UserScramCredentialsDescription_get_user(description);
                 error = rd_kafka_UserScramCredentialsDescription_get_error(description);
-                if(error){
+                if(rd_kafka_error_code(error)){
                         PyDict_SetItemString(result,username,KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error)));
                 }else{
                         PyDict_SetItemString(result,username,Admin_c_UserScramCredentialsDescription_to_py(description));
@@ -3278,9 +3290,8 @@ static PyObject *Admin_c_AlterUserScramCredentialsResult_to_py(const rd_kafka_Al
                 rd_kafka_UserScramCredentialAlterationResultElement_t *element = rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i);
                 rd_kafka_error_t *error = rd_kafka_UserScramCredentialAlterationResultElement_get_error(element);
                 char *username = rd_kafka_UserScramCredentialAlterationResultElement_get_user(element);
-                PyDict_SetItemString(result,username,"Success!!"); 
+                PyDict_SetItemString(result,username,KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error))); 
         }
-        printf("this executed fine\n\n");
         return result;
 }
 /**

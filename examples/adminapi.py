@@ -567,7 +567,7 @@ def example_describe_user_scram_credentials(a,args):
     """
     Describe User Scram Credentials
     """
-    future = a.describe_user_scram_credentials(["sam"])
+    future = a.describe_user_scram_credentials([])
     mechanism_description = {}
     mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
     mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
@@ -575,29 +575,30 @@ def example_describe_user_scram_credentials(a,args):
     try:
         results = future.result()
         if isinstance(results,KafkaError):
-            print("Request Errored with {}".format(results))
+            print("Request Errored with {}\n\n".format(results))
         else:
             for username,value in results.items():
-                print(" Username : {}".format(username))
-                if isinstance(value,KafkaError):
-                    print("     User-level Request Errorred with : {}".format(value))
-                else:
-                    value = UserScramCredentialsDescription(value)
+                print(" Username : {}\n".format(username))
+                if isinstance(value,UserScramCredentialsDescription):
                     for scram_credential_info in value.scram_credential_infos:
-                        print("     Mechanism : {} Iterations : {}".format(mechanism_description[scram_credential_info.mechanism],scram_credential_info.iterations))
+                        if isinstance(scram_credential_info,ScramCredentialInfo):
+                            print("     Mechanism : {} Iterations : {}\n\n".format(scram_credential_info.mechanism,scram_credential_info.iterations))
+                        else:
+                            print(scram_credential_info)
+                else:
+                    print("     User-level Request Errorred with : {}\n\n".format(value))
     except Exception:
+        print("this happened!!\n\n")
         raise
-
 
 def example_alter_user_scram_credentials(a,args):
     """
     AlterUserScramCredentials
     """
-    # alterations = []
+    alterations = []
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
-    upsertion = UserScramCredentialUpsertion("User",scram_credential_info,"salt","password")
-    deletion = UserScramCredentialDeletion("adhitya",ScramMechanism.SCRAM_SHA_512)
-    alterations = [upsertion,deletion]
+    upsertion = UserScramCredentialUpsertion("sam",scram_credential_info,"salt","password")
+    alterations = [upsertion]
     futmap = a.alter_user_scram_credentials(alterations)
     for user,fut in futmap.items():
         try:
