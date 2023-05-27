@@ -1607,7 +1607,6 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         api_error = rd_kafka_DescribeUserScramCredentials(self->rk, c_users, user_cnt, c_options, rkqu);
         CallState_end(self, &cs);
         if(api_error){
-                printf("this is done\n\n");
                 PyErr_SetString(PyExc_ValueError,
                                 rd_kafka_err2str(api_error));
                 goto err;
@@ -1842,7 +1841,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         api_error = rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu);
         CallState_end(self, &cs);
         if (api_error){
-                PyErr_SetString(PyExc_ImportError,
+                PyErr_SetString(PyExc_ValueError,
                                 rd_kafka_err2str(api_error));
                 goto err;
         }

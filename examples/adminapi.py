@@ -567,7 +567,7 @@ def example_describe_user_scram_credentials(a,args):
     """
     Describe User Scram Credentials
     """
-    future = a.describe_user_scram_credentials(["adhitya"])
+    future = a.describe_user_scram_credentials(["sam"])
     mechanism_description = {}
     mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
     mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
@@ -594,8 +594,8 @@ def example_alter_user_scram_credentials(a,args):
     AlterUserScramCredentials
     """
     # alterations = []
-    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512,10000)
-    upsertion = UserScramCredentialUpsertion("pranav",scram_credential_info,"salt","password")
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
+    upsertion = UserScramCredentialUpsertion("User",scram_credential_info,"salt","password")
     deletion = UserScramCredentialDeletion("adhitya",ScramMechanism.SCRAM_SHA_512)
     alterations = [upsertion,deletion]
     futmap = a.alter_user_scram_credentials(alterations)
