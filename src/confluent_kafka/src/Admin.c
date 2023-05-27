@@ -2059,7 +2059,6 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
                                          &options.isolation_level)) {
                 goto err;
         }
-
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
                                        &options, future);
         if (!c_options)  {

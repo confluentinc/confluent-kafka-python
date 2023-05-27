@@ -562,11 +562,11 @@ def example_alter_consumer_group_offsets(a, args):
 
 
 def example_list_offsets(a,args):
-    request = {}
+    requests = {}
     topic_partition = TopicPartition("topicname",0)
     offset_spec = EarliestOffsetSpec()
-    request[topic_partition] = offset_spec
-    futmap = a.list_offsets(request,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    requests[topic_partition] = offset_spec
+    futmap = a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
     for partition,fut in futmap.items():
         try:
             result = fut.result()

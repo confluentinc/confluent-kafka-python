@@ -848,15 +848,15 @@ class AdminClient (_AdminClientImpl):
 
         for topic_partition, offset_spec in list_offsets_request.items():
             if topic_partition is None:
-                raise ValueError("Element of 'topic_partitions' cannot be None")
+                raise ValueError("Key should not be None")
             if not isinstance(topic_partition, _TopicPartition):
-                raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                raise TypeError("Key' must be of type TopicPartition")
             if topic_partition.topic is None:
-                raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                raise TypeError("TopicPartition must not have 'topic' attribute as None")
             if not topic_partition.topic:
-                raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                raise ValueError("TopicPartition must not have 'topic' attribute as Empty")
             if topic_partition.partition < 0:
-                raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
+                raise ValueError("TopicPartition must not have negative 'partition' value")
             if offset_spec is None:
                 raise ValueError("OffsetSpec should not be None")        
             if not (isinstance(offset_spec,TimestampOffsetSpec)  or isinstance(offset_spec,MaxTimestampOffsetSpec)
@@ -865,6 +865,8 @@ class AdminClient (_AdminClientImpl):
         requests = []
         offset = 0
         if(kwargs['isolation_level']):
+            if not isinstance(kwargs['isolation_level'],IsolationLevel):
+                raise TypeError("Isolation Level should be the enum of IsolationLevel")
             kwargs['isolation_level'] = kwargs['isolation_level'].value
         
         for topic_partition,offset_spec in list_offsets_request.items():
