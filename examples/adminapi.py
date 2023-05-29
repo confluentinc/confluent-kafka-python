@@ -588,7 +588,6 @@ def example_describe_user_scram_credentials(a,args):
                 else:
                     print("     User-level Request Errorred with : {}\n\n".format(value))
     except Exception:
-        print("this happened!!\n\n")
         raise
 
 def example_alter_user_scram_credentials(a,args):
@@ -597,16 +596,15 @@ def example_alter_user_scram_credentials(a,args):
     """
     alterations = []
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
-    upsertion = UserScramCredentialUpsertion("sam",scram_credential_info,"salt","password")
+    upsertion = UserScramCredentialUpsertion("jade",scram_credential_info,"salt","password")
     alterations = [upsertion]
     futmap = a.alter_user_scram_credentials(alterations)
-    for user,fut in futmap.items():
+    for username,fut in futmap.items():
         try:
-            result = fut.result()
-            if isinstance(result,KafkaError) and (result is not None):
-                print("Alteration failed for User : {} with error {}".format(user,result))
+            if fut.result() is None:
+                print("{}: Success!!".format(username))
             else:
-                print("Alteration Successful for User : {}".format(user))
+                print("{}: Error :{}".format(username,fut.result()))
         except Exception:
             raise
 

@@ -817,6 +817,7 @@ class AdminClient (_AdminClientImpl):
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
 
+    @staticmethod
     def _make_describe_user_scram_credentials_result(f,futmap):
         pass
 
@@ -834,9 +835,8 @@ class AdminClient (_AdminClientImpl):
 
         return f
 
-
+    @staticmethod
     def _make_alter_user_scram_credentials_result(f,futmap):
-        print("we came here in the make result of alter\n\n")
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -846,21 +846,17 @@ class AdminClient (_AdminClientImpl):
             if len_results != len_futures:
                 raise RuntimeError(
                     "Results length {} is different from future-map length {}".format(len_results, len_futures))
-            for username, fut in futmap.items():
-                result = results[username]
-                if isinstance(result,None):
-                    fut.set_result(result)
-                elif isinstance(result, KafkaError):
-                    fut.set_exception(KafkaException(result))
-                else:
-                    fut.set_result(result)
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError("username {} not found in future-map: {}".format(username, futmap))
+                fut.set_result(value)
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
 
 
     def alter_user_scram_credentials(self,alterations,**kwargs):
-
         if not isinstance(alterations, list):
             raise TypeError("Expected input to be list")
 
@@ -905,10 +901,12 @@ class AdminClient (_AdminClientImpl):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
             else:
                 raise TypeError("Expected each element of list to be Sub-class of UserScramCredentialAlteration")
+    
         users = [alteration.user for alteration in alterations]
+
         f, futmap = AdminClient._make_futures(users, None,
                                               AdminClient._make_alter_user_scram_credentials_result)
-
+        
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
         return futmap
