@@ -567,7 +567,7 @@ def example_describe_user_scram_credentials(a,args):
     """
     Describe User Scram Credentials
     """
-    future = a.describe_user_scram_credentials([])
+    future = a.describe_user_scram_credentials(["non-existent"])
     mechanism_description = {}
     mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
     mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
@@ -586,7 +586,7 @@ def example_describe_user_scram_credentials(a,args):
                         else:
                             print(scram_credential_info)
                 else:
-                    print("     User-level Request Errorred with : {}\n\n".format(value))
+                    print("     User-level Request Errorred with : {}\n\n".format(value.str()))
     except Exception:
         raise
 
