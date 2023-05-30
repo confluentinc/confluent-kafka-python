@@ -19,8 +19,11 @@ import time
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType, UserScramCredentialsDescription,UserScramCredentialUpsertion,UserScramCredentialDeletion,ScramCredentialInfo,ScramMechanism)
-from confluent_kafka.error import ConsumeError,KafkaError
+                                   ResourcePatternType, AclOperation, AclPermissionType,
+                                   UserScramCredentialsDescription, UserScramCredentialUpsertion,
+                                   UserScramCredentialDeletion, ScramCredentialInfo,
+                                   ScramMechanism)
+from confluent_kafka.error import ConsumeError, KafkaError
 
 topic_prefix = "test-topic"
 
@@ -191,6 +194,7 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
 
+
 def verify_admin_scram(admin_client):
     newuser = "non-existent"
     newmechanism = ScramMechanism.SCRAM_SHA_256
@@ -198,36 +202,39 @@ def verify_admin_scram(admin_client):
 
     future = admin_client.describe_user_scram_credentials([newuser])
     results = future.result()
-    assert isinstance(results,dict)
+    assert isinstance(results, dict)
     result = results[newuser]
-    assert isinstance(result,KafkaError)
+    assert isinstance(result, KafkaError)
     assert result.code() == 91
 
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,ScramCredentialInfo(newmechanism,newiterations),"salt","password")])
+    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
+                                                        ScramCredentialInfo(newmechanism, newiterations),
+                                                        "salt", "password")])
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
 
     future = admin_client.describe_user_scram_credentials([newuser])
     results = future.result()
-    assert isinstance(results,dict)
+    assert isinstance(results, dict)
     result = results[newuser]
-    assert isinstance(result,UserScramCredentialsDescription)
+    assert isinstance(result, UserScramCredentialsDescription)
     for scram_credential_info in result.scram_credential_infos:
-        assert ((scram_credential_info.mechanism == newmechanism) and (scram_credential_info.iterations == newiterations))
+        assert ((scram_credential_info.mechanism == newmechanism) and
+                (scram_credential_info.iterations == newiterations))
 
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser,newmechanism)])
+    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser, newmechanism)])
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
 
     future = admin_client.describe_user_scram_credentials([newuser])
     results = future.result()
-    assert isinstance(results,dict)
+    assert isinstance(results, dict)
     result = results[newuser]
-    assert isinstance(result,KafkaError)
+    assert isinstance(result, KafkaError)
     assert result.code() == 91
+
 
 def test_basic_operations(kafka_cluster):
     num_partitions = 2

@@ -19,12 +19,10 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState, KafkaError)
-from confluent_kafka._util.conversion_util import ConversionUtil
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, ScramMechanism, ScramCredentialInfo, UserScramCredentialsDescription,
-                                   UserScramCredentialDeletion, UserScramCredentialAlteration,
-                                   UserScramCredentialUpsertion)
+                                   AclPermissionType, ScramMechanism, ScramCredentialInfo,
+                                   UserScramCredentialsDescription, UserScramCredentialUpsertion)
 import sys
 import threading
 import logging
@@ -563,7 +561,7 @@ def example_alter_consumer_group_offsets(a, args):
             raise
 
 
-def example_describe_user_scram_credentials(a,args):
+def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
@@ -574,15 +572,16 @@ def example_describe_user_scram_credentials(a,args):
     mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
     try:
         results = future.result()
-        if isinstance(results,KafkaError):
+        if isinstance(results, KafkaError):
             print("Request Errored with {}\n\n".format(results))
         else:
-            for username,value in results.items():
+            for username, value in results.items():
                 print(" Username : {}\n".format(username))
-                if isinstance(value,UserScramCredentialsDescription):
+                if isinstance(value, UserScramCredentialsDescription):
                     for scram_credential_info in value.scram_credential_infos:
-                        if isinstance(scram_credential_info,ScramCredentialInfo):
-                            print("     Mechanism : {} Iterations : {}\n\n".format(scram_credential_info.mechanism,scram_credential_info.iterations))
+                        if isinstance(scram_credential_info, ScramCredentialInfo):
+                            print("     Mechanism : {} Iterations : {}\n\n".
+                                  format(scram_credential_info.mechanism, scram_credential_info.iterations))
                         else:
                             print(scram_credential_info)
                 else:
@@ -590,23 +589,25 @@ def example_describe_user_scram_credentials(a,args):
     except Exception:
         raise
 
-def example_alter_user_scram_credentials(a,args):
+
+def example_alter_user_scram_credentials(a, args):
     """
     AlterUserScramCredentials
     """
     alterations = []
-    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
-    upsertion = UserScramCredentialUpsertion("jade",scram_credential_info,"salt","password")
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 10000)
+    upsertion = UserScramCredentialUpsertion("jade", scram_credential_info, "salt", "password")
     alterations = [upsertion]
     futmap = a.alter_user_scram_credentials(alterations)
-    for username,fut in futmap.items():
+    for username, fut in futmap.items():
         try:
             if fut.result() is None:
                 print("{}: Success!!".format(username))
             else:
-                print("{}: Error :{}".format(username,fut.result()))
+                print("{}: Error :{}".format(username, fut.result()))
         except Exception:
             raise
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

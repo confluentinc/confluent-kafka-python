@@ -818,25 +818,25 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).set_sasl_credentials(username, password)
 
     @staticmethod
-    def _make_describe_user_scram_credentials_result(f,futmap):
+    def _make_describe_user_scram_credentials_result(f, futmap):
         pass
 
-    def describe_user_scram_credentials(self,users,**kwargs):
-        if not isinstance(users,list):
+    def describe_user_scram_credentials(self, users, **kwargs):
+        if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
-            if not isinstance(user,string_type):
+            if not isinstance(user, string_type):
                 raise TypeError("Each value should be a string")
 
-        f,_ = AdminClient._make_futures(users, None,
-                                              AdminClient._make_describe_user_scram_credentials_result)
+        f, _ = AdminClient._make_futures(users, None,
+                                         AdminClient._make_describe_user_scram_credentials_result)
 
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
 
         return f
 
     @staticmethod
-    def _make_alter_user_scram_credentials_result(f,futmap):
+    def _make_alter_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -855,19 +855,14 @@ class AdminClient (_AdminClientImpl):
             for _, fut in futmap.items():
                 fut.set_exception(e)
 
-
-    def alter_user_scram_credentials(self,alterations,**kwargs):
+    def alter_user_scram_credentials(self, alterations, **kwargs):
         if not isinstance(alterations, list):
             raise TypeError("Expected input to be list")
-
         if len(alterations) == 0:
             raise ValueError("Expected at least one alteration")
-        
         for alteration in alterations:
-
-            if not isinstance(alteration,UserScramCredentialAlteration):
+            if not isinstance(alteration, UserScramCredentialAlteration):
                 raise TypeError("Expected each element of list to be SubClass of UserScramCredentialAlteration")
-
             if alteration.user is None:
                 raise TypeError("'user' cannot be None")
             if not isinstance(alteration.user, string_type):
@@ -875,7 +870,7 @@ class AdminClient (_AdminClientImpl):
             if not alteration.user:
                 raise ValueError("'user' cannot be empty")
 
-            if isinstance(alteration,UserScramCredentialUpsertion):
+            if isinstance(alteration, UserScramCredentialUpsertion):
                 if alteration.salt is None:
                     raise TypeError("'salt' cannot be None")
                 if not isinstance(alteration.salt, string_type):
@@ -889,26 +884,22 @@ class AdminClient (_AdminClientImpl):
                     raise TypeError("'password' must be a string")
                 if not alteration.password:
                     raise ValueError("'password' cannot be empty")
-                
-                if not isinstance(alteration.scram_credential_info,ScramCredentialInfo):
+
+                if not isinstance(alteration.scram_credential_info, ScramCredentialInfo):
                     raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
                 if alteration.scram_credential_info.iterations < 1:
-                    raise ValueError("Iterations should be positive") 
-                if not isinstance(alteration.scram_credential_info.mechanism,ScramMechanism):
+                    raise ValueError("Iterations should be positive")
+                if not isinstance(alteration.scram_credential_info.mechanism, ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
-            elif isinstance(alteration,UserScramCredentialDeletion):
-                if not isinstance(alteration.mechanism,ScramMechanism):
+            elif isinstance(alteration, UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism, ScramMechanism):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
             else:
                 raise TypeError("Expected each element of list to be Sub-class of UserScramCredentialAlteration")
-    
-        users = [alteration.user for alteration in alterations]
 
-        f, futmap = AdminClient._make_futures(users, None,
+        f, futmap = AdminClient._make_futures([alteration.user for alteration in alterations], None,
                                               AdminClient._make_alter_user_scram_credentials_result)
-        
+
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
         return futmap
-
-    

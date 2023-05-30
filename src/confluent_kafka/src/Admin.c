@@ -3674,7 +3674,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         }
 
         if (!result) {
-                printf("!result\n\n");
                 Py_DECREF(error); /* Py_None */
                 if (!PyErr_Occurred()) {
                         error = KafkaError_new0(RD_KAFKA_RESP_ERR__INVALID_ARG,
@@ -3701,9 +3700,9 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
          * Call future.set_result()
          */
         method = cfl_PyUnistr(_FromString("set_result"));
-        printf("this is done atleast!\n\n");
+
         ret = PyObject_CallMethodObjArgs(future, method, result, NULL);
-        printf("what happened to ret\n\n");
+
         Py_XDECREF(ret);
         Py_XDECREF(result);
         Py_DECREF(future);
