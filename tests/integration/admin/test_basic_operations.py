@@ -19,7 +19,9 @@ import time
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType)
+                                   ResourcePatternType, AclOperation, AclPermissionType,
+                                   EarliestOffsetSpec, MaxTimestampOffsetSpec, LatestOffsetSpec,
+                                   IsolationLevel, ListOffsetResultInfo, NewTopic)
 from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
@@ -191,6 +193,47 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.topic == our_topic
         assert topic_partition.offset == 0
 
+
+def test_list_offsets(kafka_cluster):
+    admin_client = kafka_cluster.admin()
+    requests = {}
+    topic = "topicname"
+    basetimestamp = 1000000000
+    topic_partition = TopicPartition(topic,0)
+    admin_client.delete_topics([topic])
+
+    admin_client.create_topics([NewTopic(topic,num_partitions=1,replication_factor=1)])
+
+    # Create Producer instance
+    p = kafka_cluster.producer()
+    p.produce(topic,"Message-1",timestamp=(basetimestamp + 100))
+    
+    p.produce(topic,"Message-2",timestamp=(basetimestamp + 400))
+    p.produce(topic,"Message-3",timestamp=(basetimestamp + 200))
+    p.flush()
+    requests[topic_partition] = EarliestOffsetSpec()
+    futmap = admin_client.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    for _,fut in futmap.items():
+        result = fut.result()
+        assert isinstance(result,ListOffsetResultInfo) and (result is not None):
+        assert (result.offset == 0)
+        
+    requests[topic_partition] = LatestOffsetSpec()
+    futmap = admin_client.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    for _,fut in futmap.items():
+        result = fut.result()
+        assert isinstance(result,ListOffsetResultInfo) and (result is not None):
+        assert (result.offset == 3)
+    
+    requests[topic_partition] = MaxTimestampOffsetSpec()
+    futmap = admin_client.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    for _,fut in futmap.items():
+        result = fut.result()
+        assert isinstance(result,ListOffsetResultInfo) and (result is not None):
+        assert (result.offset == 1)
+            
+    admin_client.delete_topics([topic])
+    
 
 def test_basic_operations(kafka_cluster):
     num_partitions = 2

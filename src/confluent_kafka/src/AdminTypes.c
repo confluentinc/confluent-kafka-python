@@ -570,6 +570,19 @@ static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
         PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
 }
 
+static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
+        /* rd_kafka_isolation_level_t */
+        PyModule_AddIntConstant(m,"READ_COMMITTED",RD_KAFKA_READ_COMMITTED);
+        PyModule_AddIntConstant(m,"READ_UNCOMMITTED",RD_KAFKA_READ_UNCOMMITTED);
+}
+
+static void AdminTypes_AddObjectsOffsetSpecEnumValue (PyObject *m) {
+        /* rd_kafka_OffsetSpec_t */
+        PyModule_AddIntConstant(m,"MAX_TIMESTAMP_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
+        PyModule_AddIntConstant(m,"EARLIEST_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_EARLIEST);
+        PyModule_AddIntConstant(m,"LATEST_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_LATEST);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -585,4 +598,6 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
+        AdminTypes_AddObjectsIsolationLevel(m);
+        AdminTypes_AddObjectsOffsetSpecEnumValue(m);
 }
