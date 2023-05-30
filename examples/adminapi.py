@@ -18,10 +18,13 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, KafkaError)
+from confluent_kafka._util.conversion_util import ConversionUtil
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType)
+                                   AclPermissionType, ScramMechanism, ScramCredentialInfo, UserScramCredentialsDescription,
+                                   UserScramCredentialDeletion, UserScramCredentialAlteration,
+                                   UserScramCredentialUpsertion)
 import sys
 import threading
 import logging
@@ -560,6 +563,51 @@ def example_alter_consumer_group_offsets(a, args):
             raise
 
 
+def example_describe_user_scram_credentials(a,args):
+    """
+    Describe User Scram Credentials
+    """
+    future = a.describe_user_scram_credentials(["non-existent"])
+    mechanism_description = {}
+    mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
+    mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
+    mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
+    try:
+        results = future.result()
+        if isinstance(results,KafkaError):
+            print("Request Errored with {}\n\n".format(results))
+        else:
+            for username,value in results.items():
+                print(" Username : {}\n".format(username))
+                if isinstance(value,UserScramCredentialsDescription):
+                    for scram_credential_info in value.scram_credential_infos:
+                        if isinstance(scram_credential_info,ScramCredentialInfo):
+                            print("     Mechanism : {} Iterations : {}\n\n".format(scram_credential_info.mechanism,scram_credential_info.iterations))
+                        else:
+                            print(scram_credential_info)
+                else:
+                    print("     User-level Request Errorred with : {}\n\n".format(value.str()))
+    except Exception:
+        raise
+
+def example_alter_user_scram_credentials(a,args):
+    """
+    AlterUserScramCredentials
+    """
+    alterations = []
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256,10000)
+    upsertion = UserScramCredentialUpsertion("jade",scram_credential_info,"salt","password")
+    alterations = [upsertion]
+    futmap = a.alter_user_scram_credentials(alterations)
+    for username,fut in futmap.items():
+        try:
+            if fut.result() is None:
+                print("{}: Success!!".format(username))
+            else:
+                print("{}: Error :{}".format(username,fut.result()))
+        except Exception:
+            raise
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -586,7 +634,8 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-
+        sys.stderr.write(' describe_user_scram_credentials ')
+        sys.stderr.write(' alteruserscramcredentials ')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -610,7 +659,9 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'describe_user_scram_credentials': example_describe_user_scram_credentials,
+              'alter_user_scram_credentials': example_alter_user_scram_credentials}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
