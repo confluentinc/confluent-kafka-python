@@ -18,11 +18,11 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState, KafkaError)
+                             TopicPartition, ConsumerGroupState)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType)
-from confluent_kafka.admin._group import (OffsetSpec,TimestampOffsetSpec,EarliestOffsetSpec,LatestOffsetSpec,MaxTimestampOffsetSpec,ListOffsetResultInfo,IsolationLevel)
+from confluent_kafka.admin._group import (EarliestOffsetSpec,IsolationLevel)
 import sys
 import threading
 import logging
@@ -563,6 +563,7 @@ def example_alter_consumer_group_offsets(a, args):
 
 def example_list_offsets(a,args):
     requests = {}
+    topic = "topicname"
     topic_partition = TopicPartition("topicname",0)
     offset_spec = EarliestOffsetSpec()
     requests[topic_partition] = offset_spec
@@ -570,13 +571,10 @@ def example_list_offsets(a,args):
     for partition,fut in futmap.items():
         try:
             result = fut.result()
-            if isinstance(result,KafkaError) and (result is not None):
-                print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,result))
-            else:
-                print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partittion,result.offset,result.timestamp))
+            print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partition,result.offset,result.timestamp))
         except KafkaException as e:
             print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
-        
+    
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
