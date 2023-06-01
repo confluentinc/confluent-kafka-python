@@ -3,7 +3,7 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
+    AclOperation, AclPermissionType, OffsetSpec, EarliestOffsetSpec, LatestOffsetSpec, MaxTimestampOffsetSpec, IsolationLevel
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -697,3 +697,24 @@ def test_alter_consumer_group_offsets_api():
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
+def test_list_offsets_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+    requests = {}
+    requests[TopicPartition("topic1",-1,10)] = EarliestOffsetSpec()
+    with pytest.raises(ValueError):
+        a.list_offsets(requests,isolation_level=IsolationLevel.READ_COMMITTED)
+    requests = {}
+    requests[TopicPartition("topic1",0,10)] = EarliestOffsetSpec()
+    with pytest.raises(TypeError):
+        a.list_offsets(requests,isolation_level = 1)
+    requests = {}
+    requests["not-topic-partition"] = LatestOffsetSpec()
+    with pytest.raises(TypeError):
+        a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED)
+    requests = {}
+    requests[TopicPartition("topic1",0)] = "Not-Isolation-Level"
+    with pytest.raises(TypeError):
+        a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED)
+    
+    

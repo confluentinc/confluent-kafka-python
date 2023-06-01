@@ -22,6 +22,7 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
                                    AclPermissionType)
+from confluent_kafka.admin._group import (EarliestOffsetSpec,IsolationLevel)
 import sys
 import threading
 import logging
@@ -560,6 +561,21 @@ def example_alter_consumer_group_offsets(a, args):
             raise
 
 
+def example_list_offsets(a,args):
+    requests = {}
+    topic = "topicname"
+    topic_partition = TopicPartition("topicname",0)
+    offset_spec = EarliestOffsetSpec()
+    requests[topic_partition] = offset_spec
+    futmap = a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED,request_timeout = 30)
+    for partition,fut in futmap.items():
+        try:
+            result = fut.result()
+            print("TopicName : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partition,result.offset,result.timestamp))
+        except KafkaException as e:
+            print("TopicName : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
+    
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -586,6 +602,7 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
+        sys.stderr.write(' list_offsets \n')
 
         sys.exit(1)
 
@@ -610,7 +627,8 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'list_offsets': example_list_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
