@@ -713,7 +713,7 @@ def test_list_offsets_api():
     with pytest.raises(TypeError):
         a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED)
     requests = {}
-    requests[TopicPartition("topic1",0,)] = "Not-Isolation-Level"
+    requests[TopicPartition("topic1",0)] = "Not-Isolation-Level"
     with pytest.raises(TypeError):
         a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED)
     
