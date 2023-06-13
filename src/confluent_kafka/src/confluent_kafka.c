@@ -539,6 +539,24 @@ static PyObject *Message_set_key (Message *self, PyObject *new_key) {
    Py_RETURN_NONE;
 }
 
+static PyObject *Message_set_topic (Message *self, PyObject *new_topic) {
+   Py_XDECREF(self->topic);
+
+   self->topic = new_topic;
+   Py_INCREF(self->topic);
+
+   Py_RETURN_NONE;
+}
+
+static PyObject *Message_set_error (Message *self, PyObject *new_error) {
+   Py_XDECREF(self->error);
+   
+   self->error = new_error;
+   Py_INCREF(self->error);
+
+   Py_RETURN_NONE;
+}
+
 static PyMethodDef Message_methods[] = {
 	{ "error", (PyCFunction)Message_error, METH_NOARGS,
 	  "  The message object is also used to propagate errors and events, "
@@ -642,6 +660,22 @@ static PyMethodDef Message_methods[] = {
 	  "  Set the field 'Message.key' with new value.\n"
           "\n"
 	  "  :param object value: Message.key.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
+	{ "set_topic", (PyCFunction)Message_set_topic, METH_O,
+	  "  Set the field 'Message.topic' with new value.\n"
+          "\n"
+	  "  :param object value: Message.topic.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
+	{ "set_error", (PyCFunction)Message_set_error, METH_O,
+	  "  Set the field 'Message.error' with new value.\n"
+          "\n"
+	  "  :param object value: Message.error.\n"
 	  "  :returns: None.\n"
 	  "  :rtype: None\n"
 	  "\n"
