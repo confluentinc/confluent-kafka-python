@@ -1,3 +1,4 @@
+import pickle
 import pytest
 import sys
 
@@ -67,6 +68,8 @@ def test_message_create_empty(make_message):
     assert msg.latency() is None
     assert str(msg)
     assert repr(msg)
+
+    subtest_pickling(msg, (None,) * 5 + (-1, -1, -1, 0, -1))
 
 
 def test_message_create_with_dummy():
@@ -204,3 +207,34 @@ def test_message_exceptions(value):
         len(Message(value=1))
     with pytest.raises(TypeError):
         len(Message(value=object()))
+
+
+def subtest_pickling(msg, exp_args):
+    assert msg.__reduce__() == (type(msg), exp_args)
+
+    pickled = pickle.dumps(msg)
+    restored = pickle.loads(pickled)
+
+    assert restored.__reduce__() == (type(msg), exp_args)
+    assert msg is not restored
+    assert type(msg) is type(restored)
+
+    assert len(msg) == len(restored)
+    assert msg.topic() == restored.topic()
+    assert msg.value() == restored.value()
+    assert msg.key() == restored.key()
+    assert msg.headers() == restored.headers()
+    assert msg.error() == restored.error()
+    assert msg.partition() == restored.partition()
+    assert msg.offset() == restored.offset()
+    assert msg.leader_epoch() == restored.leader_epoch()
+    assert msg.timestamp() == restored.timestamp()
+    assert msg.latency() == restored.latency()
+
+
+def test_message_pickle():
+    args = "t", "v", "k", [], None, 1, 2, 3, 4, 5.67
+    msg = Message(*args)
+    assert msg.latency() == 5.67
+
+    subtest_pickling(msg, args)

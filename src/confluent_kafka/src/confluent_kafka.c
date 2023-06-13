@@ -493,23 +493,23 @@ static PyObject *Message_latency (Message *self, PyObject *ignore) {
 	return PyFloat_FromDouble((double)self->latency / 1000000.0);
 }
 
-static PyObject *Message_headers (Message *self, PyObject *ignore) {
+static void Message_c_headers_to_py_headers (Message *self) {
 #ifdef RD_KAFKA_V_HEADERS
-	if (self->headers) {
-        Py_INCREF(self->headers);
-		return self->headers;
-    } else if (self->c_headers) {
-        self->headers = c_headers_to_py(self->c_headers);
-        rd_kafka_headers_destroy(self->c_headers);
-        self->c_headers = NULL;
-        Py_INCREF(self->headers);
-        return self->headers;
-	} else {
-		Py_RETURN_NONE;
-    }
-#else
-		Py_RETURN_NONE;
+	if (!self->headers && self->c_headers) {
+		self->headers = c_headers_to_py(self->c_headers);
+		rd_kafka_headers_destroy(self->c_headers);
+		self->c_headers = NULL;
+	}
 #endif
+}
+
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+	Message_c_headers_to_py_headers(self);
+	if (self->headers) {
+		Py_INCREF(self->headers);
+		return self->headers;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
@@ -555,6 +555,27 @@ static PyObject *Message_set_error (Message *self, PyObject *new_error) {
    Py_INCREF(self->error);
 
    Py_RETURN_NONE;
+}
+
+static PyObject *Message_reduce (Message *self, PyObject *Py_UNUSED(ignored))
+{
+	Message_c_headers_to_py_headers(self);
+
+	return Py_BuildValue(
+		"O(NNNNNiiiLN)",
+		Py_TYPE(self),
+		Message_topic(self, NULL),
+		Message_value(self, NULL),
+		Message_key(self, NULL),
+		Message_headers(self, NULL),
+		Message_error(self, NULL),
+		self->partition,
+		self->offset,
+		self->leader_epoch,
+		self->timestamp,
+		(self->latency >= 0 ? 
+			PyFloat_FromDouble((double)self->latency / 1000000.0) :
+			cfl_PyInt_FromInt(-1)));
 }
 
 static PyMethodDef Message_methods[] = {
@@ -680,6 +701,8 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
+	{ "__reduce__", (PyCFunction)Message_reduce, METH_NOARGS,
+	  " Function for serializing Message using the pickle protocol."},
 	{ NULL }
 };
 
@@ -812,7 +835,7 @@ static PyObject *Message_new (PyTypeObject *type, PyObject *args,
 
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Message",         /*tp_name*/
+	"confluent_kafka.cimpl.Message", /*tp_name*/
 	sizeof(Message),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Message_dealloc, /*tp_dealloc*/
