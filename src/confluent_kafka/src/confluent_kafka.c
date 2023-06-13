@@ -722,12 +722,93 @@ static int Message_traverse (Message *self,
 }
 
 static Py_ssize_t Message__len__ (Message *self) {
-	return self->value ? PyObject_Length(self->value) : 0;
+	return self->value && self->value != Py_None ? PyObject_Length(self->value) : 0;
 }
 
 static PySequenceMethods Message_seq_methods = {
 	(lenfunc)Message__len__ /* sq_length */
 };
+
+static int Message_init (PyObject *self, PyObject *args, PyObject *kwargs) {
+	PyObject *topic = NULL;
+	PyObject *value = NULL;
+	PyObject *key = NULL;
+	PyObject *headers = NULL;
+	PyObject *error = NULL;
+	int32_t partition = RD_KAFKA_PARTITION_UA;
+	int64_t offset = -1;
+	int32_t leader_epoch = -1;
+	int64_t timestamp = 0;
+	double latency = -1;
+
+	static char *kws[] = { "topic",
+		"value",
+		"key",
+		"headers",
+		"error",
+		"partition",
+		"offset",
+		"leader_epoch",
+		"timestamp",
+		"latency",
+		NULL
+	};
+
+	Message* msg = (Message*)self;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOOOiLiLd", kws,
+					 &topic, &value, &key, &headers,
+					 &error, &partition, &offset,
+					 &leader_epoch, &timestamp,
+					 &latency)) {
+		return -1;
+	}
+
+	if (topic && topic != Py_None) {
+		msg->topic = topic;
+		Py_INCREF(msg->topic);
+	}
+	if (value && value != Py_None) {
+		msg->value = value;
+		Py_INCREF(msg->value);
+	}
+	if (key && key != Py_None) {
+		msg->key = key;
+		Py_INCREF(msg->key);
+	}
+	if (headers && headers != Py_None) {
+		msg->headers = headers;
+		Py_INCREF(msg->headers);
+	}
+	if (error && error != Py_None) {
+		msg->error = error;
+		Py_INCREF(msg->error);
+	}
+
+	msg->partition = partition < 0 ? -1 : partition;
+	msg->offset = offset < 0 ? -1 : offset;
+	msg->leader_epoch = leader_epoch < 0 ? -1 : leader_epoch;
+	msg->timestamp = timestamp < 0 ? 0 : timestamp;
+	// The cast might cause the value to roll over to negative values.
+	msg->latency = (int64_t)(latency >= 0 ? latency * 1000000 : -1);
+	msg->latency = msg->latency < 0 ? -1 : msg->latency;  
+
+	return 0;
+}
+
+static PyObject *Message_new (PyTypeObject *type, PyObject *args,
+				     PyObject *kwargs) {
+	PyObject *self = type->tp_alloc(type, 1);
+
+	Message* msg = (Message*)self;
+	msg->partition = RD_KAFKA_PARTITION_UA;
+	msg->offset = -1;
+	msg->leader_epoch = -1;
+	msg->timestamp = 0;
+	msg->latency = -1;
+
+	return self;
+}
 
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
@@ -758,8 +839,6 @@ PyTypeObject MessageType = {
 	"object is a proper message (error() returns None) or an "
 	"error/event.\n"
         "\n"
-	"This class is not user-instantiable.\n"
-	"\n"
 	".. py:function:: len()\n"
 	"\n"
 	"  :returns: Message value (payload) size in bytes\n"
@@ -779,8 +858,9 @@ PyTypeObject MessageType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0                          /* tp_alloc */
+	Message_init,              /* tp_init */
+	0,                         /* tp_alloc */
+	Message_new                /* tp_new */
 };
 
 /**
@@ -823,9 +903,6 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	return (PyObject *)self;
 }
-
-
-
 
 /****************************************************************************
  *
