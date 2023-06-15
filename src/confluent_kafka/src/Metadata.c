@@ -365,6 +365,10 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
         double tmout = -1.0f;
         static char *kws[] = {"topic", "timeout", NULL};
 
+        if(!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws,
                                          &topic, &tmout))
                 return NULL;
@@ -594,6 +598,10 @@ list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         const char *group = NULL;
         double tmout = -1.0f;
         static char *kws[] = {"group", "timeout", NULL};
+
+        if(!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
 
         PyErr_WarnEx(PyExc_DeprecationWarning,
                      "list_groups() is deprecated, use list_consumer_groups() "

@@ -1842,6 +1842,31 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 	return 0;
 }
 
+
+int Handle_check_initialized(Handle *handle, int expectedInitialized) {
+	if (!expectedInitialized == !handle->rk) {
+		return 1;  // OK
+	}
+
+	const char* message = "";
+
+	switch ((int)handle->type) {
+	case RD_KAFKA_PRODUCER: 
+		message = expectedInitialized ? "Producer closed" : "Producer already initialized";
+		break;
+	case RD_KAFKA_CONSUMER:
+		message = expectedInitialized ? "Consumer closed" : "Consumer already initialized";
+		break;
+	case PY_RD_KAFKA_ADMIN:
+		message = expectedInitialized ? "AdminClient closed" : "AdminClient already initialized";
+		break;
+	}
+
+	PyErr_SetString(PyExc_RuntimeError, message);
+	return 0;
+}
+
+
 /**
  * @brief Set single special producer config value.
  *
@@ -2663,6 +2688,10 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_error_t* error;
         CallState cs;
         static char *kws[] = {"username", "password", NULL};
+
+        if(!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
                                          &username, &password)) {

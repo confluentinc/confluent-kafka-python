@@ -267,6 +267,7 @@ typedef struct {
 
 void Handle_clear (Handle *h);
 int  Handle_traverse (Handle *h, visitproc visit, void *arg);
+int  Handle_check_initialized(Handle *handle, int expectedInitialized);
 
 
 /**

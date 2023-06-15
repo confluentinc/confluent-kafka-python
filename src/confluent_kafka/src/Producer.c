@@ -244,9 +244,13 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 			       "partition",
 			       "callback",
 			       "on_delivery", /* Alias */
-                   "timestamp",
-                   "headers",
+			       "timestamp",
+			       "headers",
 			       NULL };
+
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs,
 					 "s|z#z#iOOLO"
@@ -360,6 +364,10 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
 	int r;
 	static char *kws[] = { "timeout", NULL };
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
@@ -379,6 +387,10 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
         CallState cs;
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
@@ -397,6 +409,10 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
         double tmout = -1.0;
+
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
@@ -422,6 +438,10 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
 static PyObject *Producer_begin_transaction (Handle *self) {
         rd_kafka_error_t *error;
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+
         error = rd_kafka_begin_transaction(self->rk);
 
         if (error) {
@@ -441,6 +461,9 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         rd_kafka_consumer_group_metadata_t *cgmd;
         double tmout = -1.0;
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
         if (!PyArg_ParseTuple(args, "OO|d", &offsets, &metadata, &tmout))
                 return NULL;
 
@@ -480,6 +503,10 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         rd_kafka_error_t *error;
         double tmout = -1.0;
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
@@ -505,6 +532,10 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
         double tmout = -1.0;
+
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
@@ -537,6 +568,10 @@ static void *Producer_purge (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
         static char *kws[] = { "in_queue", "in_flight", "blocking", NULL};
 
+        if (!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
+        
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws,
                                          &in_queue, &in_flight, &blocking))
                 return NULL;
@@ -819,7 +854,7 @@ static PyMethodDef Producer_methods[] = {
 
 
 static Py_ssize_t Producer__len__ (Handle *self) {
-	return rd_kafka_outq_len(self->rk);
+	return self->rk ? rd_kafka_outq_len(self->rk) : 0;
 }
 
 
@@ -850,13 +885,11 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         char errstr[256];
         rd_kafka_conf_t *conf;
 
-        if (self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Producer already __init__:ialized");
+        assert(self->type == RD_KAFKA_PRODUCER);
+        
+        if (!Handle_check_initialized(self, 0)) {
                 return -1;
         }
-
-        self->type = RD_KAFKA_PRODUCER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_PRODUCER, self,
                                        args, kwargs)))
@@ -883,7 +916,9 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
 static PyObject *Producer_new (PyTypeObject *type, PyObject *args,
                                PyObject *kwargs) {
-        return type->tp_alloc(type, 0);
+        PyObject *self = type->tp_alloc(type, 0);
+        ((Handle *)self)->type = RD_KAFKA_PRODUCER;
+        return self;
 }
 
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import contextlib
 import pytest
 
 from confluent_kafka import Producer, Consumer, KafkaError, KafkaException, \
@@ -281,3 +282,86 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+
+
+class LocalProducer_child(Producer):
+    pass
+
+
+class LocalProducer_with_new(Producer):
+    def __new__(cls, *a, **kw):
+        return Producer.__new__(cls)
+
+
+class LocalProducer_with_init(Producer):
+    def __init__(self, *a, **kw):
+        pass
+
+
+@pytest.mark.parametrize(
+    "cls,exp_exc",
+    [
+        [Producer, TypeError],
+        [LocalProducer_child, KafkaException],
+        [LocalProducer_with_new, KafkaException],
+        [LocalProducer_with_init, RuntimeError],
+    ],
+)
+def test_producer_bad_state(cls, exp_exc):
+    # The intent of this test is to test many situations with an empty,
+    # not configured or incorrect Producer, and see that either an exception of
+    # the correct type is produced or that the call is a no-op.
+    # Since these method calls run C code, it is important to verify there
+    # aren't any SEGVs due to NULL pointers being accessed or the code incorrectly
+    # using an object of the wrong type.
+
+    if cls is Producer:
+        instance, has_invalid_state = None, True
+        with pytest.raises(exp_exc):
+            cls.__new__(object)
+        with pytest.raises(exp_exc):
+            cls.__init__(instance)
+
+    else:
+        instance = cls({"bootstrap.servers": ""})
+        assert len(instance) == 0
+        has_invalid_state = exp_exc is RuntimeError
+
+        if not has_invalid_state:
+            with pytest.raises(RuntimeError) as c:
+                cls.__init__(instance)
+
+            assert "Producer already initialized" in str(c.value)
+
+    assert str(instance)
+    assert repr(instance)
+    
+    with pytest.raises(exp_exc):
+        cls.init_transactions(instance)
+    with pytest.raises(exp_exc):
+        cls.begin_transaction(instance)
+    with pytest.raises(exp_exc):
+        cls.abort_transaction(instance)
+    with pytest.raises(exp_exc):
+        cls.commit_transaction(instance)
+    with pytest.raises(exp_exc):
+        cls.list_topics(instance, timeout=0)
+    with pytest.raises(exp_exc) as c:
+        cls.send_offsets_to_transaction(instance, [], b"a", 0)
+
+    if has_invalid_state and instance:
+        assert "Producer closed" in str(c.value)
+        
+    maybe_raises = pytest.raises(exp_exc) if has_invalid_state else contextlib.nullcontext()
+
+    with maybe_raises:
+        cls.set_sasl_credentials(instance, "u", "p")
+    with maybe_raises:
+        cls.produce(instance, "topic")
+    with maybe_raises as c:
+        cls.purge(instance)
+    with maybe_raises:
+        cls.poll(instance, timeout=0)
+    with maybe_raises:
+        cls.flush(instance, timeout=0)
+
