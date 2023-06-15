@@ -238,3 +238,26 @@ def test_message_pickle():
     assert msg.latency() == 5.67
 
     subtest_pickling(msg, args)
+
+
+def test_message_compare():
+    args0 = "t", "v", "k", [], None, 1, 2, 3, 4, 5.67
+    args1 = "t", "v", "z", [], None, 1, 2, 3, 4, 5.67
+
+    msg0 = Message(*args0)
+    msg01 = Message(*args0)
+    msg1 = Message(*args1)
+
+    assert msg0 == msg0
+    assert msg0 == msg01
+    assert msg0 != msg1
+    assert msg0 != 1
+    assert msg0 != None
+    assert msg0 != object()
+
+    with pytest.raises(TypeError):
+        assert msg0 < msg0
+    with pytest.raises(TypeError):
+        assert msg0 < None
+    with pytest.raises(TypeError):
+        assert msg0 < object()
