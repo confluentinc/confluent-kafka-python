@@ -744,6 +744,50 @@ static int Message_traverse (Message *self,
 	return 0;
 }
 
+static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
+	if (op != Py_EQ && op != Py_NE) {
+		Py_INCREF(Py_NotImplemented);
+		return Py_NotImplemented;
+	}
+	
+	if (self == other) {
+		return op == Py_EQ ? Py_True : Py_False;
+	}
+
+	if (!PyObject_TypeCheck(other, &MessageType)) {
+		return op == Py_EQ ? Py_False : Py_True;
+	}
+
+	Message* msg_self = (Message*)self;
+	Message* msg_other = (Message*)other;
+
+	int result;
+
+#define _LOCAL_COMPARE(left, right) do { \
+	result = PyObject_RichCompareBool(left, right, Py_EQ); \
+	if (result < 0) return NULL; \
+	if (result == 0) return op == Py_EQ ? Py_False : Py_True; \
+}while(0)
+	_LOCAL_COMPARE(msg_self->topic, msg_other->topic);
+	_LOCAL_COMPARE(msg_self->value, msg_other->value);
+	_LOCAL_COMPARE(msg_self->key, msg_other->key);
+	_LOCAL_COMPARE(msg_self->headers, msg_other->headers);
+	_LOCAL_COMPARE(msg_self->error, msg_other->error);
+#undef _LOCAL_COMPARE
+
+#define _LOCAL_COMPARE(left, right) do { \
+	if (left != right) return op == Py_EQ ? Py_False : Py_True; \
+}while(0)
+	_LOCAL_COMPARE(msg_self->partition, msg_other->partition);
+	_LOCAL_COMPARE(msg_self->offset, msg_other->offset);
+	_LOCAL_COMPARE(msg_self->leader_epoch, msg_other->leader_epoch);
+	_LOCAL_COMPARE(msg_self->timestamp, msg_other->timestamp);
+	// latency is skipped, it is a float and not that significant.
+#undef _LOCAL_COMPARE
+
+	return Py_True;
+}
+
 static Py_ssize_t Message__len__ (Message *self) {
 	return self->value && self->value != Py_None ? PyObject_Length(self->value) : 0;
 }
@@ -869,7 +913,7 @@ PyTypeObject MessageType = {
 	"\n", /*tp_doc*/
 	(traverseproc)Message_traverse,        /* tp_traverse */
 	(inquiry)Message_clear,	           /* tp_clear */
-	0,		           /* tp_richcompare */
+	Message_richcompare,       /* tp_richcompare */
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
 	0,		           /* tp_iternext */
