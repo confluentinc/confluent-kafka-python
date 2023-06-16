@@ -79,10 +79,7 @@ Producer_msgstate_destroy (struct Producer_msgstate *msgstate) {
 
 
 static void Producer_clear0 (Handle *self) {
-        if (self->u.Producer.default_dr_cb) {
-                Py_DECREF(self->u.Producer.default_dr_cb);
-                self->u.Producer.default_dr_cb = NULL;
-        }
+        Py_CLEAR(self->u.Producer.default_dr_cb);
 }
 
 static int Producer_clear (Handle *self) {

@@ -653,26 +653,11 @@ static PyMethodDef Message_methods[] = {
 };
 
 static int Message_clear (Message *self) {
-	if (self->topic) {
-		Py_DECREF(self->topic);
-		self->topic = NULL;
-	}
-	if (self->value) {
-		Py_DECREF(self->value);
-		self->value = NULL;
-	}
-	if (self->key) {
-		Py_DECREF(self->key);
-		self->key = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->headers) {
-		Py_DECREF(self->headers);
-		self->headers = NULL;
-	}
+	Py_CLEAR(self->topic);
+	Py_CLEAR(self->value);
+	Py_CLEAR(self->key);
+	Py_CLEAR(self->error);
+	Py_CLEAR(self->headers);
 #ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
@@ -825,10 +810,7 @@ static int TopicPartition_clear (TopicPartition *self) {
 		free(self->topic);
 		self->topic = NULL;
 	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
+	Py_CLEAR(self->error);
 	if (self->metadata) {
 		free(self->metadata);
 		self->metadata = NULL;
@@ -1797,26 +1779,10 @@ fail:
  * Clear Python object references in Handle
  */
 void Handle_clear (Handle *h) {
-        if (h->error_cb) {
-                Py_DECREF(h->error_cb);
-                h->error_cb = NULL;
-        }
-
-        if (h->throttle_cb) {
-                Py_DECREF(h->throttle_cb);
-                h->throttle_cb = NULL;
-        }
-
-        if (h->stats_cb) {
-                Py_DECREF(h->stats_cb);
-                h->stats_cb = NULL;
-        }
-
-        if (h->logger) {
-                Py_DECREF(h->logger);
-                h->logger = NULL;
-        }
-
+	Py_CLEAR(h->error_cb);
+	Py_CLEAR(h->throttle_cb);
+	Py_CLEAR(h->stats_cb);
+	Py_CLEAR(h->logger);
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);

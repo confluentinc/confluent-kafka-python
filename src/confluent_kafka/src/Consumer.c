@@ -29,22 +29,10 @@
 
 
 static void Consumer_clear0 (Handle *self) {
-	if (self->u.Consumer.on_assign) {
-		Py_DECREF(self->u.Consumer.on_assign);
-		self->u.Consumer.on_assign = NULL;
-	}
-	if (self->u.Consumer.on_revoke) {
-		Py_DECREF(self->u.Consumer.on_revoke);
-		self->u.Consumer.on_revoke = NULL;
-	}
-	if (self->u.Consumer.on_lost) {
-		Py_DECREF(self->u.Consumer.on_lost);
-		self->u.Consumer.on_lost = NULL;
-	}
-	if (self->u.Consumer.on_commit) {
-		Py_DECREF(self->u.Consumer.on_commit);
-		self->u.Consumer.on_commit = NULL;
-	}
+	Py_CLEAR(self->u.Consumer.on_assign);
+	Py_CLEAR(self->u.Consumer.on_revoke);
+	Py_CLEAR(self->u.Consumer.on_lost);
+	Py_CLEAR(self->u.Consumer.on_commit);
 	if (self->u.Consumer.rkqu) {
 	        rd_kafka_queue_destroy(self->u.Consumer.rkqu);
 	        self->u.Consumer.rkqu = NULL;
