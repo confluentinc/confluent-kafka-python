@@ -108,11 +108,9 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	Py_ssize_t pos = 0;
 	rd_kafka_resp_err_t err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOO", kws,
 					 &tlist, &on_assign, &on_revoke, &on_lost))
@@ -209,11 +207,9 @@ static PyObject *Consumer_unsubscribe (Handle *self,
 
 	rd_kafka_resp_err_t err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	err = rd_kafka_unsubscribe(self->rk);
 	if (err) {
@@ -231,11 +227,9 @@ static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!(c_parts = py_to_c_parts(tlist)))
                 return NULL;
@@ -260,11 +254,9 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 	rd_kafka_topic_partition_list_t *c_parts;
 	rd_kafka_resp_err_t err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!(c_parts = py_to_c_parts(tlist)))
 		return NULL;
@@ -290,11 +282,9 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 
 	rd_kafka_resp_err_t err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	self->u.Consumer.rebalance_assigned++;
 
@@ -315,11 +305,9 @@ static PyObject *Consumer_incremental_unassign (Handle *self, PyObject *tlist) {
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_error_t *error;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!(c_parts = py_to_c_parts(tlist)))
                 return NULL;
@@ -346,11 +334,9 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
         rd_kafka_topic_partition_list_t *c_parts;
         rd_kafka_resp_err_t err;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         err = rd_kafka_assignment(self->rk, &c_parts);
         if (err) {
@@ -459,11 +445,9 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         struct commit_return commit_return;
         PyThreadState *thread_state;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOO", kws,
 					 &msg, &offsets, &async_o, &async_o))
@@ -587,11 +571,9 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_offsets;
 	static char *kws[] = { "message", "offsets", NULL };
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OO", kws,
 					 &msg, &offsets))
@@ -664,11 +646,9 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 	double tmout = -1.0f;
 	static char *kws[] = { "partitions", "timeout", NULL };
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
 					 &plist, &tmout))
@@ -706,11 +686,9 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 	rd_kafka_resp_err_t err;
 	static char *kws[] = { "partitions", NULL };
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
 					 &plist))
@@ -745,6 +723,10 @@ static PyObject *Consumer_pause(Handle *self, PyObject *args,
     rd_kafka_resp_err_t err;
     static char *kws[] = {"partitions", NULL};
 
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
+
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
         return NULL;
 
@@ -769,6 +751,10 @@ static PyObject *Consumer_resume (Handle *self, PyObject *args,
 	rd_kafka_topic_partition_list_t *c_parts;
     rd_kafka_resp_err_t err;
     static char *kws[] = {"partitions", NULL};
+
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws, &plist))
         return NULL;
@@ -797,10 +783,9 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
         rd_kafka_topic_partition_t *rktpar;
         rd_kafka_error_t *error;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kws,
                                          (PyObject **)&tp))
@@ -856,11 +841,9 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
         static char *kws[] = { "partition", "timeout", "cached", NULL };
         PyObject *rtup;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|db", kws,
                                          (PyObject **)&tp, &tmout, &cached))
@@ -919,11 +902,9 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
 	rd_kafka_resp_err_t err;
 	static char *kws[] = { "partitions", "timeout", NULL };
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|d", kws,
 					 &plist, &tmout))
@@ -961,11 +942,9 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         PyObject *msgobj;
         CallState cs;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
@@ -999,11 +978,10 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
                                     PyObject *kwargs) {
         char *memberid;
         PyObject *memberidobj;
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         memberid = rd_kafka_memberid(self->rk);
 
@@ -1033,11 +1011,9 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         CallState cs;
         Py_ssize_t i, n;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|Id", kws,
 					 &num_messages, &tmout))
@@ -1120,11 +1096,9 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
         PyObject *obj;
 
-        if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
-                return NULL;
-        }
+	if (!Handle_check_initialized(self, 1)) {
+		return NULL;
+	}
 
         if (!(cgmd = rd_kafka_consumer_group_metadata(self->rk))) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -1613,13 +1587,11 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         char errstr[256];
         rd_kafka_conf_t *conf;
 
-        if (self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer already initialized");
+        assert(self->type == RD_KAFKA_CONSUMER);
+
+        if (!Handle_check_initialized(self, 0)) {
                 return -1;
         }
-
-        self->type = RD_KAFKA_CONSUMER;
 
         if (!(conf = common_conf_setup(RD_KAFKA_CONSUMER, self,
                                        args, kwargs)))
@@ -1652,7 +1624,9 @@ static int Consumer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
 static PyObject *Consumer_new (PyTypeObject *type, PyObject *args,
                                PyObject *kwargs) {
-        return type->tp_alloc(type, 0);
+        PyObject *self = type->tp_alloc(type, 0);
+        ((Handle *)self)->type = RD_KAFKA_CONSUMER;
+        return self;
 }
 
 

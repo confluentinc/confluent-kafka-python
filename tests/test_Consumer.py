@@ -1,10 +1,10 @@
 #!/usr/bin/env python
+import contextlib
+import pytest
 
 from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
-import pytest
-
 
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
@@ -316,8 +316,127 @@ def test_calling_store_offsets_after_close_throws_erro():
 
 
 def test_consumer_without_groupid():
-    """ Consumer should raise exception if group.id is not set """
+    """Consumer should raise exception if group.id is not set"""
 
     with pytest.raises(ValueError) as ex:
         Consumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')
+
+
+class LocalConsumer_child(Consumer):
+    pass
+
+
+class LocalConsumer_with_new(Consumer):
+    def __new__(cls, *a, **kw):
+        return Consumer.__new__(cls)
+
+
+class LocalConsumer_with_init(Consumer):
+    def __init__(self, *a, **kw):
+        pass
+
+
+@pytest.mark.parametrize(
+    "cls,exp_exc",
+    [
+        [Consumer, TypeError],
+        [LocalConsumer_child, KafkaException],
+        [LocalConsumer_with_new, KafkaException],
+        [LocalConsumer_with_init, RuntimeError],
+    ],
+)
+def test_consumer_bad_state(cls, exp_exc):
+    # The intent of this test is to test many situations with an empty,
+    # not configured or incorrect Producer, and see that either an exception of
+    # the correct type is produced or that the call is a no-op.
+    # Since these method calls run C code, it is important to verify there
+    # aren't any SEGVs due to NULL pointers being accessed or the code incorrectly
+    # using an object of the wrong type.
+
+    if cls is Consumer:
+        instance, has_invalid_state = None, True
+        with pytest.raises(exp_exc):
+            cls.__new__(object)
+        with pytest.raises(exp_exc):
+            cls.__init__(instance)
+        with pytest.raises(exp_exc):
+            cls.close(instance)
+
+    else:
+        instance = cls({"group.id": "0", "bootstrap.servers": ""})
+        has_invalid_state = exp_exc is RuntimeError
+
+        if not has_invalid_state:
+            with pytest.raises(RuntimeError) as c:
+                cls.__init__(instance)
+
+            assert "Consumer already initialized" in str(c.value)
+
+    assert str(instance)
+    assert repr(instance)
+    
+    partition = TopicPartition("a", 0, 1)
+
+    with pytest.raises(exp_exc) as c:
+        cls.subscribe(instance, [])
+
+    with pytest.raises(exp_exc):
+        cls.committed(instance, [], timeout=0)
+
+    with pytest.raises(exp_exc):
+        cls.get_watermark_offsets(instance, partition, timeout=0)
+
+    with pytest.raises(exp_exc):
+        cls.list_topics(instance, timeout=0)
+
+    with pytest.raises(exp_exc) as c:
+        cls.offsets_for_times(instance, [], timeout=0)
+
+    if has_invalid_state and instance:
+        assert "Consumer closed" in str(c.value)
+
+    with pytest.raises(exp_exc):
+        cls.seek(instance, partition)
+
+    with pytest.raises(exp_exc):
+        cls.store_offsets(instance, offsets=[])
+
+    maybe_raises = (
+        pytest.raises(exp_exc) if has_invalid_state else contextlib.nullcontext()
+    )
+
+    with maybe_raises:
+        cls.set_sasl_credentials(instance, "u", "p")
+    with maybe_raises:
+        cls.assign(instance, [])
+    with maybe_raises:
+        cls.unassign(instance)
+    with maybe_raises:
+        cls.assignment(instance)
+    with maybe_raises:
+        cls.consume(instance, timeout=0)
+    with maybe_raises:
+        cls.consumer_group_metadata(instance)
+    with maybe_raises:
+        cls.incremental_assign(instance, [])
+    with maybe_raises:
+        cls.incremental_unassign(instance, [])
+    with maybe_raises:
+        cls.memberid(instance)
+    with maybe_raises:
+        cls.position(instance, [])
+    with maybe_raises:
+        cls.pause(instance, [])
+    with maybe_raises:
+        cls.resume(instance, [])
+    with maybe_raises:
+        cls.commit(instance)
+    with maybe_raises:
+        cls.unsubscribe(instance)
+    with maybe_raises:
+        cls.poll(instance, timeout=0)
+    
+    if instance:
+        cls.close(instance)
+        cls.close(instance)
