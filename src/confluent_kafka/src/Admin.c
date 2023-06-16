@@ -514,6 +514,10 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
+
         /* topics is a list of NewTopic objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
                                          &topics, &future,
@@ -662,6 +666,10 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
+
         /* topics is a list of strings. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O!O|ff", kws,
                                          (PyObject *)&PyList_Type, &topics,
@@ -765,6 +773,10 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
         rd_kafka_NewPartitions_t **c_objs;
         rd_kafka_queue_t *rkqu;
         CallState cs;
+
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
 
         /* topics is a list of NewPartitions_t objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Off", kws,
@@ -892,6 +904,10 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
+        
         /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
                                          &resources, &future,
@@ -1186,6 +1202,10 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
+
         /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
                                          &resources, &future,
@@ -1339,6 +1359,10 @@ static PyObject *Admin_create_acls (Handle *self, PyObject *args, PyObject *kwar
                              "request_timeout",
                              NULL};
 
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &acls_list,
                                          &future,
@@ -1466,6 +1490,10 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
                              "request_timeout",
                              NULL};
 
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &acl_binding_filter,
                                          &future,
@@ -1569,6 +1597,10 @@ static PyObject *Admin_delete_acls (Handle *self, PyObject *args, PyObject *kwar
                              /* options */
                              "request_timeout",
                              NULL};
+
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &acls_list,
@@ -1694,6 +1726,10 @@ PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kw
                              "states_int",
                              "request_timeout",
                              NULL};
+
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,
                                          &future,
@@ -2176,6 +2212,10 @@ PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject
                              "request_timeout",
                              NULL};
 
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &group_ids,
                                          &future,
@@ -2283,6 +2323,10 @@ PyObject *Admin_delete_consumer_groups (Handle *self, PyObject *args, PyObject *
                              /* options */
                              "request_timeout",
                              NULL};
+
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &group_ids,
@@ -2393,6 +2437,10 @@ PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObj
                              "require_stable",
                              "request_timeout",
                              NULL};
+
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
                                          &request,
@@ -2539,6 +2587,10 @@ PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyOb
                              "request_timeout",
                              NULL};
 
+        if (!Handle_check_initialized(self, 1)) {
+            goto err;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &request,
                                          &future,
@@ -2681,6 +2733,10 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
         int r;
         static char *kws[] = { "timeout", NULL };
 
+        if (!Handle_check_initialized(self, 1)) {
+            return NULL;
+        }
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "d", kws, &tmout))
                 return NULL;
 
@@ -2809,7 +2865,7 @@ static PyMethodDef Admin_methods[] = {
 
 
 static Py_ssize_t Admin__len__ (Handle *self) {
-        return rd_kafka_outq_len(self->rk);
+        return self->rk ? rd_kafka_outq_len(self->rk) : 0;
 }
 
 
@@ -4103,13 +4159,11 @@ static int Admin_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         char errstr[512];
         rd_kafka_conf_t *conf;
 
-        if (self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Admin already __init__:ialized");
-                return -1;
-        }
+        assert(self->type == PY_RD_KAFKA_ADMIN);
 
-        self->type = PY_RD_KAFKA_ADMIN;
+        if (!Handle_check_initialized(self, 0)) {
+            return -1;
+        }
 
         if (!(conf = common_conf_setup(PY_RD_KAFKA_ADMIN, self,
                                        args, kwargs)))
@@ -4140,7 +4194,9 @@ static int Admin_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
 
 static PyObject *Admin_new (PyTypeObject *type, PyObject *args,
                             PyObject *kwargs) {
-        return type->tp_alloc(type, 0);
+        PyObject *self = type->tp_alloc(type, 0);
+        ((Handle *)self)->type = PY_RD_KAFKA_ADMIN;
+        return self;
 }
 
 
