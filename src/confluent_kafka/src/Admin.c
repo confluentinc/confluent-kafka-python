@@ -354,7 +354,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                 PyObject *internal_vs = NULL, *internal_vs8 = NULL;
                 const char *internal_k;
                 const char *internal_v;
-                while(PyDict_Next(vo,&iter,&internal_ko,&internal_vo)){
+                while(PyDict_Next(vo,&iter, &internal_ko, &internal_vo)){
                         if (!(internal_ks = cfl_PyObject_Unistr(internal_ko))) {
                                 PyErr_Format(PyExc_ValueError,
                                         "expected property name for to be unicode "
@@ -362,20 +362,25 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                                 return 0;
                         }
                         internal_k = cfl_PyUnistr_AsUTF8(internal_ks, &internal_ks8);
-                        if (!(internal_vs = cfl_PyObject_Unistr(internal_vo)) || !(internal_v = cfl_PyUnistr_AsUTF8(internal_vs, &internal_vs8))) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "expected value name to be unicode "
-                                        "string");
-                                Py_XDECREF(internal_vs);
-                                Py_XDECREF(internal_vs8);
-                                Py_DECREF(internal_ks);
-                                Py_XDECREF(internal_ks8);
-                                return 0;
-                        }
 
                         if (!strcmp(internal_k,"operation_type")) {
-                                op = internal_v;
+                                if (!cfl_PyObject_GetString(internal_vo, "name", &op, NULL, 1, 0)) {
+                                        Py_DECREF(internal_ks);
+                                        Py_XDECREF(internal_ks8);
+                                        return 0;
+                                }
                         } else if(!strcmp(internal_k,"value")) {
+                                if (!(internal_vs = cfl_PyObject_Unistr(internal_vo)) || !(internal_v = cfl_PyUnistr_AsUTF8(internal_vs, &internal_vs8))) {
+                                        PyErr_Format(PyExc_ValueError,
+                                                "expected value name to be unicode "
+                                                "string");
+                                        Py_XDECREF(internal_vs);
+                                        Py_XDECREF(internal_vs8);
+                                        Py_DECREF(internal_ks);
+                                        Py_XDECREF(internal_ks8);
+                                        return 0;
+                                }
+
                                 v = internal_v;
                         } else {
                                 PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",internal_k);
@@ -414,6 +419,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                                         RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
                                         "Not existing incremental operation");
 
+                if (op) free(op);
                 if (error) {
                         PyErr_Format(PyExc_ValueError,
                                      "%s config %s failed: %s",
