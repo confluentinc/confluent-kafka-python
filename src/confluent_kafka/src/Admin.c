@@ -1050,7 +1050,6 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
             !cfl_PyBool_get(validate_only_obj, "validate_only",
                             &options.validate_only))
                 return NULL;
-        // needs change
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS,
                                        &options, future);
         if (!c_options)

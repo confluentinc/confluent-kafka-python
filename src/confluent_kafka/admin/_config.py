@@ -179,12 +179,27 @@ class ConfigResource(object):
             return
         self.set_config_dict[name] = value
 
-    def set_incremental_config(self,key,operation,value= None):
+    def set_incremental_config(self, name, operation, value= None):
+        """
+        Incrementally updates a configuration value.
+
+        Applies an incremental operation on specified key, while keeping
+        all the others unchanged.
+
+        :param str name: Configuration property name
+        :param str operation: Alter operation
+        :param str value: Configuration value (optional if operation is DELETE)
+        """
+        if name is None:
+            raise TypeError("Configuration name is needed")
+        if not isinstance(name,str):
+            raise TypeError("Configuration name must be a string")
+
         op = operation.upper()
-        if(op not in ['SET','APPEND','DELETE','SUBTRACT']):
+        if op not in ['SET','APPEND','DELETE','SUBTRACT']:
             raise ValueError('Operation not supported')
-        if(not isinstance(value,str) and op!='DELETE'):
-            raise ValueError("The Value provided should be a string for",op)
-        if (value is None) and op!='DELETE':
-            raise ValueError("Value is needed for operation :",op)
-        self.incremental_config[key] = {"operation_type" : op , "value" : value}
+        if not isinstance(value,str) and op != 'DELETE':
+            raise ValueError("The provided value should be a string for: " + op)
+        if value is None and op != 'DELETE':
+            raise ValueError("Value is needed for operation: " + op)
+        self.incremental_config[name] = {"operation_type" : op , "value" : value}
