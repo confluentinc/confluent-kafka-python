@@ -3,7 +3,7 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
+    AclOperation, AclPermissionType, AlterConfigOpType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -314,6 +314,40 @@ def test_alter_configs_api():
                           ConfigResource(ResourceType.GROUP,
                                          "mygroup")],
                          request_timeout=0.123)
+
+    with pytest.raises(KafkaException):
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+def test_incremental_alter_configs_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs(None)
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs("something")
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs([])
+
+    resources = [ConfigResource(ResourceType.BROKER, "3"),
+                 ConfigResource(ResourceType.TOPIC, "test")]
+    with pytest.raises(TypeError):
+        resources[0].set_incremental_config("advertised.listeners", "NEW_OPERATION", "host1")
+    with pytest.raises(TypeError):
+        resources[0].set_incremental_config(None, AlterConfigOpType.APPEND, "host1")
+    with pytest.raises(TypeError):
+        resources[0].set_incremental_config(5, AlterConfigOpType.APPEND, "host1")
+    with pytest.raises(ValueError):
+        resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
+
+    resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.APPEND, "compact")
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.SET, "delete")
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.DELETE)
+
+    fs = a.incremental_alter_configs(resources)
 
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
