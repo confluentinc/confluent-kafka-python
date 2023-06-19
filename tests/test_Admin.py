@@ -313,6 +313,40 @@ def test_alter_configs_api():
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
+def test_incremental_alter_configs_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs(None)
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs("something")
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs([])
+
+    resources = [ConfigResource(ResourceType.BROKER, "3"),
+                 ConfigResource(ResourceType.TOPIC, "test")]
+    with pytest.raises(ValueError):
+        resources[0].set_incremental_config("advertised.listeners", "NEW_OPERATION", "host1")
+    with pytest.raises(TypeError):
+        resources[0].set_incremental_config(None, "APPEND", "host1")
+    with pytest.raises(TypeError):
+        resources[0].set_incremental_config(5, "APPEND", "host1")
+    with pytest.raises(ValueError):
+        resources[0].set_incremental_config("advertised.listeners", "APPEND", None)
+
+    resources[0].set_incremental_config("advertised.listeners", "DELETE")
+    resources[1].set_incremental_config("cleanup.policy", "APPEND", "compact")
+    resources[1].set_incremental_config("cleanup.policy", "SET", "delete")
+    resources[1].set_incremental_config("cleanup.policy", "DELETE")
+
+    fs = a.incremental_alter_configs(resources)
+
+    with pytest.raises(KafkaException):
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
 
 def test_create_acls_api():
     """ create_acls() tests, these wont really do anything since there is no

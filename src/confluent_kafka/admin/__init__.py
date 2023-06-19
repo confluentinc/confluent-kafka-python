@@ -354,8 +354,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
         """
 
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
@@ -368,10 +368,9 @@ class AdminClient (_AdminClientImpl):
     def incremental_alter_configs(self,resources,**kwargs):
         """
         Update configuration properties for the specified resources.
-        Updates are incremental, i.e only the values mentioned are changed and rest remain 
-        as it it.
+        Updates are incremental, i.e only the values mentioned are changed
+        and rest remain as is.
 
-        
         :param list(ConfigResource) resources: Resources to update configuration of.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
@@ -385,8 +384,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
         """
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
                                               AdminClient._make_resource_result)
