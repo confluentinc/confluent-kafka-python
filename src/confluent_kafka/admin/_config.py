@@ -181,10 +181,10 @@ class ConfigResource(object):
 
     def set_incremental_config(self,key,operation,value= None):
         op = operation.upper()
-        if(op not in ['SET','APPEND','REMOVE','SUBTRACT']):
+        if(op not in ['SET','APPEND','DELETE','SUBTRACT']):
             raise ValueError('Operation not supported')
-        if(not isinstance(value,str) and op!='REMOVE'):
+        if(not isinstance(value,str) and op!='DELETE'):
             raise ValueError("The Value provided should be a string for",op)
-        if (value is None) and op!='REMOVE':    
+        if (value is None) and op!='DELETE':
             raise ValueError("Value is needed for operation :",op)
         self.incremental_config[key] = {"operation_type" : op , "value" : value}

@@ -334,21 +334,19 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
         PyObject *ko, *vo;
         while(PyDict_Next(dict,&pos,&ko,&vo)){
                 PyObject *ks, *ks8;
-                PyObject *vs = NULL, *vs8 = NULL;
                 const char *k;
-                const char *v;
-                const char *op;
-                rd_kafka_resp_err_t err;
+                const char *v = NULL;
+                const char *op = NULL;
+                rd_kafka_error_t *error;
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
                                      "expected config name to be unicode "
                                      "string");
-                        Py_DECREF(ks);
                         return 0;
                 }
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-                
+
 
                 Py_ssize_t iter = 0;
                 PyObject *internal_ko,*internal_vo;
@@ -361,7 +359,6 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                                 PyErr_Format(PyExc_ValueError,
                                         "expected property name for to be unicode "
                                         "string");
-                                Py_DECREF(internal_ks);
                                 return 0;
                         }
                         internal_k = cfl_PyUnistr_AsUTF8(internal_ks, &internal_ks8);
@@ -375,52 +372,58 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                                 Py_XDECREF(internal_ks8);
                                 return 0;
                         }
-                        
-                        if(!strcmp(internal_k,"operation_type")){
+
+                        if (!strcmp(internal_k,"operation_type")) {
                                 op = internal_v;
-                        }else if(!strcmp(internal_k,"value")){
+                        } else if(!strcmp(internal_k,"value")) {
                                 v = internal_v;
-                        }else{
+                        } else {
                                 PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",internal_k);
                                 Py_XDECREF(internal_vs);
                                 Py_XDECREF(internal_vs8);
                                 Py_DECREF(internal_ks);
                                 Py_XDECREF(internal_ks8);
-                                
+
                                 return 0;
                         }
+
+                        Py_XDECREF(internal_vs);
+                        Py_XDECREF(internal_vs8);
+                        Py_DECREF(internal_ks);
+                        Py_XDECREF(internal_ks8);
                 }
-                if (!strcmp(op, "SET"))
-                        err = rd_kafka_ConfigResource_incremental_set_config(
+
+                if (!strcmp(op, "SET") && v)
+                        error = rd_kafka_ConfigResource_incremental_set_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
                                 k, v);
-                else if (!strcmp(op, "APPEND"))
-                        err = rd_kafka_ConfigResource_incremental_append_config(
+                else if (!strcmp(op, "APPEND") && v)
+                        error = rd_kafka_ConfigResource_incremental_append_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
                                 k, v);
-                else if(!strcmp(op,"REMOVE"))
-                        err = rd_kafka_ConfigResource_incremental_remove_config(
+                else if(!strcmp(op,"DELETE"))
+                        error = rd_kafka_ConfigResource_incremental_delete_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
                                 k);
-                else if(!strcmp(op,"SUBTRACT"))
-                        err = rd_kafka_ConfigResource_incremental_subtract_config(
+                else if(!strcmp(op,"SUBTRACT") && v)
+                        error = rd_kafka_ConfigResource_incremental_subtract_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
                                 k,v);
-                else 
-                        err = RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED;
-                if (err) {
+                else
+                        error = rd_kafka_error_new(
+                                        RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
+                                        "Not existing incremental operation");
+
+                if (error) {
                         PyErr_Format(PyExc_ValueError,
                                      "%s config %s failed: %s",
-                                     op, k, rd_kafka_err2str(err));
-                        Py_XDECREF(vs);
-                        Py_XDECREF(vs8);
+                                     op, k, rd_kafka_error_string(error));
+                        rd_kafka_error_destroy(error);
                         Py_DECREF(ks);
                         Py_XDECREF(ks8);
                         return 0;
                 }
 
-                Py_XDECREF(vs);
-                Py_XDECREF(vs8);
                 Py_DECREF(ks);
                 Py_XDECREF(ks8);
 
@@ -600,7 +603,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
                                     topic_partition_count,
-                                    topic_partition_count, 
+                                    topic_partition_count,
                                     "num_partitions")) {
                                 i++;
                                 goto err;
@@ -2342,7 +2345,7 @@ static PyMethodDef Admin_methods[] = {
           "\n"
           "  This method should not be used directly, use confluent_kafka.AdminClient.describe_configs()\n"
         },
-        
+
         {"incremental_alter_configs", (PyCFunction)Admin_incremental_alter_configs,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: incremental_alter_configs(resources, future, [request_timeout, broker])\n"

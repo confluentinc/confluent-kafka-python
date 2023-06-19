@@ -262,9 +262,8 @@ def example_delete_acls(a, args):
 def example_incremental_alter_configs(a,args):
     """ Incremental Alter configs atomically, keeping non-specified
     configuration properties with their previous values.
-    Input Format : TOPIC T1 Key=Operation:Value;Key2=Operation:Value2
+    Input Format : TOPIC T1 Key=Operation:Value;Key2=Operation2:Value2
     """
-
     resources = []
     for restype, resname, configs in zip(args[0::3],args[1::3],args[2::3]):
         resource = ConfigResource(restype,resname)
@@ -273,7 +272,7 @@ def example_incremental_alter_configs(a,args):
             value = residual.split(':')[1]
             resource.set_incremental_config(k,operation,value)
         resources.append(resource)
-    
+
     fs = a.incremental_alter_configs(resources)
 
     # Wait for operation to finish.
@@ -295,7 +294,7 @@ def example_alter_configs(a, args):
         for k, v in [conf.split('=') for conf in configs.split(',')]:
             resource.set_config(k, v)
     resources.append(resource)
-    
+
     fs = a.alter_configs(resources)
 
     # Wait for operation to finish.
@@ -594,6 +593,8 @@ if __name__ == '__main__':
         sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' incremental_alter_configs <resource_type1> <resource_name1> ' +
+                         '<config1=op1:val1;config2=op2:val2> <resource_type2> <resource_name2> <config1=op1:..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
