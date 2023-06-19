@@ -20,7 +20,8 @@ import concurrent.futures
 # Unused imports are keeped to be accessible using this public module
 from ._config import (ConfigSource,  # noqa: F401
                       ConfigEntry,
-                      ConfigResource)
+                      ConfigResource,
+                      AlterConfigOpType)
 from ._resource import (ResourceType,  # noqa: F401
                         ResourcePatternType)
 from ._acl import (AclOperation,  # noqa: F401

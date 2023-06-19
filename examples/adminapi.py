@@ -17,10 +17,11 @@
 
 # Example use of AdminClient operations.
 
+from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
+                             TopicPartition, ConsumerGroupState)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
-                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType,
-                                   AclOperation, AclPermissionType)
-from confluent_kafka import KafkaException
+                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
+                                   AclPermissionType, AlterConfigOpType)
 import sys
 import threading
 import logging
@@ -267,9 +268,9 @@ def example_incremental_alter_configs(a,args):
     for restype, resname, configs in zip(args[0::3],args[1::3],args[2::3]):
         resource = ConfigResource(restype,resname)
         for k, residual in [conf.split('=') for conf in configs.split(';')]:
-            operation = residual.split(':')[0]
-            value = residual.split(':')[1]
-            resource.set_incremental_config(k,operation,value)
+            operation, value = residual.split(':')
+            operation = AlterConfigOpType[operation]
+            resource.set_incremental_config(k, operation, value)
         resources.append(resource)
 
     fs = a.incremental_alter_configs(resources)

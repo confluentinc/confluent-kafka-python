@@ -3,8 +3,9 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
-from confluent_kafka import KafkaException, KafkaError, libversion
+    AclOperation, AclPermissionType, AlterConfigOpType
+from confluent_kafka import KafkaException, KafkaError, libversion, \
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
 
 
@@ -327,19 +328,19 @@ def test_incremental_alter_configs_api():
 
     resources = [ConfigResource(ResourceType.BROKER, "3"),
                  ConfigResource(ResourceType.TOPIC, "test")]
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         resources[0].set_incremental_config("advertised.listeners", "NEW_OPERATION", "host1")
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config(None, "APPEND", "host1")
+        resources[0].set_incremental_config(None, AlterConfigOpType.APPEND, "host1")
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config(5, "APPEND", "host1")
+        resources[0].set_incremental_config(5, AlterConfigOpType.APPEND, "host1")
     with pytest.raises(ValueError):
-        resources[0].set_incremental_config("advertised.listeners", "APPEND", None)
+        resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
 
-    resources[0].set_incremental_config("advertised.listeners", "DELETE")
-    resources[1].set_incremental_config("cleanup.policy", "APPEND", "compact")
-    resources[1].set_incremental_config("cleanup.policy", "SET", "delete")
-    resources[1].set_incremental_config("cleanup.policy", "DELETE")
+    resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.APPEND, "compact")
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.SET, "delete")
+    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.DELETE)
 
     fs = a.incremental_alter_configs(resources)
 
