@@ -1,5 +1,5 @@
 [build-system]
-requires = [ "setuptools>=59", "wheel"]
+requires = [ "setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,6 +10,7 @@ classifiers = [ "Development Status :: 5 - Production/Stable", "Intended Audienc
 dependencies = [ "futures;python_version<\"3.2\"", "enum34;python_version<\"3.4\"",]
 readme = "README.md"
 license = { file = "LICENSE" }
+requires-python = ">=3.7"
 
 [[project.authors]]
 name = "\"Confluent Inc\""

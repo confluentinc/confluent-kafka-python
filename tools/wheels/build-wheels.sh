@@ -8,7 +8,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
 # Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
-export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux* $CIBW_SKIP"
+export CIBW_SKIP="pp* cp27-* cp35-* cp36-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
