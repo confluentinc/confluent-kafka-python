@@ -18,7 +18,7 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
 rm -rf dist
 python3 -m build
-pip install dist/confluent_kafka*
+pip install dist/confluent_kafka*.whl
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv
