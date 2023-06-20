@@ -86,12 +86,17 @@ done
 # Install packages and test
 echo "# Installing wheels"
 for PYBIN in /opt/python/cp*/bin/; do
-    echo "## Installing $PYBIN"
-    "${PYBIN}/pip" install confluent_kafka -f /io/wheelhouse
-    "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
-    "${PYBIN}/pip" install -r /io/tests/requirements.txt
-    "${PYBIN}/pytest" /io/tests/test_Producer.py
-    echo "## Uninstalling $PYBIN"
-    "${PYBIN}/pip" uninstall -y confluent_kafka
+    for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
+        if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
+            echo "## Installing $PYBIN"
+            "${PYBIN}/pip" install confluent_kafka -f /io/wheelhouse
+            "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
+            "${PYBIN}/pip" install -r /io/tests/requirements.txt
+            "${PYBIN}/pytest" /io/tests/test_Producer.py
+            echo "## Uninstalling $PYBIN"
+            "${PYBIN}/pip" uninstall -y confluent_kafka
+            break
+        fi
+    done
 done
 
