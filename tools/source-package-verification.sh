@@ -15,7 +15,7 @@ export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
-python setup.py build && python setup.py install
+python3 -m build
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv
     make docs
