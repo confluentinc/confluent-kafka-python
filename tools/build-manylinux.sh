@@ -15,6 +15,7 @@
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
+PYTHON_VERSIONS=("cp37" "cp38" "cp39" "cp310" "cp311" )
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
     echo "Usage: $0 <librdkafka_tag>"
@@ -58,9 +59,14 @@ $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
 # Compile wheels
 echo "# Compile"
 for PYBIN in /opt/python/cp*/bin; do
-    echo "## Compiling $PYBIN"
-    CFLAGS="-Werror -Wno-strict-aliasing -Wno-parentheses" \
-          "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
+    for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
+        if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
+            echo "## Compiling $PYBIN"
+            CFLAGS="-Werror -Wno-strict-aliasing -Wno-parentheses" \
+            "${PYBIN}/pip" wheel /io/ -w unrepaired-wheelhouse/
+            break
+        fi
+    done
 done
 
 # Bundle external shared libraries into the wheels
