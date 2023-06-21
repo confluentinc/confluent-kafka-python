@@ -21,7 +21,7 @@ import concurrent.futures
 from ._config import (ConfigSource,  # noqa: F401
                       ConfigEntry,
                       ConfigResource,
-                      IncrementalAlterConfigOperation)
+                      AlterConfigOpType)
 from ._resource import (ResourceType,  # noqa: F401
                         ResourcePatternType)
 from ._acl import (AclOperation,  # noqa: F401

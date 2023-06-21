@@ -336,7 +336,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                 PyObject *ks, *ks8;
                 const char *k;
                 const char *v = NULL;
-                char *op = NULL;
+                int op = -1;
                 rd_kafka_error_t *error;
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
@@ -345,8 +345,6 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                         return 0;
                 }
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
-
-
 
                 Py_ssize_t iter = 0;
                 PyObject *internal_ko,*internal_vo;
@@ -364,7 +362,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                         internal_k = cfl_PyUnistr_AsUTF8(internal_ks, &internal_ks8);
 
                         if (!strcmp(internal_k,"operation_type")) {
-                                if (!cfl_PyObject_GetString(internal_vo, "name", &op, NULL, 1, 0)) {
+                                if (!cfl_PyObject_GetInt(internal_vo, "value", &op, -1, 1)) {
                                         Py_DECREF(internal_ks);
                                         Py_XDECREF(internal_ks8);
                                         return 0;
@@ -398,28 +396,10 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                         Py_XDECREF(internal_ks8);
                 }
 
-                if (!strcmp(op, "SET") && v)
-                        error = rd_kafka_ConfigResource_incremental_set_config(
+                error = rd_kafka_ConfigResource_set_incremental_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
-                                k, v);
-                else if (!strcmp(op, "APPEND") && v)
-                        error = rd_kafka_ConfigResource_incremental_append_config(
-                                (rd_kafka_ConfigResource_t *)c_obj,
-                                k, v);
-                else if(!strcmp(op,"DELETE"))
-                        error = rd_kafka_ConfigResource_incremental_delete_config(
-                                (rd_kafka_ConfigResource_t *)c_obj,
-                                k);
-                else if(!strcmp(op,"SUBTRACT") && v)
-                        error = rd_kafka_ConfigResource_incremental_subtract_config(
-                                (rd_kafka_ConfigResource_t *)c_obj,
-                                k,v);
-                else
-                        error = rd_kafka_error_new(
-                                        RD_KAFKA_RESP_ERR__NOT_IMPLEMENTED,
-                                        "Not existing incremental operation");
+                                k, op, v);
 
-                if (op) free(op);
                 if (error) {
                         PyErr_Format(PyExc_ValueError,
                                      "%s config %s failed: %s",
