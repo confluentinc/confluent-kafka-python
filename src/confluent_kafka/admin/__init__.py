@@ -366,7 +366,7 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def incremental_alter_configs(self,resources,**kwargs):
+    def incremental_alter_configs(self, resources, **kwargs):
         """
         Update configuration properties for the specified resources.
         Updates are incremental, i.e only the values mentioned are changed

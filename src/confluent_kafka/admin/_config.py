@@ -17,6 +17,7 @@ import functools
 from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
+
 class IncrementalAlterConfigOperation(Enum):
     """
     Set of incremental operations that can be used with
@@ -25,16 +26,17 @@ class IncrementalAlterConfigOperation(Enum):
     SET = 0         #: Set the value of the configuration entry.
 
     DELETE = 1      #: Revert the configuration entry
-                    #  to the default value (possibly null).
+    #  to the default value (possibly null).
     APPEND = 2      #: (For list-type configuration entries only.)
-                    #  Add the specified values
-                    #  to the current value
-                    #  of the configuration entry.
+    #  Add the specified values
+    #  to the current value
+    #  of the configuration entry.
 
     SUBTRACT = 3    #: (For list-type configuration entries only.)
-                    #  Removes the specified values
-                    #  from the current value
-                    #  of the configuration entry.
+    #  Removes the specified values
+    #  from the current value
+    #  of the configuration entry.
+
 
 class ConfigSource(Enum):
     """
@@ -197,7 +199,7 @@ class ConfigResource(object):
             return
         self.set_config_dict[name] = value
 
-    def set_incremental_config(self, name, operation, value= None):
+    def set_incremental_config(self, name, operation, value=None):
         """
         Incrementally updates a configuration value.
 
@@ -210,14 +212,14 @@ class ConfigResource(object):
         """
         if name is None:
             raise TypeError("Configuration name is needed")
-        if not isinstance(name,str):
+        if not isinstance(name, str):
             raise TypeError("Configuration name must be a string")
 
         if not isinstance(operation, IncrementalAlterConfigOperation):
             raise TypeError("Operation must be of type IncrementalAlterConfigOperation")
 
-        if not isinstance(value,str) and operation != IncrementalAlterConfigOperation.DELETE:
+        if not isinstance(value, str) and operation != IncrementalAlterConfigOperation.DELETE:
             raise ValueError("The provided value should be a string for: " + operation.name)
         if value is None and operation != IncrementalAlterConfigOperation.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
-        self.incremental_config[name] = {"operation_type" : operation , "value" : value}
+        self.incremental_config[name] = {"operation_type": operation, "value": value}
