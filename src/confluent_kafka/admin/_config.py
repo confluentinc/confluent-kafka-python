@@ -17,7 +17,7 @@ import functools
 from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
-class AlterConfigOpType(Enum):
+class IncrementalAlterConfigOperation(Enum):
     """
     Set of incremental operations that can be used with
     incremental alter configs.
@@ -205,7 +205,7 @@ class ConfigResource(object):
         all the others unchanged.
 
         :param str name: Configuration property name
-        :param AlterConfigOpType operation: Alter config operation
+        :param IncrementalAlterConfigOperation operation: Alter config operation
         :param str value: Configuration value (optional if operation is DELETE)
         """
         if name is None:
@@ -213,11 +213,11 @@ class ConfigResource(object):
         if not isinstance(name,str):
             raise TypeError("Configuration name must be a string")
 
-        if not isinstance(operation, AlterConfigOpType):
-            raise TypeError("Operation must be of type AlterConfigOpType")
+        if not isinstance(operation, IncrementalAlterConfigOperation):
+            raise TypeError("Operation must be of type IncrementalAlterConfigOperation")
 
-        if not isinstance(value,str) and operation != AlterConfigOpType.DELETE:
+        if not isinstance(value,str) and operation != IncrementalAlterConfigOperation.DELETE:
             raise ValueError("The provided value should be a string for: " + operation.name)
-        if value is None and operation != AlterConfigOpType.DELETE:
+        if value is None and operation != IncrementalAlterConfigOperation.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
         self.incremental_config[name] = {"operation_type" : operation , "value" : value}
