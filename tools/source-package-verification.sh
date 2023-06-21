@@ -3,6 +3,7 @@
 #
 # Source Package Verification
 #
+set -e
 
 pip install -r docs/requirements.txt
 pip install -U protobuf
