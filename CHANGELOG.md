@@ -1,6 +1,6 @@
 # Confluent's Python client for Apache Kafka
 
-## v2.2,0
+## v2.2.0
 
 v2.2.0 is a feature release with the following features, fixes and enhancements:
 
