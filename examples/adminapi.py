@@ -21,7 +21,7 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, AlterConfigOpType)
+                                   AclPermissionType, IncrementalAlterConfigOperation)
 import sys
 import threading
 import logging
@@ -269,7 +269,7 @@ def example_incremental_alter_configs(a,args):
         resource = ConfigResource(restype,resname)
         for k, residual in [conf.split('=') for conf in configs.split(';')]:
             operation, value = residual.split(':')
-            operation = AlterConfigOpType[operation]
+            operation = IncrementalAlterConfigOperation[operation]
             resource.set_incremental_config(k, operation, value)
         resources.append(resource)
 
