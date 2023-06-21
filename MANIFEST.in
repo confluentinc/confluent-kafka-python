@@ -1,4 +1,4 @@
 include README.md
-include LICENSE.txt
-include test-requirements.txt
 include src/confluent_kafka/src/*.[ch]
+prune tests
+prune docs
