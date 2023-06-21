@@ -547,6 +547,24 @@ static void AdminTypes_AddObjectsAclPermissionType (PyObject *m) {
         PyModule_AddIntConstant(m, "ACL_PERMISSION_TYPE_ALLOW", RD_KAFKA_ACL_PERMISSION_TYPE_ALLOW);
 }
 
+static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
+        /* rd_kafka_consumer_group_state_t */
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_STATE_UNKNOWN);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_PREPARING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_PREPARING_REBALANCE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_COMPLETING_REBALANCE", RD_KAFKA_CONSUMER_GROUP_STATE_COMPLETING_REBALANCE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_STABLE", RD_KAFKA_CONSUMER_GROUP_STATE_STABLE);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_DEAD", RD_KAFKA_CONSUMER_GROUP_STATE_DEAD);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
+}
+
+static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
+        /* rd_kafka_consumer_group_state_t */
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SET", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_DELETE", RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_APPEND", RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SUBTRACT", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -561,4 +579,6 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsResourcePatternType(m);
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
+        AdminTypes_AddObjectsConsumerGroupStates(m);
+        AdminTypes_AddObjectsAlterConfigOpType(m);
 }

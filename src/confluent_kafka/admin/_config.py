@@ -18,24 +18,30 @@ from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
 
-class IncrementalAlterConfigOperation(Enum):
+class AlterConfigOpType(Enum):
     """
     Set of incremental operations that can be used with
     incremental alter configs.
     """
-    SET = 0         #: Set the value of the configuration entry.
 
-    DELETE = 1      #: Revert the configuration entry
-    #  to the default value (possibly null).
-    APPEND = 2      #: (For list-type configuration entries only.)
-    #  Add the specified values
-    #  to the current value
-    #  of the configuration entry.
+    #: Set the value of the configuration entry.
+    SET = _cimpl.ALTER_CONFIG_OP_TYPE_SET
 
-    SUBTRACT = 3    #: (For list-type configuration entries only.)
-    #  Removes the specified values
-    #  from the current value
-    #  of the configuration entry.
+    #: Revert the configuration entry
+    #: to the default value (possibly null).
+    DELETE = _cimpl.ALTER_CONFIG_OP_TYPE_DELETE
+
+    #: (For list-type configuration entries only.)
+    #:  Add the specified values
+    #:  to the current value
+    #:  of the configuration entry.
+    APPEND = _cimpl.ALTER_CONFIG_OP_TYPE_APPEND
+
+    #: (For list-type configuration entries only.)
+    #:  Removes the specified values
+    #:  from the current value
+    #:  of the configuration entry.
+    SUBTRACT = _cimpl.ALTER_CONFIG_OP_TYPE_SUBTRACT
 
 
 class ConfigSource(Enum):
@@ -207,7 +213,7 @@ class ConfigResource(object):
         all the others unchanged.
 
         :param str name: Configuration property name
-        :param IncrementalAlterConfigOperation operation: Alter config operation
+        :param AlterConfigOpType operation: Alter config operation
         :param str value: Configuration value (optional if operation is DELETE)
         """
         if name is None:
@@ -215,11 +221,11 @@ class ConfigResource(object):
         if not isinstance(name, str):
             raise TypeError("Configuration name must be a string")
 
-        if not isinstance(operation, IncrementalAlterConfigOperation):
-            raise TypeError("Operation must be of type IncrementalAlterConfigOperation")
+        if not isinstance(operation, AlterConfigOpType):
+            raise TypeError("Operation must be of type AlterConfigOpType")
 
-        if not isinstance(value, str) and operation != IncrementalAlterConfigOperation.DELETE:
+        if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
             raise ValueError("The provided value should be a string for: " + operation.name)
-        if value is None and operation != IncrementalAlterConfigOperation.DELETE:
+        if value is None and operation != AlterConfigOpType.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
         self.incremental_config[name] = {"operation_type": operation, "value": value}
