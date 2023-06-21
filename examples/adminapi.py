@@ -259,14 +259,15 @@ def example_delete_acls(a, args):
         except Exception:
             raise
 
-def example_incremental_alter_configs(a,args):
+
+def example_incremental_alter_configs(a, args):
     """ Incremental Alter configs atomically, keeping non-specified
     configuration properties with their previous values.
     Input Format : TOPIC T1 Key=Operation:Value;Key2=Operation2:Value2
     """
     resources = []
-    for restype, resname, configs in zip(args[0::3],args[1::3],args[2::3]):
-        resource = ConfigResource(restype,resname)
+    for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
+        resource = ConfigResource(restype, resname)
         for k, residual in [conf.split('=') for conf in configs.split(';')]:
             operation, value = residual.split(':')
             operation = IncrementalAlterConfigOperation[operation]
@@ -627,7 +628,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
-              'incremental_alter_configs':example_incremental_alter_configs,
+              'incremental_alter_configs': example_incremental_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,

@@ -319,6 +319,7 @@ def test_alter_configs_api():
         for f in concurrent.futures.as_completed(iter(fs.values())):
             f.result(timeout=1)
 
+
 def test_incremental_alter_configs_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
