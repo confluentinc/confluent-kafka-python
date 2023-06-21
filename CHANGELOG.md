@@ -5,7 +5,7 @@
 v2.2.0 is a feature release with the following features, fixes and enhancements:
 
  - [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
-   IncrementalAlterConfigs API (#).
+   IncrementalAlterConfigs API (#1517).
 
 
 ## v2.1.1
