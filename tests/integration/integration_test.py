@@ -569,7 +569,8 @@ def verify_consumer_seek(c, seek_to_msg):
 
     tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
                                         seek_to_msg.partition(),
-                                        seek_to_msg.offset())
+                                        seek_to_msg.offset(),
+                                        leader_epoch=seek_to_msg.leader_epoch())
     print('seek: Seeking to %s' % tp)
     c.seek(tp)
 
@@ -583,9 +584,14 @@ def verify_consumer_seek(c, seek_to_msg):
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
             continue
 
-        print('seek: message at offset %d' % msg.offset())
-        assert msg.offset() == seek_to_msg.offset(), \
-            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        print('seek: message at offset %d (epoch %d)' %
+              (msg.offset(), msg.leader_epoch()))
+        assert msg.offset() == seek_to_msg.offset() and \
+               msg.leader_epoch() == seek_to_msg.leader_epoch(), \
+               ('expected message at offset %d (epoch %d), ' % (seek_to_msg.offset(),
+                                                                seek_to_msg.leader_epoch())) + \
+               ('not %d (epoch %d)' % (msg.offset(),
+                                       msg.leader_epoch()))
         break
 
 
@@ -1254,6 +1260,16 @@ if __name__ == '__main__':
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https(testconf.get('avro-https', None))
+        key_with_password_conf = testconf.get("avro-https-key-with-password", None)
+        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
+              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+        verify_avro_https(key_with_password_conf)
+        print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
+        try:
+            key_with_password_conf['schema.registry.ssl.key.password'] += '->wrongpassword'
+            verify_avro_https(key_with_password_conf)
+        except Exception:
+            print("Wrong Password Gives Error -> Successful")
 
     if 'avro-basic-auth' in modes:
         print("=" * 30, 'Verifying AVRO with Basic Auth', '=' * 30)

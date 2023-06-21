@@ -27,7 +27,7 @@ SCHEMA_REGISTRY_REQUIRES = ['requests']
 
 AVRO_REQUIRES = ['fastavro>=0.23.0,<1.0;python_version<"3.0"',
                  'fastavro>=1.0;python_version>"3.0"',
-                 'avro==1.10.0'
+                 'avro>=1.11.1,<2',
                  ] + SCHEMA_REGISTRY_REQUIRES
 
 JSON_REQUIRES = ['pyrsistent==0.16.1;python_version<"3.0"',
@@ -75,7 +75,7 @@ trove_classifiers = [
 setup(name='confluent-kafka',
       # Make sure to bump CFL_VERSION* in confluent_kafka/src/confluent_kafka.h
       # and version in docs/conf.py.
-      version='1.9.2',
+      version='2.1.1',
       description='Confluent\'s Python client for Apache Kafka',
       author='Confluent Inc',
       author_email='support@confluent.io',
