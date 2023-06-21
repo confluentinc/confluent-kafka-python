@@ -140,7 +140,7 @@ RCs, so it only needs to be set once for each release.
  * `src/confluent_kafka/src/confluent_kafka.h`
     update both `CFL_VERSION` and `CFL_VERSION_STR`.
  * `docs/conf.py` - change `version` variable.
- * `setup.py` - change `version` argument to `setup()`.
+ * `pyproject.toml` - change `version` field.
 
 Commit these changes with a commit-message containing the version:
 
