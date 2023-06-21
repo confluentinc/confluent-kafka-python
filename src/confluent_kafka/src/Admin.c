@@ -307,7 +307,7 @@ Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
                 PyObject *ks, *ks8;
                 const char *k;
                 const char *v = NULL;
-                const char *op = NULL;
+                char *op = NULL;
                 rd_kafka_error_t *error;
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
