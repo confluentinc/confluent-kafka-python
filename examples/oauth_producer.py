@@ -29,36 +29,29 @@ from confluent_kafka.serialization import StringSerializer
 import requests
 
 
-def _get_token(args, config):
-    """Note here value of config comes from sasl.oauthbearer.config below.
-    It is not used in this example but you can put arbitrary values to
-    configure how you can get the token (e.g. which token URL to use)
-    """
-    payload = {
-        'grant_type': 'client_credentials',
-        'scope': ' '.join(args.scopes)
-    }
-    resp = requests.post(args.token_url,
-                         auth=(args.client_id, args.client_secret),
-                         data=payload)
-    token = resp.json()
-    return token['access_token'], time.time() + float(token['expires_in'])
-
-
 def producer_config(args):
     logger = logging.getLogger(__name__)
-    return {
+    logger.setLevel(logging.DEBUG)
+    params = {
         'bootstrap.servers': args.bootstrap_servers,
-        'security.protocol': 'sasl_plaintext',
+        'retries': 1,
+        'message.send.max.retries': 1,
+        'delivery.timeout.ms': 30000,
+        'security.protocol': 'SASL_SSL',
         'sasl.mechanisms': 'OAUTHBEARER',
-        # sasl.oauthbearer.config can be used to pass argument to your oauth_cb
-        # It is not used in this example since we are passing all the arguments
-        # from command line
-        # 'sasl.oauthbearer.config': 'not-used',
-        'oauth_cb': functools.partial(_get_token, args),
-        'logger': logger,
+        'sasl.oauthbearer.method': 'oidc',
+        'sasl.oauthbearer.client.id': args.client_id,
+        'sasl.oauthbearer.client.secret': args.client_secret,
+        'sasl.oauthbearer.token.endpoint.url': args.token_url,
+        'sasl.oauthbearer.scope': ' '.join(args.scopes)
     }
+    if args.logical_cluster and args.identity_pool_id:
+        params['sasl.oauthbearer.extensions'] = 'logicalCluster='+args.logical_cluster+',identityPoolId='+args.identity_pool_id
 
+    if args.debug:
+       params['debug'] = args.debug
+
+    return params
 
 def delivery_report(err, msg):
     """
@@ -131,5 +124,8 @@ if __name__ == '__main__':
                         help="Token URL.")
     parser.add_argument('--scopes', dest="scopes", required=True, nargs='+',
                         help="Scopes requested from OAuth server.")
-
+    parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
+    parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
+    parser.add_argument('--debug', dest="debug", required=False, help="Comma separated list of following values broker,topic,msg")
+  
     main(parser.parse_args())
