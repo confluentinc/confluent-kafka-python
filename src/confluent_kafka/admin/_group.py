@@ -146,7 +146,7 @@ class UserScramCredentialAlteration:
 
 
 class UserScramCredentialUpsertion(UserScramCredentialAlteration):
-    def __init__(self, user: str, scram_credential_info: ScramCredentialInfo, salt: str, password: str):
+    def __init__(self, user: str, scram_credential_info: ScramCredentialInfo, salt: bytes, password: bytes):
         super(UserScramCredentialUpsertion, self).__init__(user)
         self.scram_credential_info = scram_credential_info
         self.salt = salt
@@ -154,6 +154,6 @@ class UserScramCredentialUpsertion(UserScramCredentialAlteration):
 
 
 class UserScramCredentialDeletion(UserScramCredentialAlteration):
-    def __init__(self, user: str, mechansim: ScramMechanism):
+    def __init__(self, user: str, mechanism: ScramMechanism):
         super(UserScramCredentialDeletion, self).__init__(user)
-        self.mechanism = mechansim
+        self.mechanism = mechanism

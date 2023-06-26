@@ -871,17 +871,14 @@ class AdminClient (_AdminClientImpl):
                 raise ValueError("'user' cannot be empty")
 
             if isinstance(alteration, UserScramCredentialUpsertion):
-                if alteration.salt is None:
-                    raise TypeError("'salt' cannot be None")
-                if not isinstance(alteration.salt, string_type):
-                    raise TypeError("'salt' must be a string")
-                if not alteration.salt:
-                    raise ValueError("'salt' cannot be empty")
-
+                if alteration.salt is not None and not alteration.salt:
+                    raise ValueError("'salt' can be None but cannot be empty")
+                if alteration.salt and not isinstance(alteration.salt, bytes):
+                    raise TypeError("'salt' must be bytes")
                 if alteration.password is None:
                     raise TypeError("'password' cannot be None")
-                if not isinstance(alteration.password, string_type):
-                    raise TypeError("'password' must be a string")
+                if not isinstance(alteration.password, bytes):
+                    raise TypeError("'password' must be bytes")
                 if not alteration.password:
                     raise ValueError("'password' cannot be empty")
 
@@ -897,7 +894,7 @@ class AdminClient (_AdminClientImpl):
             else:
                 raise TypeError("Expected each element of list to be Sub-class of UserScramCredentialAlteration")
 
-        f, futmap = AdminClient._make_futures([alteration.user for alteration in alterations], None,
+        f, futmap = AdminClient._make_futures(set([alteration.user for alteration in alterations]), None,
                                               AdminClient._make_alter_user_scram_credentials_result)
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)

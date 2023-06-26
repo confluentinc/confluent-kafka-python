@@ -502,7 +502,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
                                     topic_partition_count,
-                                    topic_partition_count, 
+                                    topic_partition_count,
                                     "num_partitions")) {
                                 i++;
                                 goto err;
@@ -1256,7 +1256,7 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
                                 "AclBindingFilter object");
                 goto err;
         }
-        
+
         c_obj = Admin_py_to_c_AclBindingFilter(acl_binding_filter, errstr, sizeof(errstr));
         if (!c_obj) {
                 PyErr_SetString(PyExc_ValueError, errstr);
@@ -1544,7 +1544,6 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         int user_cnt, i;
         const char **c_users = NULL;
         rd_kafka_queue_t *rkqu;
-        rd_kafka_resp_err_t api_error;
         CallState cs;
 
         /* topics is a list of NewPartitions_t objects. */
@@ -1570,7 +1569,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         Py_INCREF(future);
 
         user_cnt = (int)PyList_Size(users);
-        
+
 
         c_users = malloc(sizeof(char *) * user_cnt);
 
@@ -1588,7 +1587,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
                                      tp_name);
                         goto err;
                 }
-                
+
                 c_users[i] = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
                 Py_XDECREF(u_user);
                 Py_XDECREF(uo_user);
@@ -1604,13 +1603,9 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
          * the event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
-        api_error = rd_kafka_DescribeUserScramCredentials(self->rk, c_users, user_cnt, c_options, rkqu);
+        rd_kafka_DescribeUserScramCredentials(self->rk, c_users, user_cnt, c_options, rkqu);
         CallState_end(self, &cs);
-        if(api_error){
-                PyErr_SetString(PyExc_ValueError,
-                                rd_kafka_err2str(api_error));
-                goto err;
-        }
+
         if(c_users)
                 free(c_users);
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
@@ -1654,46 +1649,44 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         CallState cs;
 
         PyObject *user;
-        char *user_c;
+        const char *user_c;
         PyObject *u_user;
         PyObject *uo_user = NULL;
 
         PyObject *salt;
-        char *salt_c;
-        PyObject *u_salt;
-        PyObject *uo_salt = NULL;
+        const unsigned char *salt_c = NULL;
+        Py_ssize_t salt_c_size = 0;
 
         PyObject *password;
-        char *password_c;
-        PyObject *u_password;
-        PyObject *uo_password = NULL;
+        const unsigned char *password_c;
+        Py_ssize_t password_c_size;
 
         PyObject *scram_credential_info;
         PyObject *mechanism;
         int32_t iterations;
         int mechanism_val;
-        rd_kafka_resp_err_t api_error;
+
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &alterations, &future,
                                          &options.request_timeout))
                 return NULL;
-        
+
         if (!PyList_Check(alterations)) {
-                PyErr_SetString(PyExc_ValueError,
+                PyErr_SetString(PyExc_TypeError,
                                 "Expected non-empty list of Alteration "
                                 "objects");
                 return NULL;
         }
         UserScramCredentialAlteration_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "UserScramCredentialAlteration");
-        
-        
+
+
         if (!UserScramCredentialAlteration_type) {
                         PyErr_SetString(PyExc_ImportError,
                                 "Not able to load UserScramCredentialAlteration type");
                         goto err;
         }
-        
+
         UserScramCredentialUpsertion_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "UserScramCredentialUpsertion");
         if (!UserScramCredentialUpsertion_type) {
@@ -1708,7 +1701,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                 "Not able to load UserScramCredentialDeletion type");
                         goto err;
         }
-        
+
         ScramCredentialInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "ScramCredentialInfo");
         if (!ScramCredentialInfo_type) {
@@ -1724,106 +1717,109 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                 "Not able to load ScramMechanism type");
                         goto err;
         }
-                                          
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
                                        &options, future);
         if (!c_options)
                 return NULL; /* Exception raised by options_to_c() */
-        
+
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
-        
+
         alteration_cnt = (int)PyList_Size(alterations);
         c_alterations = malloc(sizeof(rd_kafka_UserScramCredentialAlteration_t *) * alteration_cnt);
-        
+
         for (i = 0 ; i < alteration_cnt ; i++) {
                 PyObject *alteration = PyList_GET_ITEM(alterations, i);
                 if(!PyObject_IsInstance(alteration, UserScramCredentialAlteration_type)) {
-                        PyErr_SetString(PyExc_ValueError,
+                        PyErr_SetString(PyExc_TypeError,
                                 "Each request should be of UserScramCredentialAlteration type");
                         goto err;
                 }
-                cfl_PyObject_GetAttr(alteration,"user",&user,NULL,1,1);
+                cfl_PyObject_GetAttr(alteration, "user", &user,NULL,1,1);
                 if (user == Py_None ||
                     !(u_user = cfl_PyObject_Unistr(user))) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "Expected list of user strings, "
-                                     "not %s",
+                        PyErr_Format(PyExc_TypeError,
+                                     "Alteration %d: user field should be a string, got %s",
+                                     i,
                                      ((PyTypeObject *)PyObject_Type(user))->
                                      tp_name);
                         goto err;
                 }
 
+                Py_DECREF(user);
                 user_c = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
 
                 if(PyObject_IsInstance(alteration,UserScramCredentialUpsertion_type)){
                         /* Upsertion Type*/
                         cfl_PyObject_GetAttr(alteration,"salt",&salt,NULL,0,0);
-                        if (salt == Py_None ||
-                            !(u_salt = cfl_PyObject_Unistr(salt))) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "Expected list of salt strings, "
-                                        "not %s",
+                        if (salt != Py_None && Py_TYPE(salt) != &PyBytes_Type) {
+                                PyErr_Format(PyExc_TypeError,
+                                        "Alteration %d: salt field should be bytes, got %s",
+                                        i,
                                         ((PyTypeObject *)PyObject_Type(salt))->
                                         tp_name);
                                 goto err;
                         }
-                        salt_c = cfl_PyUnistr_AsUTF8(u_salt, &uo_salt);
-                        
-                        
+                        if (salt != Py_None) {
+                                PyBytes_AsStringAndSize(salt, (char **) &salt_c, &salt_c_size);
+                        }
+
                         cfl_PyObject_GetAttr(alteration,"password",&password,NULL,0,0);
-                        
-                        if (password == Py_None ||
-                            !(u_password = cfl_PyObject_Unistr(password))) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "Expected list of password strings, "
-                                        "not %s",
+                        if (Py_TYPE(password) != &PyBytes_Type) {
+                                PyErr_Format(PyExc_TypeError,
+                                        "Alteration %d: password field should be bytes, got %s",
+                                        i,
                                         ((PyTypeObject *)PyObject_Type(password))->
                                         tp_name);
                                 goto err;
                         }
-                        
-                        password_c = cfl_PyUnistr_AsUTF8(u_password, &uo_password);
+                        PyBytes_AsStringAndSize(password, (char **) &password_c, &password_c_size);
+
                         cfl_PyObject_GetAttr(alteration,"scram_credential_info",&scram_credential_info,NULL,0,0);
-                        if(!PyObject_IsInstance(scram_credential_info, ScramCredentialInfo_type)) {
-                                PyErr_SetString(PyExc_ValueError,
+                        if (!PyObject_IsInstance(scram_credential_info, ScramCredentialInfo_type)) {
+                                PyErr_SetString(PyExc_TypeError,
                                         "scram_credential_info should be of ScramCredentialInfo type");
                                 goto err;
                         }
 
                         cfl_PyObject_GetInt(scram_credential_info,"iterations",&iterations,0,1);
                         cfl_PyObject_GetAttr(scram_credential_info,"mechanism",&mechanism,NULL,0,0);
-                        if(!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
-                                PyErr_SetString(PyExc_ValueError,
+                        if (!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
+                                PyErr_SetString(PyExc_TypeError,
                                         "mechanism should be of ScramMechanism type");
                                 goto err;
                         }
                         cfl_PyObject_GetInt(mechanism,"value",&mechanism_val,0,1);
-                        
-                        c_alterations[i] = rd_kafka_UserScramCredentialUpsertion_new(user_c,salt_c,password_c,(rd_kafka_ScramMechanism_t)mechanism_val,iterations);
-                        
-                        /* What about scramCredentialInfo ??*/
-                        Py_XDECREF(u_salt);
-                        Py_XDECREF(uo_salt);
 
-                        Py_XDECREF(u_password);
-                        Py_XDECREF(uo_password);
-                        
-                }else if(PyObject_IsInstance(alteration,UserScramCredentialDeletion_type)){
+                        c_alterations[i] = rd_kafka_UserScramCredentialUpsertion_new(user_c,salt_c, salt_c_size, password_c,
+                                password_c_size, (rd_kafka_ScramMechanism_t) mechanism_val, iterations);
+
+                        Py_DECREF(salt);
+                        Py_DECREF(password);
+                        Py_DECREF(scram_credential_info);
+                        salt = NULL,
+                        password = NULL,
+                        scram_credential_info = NULL;
+
+                } else if(PyObject_IsInstance(alteration,UserScramCredentialDeletion_type)){
                         /* Deletion Type*/
                         cfl_PyObject_GetAttr(alteration,"mechanism",&mechanism,NULL,0,0);
-                        if(!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
-                                PyErr_SetString(PyExc_ValueError,
+                        if (!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
+                                PyErr_SetString(PyExc_TypeError,
                                         "mechanism should be of ScramMechanism type");
                                 goto err;
                         }
                         cfl_PyObject_GetInt(mechanism,"value",&mechanism_val,0,1);
-                        
+
                         c_alterations[i] = rd_kafka_UserScramCredentialDeletion_new(user_c,(rd_kafka_ScramMechanism_t)mechanism_val);
+                        Py_DECREF(mechanism);
+                        mechanism = NULL;
                 }
-                Py_XDECREF(u_user);
+
+                Py_DECREF(u_user);
                 Py_XDECREF(uo_user);
         }
         /* Use librdkafka's background thread queue to automatically dispatch
@@ -1837,14 +1833,9 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
          * the event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
-        api_error = rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu);
+        rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu);
         CallState_end(self, &cs);
-        if (api_error){
-                PyErr_SetString(PyExc_ValueError,
-                                rd_kafka_err2str(api_error));
-                goto err;
-        }
-        
+
         if(c_alterations) {
                 for(i=0;i<alteration_cnt;i++)
                         rd_kafka_UserScramCredentialAlteration_destroy(c_alterations[i]);
@@ -1862,18 +1853,17 @@ err:
 
         Py_XDECREF(u_user);
         Py_XDECREF(uo_user);
+        Py_XDECREF(salt);
+        Py_XDECREF(password);
+        Py_XDECREF(scram_credential_info);
+        Py_XDECREF(mechanism);
 
-        Py_XDECREF(u_salt);
-        Py_XDECREF(uo_salt);
-
-        Py_XDECREF(u_password);
-        Py_XDECREF(uo_password);
         Py_DECREF(UserScramCredentialAlteration_type); /* from lookup() */
         Py_DECREF(UserScramCredentialUpsertion_type); /* from lookup() */
         Py_DECREF(UserScramCredentialDeletion_type); /* from lookup() */
         Py_DECREF(ScramCredentialInfo_type); /* from lookup() */
         Py_DECREF(ScramMechanism_type); /* from lookup() */
-        
+
         if(c_alterations) {
                 for(i=0;i<alteration_cnt;i++)
                         rd_kafka_UserScramCredentialAlteration_destroy(c_alterations[i]);
@@ -3204,6 +3194,7 @@ err:
         Py_XDECREF(results);
         return NULL;
 }
+
 static PyObject *Admin_c_ScramMechanism_to_py(rd_kafka_ScramMechanism_t mechanism){
         PyObject *result = NULL;
         PyObject *args = NULL;
@@ -3215,17 +3206,19 @@ static PyObject *Admin_c_ScramMechanism_to_py(rd_kafka_ScramMechanism_t mechanis
         return result;
 
 }
+
 static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentialInfo_t *scram_credential_info){
         PyObject *result = NULL;
         PyObject *args = NULL;
         result = PyDict_New();
-        PyDict_SetItemString(result,"mechanism",Admin_c_ScramMechanism_to_py(rd_kafka_ScramCredentialInfo_get_mechanism(scram_credential_info)));
-        cfl_PyDict_SetInt(result,"iterations",rd_kafka_ScramCredentialInfo_get_iterations(scram_credential_info));
+        PyDict_SetItemString(result,"mechanism",Admin_c_ScramMechanism_to_py(rd_kafka_ScramCredentialInfo_mechanism(scram_credential_info)));
+        cfl_PyDict_SetInt(result,"iterations", rd_kafka_ScramCredentialInfo_iterations(scram_credential_info));
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
                                                      "ScramCredentialInfo"), args, result);
         return result;
 }
+
 static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_UserScramCredentialsDescription_t *description){
         PyObject *result = NULL;
         PyObject *args = NULL;
@@ -3233,46 +3226,39 @@ static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_Us
         int scramcredentialinfo_cnt;
         int i;
         result = PyDict_New();
-        cfl_PyDict_SetString(result,"user",rd_kafka_UserScramCredentialsDescription_get_user(description));
-        
-        scramcredentialinfo_cnt = rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo_cnt(description);
+        cfl_PyDict_SetString(result, "user", rd_kafka_UserScramCredentialsDescription_user(description));
+
+        scramcredentialinfo_cnt = rd_kafka_UserScramCredentialsDescription_scramcredentialinfo_count(description);
         scram_credential_infos = PyList_New(scramcredentialinfo_cnt);
         for(i=0;i<scramcredentialinfo_cnt;i++){
-                PyList_SET_ITEM(scram_credential_infos,i,Admin_c_ScramCredentialInfo_to_py(rd_kafka_UserScramCredentialsDescription_get_scramcredentialinfo(description,i)));
+                PyList_SET_ITEM(scram_credential_infos,i,Admin_c_ScramCredentialInfo_to_py(rd_kafka_UserScramCredentialsDescription_scramcredentialinfo(description,i)));
         }
 
         PyDict_SetItemString(result,"scram_credential_infos",scram_credential_infos);
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
-                                                     "UserScramCredentialsDescription"), args, result);
+                                                   "UserScramCredentialsDescription"), args, result);
         return result;
 }
+
 static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka_DescribeUserScramCredentials_result_t *result_event) {
         PyObject *result = NULL;
-        PyObject *args = NULL;
-        PyObject *descriptions = NULL;
-        int description_cnt;
-        int i;
-        int16_t request_errorcode;
-        char *request_errormessage;
-        request_errorcode = rd_kafka_DescribeUserScramCredentials_result_get_errorcode(result_event);
-        request_errormessage = rd_kafka_DescribeUserScramCredentials_result_get_errormessage(result_event);
-        if(request_errorcode){
-                result = KafkaError_new_or_None(request_errorcode,request_errormessage);
-                return result;
-        }
+        const rd_kafka_UserScramCredentialsDescription_t **descriptions;
+        size_t description_cnt;
+        size_t i;
+
         result = PyDict_New();
-        description_cnt = rd_kafka_DescribeUserScramCredentials_result_get_count(result_event);
-        for(i=0;i<description_cnt;i++){
-                char *username;
-                rd_kafka_error_t *error;
-                rd_kafka_UserScramCredentialsDescription_t *description = rd_kafka_DescribeUserScramCredentials_result_get_description(result_event,i);
-                username = rd_kafka_UserScramCredentialsDescription_get_user(description);
-                error = rd_kafka_UserScramCredentialsDescription_get_error(description);
-                if(rd_kafka_error_code(error)){
-                        PyDict_SetItemString(result,username,KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error)));
-                }else{
-                        PyDict_SetItemString(result,username,Admin_c_UserScramCredentialsDescription_to_py(description));
+        descriptions = rd_kafka_DescribeUserScramCredentials_result_descriptions(result_event, &description_cnt);
+        for(i=0; i<description_cnt; i++){
+                const char *username;
+                const rd_kafka_error_t *error;
+                const rd_kafka_UserScramCredentialsDescription_t *description = descriptions[i];
+                username = rd_kafka_UserScramCredentialsDescription_user(description);
+                error = rd_kafka_UserScramCredentialsDescription_error(description);
+                if (rd_kafka_error_code(error)) {
+                        PyDict_SetItemString(result,username, KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error)));
+                } else {
+                        PyDict_SetItemString(result,username, Admin_c_UserScramCredentialsDescription_to_py(description));
                 }
         }
         return result;
@@ -3280,18 +3266,19 @@ static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka
 
 static PyObject *Admin_c_AlterUserScramCredentialsResult_to_py(const rd_kafka_AlterUserScramCredentials_result_t *result_event) {
         PyObject *result = NULL;
-        int cnt;
-        int i;
-        cnt = rd_kafka_AlterUserScramCredentials_result_get_count(result_event);
+        size_t cnt, i;
+        const rd_kafka_AlterUserScramCredentials_result_response_t **responses =
+                rd_kafka_AlterUserScramCredentials_result_responses(result_event, &cnt);
         result = PyDict_New();
-        for(i=0;i<cnt;i++){
-                rd_kafka_UserScramCredentialAlterationResultElement_t *element = rd_kafka_AlterUserScramCredentials_result_get_element(result_event,i);
-                rd_kafka_error_t *error = rd_kafka_UserScramCredentialAlterationResultElement_get_error(element);
-                char *username = rd_kafka_UserScramCredentialAlterationResultElement_get_user(element);        
-                PyDict_SetItemString(result,username, KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error)));
+        for(i=0; i<cnt; i++){
+                const rd_kafka_AlterUserScramCredentials_result_response_t *response = responses[i];
+                const rd_kafka_error_t *error = rd_kafka_AlterUserScramCredentials_result_response_error(response);
+                const char *username = rd_kafka_AlterUserScramCredentials_result_response_user(response);
+                PyDict_SetItemString(result, username, KafkaError_new_or_None(rd_kafka_error_code(error),rd_kafka_error_string(error)));
         }
         return result;
 }
+
 /**
  *
  * @brief Convert C delete groups result response to pyobject.

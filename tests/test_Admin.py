@@ -710,7 +710,7 @@ def test_user_scram_api():
         a.describe_user_scram_credentials(["sam", "sam"])
     # Alter User Scram API
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
-    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, "salt", "password")
+    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"salt", b"password")
     deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
     alterations = [upsertion, deletion]
     with pytest.raises(ValueError):
