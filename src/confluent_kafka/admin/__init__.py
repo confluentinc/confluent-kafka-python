@@ -37,12 +37,14 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
-                     MemberDescription,
-                     UserScramCredentialAlteration,
+                     MemberDescription)
+from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      UserScramCredentialUpsertion,
                      UserScramCredentialDeletion,
                      ScramCredentialInfo,
+                     ScramMechanism,
                      UserScramCredentialsDescription)
+
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -61,7 +63,6 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
-from .._model import ScramMechanism
 
 from confluent_kafka import ConsumerGroupTopicPartitions \
     as _ConsumerGroupTopicPartitions

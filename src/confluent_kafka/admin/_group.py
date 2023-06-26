@@ -14,7 +14,7 @@
 
 
 from .._util import ConversionUtil
-from .._model import ConsumerGroupState, ScramMechanism
+from .._model import ConsumerGroupState
 
 
 class ConsumerGroupListing:
@@ -126,34 +126,3 @@ class ConsumerGroupDescription:
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
         self.coordinator = coordinator
-
-
-class ScramCredentialInfo:
-    def __init__(self, mechanism: ScramMechanism, iterations: int):
-        self.mechanism = mechanism
-        self.iterations = iterations
-
-
-class UserScramCredentialsDescription:
-    def __init__(self, user: str, scram_credential_infos: list):
-        self.user = user
-        self.scram_credential_infos = scram_credential_infos
-
-
-class UserScramCredentialAlteration:
-    def __init__(self, user: str):
-        self.user = user
-
-
-class UserScramCredentialUpsertion(UserScramCredentialAlteration):
-    def __init__(self, user: str, scram_credential_info: ScramCredentialInfo, salt: bytes, password: bytes):
-        super(UserScramCredentialUpsertion, self).__init__(user)
-        self.scram_credential_info = scram_credential_info
-        self.salt = salt
-        self.password = password
-
-
-class UserScramCredentialDeletion(UserScramCredentialAlteration):
-    def __init__(self, user: str, mechanism: ScramMechanism):
-        super(UserScramCredentialDeletion, self).__init__(user)
-        self.mechanism = mechanism

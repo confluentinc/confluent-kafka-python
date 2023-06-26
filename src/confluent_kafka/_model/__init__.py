@@ -89,14 +89,3 @@ class ConsumerGroupState(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
-
-
-class ScramMechanism(Enum):
-    UNKNOWN = cimpl.SCRAM_MECHANISM_UNKNOWN
-    SCRAM_SHA_256 = cimpl.SCRAM_MECHANISM_SHA_256
-    SCRAM_SHA_512 = cimpl.SCRAM_MECHANISM_SHA_512
-
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
-            return NotImplemented
-        return self.value < other.value
