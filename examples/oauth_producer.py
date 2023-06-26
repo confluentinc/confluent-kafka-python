@@ -34,9 +34,6 @@ def producer_config(args):
     logger.setLevel(logging.DEBUG)
     params = {
         'bootstrap.servers': args.bootstrap_servers,
-        'retries': 1,
-        'message.send.max.retries': 1,
-        'delivery.timeout.ms': 30000,
         'security.protocol': 'SASL_SSL',
         'sasl.mechanisms': 'OAUTHBEARER',
         'sasl.oauthbearer.method': 'oidc',
@@ -45,11 +42,9 @@ def producer_config(args):
         'sasl.oauthbearer.token.endpoint.url': args.token_url,
         'sasl.oauthbearer.scope': ' '.join(args.scopes)
     }
+    # These two parameters are only applicable when producing to confluent cloud where some sasl extensions are required.
     if args.logical_cluster and args.identity_pool_id:
         params['sasl.oauthbearer.extensions'] = 'logicalCluster='+args.logical_cluster+',identityPoolId='+args.identity_pool_id
-
-    if args.debug:
-       params['debug'] = args.debug
 
     return params
 
