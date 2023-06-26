@@ -505,7 +505,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_version(self, subject_name, version):
+    def get_version(self, subject_name, version="latest"):
         """
         Retrieves a specific schema registered under ``subject_name``.
 
