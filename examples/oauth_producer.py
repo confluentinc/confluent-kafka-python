@@ -121,6 +121,5 @@ if __name__ == '__main__':
                         help="Scopes requested from OAuth server.")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
-    parser.add_argument('--debug', dest="debug", required=False, help="Comma separated list of following values broker,topic,msg")
   
     main(parser.parse_args())
