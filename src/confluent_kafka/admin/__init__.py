@@ -37,7 +37,12 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ListConsumerGroupsResult,
                      ConsumerGroupDescription,
                      MemberAssignment,
-                     MemberDescription)
+                     MemberDescription,
+                     UserScramCredentialAlteration,
+                     UserScramCredentialUpsertion,
+                     UserScramCredentialDeletion,
+                     ScramCredentialInfo,
+                     UserScramCredentialsDescription)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -56,12 +61,14 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
+from .._model import ScramMechanism
 
 from confluent_kafka import ConsumerGroupTopicPartitions \
     as _ConsumerGroupTopicPartitions
 
 from confluent_kafka import ConsumerGroupState \
     as _ConsumerGroupState
+
 
 try:
     string_type = basestring
@@ -809,3 +816,87 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
+
+    @staticmethod
+    def _make_describe_user_scram_credentials_result(f, futmap):
+        pass
+
+    def describe_user_scram_credentials(self, users, **kwargs):
+        if not isinstance(users, list):
+            raise TypeError("Expected input to be list of String")
+        for user in users:
+            if not isinstance(user, string_type):
+                raise TypeError("Each value should be a string")
+
+        f, _ = AdminClient._make_futures(users, None,
+                                         AdminClient._make_describe_user_scram_credentials_result)
+
+        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
+
+        return f
+
+    @staticmethod
+    def _make_alter_user_scram_credentials_result(f, futmap):
+        try:
+            results = f.result()
+            futmap_values = list(futmap.values())
+            results_values = list(results.values())
+            len_results = len(results_values)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError("username {} not found in future-map: {}".format(username, futmap))
+                fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    def alter_user_scram_credentials(self, alterations, **kwargs):
+        if not isinstance(alterations, list):
+            raise TypeError("Expected input to be list")
+        if len(alterations) == 0:
+            raise ValueError("Expected at least one alteration")
+        for alteration in alterations:
+            if not isinstance(alteration, UserScramCredentialAlteration):
+                raise TypeError("Expected each element of list to be SubClass of UserScramCredentialAlteration")
+            if alteration.user is None:
+                raise TypeError("'user' cannot be None")
+            if not isinstance(alteration.user, string_type):
+                raise TypeError("'user' must be a string")
+            if not alteration.user:
+                raise ValueError("'user' cannot be empty")
+
+            if isinstance(alteration, UserScramCredentialUpsertion):
+                if alteration.salt is not None and not alteration.salt:
+                    raise ValueError("'salt' can be None but cannot be empty")
+                if alteration.salt and not isinstance(alteration.salt, bytes):
+                    raise TypeError("'salt' must be bytes")
+                if alteration.password is None:
+                    raise TypeError("'password' cannot be None")
+                if not isinstance(alteration.password, bytes):
+                    raise TypeError("'password' must be bytes")
+                if not alteration.password:
+                    raise ValueError("'password' cannot be empty")
+
+                if not isinstance(alteration.scram_credential_info, ScramCredentialInfo):
+                    raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
+                if alteration.scram_credential_info.iterations < 1:
+                    raise ValueError("Iterations should be positive")
+                if not isinstance(alteration.scram_credential_info.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            elif isinstance(alteration, UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            else:
+                raise TypeError("Expected each element of list to be Sub-class of UserScramCredentialAlteration")
+
+        f, futmap = AdminClient._make_futures(set([alteration.user for alteration in alterations]), None,
+                                              AdminClient._make_alter_user_scram_credentials_result)
+
+        super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+
+        return futmap
