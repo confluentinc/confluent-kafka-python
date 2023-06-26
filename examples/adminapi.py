@@ -21,7 +21,9 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
                                    AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType)
+                                   AclPermissionType, ScramMechanism, ScramCredentialInfo,
+                                   UserScramCredentialsDescription, UserScramCredentialUpsertion,
+                                   UserScramCredentialDeletion)
 import sys
 import threading
 import logging
@@ -560,6 +562,85 @@ def example_alter_consumer_group_offsets(a, args):
             raise
 
 
+def example_describe_user_scram_credentials(a, args):
+    """
+    Describe User Scram Credentials
+    """
+    future = a.describe_user_scram_credentials(args)
+    mechanism_description = {}
+    mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
+    mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
+    mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
+    try:
+        results = future.result()
+        for username, value in results.items():
+            print("Username: {}".format(username))
+            if isinstance(value, UserScramCredentialsDescription):
+                for scram_credential_info in value.scram_credential_infos:
+                    if isinstance(scram_credential_info, ScramCredentialInfo):
+                        print("    Mechanism: {} Iterations: {}".
+                              format(scram_credential_info.mechanism,
+                                     scram_credential_info.iterations))
+                    else:
+                        print(scram_credential_info)
+            else:
+                print("    User-level Request failed with: {}".format(value.str()))
+    except KafkaException as e:
+        print("Failed to describe {}: {}".format(args, e))
+
+
+def example_alter_user_scram_credentials(a, args):
+    """
+    AlterUserScramCredentials
+    """
+    alterations = []
+    i = 0
+    op_cnt = 0
+    while i < len(args):
+        op = args[i]
+
+        if op == "UPSERT":
+            if i + 5 >= len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for alteration {op_cnt}, expected 5, got {len(args) - i - 1}")
+            user = args[i + 1]
+            mechanism = ScramMechanism[args[i + 2]]
+            iterations = int(args[i + 3])
+            salt = args[i + 4]
+            if not salt:
+                salt = None
+            else:
+                salt = bytes(salt, 'utf8')
+            password = bytes(args[i + 5], 'utf8')
+            scram_credential_info = ScramCredentialInfo(mechanism, iterations)
+            upsertion = UserScramCredentialUpsertion(user, scram_credential_info, salt, password)
+            alterations.append(upsertion)
+            i += 6
+
+        elif op == "DELETE":
+            if i + 2 >= len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for alteration {op_cnt}, expected 2, got {len(args) - i - 1}")
+            user = args[i + 1]
+            mechanism = ScramMechanism[args[i + 2]]
+            deletion = UserScramCredentialDeletion(user, mechanism)
+            alterations.append(deletion)
+            i += 3
+        else:
+            raise ValueError(f"Invalid alteration {op}, must be UPSERT or DELETE")
+        op_cnt += 1
+
+    futmap = a.alter_user_scram_credentials(alterations)
+    for username, fut in futmap.items():
+        try:
+            if fut.result() is None:
+                print("{}: Success".format(username))
+            else:
+                print("{}: Error :{}".format(username, fut.result()))
+        except Exception:
+            raise
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -586,7 +667,11 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-
+        sys.stderr.write(' describe_user_scram_credentials [<user1> <user2> ..]\n')
+        sys.stderr.write(' alter_user_scram_credentials (UPSERT <user1> <mechanism1> ' +
+                         '<iterations1> <salt1?> <password1>|DELETE <user1> <mechanism1>) ' +
+                         '[(UPSERT <user2> <mechanism2> <iterations2> <salt2?>' +
+                         ' <password2>|DELETE <user2> <mechanism2>) ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -610,7 +695,9 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'describe_user_scram_credentials': example_describe_user_scram_credentials,
+              'alter_user_scram_credentials': example_alter_user_scram_credentials}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
