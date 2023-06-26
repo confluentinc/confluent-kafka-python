@@ -706,15 +706,21 @@ def test_user_scram_api():
 
     with pytest.raises(TypeError):
         a.describe_user_scram_credentials([None])
-    with pytest.raises(ValueError):
-        a.describe_user_scram_credentials(["sam", "sam"])
+    with pytest.raises(KafkaException):
+        f = a.describe_user_scram_credentials(["sam", "sam"])
+        f.result(timeout=3)
     # Alter User Scram API
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
     upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"salt", b"password")
     deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
     alterations = [upsertion, deletion]
-    with pytest.raises(ValueError):
-        a.alter_user_scram_credentials(alterations)
+
+    fs = a.alter_user_scram_credentials(alterations)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
     with pytest.raises(ValueError):
         a.alter_user_scram_credentials([])
     with pytest.raises(TypeError):
