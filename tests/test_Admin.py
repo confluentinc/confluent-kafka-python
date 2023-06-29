@@ -3,7 +3,8 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
+    AclOperation, AclPermissionType, ScramCredentialInfo, ScramMechanism, \
+    UserScramCredentialAlteration, UserScramCredentialDeletion, UserScramCredentialUpsertion
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -697,3 +698,32 @@ def test_alter_consumer_group_offsets_api():
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
+
+def test_user_scram_api():
+    # Describe User Scram API
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials([None])
+    with pytest.raises(KafkaException):
+        f = a.describe_user_scram_credentials(["sam", "sam"])
+        f.result(timeout=3)
+    # Alter User Scram API
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
+    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"salt", b"password")
+    deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
+    alterations = [upsertion, deletion]
+
+    fs = a.alter_user_scram_credentials(alterations)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([None])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration("sam")])
