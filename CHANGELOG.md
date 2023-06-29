@@ -1,15 +1,30 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.2.0
+
+v2.2.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1575).
+
+confluent-kafka-python is based on librdkafka v2.2.0, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.1.1
 
 v2.1.1 is a maintenance release with the following fixes and enhancements:
-
 
 ### Fixes
 
 - Added a new ConsumerGroupState UNKNOWN. The typo state UNKOWN is deprecated and will be removed in the next major version.
 - Fix some Admin API documentation stating -1 for infinite timeout incorrectly.
   Request timeout can't be infinite.
+
+confluent-kafka-python is based on librdkafka v2.1.1, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.1.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.1.0
