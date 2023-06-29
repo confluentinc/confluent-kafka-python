@@ -1638,8 +1638,8 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        int alteration_cnt, i;
-        rd_kafka_UserScramCredentialAlteration_t **c_alterations;
+        int alteration_cnt = 0, i;
+        rd_kafka_UserScramCredentialAlteration_t **c_alterations = NULL;
         PyObject *UserScramCredentialAlteration_type = NULL;
         PyObject *UserScramCredentialUpsertion_type = NULL;
         PyObject *UserScramCredentialDeletion_type = NULL;
@@ -1650,7 +1650,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
 
         PyObject *user;
         const char *user_c;
-        PyObject *u_user;
+        PyObject *u_user = NULL;
         PyObject *uo_user = NULL;
 
         PyObject *salt;
@@ -3196,15 +3196,15 @@ err:
 }
 
 static PyObject *Admin_c_ScramMechanism_to_py(rd_kafka_ScramMechanism_t mechanism){
-        PyObject *result = NULL;
+        PyObject *result = NULL, *value_dict = NULL;
         PyObject *args = NULL;
-        result = PyDict_New();
-        cfl_PyDict_SetInt(result,"value",(int)mechanism);
+        value_dict = PyDict_New();
+        cfl_PyDict_SetInt(value_dict, "value",(int) mechanism);
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
-                                                     "ScramMechanism"), args, result);
+                                                   "ScramMechanism"), args, value_dict);
+        Py_DECREF(value_dict);
         return result;
-
 }
 
 static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentialInfo_t *scram_credential_info){
@@ -3215,7 +3215,7 @@ static PyObject *Admin_c_ScramCredentialInfo_to_py(const rd_kafka_ScramCredentia
         cfl_PyDict_SetInt(result,"iterations", rd_kafka_ScramCredentialInfo_iterations(scram_credential_info));
         args = PyTuple_New(0);
         result = PyObject_Call(cfl_PyObject_lookup("confluent_kafka.admin",
-                                                     "ScramCredentialInfo"), args, result);
+                                                   "ScramCredentialInfo"), args, result);
         return result;
 }
 
