@@ -1546,8 +1546,8 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,           /*Do not know exactly*/
+        /* users is a list of strings. */
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &users, &future,
                                          &options.request_timeout))
                 return NULL;

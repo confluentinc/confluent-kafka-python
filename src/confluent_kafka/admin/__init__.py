@@ -820,21 +820,58 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_describe_user_scram_credentials_result(f, futmap):
-        pass
+        try:
+            results = f.result()
+            futmap_values = list(futmap.values())
+            results_values = list(results.values())
+            len_results = len(results_values)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError("username {} not found in future-map: {}".format(username, futmap))
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
 
     def describe_user_scram_credentials(self, users, **kwargs):
+        """
+        Describe user SASL/SCRAM credentials.
+        Duplicate users aren't allowed.
+
+        :param list(str) users: List of user names to describe.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns None or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
+        """
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
             if not isinstance(user, string_type):
                 raise TypeError("Each value should be a string")
 
-        f, _ = AdminClient._make_futures(users, None,
-                                         AdminClient._make_describe_user_scram_credentials_result)
+        f, futmap = AdminClient._make_futures(users, None,
+                                              AdminClient._make_describe_user_scram_credentials_result)
 
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
 
-        return f
+        return futmap
 
     @staticmethod
     def _make_alter_user_scram_credentials_result(f, futmap):
@@ -851,12 +888,34 @@ class AdminClient (_AdminClientImpl):
                 fut = futmap.get(username, None)
                 if fut is None:
                     raise RuntimeError("username {} not found in future-map: {}".format(username, futmap))
-                fut.set_result(value)
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
+        """
+        Alter user SASL/SCRAM credentials.
+        The pair (user, mechanism) must be unique among alterations.
+
+        :param list(UserScramCredentialAlteration) alterations: List of
+               :class:`UserScramCredentialAlteration` to apply.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns None or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
+        """
         if not isinstance(alterations, list):
             raise TypeError("Expected input to be list")
         if len(alterations) == 0:

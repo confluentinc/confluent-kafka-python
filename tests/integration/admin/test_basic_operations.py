@@ -16,6 +16,7 @@
 import confluent_kafka
 import struct
 import time
+import pytest
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
@@ -23,7 +24,7 @@ from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    UserScramCredentialsDescription, UserScramCredentialUpsertion,
                                    UserScramCredentialDeletion, ScramCredentialInfo,
                                    ScramMechanism)
-from confluent_kafka.error import ConsumeError, KafkaError
+from confluent_kafka.error import ConsumeError, KafkaException, KafkaError
 
 topic_prefix = "test-topic"
 
@@ -200,40 +201,48 @@ def verify_admin_scram(admin_client):
     newmechanism = ScramMechanism.SCRAM_SHA_256
     newiterations = 10000
 
-    future = admin_client.describe_user_scram_credentials([newuser])
-    results = future.result()
-    assert isinstance(results, dict)
-    result = results[newuser]
-    assert isinstance(result, KafkaError)
-    assert result.code() == 91
+    futmap = admin_client.describe_user_scram_credentials([newuser])
+    assert isinstance(futmap, dict)
+    assert len(futmap) == 1
+    assert newuser in futmap
+    fut = futmap[newuser]
+    with pytest.raises(KafkaException) as ex:
+        result = fut.result()
+    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
 
     futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
                                                         ScramCredentialInfo(newmechanism, newiterations),
-                                                        "salt", "password")])
+                                                        b"salt", b"password")])
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
 
-    future = admin_client.describe_user_scram_credentials([newuser])
-    results = future.result()
-    assert isinstance(results, dict)
-    result = results[newuser]
-    assert isinstance(result, UserScramCredentialsDescription)
-    for scram_credential_info in result.scram_credential_infos:
+    futmap = admin_client.describe_user_scram_credentials([newuser])
+    assert isinstance(futmap, dict)
+    assert len(futmap) == 1
+    assert newuser in futmap
+    description = futmap[newuser].result()
+    assert isinstance(description, UserScramCredentialsDescription)
+    for scram_credential_info in description.scram_credential_infos:
         assert ((scram_credential_info.mechanism == newmechanism) and
                 (scram_credential_info.iterations == newiterations))
 
     futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser, newmechanism)])
+    assert isinstance(futmap, dict)
+    assert len(futmap) == 1
+    assert newuser in futmap
     fut = futmap[newuser]
     result = fut.result()
     assert result is None
 
-    future = admin_client.describe_user_scram_credentials([newuser])
-    results = future.result()
-    assert isinstance(results, dict)
-    result = results[newuser]
-    assert isinstance(result, KafkaError)
-    assert result.code() == 91
+    futmap = admin_client.describe_user_scram_credentials([newuser])
+    assert isinstance(futmap, dict)
+    assert len(futmap) == 1
+    assert newuser in futmap
+    fut = futmap[newuser]
+    with pytest.raises(KafkaException) as ex:
+        result = fut.result()
+    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
 
 
 def test_basic_operations(kafka_cluster):
@@ -423,5 +432,5 @@ def test_basic_operations(kafka_cluster):
 
     # Verify ACL operations
     verify_admin_acls(admin_client, acls_topic, acls_group)
-    # Verify Broker Scram API
+    # Verify user SCRAM credentials API
     verify_admin_scram(admin_client)
