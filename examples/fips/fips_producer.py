@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2016 Confluent Inc.
+# Copyright 2023 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #
 
 #
-# Example Kafka Producer.
+# Example Kafka FIPS Compliant Producer.
 # Reads lines from stdin and sends to Kafka.
 #
 
@@ -33,14 +33,14 @@ if __name__ == '__main__':
     topic = sys.argv[2]
 
     # Producer configuration
-    # See https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+    # See https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
     conf = {'bootstrap.servers': broker,
             'security.protocol': 'SASL_SSL',
             'sasl.mechanism': 'PLAIN',
             'sasl.username': 'broker',
             'sasl.password': 'broker-secret',
-            # pkc12 keystores are not fips compliant and hence you will need to use
-            # path to key and certificate separately in fips mode
+            # pkc12 keystores are not FIPS compliant and hence you will need to use
+            # path to key and certificate separately in FIPS mode
             # 'ssl.keystore.location': './secrets/client.keystore.p12',
             # 'ssl.keystore.password': '111111',
             'ssl.key.location': './secrets/localhost_client.key',

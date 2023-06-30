@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Copyright 2016 Confluent Inc.
+# Copyright 2023 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #
 
 #
-# Example high-level Kafka 0.9 balanced Consumer
+# Example FIPS Compliant Consumer
 #
 from confluent_kafka import Consumer, KafkaException
 import sys
@@ -25,11 +25,6 @@ import logging
 
 def print_usage_and_exit(program_name):
     sys.stderr.write('Usage: %s [options..] <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
-    options = '''
- Options:
-  -T <intvl>   Enable client statistics at specified interval (ms)
-'''
-    sys.stderr.write(options)
     sys.exit(1)
 
 
@@ -38,9 +33,9 @@ if __name__ == '__main__':
     if len(argv) < 3:
         print_usage_and_exit(sys.argv[0])
 
-    broker = argv[0]
-    group = argv[1]
-    topics = argv[2:]
+    broker = sys.argv[1]
+    group = sys.argv[2]
+    topics = sys.argv[3:]
     conf = {'bootstrap.servers': broker, 
             'group.id': group, 
             'auto.offset.reset': 'earliest', 
@@ -48,8 +43,8 @@ if __name__ == '__main__':
             'sasl.mechanism': 'PLAIN',
             'sasl.username': 'broker',
             'sasl.password': 'broker-secret',
-            # pkc12 keystores are not fips compliant and hence you will need to use
-            # path to key and certificate separately in fips mode
+            # pkc12 keystores are not FIPS compliant and hence you will need to use
+            # path to key and certificate separately in FIPS mode
             # 'ssl.keystore.location': './secrets/client.keystore.p12',
             # 'ssl.keystore.password': '111111',
             'ssl.key.location': './secrets/localhost_client.key',
