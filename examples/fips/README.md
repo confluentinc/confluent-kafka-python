@@ -76,6 +76,6 @@ To make client (consumer, producer or admin client) fips compliant, we need to e
 This part is not tested for FIPS compliance right now.
 
 ## References
-[Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
-[How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html)
-[librdkafka SSL Information](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl)
+* [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
+* [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html)
+* [librdkafka SSL Information](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl)
