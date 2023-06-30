@@ -217,7 +217,7 @@ class ConfigResource(object):
         :param str value: Configuration value (optional if operation is DELETE)
         """
         if name is None:
-            raise TypeError("Configuration name is needed")
+            raise ValueError("Configuration name is needed")
         if not isinstance(name, str):
             raise TypeError("Configuration name must be a string")
 
@@ -225,7 +225,7 @@ class ConfigResource(object):
             raise TypeError("Operation must be of type AlterConfigOpType")
 
         if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
-            raise ValueError("The provided value should be a string for: " + operation.name)
+            raise TypeError("The provided value should be a string for: " + operation.name)
         if value is None and operation != AlterConfigOpType.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
         self.incremental_config[name] = {"operation_type": operation, "value": value}

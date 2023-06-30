@@ -888,7 +888,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
+        /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
                                          &resources, &future,
                                          &options.request_timeout,
@@ -1016,7 +1016,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
+        /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
                                          &resources, &future,
                                          &validate_only_obj,
@@ -1169,7 +1169,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
+        /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
                                          &resources, &future,
                                          &validate_only_obj,

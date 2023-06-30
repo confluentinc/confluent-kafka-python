@@ -507,7 +507,7 @@ class AdminClient (_AdminClientImpl):
                   without altering the configuration. Default: False
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
-                  The future result() method returns None.
+                  The future result() method returns None or throws a KafkaException.
 
         :rtype: dict(<ConfigResource, future>)
 
@@ -537,7 +537,7 @@ class AdminClient (_AdminClientImpl):
                   without altering the configuration. Default: False
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
-                  The future result() method returns None.
+                  The future result() method returns None or throws a KafkaException.
 
         :rtype: dict(<ConfigResource, future>)
 
