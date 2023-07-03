@@ -535,7 +535,7 @@ class AdminClient (_AdminClientImpl):
                   on broker, and response. Default: `socket.timeout.ms*1000.0`.
         :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
-        :param int broker: Broker id to send the request too. When
+        :param int broker: Broker id to send the request to. When
                   altering broker configurations, it's ignored because
                   the request needs to go to that broker only.
                   Default: controller broker.
