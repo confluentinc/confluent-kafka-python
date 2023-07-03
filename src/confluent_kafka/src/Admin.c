@@ -334,89 +334,92 @@ static int
 Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
+        PyObject *ks = NULL, *ks8 = NULL;
+        PyObject *local_ks = NULL, *local_ks8 = NULL;
+        PyObject *local_vs = NULL, *local_vs8 = NULL;
+
         while(PyDict_Next(dict,&pos,&ko,&vo)){
-                PyObject *ks, *ks8;
                 const char *k;
                 const char *v = NULL;
                 int op = -1;
                 rd_kafka_error_t *error;
+                Py_ssize_t iter = 0;
+                PyObject *local_ko,*local_vo;
+
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
                                      "expected config name to be unicode "
                                      "string");
-                        return 0;
+                       goto err;
                 }
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-                Py_ssize_t iter = 0;
-                PyObject *internal_ko,*internal_vo;
-                PyObject *internal_ks, *internal_ks8;
-                PyObject *internal_vs = NULL, *internal_vs8 = NULL;
-                const char *internal_k;
-                const char *internal_v;
-                while(PyDict_Next(vo,&iter, &internal_ko, &internal_vo)){
-                        if (!(internal_ks = cfl_PyObject_Unistr(internal_ko))) {
+                const char *local_v;
+                while(PyDict_Next(vo, &iter, &local_ko, &local_vo)){
+                        const char *local_k;
+
+                        if (!(local_ks = cfl_PyObject_Unistr(local_ko))) {
                                 PyErr_Format(PyExc_ValueError,
                                         "expected property name for to be unicode "
                                         "string");
-                                return 0;
+                                goto err;
                         }
-                        internal_k = cfl_PyUnistr_AsUTF8(internal_ks, &internal_ks8);
+                        local_k = cfl_PyUnistr_AsUTF8(local_ks, &local_ks8);
 
-                        if (!strcmp(internal_k,"operation_type")) {
-                                if (!cfl_PyObject_GetInt(internal_vo, "value", &op, -1, 1)) {
-                                        Py_DECREF(internal_ks);
-                                        Py_XDECREF(internal_ks8);
-                                        return 0;
+                        if (!strcmp(local_k, "operation_type")) {
+                                if (!cfl_PyObject_GetInt(local_vo, "value", &op, -1, 1)) {
+                                        goto err;
                                 }
-                        } else if(!strcmp(internal_k,"value")) {
-                                if (!(internal_vs = cfl_PyObject_Unistr(internal_vo)) || !(internal_v = cfl_PyUnistr_AsUTF8(internal_vs, &internal_vs8))) {
+                        } else if(!strcmp(local_k, "value")) {
+                                if (!(local_vs = cfl_PyObject_Unistr(local_vo)) || !(local_v = cfl_PyUnistr_AsUTF8(local_vs, &local_vs8))) {
                                         PyErr_Format(PyExc_ValueError,
                                                 "expected value name to be unicode "
                                                 "string");
-                                        Py_XDECREF(internal_vs);
-                                        Py_XDECREF(internal_vs8);
-                                        Py_DECREF(internal_ks);
-                                        Py_XDECREF(internal_ks8);
-                                        return 0;
+                                        goto err;
                                 }
 
-                                v = internal_v;
+                                v = local_v;
                         } else {
-                                PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",internal_k);
-                                Py_XDECREF(internal_vs);
-                                Py_XDECREF(internal_vs8);
-                                Py_DECREF(internal_ks);
-                                Py_XDECREF(internal_ks8);
-
-                                return 0;
+                                PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",local_k);
+                                goto err;
                         }
 
-                        Py_XDECREF(internal_vs);
-                        Py_XDECREF(internal_vs8);
-                        Py_DECREF(internal_ks);
-                        Py_XDECREF(internal_ks8);
+                        Py_DECREF(local_ks);
+                        Py_XDECREF(local_ks8);
+                        local_ks = NULL;
+                        local_ks8 = NULL;
                 }
 
                 error = rd_kafka_ConfigResource_set_incremental_config(
                                 (rd_kafka_ConfigResource_t *)c_obj,
                                 k, op, v);
+                Py_XDECREF(local_vs);
+                Py_XDECREF(local_vs8);
+                local_vs = NULL;
+                local_vs8 = NULL;
 
                 if (error) {
                         PyErr_Format(PyExc_ValueError,
                                      "%s config %s failed: %s",
                                      op, k, rd_kafka_error_string(error));
                         rd_kafka_error_destroy(error);
-                        Py_DECREF(ks);
-                        Py_XDECREF(ks8);
-                        return 0;
+                        goto err;
                 }
 
                 Py_DECREF(ks);
                 Py_XDECREF(ks8);
-
+                ks = NULL;
+                ks8 = NULL;
         }
         return 1;
+err:
+        Py_XDECREF(local_vs);
+        Py_XDECREF(local_vs8);
+        Py_XDECREF(local_ks);
+        Py_XDECREF(local_ks8);
+        Py_XDECREF(ks);
+        Py_XDECREF(ks8);
+        return 0;
 }
 /**
  * @brief Translate a dict to ConfigResource set_config() calls,
