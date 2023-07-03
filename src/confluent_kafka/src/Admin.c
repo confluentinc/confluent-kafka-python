@@ -328,8 +328,10 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
         return 1;
 }
+
+
 static int
-Admin_incremental_config_to_c(void *c_obj, PyObject *dict){
+Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
         while(PyDict_Next(dict,&pos,&ko,&vo)){
@@ -1104,7 +1106,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                         i++;
                         goto err;
                 }
-                if (!Admin_incremental_config_to_c(c_objs[i], dict)) {
+                if (!Admin_incremental_config_to_c(dict, c_objs[i])) {
                         Py_DECREF(dict);
                         i++;
                         goto err;
