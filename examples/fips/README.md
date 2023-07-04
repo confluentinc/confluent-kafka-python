@@ -1,6 +1,6 @@
 # FIPS Compliance
 
-We are testing and making this client FIPS compliant using OpenSSL 3.0. Use OpenSSL 3.0 to use this client in FIPS compliant mode. Older versions of OpenSSL might work in similar way but we have not verified that.
+We tested FIPS compliance for the client using OpenSSL 3.0. To use the client in FIPS-compliant mode, use OpenSSL 3.0. Older versions of OpenSSL have not been verified (although they may work).
 
 ## Communication between client and Kafka cluster
 
@@ -19,7 +19,7 @@ We assume that you have FIPS provider (module) available in your system. This mo
 
 #### Steps to generate FIPS provider
 
-Steps to generate FIPS provider can be found on the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
+You can find steps to generate the FIPS provider in the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
 
 In short, you need to perform the following steps:
 
@@ -36,13 +36,13 @@ After last step, two files are generated.
 
 As mentioned earlier, the above generated FIPS module can be dynamically plugged into OpenSSL by putting this module in default module folder (Refer [this](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl) for typical default locations on various OS) of OpenSSL. It should look something like `...lib/ossl-modules/`.
 
-This module can also be pointed with environment variable `OPENSSL_MODULES` (folder containing the FIPS module in the form of dynamic library)
+You can also point to this module with the environment variable `OPENSSL_MODULES`. For example, `OPENSSL_MODULES="/path/to/fips/module/lib/folder/`
 
 #### Linking FIPS provider with OpenSSL
 
-`fipsmodule.cnf` file includes `fips_sect` which is required to enable FIPS in OpenSSL. `fipsmodule.cnf` needs to be included in `openssl.cnf` file to make it work.
+To enable FIPS in OpenSSL, you must include `fipsmodule.cnf` in the file, `openssl.cnf`. The `fipsmodule.cnf` file includes `fips_sect` which OpenSSL requires to enable FIPS. See the example below. 
 
-Some of the algorithms might have different implementation in FIPS or other providers. If you load two different providers like default and fips, any implementation could be used. To make sure the we fetch only FIPS compliant version of the algorithm, we use `fips=yes` default property in config file.
+Some of the algorithms might have different implementation in FIPS or other providers. If you load two different providers like default and fips, any implementation could be used. To make sure you fetch only FIPS compliant version of the algorithm, use `fips=yes` default property in config file.
 
 OpenSSL config should look something like after applying the above changes.
 
@@ -68,7 +68,7 @@ default_properties = fips=yes
 
 ### Client configuration to enable FIPS provider
 
-Some of the non-crypto algorithms are required in OpenSSL as well. These algorithms are not included in FIPS provider and hence we need to use `base` provider in conjunction with `fips` provider. Base provider comes with OpenSSL by default. We just need to enable it in the client configuration.
+OpenSSL requires some non-crypto algorithms as well. These algorithms are not included in the FIPS provider and you need to use the `base` provider in conjunction with the `fips` provider. Base provider comes with OpenSSL by default. You must enable `base` provider in the client configuration.
 
 To make client (consumer, producer or admin client) FIPS compliant, we need to enable only `fips` and `base` provider in the client using `ssl.providers: 'fips,base'` property.
 

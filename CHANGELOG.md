@@ -4,7 +4,7 @@
 
 v2.2.0 is a feature release with the following features, fixes and enhancements:
 
-- Added example and documentation for FIPS compliant communication with Kafka cluster
+- Added documentation with an example of FIPS compliant communication with Kafka cluster.
 
 confluent-kafka-python is based on librdkafka v2.2.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
