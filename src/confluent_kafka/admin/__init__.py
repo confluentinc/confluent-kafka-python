@@ -15,12 +15,14 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
+import warnings
 import concurrent.futures
 
 # Unused imports are keeped to be accessible using this public module
 from ._config import (ConfigSource,  # noqa: F401
                       ConfigEntry,
-                      ConfigResource)
+                      ConfigResource,
+                      AlterConfigOpType)
 from ._resource import (ResourceType,  # noqa: F401
                         ResourcePatternType)
 from ._acl import (AclOperation,  # noqa: F401
@@ -481,6 +483,8 @@ class AdminClient (_AdminClientImpl):
 
     def alter_configs(self, resources, **kwargs):
         """
+        .. deprecated:: 2.2.0
+
         Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
         of the provided resources while the others fail.
@@ -506,19 +510,55 @@ class AdminClient (_AdminClientImpl):
                   without altering the configuration. Default: False
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
-                  The future result() method returns None.
+                  The future result() method returns None or throws a KafkaException.
 
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
         """
+        warnings.warn(
+            "alter_configs has been deprecated. Use incremental_alter_configs instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
                                               AdminClient._make_resource_result)
 
         super(AdminClient, self).alter_configs(resources, f, **kwargs)
+
+        return futmap
+
+    def incremental_alter_configs(self, resources, **kwargs):
+        """
+        Update configuration properties for the specified resources.
+        Updates are incremental, i.e only the values mentioned are changed
+        and rest remain as is.
+
+        :param list(ConfigResource) resources: Resources to update configuration of.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+        :param bool validate_only: If true, the request is validated only,
+                  without altering the configuration. Default: False
+        :param int broker: Broker id to send the request to. When
+                  altering broker configurations, it's ignored because
+                  the request needs to go to that broker only.
+                  Default: controller broker.
+
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The future result() method returns None or throws a KafkaException.
+
+        :rtype: dict(<ConfigResource, future>)
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
+        """
+        f, futmap = AdminClient._make_futures(resources, ConfigResource,
+                                              AdminClient._make_resource_result)
+
+        super(AdminClient, self).incremental_alter_configs(resources, f, **kwargs)
 
         return futmap
 
