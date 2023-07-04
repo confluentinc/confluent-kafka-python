@@ -125,12 +125,15 @@ class ConfigResource(object):
     Type = ResourceType
 
     def __init__(self, restype, name,
-                 set_config=None, described_configs=None, error=None):
+                 set_config=None, described_configs=None, error=None,
+                 set_incremental_config=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.
                          For RESOURCE_BROKER, the resource name is the broker id.
         :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
+        :param dict set_incremental_config: The configuration to alter incrementally.
+               Dictionary of str to [([AlterConfigOpType, value]|[AlterConfigOpType.DELETE])].
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
         """
@@ -160,6 +163,15 @@ class ConfigResource(object):
             self.set_config_dict = dict()
 
         self.incremental_config = dict()
+        if set_incremental_config is not None:
+            for name, op_type_values in set_incremental_config.items():
+                for op_type_value in op_type_values:
+                    op_type = op_type_value[0]
+                    if op_type != AlterConfigOpType.DELETE:
+                        value = op_type_value[1]
+                        self.set_incremental_config(name, op_type, value)
+                    else:
+                        self.set_incremental_config(name, op_type)
         self.configs = described_configs
         self.error = error
 
@@ -228,4 +240,6 @@ class ConfigResource(object):
             raise TypeError("The provided value should be a string for: " + operation.name)
         if value is None and operation != AlterConfigOpType.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
-        self.incremental_config[name] = {"operation_type": operation, "value": value}
+        if name not in self.incremental_config:
+            self.incremental_config[name] = []
+        self.incremental_config[name].append([operation, value])

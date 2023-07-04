@@ -335,16 +335,13 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
         PyObject *ks = NULL, *ks8 = NULL;
-        PyObject *local_ks = NULL, *local_ks8 = NULL;
-        PyObject *local_vs = NULL, *local_vs8 = NULL;
+        PyObject *vs = NULL, *vs8 = NULL;
 
-        while(PyDict_Next(dict,&pos,&ko,&vo)){
+        while(PyDict_Next(dict, &pos, &ko, &vo)){
                 const char *k;
-                const char *v = NULL;
-                int op = -1;
+                int config_count = 0;
+                Py_ssize_t i = 0;
                 rd_kafka_error_t *error;
-                Py_ssize_t iter = 0;
-                PyObject *local_ko,*local_vo;
 
                 if (!(ks = cfl_PyObject_Unistr(ko))) {
                         PyErr_Format(PyExc_ValueError,
@@ -354,58 +351,59 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                 }
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-                while(PyDict_Next(vo, &iter, &local_ko, &local_vo)){
-                        const char *local_k;
-                        const char *local_v;
+                if (!PyList_Check(vo) || (config_count = (int)PyList_Size(vo)) < 1) {
+                        PyErr_SetString(PyExc_ValueError,
+                                        "expected non-empty list of entry values");
+                        goto err;
+                }
 
-                        if (!(local_ks = cfl_PyObject_Unistr(local_ko))) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "expected property name for to be unicode "
-                                        "string");
+                for (i = 0; i < config_count; i++) {
+                        PyObject *config_op_value, *config_value,
+                                 *op_type;
+                        Py_ssize_t config_value_cnt;
+                        config_op_value = PyList_GET_ITEM(vo, i);
+                        rd_kafka_AlterConfigOpType_t op;
+                        const char *v = NULL;
+
+                        if (!PyList_Check(config_op_value) ||
+                            (config_value_cnt = (int)PyList_Size(config_op_value)) < 2) {
+                                PyErr_SetString(PyExc_ValueError,
+                                                "expected operation type and value");
                                 goto err;
                         }
-                        local_k = cfl_PyUnistr_AsUTF8(local_ks, &local_ks8);
 
-                        if (!strcmp(local_k, "operation_type")) {
-                                if (!cfl_PyObject_GetInt(local_vo, "value", &op, -1, 1)) {
-                                        goto err;
-                                }
-                        } else if(!strcmp(local_k, "value")) {
-                                if (!(local_vs = cfl_PyObject_Unistr(local_vo)) || !(local_v = cfl_PyUnistr_AsUTF8(local_vs, &local_vs8))) {
+                        op_type = PyList_GET_ITEM(config_op_value, 0);
+                        config_value = PyList_GET_ITEM(config_op_value, 1);
+                        if (!cfl_PyObject_GetInt(op_type, "value", &op, -1, 1)) {
+                                goto err;
+                        }
+
+                        if (op != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE) {
+                                if (!(vs = cfl_PyObject_Unistr(config_value)) ||
+                                    !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
                                         PyErr_Format(PyExc_ValueError,
                                                 "expected value name to be unicode "
                                                 "string");
                                         goto err;
                                 }
+                        }
 
-                                v = local_v;
-                        } else {
-                                PyErr_Format(PyExc_ValueError,"Unknown property:%s , allowed are operation_type and value",local_k);
+                        error = rd_kafka_ConfigResource_set_incremental_config(
+                                        (rd_kafka_ConfigResource_t *)c_obj,
+                                        k, op, v);
+                        if (error) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "%s config %s failed: %s",
+                                        op, k, rd_kafka_error_string(error));
+                                rd_kafka_error_destroy(error);
                                 goto err;
                         }
 
-                        Py_DECREF(local_ks);
-                        Py_XDECREF(local_ks8);
-                        local_ks = NULL;
-                        local_ks8 = NULL;
+                        Py_XDECREF(vs);
+                        Py_XDECREF(vs8);
+                        vs = NULL;
+                        vs8 = NULL;
                 }
-
-                error = rd_kafka_ConfigResource_set_incremental_config(
-                                (rd_kafka_ConfigResource_t *)c_obj,
-                                k, op, v);
-                Py_XDECREF(local_vs);
-                Py_XDECREF(local_vs8);
-                local_vs = NULL;
-                local_vs8 = NULL;
-
-                if (error) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "%s config %s failed: %s",
-                                     op, k, rd_kafka_error_string(error));
-                        rd_kafka_error_destroy(error);
-                        goto err;
-                }
-
                 Py_DECREF(ks);
                 Py_XDECREF(ks8);
                 ks = NULL;
@@ -413,10 +411,8 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
         }
         return 1;
 err:
-        Py_XDECREF(local_vs);
-        Py_XDECREF(local_vs8);
-        Py_XDECREF(local_ks);
-        Py_XDECREF(local_ks8);
+        Py_XDECREF(vs);
+        Py_XDECREF(vs8);
         Py_XDECREF(ks);
         Py_XDECREF(ks8);
         return 0;
