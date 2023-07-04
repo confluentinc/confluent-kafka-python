@@ -11,15 +11,17 @@ If you install the this client through prebuilt wheels using `pip`, it comes wit
 
 ### Install from source by building librdkafka
 
-When building librdkafka and python client from source, librdkafka uses OpenSSL present in the system by dynamically linking it. If the installed OpenSSL is already working in FIPS mode, then you can directly jump to section [Client configuration to enable FIPS provider](#client-configuration-to-enable-fips-provider), otherwise use steps mentioned in section [Enabling FIPS provider](#enabling-fips-provider) to make system OpenSSL FIPS compliant. Once that is done, librdkafka and python client will use FIPS approved algorithms for the communication between client and Kafka Cluster using producer, consumer or admin client.
+When you build the python client from source, librdkafka dynamically links to the OpenSSL present in the system. If the installed OpenSSL is already working in FIPS mode, then you can directly jump to section [Client configuration to enable FIPS provider](#client-configuration-to-enable-fips-provider) to enable `fips` provider, otherwise use steps mentioned in section [Enabling FIPS provider](#enabling-fips-provider) to make OpenSSL in your system FIPS compliant and then enable `fips` provider. Once that is done, librdkafka and python client will use FIPS approved algorithms for the communication between client and Kafka Cluster using producer, consumer or admin client.
 
 ### Enabling FIPS provider
 
-We assume that you have FIPS provider (module) available in your system. This module can be dynamically plugged into OpenSSL by putting this module in default module folder of OpenSSL or pointing to this module with environment vairable `OPENSSL_MODULES` (folder containing the FIPS module in the form of dynamic library). We also need to use OpenSSL config which has FIPS configuration present in it. Default configuration file can be modified to include FIPS related config or a new configuration file can also be pointed using `OPENSSL_CONF` environment variable.
+To enable the FIPS provider, you must have the FIPS module available on your system, plug the module into OpenSSL, and then configure OpenSSL to use the module. 
+You can plug the FIPS provider into OpenSSL two ways: 1) put the module in the default module folder of OpenSSL or 2) point to the module with the environment variable, `OPENSSL_MODULES`. For example: `OPENSSL_MODULES="/path/to/fips/module/lib/folder/` 
+You configure OpenSSL to use the FIPS provider using the FIPS configuration in OpenSSL config. You can modify the default configuration file to include FIPS related config or create a new configuration file and point to it using the environment variable,`OPENSSL_CONF`. For example `OPENSSL_CONF="/path/to/fips/enabled/openssl/config/openssl.cnf` For an example of OpenSSL config, see below. 
 
-#### Steps to generate FIPS provider
+#### Steps to generate FIPS provider module
 
-You can find steps to generate the FIPS provider in the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
+You can find steps to generate the FIPS provider module in the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
 
 In short, you need to perform the following steps:
 
@@ -34,7 +36,7 @@ After last step, two files are generated.
 
 #### Referencing FIPS provider in OpenSSL
 
-As mentioned earlier, the above generated FIPS module can be dynamically plugged into OpenSSL by putting this module in default module folder (Refer [this](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl) for typical default locations on various OS) of OpenSSL. It should look something like `...lib/ossl-modules/`.
+As mentioned earlier, you can dynamically plug the FIPS module generated above into OpenSSL by putting the FIPS module into the default OpenSSL module folder. For default locations of OpenSSL on various operating systems, see the SSL section of the [Introduction to librdkafka - the Apache Kafka C/C++ client library](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl). It should look something like `...lib/ossl-modules/`.
 
 You can also point to this module with the environment variable `OPENSSL_MODULES`. For example, `OPENSSL_MODULES="/path/to/fips/module/lib/folder/`
 
