@@ -340,7 +340,7 @@ def test_incremental_alter_configs_api():
         resources[0].set_incremental_config(None, AlterConfigOpType.APPEND, "host1")
     with pytest.raises(TypeError):
         resources[0].set_incremental_config(5, AlterConfigOpType.APPEND, "host1")
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
 
     resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)

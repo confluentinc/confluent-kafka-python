@@ -217,7 +217,7 @@ class ConfigResource(object):
         :param str value: Configuration value (optional if operation is DELETE)
         """
         if name is None:
-            raise ValueError("Configuration name is needed")
+            raise TypeError("Configuration name is needed")
         if not isinstance(name, str):
             raise TypeError("Configuration name must be a string")
 

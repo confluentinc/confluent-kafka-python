@@ -354,9 +354,9 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                 }
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
-                const char *local_v;
                 while(PyDict_Next(vo, &iter, &local_ko, &local_vo)){
                         const char *local_k;
+                        const char *local_v;
 
                         if (!(local_ks = cfl_PyObject_Unistr(local_ko))) {
                                 PyErr_Format(PyExc_ValueError,
@@ -2338,7 +2338,7 @@ static PyMethodDef Admin_methods[] = {
 
         {"incremental_alter_configs", (PyCFunction)Admin_incremental_alter_configs,
           METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: incremental_alter_configs(resources, future, [request_timeout, broker])\n"
+          ".. py:function:: incremental_alter_configs(resources, future, [request_timeout, validate_only, broker])\n"
           "\n"
           "  This method should not be used directly, use confluent_kafka.AdminClient.incremental_alter_configs()\n"
         },

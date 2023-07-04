@@ -15,6 +15,7 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
+import warnings
 import concurrent.futures
 
 # Unused imports are keeped to be accessible using this public module
@@ -482,6 +483,8 @@ class AdminClient (_AdminClientImpl):
 
     def alter_configs(self, resources, **kwargs):
         """
+        .. deprecated:: 2.2.0
+
         Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
         of the provided resources while the others fail.
@@ -515,6 +518,9 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid type.
         :raises ValueError: Invalid value.
         """
+        warnings.warn(
+            "alter_configs has been deprecated. Use incremental_alter_configs instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
                                               AdminClient._make_resource_result)
