@@ -352,28 +352,30 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                 k = cfl_PyUnistr_AsUTF8(ks, &ks8);
 
                 if (!PyList_Check(vo) || (config_count = (int)PyList_Size(vo)) < 1) {
-                        PyErr_SetString(PyExc_ValueError,
-                                        "expected non-empty list of entry values");
+                        PyErr_Format(PyExc_ValueError,
+                                     "expected non-empty list of config "
+                                     "operation type and value for config "
+                                     "name \"%s\"", k);
                         goto err;
                 }
 
                 for (i = 0; i < config_count; i++) {
-                        PyObject *config_op_value, *config_value,
+                        PyObject *config_op_and_value, *config_value,
                                  *op_type;
-                        Py_ssize_t config_value_cnt;
-                        config_op_value = PyList_GET_ITEM(vo, i);
+                        config_op_and_value = PyList_GET_ITEM(vo, i);
                         int op;
                         const char *v = NULL;
 
-                        if (!PyList_Check(config_op_value) ||
-                            (config_value_cnt = (int)PyList_Size(config_op_value)) < 2) {
-                                PyErr_SetString(PyExc_ValueError,
-                                                "expected operation type and value");
+                        if (!PyList_Check(config_op_and_value) ||
+                            (int)PyList_Size(config_op_and_value) != 2) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "expected operation type and value for config "
+                                        "name \"%s\", index %zd", k, i);
                                 goto err;
                         }
 
-                        op_type = PyList_GET_ITEM(config_op_value, 0);
-                        config_value = PyList_GET_ITEM(config_op_value, 1);
+                        op_type = PyList_GET_ITEM(config_op_and_value, 0);
+                        config_value = PyList_GET_ITEM(config_op_and_value, 1);
                         if (!cfl_PyObject_GetInt(op_type, "value", &op, -1, 1)) {
                                 goto err;
                         }
@@ -382,8 +384,9 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                                 if (!(vs = cfl_PyObject_Unistr(config_value)) ||
                                     !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
                                         PyErr_Format(PyExc_ValueError,
-                                                "expected value name to be unicode "
-                                                "string");
+                                                "expected value name to be "
+                                                "unicode string for config "
+                                                "name \"%s\", index %zd", k, i);
                                         goto err;
                                 }
                         }
@@ -393,8 +396,9 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                                         k, (rd_kafka_AlterConfigOpType_t) op, v);
                         if (error) {
                                 PyErr_Format(PyExc_ValueError,
-                                        "%s config %s failed: %s",
-                                        op, k, rd_kafka_error_string(error));
+                                        "setting config entry \"%s\", "
+                                        "index %zd, failed: %s",
+                                        k, i, rd_kafka_error_string(error));
                                 rd_kafka_error_destroy(error);
                                 goto err;
                         }

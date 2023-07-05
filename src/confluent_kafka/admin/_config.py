@@ -236,10 +236,11 @@ class ConfigResource(object):
         if not isinstance(operation, AlterConfigOpType):
             raise TypeError("Operation must be of type AlterConfigOpType")
 
-        if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
-            raise TypeError("The provided value should be a string for: " + operation.name)
         if value is None and operation != AlterConfigOpType.DELETE:
             raise ValueError("Value is needed for operation: " + operation.name)
+        if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
+            raise TypeError("The provided value should be a string for: " + operation.name)
+
         if name not in self.incremental_config:
             self.incremental_config[name] = []
         self.incremental_config[name].append([operation, value])
