@@ -18,6 +18,32 @@ from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
 
+class AlterConfigOpType(Enum):
+    """
+    Set of incremental operations that can be used with
+    incremental alter configs.
+    """
+
+    #: Set the value of the configuration entry.
+    SET = _cimpl.ALTER_CONFIG_OP_TYPE_SET
+
+    #: Revert the configuration entry
+    #: to the default value (possibly null).
+    DELETE = _cimpl.ALTER_CONFIG_OP_TYPE_DELETE
+
+    #: (For list-type configuration entries only.)
+    #:  Add the specified values
+    #:  to the current list of values
+    #:  of the configuration entry.
+    APPEND = _cimpl.ALTER_CONFIG_OP_TYPE_APPEND
+
+    #: (For list-type configuration entries only.)
+    #:  Removes the specified values
+    #:  from the current list of values
+    #:  of the configuration entry.
+    SUBTRACT = _cimpl.ALTER_CONFIG_OP_TYPE_SUBTRACT
+
+
 class ConfigSource(Enum):
     """
     Enumerates the different sources of configuration properties.
@@ -99,12 +125,15 @@ class ConfigResource(object):
     Type = ResourceType
 
     def __init__(self, restype, name,
-                 set_config=None, described_configs=None, error=None):
+                 set_config=None, described_configs=None, error=None,
+                 incremental_configs=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.
                          For RESOURCE_BROKER, the resource name is the broker id.
         :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
+        :param dict incremental_configs: The configurations to alter incrementally.
+               Dictionary of str to list(list(AlterConfigOpType, str)|list(AlterConfigOpType.DELETE)].
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
         """
@@ -132,6 +161,17 @@ class ConfigResource(object):
             self.set_config_dict = set_config.copy()
         else:
             self.set_config_dict = dict()
+
+        self.incremental_config = dict()
+        if incremental_configs is not None:
+            for name, op_type_values in incremental_configs.items():
+                for op_type_value in op_type_values:
+                    op_type = op_type_value[0]
+                    if op_type != AlterConfigOpType.DELETE:
+                        value = op_type_value[1]
+                        self.add_incremental_config(name, op_type, value)
+                    else:
+                        self.add_incremental_config(name, op_type)
 
         self.configs = described_configs
         self.error = error
@@ -177,3 +217,31 @@ class ConfigResource(object):
         if not overwrite and name in self.set_config_dict:
             return
         self.set_config_dict[name] = value
+
+    def add_incremental_config(self, name, operation, value=None):
+        """
+        Incrementally updates a configuration value.
+
+        Applies an incremental operation on specified key, while keeping
+        all the others unchanged.
+
+        :param str name: Configuration property name
+        :param AlterConfigOpType operation: Alter config operation
+        :param str value: Configuration value (optional if operation is DELETE)
+        """
+        if name is None:
+            raise TypeError("Configuration name is needed")
+        if not isinstance(name, str):
+            raise TypeError("Configuration name must be a string")
+
+        if not isinstance(operation, AlterConfigOpType):
+            raise TypeError("Operation must be of type AlterConfigOpType")
+
+        if value is None and operation != AlterConfigOpType.DELETE:
+            raise ValueError("Value is needed for operation: " + operation.name)
+        if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
+            raise TypeError("The provided value should be a string for: " + operation.name)
+
+        if name not in self.incremental_config:
+            self.incremental_config[name] = []
+        self.incremental_config[name].append([operation, value])
