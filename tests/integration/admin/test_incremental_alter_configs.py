@@ -55,7 +55,7 @@ def test_incremental_alter_configs(kafka_cluster):
     res1 = ConfigResource(
         ResourceType.TOPIC,
         our_topic,
-        set_incremental_config={
+        incremental_configs={
             "cleanup.policy": [
                 [AlterConfigOpType.APPEND, "compact"]
             ],
@@ -67,7 +67,7 @@ def test_incremental_alter_configs(kafka_cluster):
     res2 = ConfigResource(
         ResourceType.TOPIC,
         our_topic2,
-        set_incremental_config={
+        incremental_configs={
             "cleanup.policy": [
                 [AlterConfigOpType.SUBTRACT, "delete"]
             ],
@@ -106,7 +106,7 @@ def test_incremental_alter_configs(kafka_cluster):
     res2 = ConfigResource(
         ResourceType.TOPIC,
         our_topic2,
-        set_incremental_config={
+        incremental_configs={
             "compression.type": [
                 [AlterConfigOpType.DELETE]
             ],

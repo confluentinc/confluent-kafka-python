@@ -362,7 +362,7 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                                  *op_type;
                         Py_ssize_t config_value_cnt;
                         config_op_value = PyList_GET_ITEM(vo, i);
-                        rd_kafka_AlterConfigOpType_t op;
+                        int op;
                         const char *v = NULL;
 
                         if (!PyList_Check(config_op_value) ||
@@ -388,9 +388,9 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                                 }
                         }
 
-                        error = rd_kafka_ConfigResource_set_incremental_config(
+                        error = rd_kafka_ConfigResource_add_incremental_config(
                                         (rd_kafka_ConfigResource_t *)c_obj,
-                                        k, op, v);
+                                        k, (rd_kafka_AlterConfigOpType_t) op, v);
                         if (error) {
                                 PyErr_Format(PyExc_ValueError,
                                         "%s config %s failed: %s",

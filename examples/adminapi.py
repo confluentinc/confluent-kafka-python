@@ -275,7 +275,7 @@ def example_incremental_alter_configs(a, args):
         for name, operation_and_value in [conf.split('=') for conf in configs.split(';')]:
             operation, value = operation_and_value.split(':')
             operation = AlterConfigOpType[operation]
-            resource.set_incremental_config(name, operation, value)
+            resource.add_incremental_config(name, operation, value)
         resources.append(resource)
 
     fs = a.incremental_alter_configs(resources)

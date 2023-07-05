@@ -335,18 +335,18 @@ def test_incremental_alter_configs_api():
     resources = [ConfigResource(ResourceType.BROKER, "3"),
                  ConfigResource(ResourceType.TOPIC, "test")]
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config("advertised.listeners", "NEW_OPERATION", "host1")
+        resources[0].add_incremental_config("advertised.listeners", "NEW_OPERATION", "host1")
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config(None, AlterConfigOpType.APPEND, "host1")
+        resources[0].add_incremental_config(None, AlterConfigOpType.APPEND, "host1")
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config(5, AlterConfigOpType.APPEND, "host1")
+        resources[0].add_incremental_config(5, AlterConfigOpType.APPEND, "host1")
     with pytest.raises(TypeError):
-        resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
+        resources[0].add_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
 
-    resources[0].set_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)
-    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.APPEND, "compact")
-    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.SET, "delete")
-    resources[1].set_incremental_config("cleanup.policy", AlterConfigOpType.DELETE)
+    resources[0].add_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)
+    resources[1].add_incremental_config("cleanup.policy", AlterConfigOpType.APPEND, "compact")
+    resources[1].add_incremental_config("cleanup.policy", AlterConfigOpType.SET, "delete")
+    resources[1].add_incremental_config("cleanup.policy", AlterConfigOpType.DELETE)
 
     fs = a.incremental_alter_configs(resources)
 
