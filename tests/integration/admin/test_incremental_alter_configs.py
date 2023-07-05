@@ -1,5 +1,5 @@
 from confluent_kafka.admin import ConfigResource,\
-    ResourceType,\
+    ConfigEntry, ResourceType,\
     AlterConfigOpType
 
 
@@ -55,26 +55,22 @@ def test_incremental_alter_configs(kafka_cluster):
     res1 = ConfigResource(
         ResourceType.TOPIC,
         our_topic,
-        incremental_configs={
-            "cleanup.policy": [
-                [AlterConfigOpType.APPEND, "compact"]
-            ],
-            "retention.ms": [
-                [AlterConfigOpType.SET, "10000"]
-            ]
-        }
+        incremental_configs=[
+            ConfigEntry("cleanup.policy", "compact",
+                        incremental_operation=AlterConfigOpType.APPEND),
+            ConfigEntry("retention.ms", "10000",
+                        incremental_operation=AlterConfigOpType.SET)
+        ]
     )
     res2 = ConfigResource(
         ResourceType.TOPIC,
         our_topic2,
-        incremental_configs={
-            "cleanup.policy": [
-                [AlterConfigOpType.SUBTRACT, "delete"]
-            ],
-            "retention.ms": [
-                [AlterConfigOpType.SET, "5000"]
-            ]
-        }
+        incremental_configs=[
+            ConfigEntry("cleanup.policy", "delete",
+                        incremental_operation=AlterConfigOpType.SUBTRACT),
+            ConfigEntry("retention.ms", "5000",
+                        incremental_operation=AlterConfigOpType.SET)
+        ]
     )
     expected = {
         res1: ['cleanup.policy="delete,compact"',
@@ -106,14 +102,12 @@ def test_incremental_alter_configs(kafka_cluster):
     res2 = ConfigResource(
         ResourceType.TOPIC,
         our_topic2,
-        incremental_configs={
-            "compression.type": [
-                [AlterConfigOpType.DELETE]
-            ],
-            "retention.ms": [
-                [AlterConfigOpType.SET, "10000"]
-            ]
-        }
+        incremental_configs=[
+            ConfigEntry("compression.type", None,
+                        incremental_operation=AlterConfigOpType.DELETE),
+            ConfigEntry("retention.ms", "10000",
+                        incremental_operation=AlterConfigOpType.SET)
+        ]
     )
     expected[res2] = ['cleanup.policy=""',
                       'retention.ms="10000"']

@@ -72,7 +72,8 @@ class ConfigEntry(object):
                  is_default=False,
                  is_sensitive=False,
                  is_synonym=False,
-                 synonyms=[]):
+                 synonyms=[],
+                 incremental_operation=None):
         """
         This class is typically not user instantiated.
         """
@@ -97,6 +98,8 @@ class ConfigEntry(object):
         """Indicates whether the configuration property is a synonym for the parent configuration entry."""
         self.synonyms = synonyms
         """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
+        self.incremental_operation = incremental_operation
+        """The incremental operation (AlterConfigOpType) to use in incremental_alter_configs."""
 
     def __repr__(self):
         return "ConfigEntry(%s=\"%s\")" % (self.name, self.value)
@@ -132,8 +135,7 @@ class ConfigResource(object):
         :param str name: The resource name, which depends on restype.
                          For RESOURCE_BROKER, the resource name is the broker id.
         :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
-        :param dict incremental_configs: The configurations to alter incrementally.
-               Dictionary of str to list(list(AlterConfigOpType, str)|list(AlterConfigOpType.DELETE)].
+        :param list(ConfigEntry) incremental_configs: The configuration entries to alter incrementally.
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
         """
@@ -162,16 +164,7 @@ class ConfigResource(object):
         else:
             self.set_config_dict = dict()
 
-        self.incremental_config = dict()
-        if incremental_configs is not None:
-            for name, op_type_values in incremental_configs.items():
-                for op_type_value in op_type_values:
-                    op_type = op_type_value[0]
-                    if op_type != AlterConfigOpType.DELETE:
-                        value = op_type_value[1]
-                        self.add_incremental_config(name, op_type, value)
-                    else:
-                        self.add_incremental_config(name, op_type)
+        self.incremental_configs = list(incremental_configs or [])
 
         self.configs = described_configs
         self.error = error
@@ -218,30 +211,11 @@ class ConfigResource(object):
             return
         self.set_config_dict[name] = value
 
-    def add_incremental_config(self, name, operation, value=None):
+    def add_incremental_config(self, config_entry):
         """
-        Incrementally updates a configuration value.
+        Add a ConfigEntry for incremental alter configs, using the
+        configured incremental_operation.
 
-        Applies an incremental operation on specified key, while keeping
-        all the others unchanged.
-
-        :param str name: Configuration property name
-        :param AlterConfigOpType operation: Alter config operation
-        :param str value: Configuration value (optional if operation is DELETE)
+        :param ConfigEntry config_entry: config entry to incrementally alter.
         """
-        if name is None:
-            raise TypeError("Configuration name is needed")
-        if not isinstance(name, str):
-            raise TypeError("Configuration name must be a string")
-
-        if not isinstance(operation, AlterConfigOpType):
-            raise TypeError("Operation must be of type AlterConfigOpType")
-
-        if value is None and operation != AlterConfigOpType.DELETE:
-            raise ValueError("Value is needed for operation: " + operation.name)
-        if not isinstance(value, str) and operation != AlterConfigOpType.DELETE:
-            raise TypeError("The provided value should be a string for: " + operation.name)
-
-        if name not in self.incremental_config:
-            self.incremental_config[name] = []
-        self.incremental_config[name].append([operation, value])
+        self.incremental_configs.append(config_entry)

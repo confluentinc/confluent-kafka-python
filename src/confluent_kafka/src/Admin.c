@@ -331,96 +331,87 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
 
 static int
-Admin_incremental_config_to_c(PyObject *dict, rd_kafka_ConfigResource_t *c_obj){
-        Py_ssize_t pos = 0;
-        PyObject *ko, *vo;
-        PyObject *ks = NULL, *ks8 = NULL;
-        PyObject *vs = NULL, *vs8 = NULL;
+Admin_incremental_config_to_c(PyObject *incremental_configs,
+                              rd_kafka_ConfigResource_t *c_obj,
+                              PyObject *ConfigEntry_type){
+        int config_entry_count = 0;
+        Py_ssize_t i = 0;
+        char *name = NULL;
+        char *value = NULL;
 
-        while(PyDict_Next(dict, &pos, &ko, &vo)){
-                const char *k;
-                int config_count = 0;
-                Py_ssize_t i = 0;
+        if (!PyList_Check(incremental_configs)) {
+                PyErr_Format(PyExc_TypeError,
+                             "expected list type");
+                goto err;
+        }
+
+        if ((config_entry_count = (int)PyList_Size(incremental_configs)) < 1) {
+                PyErr_Format(PyExc_ValueError,
+                             "expected non-empty list of ConfigEntry "
+                             "to alter incrementally");
+                goto err;
+        }
+
+        for (i = 0; i < config_entry_count; i++) {
+                PyObject *config_entry;
+                PyObject *incremental_operation;
+                int op, r;
                 rd_kafka_error_t *error;
 
-                if (!(ks = cfl_PyObject_Unistr(ko))) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "expected config name to be unicode "
-                                     "string");
-                       goto err;
-                }
-                k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+                config_entry = PyList_GET_ITEM(incremental_configs, i);
 
-                if (!PyList_Check(vo) || (config_count = (int)PyList_Size(vo)) < 1) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "expected non-empty list of config "
-                                     "operation type and value for config "
-                                     "name \"%s\"", k);
+                r = PyObject_IsInstance(config_entry, ConfigEntry_type);
+                if (r == -1)
+                        goto err; /* Exception raised by IsInstance() */
+                else if (r == 0) {
+                        PyErr_SetString(PyExc_TypeError,
+                                        "Expected list of "
+                                        "ConfigEntry objects");
                         goto err;
                 }
 
-                for (i = 0; i < config_count; i++) {
-                        PyObject *config_op_and_value, *config_value,
-                                 *op_type;
-                        config_op_and_value = PyList_GET_ITEM(vo, i);
-                        int op;
-                        const char *v = NULL;
+                if (!cfl_PyObject_GetAttr(config_entry, "incremental_operation",
+                                          &incremental_operation, NULL, 1, 0))
+                        goto err;
 
-                        if (!PyList_Check(config_op_and_value) ||
-                            PyList_Size(config_op_and_value) != 2) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "expected operation type and value for config "
-                                        "name \"%s\", index %zd", k, i);
-                                goto err;
-                        }
+                if (!cfl_PyObject_GetInt(incremental_operation, "value",
+                    &op, -1, 1))
+                        goto err;
 
-                        op_type = PyList_GET_ITEM(config_op_and_value, 0);
-                        config_value = PyList_GET_ITEM(config_op_and_value, 1);
-                        if (!cfl_PyObject_GetInt(op_type, "value", &op, -1, 1)) {
-                                goto err;
-                        }
+                if (!cfl_PyObject_GetString(config_entry, "name", &name, NULL, 1, 0))
+                        goto err;
 
-                        if (op != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE) {
-                                if (!(vs = cfl_PyObject_Unistr(config_value)) ||
-                                    !(v = cfl_PyUnistr_AsUTF8(vs, &vs8))) {
-                                        PyErr_Format(PyExc_ValueError,
-                                                "expected value name to be "
-                                                "unicode string for config "
-                                                "name \"%s\", index %zd", k, i);
-                                        goto err;
-                                }
-                        }
+                if (op != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE &&
+                    !cfl_PyObject_GetString(config_entry, "value", &value, NULL, 1, 0))
+                        goto err;
 
-                        error = rd_kafka_ConfigResource_add_incremental_config(
-                                        c_obj,
-                                        k, (rd_kafka_AlterConfigOpType_t) op, v);
-                        if (error) {
-                                PyErr_Format(PyExc_ValueError,
-                                        "setting config entry \"%s\", "
-                                        "index %zd, failed: %s",
-                                        k, i, rd_kafka_error_string(error));
-                                rd_kafka_error_destroy(error);
-                                goto err;
-                        }
-
-                        Py_XDECREF(vs);
-                        Py_XDECREF(vs8);
-                        vs = NULL;
-                        vs8 = NULL;
+                error = rd_kafka_ConfigResource_add_incremental_config(
+                        c_obj,
+                        name, (rd_kafka_AlterConfigOpType_t) op, value);
+                if (error) {
+                        PyErr_Format(PyExc_ValueError,
+                                "setting config entry \"%s\", "
+                                "index %zd, failed: %s",
+                                name, i, rd_kafka_error_string(error));
+                        rd_kafka_error_destroy(error);
+                        goto err;
                 }
-                Py_DECREF(ks);
-                Py_XDECREF(ks8);
-                ks = NULL;
-                ks8 = NULL;
+
+                free(name);
+                if (value)
+                        free(value);
+                name = NULL;
+                value = NULL;
         }
         return 1;
 err:
-        Py_XDECREF(vs);
-        Py_XDECREF(vs8);
-        Py_XDECREF(ks);
-        Py_XDECREF(ks8);
+        if (name)
+                free(name);
+        if (value)
+                free(value);
         return 0;
 }
+
 /**
  * @brief Translate a dict to ConfigResource set_config() calls,
  *        or to NewTopic_add_config() calls.
@@ -1015,7 +1006,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        PyObject *ConfigResource_type;
+        PyObject *ConfigResource_type, *ConfigEntry_type;
         int cnt, i;
         rd_kafka_ConfigResource_t **c_objs;
         rd_kafka_queue_t *rkqu;
@@ -1057,6 +1048,14 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                 return NULL; /* Exception raised by find() */
         }
 
+        ConfigEntry_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConfigEntry");
+        if (!ConfigEntry_type) {
+                Py_DECREF(ConfigResource_type);
+                rd_kafka_AdminOptions_destroy(c_options);
+                return NULL; /* Exception raised by find() */
+        }
+
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
@@ -1073,7 +1072,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                 int r;
                 int restype;
                 char *resname;
-                PyObject *dict;
+                PyObject *incremental_configs;
 
                 r = PyObject_IsInstance(res, ConfigResource_type);
                 if (r == -1)
@@ -1104,17 +1103,20 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
                 /*
                  * Translate and apply config entries in the various dicts.
                  */
-                if (!cfl_PyObject_GetAttr(res, "incremental_config", &dict,
-                                          &PyDict_Type, 1, 0)) {
+                if (!cfl_PyObject_GetAttr(res, "incremental_configs",
+                                          &incremental_configs,
+                                          &PyList_Type, 1, 0)) {
                         i++;
                         goto err;
                 }
-                if (!Admin_incremental_config_to_c(dict, c_objs[i])) {
-                        Py_DECREF(dict);
+                if (!Admin_incremental_config_to_c(incremental_configs,
+                                                   c_objs[i],
+                                                   ConfigEntry_type)) {
+                        Py_DECREF(incremental_configs);
                         i++;
                         goto err;
                 }
-                Py_DECREF(dict);
+                Py_DECREF(incremental_configs);
         }
 
 
@@ -1138,6 +1140,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         Py_DECREF(ConfigResource_type); /* from lookup() */
+        Py_DECREF(ConfigEntry_type); /* from lookup() */
 
         Py_RETURN_NONE;
 
@@ -1146,6 +1149,7 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
         rd_kafka_AdminOptions_destroy(c_options);
         free(c_objs);
         Py_DECREF(ConfigResource_type); /* from lookup() */
+        Py_DECREF(ConfigEntry_type); /* from lookup() */
         Py_DECREF(future); /* from options_to_c() */
 
         return NULL;

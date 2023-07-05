@@ -19,9 +19,10 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
-from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
-                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType, AlterConfigOpType)
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
+                                   ConfigEntry, ConfigSource, AclBinding,
+                                   AclBindingFilter, ResourceType, ResourcePatternType,
+                                   AclOperation, AclPermissionType, AlterConfigOpType)
 import sys
 import threading
 import logging
@@ -271,26 +272,14 @@ def example_incremental_alter_configs(a, args):
     """
     resources = []
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
-        resource = ConfigResource(restype, resname)
+        incremental_configs = []
         for name, operation_and_value in [conf.split('=') for conf in configs.split(';')]:
             operation, value = operation_and_value.split(':')
             operation = AlterConfigOpType[operation]
-            resource.add_incremental_config(name, operation, value)
-        resources.append(resource)
-
-    #
-    # When config entries are fixed it's more readable to use the
-    # incremental_configs param. This is an example:
-    #
-    ConfigResource(ResourceType.BROKER, "1",
-                   incremental_configs={
-                       "advertised.listeners": [
-                           [AlterConfigOpType.APPEND, "host:9092"]
-                       ],
-                       "background.threads": [
-                           [AlterConfigOpType.DELETE]
-                       ]
-                   })
+            incremental_configs.append(ConfigEntry(name, value,
+                                       incremental_operation=operation))
+        resources.append(ConfigResource(restype, resname,
+                                        incremental_configs=incremental_configs))
 
     fs = a.incremental_alter_configs(resources)
 
