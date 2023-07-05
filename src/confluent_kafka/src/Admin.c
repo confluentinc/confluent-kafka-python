@@ -331,7 +331,7 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
 
 
 static int
-Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
+Admin_incremental_config_to_c(PyObject *dict, rd_kafka_ConfigResource_t *c_obj){
         Py_ssize_t pos = 0;
         PyObject *ko, *vo;
         PyObject *ks = NULL, *ks8 = NULL;
@@ -367,7 +367,7 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                         const char *v = NULL;
 
                         if (!PyList_Check(config_op_and_value) ||
-                            (int)PyList_Size(config_op_and_value) != 2) {
+                            PyList_Size(config_op_and_value) != 2) {
                                 PyErr_Format(PyExc_ValueError,
                                         "expected operation type and value for config "
                                         "name \"%s\", index %zd", k, i);
@@ -392,7 +392,7 @@ Admin_incremental_config_to_c(PyObject *dict, void *c_obj){
                         }
 
                         error = rd_kafka_ConfigResource_add_incremental_config(
-                                        (rd_kafka_ConfigResource_t *)c_obj,
+                                        c_obj,
                                         k, (rd_kafka_AlterConfigOpType_t) op, v);
                         if (error) {
                                 PyErr_Format(PyExc_ValueError,

@@ -278,6 +278,20 @@ def example_incremental_alter_configs(a, args):
             resource.add_incremental_config(name, operation, value)
         resources.append(resource)
 
+    #
+    # When config entries are fixed it's more readable to use the
+    # incremental_configs param. This is an example:
+    #
+    ConfigResource(ResourceType.BROKER, "1",
+                   incremental_configs={
+                       "advertised.listeners": [
+                           [AlterConfigOpType.APPEND, "host:9092"]
+                       ],
+                       "background.threads": [
+                           [AlterConfigOpType.DELETE]
+                       ]
+                   })
+
     fs = a.incremental_alter_configs(resources)
 
     # Wait for operation to finish.

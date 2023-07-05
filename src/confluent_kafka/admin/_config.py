@@ -33,13 +33,13 @@ class AlterConfigOpType(Enum):
 
     #: (For list-type configuration entries only.)
     #:  Add the specified values
-    #:  to the current value
+    #:  to the current list of values
     #:  of the configuration entry.
     APPEND = _cimpl.ALTER_CONFIG_OP_TYPE_APPEND
 
     #: (For list-type configuration entries only.)
     #:  Removes the specified values
-    #:  from the current value
+    #:  from the current list of values
     #:  of the configuration entry.
     SUBTRACT = _cimpl.ALTER_CONFIG_OP_TYPE_SUBTRACT
 
@@ -172,6 +172,7 @@ class ConfigResource(object):
                         self.add_incremental_config(name, op_type, value)
                     else:
                         self.add_incremental_config(name, op_type)
+
         self.configs = described_configs
         self.error = error
 

@@ -343,6 +343,47 @@ def test_incremental_alter_configs_api():
     with pytest.raises(TypeError):
         resources[0].add_incremental_config("advertised.listeners", AlterConfigOpType.APPEND, None)
 
+    # Test constructor with incremental_configs parameter.
+    ConfigResource(ResourceType.TOPIC, "test",
+                   incremental_configs=None)
+
+    ConfigResource(ResourceType.TOPIC, "test",
+                   incremental_configs={
+                       "advertised.listeners": []
+                   })
+    ConfigResource(ResourceType.TOPIC, "test",
+                   incremental_configs={
+                       "advertised.listeners": [
+                           [AlterConfigOpType.APPEND, "host1:9092"],
+                           [AlterConfigOpType.DELETE]
+                       ],
+                   })
+
+    with pytest.raises(TypeError):
+        ConfigResource(ResourceType.BROKER, "1",
+                       incremental_configs={
+                           "advertised.listeners": [
+                               [AlterConfigOpType.APPEND, None]
+                           ]
+                       })
+    with pytest.raises(TypeError):
+        ConfigResource(ResourceType.BROKER, "1",
+                       incremental_configs={
+                           "advertised.listeners": [
+                               [None, "test"]
+                           ]
+                       })
+    with pytest.raises(TypeError):
+        ConfigResource(ResourceType.BROKER, "1",
+                       incremental_configs={
+                           "advertised.listeners": 1
+                       })
+    with pytest.raises(TypeError):
+        ConfigResource(ResourceType.BROKER, "1",
+                       incremental_configs={
+                           "advertised.listeners": [1]
+                       })
+
     resources[0].add_incremental_config("advertised.listeners", AlterConfigOpType.DELETE)
     resources[1].add_incremental_config("cleanup.policy", AlterConfigOpType.APPEND, "compact")
     resources[1].add_incremental_config("cleanup.policy", AlterConfigOpType.SET, "delete")
