@@ -106,7 +106,7 @@ def test_avro_serializer_config_subject_name_strategy():
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                               record_subject_name_strategy})
+                                           record_subject_name_strategy})
 
     assert test_serializer._subject_name_func is record_subject_name_strategy
 
@@ -132,7 +132,7 @@ def test_avro_serializer_record_subject_name_strategy(load_avsc):
     test_serializer = AvroSerializer(test_client,
                                      load_avsc('basic_schema.avsc'),
                                      conf={'subject.name.strategy':
-                                               record_subject_name_strategy})
+                                           record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE, [])
     assert test_serializer._subject_name_func(ctx,
@@ -150,7 +150,7 @@ def test_avro_serializer_record_subject_name_strategy_primitive(load_avsc):
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                               record_subject_name_strategy})
+                                           record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE, [('header1', 'header value 1'), ])
     assert test_serializer._subject_name_func(ctx,
@@ -167,7 +167,7 @@ def test_avro_serializer_topic_record_subject_name_strategy(load_avsc):
     test_serializer = AvroSerializer(test_client,
                                      load_avsc('basic_schema.avsc'),
                                      conf={'subject.name.strategy':
-                                               topic_record_subject_name_strategy})
+                                           topic_record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
@@ -183,7 +183,7 @@ def test_avro_serializer_topic_record_subject_name_strategy_primitive(load_avsc)
     test_client = SchemaRegistryClient(conf)
     test_serializer = AvroSerializer(test_client, '"int"',
                                      conf={'subject.name.strategy':
-                                               topic_record_subject_name_strategy})
+                                           topic_record_subject_name_strategy})
 
     ctx = SerializationContext('test_subj', MessageField.VALUE)
     assert test_serializer._subject_name_func(
