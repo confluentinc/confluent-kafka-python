@@ -268,7 +268,8 @@ def example_incremental_alter_configs(a, args):
     Input Format : ResourceType1 ResourceName1 Key=Operation:Value;Key2=Operation2:Value2;Key3=DELETE
     ResourceType2 ResourceName2 ...
 
-    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact;retention.ms=DELETE TOPIC T2 compression.type=SET:gzip ...
+    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact;
+    retention.ms=DELETE TOPIC T2 compression.type=SET:gzip ...
     """
     resources = []
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
@@ -606,7 +607,8 @@ if __name__ == '__main__':
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' incremental_alter_configs <resource_type1> <resource_name1> ' +
-                         '<config1=op1:val1;config2=op2:val2;config3=DELETE> <resource_type2> <resource_name2> <config1=op1:..> ..\n')
+                         '<config1=op1:val1;config2=op2:val2;config3=DELETE> ' +
+                         '<resource_type2> <resource_name2> <config1=op1:..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +

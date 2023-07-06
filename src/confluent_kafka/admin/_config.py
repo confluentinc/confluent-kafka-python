@@ -82,7 +82,9 @@ class ConfigEntry(object):
         self.name = name
         """Configuration property name."""
         self.value = value
-        """Configuration value (or None if not set or is_sensitive==True)."""
+        """Configuration value (or None if not set or is_sensitive==True.
+           Ignored when altering configurations incrementally
+           if incremental_operation is DELETE)."""
         self.source = source
         """Configuration source."""
         self.is_read_only = bool(is_read_only)
