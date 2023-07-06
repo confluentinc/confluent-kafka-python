@@ -357,7 +357,7 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
 
         for (i = 0; i < config_entry_count; i++) {
                 PyObject *config_entry;
-                int op, r;
+                int incremental_operation_value, r;
                 rd_kafka_error_t *error;
 
                 config_entry = PyList_GET_ITEM(incremental_configs, i);
@@ -378,19 +378,21 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
                         goto err;
 
                 if (!cfl_PyObject_GetInt(incremental_operation, "value",
-                    &op, -1, 1))
+                    &incremental_operation_value, -1, 1))
                         goto err;
 
                 if (!cfl_PyObject_GetString(config_entry, "name", &name, NULL, 1, 0))
                         goto err;
 
-                if (op != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE &&
+                if (incremental_operation_value != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE &&
                     !cfl_PyObject_GetString(config_entry, "value", &value, NULL, 1, 0))
                         goto err;
 
                 error = rd_kafka_ConfigResource_add_incremental_config(
                         c_obj,
-                        name, (rd_kafka_AlterConfigOpType_t) op, value);
+                        name,
+                        (rd_kafka_AlterConfigOpType_t) incremental_operation_value,
+                        value);
                 if (error) {
                         PyErr_Format(PyExc_ValueError,
                                 "setting config entry \"%s\", "
