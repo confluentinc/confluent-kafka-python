@@ -45,6 +45,7 @@ Supporting classes
        - :ref:`ConfigResource <pythonclient_config_resource>`
        - :ref:`ResourceType <pythonclient_resource_type>`
        - :ref:`ResourcePatternType <pythonclient_resource_pattern_type>`
+       - :ref:`AlterConfigOpType <pythonclient_alter_config_op_type>`
        - :ref:`AclOperation <pythonclient_acl_operation>`
        - :ref:`AclPermissionType <pythonclient_acl_permission_type>`
        - :ref:`AclBinding <pythonclient_acl_binding>`
@@ -140,6 +141,15 @@ ResourcePatternType
 *******************
 
 .. autoclass:: confluent_kafka.admin.ResourcePatternType
+   :members:
+
+.. _pythonclient_alter_config_op_type:
+
+*****************
+AlterConfigOpType
+*****************
+
+.. autoclass:: confluent_kafka.admin.AlterConfigOpType
    :members:
 
 .. _pythonclient_acl_operation:
@@ -713,14 +723,14 @@ providing a dict of configuration properties to the instance constructor, e.g.
 .. code-block:: python
 
   conf = {'bootstrap.servers': 'mybroker.com',
-          'group.id': 'mygroup', 
+          'group.id': 'mygroup',
           'session.timeout.ms': 6000,
           'on_commit': my_commit_callback,
           'auto.offset.reset': 'earliest'}
   consumer = confluent_kafka.Consumer(conf)
 
 
-The Python client provides the following configuration properties in 
+The Python client provides the following configuration properties in
 addition to the properties dictated by the underlying librdkafka C library:
 
 * ``default.topic.config``: value is a dict of client topic-level configuration
