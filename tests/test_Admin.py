@@ -392,6 +392,12 @@ def test_incremental_alter_configs_api():
                                                   ValueError,
                                                   use_constructor)
 
+        # String instead of ConfigEntry list, treated as an iterable
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  "something",
+                                                  TypeError,
+                                                  use_constructor)
+
         # Duplicate ConfigEntry found
         verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
                                                   [

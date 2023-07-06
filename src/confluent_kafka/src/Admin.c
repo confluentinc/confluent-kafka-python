@@ -367,7 +367,7 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
                         PyErr_Format(PyExc_TypeError,
-                                     "expected list of ConfigEntry "
+                                     "expected ConfigEntry type "
                                      "in incremental_configs field, "
                                      "index %zd", i);
                         goto err;
