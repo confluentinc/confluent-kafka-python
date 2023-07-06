@@ -329,6 +329,95 @@ static int Admin_set_replica_assignment (const char *forApi, void *c_obj,
         return 1;
 }
 
+
+static int
+Admin_incremental_config_to_c(PyObject *incremental_configs,
+                              rd_kafka_ConfigResource_t *c_obj,
+                              PyObject *ConfigEntry_type){
+        int config_entry_count = 0;
+        Py_ssize_t i = 0;
+        char *name = NULL;
+        char *value = NULL;
+        PyObject *incremental_operation = NULL;
+
+        if (!PyList_Check(incremental_configs)) {
+                PyErr_Format(PyExc_TypeError,
+                             "expected list of ConfigEntry "
+                             "in incremental_configs field");
+                goto err;
+        }
+
+        if ((config_entry_count = (int)PyList_Size(incremental_configs)) < 1) {
+                PyErr_Format(PyExc_ValueError,
+                             "expected non-empty list of ConfigEntry "
+                             "to alter incrementally "
+                             "in incremental_configs field");
+                goto err;
+        }
+
+        for (i = 0; i < config_entry_count; i++) {
+                PyObject *config_entry;
+                int op, r;
+                rd_kafka_error_t *error;
+
+                config_entry = PyList_GET_ITEM(incremental_configs, i);
+
+                r = PyObject_IsInstance(config_entry, ConfigEntry_type);
+                if (r == -1)
+                        goto err; /* Exception raised by IsInstance() */
+                else if (r == 0) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected list of ConfigEntry "
+                                     "in incremental_configs field, "
+                                     "index %zd", i);
+                        goto err;
+                }
+
+                if (!cfl_PyObject_GetAttr(config_entry, "incremental_operation",
+                                          &incremental_operation, NULL, 1, 0))
+                        goto err;
+
+                if (!cfl_PyObject_GetInt(incremental_operation, "value",
+                    &op, -1, 1))
+                        goto err;
+
+                if (!cfl_PyObject_GetString(config_entry, "name", &name, NULL, 1, 0))
+                        goto err;
+
+                if (op != RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE &&
+                    !cfl_PyObject_GetString(config_entry, "value", &value, NULL, 1, 0))
+                        goto err;
+
+                error = rd_kafka_ConfigResource_add_incremental_config(
+                        c_obj,
+                        name, (rd_kafka_AlterConfigOpType_t) op, value);
+                if (error) {
+                        PyErr_Format(PyExc_ValueError,
+                                "setting config entry \"%s\", "
+                                "index %zd, failed: %s",
+                                name, i, rd_kafka_error_string(error));
+                        rd_kafka_error_destroy(error);
+                        goto err;
+                }
+
+                Py_DECREF(incremental_operation);
+                free(name);
+                if (value)
+                        free(value);
+                name = NULL;
+                value = NULL;
+                incremental_operation = NULL;
+        }
+        return 1;
+err:
+        Py_XDECREF(incremental_operation);
+        if (name)
+                free(name);
+        if (value)
+                free(value);
+        return 0;
+}
+
 /**
  * @brief Translate a dict to ConfigResource set_config() calls,
  *        or to NewTopic_add_config() calls.
@@ -502,7 +591,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
                                     topic_partition_count,
-                                    topic_partition_count, 
+                                    topic_partition_count,
                                     "num_partitions")) {
                                 i++;
                                 goto err;
@@ -801,7 +890,7 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
+        /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
                                          &resources, &future,
                                          &options.request_timeout,
@@ -911,7 +1000,166 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
         return NULL;
 }
 
+static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyObject *kwargs) {
+        PyObject *resources, *future;
+        PyObject *validate_only_obj = NULL;
+        static char *kws[] = { "resources",
+                               "future",
+                               /* options */
+                               "validate_only",
+                               "request_timeout",
+                               "broker",
+                               NULL };
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        PyObject *ConfigResource_type, *ConfigEntry_type;
+        int cnt, i;
+        rd_kafka_ConfigResource_t **c_objs;
+        rd_kafka_queue_t *rkqu;
+        CallState cs;
 
+        /* resources is a list of ConfigResource objects. */
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
+                                         &resources, &future,
+                                         &validate_only_obj,
+                                         &options.request_timeout,
+                                         &options.broker))
+                return NULL;
+
+        if (!PyList_Check(resources) ||
+            (cnt = (int)PyList_Size(resources)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                                "Expected non-empty list of ConfigResource "
+                                "objects");
+                return NULL;
+        }
+
+        if (validate_only_obj &&
+            !cfl_PyBool_get(validate_only_obj, "validate_only",
+                            &options.validate_only))
+                return NULL;
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS,
+                                       &options, future);
+        if (!c_options)
+                return NULL; /* Exception raised by options_to_c() */
+
+        /* Look up the ConfigResource class so we can check if the provided
+         * topics are of correct type.
+         * Since this is not in the fast path we treat ourselves
+         * to the luxury of looking up this for each call. */
+        ConfigResource_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConfigResource");
+        if (!ConfigResource_type) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                return NULL; /* Exception raised by find() */
+        }
+
+        ConfigEntry_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                  "ConfigEntry");
+        if (!ConfigEntry_type) {
+                Py_DECREF(ConfigResource_type);
+                rd_kafka_AdminOptions_destroy(c_options);
+                return NULL; /* Exception raised by find() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * event_cb to set the results on the future as the admin operation
+         * is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        /*
+         * Parse the list of ConfigResources and convert to
+         * corresponding C types.
+         */
+        c_objs = malloc(sizeof(*c_objs) * cnt);
+
+        for (i = 0 ; i < cnt ; i++) {
+                PyObject *res = PyList_GET_ITEM(resources, i);
+                int r;
+                int restype;
+                char *resname;
+                PyObject *incremental_configs;
+
+                r = PyObject_IsInstance(res, ConfigResource_type);
+                if (r == -1)
+                        goto err; /* Exception raised by IsInstance() */
+                else if (r == 0) {
+                        PyErr_SetString(PyExc_ValueError,
+                                        "Expected list of "
+                                        "ConfigResource objects");
+                        goto err;
+                }
+
+                if (!cfl_PyObject_GetInt(res, "restype_int", &restype, 0, 0))
+                        goto err;
+
+                if (!cfl_PyObject_GetString(res, "name", &resname, NULL, 0, 0))
+                        goto err;
+
+                c_objs[i] = rd_kafka_ConfigResource_new(
+                        (rd_kafka_ResourceType_t)restype, resname);
+                if (!c_objs[i]) {
+                        PyErr_Format(PyExc_ValueError,
+                                     "Invalid ConfigResource(%d,%s)",
+                                     restype, resname);
+                        free(resname);
+                        goto err;
+                }
+                free(resname);
+                /*
+                 * Translate and apply config entries in the various dicts.
+                 */
+                if (!cfl_PyObject_GetAttr(res, "incremental_configs",
+                                          &incremental_configs,
+                                          &PyList_Type, 1, 0)) {
+                        i++;
+                        goto err;
+                }
+                if (!Admin_incremental_config_to_c(incremental_configs,
+                                                   c_objs[i],
+                                                   ConfigEntry_type)) {
+                        Py_DECREF(incremental_configs);
+                        i++;
+                        goto err;
+                }
+                Py_DECREF(incremental_configs);
+        }
+
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call AlterConfigs
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_IncrementalAlterConfigs(self->rk, c_objs, cnt, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_ConfigResource_destroy_array(c_objs, cnt);
+        rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        Py_DECREF(ConfigResource_type); /* from lookup() */
+        Py_DECREF(ConfigEntry_type); /* from lookup() */
+
+        Py_RETURN_NONE;
+
+ err:
+        rd_kafka_ConfigResource_destroy_array(c_objs, i);
+        rd_kafka_AdminOptions_destroy(c_options);
+        free(c_objs);
+        Py_DECREF(ConfigResource_type); /* from lookup() */
+        Py_DECREF(ConfigEntry_type); /* from lookup() */
+        Py_DECREF(future); /* from options_to_c() */
+
+        return NULL;
+}
 
 
 /**
@@ -936,7 +1184,7 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        /* topics is a list of NewPartitions_t objects. */
+        /* resources is a list of ConfigResource objects. */
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Ofi", kws,
                                          &resources, &future,
                                          &validate_only_obj,
@@ -2098,6 +2346,13 @@ static PyMethodDef Admin_methods[] = {
           "  This method should not be used directly, use confluent_kafka.AdminClient.describe_configs()\n"
         },
 
+        {"incremental_alter_configs", (PyCFunction)Admin_incremental_alter_configs,
+          METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: incremental_alter_configs(resources, future, [request_timeout, validate_only, broker])\n"
+          "\n"
+          "  This method should not be used directly, use confluent_kafka.AdminClient.incremental_alter_configs()\n"
+        },
+
         { "alter_configs", (PyCFunction)Admin_alter_configs,
           METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: alter_configs(resources, future, [request_timeout, broker])\n"
@@ -3041,6 +3296,20 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 break;
         }
 
+        case RD_KAFKA_EVENT_INCREMENTALALTERCONFIGS_RESULT:
+        {
+                const rd_kafka_ConfigResource_t **c_resources;
+                size_t resource_cnt;
+
+                c_resources = rd_kafka_IncrementalAlterConfigs_result_resources(
+                        rd_kafka_event_IncrementalAlterConfigs_result(rkev),
+                        &resource_cnt);
+                result = Admin_c_ConfigResource_result_to_py(
+                        c_resources,
+                        resource_cnt,
+                        0/* return None instead of (the empty) configs */);
+                break;
+        }
 
         case RD_KAFKA_EVENT_CREATEACLS_RESULT:
         {
