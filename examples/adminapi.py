@@ -265,16 +265,19 @@ def example_incremental_alter_configs(a, args):
     """ Incrementally alter configs, keeping non-specified
     configuration properties with their previous values.
 
-    Input Format : ResourceType1 ResourceName1 Key=Operation:Value;Key2=Operation2:Value2
+    Input Format : ResourceType1 ResourceName1 Key=Operation:Value;Key2=Operation2:Value2;Key3=DELETE
     ResourceType2 ResourceName2 ...
 
-    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact TOPIC T2 compression.type=SET:gzip ...
+    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact;retention.ms=DELETE TOPIC T2 compression.type=SET:gzip ...
     """
     resources = []
     for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
         incremental_configs = []
         for name, operation_and_value in [conf.split('=') for conf in configs.split(';')]:
-            operation, value = operation_and_value.split(':')
+            if operation_and_value == "DELETE":
+                operation, value = operation_and_value, None
+            else:
+                operation, value = operation_and_value.split(':')
             operation = AlterConfigOpType[operation]
             incremental_configs.append(ConfigEntry(name, value,
                                        incremental_operation=operation))

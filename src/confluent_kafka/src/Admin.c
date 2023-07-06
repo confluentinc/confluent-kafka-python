@@ -338,23 +338,25 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
         Py_ssize_t i = 0;
         char *name = NULL;
         char *value = NULL;
+        PyObject *incremental_operation = NULL;
 
         if (!PyList_Check(incremental_configs)) {
                 PyErr_Format(PyExc_TypeError,
-                             "expected list type");
+                             "expected list of ConfigEntry "
+                             "in incremental_configs field");
                 goto err;
         }
 
         if ((config_entry_count = (int)PyList_Size(incremental_configs)) < 1) {
                 PyErr_Format(PyExc_ValueError,
                              "expected non-empty list of ConfigEntry "
-                             "to alter incrementally");
+                             "to alter incrementally "
+                             "in incremental_configs field");
                 goto err;
         }
 
         for (i = 0; i < config_entry_count; i++) {
                 PyObject *config_entry;
-                PyObject *incremental_operation;
                 int op, r;
                 rd_kafka_error_t *error;
 
@@ -364,9 +366,10 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
                 if (r == -1)
                         goto err; /* Exception raised by IsInstance() */
                 else if (r == 0) {
-                        PyErr_SetString(PyExc_TypeError,
-                                        "Expected list of "
-                                        "ConfigEntry objects");
+                        PyErr_Format(PyExc_TypeError,
+                                     "expected list of ConfigEntry "
+                                     "in incremental_configs field, "
+                                     "index %zd", i);
                         goto err;
                 }
 
@@ -397,14 +400,17 @@ Admin_incremental_config_to_c(PyObject *incremental_configs,
                         goto err;
                 }
 
+                Py_DECREF(incremental_operation);
                 free(name);
                 if (value)
                         free(value);
                 name = NULL;
                 value = NULL;
+                incremental_operation = NULL;
         }
         return 1;
 err:
+        Py_XDECREF(incremental_operation);
         if (name)
                 free(name);
         if (value)
