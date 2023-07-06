@@ -606,7 +606,7 @@ if __name__ == '__main__':
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' incremental_alter_configs <resource_type1> <resource_name1> ' +
-                         '<config1=op1:val1;config2=op2:val2> <resource_type2> <resource_name2> <config1=op1:..> ..\n')
+                         '<config1=op1:val1;config2=op2:val2;config3=DELETE> <resource_type2> <resource_name2> <config1=op1:..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
