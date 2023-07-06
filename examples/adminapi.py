@@ -19,9 +19,10 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
-from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
-                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType)
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
+                                   ConfigEntry, ConfigSource, AclBinding,
+                                   AclBindingFilter, ResourceType, ResourcePatternType,
+                                   AclOperation, AclPermissionType, AlterConfigOpType)
 import sys
 import threading
 import logging
@@ -256,6 +257,40 @@ def example_delete_acls(a, args):
 
         except KafkaException as e:
             print("Failed to delete {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_incremental_alter_configs(a, args):
+    """ Incrementally alter configs, keeping non-specified
+    configuration properties with their previous values.
+
+    Input Format : ResourceType1 ResourceName1 Key=Operation:Value;Key2=Operation2:Value2;Key3=DELETE
+    ResourceType2 ResourceName2 ...
+
+    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact;retention.ms=DELETE TOPIC T2 compression.type=SET:gzip ...
+    """
+    resources = []
+    for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
+        incremental_configs = []
+        for name, operation_and_value in [conf.split('=') for conf in configs.split(';')]:
+            if operation_and_value == "DELETE":
+                operation, value = operation_and_value, None
+            else:
+                operation, value = operation_and_value.split(':')
+            operation = AlterConfigOpType[operation]
+            incremental_configs.append(ConfigEntry(name, value,
+                                       incremental_operation=operation))
+        resources.append(ConfigResource(restype, resname,
+                                        incremental_configs=incremental_configs))
+
+    fs = a.incremental_alter_configs(resources)
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            f.result()  # empty, but raises exception on failure
+            print("{} configuration successfully altered".format(res))
         except Exception:
             raise
 
@@ -570,6 +605,8 @@ if __name__ == '__main__':
         sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' incremental_alter_configs <resource_type1> <resource_name1> ' +
+                         '<config1=op1:val1;config2=op2:val2> <resource_type2> <resource_name2> <config1=op1:..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
@@ -601,6 +638,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
+              'incremental_alter_configs': example_incremental_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,
