@@ -567,32 +567,31 @@ def example_describe_user_scram_credentials(a, args):
     Describe User Scram Credentials
     """
     futmap = a.describe_user_scram_credentials(args)
-    mechanism_description = {}
-    mechanism_description[ScramMechanism.SCRAM_SHA_256] = "SCRAM-SHA-256"
-    mechanism_description[ScramMechanism.SCRAM_SHA_512] = "SCRAM-SHA-512"
-    mechanism_description[ScramMechanism.UNKNOWN] = "UNKNOWN"
+
     for username, fut in futmap.items():
         print("Username: {}".format(username))
         try:
-            value = fut.result()
-            for scram_credential_info in value.scram_credential_infos:
-                print("    Mechanism: {} Iterations: {}".
-                      format(scram_credential_info.mechanism,
-                             scram_credential_info.iterations))
+            response = fut.result()
+            for scram_credential_info in response.scram_credential_infos:
+                print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                      f"Iterations: {scram_credential_info.iterations}")
         except KafkaException as e:
             print("    Error: {}".format(e))
+        except Exception as e:
+            print(f"    Unexpected exception: {e}")
 
 
 def example_alter_user_scram_credentials(a, args):
     """
     AlterUserScramCredentials
     """
+    alterations_args = []
     alterations = []
     i = 0
     op_cnt = 0
+
     while i < len(args):
         op = args[i]
-
         if op == "UPSERT":
             if i + 5 >= len(args):
                 raise ValueError(
@@ -600,29 +599,42 @@ def example_alter_user_scram_credentials(a, args):
             user = args[i + 1]
             mechanism = ScramMechanism[args[i + 2]]
             iterations = int(args[i + 3])
-            salt = args[i + 4]
+            password = bytes(args[i + 4], 'utf8')
+            # if salt is an empty string,
+            # set it to None to generate it randomly.
+            salt = args[i + 5]
             if not salt:
                 salt = None
             else:
                 salt = bytes(salt, 'utf8')
-            password = bytes(args[i + 5], 'utf8')
-            scram_credential_info = ScramCredentialInfo(mechanism, iterations)
-            upsertion = UserScramCredentialUpsertion(user, scram_credential_info, salt, password)
-            alterations.append(upsertion)
+            alterations_args.append([op, user, mechanism, iterations,
+                                     iterations, password, salt])
             i += 6
-
         elif op == "DELETE":
             if i + 2 >= len(args):
                 raise ValueError(
                     f"Invalid number of arguments for alteration {op_cnt}, expected 2, got {len(args) - i - 1}")
             user = args[i + 1]
             mechanism = ScramMechanism[args[i + 2]]
-            deletion = UserScramCredentialDeletion(user, mechanism)
-            alterations.append(deletion)
+            alterations_args.append([op, user, mechanism])
             i += 3
         else:
             raise ValueError(f"Invalid alteration {op}, must be UPSERT or DELETE")
         op_cnt += 1
+
+    for alteration_arg in alterations_args:
+        op = alteration_arg[0]
+        if op == "UPSERT":
+            [_, user, mechanism, iterations,
+             iterations, password, salt] = alteration_arg
+            scram_credential_info = ScramCredentialInfo(mechanism, iterations)
+            upsertion = UserScramCredentialUpsertion(user, scram_credential_info,
+                                                     password, salt)
+            alterations.append(upsertion)
+        elif op == "DELETE":
+            [_, user, mechanism] = alteration_arg
+            deletion = UserScramCredentialDeletion(user, mechanism)
+            alterations.append(deletion)
 
     futmap = a.alter_user_scram_credentials(alterations)
     for username, fut in futmap.items():
@@ -660,10 +672,10 @@ if __name__ == '__main__':
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
         sys.stderr.write(' describe_user_scram_credentials [<user1> <user2> ..]\n')
-        sys.stderr.write(' alter_user_scram_credentials (UPSERT <user1> <mechanism1> ' +
-                         '<iterations1> <salt1?> <password1>|DELETE <user1> <mechanism1>) ' +
-                         '[(UPSERT <user2> <mechanism2> <iterations2> <salt2?>' +
-                         ' <password2>|DELETE <user2> <mechanism2>) ..]\n')
+        sys.stderr.write(' alter_user_scram_credentials UPSERT <user1> <mechanism1> ' +
+                         '<iterations1> <password1> <salt1> ' +
+                         '[UPSERT <user2> <mechanism2> <iterations2> ' +
+                         ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]

@@ -212,7 +212,35 @@ def verify_admin_scram(admin_client):
 
     futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
                                                         ScramCredentialInfo(newmechanism, newiterations),
-                                                        b"salt", b"password")])
+                                                        b"password", b"salt")])
+    fut = futmap[newuser]
+    result = fut.result()
+    assert result is None
+
+    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
+                                                            newuser,
+                                                            ScramCredentialInfo(
+                                                                ScramMechanism.SCRAM_SHA_256, 10000),
+                                                            b"password", b"salt"),
+                                                        UserScramCredentialUpsertion(
+                                                            newuser,
+                                                            ScramCredentialInfo(
+                                                                ScramMechanism.SCRAM_SHA_512, 10000),
+                                                            b"password")
+                                                        ])
+    fut = futmap[newuser]
+    result = fut.result()
+    assert result is None
+
+    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
+                                                            newuser,
+                                                            ScramCredentialInfo(
+                                                                ScramMechanism.SCRAM_SHA_256, 10000),
+                                                            b"password", b"salt"),
+                                                        UserScramCredentialDeletion(
+                                                            newuser,
+                                                            ScramMechanism.SCRAM_SHA_512)
+                                                        ])
     fut = futmap[newuser]
     result = fut.result()
     assert result is None

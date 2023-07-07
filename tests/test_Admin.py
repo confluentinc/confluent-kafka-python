@@ -706,6 +706,8 @@ def test_user_scram_api():
 
     with pytest.raises(TypeError):
         a.describe_user_scram_credentials([None])
+    with pytest.raises(ValueError):
+        a.describe_user_scram_credentials([""])
     with pytest.raises(KafkaException) as ex:
         futmap = a.describe_user_scram_credentials(["sam", "sam"])
         futmap["sam"].result(timeout=3)
@@ -713,7 +715,7 @@ def test_user_scram_api():
 
     # Alter User Scram API
     scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
-    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"salt", b"password")
+    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"salt")
     deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
     alterations = [upsertion, deletion]
 

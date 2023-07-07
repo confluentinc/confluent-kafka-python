@@ -43,7 +43,7 @@ class ScramCredentialInfo:
     iterations: int
         Positive number of iterations used when creating the credential.
     """
-    def __init__(self, mechanism: ScramMechanism, iterations: int):
+    def __init__(self, mechanism, iterations):
         self.mechanism = mechanism
         self.iterations = iterations
 
@@ -60,7 +60,7 @@ class UserScramCredentialsDescription:
     scram_credential_infos: list(ScramCredentialInfo)
         SASL/SCRAM credential representations for the user.
     """
-    def __init__(self, user: str, scram_credential_infos: list):
+    def __init__(self, user, scram_credential_infos):
         self.user = user
         self.scram_credential_infos = scram_credential_infos
 
@@ -88,16 +88,16 @@ class UserScramCredentialUpsertion(UserScramCredentialAlteration):
         The user name.
     scram_credential_info: ScramCredentialInfo
         The mechanism and iterations.
-    salt: bytes
-        Salt to use. Will be generated randomly if None. (optional)
     password: bytes
         Password to HMAC before storage.
+    salt: bytes
+        Salt to use. Will be generated randomly if None. (optional)
     """
-    def __init__(self, user: str, scram_credential_info: ScramCredentialInfo, salt: bytes, password: bytes):
+    def __init__(self, user, scram_credential_info, password, salt=None):
         super(UserScramCredentialUpsertion, self).__init__(user)
         self.scram_credential_info = scram_credential_info
-        self.salt = salt
         self.password = password
+        self.salt = salt
 
 
 class UserScramCredentialDeletion(UserScramCredentialAlteration):
@@ -111,6 +111,6 @@ class UserScramCredentialDeletion(UserScramCredentialAlteration):
     mechanism: ScramMechanism
         SASL/SCRAM mechanism.
     """
-    def __init__(self, user: str, mechanism: ScramMechanism):
+    def __init__(self, user, mechanism):
         super(UserScramCredentialDeletion, self).__init__(user)
         self.mechanism = mechanism
