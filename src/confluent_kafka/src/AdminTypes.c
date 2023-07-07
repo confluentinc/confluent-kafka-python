@@ -570,6 +570,11 @@ static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
         PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
 }
 
+static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN", RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256", RD_KAFKA_SCRAM_MECHANISM_SHA_256);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);
+}
 /**
  * @brief Add Admin types to module
  */
@@ -585,4 +590,5 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
+        AdminTypes_AddObjectsScramMechanismType(m);
 }
