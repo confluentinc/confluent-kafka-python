@@ -18,7 +18,8 @@ TEST_REQUIRES = [
     'pytest==4.6.4;python_version<"3.0"',
     'pytest;python_version>="3.0"',
     'pytest-timeout',
-    'flake8'
+    'flake8',
+    'pre-commit'
 ]
 
 DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
