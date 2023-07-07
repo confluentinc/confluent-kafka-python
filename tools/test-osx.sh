@@ -10,10 +10,10 @@ if [[ ! -f tools/$(basename $0) ]]; then
     exit 1
 fi
 
-# clean up pytest_cache if it exists 
+# clean up pytest_cache if it exists
 rm -f .pytest_cache
 
-WHEELHOUSE=${1-wheelhouse} 
+WHEELHOUSE=${1-wheelhouse}
 
 if [[ ! -d $WHEELHOUSE ]]; then
     echo "$WHEELHOUSE does not exist"
@@ -55,5 +55,3 @@ echo "Running tests"
 pytest -v --timeout 20 --ignore=tmp-build --import-mode append --ignore=confluent-kafka-python/tests/avro confluent-kafka-python/tests
 
 popd
-
-

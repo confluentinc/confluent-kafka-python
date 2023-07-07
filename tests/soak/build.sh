@@ -40,4 +40,3 @@ popd
 echo ""
 echo "=============================================================================="
 (cd / ; python3 -c 'import confluent_kafka as c; print("python", c.version(), "librdkafka", c.libversion())')
-

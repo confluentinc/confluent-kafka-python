@@ -8,4 +8,3 @@ See the header of each Dockerfile in this directory for what is included.
 From the confluent-kafka-python source top directory:
 
     $ docker build -f examples/docker/Dockerfile.alpine .
-

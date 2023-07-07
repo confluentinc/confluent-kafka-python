@@ -305,4 +305,3 @@ v1.5.0 is a maintenance release with the following fixes and enhancements:
 confluent-kafka-python is based on librdkafka v1.5.0, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v1.5.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-

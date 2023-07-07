@@ -14,4 +14,3 @@
      "pids": "pgrep -f 'python -m confluent_kafka.kafkatest.verifiable_producer'"
     }
 }
-

@@ -59,4 +59,3 @@ for %%W in (wheelhouse\confluent_kafka-*cp%PYTHON_SHORTVER%*win*%PYTHON_ARCH%.wh
   python -m pytest --ignore=tests\schema_registry --ignore=tests\integration tests || exit /b 1
   pip uninstall -y confluent_kafka || exit /b 1
 )
-

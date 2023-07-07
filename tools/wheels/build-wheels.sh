@@ -73,4 +73,3 @@ for f in $wheeldir/*whl ; do
     echo $f
     unzip -l $f
 done
-

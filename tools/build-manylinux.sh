@@ -88,4 +88,3 @@ for PYBIN in /opt/python/cp*/bin/; do
     echo "## Uninstalling $PYBIN"
     "${PYBIN}/pip" uninstall -y confluent_kafka
 done
-

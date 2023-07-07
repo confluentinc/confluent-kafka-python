@@ -502,7 +502,7 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                                     "CreateTopics", (void *)c_objs[i],
                                     newt->replica_assignment,
                                     topic_partition_count,
-                                    topic_partition_count, 
+                                    topic_partition_count,
                                     "num_partitions")) {
                                 i++;
                                 goto err;

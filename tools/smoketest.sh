@@ -138,5 +138,3 @@ fi
 
 echo "$0: SMOKE TEST FAILURES: $all_fails"
 exit 1
-
-

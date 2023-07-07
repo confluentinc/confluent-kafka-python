@@ -67,29 +67,29 @@ $C
 yes
 yes
 EOF
-	
+
     #Step 2
     echo "############ Adding CA"
     keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.truststore.jks -alias CARoot -import -file $CA_CERT <<EOF
 yes
 EOF
-    
+
     #Step 3
     echo "############ Export certificate"
     keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.keystore.jks -alias localhost -certreq -file ${PFX}cert-file -ext san=ip:127.0.0.1
 
     echo "############ Sign certificate"
     openssl x509 -req -CA $CA_CERT -CAkey ${CA_CERT}.key -in ${PFX}cert-file -out ${PFX}cert-signed -days $VALIDITY -CAcreateserial -passin "pass:$PASS"
-    
+
     echo "############ Import CA"
     keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.keystore.jks -alias CARoot -import -file $CA_CERT <<EOF
 yes
 EOF
-    
-    echo "############ Import signed CA"
-    keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.keystore.jks -alias localhost -import -file ${PFX}cert-signed    
 
-    
+    echo "############ Import signed CA"
+    keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}server.keystore.jks -alias localhost -import -file ${PFX}cert-signed
+
+
 elif [[ $OP == "client" && ! -z "$CA_CERT" && ! -z "$PFX" && ! -z "$CN" ]]; then
 
     if [[ $USE_KEYTOOL == 1 ]]; then
@@ -114,7 +114,7 @@ EOF
 	keytool -storepass "$PASS" -keystore ${PFX}client.keystore.jks -alias localhost -certreq -file ${PFX}cert-file -ext san=ip:127.0.0.1
 
 	echo "########### Sign certificate"
-	openssl x509 -req -CA ${CA_CERT} -CAkey ${CA_CERT}.key -in ${PFX}cert-file -out ${PFX}cert-signed -days $VALIDITY -CAcreateserial -passin pass:$PASS	
+	openssl x509 -req -CA ${CA_CERT} -CAkey ${CA_CERT}.key -in ${PFX}cert-file -out ${PFX}cert-signed -days $VALIDITY -CAcreateserial -passin pass:$PASS
 
 	echo "########### Import CA"
 	keytool -storepass "$PASS" -keypass "$PASS" -keystore ${PFX}client.keystore.jks -alias CARoot -import -file ${CA_CERT} <<EOF
@@ -127,8 +127,8 @@ EOF
     else
 	# Standard OpenSSL keys
 	echo "############ Generating key"
-	openssl genrsa -des3 -passout "pass:$PASS" -out ${PFX}client.key 2048 
-	
+	openssl genrsa -des3 -passout "pass:$PASS" -out ${PFX}client.key 2048
+
 	echo "############ Generating request"
 	openssl req -passin "pass:$PASS" -passout "pass:$PASS" -key ${PFX}client.key -new -out ${PFX}client.req \
 		<<EOF
@@ -148,8 +148,8 @@ EOF
 
     fi
 
-    
-    
+
+
 
 else
     echo "Usage: $0 ca <ca-cert-file> <CN>"
@@ -158,4 +158,3 @@ else
     echo "       -k = Use keytool/Java Keystore, else standard SSL keys"
     exit 1
 fi
-

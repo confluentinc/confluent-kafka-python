@@ -121,6 +121,3 @@ if ! verify_client ; then
 else
     echo "Client already installed"
 fi
-
-
-

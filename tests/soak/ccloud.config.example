@@ -10,5 +10,3 @@ compression.type=lz4
 # DataDog options/config
 datadog.api_key=<datadog api key>
 datadog.app_key=<datadog app key>
-
-

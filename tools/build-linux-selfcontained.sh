@@ -143,4 +143,3 @@ function build {
 echo "$0: $HOSTNAME: Building in docker"
 build /build
 echo "$0: $HOSTNAME: Done"
-

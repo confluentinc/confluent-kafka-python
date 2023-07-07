@@ -713,14 +713,14 @@ providing a dict of configuration properties to the instance constructor, e.g.
 .. code-block:: python
 
   conf = {'bootstrap.servers': 'mybroker.com',
-          'group.id': 'mygroup', 
+          'group.id': 'mygroup',
           'session.timeout.ms': 6000,
           'on_commit': my_commit_callback,
           'auto.offset.reset': 'earliest'}
   consumer = confluent_kafka.Consumer(conf)
 
 
-The Python client provides the following configuration properties in 
+The Python client provides the following configuration properties in
 addition to the properties dictated by the underlying librdkafka C library:
 
 * ``default.topic.config``: value is a dict of client topic-level configuration

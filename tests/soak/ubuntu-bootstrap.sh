@@ -61,4 +61,3 @@ popd # $HOME
 
 echo "All done, activate the virtualenv in $venv before running the client:"
 echo "source $venv/bin/activate"
-

@@ -27,5 +27,3 @@ time confluent-kafka-python/tests/soak/soakclient.py -t $topic -r 80 -f  conflue
 ret=$?
 echo "Python client exited with status $ret"
 exit $ret
-
-

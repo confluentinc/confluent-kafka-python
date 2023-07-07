@@ -59,4 +59,3 @@ cibuildwheel $_CIBW_ARGS --output-dir "$OUT_DIR"
 
 echo "Packages in $OUT_DIR:"
 (cd $OUT_DIR ; ls -la)
-
