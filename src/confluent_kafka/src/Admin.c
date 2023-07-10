@@ -3294,14 +3294,13 @@ static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_Us
         return result;
 }
 
-static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka_DescribeUserScramCredentials_result_t *c_result_event) {
+static PyObject *Admin_c_UserScramCredentialsDescriptions_to_py(
+        const rd_kafka_UserScramCredentialsDescription_t **c_descriptions,
+        size_t c_description_cnt) {
         PyObject *result = NULL;
-        const rd_kafka_UserScramCredentialsDescription_t **c_descriptions;
-        size_t c_description_cnt;
         size_t i;
 
         result = PyDict_New();
-        c_descriptions = rd_kafka_DescribeUserScramCredentials_result_descriptions(c_result_event, &c_description_cnt);
         for(i=0; i < c_description_cnt; i++){
                 const char *c_username;
                 const rd_kafka_error_t *c_error;
@@ -3326,14 +3325,14 @@ static PyObject *Admin_c_DescribeUserScramCredentialsResult_to_py(const rd_kafka
         return result;
 }
 
-static PyObject *Admin_c_AlterUserScramCredentialsResult_to_py(const rd_kafka_AlterUserScramCredentials_result_t *c_result_event) {
+static PyObject *Admin_c_AlterUserScramCredentialsResultResponses_to_py(
+        const rd_kafka_AlterUserScramCredentials_result_response_t **c_responses,
+        size_t c_response_cnt) {
         PyObject *result = NULL;
         PyObject* error = NULL;
-        size_t cnt, i;
-        const rd_kafka_AlterUserScramCredentials_result_response_t **c_responses =
-                rd_kafka_AlterUserScramCredentials_result_responses(c_result_event, &cnt);
+        size_t i;
         result = PyDict_New();
-        for(i=0; i<cnt; i++){
+        for(i=0; i<c_response_cnt; i++){
                 const rd_kafka_AlterUserScramCredentials_result_response_t *c_response = c_responses[i];
                 const rd_kafka_error_t *c_error = rd_kafka_AlterUserScramCredentials_result_response_error(c_response);
                 const char *c_username = rd_kafka_AlterUserScramCredentials_result_response_user(c_response);
@@ -3651,15 +3650,35 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         case RD_KAFKA_EVENT_DESCRIBEUSERSCRAMCREDENTIALS_RESULT:
         {
                 const rd_kafka_DescribeUserScramCredentials_result_t *c_describe_user_scram_credentials_result;
+                const rd_kafka_UserScramCredentialsDescription_t **c_describe_user_scram_credentials_result_descriptions;
+                size_t c_describe_user_scram_credentials_result_descriptions_cnt;
+
                 c_describe_user_scram_credentials_result = rd_kafka_event_DescribeUserScramCredentials_result(rkev);
-                result = Admin_c_DescribeUserScramCredentialsResult_to_py(c_describe_user_scram_credentials_result);
+
+                c_describe_user_scram_credentials_result_descriptions = rd_kafka_DescribeUserScramCredentials_result_descriptions(
+                        c_describe_user_scram_credentials_result,
+                        &c_describe_user_scram_credentials_result_descriptions_cnt);
+
+                result = Admin_c_UserScramCredentialsDescriptions_to_py(c_describe_user_scram_credentials_result_descriptions,
+                        c_describe_user_scram_credentials_result_descriptions_cnt);
+
                 break;
         }
         case RD_KAFKA_EVENT_ALTERUSERSCRAMCREDENTIALS_RESULT:
         {
                 const rd_kafka_AlterUserScramCredentials_result_t *c_alter_user_scram_credentials_result;
+                const rd_kafka_AlterUserScramCredentials_result_response_t **c_alter_user_scram_credentials_result_responses;
+                size_t c_alter_user_scram_credentials_result_response_cnt;
+
                 c_alter_user_scram_credentials_result = rd_kafka_event_AlterUserScramCredentials_result(rkev);
-                result = Admin_c_AlterUserScramCredentialsResult_to_py(c_alter_user_scram_credentials_result);
+
+                c_alter_user_scram_credentials_result_responses = rd_kafka_AlterUserScramCredentials_result_responses(
+                        c_alter_user_scram_credentials_result,
+                        &c_alter_user_scram_credentials_result_response_cnt);
+
+                result = Admin_c_AlterUserScramCredentialsResultResponses_to_py(
+                        c_alter_user_scram_credentials_result_responses,
+                        c_alter_user_scram_credentials_result_response_cnt);
                 break;
         }
         case RD_KAFKA_EVENT_DELETEGROUPS_RESULT:
