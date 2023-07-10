@@ -1642,7 +1642,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        int alteration_cnt = 0, i;
+        int c_alteration_cnt = 0, i;
         rd_kafka_UserScramCredentialAlteration_t **c_alterations = NULL;
         PyObject *UserScramCredentialAlteration_type = NULL;
         PyObject *UserScramCredentialUpsertion_type = NULL;
@@ -1725,17 +1725,17 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
                                        &options, future);
         if (!c_options)
-                return NULL; /* Exception raised by options_to_c() */
+                goto err; /* Exception raised by options_to_c() */
 
         /* options_to_c() sets future as the opaque, which is used in the
          * event_cb to set the results on the future as the admin operation
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        alteration_cnt = (int)PyList_Size(alterations);
-        c_alterations = malloc(sizeof(rd_kafka_UserScramCredentialAlteration_t *) * alteration_cnt);
+        c_alteration_cnt = (int)PyList_Size(alterations);
+        c_alterations = malloc(sizeof(rd_kafka_UserScramCredentialAlteration_t *) * c_alteration_cnt);
 
-        for (i = 0 ; i < alteration_cnt ; i++) {
+        for (i = 0 ; i < c_alteration_cnt ; i++) {
                 PyObject *alteration = PyList_GET_ITEM(alterations, i);
                 if(!PyObject_IsInstance(alteration, UserScramCredentialAlteration_type)) {
                         PyErr_Format(PyExc_TypeError,
@@ -1857,11 +1857,11 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
          * the event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
-        rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, alteration_cnt, c_options, rkqu);
+        rd_kafka_AlterUserScramCredentials(self->rk, c_alterations, c_alteration_cnt, c_options, rkqu);
         CallState_end(self, &cs);
 
         if(c_alterations) {
-                rd_kafka_UserScramCredentialAlteration_destroy_array(c_alterations, i);
+                rd_kafka_UserScramCredentialAlteration_destroy_array(c_alterations, c_alteration_cnt);
                 free(c_alterations);
         }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
