@@ -422,7 +422,8 @@ class AdminClient (_AdminClientImpl):
                     raise TypeError("Expected the mechanism to be ScramMechanism Type")
             else:
                 raise TypeError("Expected each element of list 'alterations' " +
-                                "to be subclass of UserScramCredentialAlteration")
+                                "to be either a UserScramCredentialUpsertion or a " +
+                                "UserScramCredentialDeletion")
 
     def create_topics(self, new_topics, **kwargs):
         """

@@ -1555,7 +1555,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         if (!PyList_Check(users)) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of string "
-                                "objects");
+                                "objects in 'users' parameter");
                 return NULL;
         }
 
@@ -1578,13 +1578,17 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
                 PyObject *u_user;
                 PyObject *uo_user = NULL;
 
-                if (user == Py_None ||
-                    !(u_user = cfl_PyObject_Unistr(user))) {
+                if (user == Py_None) {
+                        PyErr_Format(PyExc_TypeError,
+                                     "User %d in 'users' parameters must not "
+                                     "be  None", i);
+                        goto err;
+                }
+
+                if (!(u_user = cfl_PyObject_Unistr(user))) {
                         PyErr_Format(PyExc_ValueError,
-                                     "Expected list of users as strings, "
-                                     "not %s",
-                                     ((PyTypeObject *)PyObject_Type(user))->
-                                     tp_name);
+                                     "User %d in 'users' parameters must "
+                                     " be convertible to str", i);
                         goto err;
                 }
 
@@ -1711,7 +1715,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         }
 
         ScramMechanism_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                                  "ScramMechanism");\
+                                                  "ScramMechanism");
         if (!ScramMechanism_type) {
                         PyErr_SetString(PyExc_ImportError,
                                 "Not able to load ScramMechanism type");
@@ -1734,10 +1738,14 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         for (i = 0 ; i < alteration_cnt ; i++) {
                 PyObject *alteration = PyList_GET_ITEM(alterations, i);
                 if(!PyObject_IsInstance(alteration, UserScramCredentialAlteration_type)) {
-                        PyErr_SetString(PyExc_TypeError,
-                                "Each request should be of UserScramCredentialAlteration type");
+                        PyErr_Format(PyExc_TypeError,
+                                     "Alteration %d: should be a UserScramCredentialAlteration"
+                                     ", got %s", i,
+                                     ((PyTypeObject *)PyObject_Type(alteration))->
+                                     tp_name);
                         goto err;
                 }
+
                 cfl_PyObject_GetAttr(alteration, "user", &user,NULL,1,1);
                 if (user == Py_None ||
                     !(u_user = cfl_PyObject_Unistr(user))) {
@@ -1756,16 +1764,24 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                         /* Upsertion Type*/
                         cfl_PyObject_GetAttr(alteration,"scram_credential_info",&scram_credential_info,NULL,0,0);
                         if (!PyObject_IsInstance(scram_credential_info, ScramCredentialInfo_type)) {
-                                PyErr_SetString(PyExc_TypeError,
-                                        "scram_credential_info should be of ScramCredentialInfo type");
+                                PyErr_Format(PyExc_TypeError,
+                                     "Alteration %d: field \"scram_credential_info\" "
+                                     "should be a ScramCredentialInfo"
+                                     ", got %s", i,
+                                     ((PyTypeObject *)PyObject_Type(scram_credential_info))->
+                                     tp_name);
                                 goto err;
                         }
 
                         cfl_PyObject_GetInt(scram_credential_info,"iterations",&iterations,0,1);
                         cfl_PyObject_GetAttr(scram_credential_info,"mechanism", &mechanism, NULL, 0, 0);
                         if (!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
-                                PyErr_SetString(PyExc_TypeError,
-                                        "mechanism should be of ScramMechanism type");
+                                PyErr_Format(PyExc_TypeError,
+                                     "Alteration %d: field \"scram_credential_info."
+                                     "mechanism\" should be a ScramMechanism"
+                                     ", got %s", i,
+                                     ((PyTypeObject *)PyObject_Type(mechanism))->
+                                     tp_name);
                                 goto err;
                         }
                         cfl_PyObject_GetInt(mechanism,"value", &mechanism_val,0,1);
@@ -1812,8 +1828,12 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                         /* Deletion Type*/
                         cfl_PyObject_GetAttr(alteration,"mechanism",&mechanism,NULL,0,0);
                         if (!PyObject_IsInstance(mechanism, ScramMechanism_type)) {
-                                PyErr_SetString(PyExc_TypeError,
-                                        "mechanism should be of ScramMechanism type");
+                                PyErr_Format(PyExc_TypeError,
+                                     "Alteration %d: field \"mechanism\" "
+                                     "should be a ScramMechanism"
+                                     ", got %s", i,
+                                     ((PyTypeObject *)PyObject_Type(mechanism))->
+                                     tp_name);
                                 goto err;
                         }
                         cfl_PyObject_GetInt(mechanism,"value",&mechanism_val,0,1);
