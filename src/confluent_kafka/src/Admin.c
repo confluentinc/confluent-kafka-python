@@ -1653,22 +1653,22 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         CallState cs;
 
         PyObject *user = NULL;
-        const char *user_c;
+        const char *c_user;
         PyObject *u_user = NULL;
         PyObject *uo_user = NULL;
 
         PyObject *salt = NULL;
-        const unsigned char *salt_c = NULL;
-        Py_ssize_t salt_c_size = 0;
+        const unsigned char *c_salt = NULL;
+        Py_ssize_t c_salt_size = 0;
 
         PyObject *password = NULL;
-        const unsigned char *password_c;
-        Py_ssize_t password_c_size;
+        const unsigned char *c_password;
+        Py_ssize_t c_password_size;
 
         PyObject *scram_credential_info = NULL;
         PyObject *mechanism = NULL;
         int32_t iterations;
-        int mechanism_val;
+        int c_mechanism;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
                                          &alterations, &future,
@@ -1758,7 +1758,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                 }
 
                 Py_DECREF(user);
-                user_c = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
+                c_user = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
 
                 if(PyObject_IsInstance(alteration,UserScramCredentialUpsertion_type)){
                         /* Upsertion Type*/
@@ -1784,7 +1784,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                      tp_name);
                                 goto err;
                         }
-                        cfl_PyObject_GetInt(mechanism,"value", &mechanism_val,0,1);
+                        cfl_PyObject_GetInt(mechanism,"value", &c_mechanism,0,1);
 
                         cfl_PyObject_GetAttr(alteration,"password",&password,NULL,0,0);
                         if (Py_TYPE(password) != &PyBytes_Type) {
@@ -1795,7 +1795,7 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                         tp_name);
                                 goto err;
                         }
-                        PyBytes_AsStringAndSize(password, (char **) &password_c, &password_c_size);
+                        PyBytes_AsStringAndSize(password, (char **) &c_password, &c_password_size);
 
                         cfl_PyObject_GetAttr(alteration,"salt",&salt,NULL,0,0);
                         if (salt != Py_None && Py_TYPE(salt) != &PyBytes_Type) {
@@ -1807,13 +1807,13 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                 goto err;
                         }
                         if (salt != Py_None) {
-                                PyBytes_AsStringAndSize(salt, (char **) &salt_c, &salt_c_size);
+                                PyBytes_AsStringAndSize(salt, (char **) &c_salt, &c_salt_size);
                         }
 
-                        c_alterations[i] = rd_kafka_UserScramCredentialUpsertion_new(user_c,
-                                (rd_kafka_ScramMechanism_t) mechanism_val, iterations,
-                                password_c, password_c_size,
-                                salt_c, salt_c_size);
+                        c_alterations[i] = rd_kafka_UserScramCredentialUpsertion_new(c_user,
+                                (rd_kafka_ScramMechanism_t) c_mechanism, iterations,
+                                c_password, c_password_size,
+                                c_salt, c_salt_size);
 
                         Py_DECREF(salt);
                         Py_DECREF(password);
@@ -1836,9 +1836,9 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                                      tp_name);
                                 goto err;
                         }
-                        cfl_PyObject_GetInt(mechanism,"value",&mechanism_val,0,1);
+                        cfl_PyObject_GetInt(mechanism,"value",&c_mechanism,0,1);
 
-                        c_alterations[i] = rd_kafka_UserScramCredentialDeletion_new(user_c,(rd_kafka_ScramMechanism_t)mechanism_val);
+                        c_alterations[i] = rd_kafka_UserScramCredentialDeletion_new(c_user,(rd_kafka_ScramMechanism_t)c_mechanism);
                         Py_DECREF(mechanism);
                         mechanism = NULL;
                 }
