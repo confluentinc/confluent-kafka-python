@@ -38,6 +38,13 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ConsumerGroupDescription,
                      MemberAssignment,
                      MemberDescription)
+from ._scram import (UserScramCredentialAlteration,  # noqa: F401
+                     UserScramCredentialUpsertion,
+                     UserScramCredentialDeletion,
+                     ScramCredentialInfo,
+                     ScramMechanism,
+                     UserScramCredentialsDescription)
+
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -62,6 +69,7 @@ from confluent_kafka import ConsumerGroupTopicPartitions \
 
 from confluent_kafka import ConsumerGroupState \
     as _ConsumerGroupState
+
 
 try:
     string_type = basestring
@@ -234,6 +242,28 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_user_scram_credentials_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"username {username} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
     def _create_future():
         f = concurrent.futures.Future()
         if not f.set_running_or_notify_cancel():
@@ -341,6 +371,59 @@ class AdminClient (_AdminClientImpl):
                 if topic_partition.offset < 0:
                     raise ValueError(
                         "Element of 'topic_partitions' must not have negative value for 'offset' field")
+
+    @staticmethod
+    def _check_describe_user_scram_credentials_request(users):
+        if not isinstance(users, list):
+            raise TypeError("Expected input to be list of String")
+        for user in users:
+            if not isinstance(user, string_type):
+                raise TypeError("Each value should be a string")
+            if not user:
+                raise ValueError("'user' cannot be empty")
+
+    @staticmethod
+    def _check_alter_user_scram_credentials_request(alterations):
+        if not isinstance(alterations, list):
+            raise TypeError("Expected input to be list")
+        if len(alterations) == 0:
+            raise ValueError("Expected at least one alteration")
+        for alteration in alterations:
+            if not isinstance(alteration, UserScramCredentialAlteration):
+                raise TypeError("Expected each element of list to be subclass of UserScramCredentialAlteration")
+            if alteration.user is None:
+                raise TypeError("'user' cannot be None")
+            if not isinstance(alteration.user, string_type):
+                raise TypeError("'user' must be a string")
+            if not alteration.user:
+                raise ValueError("'user' cannot be empty")
+
+            if isinstance(alteration, UserScramCredentialUpsertion):
+                if alteration.password is None:
+                    raise TypeError("'password' cannot be None")
+                if not isinstance(alteration.password, bytes):
+                    raise TypeError("'password' must be bytes")
+                if not alteration.password:
+                    raise ValueError("'password' cannot be empty")
+
+                if alteration.salt is not None and not alteration.salt:
+                    raise ValueError("'salt' can be None but cannot be empty")
+                if alteration.salt and not isinstance(alteration.salt, bytes):
+                    raise TypeError("'salt' must be bytes")
+
+                if not isinstance(alteration.scram_credential_info, ScramCredentialInfo):
+                    raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
+                if alteration.scram_credential_info.iterations < 1:
+                    raise ValueError("Iterations should be positive")
+                if not isinstance(alteration.scram_credential_info.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            elif isinstance(alteration, UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            else:
+                raise TypeError("Expected each element of list 'alterations' " +
+                                "to be either a UserScramCredentialUpsertion or a " +
+                                "UserScramCredentialDeletion")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -809,3 +892,61 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
+
+    def describe_user_scram_credentials(self, users, **kwargs):
+        """
+        Describe user SASL/SCRAM credentials.
+
+        :param list(str) users: List of user names to describe.
+               Duplicate users aren't allowed.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns the
+                  :class:`UserScramCredentialsDescription` or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_describe_user_scram_credentials_request(users)
+
+        f, futmap = AdminClient._make_futures(users, None,
+                                              AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
+
+        return futmap
+
+    def alter_user_scram_credentials(self, alterations, **kwargs):
+        """
+        Alter user SASL/SCRAM credentials.
+
+        :param list(UserScramCredentialAlteration) alterations: List of
+               :class:`UserScramCredentialAlteration` to apply.
+               The pair (user, mechanism) must be unique among alterations.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns None or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_alter_user_scram_credentials_request(alterations)
+
+        f, futmap = AdminClient._make_futures(set([alteration.user for alteration in alterations]), None,
+                                              AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+
+        return futmap
