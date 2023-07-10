@@ -20,8 +20,6 @@
 #
 from confluent_kafka import Consumer, KafkaException
 import sys
-import getopt
-import logging
 
 def print_usage_and_exit(program_name):
     sys.stderr.write('Usage: %s [options..] <bootstrap-brokers> <group> <topic1> <topic2> ..\n' % program_name)
@@ -29,8 +27,7 @@ def print_usage_and_exit(program_name):
 
 
 if __name__ == '__main__':
-    optlist, argv = getopt.getopt(sys.argv[1:], 'T:')
-    if len(argv) < 3:
+    if len(sys.argv) < 4:
         print_usage_and_exit(sys.argv[0])
 
     broker = sys.argv[1]
@@ -45,12 +42,12 @@ if __name__ == '__main__':
             'sasl.password': 'broker-secret',
             # pkc12 keystores are not FIPS compliant and hence you will need to use
             # path to key and certificate separately in FIPS mode
-            # 'ssl.keystore.location': './secrets/client.keystore.p12',
+            # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
             # 'ssl.keystore.password': '111111',
-            'ssl.key.location': './secrets/localhost_client.key',
+            'ssl.key.location': './docker/secrets/localhost_client.key',
             'ssl.key.password': '111111',
-            'ssl.certificate.location': './secrets/localhost_client.crt',
-            'ssl.ca.location': './secrets/ca-root.crt',
+            'ssl.certificate.location': './docker/secrets/localhost_client.crt',
+            'ssl.ca.location': './docker/secrets/ca-root.crt',
             'ssl.providers': 'fips,base'
         }
 

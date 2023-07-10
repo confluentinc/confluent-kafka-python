@@ -28,4 +28,6 @@ $openssl pkcs12 -export -in ${client_hostname}_client.crt -inkey ${client_hostna
 -passout pass:$cert_password
 echo create truststore
 $keytool -noprompt -keystore server.truststore.jks -alias CARoot -import -file ca-root.crt -storepass $cert_password
+echo create creds file
+echo "$cert_password" > ./creds
 echo verify with: openssl pkcs12 -info -nodes -in client.keystore.p12

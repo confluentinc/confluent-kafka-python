@@ -21,7 +21,6 @@
 #
 
 from confluent_kafka import Producer
-import certifi
 import sys
 
 if __name__ == '__main__':
@@ -41,12 +40,12 @@ if __name__ == '__main__':
             'sasl.password': 'broker-secret',
             # pkc12 keystores are not FIPS compliant and hence you will need to use
             # path to key and certificate separately in FIPS mode
-            # 'ssl.keystore.location': './secrets/client.keystore.p12',
+            # 'ssl.keystore.location': './docker/secrets/client.keystore.p12',
             # 'ssl.keystore.password': '111111',
-            'ssl.key.location': './secrets/localhost_client.key',
+            'ssl.key.location': './docker/secrets/localhost_client.key',
             'ssl.key.password': '111111',
-            'ssl.certificate.location': './secrets/localhost_client.crt',
-            'ssl.ca.location': './secrets/ca-root.crt',
+            'ssl.certificate.location': './docker/secrets/localhost_client.crt',
+            'ssl.ca.location': './docker/secrets/ca-root.crt',
             'ssl.providers': 'fips,base'
             }
 
