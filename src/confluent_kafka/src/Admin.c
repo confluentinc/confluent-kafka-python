@@ -1652,21 +1652,21 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
         rd_kafka_queue_t *rkqu;
         CallState cs;
 
-        PyObject *user;
+        PyObject *user = NULL;
         const char *user_c;
         PyObject *u_user = NULL;
         PyObject *uo_user = NULL;
 
-        PyObject *salt;
+        PyObject *salt = NULL;
         const unsigned char *salt_c = NULL;
         Py_ssize_t salt_c_size = 0;
 
-        PyObject *password;
+        PyObject *password = NULL;
         const unsigned char *password_c;
         Py_ssize_t password_c_size;
 
-        PyObject *scram_credential_info;
-        PyObject *mechanism;
+        PyObject *scram_credential_info = NULL;
+        PyObject *mechanism = NULL;
         int32_t iterations;
         int mechanism_val;
 
