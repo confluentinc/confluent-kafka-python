@@ -310,7 +310,7 @@ static PyTypeObject KafkaErrorType = {
 	"  - Exceptions\n"
         "\n"
         "Args:\n"
-        "  error_code (KafkaError): Error code indicating the type of error.\n"
+        "  code (KafkaError): Error code indicating the type of error.\n"
         "\n"
         "  reason (str): Alternative message to describe the error.\n"
         "\n"
