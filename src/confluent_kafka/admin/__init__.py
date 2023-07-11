@@ -15,12 +15,14 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
+import warnings
 import concurrent.futures
 
 # Unused imports are keeped to be accessible using this public module
 from ._config import (ConfigSource,  # noqa: F401
                       ConfigEntry,
-                      ConfigResource)
+                      ConfigResource,
+                      AlterConfigOpType)
 from ._resource import (ResourceType,  # noqa: F401
                         ResourcePatternType)
 from ._acl import (AclOperation,  # noqa: F401
@@ -38,6 +40,13 @@ from ._group import (ConsumerGroupListing,  # noqa: F401
                      ConsumerGroupDescription,
                      MemberAssignment,
                      MemberDescription)
+from ._scram import (UserScramCredentialAlteration,  # noqa: F401
+                     UserScramCredentialUpsertion,
+                     UserScramCredentialDeletion,
+                     ScramCredentialInfo,
+                     ScramMechanism,
+                     UserScramCredentialsDescription)
+
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -62,6 +71,7 @@ from confluent_kafka import ConsumerGroupTopicPartitions \
 
 from confluent_kafka import ConsumerGroupState \
     as _ConsumerGroupState
+
 
 try:
     string_type = basestring
@@ -234,6 +244,28 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_user_scram_credentials_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"username {username} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
     def _create_future():
         f = concurrent.futures.Future()
         if not f.set_running_or_notify_cancel():
@@ -245,11 +277,33 @@ class AdminClient (_AdminClientImpl):
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
+
+        FIXME: use _make_futures_v2 with TypeError in next major release.
         """
         futmap = {}
         for key in futmap_keys:
             if class_check is not None and not isinstance(key, class_check):
                 raise ValueError("Expected list of {}".format(repr(class_check)))
+            futmap[key] = AdminClient._create_future()
+
+        # Create an internal future for the entire request,
+        # this future will trigger _make_..._result() and set result/exception
+        # per topic,future in futmap.
+        f = AdminClient._create_future()
+        f.add_done_callback(lambda f: make_result_fn(f, futmap))
+
+        return f, futmap
+
+    @staticmethod
+    def _make_futures_v2(futmap_keys, class_check, make_result_fn):
+        """
+        Create futures and a futuremap for the keys in futmap_keys,
+        and create a request-level future to be bassed to the C API.
+        """
+        futmap = {}
+        for key in futmap_keys:
+            if class_check is not None and not isinstance(key, class_check):
+                raise TypeError("Expected list of {}".format(repr(class_check)))
             futmap[key] = AdminClient._create_future()
 
         # Create an internal future for the entire request,
@@ -341,6 +395,59 @@ class AdminClient (_AdminClientImpl):
                 if topic_partition.offset < 0:
                     raise ValueError(
                         "Element of 'topic_partitions' must not have negative value for 'offset' field")
+
+    @staticmethod
+    def _check_describe_user_scram_credentials_request(users):
+        if not isinstance(users, list):
+            raise TypeError("Expected input to be list of String")
+        for user in users:
+            if not isinstance(user, string_type):
+                raise TypeError("Each value should be a string")
+            if not user:
+                raise ValueError("'user' cannot be empty")
+
+    @staticmethod
+    def _check_alter_user_scram_credentials_request(alterations):
+        if not isinstance(alterations, list):
+            raise TypeError("Expected input to be list")
+        if len(alterations) == 0:
+            raise ValueError("Expected at least one alteration")
+        for alteration in alterations:
+            if not isinstance(alteration, UserScramCredentialAlteration):
+                raise TypeError("Expected each element of list to be subclass of UserScramCredentialAlteration")
+            if alteration.user is None:
+                raise TypeError("'user' cannot be None")
+            if not isinstance(alteration.user, string_type):
+                raise TypeError("'user' must be a string")
+            if not alteration.user:
+                raise ValueError("'user' cannot be empty")
+
+            if isinstance(alteration, UserScramCredentialUpsertion):
+                if alteration.password is None:
+                    raise TypeError("'password' cannot be None")
+                if not isinstance(alteration.password, bytes):
+                    raise TypeError("'password' must be bytes")
+                if not alteration.password:
+                    raise ValueError("'password' cannot be empty")
+
+                if alteration.salt is not None and not alteration.salt:
+                    raise ValueError("'salt' can be None but cannot be empty")
+                if alteration.salt and not isinstance(alteration.salt, bytes):
+                    raise TypeError("'salt' must be bytes")
+
+                if not isinstance(alteration.scram_credential_info, ScramCredentialInfo):
+                    raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
+                if alteration.scram_credential_info.iterations < 1:
+                    raise ValueError("Iterations should be positive")
+                if not isinstance(alteration.scram_credential_info.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            elif isinstance(alteration, UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            else:
+                raise TypeError("Expected each element of list 'alterations' " +
+                                "to be either a UserScramCredentialUpsertion or a " +
+                                "UserScramCredentialDeletion")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -481,6 +588,8 @@ class AdminClient (_AdminClientImpl):
 
     def alter_configs(self, resources, **kwargs):
         """
+        .. deprecated:: 2.2.0
+
         Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
         of the provided resources while the others fail.
@@ -506,19 +615,55 @@ class AdminClient (_AdminClientImpl):
                   without altering the configuration. Default: False
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
-                  The future result() method returns None.
+                  The future result() method returns None or throws a KafkaException.
 
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
         """
+        warnings.warn(
+            "alter_configs has been deprecated. Use incremental_alter_configs instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
                                               AdminClient._make_resource_result)
 
         super(AdminClient, self).alter_configs(resources, f, **kwargs)
+
+        return futmap
+
+    def incremental_alter_configs(self, resources, **kwargs):
+        """
+        Update configuration properties for the specified resources.
+        Updates are incremental, i.e only the values mentioned are changed
+        and rest remain as is.
+
+        :param list(ConfigResource) resources: Resources to update configuration of.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+        :param bool validate_only: If true, the request is validated only,
+                  without altering the configuration. Default: False
+        :param int broker: Broker id to send the request to. When
+                  altering broker configurations, it's ignored because
+                  the request needs to go to that broker only.
+                  Default: controller broker.
+
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The future result() method returns None or throws a KafkaException.
+
+        :rtype: dict(<ConfigResource, future>)
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
+        """
+        f, futmap = AdminClient._make_futures_v2(resources, ConfigResource,
+                                                 AdminClient._make_resource_result)
+
+        super(AdminClient, self).incremental_alter_configs(resources, f, **kwargs)
 
         return futmap
 
@@ -809,3 +954,61 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
+
+    def describe_user_scram_credentials(self, users, **kwargs):
+        """
+        Describe user SASL/SCRAM credentials.
+
+        :param list(str) users: List of user names to describe.
+               Duplicate users aren't allowed.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns the
+                  :class:`UserScramCredentialsDescription` or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_describe_user_scram_credentials_request(users)
+
+        f, futmap = AdminClient._make_futures_v2(users, None,
+                                                 AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
+
+        return futmap
+
+    def alter_user_scram_credentials(self, alterations, **kwargs):
+        """
+        Alter user SASL/SCRAM credentials.
+
+        :param list(UserScramCredentialAlteration) alterations: List of
+               :class:`UserScramCredentialAlteration` to apply.
+               The pair (user, mechanism) must be unique among alterations.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns None or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_alter_user_scram_credentials_request(alterations)
+
+        f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
+                                                 AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+
+        return futmap

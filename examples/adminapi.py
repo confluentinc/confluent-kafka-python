@@ -19,9 +19,12 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState)
-from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource, ConfigSource,
-                                   AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, AclOperation,
-                                   AclPermissionType)
+from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
+                                   ConfigEntry, ConfigSource, AclBinding,
+                                   AclBindingFilter, ResourceType, ResourcePatternType,
+                                   AclOperation, AclPermissionType, AlterConfigOpType,
+                                   ScramMechanism, ScramCredentialInfo,
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
 import sys
 import threading
 import logging
@@ -256,6 +259,41 @@ def example_delete_acls(a, args):
 
         except KafkaException as e:
             print("Failed to delete {}: {}".format(res, e))
+        except Exception:
+            raise
+
+
+def example_incremental_alter_configs(a, args):
+    """ Incrementally alter configs, keeping non-specified
+    configuration properties with their previous values.
+
+    Input Format : ResourceType1 ResourceName1 Key=Operation:Value;Key2=Operation2:Value2;Key3=DELETE
+    ResourceType2 ResourceName2 ...
+
+    Example: TOPIC T1 compression.type=SET:lz4;cleanup.policy=ADD:compact;
+    retention.ms=DELETE TOPIC T2 compression.type=SET:gzip ...
+    """
+    resources = []
+    for restype, resname, configs in zip(args[0::3], args[1::3], args[2::3]):
+        incremental_configs = []
+        for name, operation_and_value in [conf.split('=') for conf in configs.split(';')]:
+            if operation_and_value == "DELETE":
+                operation, value = operation_and_value, None
+            else:
+                operation, value = operation_and_value.split(':')
+            operation = AlterConfigOpType[operation]
+            incremental_configs.append(ConfigEntry(name, value,
+                                       incremental_operation=operation))
+        resources.append(ConfigResource(restype, resname,
+                                        incremental_configs=incremental_configs))
+
+    fs = a.incremental_alter_configs(resources)
+
+    # Wait for operation to finish.
+    for res, f in fs.items():
+        try:
+            f.result()  # empty, but raises exception on failure
+            print("{} configuration successfully altered".format(res))
         except Exception:
             raise
 
@@ -560,6 +598,89 @@ def example_alter_consumer_group_offsets(a, args):
             raise
 
 
+def example_describe_user_scram_credentials(a, args):
+    """
+    Describe User Scram Credentials
+    """
+    futmap = a.describe_user_scram_credentials(args)
+
+    for username, fut in futmap.items():
+        print("Username: {}".format(username))
+        try:
+            response = fut.result()
+            for scram_credential_info in response.scram_credential_infos:
+                print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                      f"Iterations: {scram_credential_info.iterations}")
+        except KafkaException as e:
+            print("    Error: {}".format(e))
+        except Exception as e:
+            print(f"    Unexpected exception: {e}")
+
+
+def example_alter_user_scram_credentials(a, args):
+    """
+    AlterUserScramCredentials
+    """
+    alterations_args = []
+    alterations = []
+    i = 0
+    op_cnt = 0
+
+    while i < len(args):
+        op = args[i]
+        if op == "UPSERT":
+            if i + 5 >= len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for alteration {op_cnt}, expected 5, got {len(args) - i - 1}")
+            user = args[i + 1]
+            mechanism = ScramMechanism[args[i + 2]]
+            iterations = int(args[i + 3])
+            password = bytes(args[i + 4], 'utf8')
+            # if salt is an empty string,
+            # set it to None to generate it randomly.
+            salt = args[i + 5]
+            if not salt:
+                salt = None
+            else:
+                salt = bytes(salt, 'utf8')
+            alterations_args.append([op, user, mechanism, iterations,
+                                     iterations, password, salt])
+            i += 6
+        elif op == "DELETE":
+            if i + 2 >= len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for alteration {op_cnt}, expected 2, got {len(args) - i - 1}")
+            user = args[i + 1]
+            mechanism = ScramMechanism[args[i + 2]]
+            alterations_args.append([op, user, mechanism])
+            i += 3
+        else:
+            raise ValueError(f"Invalid alteration {op}, must be UPSERT or DELETE")
+        op_cnt += 1
+
+    for alteration_arg in alterations_args:
+        op = alteration_arg[0]
+        if op == "UPSERT":
+            [_, user, mechanism, iterations,
+             iterations, password, salt] = alteration_arg
+            scram_credential_info = ScramCredentialInfo(mechanism, iterations)
+            upsertion = UserScramCredentialUpsertion(user, scram_credential_info,
+                                                     password, salt)
+            alterations.append(upsertion)
+        elif op == "DELETE":
+            [_, user, mechanism] = alteration_arg
+            deletion = UserScramCredentialDeletion(user, mechanism)
+            alterations.append(deletion)
+
+    futmap = a.alter_user_scram_credentials(alterations)
+    for username, fut in futmap.items():
+        try:
+            fut.result()
+            print("{}: Success".format(username))
+        except KafkaException as e:
+            print("{}: Error: {}".format(username, e))
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -570,6 +691,9 @@ if __name__ == '__main__':
         sys.stderr.write(' describe_configs <resource_type1> <resource_name1> <resource2> <resource_name2> ..\n')
         sys.stderr.write(' alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
+        sys.stderr.write(' incremental_alter_configs <resource_type1> <resource_name1> ' +
+                         '<config1=op1:val1;config2=op2:val2;config3=DELETE> ' +
+                         '<resource_type2> <resource_name2> <config1=op1:..> ..\n')
         sys.stderr.write(' delta_alter_configs <resource_type1> <resource_name1> ' +
                          '<config=val,config2=val2> <resource_type2> <resource_name2> <config..> ..\n')
         sys.stderr.write(' create_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
@@ -586,7 +710,11 @@ if __name__ == '__main__':
         sys.stderr.write(
             ' alter_consumer_group_offsets <group> <topic1> <partition1> <offset1> ' +
             '<topic2> <partition2> <offset2> ..\n')
-
+        sys.stderr.write(' describe_user_scram_credentials [<user1> <user2> ..]\n')
+        sys.stderr.write(' alter_user_scram_credentials UPSERT <user1> <mechanism1> ' +
+                         '<iterations1> <password1> <salt1> ' +
+                         '[UPSERT <user2> <mechanism2> <iterations2> ' +
+                         ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -601,6 +729,7 @@ if __name__ == '__main__':
               'create_partitions': example_create_partitions,
               'describe_configs': example_describe_configs,
               'alter_configs': example_alter_configs,
+              'incremental_alter_configs': example_incremental_alter_configs,
               'delta_alter_configs': example_delta_alter_configs,
               'create_acls': example_create_acls,
               'describe_acls': example_describe_acls,
@@ -610,7 +739,9 @@ if __name__ == '__main__':
               'describe_consumer_groups': example_describe_consumer_groups,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
-              'alter_consumer_group_offsets': example_alter_consumer_group_offsets}
+              'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
+              'describe_user_scram_credentials': example_describe_user_scram_credentials,
+              'alter_user_scram_credentials': example_alter_user_scram_credentials}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
