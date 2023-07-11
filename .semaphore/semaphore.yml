@@ -106,9 +106,11 @@ blocks:
       prologue:
         commands:
           - cache restore msys2-x64
+          - Get-ChildItem -Recurse $pwd          
           - ".\\tools\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+          - Get-ChildItem -Recurse $pwd
           - cache delete msys2-x64
           - cache store msys2-x64 c:/msys64
       jobs:
