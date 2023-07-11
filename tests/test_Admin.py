@@ -2,8 +2,8 @@
 import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
-    ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
+    ConfigResource, ConfigEntry, AclBinding, AclBindingFilter, ResourceType, \
+    ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -314,6 +314,142 @@ def test_alter_configs_api():
                           ConfigResource(ResourceType.GROUP,
                                          "mygroup")],
                          request_timeout=0.123)
+
+    with pytest.raises(KafkaException):
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+
+def verify_incremental_alter_configs_api_call(a,
+                                              restype, resname,
+                                              incremental_configs,
+                                              error,
+                                              constructor_param=True):
+    if constructor_param:
+        resources = [ConfigResource(restype, resname,
+                                    incremental_configs=incremental_configs)]
+    else:
+        resources = [ConfigResource(restype, resname)]
+        for config_entry in incremental_configs:
+            resources[0].add_incremental_config(config_entry)
+
+    if error:
+        with pytest.raises(error):
+            fs = a.incremental_alter_configs(resources)
+            for f in concurrent.futures.as_completed(iter(fs.values())):
+                f.result(timeout=1)
+    else:
+        fs = a.incremental_alter_configs(resources)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+
+def test_incremental_alter_configs_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs(None)
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs("something")
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs([])
+
+    for use_constructor in [True, False]:
+        # incremental_operation not of type AlterConfigOpType
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry("advertised.listeners",
+                                                                  "host1",
+                                                                  incremental_operation="NEW_OPERATION")
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+        # None name
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(None,
+                                                                  "host1",
+                                                                  incremental_operation=AlterConfigOpType.APPEND)
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+
+        # name type
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(5,
+                                                                  "host1",
+                                                                  incremental_operation=AlterConfigOpType.APPEND)
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+
+        # Empty list
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [],
+                                                  ValueError,
+                                                  use_constructor)
+
+        # String instead of ConfigEntry list, treated as an iterable
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  "something",
+                                                  TypeError,
+                                                  use_constructor)
+
+        # Duplicate ConfigEntry found
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value="host1:9092",
+                                                          incremental_operation=AlterConfigOpType.APPEND
+                                                      ),
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value=None,
+                                                          incremental_operation=AlterConfigOpType.DELETE
+                                                      )
+                                                  ],
+                                                  KafkaException,
+                                                  use_constructor)
+
+        # Request timeout
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value="host1:9092",
+                                                          incremental_operation=AlterConfigOpType.APPEND
+                                                      ),
+                                                      ConfigEntry(
+                                                          name="background.threads",
+                                                          value=None,
+                                                          incremental_operation=AlterConfigOpType.DELETE
+                                                      )
+                                                  ],
+                                                  KafkaException,
+                                                  use_constructor)
+
+    # Positive test that times out
+    resources = [ConfigResource(ResourceType.BROKER, "1"),
+                 ConfigResource(ResourceType.TOPIC, "test2")]
+
+    resources[0].add_incremental_config(
+        ConfigEntry("advertised.listeners", "host:9092",
+                    incremental_operation=AlterConfigOpType.SUBTRACT))
+    resources[0].add_incremental_config(
+        ConfigEntry("background.threads", None,
+                    incremental_operation=AlterConfigOpType.DELETE))
+    resources[1].add_incremental_config(
+        ConfigEntry("cleanup.policy", "compact",
+                    incremental_operation=AlterConfigOpType.APPEND))
+    resources[1].add_incremental_config(
+        ConfigEntry("retention.ms", "10000",
+                    incremental_operation=AlterConfigOpType.SET))
+
+    fs = a.incremental_alter_configs(resources)
 
     with pytest.raises(KafkaException):
         for f in concurrent.futures.as_completed(iter(fs.values())):
