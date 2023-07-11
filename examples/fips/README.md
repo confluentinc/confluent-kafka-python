@@ -4,12 +4,14 @@ We tested FIPS compliance for the client using OpenSSL 3.0. To use the client in
 
 ## Communication between client and Kafka cluster
 
-### Use statically linked OpenSSL with librdkafka shared library (prebuilt python wheels or librdkafka library)
+### Installing client using OpenSSL and librdkafka bundled in wheels
 
-If you install this client through prebuilt wheels using `pip install confluent_kafka` or from source using `pip install confluent_kafka --no-binary :all:` with prebuilt librdkafka, OpenSSL 3.0 is already statically linked with the librdkafka shared library. To enable this client to communicate with the Kafka cluster using the OpenSSL FIPS provider and FIPS-approved algorithms, you must enable the FIPS provider. You can find steps to enable the FIPS provider in section [Enabling FIPS provider](#enabling-fips-provider).
+If you install this client through prebuilt wheels using `pip install confluent_kafka`, OpenSSL 3.0 is already statically linked with the librdkafka shared library. To enable this client to communicate with the Kafka cluster using the OpenSSL FIPS provider and FIPS-approved algorithms, you must enable the FIPS provider. You can find steps to enable the FIPS provider in section [Enabling FIPS provider](#enabling-fips-provider).
+
+You should follow the same above steps if you install this client from the source using `pip install confluent_kafka --no-binary :all:` with prebuilt librdkafka in which OpenSSL is statically linked
 
 
-### Use system installed OpenSSL version with librdkafka shared library (installing librdkafka from source)
+### Installing client using system OpenSSL with librdkafka shared library
 
 When you build the librdkafka from source, librdkafka dynamically links to the OpenSSL present in the system (if static linking is not used explicitly while building). If the installed OpenSSL is already working in FIPS mode, then you can directly jump to the section [Client configuration to enable FIPS provider](#client-configuration-to-enable-fips-provider) and enable `fips` provider. If you don't have OpenSSL working in FIPS mode, use the steps mentioned in the section [Enabling FIPS provider](#enabling-fips-provider) to make OpenSSL in your system FIPS compliant and then enable the `fips` provider. Once you have OpenSSL working in FIPS mode and the `fips` provider enabled, librdkafka and python client will use FIPS approved algorithms for the communication between client and Kafka Cluster using the producer, consumer or admin client.
 
