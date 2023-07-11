@@ -3,7 +3,10 @@ import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ConfigResource, ConfigEntry, AclBinding, AclBindingFilter, ResourceType, \
-    ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType
+    ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
+    ScramCredentialInfo, ScramMechanism, \
+    UserScramCredentialAlteration, UserScramCredentialDeletion, \
+    UserScramCredentialUpsertion
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -833,3 +836,154 @@ def test_alter_consumer_group_offsets_api():
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
+
+def test_describe_user_scram_credentials_api():
+    # Describe User Scram API
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials(10)
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials(None)
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials([None])
+    with pytest.raises(ValueError):
+        a.describe_user_scram_credentials([""])
+    with pytest.raises(KafkaException) as ex:
+        futmap = a.describe_user_scram_credentials(["sam", "sam"])
+        futmap["sam"].result(timeout=3)
+        assert "Duplicate users" in str(ex.value)
+
+    fs = a.describe_user_scram_credentials(["user1", "user2"])
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+
+def test_alter_user_scram_credentials_api():
+    # Alter User Scram API
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
+    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"salt")
+    upsertion_without_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password")
+    upsertion_with_none_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", None)
+    deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
+    alterations = [upsertion, upsertion_without_salt, upsertion_with_none_salt, deletion]
+
+    fs = a.alter_user_scram_credentials(alterations)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    # Request type tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(None)
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(234)
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials("test")
+
+    # Individual request tests
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([None])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(["test"])
+
+    # User tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration(None)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration(123)])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration("")])
+
+    # Upsertion request user test
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+
+    # Upsertion password user test
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     scram_credential_info,
+                                                                     "password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
+
+    # Upsertion salt user test
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     "salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)])
+
+    # Upsertion scram_credential_info tests
+    sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
+    sci_incorrect_iteration_type = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, "string type")
+    sci_negative_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, -1)
+    sci_zero_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 0)
+
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", None, b"password", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_incorrect_mechanism_type,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_incorrect_iteration_type,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_negative_iteration,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")])
+
+    # Deletion user tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion(None, ScramMechanism.SCRAM_SHA_256)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion(123, ScramMechanism.SCRAM_SHA_256)])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("", ScramMechanism.SCRAM_SHA_256)])
+
+    # Deletion mechanism tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", None)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
