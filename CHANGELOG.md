@@ -6,6 +6,8 @@ v2.2.0 is a feature release with the following features, fixes and enhancements:
 
  - [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
    IncrementalAlterConfigs API (#1517).
+ - [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1575).
 
 confluent-kafka-python is based on librdkafka v2.2.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
