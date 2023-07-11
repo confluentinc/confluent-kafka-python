@@ -578,6 +578,12 @@ static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
         PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SUBTRACT", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT);
 }
 
+static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN", RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256", RD_KAFKA_SCRAM_MECHANISM_SHA_256);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -594,4 +600,5 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
         AdminTypes_AddObjectsAlterConfigOpType(m);
+        AdminTypes_AddObjectsScramMechanismType(m);
 }
