@@ -977,8 +977,8 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
 
-        f, futmap = AdminClient._make_futures(users, None,
-                                              AdminClient._make_user_scram_credentials_result)
+        f, futmap = AdminClient._make_futures_v2(users, None,
+                                                 AdminClient._make_user_scram_credentials_result)
 
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
 
@@ -1006,8 +1006,8 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_alter_user_scram_credentials_request(alterations)
 
-        f, futmap = AdminClient._make_futures(set([alteration.user for alteration in alterations]), None,
-                                              AdminClient._make_user_scram_credentials_result)
+        f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
+                                                 AdminClient._make_user_scram_credentials_result)
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
