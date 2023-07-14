@@ -3,6 +3,8 @@ name: Test on PR or create and upload wheels on tag.
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+execution_time_limit:
+  hours: 3
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
