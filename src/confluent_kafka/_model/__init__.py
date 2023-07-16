@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import List, Optional
 from .. import cimpl
 
 
@@ -34,7 +35,7 @@ class Node:
     rack: str
         The rack for this node.
     """
-    def __init__(self, id, host, port, rack=None):
+    def __init__(self, id: int, host: str, port: int, rack: Optional[str]=None):
         self.id = id
         self.id_string = str(id)
         self.host = host
@@ -55,7 +56,7 @@ class ConsumerGroupTopicPartitions:
     topic_partitions: list(TopicPartition)
         List of topic partitions information.
     """
-    def __init__(self, group_id, topic_partitions=None):
+    def __init__(self, group_id: str, topic_partitions: Optional[List[cimpl.TopicPartition]]=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions
 
@@ -85,7 +86,7 @@ class ConsumerGroupState(Enum):
     DEAD = cimpl.CONSUMER_GROUP_STATE_DEAD
     EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, self.__class__):
             return NotImplemented
         return self.value < other.value

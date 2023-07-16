@@ -15,8 +15,12 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Type, TypeVar, Union, cast
+from typing_extensions import TypeAlias
 import warnings
 import concurrent.futures
+
+from concurrent.futures import Future
 
 # Unused imports are keeped to be accessible using this public module
 from ._config import (ConfigSource,  # noqa: F401
@@ -73,10 +77,7 @@ from confluent_kafka import ConsumerGroupState \
     as _ConsumerGroupState
 
 
-try:
-    string_type = basestring
-except NameError:
-    string_type = str
+import six
 
 
 class AdminClient(_AdminClientImpl):
@@ -164,14 +165,12 @@ class AdminClient(_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
-    _acl_type = TypeVar("_acl_type", bound=AclBinding)
-
     @staticmethod
-    def _make_list_consumer_groups_result(f, futmap):
+    def _make_list_consumer_groups_result(f: Future, futmap: Dict[str, Future]) -> None:
         pass
 
     @staticmethod
-    def _make_consumer_groups_result(f, futmap):
+    def _make_consumer_groups_result(f: Future, futmap: Dict[str, Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         """
@@ -196,7 +195,7 @@ class AdminClient(_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_consumer_group_offsets_result(f, futmap):
+    def _make_consumer_group_offsets_result(f: Future, futmap: Dict[str, Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
@@ -222,62 +221,7 @@ class AdminClient(_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_list_consumer_groups_result(f, futmap):
-        pass
-
-    @staticmethod
-    def _make_consumer_groups_result(f, futmap):
-        """
-        Map per-group results to per-group futures in futmap.
-        """
-        try:
-
-            results = f.result()
-            futmap_values = list(futmap.values())
-            len_results = len(results)
-            len_futures = len(futmap_values)
-            if len_results != len_futures:
-                raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
-            for i, result in enumerate(results):
-                fut = futmap_values[i]
-                if isinstance(result, KafkaError):
-                    fut.set_exception(KafkaException(result))
-                else:
-                    fut.set_result(result)
-        except Exception as e:
-            # Request-level exception, raise the same for all groups
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
-    def _make_consumer_group_offsets_result(f, futmap):
-        """
-        Map per-group results to per-group futures in futmap.
-        The result value of each (successful) future is ConsumerGroupTopicPartitions.
-        """
-        try:
-
-            results = f.result()
-            futmap_values = list(futmap.values())
-            len_results = len(results)
-            len_futures = len(futmap_values)
-            if len_results != len_futures:
-                raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
-            for i, result in enumerate(results):
-                fut = futmap_values[i]
-                if isinstance(result, KafkaError):
-                    fut.set_exception(KafkaException(result))
-                else:
-                    fut.set_result(result)
-        except Exception as e:
-            # Request-level exception, raise the same for all groups
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
-    def _make_acls_result(f, futmap):
+    def _make_acls_result(f: Future, futmap: Dict[AclBinding, Future]) -> None:
         """
         Map create ACL binding results to corresponding futures in futmap.
         For create_acls the result value of each (successful) future is None.
@@ -303,7 +247,7 @@ class AdminClient(_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_user_scram_credentials_result(f, futmap):
+    def _make_user_scram_credentials_result(f: Future, futmap: Dict[str, Future]) -> None: 
         try:
             results = f.result()
             len_results = len(results)
@@ -325,8 +269,8 @@ class AdminClient(_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _create_future():
-        f = concurrent.futures.Future()
+    def _create_future() -> Future:
+        f: Future = concurrent.futures.Future()
         if not f.set_running_or_notify_cancel():
             raise RuntimeError("Future was cancelled prematurely")
         return f
@@ -356,7 +300,7 @@ class AdminClient(_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _make_futures_v2(futmap_keys, class_check, make_result_fn):
+    def _make_futures_v2(futmap_keys: Iterable[_futures_map_key], class_check: Optional[Type], make_result_fn: Callable[[Future, Dict[_futures_map_key, Future]], None]) -> Tuple[Future, Dict[_futures_map_key, Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -376,11 +320,11 @@ class AdminClient(_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _has_duplicates(items):
+    def _has_duplicates(items: Sequence[object]) -> bool:
         return len(set(items)) != len(items)
 
     @staticmethod
-    def _check_list_consumer_group_offsets_request(request):
+    def _check_list_consumer_group_offsets_request(request: List[_ConsumerGroupTopicPartitions]) -> None:
         if request is None:
             raise TypeError("request cannot be None")
         if not isinstance(request, list):
@@ -393,7 +337,7 @@ class AdminClient(_AdminClientImpl):
 
             if req.group_id is None:
                 raise TypeError("'group_id' cannot be None")
-            if not isinstance(req.group_id, string_type):
+            if not isinstance(req.group_id, six.string_types):
                 raise TypeError("'group_id' must be a string")
             if not req.group_id:
                 raise ValueError("'group_id' cannot be empty")
@@ -419,7 +363,7 @@ class AdminClient(_AdminClientImpl):
                         raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
 
     @staticmethod
-    def _check_alter_consumer_group_offsets_request(request):
+    def _check_alter_consumer_group_offsets_request(request: List[_ConsumerGroupTopicPartitions]) -> None:
         if request is None:
             raise TypeError("request cannot be None")
         if not isinstance(request, list):
@@ -431,7 +375,7 @@ class AdminClient(_AdminClientImpl):
                 raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
             if req.group_id is None:
                 raise TypeError("'group_id' cannot be None")
-            if not isinstance(req.group_id, string_type):
+            if not isinstance(req.group_id, six.string_types):
                 raise TypeError("'group_id' must be a string")
             if not req.group_id:
                 raise ValueError("'group_id' cannot be empty")
@@ -458,17 +402,17 @@ class AdminClient(_AdminClientImpl):
                         "Element of 'topic_partitions' must not have negative value for 'offset' field")
 
     @staticmethod
-    def _check_describe_user_scram_credentials_request(users):
+    def _check_describe_user_scram_credentials_request(users: List) -> None:
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
-            if not isinstance(user, string_type):
+            if not isinstance(user, six.string_types):
                 raise TypeError("Each value should be a string")
             if not user:
                 raise ValueError("'user' cannot be empty")
 
     @staticmethod
-    def _check_alter_user_scram_credentials_request(alterations):
+    def _check_alter_user_scram_credentials_request(alterations: List[UserScramCredentialAlteration]) -> None:
         if not isinstance(alterations, list):
             raise TypeError("Expected input to be list")
         if len(alterations) == 0:
@@ -478,7 +422,7 @@ class AdminClient(_AdminClientImpl):
                 raise TypeError("Expected each element of list to be subclass of UserScramCredentialAlteration")
             if alteration.user is None:
                 raise TypeError("'user' cannot be None")
-            if not isinstance(alteration.user, string_type):
+            if not isinstance(alteration.user, six.string_types):
                 raise TypeError("'user' must be a string")
             if not alteration.user:
                 raise ValueError("'user' cannot be empty")
@@ -510,7 +454,7 @@ class AdminClient(_AdminClientImpl):
                                 "to be either a UserScramCredentialUpsertion or a " +
                                 "UserScramCredentialDeletion")
 
-    def create_topics(self, new_topics, **kwargs):
+    def create_topics(self, new_topics: List[NewTopic], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Create one or more new topics.
 
@@ -695,7 +639,7 @@ class AdminClient(_AdminClientImpl):
 
         return futmap
 
-    def incremental_alter_configs(self, resources, **kwargs):
+    def incremental_alter_configs(self, resources: List[ConfigResource], **kwargs: object) -> Dict[ConfigResource, Future]:  # type: ignore[override]
         """
         Update configuration properties for the specified resources.
         Updates are incremental, i.e only the values mentioned are changed
@@ -728,7 +672,7 @@ class AdminClient(_AdminClientImpl):
 
         return futmap
 
-    def create_acls(self, acls, **kwargs):
+    def create_acls(self, acls: List[AclBinding], **kwargs: object) -> Dict[AclBinding, Future]: # type: ignore[override]
         """
         Create one or more ACL bindings.
 
@@ -825,13 +769,13 @@ class AdminClient(_AdminClientImpl):
             raise ValueError("duplicate ACL binding filters not allowed")
 
         f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter,
-                                              AdminClient._make_acls_result)
+                                              cast(Callable[[Future, Dict[AclBindingFilter, Future]], None], AdminClient._make_acls_result))
 
         super(AdminClient, self).delete_acls(acl_binding_filters, f, **kwargs)
 
         return futmap
 
-    def list_consumer_groups(self, **kwargs):
+    def list_consumer_groups(self, states:Optional[Set[_ConsumerGroupState]] = None, **kwargs: object) -> Future: # type: ignore[override]
         """
         List consumer groups.
 
@@ -849,24 +793,21 @@ class AdminClient(_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-        if "states" in kwargs:
-            states = kwargs["states"]
-            if states is not None:
-                if not isinstance(states, set):
-                    raise TypeError("'states' must be a set")
-                for state in states:
-                    if not isinstance(state, _ConsumerGroupState):
-                        raise TypeError("All elements of states must be of type ConsumerGroupState")
-                kwargs["states_int"] = [state.value for state in states]
-            kwargs.pop("states")
+        if states is not None:
+            if not isinstance(states, set):
+                raise TypeError("'states' must be a set")
+            for state in states:
+                if not isinstance(state, _ConsumerGroupState):
+                    raise TypeError("All elements of states must be of type ConsumerGroupState")
+            kwargs["states_int"] = [state.value for state in states]
 
-        f, _ = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
+        f, _ = AdminClient._make_futures(cast(List[str], []), None, AdminClient._make_list_consumer_groups_result)
 
         super(AdminClient, self).list_consumer_groups(f, **kwargs)
 
         return f
 
-    def describe_consumer_groups(self, group_ids, **kwargs):
+    def describe_consumer_groups(self, group_ids: List[str], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Describe consumer groups.
 
@@ -898,7 +839,7 @@ class AdminClient(_AdminClientImpl):
 
         return futmap
 
-    def delete_consumer_groups(self, group_ids, **kwargs):
+    def delete_consumer_groups(self, group_ids: List[str], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Delete the given consumer groups.
 
@@ -922,13 +863,13 @@ class AdminClient(_AdminClientImpl):
         if len(group_ids) == 0:
             raise ValueError("Expected at least one group to be deleted")
 
-        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
+        f, futmap = AdminClient._make_futures(group_ids, str, AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
 
-    def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
+    def list_consumer_group_offsets(self, list_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         List offset information for the consumer group and (optional) topic partition provided in the request.
 
@@ -957,14 +898,14 @@ class AdminClient(_AdminClientImpl):
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures([request.group_id for request in list_consumer_group_offsets_request],
-                                              string_type,
+                                              str,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
-    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
+    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Alter offset for the consumer group and topic partition provided in the request.
 
@@ -990,14 +931,14 @@ class AdminClient(_AdminClientImpl):
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
-                                              string_type,
+                                              str,
                                               AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
-    def set_sasl_credentials(self, username, password):
+    def set_sasl_credentials(self, username: str, password: str) -> None:
         """
         Sets the SASL credentials used for this client.
         These credentials will overwrite the old ones, and will be used the
@@ -1016,7 +957,7 @@ class AdminClient(_AdminClientImpl):
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
 
-    def describe_user_scram_credentials(self, users, **kwargs):
+    def describe_user_scram_credentials(self, users: List[str], **kwargs: object) -> Dict[str, Future]: # type: ignore[override]
         """
         Describe user SASL/SCRAM credentials.
 
@@ -1045,7 +986,7 @@ class AdminClient(_AdminClientImpl):
 
         return futmap
 
-    def alter_user_scram_credentials(self, alterations, **kwargs):
+    def alter_user_scram_credentials(self, alterations: List[UserScramCredentialAlteration], **kwargs: object) -> Dict: # type: ignore[override]
         """
         Alter user SASL/SCRAM credentials.
 

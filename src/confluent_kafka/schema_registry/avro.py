@@ -18,7 +18,7 @@
 from io import BytesIO
 from json import loads
 from struct import pack, unpack
-from typing import Any, Callable, Dict, Optional, Set, Tuple, cast
+from typing import Any, Callable, Dict, Optional, Set, Tuple, Union, cast
 from typing_extensions import Literal
 
 from fastavro import (parse_schema,
@@ -70,7 +70,7 @@ def _schema_loads(schema_str: str) -> Schema:
     return Schema(schema_str, schema_type='AVRO')
 
 
-def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
+def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient, named_schemas: Optional[Dict]=None) -> Dict:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -183,7 +183,7 @@ class AvroSerializer(Serializer):
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client: SchemaRegistryClient, schema_str: str,
+    def __init__(self, schema_registry_client: SchemaRegistryClient, schema_str: Union[str, Schema],
                  to_dict: Optional[Callable[[object, SerializationContext], Dict]]=None, conf: Optional[Dict]=None):
         if isinstance(schema_str, str):
             schema = _schema_loads(schema_str)
@@ -362,8 +362,10 @@ class AvroDeserializer(Deserializer):
         self._schema = schema
         self._registry = schema_registry_client
         self._writer_schemas: Dict[int, Schema] = {}
+        self._named_schemas: Optional[Dict]
+        self._reader_schema: Optional[Dict]
 
-        if schema:
+        if self._schema:
             schema_dict = loads(self._schema.schema_str)
             self._named_schemas = _resolve_named_schema(self._schema, schema_registry_client)
             self._reader_schema = parse_schema(schema_dict,

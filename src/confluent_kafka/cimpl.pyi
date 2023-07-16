@@ -19,12 +19,22 @@ ACL_PERMISSION_TYPE_ALLOW: int
 ACL_PERMISSION_TYPE_ANY: int
 ACL_PERMISSION_TYPE_DENY: int
 ACL_PERMISSION_TYPE_UNKNOWN: int
+ALTER_CONFIG_OP_TYPE_APPEND: int
+ALTER_CONFIG_OP_TYPE_DELETE: int
+ALTER_CONFIG_OP_TYPE_SET: int
+ALTER_CONFIG_OP_TYPE_SUBTRACT: int
 CONFIG_SOURCE_DEFAULT_CONFIG: int
 CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG: int
 CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG: int
 CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG: int
 CONFIG_SOURCE_STATIC_BROKER_CONFIG: int
 CONFIG_SOURCE_UNKNOWN_CONFIG: int
+CONSUMER_GROUP_STATE_COMPLETING_REBALANCE: int
+CONSUMER_GROUP_STATE_DEAD: int
+CONSUMER_GROUP_STATE_EMPTY: int
+CONSUMER_GROUP_STATE_PREPARING_REBALANCE: int
+CONSUMER_GROUP_STATE_STABLE: int
+CONSUMER_GROUP_STATE_UNKNOWN: int
 OFFSET_BEGINNING: int
 OFFSET_END: int
 OFFSET_INVALID: int
@@ -39,6 +49,9 @@ RESOURCE_PATTERN_PREFIXED: int
 RESOURCE_PATTERN_UNKNOWN: int
 RESOURCE_TOPIC: int
 RESOURCE_UNKNOWN: int
+SCRAM_MECHANISM_SHA_256: int
+SCRAM_MECHANISM_SHA_512: int
+SCRAM_MECHANISM_UNKNOWN: int
 TIMESTAMP_CREATE_TIME: int
 TIMESTAMP_LOG_APPEND_TIME: int
 TIMESTAMP_NOT_AVAILABLE: int
@@ -333,6 +346,15 @@ class _AdminClientImpl:
     def list_groups(self, *args: object, **kwargs: object) -> Any: ...
     def list_topics(self, *args: object, **kwargs: object) -> Any: ...
     def poll(self) -> Any: ...
+    def alter_user_scram_credentials(self, alterations: List, f: Future) -> Any: ...
+    def describe_consumer_groups(self, group_ids: List[str], f: Future, **kwargs: object) -> Any: ...
+    def list_consumer_groups(self, f: Future, **kwargs: object) -> Any: ...
+    def list_consumer_group_offsets(self, offsets: List, f: Future, **kwargs: object) -> Any: ...
+    def incremental_alter_configs(self, resources: List, f: Future, **kwargs: object) -> Any: ...
+    def delete_consumer_groups(self, group_ids: List, f: Future, **kwargs: object) -> Any: ...
+    def set_sasl_credentials(self, username: str, password: str) -> Any: ...
+    def describe_user_scram_credentials(self, users: List[str], f: Future, **kwargs: object) -> Any: ...
+    def alter_consumer_group_offsets(self, request: List, f: Future) -> Any: ...
     def __len__(self) -> Any: ...
 
 def libversion(*args: object, **kwargs: object) -> Any: ...

@@ -74,7 +74,7 @@ class ConfigEntry(object):
                  is_sensitive: bool=False,
                  is_synonym: bool=False,
                  synonyms: List[str]=[],
-                 incremental_operation=None):
+                 incremental_operation: Optional[AlterConfigOpType]=None):
         """
         This class is typically not user instantiated.
         """
@@ -131,7 +131,7 @@ class ConfigResource(object):
     Type = ResourceType
 
     def __init__(self, restype: Union[str, int, ResourceType], name: str,
-                 set_config: Optional[Dict[str, str]]=None, described_configs: Optional[object]=None, error: Optional[object]=None, incremental_configs=None):
+                 set_config: Optional[Dict[str, str]]=None, described_configs: Optional[object]=None, error: Optional[object]=None, incremental_configs: Optional[List[ConfigEntry]]=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.
@@ -168,7 +168,7 @@ class ConfigResource(object):
         else:
             self.set_config_dict = dict()
 
-        self.incremental_configs = list(incremental_configs or [])
+        self.incremental_configs = incremental_configs or []
 
         self.configs = described_configs
         self.error = error
@@ -217,7 +217,7 @@ class ConfigResource(object):
             return
         self.set_config_dict[name] = value
 
-    def add_incremental_config(self, config_entry):
+    def add_incremental_config(self, config_entry: ConfigEntry) -> None:
         """
         Add a ConfigEntry for incremental alter configs, using the
         configured incremental_operation.

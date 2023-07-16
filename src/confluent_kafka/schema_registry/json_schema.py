@@ -19,7 +19,7 @@ from io import BytesIO
 
 import json
 import struct
-from typing import Any, Callable, Dict, Optional, Set, cast
+from typing import Any, Callable, Dict, Optional, Set, Union, cast
 
 from jsonschema import validate, ValidationError, RefResolver
 
@@ -44,26 +44,7 @@ class _ContextStringIO(BytesIO):
         self.close()
 
 
-def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
-    """
-    Resolves named schemas referenced by the provided schema recursively.
-    :param schema: Schema to resolve named schemas for.
-    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
-    :param named_schemas: Dict of named schemas resolved recursively.
-    :return: named_schemas dict.
-    """
-    if named_schemas is None:
-        named_schemas = {}
-    if schema.references is not None:
-        for ref in schema.references:
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
-            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
-            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
-            named_schemas[ref.name] = referenced_schema_dict
-    return named_schemas
-
-
-def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
+def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient, named_schemas: Optional[Dict]=None) -> Dict:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -323,7 +304,7 @@ class JSONDeserializer(Deserializer):
 
     __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
 
-    def __init__(self, schema_str: str, from_dict: Optional[Callable]=None, schema_registry_client=None):
+    def __init__(self, schema_str: Union[Schema, str], from_dict: Optional[Callable]=None, schema_registry_client: Optional[SchemaRegistryClient]=None):
         self._are_references_provided = False
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
@@ -385,7 +366,7 @@ class JSONDeserializer(Deserializer):
 
             try:
                 if self._are_references_provided:
-                    named_schemas = _resolve_named_schema(self._schema, self._registry)
+                    named_schemas = _resolve_named_schema(self._schema, cast(SchemaRegistryClient, self._registry))
                     validate(instance=obj_dict,
                              schema=self._parsed_schema, resolver=RefResolver(self._parsed_schema.get('$id'),
                                                                               self._parsed_schema,

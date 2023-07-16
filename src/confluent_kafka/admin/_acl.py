@@ -108,7 +108,7 @@ class AclBinding(object):
         self.operation_int = int(self.operation.value)
         self.permission_type_int = int(self.permission_type.value)
 
-    def _convert_enums(self):
+    def _convert_enums(self) -> None:
         self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)
         self.resource_pattern_type = ConversionUtil.convert_to_enum(
             self.resource_pattern_type, ResourcePatternType)

@@ -107,7 +107,7 @@ class AvroProducer(Producer):
             else:
                 raise ValueSerializerError("Avro schema required for values")
 
-        if key is not None:            
+        if key is not None:
             if key_schema:
                 key = self._serializer.encode_record_with_schema(topic, key_schema, key, True)
             else:

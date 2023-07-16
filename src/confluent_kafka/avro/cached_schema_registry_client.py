@@ -21,13 +21,13 @@
 #
 import logging
 from turtle import pos
-from typing import Dict, Optional, Sized, Tuple, TypeVar, Union, cast
+from typing import Any, Dict, Optional, Sized, Tuple, TypeVar, Union, cast
 import warnings
 import urllib3
 import json
 from collections import defaultdict
 
-from requests import Session, utils
+from requests import Session, utils, Response
 
 from confluent_kafka.schema_registry.schema_registry_client import Schema
 
@@ -116,7 +116,7 @@ class CachedSchemaRegistryClient(object):
         if _conf_cert == [None, None]:
             s.cert = None
         else:
-            s.cert = cast(Tuple[str, str], _conf_cert) 
+            s.cert = _conf_cert
 
         s.auth = self._configure_basic_auth(self.url, conf)
         self.url = utils.urldefragauth(self.url)
@@ -124,7 +124,7 @@ class CachedSchemaRegistryClient(object):
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
         self._is_key_password_provided = not key_password
-        self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
+        self._https_session = self._make_https_session(s.cert[0] if s.cert is not None else None, s.cert[1] if s.cert is not None else None, ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
@@ -145,27 +145,26 @@ class CachedSchemaRegistryClient(object):
         if hasattr(self, '_session'):
             self._session.close()
         if hasattr(self, '_https_session'):
-            self._https_session.clear()
+            self._https_session.clear() # type: ignore[no-untyped-call]
 
     @staticmethod
-    def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
+    def _make_https_session(cert_location: Optional[str], key_location: Optional[str], ca_certs_path: Optional[str], auth: Tuple[str, str], key_password: object) -> urllib3.PoolManager:
         https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
                                             cert_file=cert_location, key_file=key_location, key_password=key_password)
-        https_session.auth = auth
+        https_session.auth = auth # type: ignore[attr-defined]
         return https_session
 
-    def _send_https_session_request(self, url, method, headers, body):
+    def _send_https_session_request(self, url: str, method: str, headers: Dict, body: Any) -> urllib3.response.HTTPResponse:
         request_headers = {'Accept': ACCEPT_HDR}
-        auth = self._https_session.auth
+        auth = self._https_session.auth # type: ignore[attr-defined]
         if body:
             body = json.dumps(body).encode('UTF-8')
             request_headers["Content-Length"] = str(len(body))
             request_headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         if auth[0] != '' and auth[1] != '':
-            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
-                                                        auth[1]))
+            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" + auth[1])) # type:ignore[no-untyped-call]
         request_headers.update(headers)
-        response = self._https_session.request(method, url, headers=request_headers, body=body)
+        response = self._https_session.request(method, url, headers=request_headers, body=body) # type:ignore[no-untyped-call]
         return response
 
     @staticmethod
@@ -187,25 +186,27 @@ class CachedSchemaRegistryClient(object):
             auth = utils.get_auth_from_url(url)
         return auth
 
+    _client_tls_ret = TypeVar("_client_tls_ret", str, None)
+
     @staticmethod
-    def _configure_client_tls(conf: Dict) -> Tuple[Optional[str], Optional[str]]:
+    def _configure_client_tls(conf: Dict) -> Tuple[_client_tls_ret, _client_tls_ret]:
         cert = cast(Optional[str], conf.pop('ssl.certificate.location', None)), cast(Optional[str], conf.pop('ssl.key.location', None))
         # Both values can be None or no values can be None
-        if bool(cert[0]) != bool(cert[1]):
+        if (cert[0] is None) != (cert[1] is None):
             raise ValueError(
                 "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
-        return cert
+        return cert # type: ignore[return-value]
 
     def _send_request(self, url: str, method: str='GET', body: Optional[Sized]=None, headers: Dict={}) -> Tuple[object, int]:
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
         if url.startswith('https') and self._is_key_password_provided:
-            response = self._send_https_session_request(url, method, headers, body)
+            http_response = self._send_https_session_request(url, method, headers, body)
             try:
-                return json.loads(response.data), response.status
+                return json.loads(http_response.data), http_response.status
             except ValueError:
-                return response.content, response.status
+                return http_response.data, http_response.status
 
         _headers = {'Accept': ACCEPT_HDR}
         if body:

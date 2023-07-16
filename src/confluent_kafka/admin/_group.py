@@ -13,8 +13,11 @@
 # limitations under the License.
 
 
+from typing import List, Optional
+
+from confluent_kafka.cimpl import KafkaException, TopicPartition
 from .._util import ConversionUtil
-from .._model import ConsumerGroupState
+from .._model import ConsumerGroupState, Node
 
 
 class ConsumerGroupListing:
@@ -31,7 +34,7 @@ class ConsumerGroupListing:
     state : ConsumerGroupState
         Current state of the consumer group.
     """
-    def __init__(self, group_id, is_simple_consumer_group, state=None):
+    def __init__(self, group_id: str, is_simple_consumer_group: bool, state: Optional[ConsumerGroupState]=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         if state is not None:
@@ -50,7 +53,7 @@ class ListConsumerGroupsResult:
     errors : list(KafkaException)
         List of errors encountered during the operation, if any.
     """
-    def __init__(self, valid=None, errors=None):
+    def __init__(self, valid: Optional[List[ConsumerGroupListing]]=None, errors: Optional[List[KafkaException]]=None):
         self.valid = valid
         self.errors = errors
 
@@ -65,7 +68,7 @@ class MemberAssignment:
     topic_partitions : list(TopicPartition)
         The topic partitions assigned to a group member.
     """
-    def __init__(self, topic_partitions=[]):
+    def __init__(self, topic_partitions: Optional[List[TopicPartition]]=None):
         self.topic_partitions = topic_partitions
         if self.topic_partitions is None:
             self.topic_partitions = []
@@ -89,7 +92,7 @@ class MemberDescription:
     group_instance_id : str
         The instance id of the group member.
     """
-    def __init__(self, member_id, client_id, host, assignment, group_instance_id=None):
+    def __init__(self, member_id: str, client_id: str, host: str, assignment: MemberAssignment, group_instance_id: Optional[str]=None):
         self.member_id = member_id
         self.client_id = client_id
         self.host = host
@@ -117,8 +120,8 @@ class ConsumerGroupDescription:
     coordinator: Node
         Consumer group coordinator.
     """
-    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 coordinator):
+    def __init__(self, group_id:str , is_simple_consumer_group: bool, members: List[MemberDescription], partition_assignor: str, state: ConsumerGroupState,
+                 coordinator: Node):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members

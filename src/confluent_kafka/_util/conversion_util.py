@@ -13,11 +13,12 @@
 # limitations under the License.
 
 from enum import Enum
+from typing import Any, Type
 
 
 class ConversionUtil:
     @staticmethod
-    def convert_to_enum(val, enum_clazz):
+    def convert_to_enum(val: object, enum_clazz: Type) -> Any:
         if type(enum_clazz) is not type(Enum):
             raise TypeError("'enum_clazz' must be of type Enum")
 
