@@ -5,7 +5,7 @@ pytest-timeout
 requests-mock
 trivup>=0.8.3
 fastavro
-avro>=1.11.1,<2
+avro>=1.11.2,<2
 jsonschema
 protobuf
 
