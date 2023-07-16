@@ -185,6 +185,13 @@ class AvroSerializer(Serializer):
 
     def __init__(self, schema_registry_client: SchemaRegistryClient, schema_str: str,
                  to_dict: Optional[Callable[[object, SerializationContext], Dict]]=None, conf: Optional[Dict]=None):
+        if isinstance(schema_str, str):
+            schema = _schema_loads(schema_str)
+        elif isinstance(schema_str, Schema):
+            schema = schema_str
+        else:
+            raise TypeError('You must pass either schema string or schema object')
+
         self._registry = schema_registry_client
         self._schema_id: Optional[int] = None
         self._known_subjects: Set[str] = set()

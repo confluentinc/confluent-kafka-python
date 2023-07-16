@@ -63,6 +63,25 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
     return named_schemas
 
 
+def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
+    """
+    Resolves named schemas referenced by the provided schema recursively.
+    :param schema: Schema to resolve named schemas for.
+    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
+    :param named_schemas: Dict of named schemas resolved recursively.
+    :return: named_schemas dict.
+    """
+    if named_schemas is None:
+        named_schemas = {}
+    if schema.references is not None:
+        for ref in schema.references:
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
+            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
+            named_schemas[ref.name] = referenced_schema_dict
+    return named_schemas
+
+
 class JSONSerializer(Serializer):
     """
     Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
