@@ -93,6 +93,9 @@ for py in 3.8 ; do
     echo "$0: Running unit tests"
     pytest
 
+    echo "$0: Running type checks"
+    mypy src/confluent_kafka
+
     fails=""
 
     echo "$0: Verifying OpenSSL"

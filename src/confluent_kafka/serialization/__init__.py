@@ -195,7 +195,7 @@ class DoubleSerializer(Serializer):
         `DoubleSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleSerializer.html>`_
 
     """  # noqa: E501
-    def __call__(self, obj: Any, ctx: Optional[SerializationContext]=None) -> Any:
+    def __call__(self, obj: Optional[float], ctx: Optional[SerializationContext]=None) -> Any:
         """
         Args:
             obj (object): object to be serialized

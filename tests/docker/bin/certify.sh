@@ -24,5 +24,6 @@ echo "Creating client cert..."
 ${PY_DOCKER_BIN}/gen-ssl-certs.sh client ${TLS}/ca-cert ${TLS}/ ${HOST} ${HOST}
 
 echo "Creating key ..."
+cp ${TLS}/client.key ${TLS}/client_with_password.key
 openssl rsa -in ${TLS}/client.key -out ${TLS}/client.key  -passin pass:${PASS}
 

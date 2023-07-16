@@ -271,3 +271,13 @@ def test_purge():
     p.purge()
     p.flush(0.002)
     assert cb_detector["on_delivery_called"]
+
+
+def test_producer_bool_value():
+    """
+    Make sure producer has a truth-y bool value
+    See https://github.com/confluentinc/confluent-kafka-python/issues/1427
+    """
+
+    p = Producer({})
+    assert bool(p)

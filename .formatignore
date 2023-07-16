@@ -1,0 +1,14 @@
+# Files to not check/fix coding style for.
+# These files are imported from other sources and we want to maintain
+# them in the original form to make future updates easier.
+docs/conf.py
+examples/protobuf/user_pb2.py
+tests/integration/schema_registry/data/proto/DependencyTestProto_pb2.py
+tests/integration/schema_registry/data/proto/NestedTestProto_pb2.py
+tests/integration/schema_registry/data/proto/PublicTestProto_pb2.py
+tests/integration/schema_registry/data/proto/SInt32Value_pb2.py
+tests/integration/schema_registry/data/proto/SInt64Value_pb2.py
+tests/integration/schema_registry/data/proto/TestProto_pb2.py
+tests/integration/schema_registry/data/proto/common_proto_pb2.py
+tests/integration/schema_registry/data/proto/exampleProtoCriteo_pb2.py
+tests/integration/schema_registry/data/proto/metadata_proto_pb2.py

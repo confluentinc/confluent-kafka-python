@@ -360,12 +360,10 @@ class SchemaRegistryClient(object):
         schema = Schema(schema_str=response['schema'],
                         schema_type=response.get('schemaType', 'AVRO'))
 
-        refs = []
-        for ref in response.get('references', []):
-            refs.append(SchemaReference(name=ref['name'],
-                                        subject=ref['subject'],
-                                        version=ref['version']))
-        schema.references = refs
+        schema.references = [
+            SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version'])
+            for ref in response.get('references', [])
+        ]
 
         self._cache.set(schema_id, schema)
 
@@ -409,7 +407,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -483,7 +486,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -514,7 +522,12 @@ class SchemaRegistryClient(object):
         return RegisteredSchema(schema_id=response['id'],
                                 schema=Schema(response['schema'],
                                               schema_type,
-                                              response.get('references', [])),
+                                              [
+                                                  SchemaReference(name=ref['name'],
+                                                                  subject=ref['subject'],
+                                                                  version=ref['version'])
+                                                  for ref in response.get('references', [])
+                                              ]),
                                 subject=response['subject'],
                                 version=response['version'])
 
@@ -665,12 +678,11 @@ class Schema(object):
     Args:
         schema_str (str): String representation of the schema.
 
-        references ([SchemaReference]): SchemaReferences used in this schema.
-
         schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
-    """
 
-    __slots__ = ['schema_str', 'references', 'schema_type', '_hash']
+        references ([SchemaReference]): SchemaReferences used in this schema.
+    """
+    __slots__ = ['schema_str', 'schema_type', 'references', '_hash']
 
     def __init__(self, schema_str: str, schema_type: str, references: List["SchemaReference"] =[]):
         super(Schema, self).__init__()

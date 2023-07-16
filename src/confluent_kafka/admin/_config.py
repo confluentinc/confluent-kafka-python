@@ -19,6 +19,32 @@ from .. import cimpl as _cimpl
 from ._resource import ResourceType
 
 
+class AlterConfigOpType(Enum):
+    """
+    Set of incremental operations that can be used with
+    incremental alter configs.
+    """
+
+    #: Set the value of the configuration entry.
+    SET = _cimpl.ALTER_CONFIG_OP_TYPE_SET
+
+    #: Revert the configuration entry
+    #: to the default value (possibly null).
+    DELETE = _cimpl.ALTER_CONFIG_OP_TYPE_DELETE
+
+    #: (For list-type configuration entries only.)
+    #:  Add the specified values
+    #:  to the current list of values
+    #:  of the configuration entry.
+    APPEND = _cimpl.ALTER_CONFIG_OP_TYPE_APPEND
+
+    #: (For list-type configuration entries only.)
+    #:  Removes the specified values
+    #:  from the current list of values
+    #:  of the configuration entry.
+    SUBTRACT = _cimpl.ALTER_CONFIG_OP_TYPE_SUBTRACT
+
+
 class ConfigSource(Enum):
     """
     Enumerates the different sources of configuration properties.
@@ -47,7 +73,8 @@ class ConfigEntry(object):
                  is_default: bool=False,
                  is_sensitive: bool=False,
                  is_synonym: bool=False,
-                 synonyms: List[str]=[]):
+                 synonyms: List[str]=[],
+                 incremental_operation=None):
         """
         This class is typically not user instantiated.
         """
@@ -56,7 +83,9 @@ class ConfigEntry(object):
         self.name = name
         """Configuration property name."""
         self.value = value
-        """Configuration value (or None if not set or is_sensitive==True)."""
+        """Configuration value (or None if not set or is_sensitive==True.
+           Ignored when altering configurations incrementally
+           if incremental_operation is DELETE)."""
         self.source = source
         """Configuration source."""
         self.is_read_only = bool(is_read_only)
@@ -72,6 +101,8 @@ class ConfigEntry(object):
         """Indicates whether the configuration property is a synonym for the parent configuration entry."""
         self.synonyms = synonyms
         """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
+        self.incremental_operation = incremental_operation
+        """The incremental operation (AlterConfigOpType) to use in incremental_alter_configs."""
 
     def __repr__(self) -> str:
         return "ConfigEntry(%s=\"%s\")" % (self.name, self.value)
@@ -100,12 +131,13 @@ class ConfigResource(object):
     Type = ResourceType
 
     def __init__(self, restype: Union[str, int, ResourceType], name: str,
-                 set_config: Optional[Dict[str, str]]=None, described_configs: Optional[object]=None, error: Optional[object]=None):
+                 set_config: Optional[Dict[str, str]]=None, described_configs: Optional[object]=None, error: Optional[object]=None, incremental_configs=None):
         """
         :param ConfigResource.Type restype: Resource type.
         :param str name: The resource name, which depends on restype.
                          For RESOURCE_BROKER, the resource name is the broker id.
         :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
+        :param list(ConfigEntry) incremental_configs: The configuration entries to alter incrementally.
         :param dict described_configs: For internal use only.
         :param KafkaError error: For internal use only.
         """
@@ -135,6 +167,8 @@ class ConfigResource(object):
             self.set_config_dict = set_config.copy()
         else:
             self.set_config_dict = dict()
+
+        self.incremental_configs = list(incremental_configs or [])
 
         self.configs = described_configs
         self.error = error
@@ -182,3 +216,12 @@ class ConfigResource(object):
         if not overwrite and name in self.set_config_dict:
             return
         self.set_config_dict[name] = value
+
+    def add_incremental_config(self, config_entry):
+        """
+        Add a ConfigEntry for incremental alter configs, using the
+        configured incremental_operation.
+
+        :param ConfigEntry config_entry: config entry to incrementally alter.
+        """
+        self.incremental_configs.append(config_entry)
