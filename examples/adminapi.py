@@ -24,7 +24,8 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion, IsolationLevel, EarliestOffsetSpec)
+from confluent_kafka import Producer
 import sys
 import threading
 import logging
@@ -680,6 +681,20 @@ def example_alter_user_scram_credentials(a, args):
         except KafkaException as e:
             print("{}: Error: {}".format(username, e))
 
+def example_list_offsets(a,args):
+    requests = {}
+    topic = "topicname"
+    topic_partition = TopicPartition(topic,0)
+    offset_spec = EarliestOffsetSpec()
+    requests[topic_partition] = offset_spec
+    futmap = a.list_offsets(requests,isolation_level = IsolationLevel.READ_UNCOMMITTED,request_timeout = 30)
+    for partition,fut in futmap.items():
+        try:
+            result = fut.result()
+            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partition,result.offset,result.timestamp))
+        except KafkaException as e:
+            print("Topicname : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
+    
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -715,6 +730,8 @@ if __name__ == '__main__':
                          '<iterations1> <password1> <salt1> ' +
                          '[UPSERT <user2> <mechanism2> <iterations2> ' +
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
+        sys.stderr.write(' list_offsets \n')
+
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -741,7 +758,8 @@ if __name__ == '__main__':
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
-              'alter_user_scram_credentials': example_alter_user_scram_credentials}
+              'alter_user_scram_credentials': example_alter_user_scram_credentials,
+              'list_offsets': example_list_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
