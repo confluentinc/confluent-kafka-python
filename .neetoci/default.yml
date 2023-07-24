@@ -1,0 +1,32 @@
+version: v1.0
+name: neetoCi
+envs:
+  - name: LIBRDKAFKA_VERSION
+    value: v2.2.0
+  - name: OS_NAME
+    value: linux
+  - name: ARCH
+    value: x64
+global_job_config:
+  setup:
+    - checkout
+    - mkdir artifacts
+  jobs:
+    - name: Build
+      commands:
+        - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+        - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+        - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+        - sem-version python 3.8
+        - python3 -m venv _venv && source _venv/bin/activate
+        - chmod u+r+x tools/source-package-verification.sh
+        - tools/source-package-verification.sh
+        - artifact pull workflow artifacts
+        - cd artifacts
+        - ls *.tgz |xargs -n1 tar -xvf
+        - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
+        - ls -la
+        - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
+        - cd ..
+        - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
+        - echo Thank you
