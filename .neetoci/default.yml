@@ -17,7 +17,7 @@ global_job_config:
         - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
         - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
         - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-        - sem-version python 3.8
+        - neetoci-version python 3.8
         - python3 -m venv _venv && source _venv/bin/activate
         - chmod u+r+x tools/source-package-verification.sh
         - tools/source-package-verification.sh
