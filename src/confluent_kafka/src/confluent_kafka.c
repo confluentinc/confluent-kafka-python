@@ -432,16 +432,16 @@ PyObject *Message_error (Message *self, PyObject *ignore) {
 	if (self->error) {
 		Py_INCREF(self->error);
 		return self->error;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_value (Message *self, PyObject *ignore) {
 	if (self->value) {
 		Py_INCREF(self->value);
 		return self->value;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 
@@ -449,38 +449,35 @@ static PyObject *Message_key (Message *self, PyObject *ignore) {
 	if (self->key) {
 		Py_INCREF(self->key);
 		return self->key;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_topic (Message *self, PyObject *ignore) {
 	if (self->topic) {
 		Py_INCREF(self->topic);
 		return self->topic;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_partition (Message *self, PyObject *ignore) {
 	if (self->partition != RD_KAFKA_PARTITION_UA)
 		return cfl_PyInt_FromInt(self->partition);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 
 static PyObject *Message_offset (Message *self, PyObject *ignore) {
 	if (self->offset >= 0)
 		return PyLong_FromLongLong(self->offset);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_leader_epoch (Message *self, PyObject *ignore) {
 	if (self->leader_epoch >= 0)
 		return cfl_PyInt_FromInt(self->leader_epoch);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 
@@ -516,8 +513,8 @@ static PyObject *Message_headers (Message *self, PyObject *ignore) {
 }
 
 static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
-   if (self->headers)
-        Py_DECREF(self->headers);
+   Py_XDECREF(self->headers);
+
    self->headers = new_headers;
    Py_INCREF(self->headers);
 
@@ -525,8 +522,8 @@ static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
 }
 
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
-   if (self->value)
-        Py_DECREF(self->value);
+   Py_XDECREF(self->value);
+
    self->value = new_val;
    Py_INCREF(self->value);
 
@@ -534,8 +531,8 @@ static PyObject *Message_set_value (Message *self, PyObject *new_val) {
 }
 
 static PyObject *Message_set_key (Message *self, PyObject *new_key) {
-   if (self->key)
-        Py_DECREF(self->key);
+   Py_XDECREF(self->key);
+   
    self->key = new_key;
    Py_INCREF(self->key);
 
@@ -653,26 +650,11 @@ static PyMethodDef Message_methods[] = {
 };
 
 static int Message_clear (Message *self) {
-	if (self->topic) {
-		Py_DECREF(self->topic);
-		self->topic = NULL;
-	}
-	if (self->value) {
-		Py_DECREF(self->value);
-		self->value = NULL;
-	}
-	if (self->key) {
-		Py_DECREF(self->key);
-		self->key = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->headers) {
-		Py_DECREF(self->headers);
-		self->headers = NULL;
-	}
+	Py_CLEAR(self->topic);
+	Py_CLEAR(self->value);
+	Py_CLEAR(self->key);
+	Py_CLEAR(self->error);
+	Py_CLEAR(self->headers);
 #ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
