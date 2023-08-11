@@ -25,11 +25,8 @@ from collections import deque
 from google.protobuf.message import DecodeError
 from google.protobuf.message_factory import MessageFactory
 
-from . import (_MAGIC_BYTE,
-               reference_subject_name_strategy,
-               topic_subject_name_strategy,)
-from .schema_registry_client import (Schema,
-                                     SchemaReference)
+from confluent_kafka.schema_registry import (_MAGIC_BYTE, reference_subject_name_strategy, topic_subject_name_strategy,)
+from confluent_kafka.schema_registry.schema_registry_client import (Schema, SchemaReference)
 from confluent_kafka.serialization import SerializationError
 
 # Converts an int to bytes (opposite of ord)
@@ -123,6 +120,7 @@ def _schema_to_str(proto_file):
 
     Returns:
         str: Base64 encoded FileDescriptor
+<<<<<<< Updated upstream
 
     """
     return base64.standard_b64encode(proto_file.serialized_pb).decode('ascii')
@@ -135,6 +133,14 @@ class ProtobufSerializer(object):
 
     ProtobufSerializer configuration properties:
 
+=======
+    """
+    return base64.standard_b64encode(proto_file.serialized_pb).decode('ascii')
+
+#class ProtobufSerializer(object):
+class ProtoPyRegister(object):
+    """
+>>>>>>> Stashed changes
     +-------------------------------------+----------+------------------------------------------------------+
     | Property Name                       | Type     | Description                                          |
     +=====================================+==========+======================================================+
@@ -329,10 +335,10 @@ class ProtobufSerializer(object):
             buf.write(_bytes(0x00))
             return
 
-        ProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
+        ProtoPyRegister._write_varint(buf, len(ints), zigzag=zigzag)
 
         for value in ints:
-            ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
+            ProtoPyRegister._write_varint(buf, value, zigzag=zigzag)
 
     def _resolve_dependencies(self, ctx, file_desc):
         """
@@ -340,16 +346,28 @@ class ProtobufSerializer(object):
 
         Args:
             ctx (SerializationContext): Serialization context.
-
             file_desc (FileDescriptor): file descriptor to traverse.
+<<<<<<< Updated upstream
 
         """
+=======
+        """
+        #
+        #print("Resolving " + file_desc.name)
+        #
+>>>>>>> Stashed changes
         schema_refs = []
         for dep in file_desc.dependencies:
-            if self._skip_known_types and dep.name.startswith("google/protobuf/"):
-                continue
+            #print("Iterating " + dep.name)
+            if self._skip_known_types and dep.name.startswith("validate/validate.proto"): continue
+            if self._skip_known_types and dep.name.startswith("google/protobuf/"): continue
             dep_refs = self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
+            #
+            #print(subject)
+            #print(dep.serialized_pb)
+            #print("*" * 120)
+            #
             schema = Schema(_schema_to_str(dep),
                             references=dep_refs,
                             schema_type='PROTOBUF')
@@ -358,9 +376,7 @@ class ProtobufSerializer(object):
 
             reference = self._registry.lookup_schema(subject, schema)
             # schema_refs are per file descriptor
-            schema_refs.append(SchemaReference(dep.name,
-                                               subject,
-                                               reference.version))
+            schema_refs.append(SchemaReference(dep.name, subject, reference.version))
         return schema_refs
 
     def __call__(self, message_type, ctx):
@@ -382,7 +398,10 @@ class ProtobufSerializer(object):
 
         Returns:
             bytes: Confluent Schema Registry formatted Protobuf bytes
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
         """
         if message_type is None:
             return None
@@ -423,6 +442,7 @@ class ProtobufSerializer(object):
             fo.write(message_type.SerializeToString())
             return fo.getvalue()
 
+<<<<<<< Updated upstream
 
 class ProtobufDeserializer(object):
     """
@@ -617,3 +637,5 @@ class ProtobufDeserializer(object):
                 raise SerializationError(str(e))
 
             return msg
+=======
+>>>>>>> Stashed changes
