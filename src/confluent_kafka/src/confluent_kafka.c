@@ -310,7 +310,7 @@ static PyTypeObject KafkaErrorType = {
 	"  - Exceptions\n"
         "\n"
         "Args:\n"
-        "  error_code (KafkaError): Error code indicating the type of error.\n"
+        "  error (KafkaError): Error code indicating the type of error.\n"
         "\n"
         "  reason (str): Alternative message to describe the error.\n"
         "\n"
@@ -476,6 +476,13 @@ static PyObject *Message_offset (Message *self, PyObject *ignore) {
 		Py_RETURN_NONE;
 }
 
+static PyObject *Message_leader_epoch (Message *self, PyObject *ignore) {
+	if (self->leader_epoch >= 0)
+		return cfl_PyInt_FromInt(self->leader_epoch);
+	else
+		Py_RETURN_NONE;
+}
+
 
 static PyObject *Message_timestamp (Message *self, PyObject *ignore) {
 	return Py_BuildValue("iL",
@@ -568,6 +575,11 @@ static PyMethodDef Message_methods[] = {
 	},
 	{ "offset", (PyCFunction)Message_offset, METH_NOARGS,
 	  "  :returns: message offset or None if not available.\n"
+	  "  :rtype: int or None\n"
+	  "\n"
+	},
+        { "leader_epoch", (PyCFunction)Message_leader_epoch, METH_NOARGS,
+	  "  :returns: message offset leader epoch or None if not available.\n"
 	  "  :rtype: int or None\n"
 	  "\n"
 	},
@@ -743,7 +755,7 @@ PyTypeObject MessageType = {
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
 	0,		           /* tp_iternext */
-	Message_methods,       /* tp_methods */
+	Message_methods,           /* tp_methods */
 	0,                         /* tp_members */
 	0,                         /* tp_getset */
 	0,                         /* tp_base */
@@ -784,6 +796,7 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	self->partition = rkm->partition;
 	self->offset = rkm->offset;
+        self->leader_epoch = rd_kafka_message_leader_epoch(rkm);
 
 	self->timestamp = rd_kafka_message_timestamp(rkm, &self->tstype);
 
@@ -825,11 +838,16 @@ static int TopicPartition_clear (TopicPartition *self) {
 
 static void TopicPartition_setup (TopicPartition *self, const char *topic,
 				  int partition, long long offset,
+                                  int32_t leader_epoch,
 				  const char *metadata,
 				  rd_kafka_resp_err_t err) {
 	self->topic = strdup(topic);
 	self->partition = partition;
 	self->offset = offset;
+
+        if (leader_epoch < 0)
+                leader_epoch = -1;
+        self->leader_epoch = leader_epoch;
 
 	if (metadata != NULL) {
 		self->metadata = strdup(metadata);
@@ -854,6 +872,7 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 				      PyObject *kwargs) {
 	const char *topic;
 	int partition = RD_KAFKA_PARTITION_UA;
+        int32_t leader_epoch = -1;
 	long long offset = RD_KAFKA_OFFSET_INVALID;
 	const char *metadata = NULL;
 
@@ -861,16 +880,19 @@ static int TopicPartition_init (PyObject *self, PyObject *args,
 			       "partition",
 			       "offset",
 			       "metadata",
+                               "leader_epoch",
 			       NULL };
 
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLs", kws,
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|iLsi", kws,
 					 &topic, &partition, &offset,
-					 &metadata)) {
+					 &metadata,
+                                         &leader_epoch)) {
 		return -1;
 	}
 
 	TopicPartition_setup((TopicPartition *)self,
-			     topic, partition, offset, metadata, 0);
+			     topic, partition, offset,
+                             leader_epoch, metadata, 0);
 	return 0;
 }
 
@@ -888,6 +910,13 @@ static int TopicPartition_traverse (TopicPartition *self,
 	if (self->error)
 		Py_VISIT(self->error);
 	return 0;
+}
+
+static PyObject *TopicPartition_get_leader_epoch (TopicPartition *tp, void *closure) {
+        if (tp->leader_epoch >= 0) {
+                return cfl_PyInt_FromInt(tp->leader_epoch);
+        }
+        Py_RETURN_NONE;
 }
 
 
@@ -913,6 +942,20 @@ static PyMemberDef TopicPartition_members[] = {
         { NULL }
 };
 
+static PyGetSetDef TopicPartition_getters_and_setters[] = {
+        {
+          /* name */
+          "leader_epoch",
+          (getter) TopicPartition_get_leader_epoch,
+          NULL,
+          /* doc */
+          ":attribute leader_epoch: Offset leader epoch (int), or None",
+          /* closure */
+          NULL
+        },
+        { NULL }
+};
+
 
 static PyObject *TopicPartition_str0 (TopicPartition *self) {
         PyObject *errstr = NULL;
@@ -920,8 +963,15 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
         const char *c_errstr = NULL;
 	PyObject *ret;
 	char offset_str[40];
+        char leader_epoch_str[12];
 
 	snprintf(offset_str, sizeof(offset_str), "%"CFL_PRId64"", self->offset);
+        if (self->leader_epoch >= 0)
+                snprintf(leader_epoch_str, sizeof(leader_epoch_str),
+                        "%"CFL_PRId32"", self->leader_epoch);
+        else
+                snprintf(leader_epoch_str, sizeof(leader_epoch_str),
+                        "None");
 
         if (self->error != Py_None) {
                 errstr = cfl_PyObject_Unistr(self->error);
@@ -930,9 +980,10 @@ static PyObject *TopicPartition_str0 (TopicPartition *self) {
 
 	ret = cfl_PyUnistr(
 		_FromFormat("TopicPartition{topic=%s,partition=%"CFL_PRId32
-			    ",offset=%s,error=%s}",
+			    ",offset=%s,leader_epoch=%s,error=%s}",
 			    self->topic, self->partition,
 			    offset_str,
+                            leader_epoch_str,
 			    c_errstr ? c_errstr : "None"));
         Py_XDECREF(errstr8);
         Py_XDECREF(errstr);
@@ -1024,40 +1075,44 @@ PyTypeObject TopicPartitionType = {
 	"It is typically used to provide a list of topics or partitions for "
 	"various operations, such as :py:func:`Consumer.assign()`.\n"
 	"\n"
-	".. py:function:: TopicPartition(topic, [partition], [offset])\n"
+	".. py:function:: TopicPartition(topic, [partition], [offset],"
+        " [metadata], [leader_epoch])\n"
 	"\n"
 	"  Instantiate a TopicPartition object.\n"
 	"\n"
 	"  :param string topic: Topic name\n"
 	"  :param int partition: Partition id\n"
 	"  :param int offset: Initial partition offset\n"
+        "  :param string metadata: Offset metadata\n"
+        "  :param int leader_epoch: Offset leader epoch\n"
 	"  :rtype: TopicPartition\n"
 	"\n"
 	"\n", /*tp_doc*/
 	(traverseproc)TopicPartition_traverse, /* tp_traverse */
 	(inquiry)TopicPartition_clear,       /* tp_clear */
 	(richcmpfunc)TopicPartition_richcompare, /* tp_richcompare */
-	0,		           /* tp_weaklistoffset */
-	0,		           /* tp_iter */
-	0,		           /* tp_iternext */
-	0,                         /* tp_methods */
-	TopicPartition_members,/* tp_members */
-	0,                         /* tp_getset */
-	0,                         /* tp_base */
-	0,                         /* tp_dict */
-	0,                         /* tp_descr_get */
-	0,                         /* tp_descr_set */
-	0,                         /* tp_dictoffset */
-	TopicPartition_init,       /* tp_init */
-	0,                         /* tp_alloc */
-	TopicPartition_new         /* tp_new */
+	0,		                    /* tp_weaklistoffset */
+	0,		                    /* tp_iter */
+	0,		                    /* tp_iternext */
+	0,                                  /* tp_methods */
+	TopicPartition_members,             /* tp_members */
+	TopicPartition_getters_and_setters, /* tp_getset */
+	0,                                  /* tp_base */
+	0,                                  /* tp_dict */
+	0,                                  /* tp_descr_get */
+	0,                                  /* tp_descr_set */
+	0,                                  /* tp_dictoffset */
+	TopicPartition_init,                /* tp_init */
+	0,                                  /* tp_alloc */
+	TopicPartition_new                  /* tp_new */
 };
 
 /**
  * @brief Internal factory to create a TopicPartition object.
  */
 static PyObject *TopicPartition_new0 (const char *topic, int partition,
-				      long long offset, const char *metadata,
+				      long long offset, int32_t leader_epoch,
+                                      const char *metadata,
 				      rd_kafka_resp_err_t err) {
 	TopicPartition *self;
 
@@ -1065,7 +1120,8 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 		&TopicPartitionType, NULL, NULL);
 
 	TopicPartition_setup(self, topic, partition,
-			     offset, metadata, err);
+			     offset, leader_epoch,
+                             metadata, err);
 
 	return (PyObject *)self;
 }
@@ -1090,6 +1146,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 				TopicPartition_new0(
 					rktpar->topic, rktpar->partition,
 					rktpar->offset,
+                                        rd_kafka_topic_partition_get_leader_epoch(rktpar),
 					rktpar->metadata,
 					rktpar->err));
 	}
@@ -1133,6 +1190,8 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 							   tp->topic,
 							   tp->partition);
 		rktpar->offset = tp->offset;
+                rd_kafka_topic_partition_set_leader_epoch(rktpar,
+                        tp->leader_epoch);
 		if (tp->metadata != NULL) {
 			rktpar->metadata_size = strlen(tp->metadata) + 1;
 			rktpar->metadata = strdup(tp->metadata);
@@ -1318,7 +1377,7 @@ PyObject *c_headers_to_py (rd_kafka_headers_t *headers) {
 
     while (!rd_kafka_header_get_all(headers, idx++,
                                      &header_key, &header_value, &header_value_size)) {
-            // Create one (key, value) tuple for each header
+            /* Create one (key, value) tuple for each header */
             PyObject *header_tuple = PyTuple_New(2);
             PyTuple_SetItem(header_tuple, 0,
                 cfl_PyUnistr(_FromString(header_key))
@@ -1386,6 +1445,40 @@ rd_kafka_consumer_group_metadata_t *py_to_c_cgmd (PyObject *obj) {
         }
 
         return cgmd;
+}
+
+PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
+        PyObject *node = NULL;
+        PyObject *Node_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+
+        Node_type = cfl_PyObject_lookup("confluent_kafka",
+                                        "Node");
+        if (!Node_type) {
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
+        cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
+        cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+
+        args = PyTuple_New(0);
+
+        node = PyObject_Call(Node_type, args, kwargs);
+
+        Py_DECREF(Node_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        return node;
+
+err:
+        Py_XDECREF(Node_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        return NULL;
 }
 
 
@@ -1660,7 +1753,8 @@ static void oauth_cb (rd_kafka_t *rk, const char *oauthbearer_config,
                                                   sizeof(err_msg));
         Py_DECREF(result);
         if (rd_extensions) {
-                for(int i = 0; i < rd_extensions_size; i++) {
+                int i;
+                for(i = 0; i < rd_extensions_size; i++) {
                         free(rd_extensions[i]);
                 }
                 free(rd_extensions);
@@ -2347,6 +2441,11 @@ void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
         Py_DECREF(vo);
 }
 
+void cfl_PyDict_SetLong (PyObject *dict, const char *name, long val) {
+        PyObject *vo = cfl_PyLong_FromLong(val);
+        PyDict_SetItemString(dict, name, vo);
+        Py_DECREF(vo);
+}
 
 int cfl_PyObject_SetString (PyObject *o, const char *name, const char *val) {
         PyObject *vo = cfl_PyUnistr(_FromString(val));
@@ -2542,6 +2641,55 @@ PyObject *cfl_int32_array_to_py_list (const int32_t *arr, size_t cnt) {
 /****************************************************************************
  *
  *
+ * Methods common across all types of clients.
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+
+const char set_sasl_credentials_doc[] = PyDoc_STR(
+        ".. py:function:: set_sasl_credentials(username, password)\n"
+        "\n"
+        "  Sets the SASL credentials used for this client.\n"
+        "  These credentials will overwrite the old ones, and will be used the next time the client needs to authenticate.\n"
+        "  This method will not disconnect existing broker connections that have been established with the old credentials.\n"
+        "  This method is applicable only to SASL PLAIN and SCRAM mechanisms.\n");
+
+
+PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
+        const char *username = NULL;
+        const char *password = NULL;
+        rd_kafka_error_t* error;
+        CallState cs;
+        static char *kws[] = {"username", "password", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
+                                         &username, &password)) {
+                return NULL;
+        }
+
+        CallState_begin(self, &cs);
+        error = rd_kafka_sasl_set_credentials(self->rk, username, password);
+
+        if (!CallState_end(self, &cs)) {
+                if (error) /* Ignore error in favour of callstate exception */
+                        rd_kafka_error_destroy(error);
+                return NULL;
+        }
+
+        if (error) {
+                cfl_PyErr_from_error_destroy(error);
+                return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
+
+
+/****************************************************************************
+ *
+ *
  * Base
  *
  *
@@ -2651,7 +2799,7 @@ static char *KafkaError_add_errs (PyObject *dict, const char *origdoc) {
 
 	_PRINT("\n");
 
-	return doc; // FIXME: leak
+	return doc; /* FIXME: leak */
 }
 
 
@@ -2669,7 +2817,11 @@ static struct PyModuleDef cimpl_moduledef = {
 static PyObject *_init_cimpl (void) {
 	PyObject *m;
 
+/* PyEval_InitThreads became deprecated in Python 3.9 and will be removed in Python 3.11.
+ * Prior to Python 3.7, this call was required to initialize the GIL. */
+#if PY_VERSION_HEX < 0x03090000
         PyEval_InitThreads();
+#endif
 
 	if (PyType_Ready(&KafkaErrorType) < 0)
 		return NULL;

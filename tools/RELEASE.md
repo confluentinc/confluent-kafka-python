@@ -8,10 +8,10 @@ confluent-kafka-python uses semver versioning and loosely follows
 librdkafka's version, e.g. v0.11.4 for the final release and
 v0.11.4rc3 for the 3rd v0.11.4 release candidate.
 
-With the addition of prebuilt binary wheels we make use of travis-ci.org
-to build OSX, Linux and Winodws binaries which are uploaded to Confluent's
-private S3 bucket. These artifacts are downloaded by the `tools/download-s3.py` script
-and then uploaded manually to PyPi.
+With the addition of prebuilt binary wheels we make use of Semaphore CI
+to build OSX, Linux and Windows binaries which are uploaded to build's
+artifact directory. These artifacts are downloaded and then uploaded manually
+to PyPi.
 
 **Note**: Python package versions use a lowercase `rcN` suffix to indicate
           release candidates while librdkafka uses `-RCN`. The Python format
@@ -116,7 +116,7 @@ tag (e.g., v0.11.4-RC5).
 
 Change to the latest librdkafka version in the following files:
 
- * `.travis.yml`
+ * `.semaphore/semaphore.yml`
  * `examples/docker/Dockerfile.alpine`
 
 Change to the latest version of the confluent-librdkafka-plugins in (this step
@@ -126,7 +126,7 @@ is usually not necessary):
 
 Commit these changes as necessary:
 
-    $ git commit -m "librdkafka version v0.11.4-RC5" .travis.yml examples/docker/Dockerfile.alpine
+    $ git commit -m "librdkafka version v0.11.4-RC5" .semaphore/semaphore.yml examples/docker/Dockerfile.alpine
     $ git commit -m "confluent-librdkafka-plugins version v0.11.0" tools/install-interceptors.sh
 
 
@@ -183,10 +183,10 @@ be removed after the build passes.
 **TEST ITERATION**:
 
     # Repeat with new tags until all build issues are solved.
-    $ git tag v0.11.4rc1-test2
+    $ git tag v0.11.4rc1-dev2
 
     # Delete any previous test tag you've created.
-    $ git tag tag -d v0.11.4rc1-test1
+    $ git tag tag -d v0.11.4rc1-dev1
 
 
 **CANDIDATE ITERATION**:
@@ -221,8 +221,8 @@ Remove `--dry-run` when you're happy with the results.
 
 ### 5.3. Wait for CI builds to complete
 
-Monitor travis-ci builds by looking at the *tag* build at
-[travis-ci](https://travis-ci.org/confluentinc/confluent-kafka-python)
+Monitor Semaphore CI builds by looking at the *tag* build at
+[Semaphore CI](https://confluentinc.semaphoreci.com/projects/confluent-kafka-python)
 
 CI jobs are flaky and may fail temporarily. If you see a temporary build error,
 e.g., a timeout, restart the specific job.
@@ -231,18 +231,13 @@ If there are permanent errors, fix them and then go back to 5.1. to create
 and push a new test tag. Don't forget to delete your previous test tag.
 
 
-### 5.4. Download build artifacts from S3
-
-*Note*: You will need set up your AWS credentials in `~/.aws/credentials` to
-        gain access to the S3 bucket.
+### 5.4. Download build artifacts
 
 When all CI builds are successful it is time to download the resulting
-artifacts from S3 using:
+artifacts from build's Artifact directory located in another tab in the build:
 
-    $ tools/download-s3.py v0.11.4rc1  # replace with your tagged version
-
-The artifacts will be downloaded to `dl-<tag>/`.
-
+**Note:** The artifacts should be extracted in the folder `tools\dl-<tag>` for
+subsequent steps to work properly.
 
 ### 5.5. Verify packages
 

@@ -1,0 +1,14 @@
+bootstrap.servers=<add your bootstraps here>
+sasl.mechanisms=PLAIN
+security.protocol=SASL_SSL
+sasl.username=<your ccloud access key>
+sasl.password=<your ccloud secret>
+enable.idempotence=true
+debug=eos,generic,broker,security,consumer
+linger.ms=2
+compression.type=lz4
+# DataDog options/config
+datadog.api_key=<datadog api key>
+datadog.app_key=<datadog app key>
+
+
