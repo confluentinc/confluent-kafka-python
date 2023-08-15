@@ -343,6 +343,21 @@ class SchemaRegistryClient(object):
 
         return schema_id
 
+
+    def list_schemas(self):
+        """
+        List all schemas registered with the Schema Registry
+
+        Returns:
+            array(Schema): Registered schemas
+
+        Raises:
+            SchemaRegistryError: if schemas can't be found
+        """
+
+        return self._rest_client.get('schemas')
+
+
     def get_schema(self, schema_id):
         """
         Fetches the schema associated with ``schema_id`` from the

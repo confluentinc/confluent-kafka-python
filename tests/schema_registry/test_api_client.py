@@ -226,6 +226,14 @@ def test_get_subjects(mock_schema_registry):
 
     assert result == mock_schema_registry.SUBJECTS
 
+def test_get_schemas(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    result = sr.list_schemas()
+
+    assert result == mock_schema_registry.SCHEMAS
+
 
 def test_delete(mock_schema_registry):
     conf = {'url': TEST_URL}
