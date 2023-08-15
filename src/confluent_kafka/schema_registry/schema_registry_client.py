@@ -287,7 +287,7 @@ class SchemaRegistryClient(object):
 
     See Also:
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
-    """  # noqa: E501
+    """  # noqa: E501 
 
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
