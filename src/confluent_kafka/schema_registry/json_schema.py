@@ -14,14 +14,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
 from io import BytesIO
 
 import json
 import struct
 
-from jsonschema import validate, ValidationError
+from jsonschema import validate, ValidationError, RefResolver
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
@@ -34,7 +33,6 @@ from confluent_kafka.serialization import (SerializationError,
 class _ContextStringIO(BytesIO):
     """
     Wrapper to allow use of StringIO via 'with' constructs.
-
     """
 
     def __enter__(self):
@@ -45,37 +43,72 @@ class _ContextStringIO(BytesIO):
         return False
 
 
+def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
+    """
+    Resolves named schemas referenced by the provided schema recursively.
+    :param schema: Schema to resolve named schemas for.
+    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
+    :param named_schemas: Dict of named schemas resolved recursively.
+    :return: named_schemas dict.
+    """
+    if named_schemas is None:
+        named_schemas = {}
+    if schema.references is not None:
+        for ref in schema.references:
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
+            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
+            named_schemas[ref.name] = referenced_schema_dict
+    return named_schemas
+
+
 class JSONSerializer(Serializer):
     """
-    JsonSerializer serializes objects in the Confluent Schema Registry binary
-    format for JSON.
+    Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
 
-    JsonSerializer configuration properties:
+    Configuration properties:
 
-    +---------------------------+----------+--------------------------------------------------+
-    | Property Name             | Type     | Description                                      |
-    +===========================+==========+==================================================+
-    |                           |          | Registers schemas automatically if not           |
-    | ``auto.register.schemas`` | bool     | previously associated with a particular subject. |
-    |                           |          | Defaults to True.                                |
-    +---------------------------+----------+--------------------------------------------------+
-    |                           |          | Whether to use the latest subject version for    |
-    | ``use.latest.version``    | bool     | serialization.                                   |
-    |                           |          | WARNING: There is no check that the latest       |
-    |                           |          | schema is backwards compatible with the object   |
-    |                           |          | being serialized.                                |
-    |                           |          | Defaults to False.                               |
-    +-------------------------------------+----------+----------------------------------------+
-    |                           |          | Callable(SerializationContext, str) -> str       |
-    |                           |          |                                                  |
-    | ``subject.name.strategy`` | callable | Instructs the JsonSerializer on how to construct |
-    |                           |          | Schema Registry subject names.                   |
-    |                           |          | Defaults to topic_subject_name_strategy.         |
-    +---------------------------+----------+--------------------------------------------------+
+    +---------------------------+----------+----------------------------------------------------+
+    | Property Name             | Type     | Description                                        |
+    +===========================+==========+====================================================+
+    |                           |          | If True, automatically register the configured     |
+    | ``auto.register.schemas`` | bool     | schema with Confluent Schema Registry if it has    |
+    |                           |          | not previously been associated with the relevant   |
+    |                           |          | subject (determined via subject.name.strategy).    |
+    |                           |          |                                                    |
+    |                           |          | Defaults to True.                                  |
+    |                           |          |                                                    |
+    |                           |          | Raises SchemaRegistryError if the schema was not   |
+    |                           |          | registered against the subject, or could not be    |
+    |                           |          | successfully registered.                           |
+    +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Whether to normalize schemas, which will           |
+    | ``normalize.schemas``     | bool     | transform schemas to have a consistent format,     |
+    |                           |          | including ordering properties and references.      |
+    +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Whether to use the latest subject version for      |
+    | ``use.latest.version``    | bool     | serialization.                                     |
+    |                           |          |                                                    |
+    |                           |          | WARNING: There is no check that the latest         |
+    |                           |          | schema is backwards compatible with the object     |
+    |                           |          | being serialized.                                  |
+    |                           |          |                                                    |
+    |                           |          | Defaults to False.                                 |
+    +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Callable(SerializationContext, str) -> str         |
+    |                           |          |                                                    |
+    | ``subject.name.strategy`` | callable | Defines how Schema Registry subject names are      |
+    |                           |          | constructed. Standard naming strategies are        |
+    |                           |          | defined in the confluent_kafka.schema_registry     |
+    |                           |          | namespace.                                         |
+    |                           |          |                                                    |
+    |                           |          | Defaults to topic_subject_name_strategy.           |
+    +---------------------------+----------+----------------------------------------------------+
 
-    Schemas are registered to namespaces known as Subjects which define how a
-    schema may evolve over time. By default the subject name is formed by
-    concatenating the topic name with the message field separated by a hyphen.
+    Schemas are registered against subject names in Confluent Schema Registry that
+    define a scope in which the schemas can be evolved. By default, the subject name
+    is formed by concatenating the topic name with the message field (key or value)
+    separated by a hyphen.
 
     i.e. {topic name}-{message field}
 
@@ -96,16 +129,19 @@ class JSONSerializer(Serializer):
 
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
 
-    Note:
-        The ``title`` annotation, referred to as a record name
-        elsewhere in this document, is not strictly required by the JSON Schema
-        specification. It is however required by this Serializer. This
-        annotation(record name) is used to register the Schema with the Schema
-        Registry. See documentation below for additional details on Subjects
-        and schema registration.
+    Notes:
+        The ``title`` annotation, referred to elsewhere as a record name
+        is not strictly required by the JSON Schema specification. It is
+        however required by this serializer in order to register the schema
+        with Confluent Schema Registry.
+
+        Prior to serialization, all objects must first be converted to
+        a dict instance. This may be handled manually prior to calling
+        :py:func:`Producer.produce()` or by registering a `to_dict`
+        callable with JSONSerializer.
 
     Args:
-        schema_str (str): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_
+        schema_str (str, Schema): `JSON Schema definition. <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ Accepts schema as either a string or a `Schema`(Schema) instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         schema_registry_client (SchemaRegistryClient): Schema Registry
             client instance.
@@ -114,31 +150,36 @@ class JSONSerializer(Serializer):
             Converts object to a dict.
 
         conf (dict): JsonSerializer configuration.
-
     """  # noqa: E501
-    __slots__ = ['_hash', '_auto_register', '_use_latest_version', '_known_subjects', '_parsed_schema',
-                 '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', '_to_dict']
+    __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
+                 '_known_subjects', '_parsed_schema', '_registry', '_schema', '_schema_id',
+                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided']
 
-    # default configuration
     _default_conf = {'auto.register.schemas': True,
+                     'normalize.schemas': False,
                      'use.latest.version': False,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client, to_dict=None,
-                 conf=None):
+    def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
+        self._are_references_provided = False
+        if isinstance(schema_str, str):
+            self._schema = Schema(schema_str, schema_type="JSON")
+        elif isinstance(schema_str, Schema):
+            self._schema = schema_str
+            self._are_references_provided = bool(schema_str.references)
+        else:
+            raise TypeError('You must pass either str or Schema')
+
         self._registry = schema_registry_client
         self._schema_id = None
-        # Avoid calling registry if schema is known to be registered
         self._known_subjects = set()
 
         if to_dict is not None and not callable(to_dict):
-            raise ValueError("to_dict must be callable with the signature"
-                             " to_dict(object, SerializationContext)->dict")
+            raise ValueError("to_dict must be callable with the signature "
+                             "to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
 
-        # handle configuration
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -146,6 +187,10 @@ class JSONSerializer(Serializer):
         self._auto_register = conf_copy.pop('auto.register.schemas')
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
+
+        self._normalize_schemas = conf_copy.pop('normalize.schemas')
+        if not isinstance(self._normalize_schemas, bool):
+            raise ValueError("normalize.schemas must be a boolean value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -161,36 +206,33 @@ class JSONSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema_dict = json.loads(schema_str)
+        schema_dict = json.loads(self._schema.schema_str)
         schema_name = schema_dict.get('title', None)
         if schema_name is None:
             raise ValueError("Missing required JSON schema annotation title")
 
         self._schema_name = schema_name
         self._parsed_schema = schema_dict
-        self._schema = Schema(schema_str, schema_type="JSON")
 
     def __call__(self, obj, ctx):
         """
-        Serializes an object to the Confluent Schema Registry's JSON binary
-        format.
+        Serializes an object to JSON, prepending it with Confluent Schema Registry
+        framing.
 
         Args:
-            obj (object): object instance to serialize.
+            obj (object): The object instance to serialize.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
+            ctx (SerializationContext): Metadata relevant to the serialization
                 operation.
 
-        Note:
-            None objects are represented as Kafka Null.
-
         Raises:
-            SerializerError if any error occurs serializing obj
+            SerializerError if any error occurs serializing obj.
 
         Returns:
-            bytes: Confluent Schema Registry formatted JSON bytes
-
+            bytes: None if obj is None, else a byte array containing the JSON
+            serialized data with Confluent Schema Registry framing.
         """
+
         if obj is None:
             return None
 
@@ -208,10 +250,12 @@ class JSONSerializer(Serializer):
                     # a schema without a subject so we set the schema_id here to handle
                     # the initial registration.
                     self._schema_id = self._registry.register_schema(subject,
-                                                                     self._schema)
+                                                                     self._schema,
+                                                                     self._normalize_schemas)
                 else:
                     registered_schema = self._registry.lookup_schema(subject,
-                                                                     self._schema)
+                                                                     self._schema,
+                                                                     self._normalize_schemas)
                     self._schema_id = registered_schema.schema_id
             self._known_subjects.add(subject)
 
@@ -221,7 +265,14 @@ class JSONSerializer(Serializer):
             value = obj
 
         try:
-            validate(instance=value, schema=self._parsed_schema)
+            if self._are_references_provided:
+                named_schemas = _resolve_named_schema(self._schema, self._registry)
+                validate(instance=value, schema=self._parsed_schema,
+                         resolver=RefResolver(self._parsed_schema.get('$id'),
+                                              self._parsed_schema,
+                                              store=named_schemas))
+            else:
+                validate(instance=value, schema=self._parsed_schema)
         except ValidationError as ve:
             raise SerializationError(ve.message)
 
@@ -237,20 +288,36 @@ class JSONSerializer(Serializer):
 
 class JSONDeserializer(Deserializer):
     """
-    JsonDeserializer decodes bytes written in the Schema Registry
-    JSON format to an object.
+    Deserializer for JSON encoded data with Confluent Schema Registry
+    framing.
 
     Args:
-        schema_str (str): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ use for validating records.
+        schema_str (str, Schema): `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_ Accepts schema as either a string or a `Schema`(Schema) instance.  Note that string definitions cannot reference other schemas. For referencing other schemas, use a Schema instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
-            Converts dict to an instance of some object.
+            Converts a dict to a Python object instance.
 
+        schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas.
     """  # noqa: E501
-    __slots__ = ['_parsed_schema', '_from_dict']
 
-    def __init__(self, schema_str, from_dict=None):
-        self._parsed_schema = json.loads(schema_str)
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
+
+    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
+        self._are_references_provided = False
+        if isinstance(schema_str, str):
+            schema = Schema(schema_str, schema_type="JSON")
+        elif isinstance(schema_str, Schema):
+            schema = schema_str
+            self._are_references_provided = bool(schema_str.references)
+            if self._are_references_provided and schema_registry_client is None:
+                raise ValueError(
+                    """schema_registry_client must be provided if "schema_str" is a Schema instance with references""")
+        else:
+            raise TypeError('You must pass either str or Schema')
+
+        self._parsed_schema = json.loads(schema.schema_str)
+        self._schema = schema
+        self._registry = schema_registry_client
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"
@@ -258,44 +325,52 @@ class JSONDeserializer(Deserializer):
 
         self._from_dict = from_dict
 
-    def __call__(self, value, ctx):
+    def __call__(self, data, ctx):
         """
-        Deserializes Schema Registry formatted JSON to JSON object literal(dict).
+        Deserialize a JSON encoded record with Confluent Schema Registry framing to
+        a dict, or object instance according to from_dict if from_dict is specified.
 
         Args:
-            value (bytes): Confluent Schema Registry formatted JSON bytes
+            data (bytes): A JSON serialized record with Confluent Schema Regsitry framing.
 
-            ctx (SerializationContext): Metadata pertaining to the serialization
-                operation.
+            ctx (SerializationContext): Metadata relevant to the serialization operation.
 
         Returns:
-            dict: Deserialized JSON
+            A dict, or object instance according to from_dict if from_dict is specified.
 
         Raises:
-            SerializerError: If ``value`` cannot be validated by the schema
-                configured with this JsonDeserializer instance.
-
+            SerializerError: If there was an error reading the Confluent framing data, or
+               if ``data`` was not successfully validated with the configured schema.
         """
-        if value is None:
+
+        if data is None:
             return None
 
-        if len(value) <= 5:
-            raise SerializationError("Message too small. This message was not"
-                                     " produced with a Confluent"
-                                     " Schema Registry serializer")
+        if len(data) <= 5:
+            raise SerializationError("Expecting data framing of length 6 bytes or "
+                                     "more but total data size is {} bytes. This "
+                                     "message was not produced with a Confluent "
+                                     "Schema Registry serializer".format(len(data)))
 
-        with _ContextStringIO(value) as payload:
+        with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
             if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was"
-                                         " not produced with a Confluent"
-                                         " Schema Registry serializer")
+                raise SerializationError("Unexpected magic byte {}. This message "
+                                         "was not produced with a Confluent "
+                                         "Schema Registry serializer".format(magic))
 
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read())
 
             try:
-                validate(instance=obj_dict, schema=self._parsed_schema)
+                if self._are_references_provided:
+                    named_schemas = _resolve_named_schema(self._schema, self._registry)
+                    validate(instance=obj_dict,
+                             schema=self._parsed_schema, resolver=RefResolver(self._parsed_schema.get('$id'),
+                                                                              self._parsed_schema,
+                                                                              store=named_schemas))
+                else:
+                    validate(instance=obj_dict, schema=self._parsed_schema)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
 

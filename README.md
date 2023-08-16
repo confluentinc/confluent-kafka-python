@@ -3,9 +3,9 @@ Confluent's Python Client for Apache Kafka<sup>TM</sup>
 
 **confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
 [Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
-and the [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
+and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
-- **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
+- **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
 
 - **Performant** - Performance is a key design consideration. Maximum throughput is on par with the Java client for larger message sizes (where the overhead of the Python interpreter has less impact). Latency is on par with the Java client.
 
@@ -15,20 +15,24 @@ with Apache Kafka at its core. It's high priority for us that client features ke
 pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
 
 
-See the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html) for more info.
+## Usage
 
+For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
 
-Usage
-=====
+Aditional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo, which include demonstration of:
+- Exactly once data processing using the transactional API.
+- Integration with asyncio.
+- (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
+- [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
 
-Below are some examples of typical usage. For more examples, see the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo for a [Confluent Cloud](https://www.confluent.io/confluent-cloud/) example.
+Also refer to the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html).
 
+Finally, the [tests](tests) are useful as a reference for example usage.
 
-**Producer**
+### Basic Producer Example
 
 ```python
 from confluent_kafka import Producer
-
 
 p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
@@ -44,9 +48,9 @@ for data in some_data_source:
     # Trigger any available delivery report callbacks from previous produce() calls
     p.poll(0)
 
-    # Asynchronously produce a message, the delivery report callback
-    # will be triggered from poll() above, or flush() below, when the message has
-    # been successfully delivered or failed permanently.
+    # Asynchronously produce a message. The delivery report callback will
+    # be triggered from the call to poll() above, or flush() below, when the
+    # message has been successfully delivered or failed permanently.
     p.produce('mytopic', data.encode('utf-8'), callback=delivery_report)
 
 # Wait for any outstanding messages to be delivered and delivery report
@@ -54,12 +58,15 @@ for data in some_data_source:
 p.flush()
 ```
 
+For a discussion on the poll based producer API, refer to the
+[Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
+blog post.
 
-**High-level Consumer**
+
+### Basic Consumer Example
 
 ```python
 from confluent_kafka import Consumer
-
 
 c = Consumer({
     'bootstrap.servers': 'mybroker',
@@ -83,101 +90,8 @@ while True:
 c.close()
 ```
 
-**AvroProducer**
 
-```python
-from confluent_kafka import avro
-from confluent_kafka.avro import AvroProducer
-
-
-value_schema_str = """
-{
-   "namespace": "my.test",
-   "name": "value",
-   "type": "record",
-   "fields" : [
-     {
-       "name" : "name",
-       "type" : "string"
-     }
-   ]
-}
-"""
-
-key_schema_str = """
-{
-   "namespace": "my.test",
-   "name": "key",
-   "type": "record",
-   "fields" : [
-     {
-       "name" : "name",
-       "type" : "string"
-     }
-   ]
-}
-"""
-
-value_schema = avro.loads(value_schema_str)
-key_schema = avro.loads(key_schema_str)
-value = {"name": "Value"}
-key = {"name": "Key"}
-
-
-def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
-    if err is not None:
-        print('Message delivery failed: {}'.format(err))
-    else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
-
-
-avroProducer = AvroProducer({
-    'bootstrap.servers': 'mybroker,mybroker2',
-    'on_delivery': delivery_report,
-    'schema.registry.url': 'http://schema_registry_host:port'
-    }, default_key_schema=key_schema, default_value_schema=value_schema)
-
-avroProducer.produce(topic='my_topic', value=value, key=key)
-avroProducer.flush()
-```
-
-**AvroConsumer**
-
-```python
-from confluent_kafka.avro import AvroConsumer
-from confluent_kafka.avro.serializer import SerializerError
-
-
-c = AvroConsumer({
-    'bootstrap.servers': 'mybroker,mybroker2',
-    'group.id': 'groupid',
-    'schema.registry.url': 'http://127.0.0.1:8081'})
-
-c.subscribe(['my_topic'])
-
-while True:
-    try:
-        msg = c.poll(10)
-
-    except SerializerError as e:
-        print("Message deserialization failed for {}: {}".format(msg, e))
-        break
-
-    if msg is None:
-        continue
-
-    if msg.error():
-        print("AvroConsumer error: {}".format(msg.error()))
-        continue
-
-    print(msg.value())
-
-c.close()
-```
-
-**AdminClient**
+### Basic AdminClient Example
 
 Create topics:
 
@@ -203,15 +117,12 @@ for topic, f in fs.items():
 ```
 
 
-
-Thread Safety
--------------
+## Thread Safety
 
 The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 
-Install
-=======
+## Install
 
 **Install self-contained binary wheels**
 
@@ -220,24 +131,16 @@ Install
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
-          confluent-kafka  using the command in the "Install from
-          source from PyPi" section below.
+          confluent-kafka using the instructions in the
+          "Install from source" section below.
 
-**Install AvroProducer and AvroConsumer**
+**Install from source**
 
-    $ pip install "confluent-kafka[avro]"
-
-**Install from source from PyPi**
-*(requires librdkafka + dependencies to be installed separately)*:
-
-    $ pip install --no-binary :all: confluent-kafka
+For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
 
-For source install, see *Prerequisites* below.
+## Broker Compatibility
 
-
-Broker Compatibility
-====================
 The Python client (as well as the underlying C library librdkafka) supports
 all broker versions &gt;= 0.8.
 But due to the nature of the Kafka protocol in broker versions 0.8 and 0.9 it
@@ -259,8 +162,8 @@ More info here:
 https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
 
 
-SSL certificates
-================
+## SSL certificates
+
 If you're connecting to a Kafka cluster through SSL you will need to configure
 the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
 authentication is used).
@@ -272,33 +175,14 @@ Linux distribution's `ca-certificates` package which needs to be installed
 through `apt`, `yum`, et.al.
 
 If your system stores CA certificates in another location you will need to
-configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`. 
+configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
 
 Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
 Python package. To use certifi, add an `import certifi` line and configure the
 client's CA location with `'ssl.ca.location': certifi.where()`.
 
 
-Prerequisites
-=============
-
- * Python >= 2.7 or Python 3.x
- * [librdkafka](https://github.com/edenhill/librdkafka) >= 1.6.0 (latest release is embedded in wheels)
-
-librdkafka is embedded in the macosx manylinux wheels, for other platforms, SASL Kerberos/GSSAPI support or
-when a specific version of librdkafka is desired, following these guidelines:
-
-  * For **Debian/Ubuntu** based systems, add this APT repo and then do `sudo apt-get install librdkafka-dev python-dev`:
-http://docs.confluent.io/current/installation.html#installation-apt
-
- * For **RedHat** and **RPM**-based distros, add this YUM repo and then do `sudo yum install librdkafka-devel python-devel`:
-http://docs.confluent.io/current/installation.html#rpm-packages-via-yum
-
- * On **OSX**, use **homebrew** and do `brew install librdkafka`
-
-
-License
-=======
+## License
 
 [Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
 
@@ -306,7 +190,12 @@ KAFKA is a registered trademark of The Apache Software Foundation and has been l
 by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
 The Apache Software Foundation.
 
-Developer Notes
-===============
+
+## Developer Notes
 
 Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
+
+
+## Confluent Cloud
+
+For a step-by-step guide on using the Python client with Confluent Cloud see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 

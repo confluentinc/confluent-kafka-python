@@ -14,18 +14,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-#
 
-#
-# This is a simple example of the SerializingProducer using Avro.
-#
+
+# A simple example demonstrating use of AvroSerializer.
+
 import argparse
+import os
 from uuid import uuid4
 
 from six.moves import input
 
-from confluent_kafka import SerializingProducer
-from confluent_kafka.serialization import StringSerializer
+from confluent_kafka import Producer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 
@@ -42,8 +42,8 @@ class User(object):
         favorite_color (str): User's favorite color
 
         address(str): User's address; confidential
-
     """
+
     def __init__(self, name, address, favorite_number, favorite_color):
         self.name = name
         self.favorite_number = favorite_number
@@ -64,8 +64,8 @@ def user_to_dict(user, ctx):
 
     Returns:
         dict: Dict populated with user attributes to be serialized.
-
     """
+
     # User._address must not be serialized; omit from dict
     return dict(name=user.name,
                 favorite_number=user.favorite_number,
@@ -88,8 +88,8 @@ def delivery_report(err, msg):
         If you wish to pass the original object(s) for key and value to delivery
         report callback we recommend a bound callback or lambda where you pass
         the objects along.
-
     """
+
     if err is not None:
         print("Delivery failed for User record {}: {}".format(msg.key(), err))
         return
@@ -99,31 +99,29 @@ def delivery_report(err, msg):
 
 def main(args):
     topic = args.topic
+    is_specific = args.specific == "true"
 
-    schema_str = """
-    {
-        "namespace": "confluent.io.examples.serialization.avro",
-        "name": "User",
-        "type": "record",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "favorite_number", "type": "int"},
-            {"name": "favorite_color", "type": "string"}
-        ]
-    }
-    """
+    if is_specific:
+        schema = "user_specific.avsc"
+    else:
+        schema = "user_generic.avsc"
+
+    path = os.path.realpath(os.path.dirname(__file__))
+    with open(f"{path}/avro/{schema}") as f:
+        schema_str = f.read()
+
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    avro_serializer = AvroSerializer(schema_str,
-                                     schema_registry_client,
+    avro_serializer = AvroSerializer(schema_registry_client,
+                                     schema_str,
                                      user_to_dict)
 
-    producer_conf = {'bootstrap.servers': args.bootstrap_servers,
-                     'key.serializer': StringSerializer('utf_8'),
-                     'value.serializer': avro_serializer}
+    string_serializer = StringSerializer('utf_8')
 
-    producer = SerializingProducer(producer_conf)
+    producer_conf = {'bootstrap.servers': args.bootstrap_servers}
+
+    producer = Producer(producer_conf)
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -138,7 +136,9 @@ def main(args):
                         address=user_address,
                         favorite_color=user_favorite_color,
                         favorite_number=user_favorite_number)
-            producer.produce(topic=topic, key=str(uuid4()), value=user,
+            producer.produce(topic=topic,
+                             key=string_serializer(str(uuid4())),
+                             value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
                              on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
@@ -151,12 +151,14 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="SerializingProducer Example")
+    parser = argparse.ArgumentParser(description="AvroSerializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
                         help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('-t', dest="topic", default="example_serde_avro",
                         help="Topic name")
+    parser.add_argument('-p', dest="specific", default="true",
+                        help="Avro specific record")
 
     main(parser.parse_args())

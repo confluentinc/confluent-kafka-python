@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+import "tests/integration/schema_registry/data/proto/NestedTestProto.proto";
+import "tests/integration/schema_registry/data/proto/PublicTestProto.proto";
+
+package tests.integration.serialization.data;
+
+option java_package = "io.confluent.kafka.serializers.protobuf.test";
+
+message DependencyMessage {
+    NestedMessage nested_message = 1;
+    bool is_active = 2;
+    TestMessage test_messsage = 3;
+}

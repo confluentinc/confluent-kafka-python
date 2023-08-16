@@ -1,10 +1,58 @@
+# Copyright 2022 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
-from ..cimpl import (KafkaException, # noqa
+import warnings
+import concurrent.futures
+
+# Unused imports are keeped to be accessible using this public module
+from ._config import (ConfigSource,  # noqa: F401
+                      ConfigEntry,
+                      ConfigResource,
+                      AlterConfigOpType)
+from ._resource import (ResourceType,  # noqa: F401
+                        ResourcePatternType)
+from ._acl import (AclOperation,  # noqa: F401
+                   AclPermissionType,
+                   AclBinding,
+                   AclBindingFilter)
+from ._metadata import (BrokerMetadata,  # noqa: F401
+                        ClusterMetadata,
+                        GroupMember,
+                        GroupMetadata,
+                        PartitionMetadata,
+                        TopicMetadata)
+from ._group import (ConsumerGroupListing,  # noqa: F401
+                     ListConsumerGroupsResult,
+                     ConsumerGroupDescription,
+                     MemberAssignment,
+                     MemberDescription)
+from ._scram import (UserScramCredentialAlteration,  # noqa: F401
+                     UserScramCredentialUpsertion,
+                     UserScramCredentialDeletion,
+                     ScramCredentialInfo,
+                     ScramMechanism,
+                     UserScramCredentialsDescription)
+
+from ..cimpl import (KafkaException,  # noqa: F401
+                     KafkaError,
                      _AdminClientImpl,
                      NewTopic,
                      NewPartitions,
+                     TopicPartition as _TopicPartition,
                      CONFIG_SOURCE_UNKNOWN_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG,
                      CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG,
@@ -15,181 +63,20 @@ from ..cimpl import (KafkaException, # noqa
                      RESOURCE_ANY,
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
-                     RESOURCE_BROKER)
+                     RESOURCE_BROKER,
+                     OFFSET_INVALID)
 
-import concurrent.futures
-import functools
+from confluent_kafka import ConsumerGroupTopicPartitions \
+    as _ConsumerGroupTopicPartitions
 
-from enum import Enum
-
-
-class ConfigSource(Enum):
-    """
-    Enumerates the different sources of configuration properties.
-    Used by ConfigEntry to specify the
-    source of configuration properties returned by `describe_configs()`.
-    """
-    UNKNOWN_CONFIG = CONFIG_SOURCE_UNKNOWN_CONFIG  #: Unknown
-    DYNAMIC_TOPIC_CONFIG = CONFIG_SOURCE_DYNAMIC_TOPIC_CONFIG  #: Dynamic Topic
-    DYNAMIC_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_BROKER_CONFIG  #: Dynamic Broker
-    DYNAMIC_DEFAULT_BROKER_CONFIG = CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG  #: Dynamic Default Broker
-    STATIC_BROKER_CONFIG = CONFIG_SOURCE_STATIC_BROKER_CONFIG  #: Static Broker
-    DEFAULT_CONFIG = CONFIG_SOURCE_DEFAULT_CONFIG  #: Default
+from confluent_kafka import ConsumerGroupState \
+    as _ConsumerGroupState
 
 
-class ConfigEntry(object):
-    """
-    Represents a configuration property. Returned by describe_configs() for each configuration
-    entry of the specified resource.
-
-    This class is typically not user instantiated.
-    """
-
-    def __init__(self, name, value,
-                 source=ConfigSource.UNKNOWN_CONFIG,
-                 is_read_only=False,
-                 is_default=False,
-                 is_sensitive=False,
-                 is_synonym=False,
-                 synonyms=[]):
-        """
-        This class is typically not user instantiated.
-        """
-        super(ConfigEntry, self).__init__()
-
-        self.name = name
-        """Configuration property name."""
-        self.value = value
-        """Configuration value (or None if not set or is_sensitive==True)."""
-        self.source = source
-        """Configuration source."""
-        self.is_read_only = bool(is_read_only)
-        """Indicates whether the configuration property is read-only."""
-        self.is_default = bool(is_default)
-        """Indicates whether the configuration property is using its default value."""
-        self.is_sensitive = bool(is_sensitive)
-        """
-        Indicates whether the configuration property value contains
-        sensitive information (such as security settings), in which
-        case .value is None."""
-        self.is_synonym = bool(is_synonym)
-        """Indicates whether the configuration property is a synonym for the parent configuration entry."""
-        self.synonyms = synonyms
-        """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
-
-    def __repr__(self):
-        return "ConfigEntry(%s=\"%s\")" % (self.name, self.value)
-
-    def __str__(self):
-        return "%s=\"%s\"" % (self.name, self.value)
-
-
-@functools.total_ordering
-class ConfigResource(object):
-    """
-    Represents a resource that has configuration, and (optionally)
-    a collection of configuration properties for that resource. Used by
-    describe_configs() and alter_configs().
-
-    Parameters
-    ----------
-    restype : `ConfigResource.Type`
-       The resource type.
-    name : `str`
-       The resource name, which depends on the resource type. For RESOURCE_BROKER, the resource name is the broker id.
-    set_config : `dict`
-        The configuration to set/overwrite. Dictionary of str, str.
-    """
-
-    class Type(Enum):
-        """
-        Enumerates the different types of Kafka resources.
-        """
-        UNKNOWN = RESOURCE_UNKNOWN  #: Resource type is not known or not set.
-        ANY = RESOURCE_ANY  #: Match any resource, used for lookups.
-        TOPIC = RESOURCE_TOPIC  #: Topic resource. Resource name is topic name.
-        GROUP = RESOURCE_GROUP  #: Group resource. Resource name is group.id.
-        BROKER = RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
-
-    def __init__(self, restype, name,
-                 set_config=None, described_configs=None, error=None):
-        """
-        :param ConfigResource.Type restype: Resource type.
-        :param str name: The resource name, which depends on restype.
-                         For RESOURCE_BROKER, the resource name is the broker id.
-        :param dict set_config: The configuration to set/overwrite. Dictionary of str, str.
-        :param dict described_configs: For internal use only.
-        :param KafkaError error: For internal use only.
-        """
-        super(ConfigResource, self).__init__()
-
-        if name is None:
-            raise ValueError("Expected resource name to be a string")
-
-        if type(restype) == str:
-            # Allow resource type to be specified as case-insensitive string, for convenience.
-            try:
-                restype = ConfigResource.Type[restype.upper()]
-            except KeyError:
-                raise ValueError("Unknown resource type \"%s\": should be a ConfigResource.Type" % restype)
-
-        elif type(restype) == int:
-            # The C-code passes restype as an int, convert to Type.
-            restype = ConfigResource.Type(restype)
-
-        self.restype = restype
-        self.restype_int = int(self.restype.value)  # for the C code
-        self.name = name
-
-        if set_config is not None:
-            self.set_config_dict = set_config.copy()
-        else:
-            self.set_config_dict = dict()
-
-        self.configs = described_configs
-        self.error = error
-
-    def __repr__(self):
-        if self.error is not None:
-            return "ConfigResource(%s,%s,%r)" % (self.restype, self.name, self.error)
-        else:
-            return "ConfigResource(%s,%s)" % (self.restype, self.name)
-
-    def __hash__(self):
-        return hash((self.restype, self.name))
-
-    def __lt__(self, other):
-        if self.restype < other.restype:
-            return True
-        return self.name.__lt__(other.name)
-
-    def __eq__(self, other):
-        return self.restype == other.restype and self.name == other.name
-
-    def __len__(self):
-        """
-        :rtype: int
-        :returns: number of configuration entries/operations
-        """
-        return len(self.set_config_dict)
-
-    def set_config(self, name, value, overwrite=True):
-        """
-        Set/overwrite a configuration value.
-
-        When calling alter_configs, any configuration properties that are not included
-        in the request will be reverted to their default values. As a workaround, use
-        describe_configs() to retrieve the current configuration and overwrite the
-        settings you want to change.
-
-        :param str name: Configuration property name
-        :param str value: Configuration value
-        :param bool overwrite: If True, overwrite entry if it already exists (default).
-                               If False, do nothing if entry already exists.
-        """
-        if not overwrite and name in self.set_config_dict:
-            return
-        self.set_config_dict[name] = value
+try:
+    string_type = basestring
+except NameError:
+    string_type = str
 
 
 class AdminClient (_AdminClientImpl):
@@ -213,6 +100,7 @@ class AdminClient (_AdminClientImpl):
 
     Requires broker version v0.11.0.0 or later.
     """
+
     def __init__(self, conf):
         """
         Create a new AdminClient using the provided configuration dictionary.
@@ -275,7 +163,139 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_list_consumer_groups_result(f, futmap):
+        pass
+
+    @staticmethod
+    def _make_consumer_groups_result(f, futmap):
+        """
+        Map per-group results to per-group futures in futmap.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_consumer_group_offsets_result(f, futmap):
+        """
+        Map per-group results to per-group futures in futmap.
+        The result value of each (successful) future is ConsumerGroupTopicPartitions.
+        """
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all groups
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_acls_result(f, futmap):
+        """
+        Map create ACL binding results to corresponding futures in futmap.
+        For create_acls the result value of each (successful) future is None.
+        For delete_acls the result value of each (successful) future is the list of deleted AclBindings.
+        """
+        try:
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
+            for resource, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_user_scram_credentials_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"username {username} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _create_future():
+        f = concurrent.futures.Future()
+        if not f.set_running_or_notify_cancel():
+            raise RuntimeError("Future was cancelled prematurely")
+        return f
+
+    @staticmethod
     def _make_futures(futmap_keys, class_check, make_result_fn):
+        """
+        Create futures and a futuremap for the keys in futmap_keys,
+        and create a request-level future to be bassed to the C API.
+
+        FIXME: use _make_futures_v2 with TypeError in next major release.
+        """
+        futmap = {}
+        for key in futmap_keys:
+            if class_check is not None and not isinstance(key, class_check):
+                raise ValueError("Expected list of {}".format(repr(class_check)))
+            futmap[key] = AdminClient._create_future()
+
+        # Create an internal future for the entire request,
+        # this future will trigger _make_..._result() and set result/exception
+        # per topic,future in futmap.
+        f = AdminClient._create_future()
+        f.add_done_callback(lambda f: make_result_fn(f, futmap))
+
+        return f, futmap
+
+    @staticmethod
+    def _make_futures_v2(futmap_keys, class_check, make_result_fn):
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -283,21 +303,151 @@ class AdminClient (_AdminClientImpl):
         futmap = {}
         for key in futmap_keys:
             if class_check is not None and not isinstance(key, class_check):
-                raise ValueError("Expected list of {}".format(type(class_check)))
-            futmap[key] = concurrent.futures.Future()
-            if not futmap[key].set_running_or_notify_cancel():
-                raise RuntimeError("Future was cancelled prematurely")
+                raise TypeError("Expected list of {}".format(repr(class_check)))
+            futmap[key] = AdminClient._create_future()
 
         # Create an internal future for the entire request,
         # this future will trigger _make_..._result() and set result/exception
         # per topic,future in futmap.
-        f = concurrent.futures.Future()
+        f = AdminClient._create_future()
         f.add_done_callback(lambda f: make_result_fn(f, futmap))
 
-        if not f.set_running_or_notify_cancel():
-            raise RuntimeError("Future was cancelled prematurely")
-
         return f, futmap
+
+    @staticmethod
+    def _has_duplicates(items):
+        return len(set(items)) != len(items)
+
+    @staticmethod
+    def _check_list_consumer_group_offsets_request(request):
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request, list):
+            raise TypeError("request must be a list")
+        if len(request) != 1:
+            raise ValueError("Currently we support listing offsets for a single consumer group only")
+        for req in request:
+            if not isinstance(req, _ConsumerGroupTopicPartitions):
+                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
+
+            if req.group_id is None:
+                raise TypeError("'group_id' cannot be None")
+            if not isinstance(req.group_id, string_type):
+                raise TypeError("'group_id' must be a string")
+            if not req.group_id:
+                raise ValueError("'group_id' cannot be empty")
+
+            if req.topic_partitions is not None:
+                if not isinstance(req.topic_partitions, list):
+                    raise TypeError("'topic_partitions' must be a list or None")
+                if len(req.topic_partitions) == 0:
+                    raise ValueError("'topic_partitions' cannot be empty")
+                for topic_partition in req.topic_partitions:
+                    if topic_partition is None:
+                        raise ValueError("Element of 'topic_partitions' cannot be None")
+                    if not isinstance(topic_partition, _TopicPartition):
+                        raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                    if topic_partition.topic is None:
+                        raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                    if not topic_partition.topic:
+                        raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                    if topic_partition.partition < 0:
+                        raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
+                    if topic_partition.offset != OFFSET_INVALID:
+                        print(topic_partition.offset)
+                        raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
+
+    @staticmethod
+    def _check_alter_consumer_group_offsets_request(request):
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request, list):
+            raise TypeError("request must be a list")
+        if len(request) != 1:
+            raise ValueError("Currently we support altering offsets for a single consumer group only")
+        for req in request:
+            if not isinstance(req, _ConsumerGroupTopicPartitions):
+                raise TypeError("Expected list of 'ConsumerGroupTopicPartitions'")
+            if req.group_id is None:
+                raise TypeError("'group_id' cannot be None")
+            if not isinstance(req.group_id, string_type):
+                raise TypeError("'group_id' must be a string")
+            if not req.group_id:
+                raise ValueError("'group_id' cannot be empty")
+            if req.topic_partitions is None:
+                raise ValueError("'topic_partitions' cannot be null")
+            if not isinstance(req.topic_partitions, list):
+                raise TypeError("'topic_partitions' must be a list")
+            if len(req.topic_partitions) == 0:
+                raise ValueError("'topic_partitions' cannot be empty")
+            for topic_partition in req.topic_partitions:
+                if topic_partition is None:
+                    raise ValueError("Element of 'topic_partitions' cannot be None")
+                if not isinstance(topic_partition, _TopicPartition):
+                    raise TypeError("Element of 'topic_partitions' must be of type TopicPartition")
+                if topic_partition.topic is None:
+                    raise TypeError("Element of 'topic_partitions' must not have 'topic' attribute as None")
+                if not topic_partition.topic:
+                    raise ValueError("Element of 'topic_partitions' must not have 'topic' attribute as Empty")
+                if topic_partition.partition < 0:
+                    raise ValueError(
+                        "Element of 'topic_partitions' must not have negative value for 'partition' field")
+                if topic_partition.offset < 0:
+                    raise ValueError(
+                        "Element of 'topic_partitions' must not have negative value for 'offset' field")
+
+    @staticmethod
+    def _check_describe_user_scram_credentials_request(users):
+        if not isinstance(users, list):
+            raise TypeError("Expected input to be list of String")
+        for user in users:
+            if not isinstance(user, string_type):
+                raise TypeError("Each value should be a string")
+            if not user:
+                raise ValueError("'user' cannot be empty")
+
+    @staticmethod
+    def _check_alter_user_scram_credentials_request(alterations):
+        if not isinstance(alterations, list):
+            raise TypeError("Expected input to be list")
+        if len(alterations) == 0:
+            raise ValueError("Expected at least one alteration")
+        for alteration in alterations:
+            if not isinstance(alteration, UserScramCredentialAlteration):
+                raise TypeError("Expected each element of list to be subclass of UserScramCredentialAlteration")
+            if alteration.user is None:
+                raise TypeError("'user' cannot be None")
+            if not isinstance(alteration.user, string_type):
+                raise TypeError("'user' must be a string")
+            if not alteration.user:
+                raise ValueError("'user' cannot be empty")
+
+            if isinstance(alteration, UserScramCredentialUpsertion):
+                if alteration.password is None:
+                    raise TypeError("'password' cannot be None")
+                if not isinstance(alteration.password, bytes):
+                    raise TypeError("'password' must be bytes")
+                if not alteration.password:
+                    raise ValueError("'password' cannot be empty")
+
+                if alteration.salt is not None and not alteration.salt:
+                    raise ValueError("'salt' can be None but cannot be empty")
+                if alteration.salt and not isinstance(alteration.salt, bytes):
+                    raise TypeError("'salt' must be bytes")
+
+                if not isinstance(alteration.scram_credential_info, ScramCredentialInfo):
+                    raise TypeError("Expected credential_info to be ScramCredentialInfo Type")
+                if alteration.scram_credential_info.iterations < 1:
+                    raise ValueError("Iterations should be positive")
+                if not isinstance(alteration.scram_credential_info.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            elif isinstance(alteration, UserScramCredentialDeletion):
+                if not isinstance(alteration.mechanism, ScramMechanism):
+                    raise TypeError("Expected the mechanism to be ScramMechanism Type")
+            else:
+                raise TypeError("Expected each element of list 'alterations' " +
+                                "to be either a UserScramCredentialUpsertion or a " +
+                                "UserScramCredentialDeletion")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -363,13 +513,13 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def list_topics(self, **kwargs):
+    def list_topics(self, *args, **kwargs):
 
-        return super(AdminClient, self).list_topics(**kwargs)
+        return super(AdminClient, self).list_topics(*args, **kwargs)
 
-    def list_groups(self, **kwargs):
+    def list_groups(self, *args, **kwargs):
 
-        return super(AdminClient, self).list_groups(**kwargs)
+        return super(AdminClient, self).list_groups(*args, **kwargs)
 
     def create_partitions(self, new_partitions, **kwargs):
         """
@@ -438,6 +588,8 @@ class AdminClient (_AdminClientImpl):
 
     def alter_configs(self, resources, **kwargs):
         """
+        .. deprecated:: 2.2.0
+
         Update configuration properties for the specified resources.
         Updates are not transactional so they may succeed for a subset
         of the provided resources while the others fail.
@@ -463,14 +615,17 @@ class AdminClient (_AdminClientImpl):
                   without altering the configuration. Default: False
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
-                  The future result() method returns None.
+                  The future result() method returns None or throws a KafkaException.
 
         :rtype: dict(<ConfigResource, future>)
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
         """
+        warnings.warn(
+            "alter_configs has been deprecated. Use incremental_alter_configs instead.",
+            category=DeprecationWarning, stacklevel=2)
 
         f, futmap = AdminClient._make_futures(resources, ConfigResource,
                                               AdminClient._make_resource_result)
@@ -479,163 +634,381 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def incremental_alter_configs(self, resources, **kwargs):
+        """
+        Update configuration properties for the specified resources.
+        Updates are incremental, i.e only the values mentioned are changed
+        and rest remain as is.
 
-class ClusterMetadata (object):
-    """
-    Provides information about the Kafka cluster, brokers, and topics.
-    Returned by list_topics().
+        :param list(ConfigResource) resources: Resources to update configuration of.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+        :param bool validate_only: If true, the request is validated only,
+                  without altering the configuration. Default: False
+        :param int broker: Broker id to send the request to. When
+                  altering broker configurations, it's ignored because
+                  the request needs to go to that broker only.
+                  Default: controller broker.
 
-    This class is typically not user instantiated.
-    """
-    def __init__(self):
-        self.cluster_id = None
-        """Cluster id string, if supported by the broker, else None."""
-        self.controller_id = -1
-        """Current controller broker id, or -1."""
-        self.brokers = {}
-        """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
-        self.topics = {}
-        """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
-        self.orig_broker_id = -1
-        """The broker this metadata originated from."""
-        self.orig_broker_name = None
-        """The broker name/address this metadata originated from."""
+        :returns: A dict of futures for each resource, keyed by the ConfigResource.
+                  The future result() method returns None or throws a KafkaException.
 
-    def __repr__(self):
-        return "ClusterMetadata({})".format(self.cluster_id)
+        :rtype: dict(<ConfigResource, future>)
 
-    def __str__(self):
-        return str(self.cluster_id)
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid type.
+        :raises ValueError: Invalid value.
+        """
+        f, futmap = AdminClient._make_futures_v2(resources, ConfigResource,
+                                                 AdminClient._make_resource_result)
 
+        super(AdminClient, self).incremental_alter_configs(resources, f, **kwargs)
 
-class BrokerMetadata (object):
-    """
-    Provides information about a Kafka broker.
+        return futmap
 
-    This class is typically not user instantiated.
-    """
-    def __init__(self):
-        self.id = -1
-        """Broker id"""
-        self.host = None
-        """Broker hostname"""
-        self.port = -1
-        """Broker port"""
+    def create_acls(self, acls, **kwargs):
+        """
+        Create one or more ACL bindings.
 
-    def __repr__(self):
-        return "BrokerMetadata({}, {}:{})".format(self.id, self.host, self.port)
+        :param list(AclBinding) acls: A list of unique ACL binding specifications (:class:`.AclBinding`)
+                         to create.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-    def __str__(self):
-        return "{}:{}/{}".format(self.host, self.port, self.id)
+        :returns: A dict of futures for each ACL binding, keyed by the :class:`AclBinding` object.
+                  The future result() method returns None on success.
 
+        :rtype: dict[AclBinding, future]
 
-class TopicMetadata (object):
-    """
-    Provides information about a Kafka topic.
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if AdminClient._has_duplicates(acls):
+            raise ValueError("duplicate ACL bindings not allowed")
 
-    This class is typically not user instantiated.
-    """
-    # The dash in "-topic" and "-error" is needed to circumvent a
-    # Sphinx issue where it tries to reference the same instance variable
-    # on other classes which raises a warning/error.
-    def __init__(self):
-        self.topic = None
-        """Topic name"""
-        self.partitions = {}
-        """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
-        self.error = None
-        """Topic error, or None. Value is a KafkaError object."""
+        f, futmap = AdminClient._make_futures(acls, AclBinding,
+                                              AdminClient._make_acls_result)
 
-    def __repr__(self):
-        if self.error is not None:
-            return "TopicMetadata({}, {} partitions, {})".format(self.topic, len(self.partitions), self.error)
-        else:
-            return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
+        super(AdminClient, self).create_acls(acls, f, **kwargs)
 
-    def __str__(self):
-        return self.topic
+        return futmap
 
+    def describe_acls(self, acl_binding_filter, **kwargs):
+        """
+        Match ACL bindings by filter.
 
-class PartitionMetadata (object):
-    """
-    Provides information about a Kafka partition.
+        :param AclBindingFilter acl_binding_filter: a filter with attributes that
+                  must match.
+                  String attributes match exact values or any string if set to None.
+                  Enums attributes match exact values or any value if equal to `ANY`.
+                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
+                  returns ACL bindings with:
+                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name equal
+                  to the given resource name;
+                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name
+                  that matches the given resource name;
+                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name
+                  that is a prefix of the given resource name
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-    This class is typically not user instantiated.
+        :returns: A future returning a list(:class:`AclBinding`) as result
 
-    :warning: Depending on cluster state the broker ids referenced in
-              leader, replicas and ISRs may temporarily not be reported
-              in ClusterMetadata.brokers. Always check the availability
-              of a broker id in the brokers dict.
-    """
-    def __init__(self):
-        self.id = -1
-        """Partition id."""
-        self.leader = -1
-        """Current leader broker for this partition, or -1."""
-        self.replicas = []
-        """List of replica broker ids for this partition."""
-        self.isrs = []
-        """List of in-sync-replica broker ids for this partition."""
-        self.error = None
-        """Partition error, or None. Value is a KafkaError object."""
+        :rtype: future
 
-    def __repr__(self):
-        if self.error is not None:
-            return "PartitionMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "PartitionMetadata({})".format(self.id)
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
 
-    def __str__(self):
-        return "{}".format(self.id)
+        f = AdminClient._create_future()
 
+        super(AdminClient, self).describe_acls(acl_binding_filter, f, **kwargs)
 
-class GroupMember(object):
-    """Provides information about a group member.
+        return f
 
-    For more information on the metadata format, refer to:
-    `A Guide To The Kafka Protocol <https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol#AGuideToTheKafkaProtocol-GroupMembershipAPI>`_.
+    def delete_acls(self, acl_binding_filters, **kwargs):
+        """
+        Delete ACL bindings matching one or more ACL binding filters.
 
-    This class is typically not user instantiated.
-    """  # noqa: E501
-    def __init__(self,):
-        self.id = None
-        """Member id (generated by broker)."""
-        self.client_id = None
-        """Client id."""
-        self.client_host = None
-        """Client hostname."""
-        self.metadata = None
-        """Member metadata(binary), format depends on protocol type."""
-        self.assignment = None
-        """Member assignment(binary), format depends on protocol type."""
+        :param list(AclBindingFilter) acl_binding_filters: a list of unique ACL binding filters
+                  to match ACLs to delete.
+                  String attributes match exact values or any string if set to None.
+                  Enums attributes match exact values or any value if equal to `ANY`.
+                  If :class:`ResourcePatternType` is set to :attr:`ResourcePatternType.MATCH`
+                  deletes ACL bindings with:
+                  :attr:`ResourcePatternType.LITERAL` pattern type with resource name
+                  equal to the given resource name;
+                  :attr:`ResourcePatternType.LITERAL` pattern type with wildcard resource name
+                  that matches the given resource name;
+                  :attr:`ResourcePatternType.PREFIXED` pattern type with resource name
+                  that is a prefix of the given resource name
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
+        :returns: A dict of futures for each ACL binding filter, keyed by the :class:`AclBindingFilter` object.
+                  The future result() method returns a list of :class:`AclBinding`.
 
-class GroupMetadata(object):
-    """GroupMetadata provides information about a Kafka consumer group
+        :rtype: dict[AclBindingFilter, future]
 
-    This class is typically not user instantiated.
-    """
-    def __init__(self):
-        self.broker = None
-        """Originating broker metadata."""
-        self.id = None
-        """Group name."""
-        self.error = None
-        """Broker-originated error, or None. Value is a KafkaError object."""
-        self.state = None
-        """Group state."""
-        self.protocol_type = None
-        """Group protocol type."""
-        self.protocol = None
-        """Group protocol."""
-        self.members = []
-        """Group members."""
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if AdminClient._has_duplicates(acl_binding_filters):
+            raise ValueError("duplicate ACL binding filters not allowed")
 
-    def __repr__(self):
-        if self.error is not None:
-            return "GroupMetadata({}, {})".format(self.id, self.error)
-        else:
-            return "GroupMetadata({})".format(self.id)
+        f, futmap = AdminClient._make_futures(acl_binding_filters, AclBindingFilter,
+                                              AdminClient._make_acls_result)
 
-    def __str__(self):
-        return self.id
+        super(AdminClient, self).delete_acls(acl_binding_filters, f, **kwargs)
+
+        return futmap
+
+    def list_consumer_groups(self, **kwargs):
+        """
+        List consumer groups.
+
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+        :param set(ConsumerGroupState) states: only list consumer groups which are currently in
+                  these states.
+
+        :returns: a future. Result method of the future returns :class:`ListConsumerGroupsResult`.
+
+        :rtype: future
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if "states" in kwargs:
+            states = kwargs["states"]
+            if states is not None:
+                if not isinstance(states, set):
+                    raise TypeError("'states' must be a set")
+                for state in states:
+                    if not isinstance(state, _ConsumerGroupState):
+                        raise TypeError("All elements of states must be of type ConsumerGroupState")
+                kwargs["states_int"] = [state.value for state in states]
+            kwargs.pop("states")
+
+        f, _ = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
+
+        super(AdminClient, self).list_consumer_groups(f, **kwargs)
+
+        return f
+
+    def describe_consumer_groups(self, group_ids, **kwargs):
+        """
+        Describe consumer groups.
+
+        :param list(str) group_ids: List of group_ids which need to be described.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns :class:`ConsumerGroupDescription`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids to be described")
+
+        if len(group_ids) == 0:
+            raise ValueError("Expected at least one group to be described")
+
+        f, futmap = AdminClient._make_futures(group_ids, None,
+                                              AdminClient._make_consumer_groups_result)
+
+        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
+
+    def delete_consumer_groups(self, group_ids, **kwargs):
+        """
+        Delete the given consumer groups.
+
+        :param list(str) group_ids: List of group_ids which need to be deleted.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the group_id.
+                  The future result() method returns None.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+        if not isinstance(group_ids, list):
+            raise TypeError("Expected input to be list of group ids to be deleted")
+
+        if len(group_ids) == 0:
+            raise ValueError("Expected at least one group to be deleted")
+
+        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
+
+        super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
+
+        return futmap
+
+    def list_consumer_group_offsets(self, list_consumer_group_offsets_request, **kwargs):
+        """
+        List offset information for the consumer group and (optional) topic partition provided in the request.
+
+        :note: Currently, the API supports only a single group.
+
+        :param list(ConsumerGroupTopicPartitions) list_consumer_group_offsets_request: List of
+                    :class:`ConsumerGroupTopicPartitions` which consist of group name and topic
+                    partition information for which offset detail is expected. If only group name is
+                    provided, then offset information of all the topic and partition associated with
+                    that group is returned.
+        :param bool require_stable: If True, fetches stable offsets. Default: False
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the group id.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
+
+        f, futmap = AdminClient._make_futures([request.group_id for request in list_consumer_group_offsets_request],
+                                              string_type,
+                                              AdminClient._make_consumer_group_offsets_result)
+
+        super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
+
+        return futmap
+
+    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request, **kwargs):
+        """
+        Alter offset for the consumer group and topic partition provided in the request.
+
+        :note: Currently, the API supports only a single group.
+
+        :param list(ConsumerGroupTopicPartitions) alter_consumer_group_offsets_request: List of
+                    :class:`ConsumerGroupTopicPartitions` which consist of group name and topic
+                    partition; and corresponding offset to be updated.
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures for each group, keyed by the group id.
+                  The future result() method returns :class:`ConsumerGroupTopicPartitions`.
+
+        :rtype: dict[ConsumerGroupTopicPartitions, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
+
+        f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
+                                              string_type,
+                                              AdminClient._make_consumer_group_offsets_result)
+
+        super(AdminClient, self).alter_consumer_group_offsets(alter_consumer_group_offsets_request, f, **kwargs)
+
+        return futmap
+
+    def set_sasl_credentials(self, username, password):
+        """
+        Sets the SASL credentials used for this client.
+        These credentials will overwrite the old ones, and will be used the
+        next time the client needs to authenticate.
+        This method will not disconnect existing broker connections that
+        have been established with the old credentials.
+        This method is applicable only to SASL PLAIN and SCRAM mechanisms.
+
+        :param str username: The username to set.
+        :param str password: The password to set.
+
+        :rtype: None
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        """
+        super(AdminClient, self).set_sasl_credentials(username, password)
+
+    def describe_user_scram_credentials(self, users, **kwargs):
+        """
+        Describe user SASL/SCRAM credentials.
+
+        :param list(str) users: List of user names to describe.
+               Duplicate users aren't allowed.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns the
+                  :class:`UserScramCredentialsDescription` or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_describe_user_scram_credentials_request(users)
+
+        f, futmap = AdminClient._make_futures_v2(users, None,
+                                                 AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
+
+        return futmap
+
+    def alter_user_scram_credentials(self, alterations, **kwargs):
+        """
+        Alter user SASL/SCRAM credentials.
+
+        :param list(UserScramCredentialAlteration) alterations: List of
+               :class:`UserScramCredentialAlteration` to apply.
+               The pair (user, mechanism) must be unique among alterations.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by user name.
+                  The future result() method returns None or
+                  raises KafkaException
+
+        :rtype: dict[str, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_alter_user_scram_credentials_request(alterations)
+
+        f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
+                                                 AdminClient._make_user_scram_credentials_result)
+
+        super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+
+        return futmap

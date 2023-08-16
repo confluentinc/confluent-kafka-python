@@ -5,7 +5,7 @@ set -eu
 PY_DOCKER_BIN="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )"
 export PASS="abcdefgh"
 
-source ${PY_DOCKER_BIN}/../.env
+source ${PY_DOCKER_BIN}/../.env.sh
 
 mkdir -p ${TLS}
 
@@ -24,5 +24,6 @@ echo "Creating client cert..."
 ${PY_DOCKER_BIN}/gen-ssl-certs.sh client ${TLS}/ca-cert ${TLS}/ ${HOST} ${HOST}
 
 echo "Creating key ..."
+cp ${TLS}/client.key ${TLS}/client_with_password.key
 openssl rsa -in ${TLS}/client.key -out ${TLS}/client.key  -passin pass:${PASS}
 

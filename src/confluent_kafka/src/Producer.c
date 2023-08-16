@@ -542,7 +542,7 @@ static void *Producer_purge (Handle *self, PyObject *args,
                 return NULL;
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
-        if (in_flight) 
+        if (in_flight)
                 purge_strategy |= RD_KAFKA_PURGE_F_INFLIGHT;
         if (blocking)
                 purge_strategy |= RD_KAFKA_PURGE_F_NON_BLOCKING;
@@ -584,7 +584,7 @@ static PyMethodDef Producer_methods[] = {
 	  "failed delivery\n"
           "  :param int timestamp: Message timestamp (CreateTime) in milliseconds since epoch UTC (requires librdkafka >= v0.9.4, api.version.request=true, and broker >= 0.10.0.0). Default value is current time.\n"
 	  "\n"
-          "  :param headers dict|list: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
+          "  :param dict|list headers: Message headers to set on the message. The header key must be a string while the value must be binary, unicode or None. Accepts a list of (key,value) or a dict. (Requires librdkafka >= v0.11.4 and broker version >= 0.11.0.0)\n"
 	  "  :rtype: None\n"
 	  "  :raises BufferError: if the internal producer message queue is "
 	  "full (``queue.buffering.max.messages`` exceeded)\n"
@@ -665,7 +665,7 @@ static PyMethodDef Producer_methods[] = {
           "\n"
           "  Upon successful return from this function the application has to\n"
           "  perform at least one of the following operations within \n"
-          "  `transactional.timeout.ms` to avoid timing out the transaction\n"
+          "  `transaction.timeout.ms` to avoid timing out the transaction\n"
           "  on the broker:\n"
           "  * produce() (et.al)\n"
           "  * send_offsets_to_transaction()\n"
@@ -811,6 +811,9 @@ static PyMethodDef Producer_methods[] = {
           "           Treat any other error as a fatal error.\n"
           "\n"
         },
+        { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
+           set_sasl_credentials_doc
+        },
         { NULL }
 };
 
@@ -822,6 +825,23 @@ static Py_ssize_t Producer__len__ (Handle *self) {
 
 static PySequenceMethods Producer_seq_methods = {
 	(lenfunc)Producer__len__ /* sq_length */
+};
+
+static int Producer__bool__ (Handle *self) {
+        return 1;
+}
+
+static PyNumberMethods Producer_num_methods = {
+     0, // nb_add
+     0, // nb_subtract
+     0, // nb_multiply
+     0, // nb_remainder
+     0, // nb_divmod
+     0, // nb_power
+     0, // nb_negative
+     0, // nb_positive
+     0, // nb_absolute
+     (inquiry)Producer__bool__ // nb_bool
 };
 
 
@@ -879,8 +899,8 @@ PyTypeObject ProducerType = {
 	0,                         /*tp_setattr*/
 	0,                         /*tp_compare*/
 	0,                         /*tp_repr*/
-	0,                         /*tp_as_number*/
-	&Producer_seq_methods,  /*tp_as_sequence*/
+	&Producer_num_methods,     /*tp_as_number*/
+	&Producer_seq_methods,     /*tp_as_sequence*/
 	0,                         /*tp_as_mapping*/
 	0,                         /*tp_hash */
 	0,                         /*tp_call*/
@@ -899,8 +919,9 @@ PyTypeObject ProducerType = {
         "  Create a new Producer instance using the provided configuration dict.\n"
         "\n"
         "\n"
-        ".. py:function:: len()\n"
+        ".. py:function:: __len__(self)\n"
         "\n"
+	"  Producer implements __len__ that can be used as len(producer) to obtain number of messages waiting.\n"
         "  :returns: Number of messages and Kafka protocol requests waiting to be delivered to broker.\n"
         "  :rtype: int\n"
         "\n", /*tp_doc*/
@@ -922,7 +943,3 @@ PyTypeObject ProducerType = {
 	0,                         /* tp_alloc */
 	Producer_new           /* tp_new */
 };
-
-
-
-

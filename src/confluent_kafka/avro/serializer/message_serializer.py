@@ -20,6 +20,7 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 import io
+import json
 import logging
 import struct
 import sys
@@ -79,7 +80,7 @@ class MessageSerializer(object):
     # Encoder support
     def _get_encoder_func(self, writer_schema):
         if HAS_FAST:
-            schema = writer_schema.to_json()
+            schema = json.loads(str(writer_schema))
             parsed_schema = parse_schema(schema)
             return lambda record, fp: schemaless_writer(fp, parsed_schema, record)
         writer = avro.io.DatumWriter(writer_schema)
@@ -175,8 +176,11 @@ class MessageSerializer(object):
         if HAS_FAST:
             # try to use fast avro
             try:
-                fast_avro_writer_schema = parse_schema(writer_schema_obj.to_json())
-                fast_avro_reader_schema = parse_schema(reader_schema_obj.to_json())
+                fast_avro_writer_schema = parse_schema(json.loads(str(writer_schema_obj)))
+                if reader_schema_obj is not None:
+                    fast_avro_reader_schema = parse_schema(json.loads(str(reader_schema_obj)))
+                else:
+                    fast_avro_reader_schema = None
                 schemaless_reader(payload, fast_avro_writer_schema)
 
                 # If we reach this point, this means we have fastavro and it can

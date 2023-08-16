@@ -21,7 +21,6 @@
 """ Test script for confluent_kafka module """
 
 import confluent_kafka
-from confluent_kafka import admin
 import os
 import time
 import uuid
@@ -29,6 +28,7 @@ import sys
 import json
 import gc
 import struct
+import re
 
 try:
     # Memory tracker
@@ -569,7 +569,8 @@ def verify_consumer_seek(c, seek_to_msg):
 
     tp = confluent_kafka.TopicPartition(seek_to_msg.topic(),
                                         seek_to_msg.partition(),
-                                        seek_to_msg.offset())
+                                        seek_to_msg.offset(),
+                                        leader_epoch=seek_to_msg.leader_epoch())
     print('seek: Seeking to %s' % tp)
     c.seek(tp)
 
@@ -583,9 +584,14 @@ def verify_consumer_seek(c, seek_to_msg):
         if msg.topic() != seek_to_msg.topic() or msg.partition() != seek_to_msg.partition():
             continue
 
-        print('seek: message at offset %d' % msg.offset())
-        assert msg.offset() == seek_to_msg.offset(), \
-            'expected message at offset %d, not %d' % (seek_to_msg.offset(), msg.offset())
+        print('seek: message at offset %d (epoch %d)' %
+              (msg.offset(), msg.leader_epoch()))
+        assert msg.offset() == seek_to_msg.offset() and \
+               msg.leader_epoch() == seek_to_msg.leader_epoch(), \
+               ('expected message at offset %d (epoch %d), ' % (seek_to_msg.offset(),
+                                                                seek_to_msg.leader_epoch())) + \
+               ('not %d (epoch %d)' % (msg.offset(),
+                                       msg.leader_epoch()))
         break
 
 
@@ -796,13 +802,17 @@ def verify_avro_basic_auth(mode_conf):
     if mode_conf is None:
         abort_on_missing_configuration('avro-basic-auth')
 
-    url = {
-        'schema.registry.basic.auth.credentials.source': 'URL'
+    url = mode_conf.get('schema.registry.url')
+    credentials = mode_conf.get('schema.registry.basic.auth.user.info')
+
+    url_conf = {
+        'schema.registry.basic.auth.credentials.source': 'URL',
+        'schema.registry.url': str(re.sub("(^https?://)", f"\\1{credentials}@", url))
     }
 
     user_info = {
         'schema.registry.basic.auth.credentials.source': 'USER_INFO',
-        'schema.registry.basic.auth.user.info': mode_conf.get('schema.registry.basic.auth.user.info')
+        'schema.registry.basic.auth.user.info': credentials
     }
 
     sasl_inherit = {
@@ -812,10 +822,10 @@ def verify_avro_basic_auth(mode_conf):
     }
 
     base_conf = {
-            'bootstrap.servers': bootstrap_servers,
-            'error_cb': error_cb,
-            'schema.registry.url': schema_registry_url
-            }
+        'bootstrap.servers': bootstrap_servers,
+        'error_cb': error_cb,
+        'schema.registry.url': url
+    }
 
     consumer_conf = dict({'group.id': generate_group_id(),
                           'session.timeout.ms': 6000,
@@ -830,7 +840,7 @@ def verify_avro_basic_auth(mode_conf):
     run_avro_loop(dict(base_conf, **sasl_inherit), dict(consumer_conf, **sasl_inherit))
 
     print('-' * 10, 'Verifying basic auth source URL', '-' * 10)
-    run_avro_loop(dict(base_conf, **url), dict(consumer_conf, **url))
+    run_avro_loop(dict(base_conf, **url_conf), dict(consumer_conf, **url_conf))
 
 
 def run_avro_loop(producer_conf, consumer_conf):
@@ -1029,7 +1039,7 @@ def verify_stats_cb():
     c.close()
 
 
-def verify_topic_metadata(client, exp_topics):
+def verify_topic_metadata(client, exp_topics, *args, **kwargs):
     """
     Verify that exp_topics (dict<topicname,partcnt>) is reported in metadata.
     Will retry and wait for some time to let changes propagate.
@@ -1041,7 +1051,7 @@ def verify_topic_metadata(client, exp_topics):
     for retry in range(0, 3):
         do_retry = 0
 
-        md = client.list_topics()
+        md = client.list_topics(*args, **kwargs)
 
         for exptopic, exppartcnt in exp_topics.items():
             if exptopic not in md.topics:
@@ -1065,157 +1075,6 @@ def verify_topic_metadata(client, exp_topics):
         time.sleep(1)
 
     raise Exception("Timed out waiting for topics {} in metadata".format(exp_topics))
-
-
-def verify_admin():
-    """ Verify Admin API """
-
-    a = admin.AdminClient({'bootstrap.servers': bootstrap_servers})
-    our_topic = topic + '_admin_' + str(uuid.uuid4())
-    num_partitions = 2
-
-    topic_config = {"compression.type": "gzip"}
-
-    #
-    # First iteration: validate our_topic creation.
-    # Second iteration: create topic.
-    #
-    for validate in (True, False):
-        fs = a.create_topics([admin.NewTopic(our_topic,
-                                             num_partitions=num_partitions,
-                                             config=topic_config,
-                                             replication_factor=1)],
-                             validate_only=validate,
-                             operation_timeout=10.0)
-
-        for topic2, f in fs.items():
-            f.result()  # trigger exception if there was an error
-
-    #
-    # Find the topic in list_topics
-    #
-    verify_topic_metadata(a, {our_topic: num_partitions})
-
-    #
-    # Increase the partition count
-    #
-    num_partitions += 3
-    fs = a.create_partitions([admin.NewPartitions(our_topic,
-                                                  new_total_count=num_partitions)],
-                             operation_timeout=10.0)
-
-    for topic2, f in fs.items():
-        f.result()  # trigger exception if there was an error
-
-    #
-    # Verify with list_topics.
-    #
-    verify_topic_metadata(a, {our_topic: num_partitions})
-
-    #
-    # Verify with list_groups.
-    #
-
-    # Produce some messages
-    p = confluent_kafka.Producer({"bootstrap.servers": bootstrap_servers})
-    p.produce(our_topic, 'Hello Python!', headers=produce_headers)
-    p.produce(our_topic, key='Just a key and headers', headers=produce_headers)
-
-    def consume_messages(group_id):
-        # Consume messages
-        conf = {'bootstrap.servers': bootstrap_servers,
-                'group.id': group_id,
-                'session.timeout.ms': 6000,
-                'enable.auto.commit': False,
-                'on_commit': print_commit_result,
-                'error_cb': error_cb,
-                'auto.offset.reset': 'earliest',
-                'enable.partition.eof': True}
-        c = confluent_kafka.Consumer(conf)
-        c.subscribe([our_topic])
-        eof_reached = dict()
-        while True:
-            msg = c.poll()
-            if msg is None:
-                raise Exception('Got timeout from poll() without a timeout set: %s' % msg)
-
-            if msg.error():
-                if msg.error().code() == confluent_kafka.KafkaError._PARTITION_EOF:
-                    print('Reached end of %s [%d] at offset %d' % (
-                          msg.topic(), msg.partition(), msg.offset()))
-                    eof_reached[(msg.topic(), msg.partition())] = True
-                    if len(eof_reached) == len(c.assignment()):
-                        print('EOF reached for all assigned partitions: exiting')
-                        break
-                else:
-                    print('Consumer error: %s: ignoring' % msg.error())
-                    break
-            # Commit offset
-            c.commit(msg, asynchronous=False)
-
-    group1 = 'test-group-1'
-    group2 = 'test-group-2'
-    consume_messages(group1)
-    consume_messages(group2)
-    # list_groups without group argument
-    groups = set(group.id for group in a.list_groups(timeout=10))
-    assert group1 in groups, "Consumer group {} not found".format(group1)
-    assert group2 in groups, "Consumer group {} not found".format(group2)
-    # list_groups with group argument
-    groups = set(group.id for group in a.list_groups(group1))
-    assert group1 in groups, "Consumer group {} not found".format(group1)
-    groups = set(group.id for group in a.list_groups(group2))
-    assert group2 in groups, "Consumer group {} not found".format(group2)
-
-    def verify_config(expconfig, configs):
-        """
-        Verify that the config key,values in expconfig are found
-        and matches the ConfigEntry in configs.
-        """
-        for key, expvalue in expconfig.items():
-            entry = configs.get(key, None)
-            assert entry is not None, "Config {} not found in returned configs".format(key)
-
-            assert entry.value == str(expvalue), \
-                "Config {} with value {} does not match expected value {}".format(key, entry, expvalue)
-
-    #
-    # Get current topic config
-    #
-    resource = admin.ConfigResource(admin.RESOURCE_TOPIC, our_topic)
-    fs = a.describe_configs([resource])
-    configs = fs[resource].result()  # will raise exception on failure
-
-    # Verify config matches our expectations
-    verify_config(topic_config, configs)
-
-    #
-    # Now change the config.
-    #
-    topic_config["file.delete.delay.ms"] = 12345
-    topic_config["compression.type"] = "snappy"
-
-    for key, value in topic_config.items():
-        resource.set_config(key, value)
-
-    fs = a.alter_configs([resource])
-    fs[resource].result()  # will raise exception on failure
-
-    #
-    # Read the config back again and verify.
-    #
-    fs = a.describe_configs([resource])
-    configs = fs[resource].result()  # will raise exception on failure
-
-    # Verify config matches our expectations
-    verify_config(topic_config, configs)
-
-    #
-    # Delete the topic
-    #
-    fs = a.delete_topics([our_topic])
-    fs[our_topic].result()  # will raise exception on failure
-    print("Topic {} marked for deletion".format(our_topic))
 
 
 def verify_avro_explicit_read_schema():
@@ -1273,10 +1132,10 @@ def verify_avro_explicit_read_schema():
         msgcount += 1
         # Avro schema projection should return the two fields not present in the writer schema
         try:
-            assert(msg.key().get('favorite_number') == 42)
-            assert(msg.key().get('favorite_color') == "purple")
-            assert(msg.value().get('favorite_number') == 42)
-            assert(msg.value().get('favorite_color') == "purple")
+            assert (msg.key().get('favorite_number') == 42)
+            assert (msg.key().get('favorite_color') == "purple")
+            assert (msg.value().get('favorite_number') == 42)
+            assert (msg.value().get('favorite_color') == "purple")
             print("success: schema projection worked for explicit reader schema")
         except KeyError:
             raise confluent_kafka.avro.SerializerError("Schema projection failed when setting reader schema.")
@@ -1401,14 +1260,20 @@ if __name__ == '__main__':
     if 'avro-https' in modes:
         print('=' * 30, 'Verifying AVRO with HTTPS', '=' * 30)
         verify_avro_https(testconf.get('avro-https', None))
+        key_with_password_conf = testconf.get("avro-https-key-with-password", None)
+        print('=' * 30, 'Verifying AVRO with HTTPS Flow with Password',
+              'Protected Private Key of Cached-Schema-Registry-Client', '=' * 30)
+        verify_avro_https(key_with_password_conf)
+        print('Verifying Error with Wrong Password of Password Protected Private Key of Cached-Schema-Registry-Client')
+        try:
+            key_with_password_conf['schema.registry.ssl.key.password'] += '->wrongpassword'
+            verify_avro_https(key_with_password_conf)
+        except Exception:
+            print("Wrong Password Gives Error -> Successful")
 
     if 'avro-basic-auth' in modes:
         print("=" * 30, 'Verifying AVRO with Basic Auth', '=' * 30)
         verify_avro_basic_auth(testconf.get('avro-basic-auth', None))
-
-    if 'admin' in modes:
-        print('=' * 30, 'Verifying Admin API', '=' * 30)
-        verify_admin()
 
     print('=' * 30, 'Done', '=' * 30)
 

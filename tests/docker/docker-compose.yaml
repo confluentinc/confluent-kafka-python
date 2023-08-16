@@ -18,8 +18,10 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTHORIZER_CLASS_NAME: kafka.security.authorizer.AclAuthorizer
+      KAFKA_SUPER_USERS: "User:ANONYMOUS"
   schema-registry:
-    image: confluentinc/cp-schema-registry:5.0.0
+    image: confluentinc/cp-schema-registry
     depends_on:
     - zookeeper
     - kafka
@@ -40,7 +42,7 @@ services:
       SCHEMA_REGISTRY_SSL_TRUSTSTORE_PASSWORD: abcdefgh
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
   schema-registry-basic-auth:
-    image: confluentinc/cp-schema-registry:5.0.0
+    image: confluentinc/cp-schema-registry
     depends_on:
       - zookeeper
       - kafka
@@ -50,9 +52,9 @@ services:
     volumes:
       - ./conf:/conf
     environment:
-      SCHEMA_REGISTRY_HOST_NAME: schema-registry2
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry-basic-auth
       SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas2
-      SCHEMA_REGISTRY_SCHEMA_REGISTRY_ZK_NAMESPACE: schema_registry2
+      SCHEMA_REGISTRY_SCHEMA_REGISTRY_GROUP_ID: schema-registry-basic-auth
       SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://kafka:9092
       SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8083, https://0.0.0.0:8084
       SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL: https

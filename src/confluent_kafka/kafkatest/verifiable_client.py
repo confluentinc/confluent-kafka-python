@@ -28,6 +28,7 @@ class VerifiableClient(object):
     Generic base class for a kafkatest verifiable client.
     Implements the common kafkatest protocol and semantics.
     """
+
     def __init__(self, conf):
         """
         """

@@ -24,22 +24,18 @@ def test_version():
     assert confluent_kafka.version()[0] == confluent_kafka.__version__
 
 
-# global variable for error_cb call back function
-seen_error_cb = False
-
-
 def test_error_cb():
     """ Tests error_cb. """
+    seen_error_cb = False
 
     def error_cb(error_msg):
-        global seen_error_cb
+        nonlocal seen_error_cb
         seen_error_cb = True
         acceptable_error_codes = (confluent_kafka.KafkaError._TRANSPORT, confluent_kafka.KafkaError._ALL_BROKERS_DOWN)
         assert error_msg.code() in acceptable_error_codes
 
     conf = {'bootstrap.servers': 'localhost:65531',  # Purposely cause connection refused error
             'group.id': 'test',
-            'socket.timeout.ms': '100',
             'session.timeout.ms': 1000,  # Avoid close() blocking too long
             'error_cb': error_cb
             }
@@ -47,26 +43,22 @@ def test_error_cb():
     kc = confluent_kafka.Consumer(**conf)
     kc.subscribe(["test"])
     while not seen_error_cb:
-        kc.poll(timeout=1)
+        kc.poll(timeout=0.1)
 
     kc.close()
 
 
-# global variable for stats_cb call back function
-seen_stats_cb = False
-
-
 def test_stats_cb():
     """ Tests stats_cb. """
+    seen_stats_cb = False
 
     def stats_cb(stats_json_str):
-        global seen_stats_cb
+        nonlocal seen_stats_cb
         seen_stats_cb = True
         stats_json = json.loads(stats_json_str)
         assert len(stats_json['name']) > 0
 
     conf = {'group.id': 'test',
-            'socket.timeout.ms': '100',
             'session.timeout.ms': 1000,  # Avoid close() blocking too long
             'statistics.interval.ms': 200,
             'stats_cb': stats_cb
@@ -76,11 +68,8 @@ def test_stats_cb():
 
     kc.subscribe(["test"])
     while not seen_stats_cb:
-        kc.poll(timeout=1)
+        kc.poll(timeout=0.1)
     kc.close()
-
-
-seen_stats_cb_check_no_brokers = False
 
 
 def test_conf_none():
@@ -88,10 +77,11 @@ def test_conf_none():
     Test that None can be passed for NULL by setting bootstrap.servers
     to None. If None would be converted to a string then a broker would
     show up in statistics. Verify that it doesnt. """
+    seen_stats_cb_check_no_brokers = False
 
     def stats_cb_check_no_brokers(stats_json_str):
         """ Make sure no brokers are reported in stats """
-        global seen_stats_cb_check_no_brokers
+        nonlocal seen_stats_cb_check_no_brokers
         stats = json.loads(stats_json_str)
         assert len(stats['brokers']) == 0, "expected no brokers in stats: %s" % stats_json_str
         seen_stats_cb_check_no_brokers = True
@@ -101,9 +91,8 @@ def test_conf_none():
             'stats_cb': stats_cb_check_no_brokers}
 
     p = confluent_kafka.Producer(conf)
-    p.poll(timeout=1)
+    p.poll(timeout=0.1)
 
-    global seen_stats_cb_check_no_brokers
     assert seen_stats_cb_check_no_brokers
 
 
@@ -130,15 +119,12 @@ def test_throttle_event_types():
     assert str(throttle_event) == "broker/0 throttled for 10000 ms"
 
 
-# global variable for oauth_cb call back function
-seen_oauth_cb = False
-
-
 def test_oauth_cb():
     """ Tests oauth_cb. """
+    seen_oauth_cb = False
 
     def oauth_cb(oauth_config):
-        global seen_oauth_cb
+        nonlocal seen_oauth_cb
         seen_oauth_cb = True
         assert oauth_config == 'oauth_cb'
         return 'token', time.time() + 300.0
@@ -146,7 +132,6 @@ def test_oauth_cb():
     conf = {'group.id': 'test',
             'security.protocol': 'sasl_plaintext',
             'sasl.mechanisms': 'OAUTHBEARER',
-            'socket.timeout.ms': '100',
             'session.timeout.ms': 1000,  # Avoid close() blocking too long
             'sasl.oauthbearer.config': 'oauth_cb',
             'oauth_cb': oauth_cb
@@ -155,7 +140,59 @@ def test_oauth_cb():
     kc = confluent_kafka.Consumer(**conf)
 
     while not seen_oauth_cb:
-        kc.poll(timeout=1)
+        kc.poll(timeout=0.1)
+    kc.close()
+
+
+def test_oauth_cb_principal_sasl_extensions():
+    """ Tests oauth_cb. """
+    seen_oauth_cb = False
+
+    def oauth_cb(oauth_config):
+        nonlocal seen_oauth_cb
+        seen_oauth_cb = True
+        assert oauth_config == 'oauth_cb'
+        return 'token', time.time() + 300.0, oauth_config, {"extone": "extoneval", "exttwo": "exttwoval"}
+
+    conf = {'group.id': 'test',
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'session.timeout.ms': 100,  # Avoid close() blocking too long
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': oauth_cb
+            }
+
+    kc = confluent_kafka.Consumer(**conf)
+
+    while not seen_oauth_cb:
+        kc.poll(timeout=0.1)
+    kc.close()
+
+
+def test_oauth_cb_failure():
+    """ Tests oauth_cb. """
+    oauth_cb_count = 0
+
+    def oauth_cb(oauth_config):
+        nonlocal oauth_cb_count
+        oauth_cb_count += 1
+        assert oauth_config == 'oauth_cb'
+        if oauth_cb_count == 2:
+            return 'token', time.time() + 100.0, oauth_config, {"extthree": "extthreeval"}
+        raise Exception
+
+    conf = {'group.id': 'test',
+            'security.protocol': 'sasl_plaintext',
+            'sasl.mechanisms': 'OAUTHBEARER',
+            'session.timeout.ms': 1000,  # Avoid close() blocking too long
+            'sasl.oauthbearer.config': 'oauth_cb',
+            'oauth_cb': oauth_cb
+            }
+
+    kc = confluent_kafka.Consumer(**conf)
+
+    while oauth_cb_count < 2:
+        kc.poll(timeout=0.1)
     kc.close()
 
 
@@ -194,11 +231,9 @@ def test_unordered_dict(init_func):
     client.poll(0)
 
 
-# global variable for on_delivery call back function
-seen_delivery_cb = False
-
-
 def test_topic_config_update():
+    seen_delivery_cb = False
+
     # *NOTE* default.topic.config has been deprecated.
     # This example remains to ensure backward-compatibility until its removal.
     confs = [{"message.timeout.ms": 600000, "default.topic.config": {"message.timeout.ms": 1000}},
@@ -207,7 +242,7 @@ def test_topic_config_update():
 
     def on_delivery(err, msg):
         # Since there is no broker, produced messages should time out.
-        global seen_delivery_cb
+        nonlocal seen_delivery_cb
         seen_delivery_cb = True
         assert err.code() == confluent_kafka.KafkaError._MSG_TIMED_OUT
 
@@ -227,3 +262,21 @@ def test_topic_config_update():
         if "CI" in os.environ:
             pytest.xfail("Timeout exceeded")
         pytest.fail("Timeout exceeded")
+
+
+def test_set_sasl_credentials_api():
+    clients = [
+        AdminClient({}),
+        confluent_kafka.Consumer({"group.id": "dummy"}),
+        confluent_kafka.Producer({})]
+
+    for c in clients:
+        c.set_sasl_credentials('username', 'password')
+
+        c.set_sasl_credentials('override', 'override')
+
+        with pytest.raises(TypeError):
+            c.set_sasl_credentials(None, 'password')
+
+        with pytest.raises(TypeError):
+            c.set_sasl_credentials('username', None)

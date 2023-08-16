@@ -32,7 +32,9 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
     def setUp(self):
         self.server = mock_registry.ServerThread(0)
         self.server.start()
-        self.client = CachedSchemaRegistryClient('http://127.0.0.1:' + str(self.server.server.server_port))
+        self.client = CachedSchemaRegistryClient({
+            'url': 'http://127.0.0.1:' + str(self.server.server.server_port),
+        })
 
     def tearDown(self):
         self.server.shutdown()
@@ -140,19 +142,25 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
 
     def test_cert_no_key(self):
         with self.assertRaises(ValueError):
-            self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:65534',
-                                                     cert_location='/path/to/cert')
+            self.client = CachedSchemaRegistryClient({
+                'url': 'https://127.0.0.1:65534',
+                'ssl.certificate.location': '/path/to/cert',
+            })
 
     def test_cert_with_key(self):
-        self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:65534',
-                                                 cert_location='/path/to/cert',
-                                                 key_location='/path/to/key')
+        self.client = CachedSchemaRegistryClient({
+            'url': 'https://127.0.0.1:65534',
+            'ssl.certificate.location': '/path/to/cert',
+            'ssl.key.location': '/path/to/key'
+        })
         self.assertTupleEqual(('/path/to/cert', '/path/to/key'), self.client._session.cert)
 
-    def test_cert_path(self):
-        self.client = CachedSchemaRegistryClient(url='https://127.0.0.1:65534',
-                                                 ca_location='/path/to/ca')
-        self.assertEqual('/path/to/ca', self.client._session.verify)
+    def test_key_no_cert(self):
+        with self.assertRaises(ValueError):
+            self.client = CachedSchemaRegistryClient({
+                'url': 'https://127.0.0.1:65534',
+                'ssl.key.location': '/path/to/key'
+            })
 
     def test_context(self):
         with self.client as c:
@@ -177,14 +185,15 @@ class TestCacheSchemaRegistryClient(unittest.TestCase):
 
     def test_invalid_type_url(self):
         with self.assertRaises(TypeError):
-            self.client = CachedSchemaRegistryClient(
-                url=1)
+            self.client = CachedSchemaRegistryClient({
+                'url': 1
+            })
 
     def test_invalid_type_url_dict(self):
         with self.assertRaises(TypeError):
             self.client = CachedSchemaRegistryClient({
                 "url": 1
-                })
+            })
 
     def test_invalid_url(self):
         with self.assertRaises(ValueError):
