@@ -81,7 +81,8 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version)
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
-            parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=named_schemas)
+            parse_schema(loads(referenced_schema.schema.schema_str),
+                         named_schemas=named_schemas, expand=True)
     return named_schemas
 
 
@@ -226,7 +227,8 @@ class AvroSerializer(Serializer):
 
         schema_dict = loads(schema.schema_str)
         self._named_schemas = _resolve_named_schema(schema, schema_registry_client)
-        parsed_schema = parse_schema(schema_dict, named_schemas=self._named_schemas)
+        parsed_schema = parse_schema(schema_dict,
+                                     named_schemas=self._named_schemas, expand=True)
 
         if isinstance(parsed_schema, list):
             # if parsed_schema is a list, we have an Avro union and there
@@ -361,7 +363,7 @@ class AvroDeserializer(Deserializer):
             schema_dict = loads(self._schema.schema_str)
             self._named_schemas = _resolve_named_schema(self._schema, schema_registry_client)
             self._reader_schema = parse_schema(schema_dict,
-                                               named_schemas=self._named_schemas)
+                                               named_schemas=self._named_schemas, expand=True)
         else:
             self._named_schemas = None
             self._reader_schema = None
@@ -416,8 +418,8 @@ class AvroDeserializer(Deserializer):
                 registered_schema = self._registry.get_schema(schema_id)
                 self._named_schemas = _resolve_named_schema(registered_schema, self._registry)
                 prepared_schema = _schema_loads(registered_schema.schema_str)
-                writer_schema = parse_schema(loads(
-                    prepared_schema.schema_str), named_schemas=self._named_schemas)
+                writer_schema = parse_schema(loads(prepared_schema.schema_str),
+                                             named_schemas=self._named_schemas, expand=True)
                 self._writer_schemas[schema_id] = writer_schema
 
             obj_dict = schemaless_reader(payload,
