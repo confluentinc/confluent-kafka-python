@@ -190,6 +190,129 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
     assert awarded_user2 == awarded_user
 
 
+def _register_avro_unions_and_build_award_or_user_schema(kafka_cluster, topic):
+    sr = kafka_cluster.schema_registry()
+
+    user = User("Bowie", 47, "purple")
+    award_properties = AwardProperties(10, 2023)
+    award = Award("Best In Show", award_properties)
+
+    union_schema_str = """
+        [
+            "confluent.io.examples.serialization.avro.User",
+            "confluent.io.examples.serialization.avro.Award"
+        ]
+    """
+
+    user_schema_ref = SchemaReference(
+        "confluent.io.examples.serialization.avro.User", "user", 1
+    )
+    award_properties_schema_ref = SchemaReference(
+        "confluent.io.examples.serialization.avro.AwardProperties",
+        "award_properties",
+        1,
+    )
+    award_schema_ref = SchemaReference(
+        "confluent.io.examples.serialization.avro.Award", "award", 1
+    )
+
+    sr.register_schema("user", Schema(User.schema_str, "AVRO"))
+    sr.register_schema("award_properties", Schema(AwardProperties.schema_str, "AVRO"))
+    sr.register_schema(
+        "award", Schema(Award.schema_str, "AVRO", [award_properties_schema_ref])
+    )
+
+    references = [user_schema_ref, award_schema_ref, award_properties_schema_ref]
+    schema = Schema(union_schema_str, "AVRO", references)
+
+    sr.register_schema(subject_name=f"{topic}-value", schema=schema)
+
+    return [user, award], schema
+
+
+def _union_schema_test(
+    kafka_cluster, data_list, serializer_schema, deserializer_schema, topic
+):
+    sr = kafka_cluster.schema_registry()
+
+    user_serializer = AvroSerializer(
+        sr,
+        serializer_schema,
+        lambda user, ctx: dict(
+            name=user.name,
+            favorite_number=user.favorite_number,
+            favorite_color=user.favorite_color,
+        ),
+        conf={"auto.register.schemas": False, "use.latest.version": True},
+    )
+    award_serializer = AvroSerializer(
+        sr,
+        serializer_schema,
+        lambda award, ctx: dict(
+            name=award.name,
+            properties=dict(year=award.properties.year, points=award.properties.points),
+        ),
+        conf={"auto.register.schemas": False, "use.latest.version": True},
+    )
+
+    deserializer = AvroDeserializer(
+        sr,
+        deserializer_schema,
+        return_record_name=True,
+    )
+
+    def to_user(user: dict):
+        return User(
+            name=user.get("name"),
+            favorite_number=user.get("favorite_number"),
+            favorite_color=user.get("favorite_color"),
+        )
+
+    def to_award(award: dict):
+        return Award(
+            name=award.get("name"),
+            properties=AwardProperties(
+                year=award.get("properties", {}).get("year"),
+                points=award.get("properties", {}).get("points"),
+            ),
+        )
+
+    producer = kafka_cluster.producer()
+    for data in data_list:
+        if type(data) == User:
+            serialized = user_serializer(
+                data, SerializationContext(topic, MessageField.VALUE)
+            )
+        else:
+            serialized = award_serializer(
+                data, SerializationContext(topic, MessageField.VALUE)
+            )
+        producer.produce(topic, value=serialized, partition=0)
+    producer.flush()
+
+    consumer = kafka_cluster.consumer()
+    consumer.assign([TopicPartition(topic, 0)])
+
+    consumed_list = []
+    for _ in range(len(data_list)):
+        msg = consumer.poll()
+        deserialized: tuple = deserializer(
+            msg.value(), SerializationContext(topic, MessageField.VALUE)
+        )  # type: ignore
+        name = deserialized[0]
+        record = deserialized[1]
+        if name == "confluent.io.examples.serialization.avro.User":
+            record = to_user(record)
+        else:
+            record = to_award(record)
+        consumed_list.append(record)
+
+    for idx, data in enumerate(data_list):
+        assert consumed_list[idx] == data
+
+    assert consumed_list == data_list
+
+
 @pytest.mark.parametrize("avsc, data, record_type",
                          [('basic_schema.avsc', {'name': 'abc'}, "record"),
                           ('primitive_string.avsc', u'Jämtland', "string"),
@@ -346,3 +469,23 @@ def test_avro_reference_deserializer_none(kafka_cluster):
     awarded_user, schema = _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
 
     _references_test_common(kafka_cluster, awarded_user, schema, None)
+
+
+def test_avro_union(kafka_cluster):
+    topic = kafka_cluster.create_topic("avro-union")
+
+    data_list, schema = _register_avro_unions_and_build_award_or_user_schema(
+        kafka_cluster, topic
+    )
+
+    _union_schema_test(kafka_cluster, data_list, schema, schema, topic)
+
+
+def test_avro_union_deserializer_none(kafka_cluster):
+    topic = kafka_cluster.create_topic("avro-union")
+
+    data_list, schema = _register_avro_unions_and_build_award_or_user_schema(
+        kafka_cluster, topic
+    )
+
+    _union_schema_test(kafka_cluster, data_list, schema, None, topic)
