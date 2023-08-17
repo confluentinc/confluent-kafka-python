@@ -38,9 +38,9 @@ spec:
           env:
             - name: NODEIP
               valueFrom:
-              fieldRef:
-                apiVersion: v1
-                fieldPath: status.hostIP
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: status.hostIP
             - name: OTEL_METRICS_EXPORTER
               value: "otlp"
             - name: OTEL_RESOURCE_ATTRIBUTES
