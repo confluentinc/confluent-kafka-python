@@ -32,6 +32,7 @@ git checkout $python_branch
 
 echo "Installing librdkafka $librdkafka_branch"
 tools/bootstrap-librdkafka.sh --require-ssl $librdkafka_branch /usr
+rm -rf tmp-build
 
 # echo "Installing interceptors"
 # tools/install-interceptors.sh
