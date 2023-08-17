@@ -16,7 +16,7 @@ topic="pysoak-$librdkafka_version"
 
 echo "Starting soak client using topic $topic"
 set +x
-time confluent-kafka-python/tests/soak/soakclient.py -t $topic -r 80 -f  confluent-kafka-python/ccloud.config 2>&1
+time opentelemetry-instrument confluent-kafka-python/tests/soak/soakclient.py -t $topic -r 80 -f  confluent-kafka-python/ccloud.config 2>&1
 ret=$?
 echo "Python client exited with status $ret"
 exit $ret
