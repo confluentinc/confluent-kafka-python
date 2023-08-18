@@ -468,6 +468,12 @@ class SoakClient (object):
 
     def incr_counter(self, metric_name, incrval, tags = None):
         """ Increment metric counter by incrval """
+        if not tags:
+            tags = {}
+        tags.update({
+            "host": self.hostname
+        })
+
         full_metric_name = self.METRIC_PFX + metric_name
         if full_metric_name not in self.counters:
             self.counters[full_metric_name] = self.meter.create_counter(
@@ -479,6 +485,12 @@ class SoakClient (object):
 
     def set_gauge(self, metric_name, val, tags=None):
         """ Set metric gauge to val """
+        if not tags:
+            tags = {}
+        tags.update({
+            "host": self.hostname
+        })
+
         full_metric_name = self.METRIC_PFX + metric_name
         self.gauge_values[full_metric_name] = [val, tags]
         if full_metric_name not in self.gauges:
