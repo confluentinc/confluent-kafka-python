@@ -492,11 +492,18 @@ class SoakClient (object):
         })
 
         full_metric_name = self.METRIC_PFX + metric_name
-        self.gauge_values[full_metric_name] = [val, tags]
+        if not full_metric_name in self.gauge_values:
+            self.gauge_values[full_metric_name] = []
+
+        self.gauge_values[full_metric_name].append([val, tags])
+
         if full_metric_name not in self.gauges:
-            self.gauge_cbs[full_metric_name] = lambda _: \
-                (yield metrics.Observation(self.gauge_values[full_metric_name][0], \
-                                    self.gauge_values[full_metric_name][1]))
+            def cb(_):
+                for value in self.gauge_values[full_metric_name]:
+                    yield metrics.Observation(value[0], value[1])
+                self.gauge_values[full_metric_name] = []
+
+            self.gauge_cbs[full_metric_name] = cb
             self.gauges[full_metric_name] = self.meter.create_observable_gauge(
                 callbacks=[self.gauge_cbs[full_metric_name]],
                 name=full_metric_name,
