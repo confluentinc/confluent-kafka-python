@@ -247,20 +247,15 @@ class AdminClient (_AdminClientImpl):
     def _make_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
-            len_results = len(results)
-            len_futures = len(futmap)
-            if len(results) != len_futures:
-                raise RuntimeError(
-                    f"Results length {len_results} is different from future-map length {len_futures}")
-            for username, value in results.items():
-                fut = futmap.get(username, None)
-                if fut is None:
-                    raise RuntimeError(
-                        f"username {username} not found in future-map: {futmap}")
-                if isinstance(value, KafkaError):
-                    fut.set_exception(KafkaException(value))
-                else:
-                    fut.set_result(value)
+            if len(futmap) > 0:
+                for username, value in results.items():
+                    fut = futmap.get(username, None)
+                    if fut is None:
+                        raise RuntimeError("Future not found for the user")
+                    if isinstance(value, KafkaError):
+                        fut.set_exception(KafkaException(value))
+                    else:
+                        fut.set_result(value)
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
@@ -976,13 +971,13 @@ class AdminClient (_AdminClientImpl):
         :raises ValueError: Invalid input value.
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
-
         f, futmap = AdminClient._make_futures_v2(users, None,
                                                  AdminClient._make_user_scram_credentials_result)
 
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-
-        return futmap
+        if len(users) > 0 :
+            return futmap
+        return f
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
         """
