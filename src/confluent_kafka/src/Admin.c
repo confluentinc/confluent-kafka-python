@@ -1819,9 +1819,8 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         Py_INCREF(future);
 
         user_cnt = (int)PyList_Size(users);
-
-
-        c_users = malloc(sizeof(char *) * user_cnt);
+        if (user_cnt > 0)
+                c_users = malloc(sizeof(char *) * user_cnt);
 
         for (i = 0 ; i < user_cnt ; i++) {
                 PyObject *user = PyList_GET_ITEM(users, i);
@@ -3554,9 +3553,9 @@ static PyObject *Admin_c_UserScramCredentialsDescription_to_py(const rd_kafka_Us
 static PyObject *Admin_c_UserScramCredentialsDescriptions_to_py(
         const rd_kafka_UserScramCredentialsDescription_t **c_descriptions,
         size_t c_description_cnt) {
+        
         PyObject *result = NULL;
         size_t i;
-
         result = PyDict_New();
         for(i=0; i < c_description_cnt; i++){
                 const char *c_username;
@@ -3929,7 +3928,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 c_describe_user_scram_credentials_result_descriptions = rd_kafka_DescribeUserScramCredentials_result_descriptions(
                         c_describe_user_scram_credentials_result,
                         &c_describe_user_scram_credentials_result_descriptions_cnt);
-
                 result = Admin_c_UserScramCredentialsDescriptions_to_py(c_describe_user_scram_credentials_result_descriptions,
                         c_describe_user_scram_credentials_result_descriptions_cnt);
 
