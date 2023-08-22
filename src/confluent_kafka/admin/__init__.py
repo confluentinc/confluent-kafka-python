@@ -252,7 +252,8 @@ class AdminClient (_AdminClientImpl):
                 fut.set_result(results)
             else:
                 if len(results) != len(futmap):
-                    raise RuntimeError("Result does not have same number of users as queried by the non-empty user list")
+                    raise RuntimeError(
+                        "Result does not have same number of users as queried by the non-empty user list")
                 for username, value in results.items():
                     fut = futmap.get(username, None)
                     if fut is None:
@@ -1009,7 +1010,7 @@ class AdminClient (_AdminClientImpl):
 
         f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
                                                  AdminClient._make_user_scram_credentials_result)
-        
+
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
         return futmap

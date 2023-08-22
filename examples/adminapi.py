@@ -610,7 +610,7 @@ def example_describe_user_scram_credentials(a, args):
                 response = fut.result()
                 for scram_credential_info in response.scram_credential_infos:
                     print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                        f"Iterations: {scram_credential_info.iterations}")
+                          f"Iterations: {scram_credential_info.iterations}")
             except KafkaException as e:
                 print("    Error: {}".format(e))
             except Exception as e:
@@ -624,8 +624,9 @@ def example_describe_user_scram_credentials(a, args):
                 print(response)
             else:
                 for scram_credential_info in response.scram_credential_infos:
-                        print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                            f"Iterations: {scram_credential_info.iterations}")
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
+
 
 def example_alter_user_scram_credentials(a, args):
     """
