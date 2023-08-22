@@ -602,10 +602,8 @@ def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
-    result_obj = a.describe_user_scram_credentials(args)
-    # If empty users list is passed, future is returned else a futmap[dict] is returned
-    if isinstance(result_obj,dict):
-        futmap = result_obj
+    futmap = a.describe_user_scram_credentials(args)
+    if "__all__" not in futmap:
         for username, fut in futmap.items():
             print("Username: {}".format(username))
             try:
@@ -618,7 +616,7 @@ def example_describe_user_scram_credentials(a, args):
             except Exception as e:
                 print(f"    Unexpected exception: {e}")
     else:
-        fut = result_obj
+        fut = futmap["__all__"]
         results = fut.result()
         for username, response in results.items():
             print("Username : {}\n".format(username))

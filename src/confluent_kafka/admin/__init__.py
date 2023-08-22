@@ -247,7 +247,12 @@ class AdminClient (_AdminClientImpl):
     def _make_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
-            if len(futmap) > 0:
+            if "__all__" in futmap:
+                fut = futmap["__all__"]
+                fut.set_result(results)
+            else:
+                if len(results) != len(futmap):
+                    raise RuntimeError("Result does not have same number of users as queried by the non-empty user list")
                 for username, value in results.items():
                     fut = futmap.get(username, None)
                     if fut is None:
@@ -974,10 +979,11 @@ class AdminClient (_AdminClientImpl):
         f, futmap = AdminClient._make_futures_v2(users, None,
                                                  AdminClient._make_user_scram_credentials_result)
 
+        if len(users) == 0:
+            futmap["__all__"] = AdminClient._create_future()
+
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-        if len(users) > 0 :
-            return futmap
-        return f
+        return futmap
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
         """
@@ -1003,7 +1009,7 @@ class AdminClient (_AdminClientImpl):
 
         f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
                                                  AdminClient._make_user_scram_credentials_result)
-
+        
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
         return futmap
