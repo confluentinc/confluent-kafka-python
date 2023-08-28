@@ -2157,6 +2157,82 @@ const char alter_user_scram_credentials_doc[] = PyDoc_STR(
         "  \n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.alter_user_scram_credentials()\n");
 
+static PyObject *Admin_delete_records(Handle *self, PyObject *args, PyObject *kwargs){
+        PyObject *records, *future;
+        static char *kws[] = { "records",
+                               "future",
+                               /* options */
+                               "request_timeout",
+                               NULL };
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        rd_kafka_DeleteRecords_t *delete_records;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+                                         &records, &future,
+                                         &options.request_timeout))
+                return NULL;
+
+        if (!PyList_Check(records)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "Expected non-empty list of Records "
+                                "objects");
+                return NULL;
+        }
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETERECORDS,
+                                       &options, future);
+        if (!c_options)
+                goto err; /* Exception raised by options_to_c() */
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * event_cb to set the results on the future as the admin operation
+         * is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        c_topic_partitions = py_to_c_parts(records);
+
+        delete_records = rd_calloc(1, sizeof(*delete_records));
+        delete_records->offsets =
+            rd_kafka_topic_partition_list_copy(c_topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+        /*
+         * Call AlterConfigs
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_DeleteRecords(self->rk, &delete_records, 1, c_options, rkqu);
+        CallState_end(self, &cs);
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AdminOptions_destroy(c_options);        
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+        rd_kafka_DeleteRecords_destroy(delete_records);        
+        Py_RETURN_NONE;
+err:
+        if (c_topic_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+                rd_kafka_DeleteRecords_destroy(delete_records);
+        }
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char alter_user_scram_credentials_doc[] = PyDoc_STR(
+        ".. py:function:: delete_records(records, future, [request_timeout])\n"
+        "\n"
+        "  Deletes the records before a certain offset specified in the topic partition list.\n"
+        "  \n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.delete_records()\n");
+
 /**
  * @brief Describe consumer groups
  */

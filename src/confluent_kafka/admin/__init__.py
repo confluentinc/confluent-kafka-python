@@ -46,7 +46,7 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
-
+from ._records import (RecordsToDelete)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -1011,4 +1011,41 @@ class AdminClient (_AdminClientImpl):
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
 
+        return futmap
+    
+    def _make_delete_records_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for topic_partition, value in results.items():
+                fut = futmap.get(topic_partition, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"topic_partition {topic_partition} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    def delete_records(self, records, **kwargs):
+        if not isinstance(records, dict):
+            raise TypeError("'records' must be a dict <TopicPartition, RecordsToDelete>\n")
+        deleterecords = []
+        for topic_partition, records_to_delete in records.items():
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError(" All keys in 'records' must be TopicPartition\n")
+            if not isinstance(records_to_delete, RecordsToDelete):
+                raise TypeError("All values in 'records' must be RecordsToDelete\n")
+            topic_partition.offset = records_to_delete.beforeOffset()
+            deleterecords.append(topic_partition)
+
+        f, futmap = AdminClient._make_futures(deleterecords, None, AdminClient._make_delete_records_result)
+        super(AdminClient, self).delete_records(records, f, **kwargs)
         return futmap
