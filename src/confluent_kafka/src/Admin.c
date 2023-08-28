@@ -3780,6 +3780,29 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
         return all_groups_result;
 }
 
+static PyObject *
+Admin_c_DeleteRecordsResults_to_py (const rd_kafka_DeleteRecords_result_t *c_result) {
+
+        rd_kafka_topic_partition_list_t *offsets = rd_kafka_DeleteRecords_result_offsets(c_results);
+        size_t i;
+        PyObject *delete_records_result = NULL;
+        delete_records_result = PyDict_New();
+        rd_kafka_topic_partition_t *rktpar;
+        for (i = 0; i < offsets->cnt; i++){
+                PyObject *topic_partition = NULL;
+                PyObject *error = NULL;
+                rktpar = &offsets->elems[i];
+                topic_partition = TopicPartition_new0(
+					rktpar->topic, rktpar->partition,
+					rktpar->offset,
+                                        rd_kafka_topic_partition_get_leader_epoch(rktpar),
+					rktpar->metadata,
+					RD_KAFKA_RESP_ERR_NO_ERROR);
+                error = KafkaError_new_or_None(rktpar->err, rd_kafka_err2str(rktpar->err));
+                PyDict_SetItem(delete_records_result, topic_partition, error);
+        }
+        return delete_records_result;
+}
 
 /**
  * @brief Event callback triggered from librdkafka's background thread
@@ -4085,6 +4108,15 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 break;
         }
 
+        case RD_KAFKA_EVENT_DELETERECORDS_RESULT:
+        {
+                const rd_kafka_DeleteRecords_result_t *c_delete_records_result;
+                c_delete_records_result = rd_kafka_event_DeleteRecords_result(rkev);
+
+                result = Admin_c_DeleteRecordsResults_to_py(c_delete_records_result);
+                break;
+        }
+        
         default:
                 Py_DECREF(error); /* Py_None */
                 error = KafkaError_new0(RD_KAFKA_RESP_ERR__UNSUPPORTED_FEATURE,

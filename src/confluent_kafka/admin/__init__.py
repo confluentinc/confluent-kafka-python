@@ -1025,7 +1025,7 @@ class AdminClient (_AdminClientImpl):
                 fut = futmap.get(topic_partition, None)
                 if fut is None:
                     raise RuntimeError(
-                        f"topic_partition {topic_partition} not found in future-map: {futmap}")
+                        f"TopicPartition {topic_partition} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
