@@ -28,12 +28,19 @@ if [ ! -z "$DOCKER_REPOSITORY" ]; then
     $COMMAND
 fi
 
+if [ "$(uname -p)" = "x86_64" ]; then
+    NODE_ARCH="amd64"
+else
+    NODE_ARCH="arm64"
+fi
+
 COMMAND="helm upgrade --install njc-py-soak-tests njc-py-soak-tests \
 --set "cluster.bootstrapServers=${CC_BOOSTRAP_SERVERS}" \
 --set "cluster.username=${CC_USERNAME}" \
 --set "cluster.password=${CC_PASSWORD}" \
 --set "image.repository=${DOCKER_REPOSITORY_DEFAULT}" \
 --set "image.tag=${TAG}" \
+--set "nodeSelector.kubernetes\\.io/arch=${NODE_ARCH}" \
 --namespace "${NAMESPACE}" --create-namespace"
 echo $COMMAND
 $COMMAND
