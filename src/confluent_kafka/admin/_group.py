@@ -17,6 +17,7 @@ from .._util import ConversionUtil
 from .._model import ConsumerGroupState
 from ._acl import AclOperation
 
+
 class ConsumerGroupListing:
     """
     Represents consumer group listing information for a group used in list consumer group operation.
@@ -31,6 +32,7 @@ class ConsumerGroupListing:
     state : ConsumerGroupState
         Current state of the consumer group.
     """
+
     def __init__(self, group_id, is_simple_consumer_group, state=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
@@ -50,6 +52,7 @@ class ListConsumerGroupsResult:
     errors : list(KafkaException)
         List of errors encountered during the operation, if any.
     """
+
     def __init__(self, valid=None, errors=None):
         self.valid = valid
         self.errors = errors
@@ -65,6 +68,7 @@ class MemberAssignment:
     topic_partitions : list(TopicPartition)
         The topic partitions assigned to a group member.
     """
+
     def __init__(self, topic_partitions=[]):
         self.topic_partitions = topic_partitions
         if self.topic_partitions is None:
@@ -89,6 +93,7 @@ class MemberDescription:
     group_instance_id : str
         The instance id of the group member.
     """
+
     def __init__(self, member_id, client_id, host, assignment, group_instance_id=None):
         self.member_id = member_id
         self.client_id = client_id
@@ -119,6 +124,7 @@ class ConsumerGroupDescription:
     coordinator: Node
         Consumer group coordinator.
     """
+
     def __init__(self, group_id, is_simple_consumer_group, members, authorized_operations, partition_assignor, state,
                  coordinator):
         self.group_id = group_id
