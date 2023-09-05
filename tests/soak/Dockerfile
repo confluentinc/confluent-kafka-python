@@ -9,4 +9,4 @@ RUN mkdir -p /soaktests
 COPY bootstrap.sh /soaktests
 WORKDIR /soaktests
 RUN /soaktests/bootstrap.sh ${CKPY_VERSION} ${LK_VERSION}
-ENTRYPOINT [ "/soaktests/confluent-kafka-python/tests/soak/run.sh" ]
+ENTRYPOINT [ "/bin/bash", "/soaktests/confluent-kafka-python/tests/soak/run.sh" ]
