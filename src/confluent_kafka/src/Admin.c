@@ -2336,7 +2336,7 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
 
         if (!PyList_Check(topics) || (topics_cnt = (int)PyList_Size(topics)) < 1) {
                 PyErr_SetString(PyExc_ValueError,
-                                "Expected non-empty list of group_ids");
+                                "Expected non-empty list of topics");
                 goto err;
         }
 
@@ -2413,6 +2413,82 @@ const char Admin_describe_topics_doc[] = PyDoc_STR(
         "  Describes the provided topics.\n"
         "\n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.describe_topics()\n");
+
+/**
+ * @brief Describe cluster
+ */
+PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *future, *include_cluster_authorized_operations = NULL;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+        int i = 0;
+
+        static char *kws[] = {"future",
+                             /* options */
+                             "include_cluster_authorized_operations",
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,       
+                                         &future,
+                                         &include_cluster_authorized_operations,
+                                         &options.request_timeout
+                                         )) {
+                goto err;
+        }
+
+
+        if (include_cluster_authorized_operations &&
+            !cfl_PyBool_get(include_cluster_authorized_operations, "include_cluster_authorized_operations",
+                            &options.include_cluster_authorized_operations))
+                goto err;
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call DescribeCluster
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_DescribeCluster(self->rk, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+        rd_kafka_AdminOptions_destroy(c_options);
+
+        Py_RETURN_NONE;
+err:
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+
+const char Admin_describe_cluster_doc[] = PyDoc_STR(
+        ".. py:function:: describe_cluster(future, [request_timeout], [include_cluster_authorized_operations])\n"
+        "\n"
+        "  Describes the cluster.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.describe_cluster()\n");
 
 /**
  * @brief Delete consumer groups offsets
@@ -2920,6 +2996,10 @@ static PyMethodDef Admin_methods[] = {
 
         { "describe_topics", (PyCFunction)Admin_describe_topics, METH_VARARGS|METH_KEYWORDS,
           Admin_describe_topics_doc
+        },
+
+        { "describe_cluster", (PyCFunction)Admin_describe_cluster, METH_VARARGS|METH_KEYWORDS,
+          Admin_describe_cluster_doc
         },
 
         { "delete_consumer_groups", (PyCFunction)Admin_delete_consumer_groups, METH_VARARGS|METH_KEYWORDS,
@@ -3961,6 +4041,82 @@ static PyObject *Admin_c_AlterUserScramCredentialsResultResponses_to_py(
         return result;
 }
 
+static PyObject *Admin_c_DescribeClusterResult_to_py(
+    const rd_kafka_ClusterDescription_t *c_cluster_description) {
+        PyObject *cluster_description = NULL;
+        PyObject *ClusterDescription_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        PyObject *nodes = NULL;
+        PyObject *cluster_id = NULL;
+        PyObject *controller_id = NULL;
+        PyObject *authorized_operations = NULL;
+        size_t c_authorized_operations_cnt = 0, c_nodes_cnt = 0;
+        size_t i = 0;
+
+        ClusterDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                            "ClusterDescription");
+        if (!ClusterDescription_type) {
+                PyErr_Format(PyExc_TypeError, "Not able to load ClusterDescription type");
+                goto err;
+        }
+
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetString(kwargs,
+                             "cluster_id",
+                             rd_kafka_ClusterDescription_cluster_id(c_cluster_description));
+
+        cfl_PyDict_SetInt(kwargs, 
+                "controller_id", 
+                rd_kafka_ClusterDescription_controller_id(c_cluster_description));
+
+        c_nodes_cnt = rd_kafka_ClusterDescription_node_cnt(c_cluster_description);
+        nodes = PyList_New(c_nodes_cnt);
+        for(i=0;i<c_nodes_cnt;i++){
+                PyObject* node = c_Node_to_py(rd_kafka_ClusterDescription_node_idx(c_cluster_description, i));
+                if(!node) {
+                        goto err;
+                }
+                PyList_SET_ITEM(nodes, i, node);
+        }
+        PyDict_SetItemString(kwargs, "nodes", nodes);
+
+        c_authorized_operations_cnt = rd_kafka_ClusterDescription_cluster_acl_operations_cnt(c_cluster_description);
+        authorized_operations = PyList_New(c_authorized_operations_cnt);
+        for(i = 0; i<c_authorized_operations_cnt; i++){
+                int c_acl_op = 
+                        rd_kafka_ClusterDescription_authorized_operation_idx(
+                                c_cluster_description, i);
+
+                PyObject *acl_op = PyLong_FromLong(c_acl_op);
+                PyList_SET_ITEM(authorized_operations, i, acl_op);
+        }
+        PyDict_SetItemString(kwargs, "authorized_operations", authorized_operations);
+
+        args = PyTuple_New(0);
+
+        cluster_description = PyObject_Call(ClusterDescription_type, args, kwargs);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(nodes);
+        Py_XDECREF(cluster_id);
+        Py_XDECREF(controller_id);
+        Py_XDECREF(ClusterDescription_type);
+        Py_DECREF(authorized_operations);
+        return cluster_description;
+err:
+        Py_XDECREF(cluster_description);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(nodes);
+        Py_XDECREF(cluster_id);
+        Py_XDECREF(controller_id);
+        Py_XDECREF(ClusterDescription_type);
+        Py_DECREF(authorized_operations);
+        return NULL;
+}
+
 /**
  *
  * @brief Convert C delete groups result response to pyobject.
@@ -4325,6 +4481,21 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 result = Admin_c_DescribeTopicsResults_to_py(c_describe_topics_res_responses,
                                                                      c_describe_topics_res_cnt);
+
+                break;
+        }
+
+        case RD_KAFKA_EVENT_DESCRIBECLUSTER_RESULT:
+        {
+                const rd_kafka_DescribeCluster_result_t *c_describe_cluster_res;
+                const rd_kafka_ClusterDescription_t *c_describe_cluster_res_response;
+
+                c_describe_cluster_res = rd_kafka_event_DescribeCluster_result(rkev);
+
+                c_describe_cluster_res_response = rd_kafka_DescribeCluster_result_description
+                                                           (c_describe_cluster_res);
+
+                result = Admin_c_DescribeClusterResult_to_py(c_describe_cluster_res_response);
 
                 break;
         }

@@ -17,7 +17,7 @@ import confluent_kafka
 import struct
 import time
 import pytest
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaException
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
@@ -393,12 +393,13 @@ def test_basic_operations(kafka_cluster):
     assert not result.valid
 
     # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
+    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10, include_authorized_operations = False)
     for group_id, future in futureMap.items():
         g = future.result()
         assert group_id == g.group_id
         assert g.is_simple_consumer_group is False
         assert g.state == ConsumerGroupState.EMPTY
+        assert g.authorized_operations == []
 
     def verify_config(expconfig, configs):
         """
@@ -451,6 +452,45 @@ def test_basic_operations(kafka_cluster):
     fs[group1].result()  # will raise exception on failure
     fs[group2].result()  # will raise exception on failure
 
+    # Describe Topics API test
+    futureMap = admin_client.describe_topics([our_topic, "failure"], request_timeout=10, include_topic_authorized_operations = False)
+    for topic, future in futureMap.items():
+        try:
+            t = future.result()
+            assert t.topic == our_topic #SUCCESS
+            assert t.authorized_operations == []
+        except KafkaException as e:
+            assert topic == "failure"   # UNKNOWN_TOPIC_OR_PART
+        except Exception:
+            raise    
+    futureMap = admin_client.describe_topics([our_topic], request_timeout=10, include_topic_authorized_operations = True)
+    initial_len = 0
+    for topic, future in futureMap.items():
+        try:
+            t = future.result()
+            assert t.topic == our_topic 
+            assert len(t.authorized_operations) > 0
+            initial_len = len(t.authorized_operations)
+        except KafkaException as e:
+            assert False, "DescribeTopics failed"
+        except Exception:
+            raise    
+    print("{}Reached here: {}{}".format('\033[32m', initial_len, '\033[0m'))
+    
+
+    # Describe Cluster API test
+    fs = admin_client.describe_cluster(request_timeout=10)
+    try:
+        clus_desc = fs.result()
+        assert len(clus_desc.nodes) > 0
+        assert clus_desc.authorized_operations == []
+    except KafkaException as e:
+        assert False, "DescribeCluster Failed"
+    except Exception:
+        raise
+    print(our_topic + "is the topic name")
+    print(fs)
+    print(admin_client)
     #
     # Delete the topic
     #

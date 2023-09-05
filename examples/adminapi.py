@@ -551,6 +551,28 @@ def example_describe_topics(a, args):
         except Exception:
             raise
 
+def example_describe_cluster(a,args):
+    """
+    Describe Cluster
+    """
+    future = a.describe_cluster(request_timeout=10, include_cluster_authorized_operations=True)
+    try:
+        c = future.result()
+        print("Cluster_id           : {}".format(c.cluster_id))
+        print("Controller_id        : {}".format(c.controller_id))
+        print("Nodes                :")
+        for node in c.nodes:
+            print("  Node: ({}) {}:{}".format(node.id, node.host, node.port))
+        print("Authorized operations: ")
+        op_string = ""
+        for acl_op in c.authorized_operations:
+            op_string += acl_op.name + "  "
+        print("    {}".format(op_string))
+    except KafkaException as e:
+        print("Error while describing cluster: {}".format(e))
+    except Exception:
+        raise
+
 
 def example_delete_consumer_groups(a, args):
     """
@@ -739,6 +761,7 @@ if __name__ == '__main__':
         sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
         sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
         sys.stderr.write(' describe_topics <include_topic_authorized_operations> <topic1> <topic2> ..\n')
+        sys.stderr.write(' describe_cluster <include_cluster_authorized_operations>\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
         sys.stderr.write(' list_consumer_group_offsets <group> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.stderr.write(
@@ -777,6 +800,7 @@ if __name__ == '__main__':
               'list_consumer_groups': example_list_consumer_groups,
               'describe_consumer_groups': example_describe_consumer_groups,
               'describe_topics': example_describe_topics,
+              'describe_cluster': example_describe_cluster,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,

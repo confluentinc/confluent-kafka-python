@@ -48,6 +48,7 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      UserScramCredentialsDescription)
 from ._topic import (TopicDescription,  # noqa: F401
                      PartitionDescription)
+from ._cluster import (ClusterDescription)  # noqa: F401
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -896,6 +897,29 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_topics(topics, f, **kwargs)
 
         return futmap
+    
+    def describe_cluster(self, **kwargs):
+        """
+        Describe cluster.
+
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A future returning description of the cluster as result
+
+        :rtype: future
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeException: Invalid input.
+        :raises ValueException: Invalid input.
+        """
+
+        f = AdminClient._create_future()
+
+        super(AdminClient, self).describe_cluster(f, **kwargs)
+
+        return f
 
     def delete_consumer_groups(self, group_ids, **kwargs):
         """
