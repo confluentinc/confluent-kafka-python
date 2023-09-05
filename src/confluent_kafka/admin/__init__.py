@@ -865,7 +865,7 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
-    
+
     def describe_topics(self, topics, **kwargs):
         """
         Describe topics.
@@ -897,7 +897,7 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_topics(topics, f, **kwargs)
 
         return futmap
-    
+
     def describe_cluster(self, **kwargs):
         """
         Describe cluster.
@@ -908,7 +908,7 @@ class AdminClient (_AdminClientImpl):
 
         :returns: A future returning description of the cluster as result
 
-        :rtype: future
+        :rtype: future containing the description of the cluster in result.
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeException: Invalid input.

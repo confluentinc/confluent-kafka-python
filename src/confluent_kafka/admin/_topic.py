@@ -16,6 +16,7 @@
 from .._util import ConversionUtil
 from ._acl import AclOperation
 
+
 class PartitionDescription:
     """
     Represents partition information.
@@ -32,11 +33,13 @@ class PartitionDescription:
     isrs: list(int)
         In-Sync-Replica brokers for the partition.
     """
+
     def __init__(self, id, leader, replicas, isrs):
         self.id = id
         self.leader = leader
         self.replicas = replicas
         self.isrs = isrs
+
 
 class TopicDescription:
     """
@@ -52,6 +55,7 @@ class TopicDescription:
     authorized_operations: list(AclOperation)
         AclOperations allowed for the topic.
     """
+
     def __init__(self, topic, partitions, authorized_operations):
         self.topic = topic
         self.partitions = partitions
