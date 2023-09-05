@@ -16,6 +16,7 @@
 from .._util import ConversionUtil
 from ._acl import AclOperation
 
+
 class ClusterDescription:
     """
     Represents cluster description information used in describe cluster operation.
@@ -32,6 +33,7 @@ class ClusterDescription:
     authorized_operations: list(AclOperation)
         AclOperations allowed for the cluster.
     """
+
     def __init__(self, cluster_id, controller_id, nodes, authorized_operations):
         self.cluster_id = cluster_id
         self.controller_id = controller_id
