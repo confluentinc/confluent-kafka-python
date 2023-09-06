@@ -48,7 +48,7 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      UserScramCredentialsDescription)
 from ._topic import (TopicDescription,  # noqa: F401
                      PartitionDescription)
-from ._cluster import (ClusterDescription)  # noqa: F401
+from ._cluster import (DescribeClusterResult)  # noqa: F401
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,

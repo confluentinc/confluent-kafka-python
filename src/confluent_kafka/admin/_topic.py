@@ -17,7 +17,7 @@ from .._util import ConversionUtil
 from ._acl import AclOperation
 
 
-class PartitionDescription:
+class TopicPartitionInfo:
     """
     Represents partition information.
     Used by :class:`TopicDescription`.
@@ -26,11 +26,11 @@ class PartitionDescription:
     ----------
     id : int
         Id of the partition.
-    leader : int
+    leader : Node
         Leader broker for the partition.
-    replicas: list(int)
+    replicas: list(Node)
         Replica brokers for the partition.
-    isrs: list(int)
+    isrs: list(Node)
         In-Sync-Replica brokers for the partition.
     """
 
@@ -56,8 +56,9 @@ class TopicDescription:
         AclOperations allowed for the topic.
     """
 
-    def __init__(self, topic, partitions, authorized_operations):
+    def __init__(self, topic, is_internal, partitions, authorized_operations):
         self.topic = topic
+        self.is_internal = is_internal
         self.partitions = partitions
         self.authorized_operations = []
         if authorized_operations:

@@ -17,7 +17,7 @@ from .._util import ConversionUtil
 from ._acl import AclOperation
 
 
-class ClusterDescription:
+class DescribeClusterResult:
     """
     Represents cluster description information used in describe cluster operation.
     Used by :meth:`AdminClient.describe_cluster`.
@@ -26,17 +26,17 @@ class ClusterDescription:
     ----------
     cluster_id : str
         The current cluster id in the cluster.
-    controller_id : int
-        The current controller id in the cluster.
+    controller : Node
+        The current controller in the cluster.
     nodes : list(Node)
         Information about each node in the cluster.
     authorized_operations: list(AclOperation)
         AclOperations allowed for the cluster.
     """
 
-    def __init__(self, cluster_id, controller_id, nodes, authorized_operations):
+    def __init__(self, cluster_id, controller, nodes, authorized_operations):
         self.cluster_id = cluster_id
-        self.controller_id = controller_id
+        self.controller = controller
         self.nodes = nodes
         self.authorized_operations = []
         if authorized_operations:
