@@ -115,18 +115,18 @@ class ConsumerGroupDescription:
         Whether a consumer group is simple or not.
     members: list(MemberDescription)
         Description of the members of the consumer group.
-    authorized_operations: list(AclOperation)
-        AclOperations allowed for the consumer group.
     partition_assignor: str
         Partition assignor.
     state : ConsumerGroupState
         Current state of the consumer group.
     coordinator: Node
         Consumer group coordinator.
+    authorized_operations: list(AclOperation)
+        AclOperations allowed for the consumer group.
     """
 
-    def __init__(self, group_id, is_simple_consumer_group, members, authorized_operations, partition_assignor, state,
-                 coordinator):
+    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
+                 coordinator, authorized_operations=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
