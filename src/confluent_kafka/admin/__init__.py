@@ -47,7 +47,7 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramMechanism,
                      UserScramCredentialsDescription)
 from ._topic import (TopicDescription,  # noqa: F401
-                     PartitionDescription)
+                     TopicPartitionInfo)
 from ._cluster import (DescribeClusterResult)  # noqa: F401
 
 from ..cimpl import (KafkaException,  # noqa: F401
