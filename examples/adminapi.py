@@ -536,19 +536,29 @@ def example_describe_topics(a, args):
     for topic, future in futureMap.items():
         try:
             t = future.result()
-            print("Topic Name: {}".format(t.topic))
-            print("  Partitions: ")
-            for partition in t.partitions:
-                print("    Id                : {}".format(partition.id))
-                print("    Leader            : {}".format(partition.leader))
-                print("    Replicas          : {}".format(partition.replicas))
-                print("    In-Sync Replicas  : {}".format(partition.isrs))
-                print("")
-            print("  Authorized operations: ")
+            print("Topic name             : {}".format(topic))
+            if(t.is_internal):
+                print("Topic is Internal")
+
+            print("Authorized operations  : ")
             op_string = ""
             for acl_op in t.authorized_operations:
                 op_string += acl_op.name + "  "
             print("    {}".format(op_string))
+
+            print("Partition Information")
+            for partition in t.partitions:
+                print("    Id                : {}".format(partition.id))
+                print("    Leader            : ({}) {}:{}".format(partition.leader.id, partition.leader.host, partition.leader.port))
+                print("    Replicas          : {}".format(len(partition.replicas)))
+                for replica in partition.replicas:
+                    print("         Replica            : ({}) {}:{}".format(replica.id, replica.host, replica.port))
+                print("    In-Sync Replicas  : {}".format(len(partition.isrs)))
+                for isr in partition.isrs:
+                    print("         In-Sync Replica    : ({}) {}:{}".format(isr.id, isr.host, isr.port))
+                print("")
+            print("")
+
         except KafkaException as e:
             print("Error while describing topic '{}': {}".format(topic, e))
         except Exception:
@@ -565,7 +575,10 @@ def example_describe_cluster(a, args):
     try:
         c = future.result()
         print("Cluster_id           : {}".format(c.cluster_id))
-        print("Controller_id        : {}".format(c.controller_id))
+        if(c.controller):
+            print("Node: ({}) {}:{}".format(c.controller.id, c.controller.host, c.controller.port))
+        else:
+            print("No Controller Information Available")
         print("Nodes                :")
         for node in c.nodes:
             print("  Node: ({}) {}:{}".format(node.id, node.host, node.port))

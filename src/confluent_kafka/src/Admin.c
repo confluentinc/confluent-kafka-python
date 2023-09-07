@@ -3746,7 +3746,7 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
         const rd_kafka_Node_t **c_isrs = NULL;
 
         PartitionDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                                     "PartitionDescription");
+                                                        "TopicPartitionInfo");
         if (!PartitionDescription_type) {
                 goto err;
         }
@@ -3891,7 +3891,7 @@ err:
         Py_XDECREF(is_internal);
         Py_XDECREF(partitions);
         Py_XDECREF(TopicDescription_type);
-        Py_DECREF(authorized_operations);
+        Py_XDECREF(authorized_operations);
         return NULL;
 }
 
