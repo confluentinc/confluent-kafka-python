@@ -650,7 +650,7 @@ def test_describe_topics_api():
 def test_describe_cluster():
     a = AdminClient({"socket.timeout.ms": 10})
 
-    a.describe_cluster(include_cluster_authorized_operations=True)
+    a.describe_cluster(include_authorized_operations=True)
 
     with pytest.raises(TypeError):
         a.describe_cluster(unknown_operation="it is")
