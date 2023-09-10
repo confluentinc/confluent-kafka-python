@@ -50,7 +50,7 @@ class TopicDescription:
     ----------
     topic : str
         The topic name.
-    partitions : list(PartitionDescription)
+    partitions : list(TopicPartitionInfo)
         Partition information.
     authorized_operations: list(AclOperation)
         AclOperations allowed for the topic.
