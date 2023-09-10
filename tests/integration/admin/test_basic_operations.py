@@ -455,7 +455,7 @@ def test_basic_operations(kafka_cluster):
 
     # Describe Topics API test
     futureMap = admin_client.describe_topics(
-        [our_topic, "failure"], request_timeout=10, include_topic_authorized_operations=False)
+        [our_topic, "failure"], request_timeout=10, include_authorized_operations=False)
     for topic, future in futureMap.items():
         try:
             t = future.result()
@@ -465,7 +465,7 @@ def test_basic_operations(kafka_cluster):
             assert topic == "failure"   # UNKNOWN_TOPIC_OR_PART
         except Exception:
             raise
-    futureMap = admin_client.describe_topics([our_topic], request_timeout=10, include_topic_authorized_operations=True)
+    futureMap = admin_client.describe_topics([our_topic], request_timeout=10, include_authorized_operations=True)
     for topic, future in futureMap.items():
         try:
             t = future.result()
@@ -486,7 +486,7 @@ def test_basic_operations(kafka_cluster):
         assert False, "DescribeCluster Failed"
     except Exception:
         raise
-    fs = admin_client.describe_cluster(request_timeout=10, include_cluster_authorized_operations=True)
+    fs = admin_client.describe_cluster(request_timeout=10, include_authorized_operations=True)
     try:
         clus_desc = fs.result()
         assert len(clus_desc.nodes) > 0
