@@ -1453,6 +1453,9 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
 
+        if(!c_node)
+                return Py_None;
+
         Node_type = cfl_PyObject_lookup("confluent_kafka",
                                         "Node");
         if (!Node_type) {
@@ -1478,6 +1481,7 @@ err:
         Py_XDECREF(Node_type);
         Py_XDECREF(args);
         Py_XDECREF(kwargs);
+        Py_XDECREF(node);
         return NULL;
 }
 
