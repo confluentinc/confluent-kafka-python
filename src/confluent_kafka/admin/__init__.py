@@ -871,7 +871,7 @@ class AdminClient (_AdminClientImpl):
         Describe topics.
 
         :param list(str) topics: List of topics which need to be described.
-        :param bool include_topic_authorized_operations: If True, fetches topic AclOperations. Default: False
+        :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
         :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
                   Default: `socket.timeout.ms*1000.0`
 
@@ -881,8 +881,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: dict[str, future]
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
         """
 
         if not isinstance(topics, list):
@@ -902,6 +902,7 @@ class AdminClient (_AdminClientImpl):
         """
         Describe cluster.
 
+        :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -911,8 +912,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: future containing the description of the cluster in result.
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
         """
 
         f = AdminClient._create_future()
@@ -936,8 +937,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: dict[str, future]
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
         """
         if not isinstance(group_ids, list):
             raise TypeError("Expected input to be list of group ids to be deleted")
