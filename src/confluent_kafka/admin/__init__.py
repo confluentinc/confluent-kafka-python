@@ -872,8 +872,9 @@ class AdminClient (_AdminClientImpl):
 
         :param list(str) topics: List of topics which need to be described.
         :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
-        :param float request_timeout: Maximum response time before timing out, or -1 for infinite timeout.
-                  Default: `socket.timeout.ms*1000.0`
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms*1000.0`
 
         :returns: A dict of futures for each topic, keyed by the topic.
                   The future result() method returns :class:`TopicDescription`.
