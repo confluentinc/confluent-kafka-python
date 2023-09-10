@@ -13,31 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import confluent_kafka
-import struct
 import time
-import pytest
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaException
-from confluent_kafka.admin import (NewPartitions, ConfigResource,
-                                   AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType,
-                                   UserScramCredentialsDescription, UserScramCredentialUpsertion,
-                                   UserScramCredentialDeletion, ScramCredentialInfo,
-                                   ScramMechanism)
-from confluent_kafka.error import ConsumeError, KafkaException, KafkaError
+from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
+                                   ResourcePatternType, AclOperation, AclPermissionType)
+from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
-
-# Shared between producer and consumer tests and used to verify
-# that consumed headers are what was actually produced.
-produce_headers = [('foo1', 'bar'),
-                   ('foo1', 'bar2'),
-                   ('foo2', b'1'),
-                   (u'Jämtland', u'Härjedalen'),  # automatically utf-8 encoded
-                   ('nullheader', None),
-                   ('empty', ''),
-                   ('foobin', struct.pack('hhl', 10, 20, 30))]
-
 
 def verify_commit_result(err, _):
     assert err is not None
@@ -134,8 +115,8 @@ def verify_describe_group(cluster, admin_client, our_topic):
 
     # Produce some messages
     p = cluster.producer()
-    p.produce(our_topic, 'Hello Python!', headers=produce_headers)
-    p.produce(our_topic, key='Just a key and headers', headers=produce_headers)
+    p.produce(our_topic, 'Hello Python!')
+    p.produce(our_topic, key='Just a key')
     p.flush()
 
     # Consume some messages for the group
