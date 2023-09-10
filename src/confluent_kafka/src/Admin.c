@@ -2298,7 +2298,6 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
         static char *kws[] = {"future",
                              "topics",
                              /* options */
-                             /*TODO: Change this option name*/
                              "include_authorized_operations",
                              "request_timeout",
                              NULL};
@@ -3673,7 +3672,7 @@ err:
         Py_XDECREF(coordinator);
         Py_XDECREF(ConsumerGroupDescription_type);
         Py_XDECREF(members);
-        Py_DECREF(authorized_operations);
+        Py_XDECREF(authorized_operations);
         return NULL;
 
 }
@@ -3716,7 +3715,7 @@ err:
 static PyObject *Admin_c_TopicPartitionInfo_to_py(
           const rd_kafka_TopicPartitionInfo_t *c_topic_partition_info){
         PyObject *partition = NULL;
-        PyObject *PartitionDescription_type = NULL;
+        PyObject *TopicPartitionInfo_type = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
         PyObject *replicas = NULL;
@@ -3727,9 +3726,9 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
         const rd_kafka_Node_t **c_replicas = NULL;
         const rd_kafka_Node_t **c_isrs = NULL;
 
-        PartitionDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
+        TopicPartitionInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                         "TopicPartitionInfo");
-        if (!PartitionDescription_type) {
+        if (!TopicPartitionInfo_type) {
                 goto err;
         }
 
@@ -3748,29 +3747,27 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
 
         c_replicas = rd_kafka_TopicPartitionInfo_replicas(c_topic_partition_info, &c_replicas_cnt);
         replicas = PyList_New(c_replicas_cnt);
-        if(c_replicas_cnt > 0)
-                for(i=0;i<c_replicas_cnt;i++){
-                        PyObject *replica = c_Node_to_py(c_replicas[i]);
-                        PyList_SET_ITEM(replicas, i, replica);
-                }
+        for(i=0;i<c_replicas_cnt;i++){
+                PyObject *replica = c_Node_to_py(c_replicas[i]);
+                PyList_SET_ITEM(replicas, i, replica);
+        }
         PyDict_SetItemString(kwargs, "replicas", replicas);
 
         c_isrs = rd_kafka_TopicPartitionInfo_isr(c_topic_partition_info, &c_isrs_cnt);
         isrs = PyList_New(c_isrs_cnt);
-        if(c_isrs_cnt > 0)
-                for(i=0;i<c_isrs_cnt;i++){
-                        PyObject *isr = c_Node_to_py(c_isrs[i]);
-                        PyList_SET_ITEM(isrs, i, isr);
-                }
+        for(i=0;i<c_isrs_cnt;i++){
+                PyObject *isr = c_Node_to_py(c_isrs[i]);
+                PyList_SET_ITEM(isrs, i, isr);
+        }
         PyDict_SetItemString(kwargs, "isrs", isrs);
 
         args = PyTuple_New(0);
 
-        partition = PyObject_Call(PartitionDescription_type, args, kwargs);
+        partition = PyObject_Call(TopicPartitionInfo_type, args, kwargs);
 
         Py_XDECREF(args);
         Py_XDECREF(kwargs);
-        Py_XDECREF(PartitionDescription_type);
+        Py_XDECREF(TopicPartitionInfo_type);
         Py_XDECREF(leader);
         Py_XDECREF(replicas);
         Py_XDECREF(isrs);
@@ -3778,7 +3775,7 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
 err:
         Py_XDECREF(args);
         Py_XDECREF(kwargs);
-        Py_XDECREF(PartitionDescription_type);
+        Py_XDECREF(TopicPartitionInfo_type);
         Py_XDECREF(leader);
         Py_XDECREF(replicas);
         Py_XDECREF(isrs);
@@ -3788,7 +3785,6 @@ err:
 
 static PyObject *Admin_c_TopicPartitionInfos_to_py_from_TopicDescription(
     const rd_kafka_TopicDescription_t *c_topic_description) {
-        PyObject *partition_description = NULL;
         PyObject *partitions = NULL;
         size_t c_partitions_cnt;
         size_t i = 0;
@@ -3798,13 +3794,14 @@ static PyObject *Admin_c_TopicPartitionInfos_to_py_from_TopicDescription(
         partitions = PyList_New(c_partitions_cnt);
         if(c_partitions_cnt > 0) {
                 for(i = 0; i < c_partitions_cnt; i++) {
-                        partition_description = 
+                        PyObject *topic_partition_info = NULL;
+                        topic_partition_info = 
                                 Admin_c_TopicPartitionInfo_to_py(
                                         c_partitions[i]);
-                        if(!partition_description) {
+                        if(!topic_partition_info) {
                                 goto err;
                         }
-                        PyList_SET_ITEM(partitions, i, partition_description);
+                        PyList_SET_ITEM(partitions, i, topic_partition_info);
                 }
         }
         return partitions;
@@ -3864,7 +3861,7 @@ static PyObject *Admin_c_TopicDescription_to_py(
         Py_XDECREF(is_internal);
         Py_XDECREF(partitions);
         Py_XDECREF(TopicDescription_type);
-        Py_DECREF(authorized_operations);
+        Py_XDECREF(authorized_operations);
         return topic_description;
 err:
         Py_XDECREF(topic_description);
@@ -3880,28 +3877,26 @@ err:
 static PyObject *Admin_c_DescribeTopicsResults_to_py(
     const rd_kafka_TopicDescription_t **c_result_responses,
     size_t cnt) {
-        PyObject *topic_description = NULL;
         PyObject *results = NULL;
         size_t i = 0;
         results = PyList_New(cnt);
         if(cnt > 0) {
                 for(i = 0; i < cnt; i++) {
-                        PyObject *error;
                         const rd_kafka_error_t *c_error =
                             rd_kafka_TopicDescription_error(c_result_responses[i]);
 
                         if (rd_kafka_error_code(c_error)) {
+                                PyObject *error;
                                 error = KafkaError_new_or_None(
                                         rd_kafka_error_code(c_error),
                                         rd_kafka_error_string(c_error));
                                 PyList_SET_ITEM(results, i, error);
                         } else {
-                                topic_description =
+                                PyObject *topic_description =
                                     Admin_c_TopicDescription_to_py(c_result_responses[i]);
                                 if(!topic_description) {
                                         goto err;
                                 }
-
                                 PyList_SET_ITEM(results, i, topic_description);
                         }
                 }
