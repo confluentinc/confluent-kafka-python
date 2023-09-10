@@ -90,52 +90,13 @@ def delete_acls(admin_client, acl_binding_filters):
         f.result()  # trigger exception if there was an error
 
 def verify_describe_topics(admin_client, topic):
-    futureMap = admin_client.describe_topics(
-        [topic], request_timeout=10, include_topic_authorized_operations=False)
-    for topic, future in futureMap.items():
-        try:
-            t = future.result()
-            assert t.topic == topic  # SUCCESS
-            assert t.authorized_operations == []
-        except Exception:
-            raise
-
-    futureMap = admin_client.describe_topics([topic], request_timeout=10, include_topic_authorized_operations=True)
-    for topic, future in futureMap.items():
-        try:
-            t = future.result()
-            assert t.topic == topic
-            assert len(t.authorized_operations) > 0
-            assert AclOperation.CREATE in t.authorized_operations
-            assert AclOperation.DELETE in t.authorized_operations
-        except KafkaException as e:
-            assert False, "DescribeTopics failed"
-        except Exception:
-            raise
-
-    topic_acl_binding = AclBinding(ResourceType.TOPIC, topic, ResourcePatternType.LITERAL,
-                               "User:sasl_user", "*", AclOperation.READ, AclPermissionType.ALLOW)
-    create_acls(admin_client, [topic_acl_binding])
-    time.sleep(2)
-    futureMap = admin_client.describe_topics([topic], request_timeout=10, include_topic_authorized_operations=True)
-    for topic, future in futureMap.items():
-        try:
-            t = future.result()
-            assert t.topic == topic
-            assert len(t.authorized_operations) > 0
-            assert AclOperation.READ in t.authorized_operations
-            assert AclOperation.DESCRIBE in t.authorized_operations
-            assert AclOperation.CREATE not in t.authorized_operations
-            assert AclOperation.DELETE not in t.authorized_operations
-        except KafkaException as e:
-            assert False, "DescribeTopics failed"
-        except Exception:
-            raise
-    
-    topic_acl_binding_filter = AclBindingFilter(ResourceType.TOPIC, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    delete_acls(admin_client, [topic_acl_binding_filter])
-    time.sleep(2)
+    verify_describe_generic(admin_client, 
+                            admin_client.describe_topics, 
+                            AclOperation.READ, 
+                            AclOperation.DELETE, 
+                            ResourceType.TOPIC, 
+                            topic,
+                            [topic])
 
 
 def verify_describe_group(sasl_cluster, admin_client, our_topic):
@@ -150,87 +111,74 @@ def verify_describe_group(sasl_cluster, admin_client, our_topic):
     group = 'test-group'
     consume_messages(sasl_cluster, group, our_topic, 2)
 
-    # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups(
-        [group], request_timeout=10, include_authorized_operations=False)
-    for _, future in futureMap.items():
-        g = future.result()
-        assert g.authorized_operations == []
- 
-    futureMap = admin_client.describe_consumer_groups(
-        [group], request_timeout=10, include_authorized_operations=True)
-    for _, future in futureMap.items():
-        g = future.result()
-        assert len(g.authorized_operations) > 0
-        assert AclOperation.DELETE in g.authorized_operations
-
-    group_acl_binding = AclBinding(ResourceType.GROUP, group, ResourcePatternType.LITERAL,
-                               "User:sasl_user", "*", AclOperation.READ, AclPermissionType.ALLOW)
-    create_acls(admin_client, [group_acl_binding])
-    time.sleep(2)
-
-    futureMap = admin_client.describe_consumer_groups(
-        [group], request_timeout=10, include_authorized_operations=True)
-    for _, future in futureMap.items():
-        try:
-            g = future.result()
-            assert len(g.authorized_operations) > 0
-            assert AclOperation.READ in g.authorized_operations
-            assert AclOperation.DESCRIBE in g.authorized_operations
-            assert AclOperation.DELETE not in g.authorized_operations
-        except Exception:
-            raise
-    
-    group_acl_binding_filter = AclBindingFilter(ResourceType.GROUP, None, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
-    delete_acls(admin_client, [group_acl_binding_filter])
-    time.sleep(2)
+    verify_describe_generic(admin_client,
+                            admin_client.describe_consumer_groups,
+                            AclOperation.READ,
+                            AclOperation.DELETE,
+                            ResourceType.GROUP, group,
+                            [group])
 
     # Delete groups
     fs = admin_client.delete_consumer_groups([group], request_timeout=10)
     fs[group].result()  # will raise exception on failure
 
+
 def verify_describe_cluster(admin_client):
+    verify_describe_generic(admin_client, 
+                            admin_client.describe_cluster, 
+                            AclOperation.ALTER, 
+                            AclOperation.ALTER_CONFIGS, 
+                            ResourceType.BROKER, 
+                            "kafka-cluster")
 
-    # Describe Cluster API test
-    fs = admin_client.describe_cluster(request_timeout=10)
+
+def verify_describe_generic(admin_client, describe, operation_to_allow, operation_to_check, restype, resname, *arg):
+
+    future_key = arg[0][0] if len(arg) > 0 else None
+    kwargs = {}
+    kwargs['request_timeout'] = 10
+
+    # Check with include_authorized_operations as False
+    kwargs['include_authorized_operations'] = False
+    fs = describe(*arg, **kwargs)
+    fs = fs[future_key] if future_key else fs 
     try:
-        clus_desc = fs.result()
-        assert len(clus_desc.nodes) > 0
-        assert clus_desc.authorized_operations == []
-    except KafkaException as e:
-        assert False, "DescribeCluster Failed"
+        desc = fs.result()
+        assert desc.authorized_operations == []
     except Exception:
         raise
 
-    fs = admin_client.describe_cluster(request_timeout=10, include_cluster_authorized_operations=True)
+    # Check with include_authorized_operations as True
+    kwargs['include_authorized_operations'] = True
+    fs = describe(*arg, **kwargs)
+    fs = fs[future_key] if future_key else fs 
     try:
-        clus_desc = fs.result()
-        assert len(clus_desc.authorized_operations) > 0
-        assert AclOperation.ALTER_CONFIGS in clus_desc.authorized_operations
-    except KafkaException as e:
-        assert False, "DescribeCluster Failed"
+        desc = fs.result()
+        assert len(desc.authorized_operations) > 0
+        assert operation_to_check in desc.authorized_operations
     except Exception:
         raise
 
-    cluster_acl_binding = AclBinding(ResourceType.BROKER, "kafka-cluster", ResourcePatternType.LITERAL,
-                               "User:*", "*", AclOperation.ALTER, AclPermissionType.ALLOW)
-    create_acls(admin_client, [cluster_acl_binding])
+    # Update Authorized Operation by creating new ACLs
+    acl_binding = AclBinding(restype, resname, ResourcePatternType.LITERAL,
+                               "User:*", "*", operation_to_allow, AclPermissionType.ALLOW)
+    create_acls(admin_client, [acl_binding])
     time.sleep(2)
 
-    fs = admin_client.describe_cluster(request_timeout=10, include_cluster_authorized_operations=True)
+    # Check with updated authorized operations
+    fs = describe(*arg, **kwargs)
+    fs = fs[future_key] if future_key else fs 
     try:
-        clus_desc = fs.result()
-        assert len(clus_desc.authorized_operations) > 0
-        assert AclOperation.ALTER_CONFIGS not in clus_desc.authorized_operations
-    except KafkaException as e:
-        assert False, "DescribeCluster Failed"
+        desc = fs.result()
+        assert len(desc.authorized_operations) > 0
+        assert operation_to_check not in desc.authorized_operations
     except Exception:
         raise
 
-    cluster_acl_binding_filter = AclBindingFilter(ResourceType.BROKER, "kafka-cluster", ResourcePatternType.ANY,
+    # Delete Updated ACLs
+    acl_binding_filter = AclBindingFilter(restype, resname, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
-    delete_acls(admin_client, [cluster_acl_binding_filter])
+    delete_acls(admin_client, [acl_binding_filter])
     time.sleep(2)
 
 def test_authorized_operations(sasl_cluster):
