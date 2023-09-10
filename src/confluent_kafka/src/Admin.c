@@ -79,8 +79,6 @@ struct Admin_options {
         int   broker;                                   /* parser: i */
         int require_stable_offsets;                     /* needs special bool parsing */
         int include_authorized_operations;              /* needs special bool parsing */
-        int include_topic_authorized_operations;        /* needs special bool parsing */
-        int include_cluster_authorized_operations;      /* needs special bool parsing */
         rd_kafka_consumer_group_state_t* states;
         int states_cnt;
 };
@@ -91,8 +89,6 @@ struct Admin_options {
                 Admin_options_def_int,           \
                 Admin_options_def_float,         \
                 Admin_options_def_float,         \
-                Admin_options_def_int,           \
-                Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
@@ -169,20 +165,6 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->include_authorized_operations) &&
             (err_obj = rd_kafka_AdminOptions_set_include_authorized_operations(
                     c_options, options->include_authorized_operations))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
-                goto err;
-        }
-
-        if (Admin_options_is_set_int(options->include_topic_authorized_operations) &&
-            (err_obj = rd_kafka_AdminOptions_set_include_authorized_operations(
-                    c_options, options->include_topic_authorized_operations))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
-                goto err;
-        }
-
-        if (Admin_options_is_set_int(options->include_cluster_authorized_operations) &&
-            (err_obj = rd_kafka_AdminOptions_set_include_authorized_operations(
-                    c_options, options->include_cluster_authorized_operations))) {
                 strcpy(errstr, rd_kafka_error_string(err_obj));
                 goto err;
         }
@@ -2303,7 +2285,7 @@ const char Admin_describe_consumer_groups_doc[] = PyDoc_STR(
  * @brief Describe topics
  */
 PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *future, *topics, *include_topic_authorized_operations = NULL;
+        PyObject *future, *topics, *include_authorized_operations = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         const char **c_topics = NULL;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -2317,23 +2299,23 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                              "topics",
                              /* options */
                              /*TODO: Change this option name*/
-                             "include_topic_authorized_operations",
+                             "include_authorized_operations",
                              "request_timeout",
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|Of", kws,
                                          &topics,
                                          &future,
-                                         &include_topic_authorized_operations,
+                                         &include_authorized_operations,
                                          &options.request_timeout
                                          )) {
                 goto err;
         }
 
 
-        if (include_topic_authorized_operations &&
-            !cfl_PyBool_get(include_topic_authorized_operations, "include_topic_authorized_operations",
-                            &options.include_topic_authorized_operations))
+        if (include_authorized_operations &&
+            !cfl_PyBool_get(include_authorized_operations, "include_authorized_operations",
+                            &options.include_authorized_operations))
                 goto err;
 
         if (!PyList_Check(topics) || (topics_cnt = (int)PyList_Size(topics)) < 1) {
@@ -2417,7 +2399,7 @@ err:
 
 
 const char Admin_describe_topics_doc[] = PyDoc_STR(
-        ".. py:function:: describe_topics(future, topics, [request_timeout], [include_topic_authorized_operations])\n"
+        ".. py:function:: describe_topics(future, topics, [request_timeout], [include_authorized_operations])\n"
         "\n"
         "  Describes the provided topics.\n"
         "\n"
@@ -2427,7 +2409,7 @@ const char Admin_describe_topics_doc[] = PyDoc_STR(
  * @brief Describe cluster
  */
 PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *future, *include_cluster_authorized_operations = NULL;
+        PyObject *future, *include_authorized_operations = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         CallState cs;
@@ -2435,22 +2417,22 @@ PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs
 
         static char *kws[] = {"future",
                              /* options */
-                             "include_cluster_authorized_operations",
+                             "include_authorized_operations",
                              "request_timeout",
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,       
                                          &future,
-                                         &include_cluster_authorized_operations,
+                                         &include_authorized_operations,
                                          &options.request_timeout
                                          )) {
                 goto err;
         }
 
 
-        if (include_cluster_authorized_operations &&
-            !cfl_PyBool_get(include_cluster_authorized_operations, "include_cluster_authorized_operations",
-                            &options.include_cluster_authorized_operations))
+        if (include_authorized_operations &&
+            !cfl_PyBool_get(include_authorized_operations, "include_authorized_operations",
+                            &options.include_authorized_operations))
                 goto err;
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER,
@@ -2492,7 +2474,7 @@ err:
 
 
 const char Admin_describe_cluster_doc[] = PyDoc_STR(
-        ".. py:function:: describe_cluster(future, [request_timeout], [include_cluster_authorized_operations])\n"
+        ".. py:function:: describe_cluster(future, [request_timeout], [include_authorized_operations])\n"
         "\n"
         "  Describes the cluster.\n"
         "\n"
