@@ -4062,7 +4062,6 @@ static PyObject *Admin_c_DescribeClusterResult_to_py(
                              "cluster_id",
                              rd_kafka_DescribeCluster_result_cluster_id(c_describe_cluster_result));
 
-        /* TODO: Handle NULL Case for Constroller */
         c_controller = rd_kafka_DescribeCluster_result_controller(c_describe_cluster_result);
         controller = c_Node_to_py(c_controller);
         if(!controller) {
