@@ -111,8 +111,8 @@ def kafka_cluster():
 
 
 @pytest.fixture(scope="package")
-def sasl_cluster():
-    for fixture in sasl_cluster_fixture():
+def sasl_cluster(request):
+    for fixture in sasl_cluster_fixture(request.param):
         yield fixture
 
 

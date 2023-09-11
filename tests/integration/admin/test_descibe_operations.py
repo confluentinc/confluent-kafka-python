@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
+import pytest
 from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
@@ -87,7 +87,6 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
     acl_binding = AclBinding(restype, resname, ResourcePatternType.LITERAL,
                                "User:sasl_user", "*", operation_to_allow, AclPermissionType.ALLOW)
     create_acls(admin_client, [acl_binding])
-    time.sleep(2)
 
     # Check with updated authorized operations
     desc = perform_admin_operation_sync(describe_fn, *arg, **kwargs)
@@ -98,7 +97,6 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
     acl_binding_filter = AclBindingFilter(restype, resname, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     delete_acls(admin_client, [acl_binding_filter])
-    time.sleep(2)
 
 
 def verify_describe_topics(admin_client, topic):
@@ -144,8 +142,8 @@ def verify_describe_cluster(admin_client):
                             ResourceType.BROKER, 
                             "kafka-cluster")
 
-
-def test_authorized_operations(sasl_cluster):
+@pytest.mark.parametrize('sasl_cluster', [{'broker_cnt': 1}], indirect=True)
+def test_describe_operations(sasl_cluster):
 
     admin_client = sasl_cluster.admin()
 
