@@ -17,6 +17,7 @@ import pytest
 from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
+from confluent_kafka import ConsumerGroupState
 
 topic_prefix = "test-topic"
 
@@ -97,16 +98,23 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
     acl_binding_filter = AclBindingFilter(restype, resname, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     delete_acls(admin_client, [acl_binding_filter])
-
+    return desc
 
 def verify_describe_topics(admin_client, topic):
-    verify_provided_describe_for_authorized_operations(admin_client, 
+    desc = verify_provided_describe_for_authorized_operations(admin_client, 
                             admin_client.describe_topics, 
                             AclOperation.READ, 
                             AclOperation.DELETE, 
                             ResourceType.TOPIC, 
                             topic,
                             [topic])
+    assert desc.topic == topic
+    assert len(desc.partitions) == 1
+    assert not desc.is_internal
+    assert desc.partitions[0].id == 0
+    assert desc.partitions[0].leader is not None
+    assert len(desc.partitions[0].replicas) == 1
+    assert len(desc.partitions[0].isrs) == 1
 
 
 def verify_describe_group(cluster, admin_client, our_topic):
@@ -122,25 +130,32 @@ def verify_describe_group(cluster, admin_client, our_topic):
     consume_messages(cluster, group, our_topic, 2)
 
     # Verify Describe Consumer Groups
-    verify_provided_describe_for_authorized_operations(admin_client,
+    desc = verify_provided_describe_for_authorized_operations(admin_client,
                             admin_client.describe_consumer_groups,
                             AclOperation.READ,
                             AclOperation.DELETE,
                             ResourceType.GROUP, 
                             group,
                             [group])
+    assert group == desc.group_id
+    assert desc.is_simple_consumer_group is False
+    assert desc.state == ConsumerGroupState.EMPTY
 
     # Delete group
     perform_admin_operation_sync(admin_client.delete_consumer_groups, [group], request_timeout=10)
 
 
 def verify_describe_cluster(admin_client):
-    verify_provided_describe_for_authorized_operations(admin_client, 
+    desc = verify_provided_describe_for_authorized_operations(admin_client, 
                             admin_client.describe_cluster, 
                             AclOperation.ALTER, 
                             AclOperation.ALTER_CONFIGS, 
                             ResourceType.BROKER, 
                             "kafka-cluster")
+    assert type(desc.cluster_id) is str
+    assert len(desc.nodes) > 0
+    assert desc.controller is not None
+
 
 @pytest.mark.parametrize('sasl_cluster', [{'broker_cnt': 1}], indirect=True)
 def test_describe_operations(sasl_cluster):
