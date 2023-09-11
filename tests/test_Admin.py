@@ -633,6 +633,29 @@ def test_describe_consumer_groups_api():
         a.describe_consumer_groups([])
 
 
+def test_describe_topics_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    topics = ["test-topic-1", "test-topic-2"]
+
+    a.describe_topics(topics)
+
+    with pytest.raises(TypeError):
+        a.describe_topics("test-topic-1")
+
+    with pytest.raises(ValueError):
+        a.describe_topics([])
+
+
+def test_describe_cluster():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.describe_cluster(include_authorized_operations=True)
+
+    with pytest.raises(TypeError):
+        a.describe_cluster(unknown_operation="it is")
+
+
 def test_delete_consumer_groups_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
