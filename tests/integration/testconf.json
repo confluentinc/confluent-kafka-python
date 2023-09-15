@@ -6,7 +6,8 @@
         "schema.registry.url": "$MY_SCHEMA_REGISTRY_SSL_URL_ENV",
         "schema.registry.ssl.ca.location": "$MY_SCHEMA_REGISTRY_SSL_CA_LOCATION_ENV",
         "schema.registry.ssl.certificate.location": "$MY_SCHEMA_REGISTRY_SSL_CERTIFICATE_LOCATION_ENV",
-        "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_LOCATION_ENV"
+        "schema.registry.ssl.key.location": "$MY_SCHEMA_REGISTRY_SSL_KEY_LOCATION_ENV",
+        "schema.registry.ssl.key.password": "abcdefgh"
     },
     "avro-basic-auth": {
         "schema.registry.url": "http://localhost:8083",

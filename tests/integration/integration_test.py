@@ -785,6 +785,8 @@ def verify_avro():
 def verify_avro_https(mode_conf):
     if mode_conf is None:
         abort_on_missing_configuration('avro-https')
+    
+    print(mode_conf)
 
     base_conf = dict(mode_conf, **{'bootstrap.servers': bootstrap_servers,
                                    'error_cb': error_cb})
@@ -846,6 +848,8 @@ def verify_avro_basic_auth(mode_conf):
 def run_avro_loop(producer_conf, consumer_conf):
     from confluent_kafka import avro
     avsc_dir = os.path.join(os.path.dirname(__file__), os.pardir, 'avro')
+
+    # print(f" ---------------->>> Producer Conf is - {producer_conf}")
 
     p = avro.AvroProducer(producer_conf)
 

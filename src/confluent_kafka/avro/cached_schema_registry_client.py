@@ -87,6 +87,7 @@ class CachedSchemaRegistryClient(object):
             """Construct a Schema Registry client"""
 
         # Ensure URL valid scheme is included; http[s]
+        # print(f"------------------------------------------------->>>>>>>> Conf {conf}")
         url = conf.pop('url', '')
         if not isinstance(url, string_type):
             raise TypeError("URL must be of type str")
@@ -139,7 +140,7 @@ class CachedSchemaRegistryClient(object):
 
     @staticmethod
     def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
-        https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
+        https_session = urllib3.PoolManager(cert_reqs='CERT_NONE', ca_certs=ca_certs_path,
                                             cert_file=cert_location, key_file=key_location, key_password=key_password)
         https_session.auth = auth
         return https_session
@@ -155,6 +156,16 @@ class CachedSchemaRegistryClient(object):
             request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
                                                         auth[1]))
         request_headers.update(headers)
+        # print()
+        # print()
+        # print()
+
+        # print(f"URL -> {url}, Method -> {method}")
+
+        # print()
+        # print()
+        # print()
+
         response = self._https_session.request(method, url, headers=request_headers, body=body)
         return response
 
@@ -187,7 +198,7 @@ class CachedSchemaRegistryClient(object):
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
-        if url.startswith('https') and self._is_key_password_provided:
+        if url.startswith('https'):
             response = self._send_https_session_request(url, method, headers, body)
             try:
                 return json.loads(response.data), response.status
@@ -199,6 +210,18 @@ class CachedSchemaRegistryClient(object):
             _headers["Content-Length"] = str(len(body))
             _headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         _headers.update(headers)
+
+
+        # print()
+        # print()
+        # print()
+
+        # print(f"URL -> {url}, Method -> {method}")
+        # print(f"Session -> {self._session}")
+
+        # print()
+        # print()
+        # print()
 
         response = self._session.request(method, url, headers=_headers, json=body)
         # Returned by Jetty not SR so the payload is not json encoded

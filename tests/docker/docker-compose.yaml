@@ -40,6 +40,7 @@ services:
       SCHEMA_REGISTRY_SSL_KEY_PASSWORD: ${PASS:-abcdefgh}
       SCHEMA_REGISTRY_SSL_TRUSTSTORE_LOCATION: /conf/tls/server.truststore.jks
       SCHEMA_REGISTRY_SSL_TRUSTSTORE_PASSWORD: abcdefgh
+      SCHEMA_REGISTRY_SSL_CIPHER_SUITES: TLS_CHACHA20_POLY1305_SHA256 
       SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: zookeeper:2181
   schema-registry-basic-auth:
     image: confluentinc/cp-schema-registry
