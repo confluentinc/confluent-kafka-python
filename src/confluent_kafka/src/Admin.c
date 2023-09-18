@@ -2296,7 +2296,7 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
         int i = 0;
 
         static char *kws[] = {"future",
-                             "topics",
+                             "topic_names",
                              /* options */
                              "include_authorized_operations",
                              "request_timeout",
@@ -2398,7 +2398,7 @@ err:
 
 
 const char Admin_describe_topics_doc[] = PyDoc_STR(
-        ".. py:function:: describe_topics(future, topics, [request_timeout], [include_authorized_operations])\n"
+        ".. py:function:: describe_topics(future, topic_names, [request_timeout], [include_authorized_operations])\n"
         "\n"
         "  Describes the provided topics.\n"
         "\n"

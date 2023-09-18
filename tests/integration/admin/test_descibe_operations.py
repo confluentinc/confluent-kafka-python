@@ -17,7 +17,7 @@ import pytest
 from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
-from confluent_kafka import ConsumerGroupState
+from confluent_kafka import ConsumerGroupState, TopicCollection
 
 topic_prefix = "test-topic"
 
@@ -54,8 +54,26 @@ def consume_messages(sasl_cluster, group_id, topic, num_messages=None):
     consumer.close()
 
 
+def get_future_key_list(arg_as_list):
+    return arg_as_list[0]
+
+
+def get_future_key_TopicCollection(arg_as_TopicCollection):
+    return get_future_key_list(arg_as_TopicCollection.topic_names)
+
+
+def get_future_key(*arg):
+    if len(arg) > 0:
+        arg_type = type(arg[0])
+        if arg_type is list:
+            return get_future_key_list(arg[0])
+        elif arg_type is TopicCollection:
+            return get_future_key_TopicCollection(arg[0])
+    return None
+    
+
 def perform_admin_operation_sync(operation, *arg, **kwargs):
-    future_key = arg[0][0] if len(arg) > 0 else None
+    future_key = get_future_key(*arg)
     fs = operation(*arg, **kwargs)
     fs = fs[future_key] if future_key else fs 
     return fs.result()
@@ -107,7 +125,7 @@ def verify_describe_topics(admin_client, topic):
                             AclOperation.DELETE, 
                             ResourceType.TOPIC, 
                             topic,
-                            [topic])
+                            TopicCollection([topic]))
     assert desc.topic == topic
     assert len(desc.partitions) == 1
     assert not desc.is_internal
