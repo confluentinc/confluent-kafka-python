@@ -1452,6 +1452,7 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         PyObject *Node_type = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
+        const char *rack = NULL;
 
         if(!c_node)
                 return Py_None;
@@ -1467,6 +1468,8 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
         cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
         cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+        if((rack = rd_kafka_Node_rack(c_node)))
+                cfl_PyDict_SetString(kwargs, "rack", rack);
 
         args = PyTuple_New(0);
 
