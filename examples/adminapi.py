@@ -551,13 +551,14 @@ def example_describe_topics(a, args):
             print("Partition Information")
             for partition in t.partitions:
                 print("    Id                : {}".format(partition.id))
-                print("    Leader            : ({}) {}:{}".format(partition.leader.id, partition.leader.host, partition.leader.port))
+                leader = partition.leader
+                print(f"    Leader            : ({leader.id}) {leader.host}:{leader.port} {f'(Rack - {leader.rack})' if leader.rack else ''}")
                 print("    Replicas          : {}".format(len(partition.replicas)))
                 for replica in partition.replicas:
-                    print("         Replica            : ({}) {}:{}".format(replica.id, replica.host, replica.port))
+                    print(f"         Replica            : ({replica.id}) {replica.host}:{replica.port} {f'(Rack - {replica.rack})' if replica.rack else ''}")
                 print("    In-Sync Replicas  : {}".format(len(partition.isrs)))
                 for isr in partition.isrs:
-                    print("         In-Sync Replica    : ({}) {}:{}".format(isr.id, isr.host, isr.port))
+                    print(f"         In-Sync Replica    : ({isr.id}) {isr.host}:{isr.port} {f'(Rack - {isr.rack})' if isr.rack else ''}")
                 print("")
             print("")
 
@@ -579,13 +580,13 @@ def example_describe_cluster(a, args):
         print("Cluster_id           : {}".format(c.cluster_id))
 
         if(c.controller):
-            print("Node: ({}) {}:{}".format(c.controller.id, c.controller.host, c.controller.port))
+            print(f"Node: ({c.controller.id}) {c.controller.host}:{c.controller.port} {f'(Rack - {c.controller.rack})' if c.controller.rack else ''}")
         else:
             print("No Controller Information Available")
 
         print("Nodes                :")
         for node in c.nodes:
-            print("  Node: ({}) {}:{}".format(node.id, node.host, node.port))
+            print(f"  Node: ({node.id}) {node.host}:{node.port} {f'(Rack - {node.rack})' if node.rack else ''}")
 
         if(include_auth_ops):
             print("Authorized operations: ")

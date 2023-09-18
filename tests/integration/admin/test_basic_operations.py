@@ -106,7 +106,6 @@ def verify_admin_acls(admin_client,
     assert acl_bindings == expected_acl_bindings, \
         "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings,
                                                                    expected_acl_bindings)
-    time.sleep(2)
 
 def verify_topic_metadata(client, exp_topics, *args, **kwargs):
     """
