@@ -50,6 +50,9 @@ from ._topic import (TopicDescription,  # noqa: F401
                      TopicPartitionInfo)
 from ._cluster import (DescribeClusterResult)  # noqa: F401
 
+from .._model import TopicCollection  # noqa: F401
+
+
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -870,7 +873,7 @@ class AdminClient (_AdminClientImpl):
         """
         Describe topics.
 
-        :param list(str) topics: List of topics which need to be described.
+        :param TopicCollection topics: Collection of list of topic names to describe.
         :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
@@ -886,16 +889,21 @@ class AdminClient (_AdminClientImpl):
         :raises ValueError: Invalid input value.
         """
 
-        if not isinstance(topics, list):
-            raise TypeError("Expected input to be list of topic names to be described")
+        if not isinstance(topics, TopicCollection):
+            raise TypeError("Expected input to be instance of TopicCollection")
+    
+        topic_names = topics.topic_names
 
-        if len(topics) == 0:
+        if not isinstance(topic_names, list):
+            raise TypeError("Expected list of topic names to be described")
+
+        if len(topic_names) == 0:
             raise ValueError("Expected at least one topic to be described")
 
-        f, futmap = AdminClient._make_futures(topics, None,
+        f, futmap = AdminClient._make_futures(topic_names, None,
                                               AdminClient._make_describe_topics_result)
 
-        super(AdminClient, self).describe_topics(topics, f, **kwargs)
+        super(AdminClient, self).describe_topics(topic_names, f, **kwargs)
 
         return futmap
 

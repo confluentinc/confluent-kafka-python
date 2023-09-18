@@ -18,7 +18,7 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, TopicCollection)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
@@ -503,7 +503,7 @@ def example_describe_consumer_groups(a, args):
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
             print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print(f"  Coordinator        : ({g.coordinator.id}) {g.coordinator.host}:{g.coordinator.port} {f'(Rack - {g.coordinator.rack})' if g.coordinator.rack else ''}")
             print("  Members: ")
             for member in g.members:
                 print("    Id                : {}".format(member.member_id))
@@ -532,7 +532,8 @@ def example_describe_topics(a, args):
     """
     include_auth_ops = bool(int(args[0]))
     args = args[1:]
-    futureMap = a.describe_topics(args, request_timeout=10, include_authorized_operations=include_auth_ops)
+    topics = TopicCollection(topic_names=args)
+    futureMap = a.describe_topics(topics, request_timeout=10, include_authorized_operations=include_auth_ops)
 
     for topic, future in futureMap.items():
         try:

@@ -8,7 +8,8 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
     UserScramCredentialUpsertion
 from confluent_kafka import KafkaException, KafkaError, libversion, \
-    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
+    TopicCollection
 import concurrent.futures
 
 
@@ -636,15 +637,18 @@ def test_describe_consumer_groups_api():
 def test_describe_topics_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
-    topics = ["test-topic-1", "test-topic-2"]
+    topic_names = ["test-topic-1", "test-topic-2"]
 
-    a.describe_topics(topics)
+    a.describe_topics(TopicCollection(topic_names))
+
+    with pytest.raises(TypeError):
+        a.describe_topics(topic_names)
 
     with pytest.raises(TypeError):
         a.describe_topics("test-topic-1")
 
     with pytest.raises(ValueError):
-        a.describe_topics([])
+        a.describe_topics(TopicCollection([]))
 
 
 def test_describe_cluster():
