@@ -350,10 +350,9 @@ class SoakClient (object):
         self.logger.info("{} stats: {}/{} brokers UP, {} partition leaders: {}".format(
             d['name'], len(up_brokers), broker_cnt, self.topic, leaders))
 
-        # Emit the full raw stats every now and then for troubleshooting.
+        # Emit the full raw stats for troubleshooting.
         self.stats_cnt[d['type']] += 1
-        if (self.stats_cnt[d['type']] % 11) == 0:
-            self.logger.info("{} raw stats: {}".format(d['name'], json_str))
+        self.logger.info("{} raw stats: {}".format(d['name'], json_str))
 
         self.rtt_stats(d)
 
@@ -433,7 +432,7 @@ class SoakClient (object):
         # Create Producer and Consumer, each running in its own thread.
         #
         conf['stats_cb'] = self.stats_cb
-        conf['statistics.interval.ms'] = 10000
+        conf['statistics.interval.ms'] = 120000
 
         # Producer
         pconf = filter_config(conf, ["consumer.", "admin."], "producer.")
