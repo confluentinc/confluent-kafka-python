@@ -132,7 +132,7 @@ def verify_describe_topics(admin_client, topic):
     assert desc.partitions[0].id == 0
     assert desc.partitions[0].leader is not None
     assert len(desc.partitions[0].replicas) == 1
-    assert len(desc.partitions[0].isrs) == 1
+    assert len(desc.partitions[0].isr) == 1
 
 
 def verify_describe_group(cluster, admin_client, our_topic):
