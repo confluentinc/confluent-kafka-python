@@ -18,7 +18,7 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, TopicCollection)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
@@ -492,8 +492,9 @@ def example_describe_consumer_groups(a, args):
     """
     Describe Consumer Groups
     """
-
-    futureMap = a.describe_consumer_groups(args, request_timeout=10)
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    futureMap = a.describe_consumer_groups(args, include_authorized_operations=include_auth_ops, request_timeout=10)
 
     for group_id, future in futureMap.items():
         try:
@@ -502,7 +503,7 @@ def example_describe_consumer_groups(a, args):
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
             print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print(f"  Coordinator        : ({g.coordinator.id}) {g.coordinator.host}:{g.coordinator.port} {f'(Rack - {g.coordinator.rack})' if g.coordinator.rack else ''}")
             print("  Members: ")
             for member in g.members:
                 print("    Id                : {}".format(member.member_id))
@@ -513,10 +514,91 @@ def example_describe_consumer_groups(a, args):
                     print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
                         print("      {} [{}]".format(toppar.topic, toppar.partition))
+            if(include_auth_ops):
+                print("  Authorized operations: ")
+                op_string = ""
+                for acl_op in g.authorized_operations:
+                    op_string += acl_op.name + "  "
+                print("    {}".format(op_string))
         except KafkaException as e:
             print("Error while describing group id '{}': {}".format(group_id, e))
         except Exception:
             raise
+
+
+def example_describe_topics(a, args):
+    """
+    Describe Topics
+    """
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    topics = TopicCollection(topic_names=args)
+    futureMap = a.describe_topics(topics, request_timeout=10, include_authorized_operations=include_auth_ops)
+
+    for topic, future in futureMap.items():
+        try:
+            t = future.result()
+            print("Topic name             : {}".format(topic))
+            if(t.is_internal):
+                print("Topic is Internal")
+
+            if(include_auth_ops):
+                print("Authorized operations  : ")
+                op_string = ""
+                for acl_op in t.authorized_operations:
+                    op_string += acl_op.name + "  "
+                print("    {}".format(op_string))
+
+            print("Partition Information")
+            for partition in t.partitions:
+                print("    Id                : {}".format(partition.id))
+                leader = partition.leader
+                print(f"    Leader            : ({leader.id}) {leader.host}:{leader.port} {f'(Rack - {leader.rack})' if leader.rack else ''}")
+                print("    Replicas          : {}".format(len(partition.replicas)))
+                for replica in partition.replicas:
+                    print(f"         Replica            : ({replica.id}) {replica.host}:{replica.port} {f'(Rack - {replica.rack})' if replica.rack else ''}")
+                print("    In-Sync Replicas  : {}".format(len(partition.isr)))
+                for isr in partition.isr:
+                    print(f"         In-Sync Replica    : ({isr.id}) {isr.host}:{isr.port} {f'(Rack - {isr.rack})' if isr.rack else ''}")
+                print("")
+            print("")
+
+        except KafkaException as e:
+            print("Error while describing topic '{}': {}".format(topic, e))
+        except Exception:
+            raise
+
+
+def example_describe_cluster(a, args):
+    """
+    Describe Cluster
+    """
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    future = a.describe_cluster(request_timeout=10, include_authorized_operations=include_auth_ops)
+    try:
+        c = future.result()
+        print("Cluster_id           : {}".format(c.cluster_id))
+
+        if(c.controller):
+            print(f"Node: ({c.controller.id}) {c.controller.host}:{c.controller.port} {f'(Rack - {c.controller.rack})' if c.controller.rack else ''}")
+        else:
+            print("No Controller Information Available")
+
+        print("Nodes                :")
+        for node in c.nodes:
+            print(f"  Node: ({node.id}) {node.host}:{node.port} {f'(Rack - {node.rack})' if node.rack else ''}")
+
+        if(include_auth_ops):
+            print("Authorized operations: ")
+            op_string = ""
+            for acl_op in c.authorized_operations:
+                op_string += acl_op.name + "  "
+            print("    {}".format(op_string))
+    except KafkaException as e:
+        print("Error while describing cluster: {}".format(e))
+    except Exception:
+        raise
 
 
 def example_delete_consumer_groups(a, args):
@@ -704,7 +786,9 @@ if __name__ == '__main__':
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
         sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
-        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
+        sys.stderr.write(' describe_topics <include_authorized_operations> <topic1> <topic2> ..\n')
+        sys.stderr.write(' describe_cluster <include_authorized_operations>\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
         sys.stderr.write(' list_consumer_group_offsets <group> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.stderr.write(
@@ -721,8 +805,9 @@ if __name__ == '__main__':
     operation = sys.argv[2]
     args = sys.argv[3:]
 
+    conf = {'bootstrap.servers': broker}
     # Create Admin client
-    a = AdminClient({'bootstrap.servers': broker})
+    a = AdminClient(conf)
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,
@@ -737,11 +822,14 @@ if __name__ == '__main__':
               'list': example_list,
               'list_consumer_groups': example_list_consumer_groups,
               'describe_consumer_groups': example_describe_consumer_groups,
+              'describe_topics': example_describe_topics,
+              'describe_cluster': example_describe_cluster,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
-              'alter_user_scram_credentials': example_alter_user_scram_credentials}
+              'alter_user_scram_credentials': example_alter_user_scram_credentials,
+              'describe_topics': example_describe_topics}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

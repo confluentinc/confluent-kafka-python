@@ -89,3 +89,8 @@ class ConsumerGroupState(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class TopicCollection:
+    def __init__(self, topic_names):
+        self.topic_names = topic_names
