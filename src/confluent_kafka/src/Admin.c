@@ -3759,7 +3759,7 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
                 PyObject *isr = c_Node_to_py(c_isrs[i]);
                 PyList_SET_ITEM(isrs, i, isr);
         }
-        PyDict_SetItemString(kwargs, "isrs", isrs);
+        PyDict_SetItemString(kwargs, "isr", isrs);
 
         args = PyTuple_New(0);
 
