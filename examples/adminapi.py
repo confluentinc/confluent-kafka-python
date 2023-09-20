@@ -557,8 +557,8 @@ def example_describe_topics(a, args):
                 print("    Replicas          : {}".format(len(partition.replicas)))
                 for replica in partition.replicas:
                     print(f"         Replica            : ({replica.id}) {replica.host}:{replica.port} {f'(Rack - {replica.rack})' if replica.rack else ''}")
-                print("    In-Sync Replicas  : {}".format(len(partition.isrs)))
-                for isr in partition.isrs:
+                print("    In-Sync Replicas  : {}".format(len(partition.isr)))
+                for isr in partition.isr:
                     print(f"         In-Sync Replica    : ({isr.id}) {isr.host}:{isr.port} {f'(Rack - {isr.rack})' if isr.rack else ''}")
                 print("")
             print("")

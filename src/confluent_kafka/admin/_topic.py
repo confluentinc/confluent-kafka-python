@@ -30,15 +30,15 @@ class TopicPartitionInfo:
         Leader broker for the partition.
     replicas: list(Node)
         Replica brokers for the partition.
-    isrs: list(Node)
+    isr: list(Node)
         In-Sync-Replica brokers for the partition.
     """
 
-    def __init__(self, id, leader, replicas, isrs):
+    def __init__(self, id, leader, replicas, isr):
         self.id = id
         self.leader = leader
         self.replicas = replicas
-        self.isrs = isrs
+        self.isr = isr
 
 
 class TopicDescription:
