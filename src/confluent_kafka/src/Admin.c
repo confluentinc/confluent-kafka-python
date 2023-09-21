@@ -3832,7 +3832,7 @@ static PyObject *Admin_c_TopicDescription_to_py(
         kwargs = PyDict_New();
 
         cfl_PyDict_SetString(kwargs,
-                             "topic",
+                             "name",
                              rd_kafka_TopicDescription_name(c_topic_description));
 
         is_internal = PyBool_FromLong(rd_kafka_TopicDescription_is_internal(c_topic_description));

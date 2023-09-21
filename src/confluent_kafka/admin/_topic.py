@@ -48,7 +48,7 @@ class TopicDescription:
 
     Parameters
     ----------
-    topic : str
+    name : str
         The topic name.
     partitions : list(TopicPartitionInfo)
         Partition information.
@@ -56,8 +56,8 @@ class TopicDescription:
         AclOperations allowed for the topic.
     """
 
-    def __init__(self, topic, is_internal, partitions, authorized_operations):
-        self.topic = topic
+    def __init__(self, name, is_internal, partitions, authorized_operations):
+        self.name = name
         self.is_internal = is_internal
         self.partitions = partitions
         self.authorized_operations = []

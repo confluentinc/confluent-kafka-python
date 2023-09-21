@@ -535,10 +535,10 @@ def example_describe_topics(a, args):
     topics = TopicCollection(topic_names=args)
     futureMap = a.describe_topics(topics, request_timeout=10, include_authorized_operations=include_auth_ops)
 
-    for topic, future in futureMap.items():
+    for topic_name, future in futureMap.items():
         try:
             t = future.result()
-            print("Topic name             : {}".format(topic))
+            print("Topic name             : {}".format(t.name))
             if(t.is_internal):
                 print("Topic is Internal")
 
@@ -564,7 +564,7 @@ def example_describe_topics(a, args):
             print("")
 
         except KafkaException as e:
-            print("Error while describing topic '{}': {}".format(topic, e))
+            print("Error while describing topic '{}': {}".format(topic_name, e))
         except Exception:
             raise
 
