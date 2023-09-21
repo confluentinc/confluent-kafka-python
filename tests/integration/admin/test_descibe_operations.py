@@ -118,15 +118,15 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
     delete_acls(admin_client, [acl_binding_filter])
     return desc
 
-def verify_describe_topics(admin_client, topic):
+def verify_describe_topics(admin_client, topic_name):
     desc = verify_provided_describe_for_authorized_operations(admin_client, 
                             admin_client.describe_topics, 
                             AclOperation.READ, 
                             AclOperation.DELETE, 
                             ResourceType.TOPIC, 
-                            topic,
-                            TopicCollection([topic]))
-    assert desc.topic == topic
+                            topic_name,
+                            TopicCollection([topic_name]))
+    assert desc.name == topic_name
     assert len(desc.partitions) == 1
     assert not desc.is_internal
     assert desc.partitions[0].id == 0
@@ -135,17 +135,17 @@ def verify_describe_topics(admin_client, topic):
     assert len(desc.partitions[0].isr) == 1
 
 
-def verify_describe_group(cluster, admin_client, our_topic):
+def verify_describe_groups(cluster, admin_client, topic):
 
     # Produce some messages
     p = cluster.producer()
-    p.produce(our_topic, 'Hello Python!')
-    p.produce(our_topic, key='Just a key')
+    p.produce(topic, 'Hello Python!')
+    p.produce(topic, key='Just a key')
     p.flush()
 
     # Consume some messages for the group
     group = 'test-group'
-    consume_messages(cluster, group, our_topic, 2)
+    consume_messages(cluster, group, topic, 2)
 
     # Verify Describe Consumer Groups
     desc = verify_provided_describe_for_authorized_operations(admin_client,
@@ -198,7 +198,7 @@ def test_describe_operations(sasl_cluster):
     verify_describe_topics(admin_client, our_topic)
 
     # Verify Authorized Operations in Describe Groups
-    verify_describe_group(sasl_cluster, admin_client, our_topic)
+    verify_describe_groups(sasl_cluster, admin_client, our_topic)
 
     # Delete Topic
     perform_admin_operation_sync(admin_client.delete_topics, [our_topic], operation_timeout=0, request_timeout=10)
