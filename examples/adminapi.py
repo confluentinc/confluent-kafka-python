@@ -581,7 +581,7 @@ def example_describe_cluster(a, args):
         print("Cluster_id           : {}".format(c.cluster_id))
 
         if(c.controller):
-            print(f"Node: ({c.controller.id}) {c.controller.host}:{c.controller.port} {f'(Rack - {c.controller.rack})' if c.controller.rack else ''}")
+            print(f"Controller: ({c.controller.id}) {c.controller.host}:{c.controller.port} {f'(Rack - {c.controller.rack})' if c.controller.rack else ''}")
         else:
             print("No Controller Information Available")
 
@@ -805,7 +805,13 @@ if __name__ == '__main__':
     operation = sys.argv[2]
     args = sys.argv[3:]
 
-    conf = {'bootstrap.servers': broker}
+    conf = {'bootstrap.servers': broker,
+             "security.protocol": "sasl_ssl",
+            "enable.ssl.certificate.verification": False,
+            "sasl.mechanism": 'PLAIN',
+            "sasl.username": 'broker',
+            "sasl.password": 'broker-secret',
+            'debug': 'conf'}
     # Create Admin client
     a = AdminClient(conf)
 
@@ -828,8 +834,7 @@ if __name__ == '__main__':
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
-              'alter_user_scram_credentials': example_alter_user_scram_credentials,
-              'describe_topics': example_describe_topics}
+              'alter_user_scram_credentials': example_alter_user_scram_credentials}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
