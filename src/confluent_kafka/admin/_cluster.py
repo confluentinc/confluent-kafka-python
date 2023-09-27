@@ -34,11 +34,13 @@ class DescribeClusterResult:
         AclOperations allowed for the cluster.
     """
 
-    def __init__(self, cluster_id, controller, nodes, authorized_operations):
+    def __init__(self, cluster_id, controller, nodes, authorized_operations=None):
         self.cluster_id = cluster_id
         self.controller = controller
         self.nodes = nodes
-        self.authorized_operations = []
         if authorized_operations:
+            self.authorized_operations = []
             for op in authorized_operations:
                 self.authorized_operations.append(ConversionUtil.convert_to_enum(op, AclOperation))
+        else:
+            self.authorized_operations = None
