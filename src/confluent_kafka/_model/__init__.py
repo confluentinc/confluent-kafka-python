@@ -92,5 +92,39 @@ class ConsumerGroupState(Enum):
 
 
 class TopicCollection:
+    """
+    Represents collection of topics in the form of different identifiers
+    for the topic.
+
+    Parameters
+    ----------
+    topic_names: list(str)
+        List of topic names.
+    """
+
     def __init__(self, topic_names):
         self.topic_names = topic_names
+
+
+class TopicPartitionInfo:
+    """
+    Represents partition information.
+    Used by :class:`TopicDescription`.
+
+    Parameters
+    ----------
+    id : int
+        Id of the partition.
+    leader : Node
+        Leader broker for the partition.
+    replicas: list(Node)
+        Replica brokers for the partition.
+    isr: list(Node)
+        In-Sync-Replica brokers for the partition.
+    """
+
+    def __init__(self, id, leader, replicas, isr):
+        self.id = id
+        self.leader = leader
+        self.replicas = replicas
+        self.isr = isr

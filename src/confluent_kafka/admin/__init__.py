@@ -46,12 +46,11 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
-from ._topic import (TopicDescription,  # noqa: F401
-                     TopicPartitionInfo)
+from ._topic import (TopicDescription)  # noqa: F401
+
 from ._cluster import (DescribeClusterResult)  # noqa: F401
 
-from .._model import TopicCollection  # noqa: F401
-
+from .._model import TopicCollection as _TopicCollection
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -889,7 +888,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueError: Invalid input value.
         """
 
-        if not isinstance(topics, TopicCollection):
+        if not isinstance(topics, _TopicCollection):
             raise TypeError("Expected input to be instance of TopicCollection")
     
         topic_names = topics.topic_names
