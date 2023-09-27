@@ -130,11 +130,11 @@ class ConsumerGroupDescription:
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
+        self.authorized_operations = None
         if authorized_operations:
+            self.authorized_operations = []
             for op in authorized_operations:
                 self.authorized_operations.append(ConversionUtil.convert_to_enum(op, AclOperation))
-        else:
-            self.authorized_operations = None
 
         self.partition_assignor = partition_assignor
         if state is not None:

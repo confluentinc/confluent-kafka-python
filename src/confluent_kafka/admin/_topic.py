@@ -38,7 +38,6 @@ class TopicDescription:
         self.partitions = partitions
         self.authorized_operations = None
         if authorized_operations:
+            self.authorized_operations = []
             for op in authorized_operations:
                 self.authorized_operations.append(ConversionUtil.convert_to_enum(op, AclOperation))
-        else:
-            self.authorized_operations = None
