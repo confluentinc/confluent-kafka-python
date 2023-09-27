@@ -3817,22 +3817,22 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         PyObject *result = NULL;
         PyObject *ListOffsetResultInfo_type = NULL;
         PyObject *args = NULL;
-        int i;
-        int cnt;
+        size_t i;
+        size_t cnt;
+        rd_kafka_ListOffsetResultInfo_t **result_infos;
         
         ListOffsetResultInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                         "ListOffsetResultInfo");
         if(!ListOffsetResultInfo_type){
                 return NULL;
         }
-        cnt = rd_kafka_ListOffsets_result_get_count(result_event);
+        result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
         result = PyDict_New();
         for(i=0;i<cnt;i++){
                 PyObject *value = NULL;
-                const rd_kafka_ListOffsetResultInfo_t *result_info = rd_kafka_ListOffsets_result_get_element(result_event,i);
-                const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetResultInfo_get_topic_partition(result_info);
+                const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetResultInfo_topic_partition(result_infos[i]);
                 
-                int64_t timestamp = rd_kafka_ListOffsetResultInfo_get_timestamp(result_info);
+                int64_t timestamp = rd_kafka_ListOffsetResultInfo_timestamp(result_info);
 
                 if(topic_partition->err){
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
