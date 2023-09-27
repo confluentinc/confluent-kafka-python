@@ -4039,13 +4039,13 @@ static PyObject *Admin_c_DescribeClusterResult_to_py(
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
         PyObject *nodes = NULL;
-        PyObject *cluster_id = NULL;
         PyObject *controller = NULL;
         size_t c_authorized_operations_cnt = 0, c_nodes_cnt = 0;
         size_t i = 0;
         const rd_kafka_Node_t **c_nodes = NULL;
         const rd_kafka_Node_t *c_controller = NULL;
         const rd_kafka_AclOperation_t *c_authorized_operations = NULL;
+        const char *c_cluster_id = NULL;
 
         DescribeClusterResult_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                             "DescribeClusterResult");
@@ -4056,9 +4056,9 @@ static PyObject *Admin_c_DescribeClusterResult_to_py(
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetString(kwargs,
-                             "cluster_id",
-                             rd_kafka_DescribeCluster_result_cluster_id(c_describe_cluster_result));
+        c_cluster_id = rd_kafka_DescribeCluster_result_cluster_id(c_describe_cluster_result);
+        if(c_cluster_id)
+                cfl_PyDict_SetString(kwargs, "cluster_id", c_cluster_id);
 
         c_controller = rd_kafka_DescribeCluster_result_controller(c_describe_cluster_result);
         controller = c_Node_to_py(c_controller);
@@ -4099,7 +4099,6 @@ static PyObject *Admin_c_DescribeClusterResult_to_py(
         Py_XDECREF(kwargs);
         Py_XDECREF(controller);
         Py_XDECREF(nodes);
-        Py_XDECREF(cluster_id);
         Py_XDECREF(DescribeClusterResult_type);
         return cluster_description;
 err:
@@ -4108,7 +4107,6 @@ err:
         Py_XDECREF(kwargs);
         Py_XDECREF(controller);
         Py_XDECREF(nodes);
-        Py_XDECREF(cluster_id);
         Py_XDECREF(DescribeClusterResult_type);
         return NULL;
 }
