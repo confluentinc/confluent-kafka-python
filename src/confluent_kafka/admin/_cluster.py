@@ -24,17 +24,17 @@ class DescribeClusterResult:
 
     Parameters
     ----------
-    cluster_id : str
-        The current cluster id in the cluster.
     controller : Node
         The current controller in the cluster.
     nodes : list(Node)
         Information about each node in the cluster.
+    cluster_id : str
+        The current cluster id in the cluster.
     authorized_operations: list(AclOperation)
         AclOperations allowed for the cluster.
     """
 
-    def __init__(self, cluster_id, controller, nodes, authorized_operations=None):
+    def __init__(self, controller, nodes, cluster_id=None, authorized_operations=None):
         self.cluster_id = cluster_id
         self.controller = controller
         self.nodes = nodes
