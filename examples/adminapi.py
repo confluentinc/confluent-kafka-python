@@ -805,15 +805,8 @@ if __name__ == '__main__':
     operation = sys.argv[2]
     args = sys.argv[3:]
 
-    conf = {'bootstrap.servers': broker,
-             "security.protocol": "sasl_ssl",
-            "enable.ssl.certificate.verification": False,
-            "sasl.mechanism": 'PLAIN',
-            "sasl.username": 'broker',
-            "sasl.password": 'broker-secret',
-            'debug': 'conf'}
     # Create Admin client
-    a = AdminClient(conf)
+    a = AdminClient({'bootstrap.servers': broker})
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,
