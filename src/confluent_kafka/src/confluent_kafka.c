@@ -1488,6 +1488,48 @@ err:
         return NULL;
 }
 
+PyObject *c_Uuid_to_py(rd_kafka_uuid_t *c_uuid) {
+        PyObject *uuid = NULL;
+        PyObject *Uuid_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        
+        if(!c_uuid)
+                return Py_None;
+
+        Uuid_type = cfl_PyObject_lookup("confluent_kafka",
+                                        "Uuid");
+        if (!Uuid_type) {
+                goto err;
+        }
+
+        
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetInt(kwargs, "most_significant_bits", rd_kafka_uuid_most_significant_bits(c_uuid));
+        cfl_PyDict_SetInt(kwargs, "least_significant_bits", rd_kafka_uuid_least_significant_bits(c_uuid));
+        cfl_PyDict_SetString(kwargs, "base64str", rd_kafka_uuid_base64str(c_uuid));
+
+        args = PyTuple_New(0);
+
+        uuid = PyObject_Call(Uuid_type, args, kwargs);
+
+        Py_DECREF(Uuid_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+
+        return uuid;
+
+err:
+        Py_XDECREF(Uuid_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(uuid);
+
+        return NULL;
+
+}
+
 
 /****************************************************************************
  *

@@ -21,8 +21,9 @@ from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401
                      ConsumerGroupTopicPartitions, 
-                     ConsumerGroupState, 
-                     TopicCollection, 
+                     ConsumerGroupState,
+                     Uuid,
+                     TopicCollection,
                      TopicPartitionInfo)
 
 from .cimpl import (Producer,
