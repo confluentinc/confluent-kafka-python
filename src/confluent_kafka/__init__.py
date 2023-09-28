@@ -22,6 +22,7 @@ from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401
                      ConsumerGroupTopicPartitions,
                      ConsumerGroupState,
+                     Uuid,
                      TopicCollection,
                      TopicPartitionInfo)
 
