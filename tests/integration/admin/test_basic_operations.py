@@ -275,7 +275,7 @@ def verify_admin_scram(admin_client):
         result = fut.result()
     assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
 
-def test_list_offsets(kafka_cluster):
+def verify_list_offsets(kafka_cluster):
     admin_client = kafka_cluster.admin()
     requests = {}
     topic = "topicname"
@@ -505,3 +505,5 @@ def test_basic_operations(kafka_cluster):
     verify_admin_acls(admin_client, acls_topic, acls_group)
     # Verify user SCRAM credentials API
     verify_admin_scram(admin_client)
+    # Verify ListOffsets credentials API
+    verify_list_offsets(kafka_cluster)

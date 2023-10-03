@@ -2652,6 +2652,8 @@ err:
         Py_XDECREF(ConsumerGroupTopicPartitions_type);
         return NULL;
 }
+
+
 const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
         ".. py:function:: alter_consumer_group_offsets(request, future, [request_timeout])\n"
         "\n"
@@ -3427,7 +3429,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
                 goto err;
         }
 
-        PyDict_SetItemString(kwargs, "assignment", assignment); /* char *assignment */
+        PyDict_SetItemString(kwargs, "assignment", assignment);
 
         args = PyTuple_New(0);
 
@@ -3813,6 +3815,11 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
         return all_groups_result;
 }
 
+/**
+ * 
+ * @brief Convert C ListOffsetsResult response to pyobject.
+ * 
+ */
 static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
         PyObject *result = NULL;
         PyObject *ListOffsetsResultInfo_type = NULL;
@@ -3849,6 +3856,7 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
 
         return result;
 }
+
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -4152,6 +4160,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
                 break;
         }
+
         case RD_KAFKA_EVENT_LISTOFFSETS_RESULT:
         {
                 const rd_kafka_ListOffsets_result_t *c_list_offsets_result = rd_kafka_event_ListOffsets_result(rkev);

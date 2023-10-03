@@ -252,6 +252,10 @@ class AdminClient (_AdminClientImpl):
     
     @staticmethod
     def _make_list_offsets_result(f,futmap):
+        """
+        Map ListOffsets results to corresponding futures in futmap.
+        The result value of each (successful) future is ListOffsetsResultInfo.
+        """
         try:
             results = f.result()
             if len(list(results.values())) != len(list(futmap.values())):
@@ -1038,7 +1042,25 @@ class AdminClient (_AdminClientImpl):
         return futmap
     
     def list_offsets(self,list_offsets_request,**kwargs):
+        """
+        ListOffsets
 
+        :param dict([TopicPartition, OffsetSpec]) list_offsets_request: Dictionary of
+               TopicPartitions with the OffsetSpec to List Offsets for.
+               The pair (user, mechanism) must be unique among alterations.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by TopicPartition.
+                  The future result() method returns ListOffsetsResultInfo
+                  raises KafkaException
+
+        :rtype: dict[TopicPartition, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
         if not isinstance(list_offsets_request,dict):
             raise TypeError("Expected input to be dict of <TopicPartitions,OffsetSpec> to list offsets for")
         

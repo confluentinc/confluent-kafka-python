@@ -586,9 +586,9 @@ static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
 }
 
 static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
-        /* rd_kafka_isolation_level_t */
-        PyModule_AddIntConstant(m,"READ_COMMITTED",RD_KAFKA_READ_COMMITTED);
-        PyModule_AddIntConstant(m,"READ_UNCOMMITTED",RD_KAFKA_READ_UNCOMMITTED);
+        /* rd_kafka_IsolationLevel_t */
+        PyModule_AddIntConstant(m,"READ_COMMITTED",RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
+        PyModule_AddIntConstant(m,"READ_UNCOMMITTED",RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
 }
 
 static void AdminTypes_AddObjectsOffsetSpecEnumValue (PyObject *m) {

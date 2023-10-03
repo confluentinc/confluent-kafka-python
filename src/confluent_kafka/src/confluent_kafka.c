@@ -1127,6 +1127,7 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 }
 
 
+
 PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
         return TopicPartition_new0(rktpar->topic, rktpar->partition,
 			           rktpar->offset,
@@ -1179,6 +1180,7 @@ rd_kafka_topic_partition_t *py_to_c_part (PyObject *partition) {
 	}
         return rktpar;       
 }
+
 /**
  * @brief Convert Python list(TopicPartition) to C rd_kafka_topic_partition_list_t.
  *
