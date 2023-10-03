@@ -22,7 +22,6 @@ from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401
                      ConsumerGroupTopicPartitions,
                      ConsumerGroupState,
-                     Uuid,
                      TopicCollection,
                      TopicPartitionInfo)
 
@@ -30,6 +29,7 @@ from .cimpl import (Producer,
                     Consumer,
                     Message,
                     TopicPartition,
+                    Uuid,
                     libversion,
                     version,
                     TIMESTAMP_NOT_AVAILABLE,
