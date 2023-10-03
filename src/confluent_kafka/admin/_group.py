@@ -15,7 +15,8 @@
 
 from .._util import ConversionUtil
 from .._model import ConsumerGroupState
-
+from enum import Enum
+from .. import cimpl
 
 class ConsumerGroupListing:
     """
