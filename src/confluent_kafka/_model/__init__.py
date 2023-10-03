@@ -46,40 +46,6 @@ class Node:
         return f"({self.id}) {self.host}:{self.port} {f'(Rack - {self.rack})' if self.rack else ''}"
 
 
-class Uuid:
-    """
-    Represents UUID
-    
-    Parameters
-    ----------
-    most_significant_bits: int
-        Most significant 64 bits of the 128 bits UUID
-    least_significant_bits: int
-        Least significant 64 bits of the 128 bits UUID
-    """
-    def __init__(self, most_significant_bits, least_significant_bits, base64str=None):
-        self.__most_significant_bits = most_significant_bits
-        self.__least_significant_bits = least_significant_bits
-        self.__base64str = base64str
-
-    def get_most_significant_bits(self):
-        return self.__most_significant_bits
-    
-    def get_least_significant_bits(self):
-        return self.__least_significant_bits
-    
-    def _to_tuple(self):
-        return (self.__most_significant_bits, self.least_significant_bits)
-
-    def __str__(self):
-        return self.__base64str
-        
-    def __eq__(self, other):
-        if self.__class__ != other.__class__:
-            return NotImplemented
-        return self._to_tuple() == other._to_tuple()
-
-
 class ConsumerGroupTopicPartitions:
     """
     Represents consumer group and its topic partition information.
