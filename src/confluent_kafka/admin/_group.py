@@ -151,7 +151,7 @@ class EarliestOffsetSpec(OffsetSpec):
     def __init__(self):
         pass
 
-class ListOffsetResultInfo:
+class ListOffsetsResultInfo:
     def __init__(self,offset:int,timestamp:int,leaderEpoch:int):
         self.offset = offset
         self.timestamp = timestamp

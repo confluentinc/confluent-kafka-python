@@ -53,7 +53,7 @@ from ._listoffsets import (OffsetSpec,
                      EarliestOffsetSpec,
                      OffsetSpecEnumValue,
                      IsolationLevel,
-                     ListOffsetResultInfo)
+                     ListOffsetsResultInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
