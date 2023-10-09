@@ -163,10 +163,11 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         }
 
         if (Admin_options_is_set_int((int)options->isolation_level) &&
-             (err = rd_kafka_AdminOptions_set_isolation_level(
-                     c_options,options->isolation_level,
-                     errstr,sizeof(errstr))))
+             (err_obj = rd_kafka_AdminOptions_set_isolation_level(
+                     c_options,options->isolation_level))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
                 goto err;
+        }
 
         if (Admin_options_is_set_ptr(options->states) &&
             (err_obj = rd_kafka_AdminOptions_set_match_consumer_group_states(
