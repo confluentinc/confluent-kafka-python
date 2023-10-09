@@ -3819,7 +3819,7 @@ static PyObject *Admin_c_TopicDescription_to_py(
         size_t c_authorized_operations_cnt = 0;
         size_t i = 0;
         const rd_kafka_AclOperation_t *c_authorized_operations = NULL;
-        rd_kafka_uuid_t *c_topic_id = NULL;
+        rd_kafka_Uuid_t *c_topic_id = NULL;
 
         TopicDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                     "TopicDescription");

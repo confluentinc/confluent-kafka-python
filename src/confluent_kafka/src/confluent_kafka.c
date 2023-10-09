@@ -864,10 +864,10 @@ static int Uuid_init (PyObject *self0, PyObject *args,
                                          &self->least_significant_bits))
                 return -1;
 
-        rd_kafka_uuid_t *uuid = rd_kafka_uuid_new(self->most_significant_bits, self->least_significant_bits);
-        char *base64str =  rd_kafka_uuid_base64str(uuid);
+        rd_kafka_Uuid_t *uuid = rd_kafka_Uuid_new(self->most_significant_bits, self->least_significant_bits);
+        char *base64str =  rd_kafka_Uuid_base64str(uuid);
         strcpy(self->base64str, base64str);
-        rd_kafka_uuid_destroy(uuid);
+        rd_kafka_Uuid_destroy(uuid);
 
         return 0;
 }
@@ -1604,7 +1604,7 @@ err:
         return NULL;
 }
 
-PyObject *c_Uuid_to_py(rd_kafka_uuid_t *c_uuid) {
+PyObject *c_Uuid_to_py(rd_kafka_Uuid_t *c_uuid) {
         PyObject *uuid = NULL;
         PyObject *Uuid_type = NULL;
         PyObject *args = NULL;
@@ -1622,8 +1622,8 @@ PyObject *c_Uuid_to_py(rd_kafka_uuid_t *c_uuid) {
         
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetLong(kwargs, "most_significant_bits", rd_kafka_uuid_most_significant_bits(c_uuid));
-        cfl_PyDict_SetLong(kwargs, "least_significant_bits", rd_kafka_uuid_least_significant_bits(c_uuid));
+        cfl_PyDict_SetLong(kwargs, "most_significant_bits", rd_kafka_Uuid_most_significant_bits(c_uuid));
+        cfl_PyDict_SetLong(kwargs, "least_significant_bits", rd_kafka_Uuid_least_significant_bits(c_uuid));
 
         args = PyTuple_New(0);
 
