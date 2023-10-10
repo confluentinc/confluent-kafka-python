@@ -21,14 +21,15 @@ from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401
                      ConsumerGroupTopicPartitions, 
-                     ConsumerGroupState, 
-                     TopicCollection, 
+                     ConsumerGroupState,
+                     TopicCollection,
                      TopicPartitionInfo)
 
 from .cimpl import (Producer,
                     Consumer,
                     Message,
                     TopicPartition,
+                    Uuid,
                     libversion,
                     version,
                     TIMESTAMP_NOT_AVAILABLE,
