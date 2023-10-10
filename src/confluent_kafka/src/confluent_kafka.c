@@ -819,30 +819,48 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
  *
  *
  ****************************************************************************/
-static void Uuid_dealloc (NewTopic *self) {
-        PyObject_GC_UnTrack(self);
-
-        Py_TYPE(self)->tp_free((PyObject *)self);
+static PyObject *Uuid_most_significant_bits (Uuid *self, PyObject *ignore) {
+        if(self->cUuid) {
+                return cfl_PyLong_FromLong(rd_kafka_Uuid_most_significant_bits(self->cUuid));
+        }
+        return Py_None;
 }
 
+static PyObject *Uuid_least_significant_bits (Uuid *self, PyObject *ignore) {
+        if(self->cUuid) {
+                return cfl_PyLong_FromLong(rd_kafka_Uuid_least_significant_bits(self->cUuid));
+        }
+        return Py_None;
+}
+
+static PyMethodDef Uuid_methods[] = {
+	{ "get_most_significant_bits", (PyCFunction)Uuid_most_significant_bits, METH_NOARGS,
+	  "  :returns: Most significant 64 bits of the 128 bits Uuid"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "get_least_significant_bits", (PyCFunction)Uuid_least_significant_bits, METH_NOARGS,
+	  "  :returns: Least significant 64 bits of the 128 bits Uuid"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+
 static PyObject *Uuid_str0 (Uuid *self) {
-        return cfl_PyUnistr(_FromString(self->base64str));
+        if(self->cUuid) {
+                char *base64str = rd_kafka_Uuid_base64str(self->cUuid);
+                if(base64str)
+                        return cfl_PyUnistr(_FromString(base64str));
+        }
+        return Py_None;
 }
 
 static long Uuid_hash (Uuid *self) {
         
-        return self->most_significant_bits ^ self->least_significant_bits;
+        return rd_kafka_Uuid_most_significant_bits(self->cUuid) ^ rd_kafka_Uuid_least_significant_bits(self->cUuid);
 }
-
-static PyMemberDef Uuid_members[] = {
-        { "most_significant_bits", T_LONG, offsetof(Uuid, most_significant_bits), READONLY,
-          ":py:attribute:most_significant_bits - Most significant 64 bits of the 128 bits Uuid" },
-        { "least_significant_bits", T_LONG, offsetof(Uuid, least_significant_bits), READONLY,
-          ":py:attribute:least_significant_bits - Least significant 64 bits of the 128 bits Uuid" },
-        { "base64str", T_STRING, offsetof(Uuid, base64str), READONLY,
-          ":py:attribute:base64str - Base64 string representation of the Uuid" },
-        { NULL }
-};
 
 
 static PyObject *Uuid_new (PyTypeObject *type, PyObject *args,
@@ -858,21 +876,38 @@ static int Uuid_init (PyObject *self0, PyObject *args,
         static char *kws[] = { "most_significant_bits",
                                "least_significant_bits",
                                NULL };
+        int64_t most_significant_bits;
+        int64_t least_significant_bits;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LL", kws,
-                                         &self->most_significant_bits, 
-                                         &self->least_significant_bits))
+                                         &most_significant_bits, 
+                                         &least_significant_bits))
                 return -1;
 
-        rd_kafka_Uuid_t *uuid = rd_kafka_Uuid_new(self->most_significant_bits, self->least_significant_bits);
-        char *base64str =  rd_kafka_Uuid_base64str(uuid);
-        strcpy(self->base64str, base64str);
-        rd_kafka_Uuid_destroy(uuid);
+        self->cUuid = rd_kafka_Uuid_new(most_significant_bits, least_significant_bits);
 
         return 0;
 }
 
+static int Uuid_clear (Uuid *self) {
+	if (self->cUuid) {
+		rd_kafka_Uuid_destroy(self->cUuid);
+		self->cUuid = NULL;
+	}
+	return 0;
+}
 
+static int Uuid_traverse (Uuid *self,
+                        visitproc visit, void *arg) {
+        return 0;
+}
+
+static void Uuid_dealloc (Uuid *self) {
+        Uuid_clear(self);
+        PyObject_GC_UnTrack(self);
+
+        Py_TYPE(self)->tp_free((PyObject *)self);
+}
 
 PyTypeObject UuidType = {
         PyVarObject_HEAD_INIT(NULL, 0)
@@ -894,7 +929,8 @@ PyTypeObject UuidType = {
         PyObject_GenericGetAttr,   /*tp_getattro*/
         0,                         /*tp_setattro*/
         0,                         /*tp_as_buffer*/
-        0,                         /*tp_flags*/
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
+	Py_TPFLAGS_HAVE_GC,                         /*tp_flags*/
         "Generic Uuid. Being used in various identifiers including topic_id.\n"
         "\n"
         ".. py:function:: Uuid(most_significant_bits, least_significant_bits)\n"
@@ -906,14 +942,14 @@ PyTypeObject UuidType = {
         "  :rtype: Uuid\n"
         "\n"
         "\n",                      /*tp_doc*/
-        0,                         /* tp_traverse */
-        0,                         /* tp_clear */
+        (traverseproc)Uuid_traverse,                         /* tp_traverse */
+        (inquiry)Uuid_clear,       /* tp_clear */
         0,                         /* tp_richcompare */
         0,                         /* tp_weaklistoffset */
         0,                         /* tp_iter */
         0,                         /* tp_iternext */
-        0,                         /* tp_methods */
-        Uuid_members,              /* tp_members */
+        Uuid_methods,              /* tp_methods */
+        0,                         /* tp_members */
         0,                         /* tp_getset */
         0,                         /* tp_base */
         0,                         /* tp_dict */
