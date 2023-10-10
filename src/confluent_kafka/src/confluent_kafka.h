@@ -496,9 +496,7 @@ extern PyTypeObject NewTopicType;
 
 typedef struct {
         PyObject_HEAD
-        long long most_significant_bits;
-        long long least_significant_bits;
-        char base64str[23];
+		rd_kafka_Uuid_t *cUuid;
 } Uuid;
 
 extern PyTypeObject UuidType;
