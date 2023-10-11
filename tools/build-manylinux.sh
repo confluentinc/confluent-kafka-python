@@ -90,7 +90,7 @@ for PYBIN in /opt/python/cp*/bin/; do
         if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
             echo "## Installing $PYBIN"
             "${PYBIN}pip" -V
-            "${PYBIN}pip" install confluent_kafka -f /io/wheelhouse
+            "${PYBIN}pip" install --no-index -f /io/wheelhouse confluent_kafka 
             "${PYBIN}python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
             "${PYBIN}pip" install -r /io/tests/requirements.txt
             "${PYBIN}pytest" /io/tests/test_Producer.py
