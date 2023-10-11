@@ -850,7 +850,7 @@ static PyMethodDef Uuid_methods[] = {
 
 static PyObject *Uuid_str0 (Uuid *self) {
         if(self->cUuid) {
-                char *base64str = rd_kafka_Uuid_base64str(self->cUuid);
+                const char *base64str = rd_kafka_Uuid_base64str(self->cUuid);
                 if(base64str)
                         return cfl_PyUnistr(_FromString(base64str));
         }
@@ -911,15 +911,15 @@ static void Uuid_dealloc (Uuid *self) {
 
 PyTypeObject UuidType = {
         PyVarObject_HEAD_INIT(NULL, 0)
-        "cimpl.Uuid",         /*tp_name*/
-        sizeof(Uuid),       /*tp_basicsize*/
-        0,                         /*tp_itemsize*/
-        (destructor)Uuid_dealloc, /*tp_dealloc*/
-        0,                         /*tp_print*/
-        0,                         /*tp_getattr*/
-        0,                         /*tp_setattr*/
-        0,                         /*tp_compare*/
-        (reprfunc)Uuid_str0, /*tp_repr*/
+        "cimpl.Uuid",                           /*tp_name*/
+        sizeof(Uuid),                           /*tp_basicsize*/
+        0,                                      /*tp_itemsize*/
+        (destructor)Uuid_dealloc,               /*tp_dealloc*/
+        0,                                      /*tp_print*/
+        0,                                      /*tp_getattr*/
+        0,                                      /*tp_setattr*/
+        0,                                      /*tp_compare*/
+        (reprfunc)Uuid_str0,                    /*tp_repr*/
         0,                         /*tp_as_number*/
         0,                         /*tp_as_sequence*/
         0,                         /*tp_as_mapping*/
@@ -1640,7 +1640,7 @@ err:
         return NULL;
 }
 
-PyObject *c_Uuid_to_py(rd_kafka_Uuid_t *c_uuid) {
+PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
         PyObject *uuid = NULL;
         PyObject *Uuid_type = NULL;
         PyObject *args = NULL;
