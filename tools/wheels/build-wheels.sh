@@ -16,7 +16,7 @@ export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 
 librdkafka_version=$1
 wheeldir=$2
-cibuildwheel_version="2.12.0"
+cibuildwheel_version="2.16.2"
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"
