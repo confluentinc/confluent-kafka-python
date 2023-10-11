@@ -278,7 +278,7 @@ def verify_admin_scram(admin_client):
 def verify_list_offsets(kafka_cluster):
     admin_client = kafka_cluster.admin()
     requests = {}
-    topic = "topicname"
+    topic = topic_prefix + "verify-list-offsets"
     basetimestamp = 1000000000
     topic_partition = TopicPartition(topic,0)
     admin_client.delete_topics([topic])

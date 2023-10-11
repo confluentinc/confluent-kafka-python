@@ -78,7 +78,7 @@ struct Admin_options {
         float operation_timeout;                        /* parser: f */
         int   broker;                                   /* parser: i */
         int require_stable_offsets;                     /* needs special bool parsing */
-        rd_kafka_isolation_level_t isolation_level;
+        rd_kafka_IsolationLevel_t isolation_level;
         rd_kafka_consumer_group_state_t* states;
         int states_cnt;
 };
@@ -3840,7 +3840,7 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
                 PyObject *value = NULL;
                 const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(result_infos[i]);
                 
-                int64_t timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(result_info);
+                int64_t timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(result_infos[i]);
 
                 if(topic_partition->err){
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
