@@ -1128,6 +1128,13 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 
 
 
+PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
+        return TopicPartition_new0(rktpar->topic, rktpar->partition,
+			           rktpar->offset,
+                                   rd_kafka_topic_partition_get_leader_epoch(rktpar),
+				   rktpar->metadata,
+				   rktpar->err);
+}
 
 /**
  * @brief Convert C rd_kafka_topic_partition_list_t to Python list(TopicPartition).
@@ -1142,17 +1149,36 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-		PyList_SET_ITEM(parts, i,
-				TopicPartition_new0(
-					rktpar->topic, rktpar->partition,
-					rktpar->offset,
-                                        rd_kafka_topic_partition_get_leader_epoch(rktpar),
-					rktpar->metadata,
-					rktpar->err));
+		PyList_SET_ITEM(parts, i, c_part_to_py(rktpar));
 	}
 
 	return parts;
 
+}
+
+rd_kafka_topic_partition_t *py_to_c_part (PyObject *partition) {
+        rd_kafka_topic_partition_t *rktpar;
+	TopicPartition *tp = (TopicPartition *)partition;
+
+	if (PyObject_Type((PyObject *)tp) != (PyObject *)&TopicPartitionType) {
+		PyErr_Format(PyExc_TypeError,
+				     "expected %s",
+				     TopicPartitionType.tp_name);
+		return NULL;
+	}
+        rktpar = malloc(sizeof(*rktpar));
+        rktpar->topic = strdup(tp->topic);
+        rktpar->partition = tp->partition;
+	rktpar->offset = tp->offset;
+        rd_kafka_topic_partition_set_leader_epoch(rktpar,tp->leader_epoch);
+	if (tp->metadata != NULL) {
+		rktpar->metadata_size = strlen(tp->metadata) + 1;
+		rktpar->metadata = strdup(tp->metadata);
+	} else {
+		rktpar->metadata_size = 0;
+		rktpar->metadata = NULL;
+	}
+        return rktpar;       
 }
 
 /**
