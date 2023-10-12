@@ -24,8 +24,9 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion, IsolationLevel, EarliestOffsetSpec, LatestOffsetSpec, MaxTimestampOffsetSpec, TimestampOffsetSpec)
-from confluent_kafka import Producer
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion,
+                                   IsolationLevel, EarliestOffsetSpec, LatestOffsetSpec,
+                                   MaxTimestampOffsetSpec, TimestampOffsetSpec)
 import sys
 import threading
 import logging
@@ -681,13 +682,14 @@ def example_alter_user_scram_credentials(a, args):
         except KafkaException as e:
             print("{}: Error: {}".format(username, e))
 
-def example_list_offsets(a,args):
+
+def example_list_offsets(a, args):
     requests = {}
     i = 0
     while i < len(args):
         topic = args[i]
         partition = int(args[i+1])
-        topic_partition = TopicPartition(topic,partition)
+        topic_partition = TopicPartition(topic, partition)
         if "EARLIEST" == args[i+2]:
             offset_spec = EarliestOffsetSpec()
             requests[topic_partition] = offset_spec
@@ -702,17 +704,20 @@ def example_list_offsets(a,args):
             requests[topic_partition] = offset_spec
             i = i + 1
         else:
-            raise ValueError(f"Invalid OffsetSpec, must be EARLIEST, LATEST, MAXTIMESTAMP or TIMESTAMP")
+            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAXTIMESTAMP or TIMESTAMP")
         i = i + 3
 
-    futmap = a.list_offsets(requests,isolation_level = IsolationLevel.READ_UNCOMMITTED,request_timeout = 30)
-    for partition,fut in futmap.items():
+    futmap = a.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
+    for partition, fut in futmap.items():
         try:
             result = fut.result()
-            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}".format(partition.topic,partition.partition,result.offset,result.timestamp))
+            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}"
+                  .format(partition.topic, partition.partition, result.offset,
+                          result.timestamp))
         except KafkaException as e:
-            print("Topicname : {} Partition_Index : {} Error : {}".format(partition.topic,partition.partition,e))
-    
+            print("Topicname : {} Partition_Index : {} Error : {}"
+                  .format(partition.topic, partition.partition, e))
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

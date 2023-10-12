@@ -579,7 +579,6 @@ static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
 }
 
 static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
-        /* rd_kafka_ScramMechanism_t */
         PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN", RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
         PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256", RD_KAFKA_SCRAM_MECHANISM_SHA_256);
         PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);

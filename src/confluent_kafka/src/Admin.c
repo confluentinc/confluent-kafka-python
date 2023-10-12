@@ -3827,14 +3827,13 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         PyObject *args = NULL;
         size_t i;
         size_t cnt;
-        rd_kafka_ListOffsetsResultInfo_t **result_infos;
+        const rd_kafka_ListOffsetsResultInfo_t **result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
         
         ListOffsetsResultInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                         "ListOffsetsResultInfo");
         if(!ListOffsetsResultInfo_type){
                 return NULL;
         }
-        result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
         result = PyDict_New();
         for(i=0;i<cnt;i++){
                 PyObject *value = NULL;

@@ -15,49 +15,56 @@
 from enum import Enum
 from .. import cimpl
 
+
 class OffsetSpec:
     """
-    OffsetSpec 
+    OffsetSpec
     Used to specify the OffsetSpec corresponding to TopicPartition for ListOffsets.
     """
     def __init__(self):
         pass
 
+
 class TimestampOffsetSpec(OffsetSpec):
     """
-    TimestampOffsetSpec : OffsetSpec 
+    TimestampOffsetSpec : OffsetSpec
     Used to specify the Timestamp of TopicPartition for ListOffsets.
     Parameters
     ----------
     timestamp: int
         timestamp of the OffsetSpec
     """
-    def __init__(self,timestamp:int):
+    def __init__(self, timestamp: int):
         self.timestamp = timestamp
+
 
 class MaxTimestampOffsetSpec(OffsetSpec):
     """
-    MaxTimestampOffsetSpec : OffsetSpec 
-    Used to specify the Offset corresponding to the Timestamp of TopicPartition (as Timestamp can be set on client side) for ListOffsets.
+    MaxTimestampOffsetSpec : OffsetSpec
+    Used to specify the Offset corresponding to the Timestamp
+    of TopicPartition (as Timestamp can be set on client side) for ListOffsets.
     """
     def __init__(self):
         pass
 
+
 class LatestOffsetSpec(OffsetSpec):
     """
-    LatestOffsetSpec : OffsetSpec 
+    LatestOffsetSpec : OffsetSpec
     Used to specify the Latest Offset corresponding to the TopicPartition for ListOffsets.
     """
     def __init__(self):
         pass
 
+
 class EarliestOffsetSpec(OffsetSpec):
     """
-    EarliestOffsetSpec : OffsetSpec 
+    EarliestOffsetSpec : OffsetSpec
     Used to specify the Earliest Offset corresponding to the TopicPartition for ListOffsets.
     """
     def __init__(self):
         pass
+
 
 class ListOffsetsResultInfo:
     """
@@ -73,10 +80,11 @@ class ListOffsetsResultInfo:
     leaderEpoch: int
         leaderEpoch corresponding to the TopicPartiton.
     """
-    def __init__(self,offset:int,timestamp:int,leaderEpoch:int):
+    def __init__(self, offset: int, timestamp: int, leaderEpoch: int):
         self.offset = offset
         self.timestamp = timestamp
         self.leaderEpoch = leaderEpoch
+
 
 class IsolationLevel(Enum):
     """
@@ -85,10 +93,12 @@ class IsolationLevel(Enum):
     """
     READ_COMMITTED = cimpl.READ_COMMITTED
     READ_UNCOMMITTED = cimpl.READ_UNCOMMITTED
+
     def __lt__(self, other):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
 
 class OffsetSpecEnumValue(Enum):
     """
@@ -98,6 +108,7 @@ class OffsetSpecEnumValue(Enum):
     MAX_TIMESTAMP_OFFSET_SPEC = cimpl.MAX_TIMESTAMP_OFFSET_SPEC
     EARLIEST_OFFSET_SPEC = cimpl.EARLIEST_OFFSET_SPEC
     LATEST_OFFSET_SPEC = cimpl.LATEST_OFFSET_SPEC
+
     def __lt__(self, other):
         if self.__class__ != other.__class__:
             return NotImplemented

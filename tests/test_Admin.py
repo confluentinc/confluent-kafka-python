@@ -7,8 +7,9 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
     UserScramCredentialUpsertion, \
-    ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType, OffsetSpec, EarliestOffsetSpec, LatestOffsetSpec, MaxTimestampOffsetSpec, IsolationLevel
+    ConfigResource, AclBinding, AclBindingFilter, ResourceType, \
+    ResourcePatternType, AclOperation, AclPermissionType, \
+    EarliestOffsetSpec, LatestOffsetSpec, IsolationLevel
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
 import concurrent.futures
@@ -990,19 +991,18 @@ def test_alter_user_scram_credentials_api():
     with pytest.raises(TypeError):
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
 
+
 def test_list_offsets_api():
     a = AdminClient({"socket.timeout.ms": 10})
     requests = {}
-    requests[TopicPartition("topic1",-1,10)] = EarliestOffsetSpec()
+    requests[TopicPartition("topic1", -1, 10)] = EarliestOffsetSpec()
     with pytest.raises(ValueError):
-        a.list_offsets(requests,isolation_level=IsolationLevel.READ_COMMITTED)
+        a.list_offsets(requests, isolation_level=IsolationLevel.READ_COMMITTED)
     requests = {}
-    requests[TopicPartition("topic1",0,10)] = EarliestOffsetSpec()
+    requests[TopicPartition("topic1", 0, 10)] = EarliestOffsetSpec()
     with pytest.raises(TypeError):
-        a.list_offsets(requests,isolation_level = 10)
+        a.list_offsets(requests, isolation_level=10)
     requests = {}
     requests["not-topic-partition"] = LatestOffsetSpec()
     with pytest.raises(TypeError):
-        a.list_offsets(requests,isolation_level = IsolationLevel.READ_COMMITTED)
-    
-    
+        a.list_offsets(requests, isolation_level=IsolationLevel.READ_COMMITTED)

@@ -46,14 +46,12 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
-from ._listoffsets import (OffsetSpec,
-                     TimestampOffsetSpec,
-                     MaxTimestampOffsetSpec,
-                     LatestOffsetSpec,
-                     EarliestOffsetSpec,
-                     OffsetSpecEnumValue,
-                     IsolationLevel,
-                     ListOffsetsResultInfo)
+from ._listoffsets import (TimestampOffsetSpec,
+                           MaxTimestampOffsetSpec,
+                           LatestOffsetSpec,
+                           EarliestOffsetSpec,
+                           OffsetSpecEnumValue,
+                           IsolationLevel)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -249,9 +247,9 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
             for resource, fut in futmap.items():
                 fut.set_exception(e)
-    
+
     @staticmethod
-    def _make_list_offsets_result(f,futmap):
+    def _make_list_offsets_result(f, futmap):
         """
         Map ListOffsets results to corresponding futures in futmap.
         The result value of each (successful) future is ListOffsetsResultInfo.
@@ -260,10 +258,11 @@ class AdminClient (_AdminClientImpl):
             results = f.result()
             if len(list(results.values())) != len(list(futmap.values())):
                 raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len(list(results.values())), len(list(futmap.values()))))
-            for topic_partition,value in results.items():
-                fut = futmap[_TopicPartition(topic_partition.topic,topic_partition.partition)]
-                if isinstance(value,KafkaError) and (value is not None):
+                    "Results length {} is different from future-map length {}"
+                    .format(len(list(results.values())), len(list(futmap.values()))))
+            for topic_partition, value in results.items():
+                fut = futmap[_TopicPartition(topic_partition.topic, topic_partition.partition)]
+                if isinstance(value, KafkaError) and (value is not None):
                     fut.set_exception(KafkaException(value))
                 else:
                     fut.set_result(value)
@@ -1040,8 +1039,8 @@ class AdminClient (_AdminClientImpl):
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
         return futmap
-    
-    def list_offsets(self,list_offsets_request,**kwargs):
+
+    def list_offsets(self, list_offsets_request, **kwargs):
         """
         ListOffsets
 
@@ -1061,9 +1060,9 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
-        if not isinstance(list_offsets_request,dict):
+        if not isinstance(list_offsets_request, dict):
             raise TypeError("Expected input to be dict of <TopicPartitions,OffsetSpec> to list offsets for")
-        
+
         if len(list_offsets_request) == 0:
             raise ValueError("Atleast one Topic Partition should be passed")
 
@@ -1079,31 +1078,35 @@ class AdminClient (_AdminClientImpl):
             if topic_partition.partition < 0:
                 raise ValueError("TopicPartition must not have negative 'partition' value")
             if offset_spec is None:
-                raise ValueError("OffsetSpec should not be None")        
-            if not (isinstance(offset_spec,TimestampOffsetSpec)  or isinstance(offset_spec,MaxTimestampOffsetSpec)
-                    or isinstance(offset_spec,LatestOffsetSpec) or isinstance(offset_spec,EarliestOffsetSpec)):
-                raise TypeError("Expected the value to be a OffsetSpec Child Class : Earliest, Latest , MaxTimestamp or Timestamp")
+                raise ValueError("OffsetSpec should not be None")
+            if not (isinstance(offset_spec, TimestampOffsetSpec) or isinstance(offset_spec, MaxTimestampOffsetSpec)
+                    or isinstance(offset_spec, LatestOffsetSpec) or isinstance(offset_spec, EarliestOffsetSpec)):
+                raise TypeError("Expected the value to be a OffsetSpec Child Class "
+                                ": Earliest, Latest , MaxTimestamp or Timestamp")
         requests = []
         offset = 0
-        if(kwargs['isolation_level']):
-            if not isinstance(kwargs['isolation_level'],IsolationLevel):
+
+        if (kwargs['isolation_level']):
+            if not isinstance(kwargs['isolation_level'], IsolationLevel):
                 raise TypeError("Isolation Level should be the enum of IsolationLevel")
             kwargs['isolation_level'] = kwargs['isolation_level'].value
-        
-        for topic_partition,offset_spec in list_offsets_request.items():
-            if isinstance(offset_spec,MaxTimestampOffsetSpec):
+
+        for topic_partition, offset_spec in list_offsets_request.items():
+            if isinstance(offset_spec, MaxTimestampOffsetSpec):
                 offset = OffsetSpecEnumValue.MAX_TIMESTAMP_OFFSET_SPEC.value
-            elif isinstance(offset_spec,EarliestOffsetSpec):
+            elif isinstance(offset_spec, EarliestOffsetSpec):
                 offset = OffsetSpecEnumValue.EARLIEST_OFFSET_SPEC.value
-            elif isinstance(offset_spec,LatestOffsetSpec):
+            elif isinstance(offset_spec, LatestOffsetSpec):
                 offset = OffsetSpecEnumValue.LATEST_OFFSET_SPEC.value
             else:
-                offset = offset_spec.timestamp                
+                offset = offset_spec.timestamp
 
             requests.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
-        f, futmap = AdminClient._make_futures([_TopicPartition(request.topic,request.partition) for request in requests],
+
+        f, futmap = AdminClient._make_futures([_TopicPartition(request.topic, request.partition)
+                                               for request in requests],
                                               _TopicPartition,
                                               AdminClient._make_list_offsets_result)
-        
+
         super(AdminClient, self).list_offsets(requests, f, **kwargs)
         return futmap
