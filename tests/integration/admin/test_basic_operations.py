@@ -17,15 +17,16 @@ import confluent_kafka
 import struct
 import time
 import pytest
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, \
+    ConsumerGroupState, IsolationLevel
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType,
                                    UserScramCredentialsDescription, UserScramCredentialUpsertion,
                                    UserScramCredentialDeletion, ScramCredentialInfo,
                                    ScramMechanism, KafkaException, KafkaError,
-                                   EarliestOffsetSpec, MaxTimestampOffsetSpec, LatestOffsetSpec,
-                                   IsolationLevel, ListOffsetsResultInfo, NewTopic)
+                                   ListOffsetsResultInfo, NewTopic,
+                                   OffsetSpec)
 from confluent_kafka.error import ConsumeError
 
 
@@ -292,25 +293,25 @@ def verify_list_offsets(kafka_cluster):
     p.produce(topic, "Message-2", timestamp=(basetimestamp + 400))
     p.produce(topic, "Message-3", timestamp=(basetimestamp + 200))
     p.flush()
-    requests[topic_partition] = EarliestOffsetSpec()
+    requests[topic_partition] = OffsetSpec.earliest()
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 0)
 
-    requests[topic_partition] = LatestOffsetSpec()
+    requests[topic_partition] = OffsetSpec.latest()
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 3)
 
-    requests[topic_partition] = MaxTimestampOffsetSpec()
+    requests[topic_partition] = OffsetSpec.max_timestamp()
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 1)
 
     admin_client.delete_topics([topic])

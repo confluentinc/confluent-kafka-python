@@ -18,15 +18,14 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, IsolationLevel)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
                                    UserScramCredentialUpsertion, UserScramCredentialDeletion,
-                                   IsolationLevel, EarliestOffsetSpec, LatestOffsetSpec,
-                                   MaxTimestampOffsetSpec, TimestampOffsetSpec)
+                                   OffsetSpec)
 import sys
 import threading
 import logging
@@ -684,30 +683,43 @@ def example_alter_user_scram_credentials(a, args):
 
 
 def example_list_offsets(a, args):
-    requests = {}
-    i = 0
+    topic_partition_offsets = {}
+    if len(args) < 1:
+        raise ValueError(
+            f"Invalid number of arguments for list offsets, expected at least 1, got {len(args)}")
+    i = 1
+    partition_i = 1
+    isolation_level = IsolationLevel[args[0]]
     while i < len(args):
+        if i + 3 > len(args):
+            raise ValueError(
+                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3, got {len(args) - i}")
         topic = args[i]
         partition = int(args[i+1])
         topic_partition = TopicPartition(topic, partition)
-        if "EARLIEST" == args[i+2]:
-            offset_spec = EarliestOffsetSpec()
-            requests[topic_partition] = offset_spec
-        elif "LATEST" == args[i+2]:
-            offset_spec = LatestOffsetSpec()
-            requests[topic_partition] = offset_spec
-        elif "MAXTIMESTAMP" == args[i+2]:
-            offset_spec = MaxTimestampOffsetSpec()
-            requests[topic_partition] = offset_spec
-        elif "TIMESTAMP" == args[i+2]:
-            offset_spec = TimestampOffsetSpec(int(args[i+3]))
-            requests[topic_partition] = offset_spec
-            i = i + 1
-        else:
-            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAXTIMESTAMP or TIMESTAMP")
-        i = i + 3
 
-    futmap = a.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
+        if "EARLIEST" == args[i+2]:
+            offset_spec = OffsetSpec.earliest()
+
+        elif "LATEST" == args[i+2]:
+            offset_spec = OffsetSpec.latest()
+
+        elif "MAX_TIMESTAMP" == args[i+2]:
+            offset_spec = OffsetSpec.max_timestamp()
+
+        elif "TIMESTAMP" == args[i+2]:
+            if i + 4 > len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4, got {len(args) - i}")
+            offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
+            i += 1
+        else:
+            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
+        topic_partition_offsets[topic_partition] = offset_spec
+        i = i + 3
+        partition_i += 1
+
+    futmap = a.list_offsets(topic_partition_offsets, isolation_level=isolation_level, request_timeout=30)
     for partition, fut in futmap.items():
         try:
             result = fut.result()
@@ -753,7 +765,8 @@ if __name__ == '__main__':
                          '<iterations1> <password1> <salt1> ' +
                          '[UPSERT <user2> <mechanism2> <iterations2> ' +
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
-        sys.stderr.write(' list_offsets <topicname> <partition> <OffsetSpec/TIMESTAMP t1> ..\n')
+        sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
+                         '[<topic2> <partition2> <offset_spec2> ..]\n')
 
         sys.exit(1)
 
