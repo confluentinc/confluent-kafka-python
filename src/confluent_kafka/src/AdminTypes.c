@@ -586,15 +586,15 @@ static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
 
 static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
         /* rd_kafka_IsolationLevel_t */
-        PyModule_AddIntConstant(m,"READ_COMMITTED",RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
-        PyModule_AddIntConstant(m,"READ_UNCOMMITTED",RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_COMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_UNCOMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
 }
 
-static void AdminTypes_AddObjectsOffsetSpecEnumValue (PyObject *m) {
+static void AdminTypes_AddObjectsOffsetSpec (PyObject *m) {
         /* rd_kafka_OffsetSpec_t */
-        PyModule_AddIntConstant(m,"MAX_TIMESTAMP_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
-        PyModule_AddIntConstant(m,"EARLIEST_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_EARLIEST);
-        PyModule_AddIntConstant(m,"LATEST_OFFSET_SPEC",RD_KAFKA_OFFSET_SPEC_LATEST);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_MAX_TIMESTAMP", RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_EARLIEST", RD_KAFKA_OFFSET_SPEC_EARLIEST);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_LATEST", RD_KAFKA_OFFSET_SPEC_LATEST);
 }
 
 /**
@@ -615,5 +615,5 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAlterConfigOpType(m);
         AdminTypes_AddObjectsScramMechanismType(m);
         AdminTypes_AddObjectsIsolationLevel(m);
-        AdminTypes_AddObjectsOffsetSpecEnumValue(m);
+        AdminTypes_AddObjectsOffsetSpec(m);
 }

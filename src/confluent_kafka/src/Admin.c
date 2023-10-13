@@ -2664,8 +2664,8 @@ const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
 
 
 PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
-        PyObject *requests, *future;
-        int request_cnt = 0;
+        PyObject *topic_partitions, *future;
+        int topic_partitions_cnt = 0;
         int i;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
@@ -2675,20 +2675,21 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         CallState cs;
         rd_kafka_queue_t *rkqu;
 
-        static char *kws[] = {"requests",
+        static char *kws[] = {"topic_partitions",
                              "future",
                              /* options */
-                             "request_timeout",
                              "isolation_level",
+                             "request_timeout",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|fi", kws,
-                                         &requests,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|if", kws,
+                                         &topic_partitions,
                                          &future,
-                                         &options.request_timeout,
-                                         &options.isolation_level)) {
+                                         &options.isolation_level,
+                                         &options.request_timeout)) {
                 goto err;
         }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
                                        &options, future);
         if (!c_options)  {
@@ -2700,23 +2701,13 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(requests) &&
-            (request_cnt = (int)PyList_Size(requests)) < 1) {
+        if (PyList_Check(topic_partitions) &&
+            (topic_partitions_cnt = (int)PyList_Size(topic_partitions)) < 1) {
                 PyErr_SetString(PyExc_ValueError,
-                        "Currently we support list offsets request for a list of Topic Partitions");
+                        "topic_partitions must be a non-empty list");
                 goto err;
         }
-        c_topic_partitions = rd_kafka_topic_partition_list_new(request_cnt);
-
-        for(i=0;i<request_cnt;i++){
-                rd_kafka_topic_partition_t *rktpar;
-                topic_partition = PyList_GET_ITEM(requests, i);
-                c_topic_partition = py_to_c_part(topic_partition);
-                rktpar = rd_kafka_topic_partition_list_add(c_topic_partitions,c_topic_partition->topic,c_topic_partition->partition);
-                rktpar->offset = c_topic_partition->offset;
-                rd_kafka_topic_partition_destroy(c_topic_partition);
-                Py_XDECREF(topic_partition);
-        }
+        c_topic_partitions = py_to_c_parts(topic_partitions);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -2733,7 +2724,7 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         CallState_end(self, &cs);
 
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
-        
+
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_topic_partition_list_destroy(c_topic_partitions);
 
@@ -2743,19 +2734,11 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
-        if(c_topic_partition) {
-                rd_kafka_topic_partition_destroy(c_topic_partition);
-        }
-        if(c_topic_partitions) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partitions);
-        }
-        Py_XDECREF(topic_partition);
-        Py_DECREF(future);
         return NULL;
 }
 
 const char Admin_list_offsets_doc[] = PyDoc_STR(
-        ".. py:function:: list_offsets(request, future, [isolation_level], [request_timeout])\n"
+        ".. py:function:: list_offsets(topic_partitions, future, [isolation_level], [request_timeout])\n"
         "\n"
         "  List offset for the topic partition provided in the request.\n"
         "\n"
@@ -3817,9 +3800,9 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
 }
 
 /**
- * 
+ *
  * @brief Convert C ListOffsetsResult response to pyobject.
- * 
+ *
  */
 static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
         PyObject *result = NULL;
@@ -3828,31 +3811,36 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         size_t i;
         size_t cnt;
         const rd_kafka_ListOffsetsResultInfo_t **result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
-        
+
         ListOffsetsResultInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
-                                                        "ListOffsetsResultInfo");
+                                                         "ListOffsetsResultInfo");
         if(!ListOffsetsResultInfo_type){
                 return NULL;
         }
         result = PyDict_New();
         for(i=0;i<cnt;i++){
-                PyObject *value = NULL;
+                PyObject *value = NULL, *kwargs;
                 const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(result_infos[i]);
-                
+
                 int64_t timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(result_infos[i]);
 
-                if(topic_partition->err){
+                if (topic_partition->err) {
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
-                }else{
-                        value = PyDict_New();
-                        cfl_PyDict_SetInt(value,"offset",topic_partition->offset);
-                        cfl_PyDict_SetInt(value,"timestamp",timestamp);
-                        cfl_PyDict_SetInt(value,"leaderEpoch",-1);
+                } else {
+                        kwargs = PyDict_New();
+                        cfl_PyDict_SetLong(kwargs,"offset",topic_partition->offset);
+                        cfl_PyDict_SetLong(kwargs,"timestamp", timestamp);
+                        cfl_PyDict_SetInt(kwargs,"leader_epoch",
+                                rd_kafka_topic_partition_get_leader_epoch(topic_partition));
                         args = PyTuple_New(0);
-                        value = PyObject_Call(ListOffsetsResultInfo_type,args,value);
+                        value = PyObject_Call(ListOffsetsResultInfo_type, args, kwargs);
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
                 }
-                PyDict_SetItem(result,c_part_to_py(topic_partition),value);
+                PyDict_SetItem(result, c_part_to_py(topic_partition), value);
+                Py_DECREF(value);
         }
+        Py_DECREF(ListOffsetsResultInfo_type);
 
         return result;
 }

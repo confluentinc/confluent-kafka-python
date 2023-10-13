@@ -46,12 +46,8 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
-from ._listoffsets import (TimestampOffsetSpec,
-                           MaxTimestampOffsetSpec,
-                           LatestOffsetSpec,
-                           EarliestOffsetSpec,
-                           OffsetSpecEnumValue,
-                           IsolationLevel)
+from ._listoffsets import (OffsetSpec,
+                           ListOffsetsResultInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -71,11 +67,10 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
 
-from confluent_kafka import ConsumerGroupTopicPartitions \
-    as _ConsumerGroupTopicPartitions
-
-from confluent_kafka import ConsumerGroupState \
-    as _ConsumerGroupState
+from confluent_kafka import \
+    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions,\
+    ConsumerGroupState as _ConsumerGroupState, \
+    IsolationLevel as _IsolationLevel
 
 
 try:
@@ -1040,12 +1035,12 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
         return futmap
 
-    def list_offsets(self, list_offsets_request, **kwargs):
+    def list_offsets(self, topic_partition_offsets, **kwargs):
         """
         ListOffsets
 
-        :param dict([TopicPartition, OffsetSpec]) list_offsets_request: Dictionary of
-               TopicPartitions with the OffsetSpec to List Offsets for.
+        :param dict([TopicPartition, OffsetSpec]) topic_partition_offsets: Dictionary of
+               TopicPartition with the OffsetSpec to List Offsets for.
                The pair (user, mechanism) must be unique among alterations.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
@@ -1060,53 +1055,45 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
-        if not isinstance(list_offsets_request, dict):
-            raise TypeError("Expected input to be dict of <TopicPartitions,OffsetSpec> to list offsets for")
+        if not isinstance(topic_partition_offsets, dict):
+            raise TypeError("Expected topic_partition_offsets to be dict of [TopicPartitions,OffsetSpec] to list offsets for")
 
-        if len(list_offsets_request) == 0:
-            raise ValueError("Atleast one Topic Partition should be passed")
+        if len(topic_partition_offsets) == 0:
+            raise ValueError("At least one partition should be passed")
 
-        for topic_partition, offset_spec in list_offsets_request.items():
+        for topic_partition, offset_spec in topic_partition_offsets.items():
             if topic_partition is None:
-                raise ValueError("Key should not be None")
+                raise TypeError("partition cannot be None")
             if not isinstance(topic_partition, _TopicPartition):
-                raise TypeError("Key' must be of type TopicPartition")
+                raise TypeError("partition must be a TopicPartition")
             if topic_partition.topic is None:
-                raise TypeError("TopicPartition must not have 'topic' attribute as None")
+                raise TypeError("partition topic name cannot be None")
             if not topic_partition.topic:
-                raise ValueError("TopicPartition must not have 'topic' attribute as Empty")
+                raise ValueError("partition topic name cannot be empty")
             if topic_partition.partition < 0:
-                raise ValueError("TopicPartition must not have negative 'partition' value")
+                raise ValueError("partition index must be non-negative")
             if offset_spec is None:
-                raise ValueError("OffsetSpec should not be None")
-            if not (isinstance(offset_spec, TimestampOffsetSpec) or isinstance(offset_spec, MaxTimestampOffsetSpec)
-                    or isinstance(offset_spec, LatestOffsetSpec) or isinstance(offset_spec, EarliestOffsetSpec)):
-                raise TypeError("Expected the value to be a OffsetSpec Child Class "
-                                ": Earliest, Latest , MaxTimestamp or Timestamp")
-        requests = []
+                raise TypeError("OffsetSpec cannot be None")
+            if not isinstance(offset_spec, OffsetSpec):
+                raise TypeError("Value must be a OffsetSpec")
+
+        topic_partition_offsets_copy = []
         offset = 0
 
-        if (kwargs['isolation_level']):
-            if not isinstance(kwargs['isolation_level'], IsolationLevel):
-                raise TypeError("Isolation Level should be the enum of IsolationLevel")
+        if 'isolation_level' in kwargs:
+            if not isinstance(kwargs['isolation_level'], _IsolationLevel):
+                raise TypeError("isolation_level argument should be an IsolationLevel")
             kwargs['isolation_level'] = kwargs['isolation_level'].value
 
-        for topic_partition, offset_spec in list_offsets_request.items():
-            if isinstance(offset_spec, MaxTimestampOffsetSpec):
-                offset = OffsetSpecEnumValue.MAX_TIMESTAMP_OFFSET_SPEC.value
-            elif isinstance(offset_spec, EarliestOffsetSpec):
-                offset = OffsetSpecEnumValue.EARLIEST_OFFSET_SPEC.value
-            elif isinstance(offset_spec, LatestOffsetSpec):
-                offset = OffsetSpecEnumValue.LATEST_OFFSET_SPEC.value
-            else:
-                offset = offset_spec.timestamp
+        for topic_partition, offset_spec in topic_partition_offsets.items():
+            offset = offset_spec._value
+            topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
 
-            requests.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
-
-        f, futmap = AdminClient._make_futures([_TopicPartition(request.topic, request.partition)
-                                               for request in requests],
+        f, futmap = AdminClient._make_futures([_TopicPartition(topic_partition.topic,
+                                                               topic_partition.partition)
+                                               for topic_partition in topic_partition_offsets_copy],
                                               _TopicPartition,
                                               AdminClient._make_list_offsets_result)
 
-        super(AdminClient, self).list_offsets(requests, f, **kwargs)
+        super(AdminClient, self).list_offsets(topic_partition_offsets_copy, f, **kwargs)
         return futmap
