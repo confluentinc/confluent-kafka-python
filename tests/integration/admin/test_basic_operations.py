@@ -297,21 +297,21 @@ def verify_list_offsets(kafka_cluster):
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 0)
 
     requests[topic_partition] = OffsetSpec.latest()
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 3)
 
     requests[topic_partition] = OffsetSpec.max_timestamp()
     futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
     for _, fut in futmap.items():
         result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
+        assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 1)
 
     admin_client.delete_topics([topic])

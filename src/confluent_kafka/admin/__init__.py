@@ -257,7 +257,7 @@ class AdminClient (_AdminClientImpl):
                     .format(len(list(results.values())), len(list(futmap.values()))))
             for topic_partition, value in results.items():
                 fut = futmap[_TopicPartition(topic_partition.topic, topic_partition.partition)]
-                if isinstance(value, KafkaError) and (value is not None):
+                if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
                     fut.set_result(value)
