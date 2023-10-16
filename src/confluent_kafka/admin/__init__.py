@@ -377,7 +377,6 @@ class AdminClient (_AdminClientImpl):
                     if topic_partition.partition < 0:
                         raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
                     if topic_partition.offset != OFFSET_INVALID:
-                        print(topic_partition.offset)
                         raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
 
     @staticmethod
@@ -471,6 +470,30 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("Expected each element of list 'alterations' " +
                                 "to be either a UserScramCredentialUpsertion or a " +
                                 "UserScramCredentialDeletion")
+
+    @staticmethod
+    def _check_list_offsets_request(topic_partition_offsets):
+        if not isinstance(topic_partition_offsets, dict):
+            raise TypeError("Expected topic_partition_offsets to be dict of [TopicPartitions,OffsetSpec] to list offsets for")
+
+        if len(topic_partition_offsets) == 0:
+            raise ValueError("At least one partition should be passed")
+
+        for topic_partition, offset_spec in topic_partition_offsets.items():
+            if topic_partition is None:
+                raise TypeError("partition cannot be None")
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("partition must be a TopicPartition")
+            if topic_partition.topic is None:
+                raise TypeError("partition topic name cannot be None")
+            if not topic_partition.topic:
+                raise ValueError("partition topic name cannot be empty")
+            if topic_partition.partition < 0:
+                raise ValueError("partition index must be non-negative")
+            if offset_spec is None:
+                raise TypeError("OffsetSpec cannot be None")
+            if not isinstance(offset_spec, OffsetSpec):
+                raise TypeError("Value must be a OffsetSpec")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1055,39 +1078,17 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
-        if not isinstance(topic_partition_offsets, dict):
-            raise TypeError("Expected topic_partition_offsets to be dict of [TopicPartitions,OffsetSpec] to list offsets for")
-
-        if len(topic_partition_offsets) == 0:
-            raise ValueError("At least one partition should be passed")
-
-        for topic_partition, offset_spec in topic_partition_offsets.items():
-            if topic_partition is None:
-                raise TypeError("partition cannot be None")
-            if not isinstance(topic_partition, _TopicPartition):
-                raise TypeError("partition must be a TopicPartition")
-            if topic_partition.topic is None:
-                raise TypeError("partition topic name cannot be None")
-            if not topic_partition.topic:
-                raise ValueError("partition topic name cannot be empty")
-            if topic_partition.partition < 0:
-                raise ValueError("partition index must be non-negative")
-            if offset_spec is None:
-                raise TypeError("OffsetSpec cannot be None")
-            if not isinstance(offset_spec, OffsetSpec):
-                raise TypeError("Value must be a OffsetSpec")
-
-        topic_partition_offsets_copy = []
-        offset = 0
+        AdminClient._check_list_offsets_request(topic_partition_offsets)
 
         if 'isolation_level' in kwargs:
             if not isinstance(kwargs['isolation_level'], _IsolationLevel):
                 raise TypeError("isolation_level argument should be an IsolationLevel")
             kwargs['isolation_level'] = kwargs['isolation_level'].value
 
+        topic_partition_offsets_copy = []
         for topic_partition, offset_spec in topic_partition_offsets.items():
-            offset = offset_spec._value
-            topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition), int(offset)))
+            topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition),
+                int(offset_spec._value)))
 
         f, futmap = AdminClient._make_futures([_TopicPartition(topic_partition.topic,
                                                                topic_partition.partition)

@@ -6,10 +6,7 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, \
-    ConfigResource, AclBinding, AclBindingFilter, ResourceType, \
-    ResourcePatternType, AclOperation, AclPermissionType, \
-    OffsetSpec
+    UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
     IsolationLevel
