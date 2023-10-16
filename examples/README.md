@@ -12,7 +12,7 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 * [protobuf_producer.py](protobuf_producer.py): Produce Protobuf serialized data using ProtobufSerializer.
 * [protobuf_consumer.py](protobuf_consumer.py): Read Protobuf serialized data using ProtobufDeserializer.
 * [sasl_producer.py](sasl_producer.py):  Demonstrates SASL Authentication.
-* [list_offsets.py](list_offsets.py): List committed offsets and consumer lag for group and topics.
+* [get_watermark_offsets.py](get_watermark_offsets.py): Consumer method for listing committed offsets and consumer lag for group and topics.
 * [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):

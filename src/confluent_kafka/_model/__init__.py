@@ -89,3 +89,16 @@ class ConsumerGroupState(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+class IsolationLevel(Enum):
+    """
+    IsolationLevel
+    Enum used for Admin Options to make ListOffsets call.
+    """
+    READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED
+    READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
