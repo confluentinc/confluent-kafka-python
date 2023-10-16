@@ -19,7 +19,8 @@
 from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
-from ._model import Node, ConsumerGroupTopicPartitions, ConsumerGroupState
+from ._model import Node, ConsumerGroupTopicPartitions, ConsumerGroupState, \
+                    IsolationLevel
 
 from .cimpl import (Producer,
                     Consumer,
