@@ -92,8 +92,7 @@ class ConsumerGroupState(Enum):
 
 class IsolationLevel(Enum):
     """
-    IsolationLevel
-    Enum used for Admin Options to make ListOffsets call.
+    Enum for Kafka isolation levels.
     """
     READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED
     READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED

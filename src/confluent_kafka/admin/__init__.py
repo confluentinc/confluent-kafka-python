@@ -1060,11 +1060,14 @@ class AdminClient (_AdminClientImpl):
 
     def list_offsets(self, topic_partition_offsets, **kwargs):
         """
-        ListOffsets
+        Enables to find the beginning offset,
+        end offset as well as the offset matching a timestamp
+        or the offset with max timestamp in partitions.
 
         :param dict([TopicPartition, OffsetSpec]) topic_partition_offsets: Dictionary of
-               TopicPartition with the OffsetSpec to List Offsets for.
-               The pair (user, mechanism) must be unique among alterations.
+               TopicPartition objects associated with the corresponding OffsetSpec to query for.
+        :param IsolationLevel isolation_level: The isolation level to use when
+               querying.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
                on broker, and response. Default: `socket.timeout.ms*1000.0`

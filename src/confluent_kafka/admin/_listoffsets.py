@@ -19,8 +19,8 @@ from .. import cimpl
 
 class OffsetSpec(ABC):
     """
-    OffsetSpec
-    Used to specify the OffsetSpec corresponding to a TopicPartition for ListOffsets.
+    Used in `AdminClient.list_offsets` to specify the desired offsets
+    of the partition being queried.
     """
     _values = {}
 
@@ -70,12 +70,14 @@ class OffsetSpec(ABC):
 
 class TimestampSpec(OffsetSpec):
     """
-    TimestampSpec : OffsetSpec
-    Used to specify the Timestamp of TopicPartition for ListOffsets.
+    Used in a `AdminClient.list_offsets` call to retrieve the earliest offset
+    whose timestamp is greater than or equal to the given timestamp in the
+    corresponding partition.
+
     Parameters
     ----------
     timestamp: int
-        timestamp of the OffsetSpec
+        timestamp in milliseconds.
     """
 
     @property
@@ -87,9 +89,9 @@ class TimestampSpec(OffsetSpec):
 
 class MaxTimestampSpec(OffsetSpec):
     """
-    MaxTimestampSpec : OffsetSpec
-    Used to specify the Offset corresponding to the Timestamp
-    of TopicPartition (as Timestamp can be set on client side) for ListOffsets.
+    Used in a `AdminClient.list_offsets` call to retrieve the offset with the
+    largest timestamp, that could not correspond to the latest one as timestamps
+    can be specified client-side.
     """
 
     @property
@@ -100,8 +102,7 @@ class MaxTimestampSpec(OffsetSpec):
 
 class LatestSpec(OffsetSpec):
     """
-    LatestSpec : OffsetSpec
-    Used to specify the Latest Offset corresponding to the TopicPartition for ListOffsets.
+    Used in a `AdminClient.list_offsets` call to retrieve the queried partition latest offset.
     """
 
     @property
@@ -111,8 +112,7 @@ class LatestSpec(OffsetSpec):
 
 class EarliestSpec(OffsetSpec):
     """
-    EarliestSpec : OffsetSpec
-    Used to specify the Earliest Offset corresponding to the TopicPartition for ListOffsets.
+    Used in a `AdminClient.list_offsets` call to retrieve the queried partition earliest offset.
     """
 
     @property
@@ -129,16 +129,17 @@ OffsetSpec._fill_values()
 class ListOffsetsResultInfo:
     """
     ListOffsetsResultInfo
-    Used to specify the result of ListOffsets of a TopicPartiton.
-    Holds Offset, Timestamp and LeaderEpoch for a TopicPartition.
+    Result of a `AdminClient.list_offsets` call associated to a partition.
+
     Parameters
     ----------
     offset: int
-        offset corresponding to the TopicPartiton with the OffsetSpec specified returned by ListOffsets call.
+        The offset returned by the list_offsets call.
     timestamp: int
-        timestamp corresponding to the offset.
+        The timestamp in milliseconds corresponding to the offset.
+        Not available (-1) when querying for the earliest of latest offsets.
     leader_epoch: int
-        leader_epoch corresponding to the TopicPartiton.
+        The leader epoch corresponding to the offset (optional).
     """
     def __init__(self, offset, timestamp, leader_epoch):
         self.offset = offset
