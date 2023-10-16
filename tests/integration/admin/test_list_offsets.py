@@ -1,6 +1,7 @@
 from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 from confluent_kafka import TopicPartition, IsolationLevel
 
+
 def test_list_offsets(kafka_cluster):
     """
     Test list offsets results when asking for the earliest offset (the first one),
@@ -12,10 +13,10 @@ def test_list_offsets(kafka_cluster):
 
     # Create a topic with a single partition
     topic = kafka_cluster.create_topic("test-topic-verify-list-offsets",
-        {
-            "num_partitions": 1,
-            "replication_factor": 1,
-        })
+                                       {
+                                           "num_partitions": 1,
+                                           "replication_factor": 1,
+                                       })
 
     # Create Producer instance
     p = kafka_cluster.producer()
@@ -58,4 +59,3 @@ def test_list_offsets(kafka_cluster):
     fs = admin_client.delete_topics([topic])
     for topic, f in fs.items():
         f.result()
-

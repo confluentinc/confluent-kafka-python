@@ -146,14 +146,14 @@ class ConfigResource(object):
         if name is None:
             raise ValueError("Expected resource name to be a string")
 
-        if type(restype) == str:
+        if isinstance(restype, str):
             # Allow resource type to be specified as case-insensitive string, for convenience.
             try:
                 restype = ConfigResource.Type[restype.upper()]
             except KeyError:
                 raise ValueError("Unknown resource type \"%s\": should be a ConfigResource.Type" % restype)
 
-        elif type(restype) == int:
+        elif isinstance(restype, int):
             # The C-code passes restype as an int, convert to Type.
             restype = ConfigResource.Type(restype)
 

@@ -90,6 +90,7 @@ class ConsumerGroupState(Enum):
             return NotImplemented
         return self.value < other.value
 
+
 class IsolationLevel(Enum):
     """
     Enum for Kafka isolation levels.

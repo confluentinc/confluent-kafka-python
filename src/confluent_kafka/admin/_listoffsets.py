@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum
 from abc import ABC, abstractmethod
 from .. import cimpl
 
@@ -87,6 +86,7 @@ class TimestampSpec(OffsetSpec):
     def __init__(self, timestamp):
         self.timestamp = timestamp
 
+
 class MaxTimestampSpec(OffsetSpec):
     """
     Used in a `AdminClient.list_offsets` call to retrieve the offset with the
@@ -97,7 +97,6 @@ class MaxTimestampSpec(OffsetSpec):
     @property
     def _value(self):
         return cimpl.OFFSET_SPEC_MAX_TIMESTAMP
-
 
 
 class LatestSpec(OffsetSpec):
@@ -125,6 +124,7 @@ OffsetSpec.MaxTimestampSpec = MaxTimestampSpec
 OffsetSpec.LatestSpec = LatestSpec
 OffsetSpec.EarliestSpec = EarliestSpec
 OffsetSpec._fill_values()
+
 
 class ListOffsetsResultInfo:
     """

@@ -46,7 +46,7 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
-from ._listoffsets import (OffsetSpec,
+from ._listoffsets import (OffsetSpec,  # noqa: F401
                            ListOffsetsResultInfo)
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -68,7 +68,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      OFFSET_INVALID)
 
 from confluent_kafka import \
-    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions,\
+    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions, \
     ConsumerGroupState as _ConsumerGroupState, \
     IsolationLevel as _IsolationLevel
 
@@ -474,7 +474,8 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _check_list_offsets_request(topic_partition_offsets):
         if not isinstance(topic_partition_offsets, dict):
-            raise TypeError("Expected topic_partition_offsets to be dict of [TopicPartitions,OffsetSpec] to list offsets for")
+            raise TypeError("Expected topic_partition_offsets to be " +
+                            "dict of [TopicPartitions,OffsetSpec] to list offsets for")
 
         if len(topic_partition_offsets) == 0:
             raise ValueError("At least one partition should be passed")
@@ -1091,7 +1092,7 @@ class AdminClient (_AdminClientImpl):
         topic_partition_offsets_copy = []
         for topic_partition, offset_spec in topic_partition_offsets.items():
             topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition),
-                int(offset_spec._value)))
+                                                int(offset_spec._value)))
 
         f, futmap = AdminClient._make_futures([_TopicPartition(topic_partition.topic,
                                                                topic_partition.partition)

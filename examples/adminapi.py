@@ -693,7 +693,8 @@ def example_list_offsets(a, args):
     while i < len(args):
         if i + 3 > len(args):
             raise ValueError(
-                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3, got {len(args) - i}")
+                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
+                f" got {len(args) - i}")
         topic = args[i]
         partition = int(args[i+1])
         topic_partition = TopicPartition(topic, partition)
@@ -710,7 +711,8 @@ def example_list_offsets(a, args):
         elif "TIMESTAMP" == args[i+2]:
             if i + 4 > len(args):
                 raise ValueError(
-                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4, got {len(args) - i}")
+                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
+                    f", got {len(args) - i}")
             offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
             i += 1
         else:
