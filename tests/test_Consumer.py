@@ -185,7 +185,7 @@ def test_on_commit():
 def test_subclassing():
     class SubConsumer(Consumer):
         def poll(self, somearg):
-            assert type(somearg) == str
+            assert isinstance(somearg, str)
             super(SubConsumer, self).poll(timeout=0.0001)
 
     sc = SubConsumer({"group.id": "test", "session.timeout.ms": "90"})
