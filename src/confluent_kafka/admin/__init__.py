@@ -244,29 +244,6 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_list_offsets_result(f, futmap):
-        """
-        Map ListOffsets results to corresponding futures in futmap.
-        The result value of each (successful) future is ListOffsetsResultInfo.
-        """
-        try:
-            results = f.result()
-            if len(list(results.values())) != len(list(futmap.values())):
-                raise RuntimeError(
-                    "Results length {} is different from future-map length {}"
-                    .format(len(list(results.values())), len(list(futmap.values()))))
-            for topic_partition, value in results.items():
-                fut = futmap[_TopicPartition(topic_partition.topic, topic_partition.partition)]
-                if isinstance(value, KafkaError):
-                    fut.set_exception(KafkaException(value))
-                else:
-                    fut.set_result(value)
-        except Exception as e:
-            # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
@@ -280,6 +257,28 @@ class AdminClient (_AdminClientImpl):
                 if fut is None:
                     raise RuntimeError(
                         f"username {username} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_generic_futmap_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for key, value in results.items():
+                fut = futmap.get(key, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"Key {key} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -1094,11 +1093,11 @@ class AdminClient (_AdminClientImpl):
             topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition),
                                                 int(offset_spec._value)))
 
-        f, futmap = AdminClient._make_futures([_TopicPartition(topic_partition.topic,
-                                                               topic_partition.partition)
-                                               for topic_partition in topic_partition_offsets_copy],
-                                              _TopicPartition,
-                                              AdminClient._make_list_offsets_result)
+        topic_partition_keys = [_TopicPartition(topic_partition.topic, topic_partition.partition)
+                                for topic_partition in topic_partition_offsets_copy]
+        f, futmap = AdminClient._make_futures_v2(topic_partition_keys,
+                                                 _TopicPartition,
+                                                 AdminClient._make_generic_futmap_result)
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_copy, f, **kwargs)
         return futmap
