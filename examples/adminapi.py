@@ -602,8 +602,21 @@ def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
-    futmap = a.describe_user_scram_credentials(args)
-    if "__all__" not in futmap:
+    if len(args) == 0:
+        f = a.describe_user_scram_credentials(args)
+        try:
+            results = f.result()
+            for username, response in results.items():
+                print("Username : {}\n".format(username))
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                        f"Iterations: {scram_credential_info.iterations}")
+        except KafkaException as e:
+            print("Failed to describe all user scram credentials : {}".format(e))
+        except Exception as e:
+            raise
+    else:
+        futmap = a.describe_user_scram_credentials(args)
         for username, fut in futmap.items():
             print("Username: {}".format(username))
             try:
@@ -614,18 +627,7 @@ def example_describe_user_scram_credentials(a, args):
             except KafkaException as e:
                 print("    Error: {}".format(e))
             except Exception as e:
-                print(f"    Unexpected exception: {e}")
-    else:
-        fut = futmap["__all__"]
-        results = fut.result()
-        for username, response in results.items():
-            print("Username : {}\n".format(username))
-            if isinstance(response, KafkaError):
-                print(response)
-            else:
-                for scram_credential_info in response.scram_credential_infos:
-                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                          f"Iterations: {scram_credential_info.iterations}")
+                raise
 
 
 def example_alter_user_scram_credentials(a, args):
