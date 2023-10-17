@@ -244,6 +244,9 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    _make_result 
+
+    @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
@@ -257,7 +260,7 @@ class AdminClient (_AdminClientImpl):
                 for username, value in results.items():
                     fut = futmap.get(username, None)
                     if fut is None:
-                        raise RuntimeError("Future not found for the user")
+                        raise RuntimeError(f"username {username} not found in future-map: {futmap}")
                     if isinstance(value, KafkaError):
                         fut.set_exception(KafkaException(value))
                     else:
@@ -977,6 +980,7 @@ class AdminClient (_AdminClientImpl):
         :raises ValueError: Invalid input value.
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
+
         f, futmap = AdminClient._make_futures_v2(users, None,
                                                  AdminClient._make_user_scram_credentials_result)
 
