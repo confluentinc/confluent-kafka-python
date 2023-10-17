@@ -1,5 +1,5 @@
-from confluent_kafka.admin import ConfigResource,\
-    ConfigEntry, ResourceType,\
+from confluent_kafka.admin import ConfigResource, \
+    ConfigEntry, ResourceType, \
     AlterConfigOpType
 
 
