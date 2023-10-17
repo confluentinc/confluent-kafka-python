@@ -24,7 +24,7 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion, KafkaError)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
 import sys
 import threading
 import logging
@@ -620,10 +620,10 @@ def example_describe_user_scram_credentials(a, args):
                 print("Username : {}\n".format(username))
                 for scram_credential_info in response.scram_credential_infos:
                     print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                        f"Iterations: {scram_credential_info.iterations}")
+                          f"Iterations: {scram_credential_info.iterations}")
         except KafkaException as e:
             print("Failed to describe all user scram credentials : {}".format(e))
-        except Exception as e:
+        except Exception:
             raise
     else:
         """
@@ -641,7 +641,7 @@ def example_describe_user_scram_credentials(a, args):
                           f"Iterations: {scram_credential_info.iterations}")
             except KafkaException as e:
                 print("    Error: {}".format(e))
-            except Exception as e:
+            except Exception:
                 raise
 
 

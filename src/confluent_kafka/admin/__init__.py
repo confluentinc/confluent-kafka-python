@@ -243,7 +243,6 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
-
     @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
         try:
@@ -998,7 +997,7 @@ class AdminClient (_AdminClientImpl):
                   The future result() method returns the
                   :class:`UserScramCredentialsDescription` or
                   raises KafkaException
-                
+
         :rtype: future
         :rtype: dict[str, future]
 
@@ -1008,10 +1007,11 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_describe_user_scram_credentials_request(users)
 
         if len(users) == 0:
-            internal_f, f = AdminClient._make_internal_futures(AdminClient._make_describe_all_user_scram_credentials_result)
+            internal_f, f = AdminClient    \
+                            ._make_internal_futures(AdminClient._make_describe_all_user_scram_credentials_result)
         else:
             internal_f, f = AdminClient._make_futures_v2(users, None,
-                                                 AdminClient._make_user_scram_credentials_result)
+                                                         AdminClient._make_user_scram_credentials_result)
 
         super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
         return f
