@@ -243,6 +243,7 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
+
     @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
         try:
@@ -255,8 +256,7 @@ class AdminClient (_AdminClientImpl):
             for username, value in results.items():
                 fut = futmap.get(username, None)
                 if fut is None:
-                    raise RuntimeError(
-                        f"username {username} not found in future-map: {futmap}")
+                    raise RuntimeError(f"username {username} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -264,6 +264,18 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
+
+    @staticmethod
+    def _make_describe_all_user_scram_credentials_result(internalfuture, f):
+        try:
+            results = internalfuture.result()
+            for _, value in results.items():
+                if isinstance(value, KafkaError):
+                    f.set_exception(KafkaException(value))
+                    return
+            f.set_result(results)
+        except Exception as e:
+            f.set_exception(e)
 
     @staticmethod
     def _create_future():
@@ -313,6 +325,16 @@ class AdminClient (_AdminClientImpl):
         f.add_done_callback(lambda f: make_result_fn(f, futmap))
 
         return f, futmap
+
+    @staticmethod
+    def _make_futures_v3(make_result_fn):
+        # Create an internal future for the entire request,
+        # this future will trigger _make_..._result() and set result/exception
+        f = AdminClient._create_future()
+        internalfuture = AdminClient._create_future()
+        internalfuture.add_done_callback(lambda internalfuture: make_result_fn(internalfuture, f))
+
+        return internalfuture, f
 
     @staticmethod
     def _has_duplicates(items):
@@ -977,11 +999,14 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
 
+        if len(users) == 0:
+            internalfuture, f = AdminClient._make_futures_v3(AdminClient._make_describe_all_user_scram_credentials_result)
+            super(AdminClient, self).describe_user_scram_credentials(users, internalfuture, **kwargs)
+            return f
+        
         f, futmap = AdminClient._make_futures_v2(users, None,
                                                  AdminClient._make_user_scram_credentials_result)
-
         super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-
         return futmap
 
     def alter_user_scram_credentials(self, alterations, **kwargs):

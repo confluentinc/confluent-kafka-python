@@ -24,7 +24,7 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion, KafkaError)
 import sys
 import threading
 import logging
@@ -602,19 +602,32 @@ def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
-    futmap = a.describe_user_scram_credentials(args)
-
-    for username, fut in futmap.items():
-        print("Username: {}".format(username))
+    if len(args) == 0:
+        f = a.describe_user_scram_credentials(args)
         try:
-            response = fut.result()
-            for scram_credential_info in response.scram_credential_infos:
-                print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                      f"Iterations: {scram_credential_info.iterations}")
+            results = f.result()
+            for username, response in results.items():
+                print("Username : {}\n".format(username))
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                        f"Iterations: {scram_credential_info.iterations}")
         except KafkaException as e:
-            print("    Error: {}".format(e))
+            print("Failed to describe all user scram credentials : {}".format(e))
         except Exception as e:
-            print(f"    Unexpected exception: {e}")
+            raise
+    else:
+        futmap = a.describe_user_scram_credentials(args)
+        for username, fut in futmap.items():
+            print("Username: {}".format(username))
+            try:
+                response = fut.result()
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
+            except KafkaException as e:
+                print("    Error: {}".format(e))
+            except Exception as e:
+                raise
 
 
 def example_alter_user_scram_credentials(a, args):
