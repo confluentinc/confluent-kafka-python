@@ -243,8 +243,6 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
-    @staticmethod
-    _make_result 
 
     @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
