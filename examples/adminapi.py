@@ -601,33 +601,49 @@ def example_alter_consumer_group_offsets(a, args):
 def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
+    If passed users list is empty, the request returns
+    a future, the result() will give a dict[str, UserScramCredentialsDescription]
+    or a KafkaException
+    Else if passed users list is non-empty, the request returns a
+    dict[str, future] where the result() of each future will give
+    a UserScramCredentialsDescription or a KafkaException
     """
-    result_obj = a.describe_user_scram_credentials(args)
-    # If empty users list is passed, future is returned else a futmap[dict] is returned
-    if isinstance(result_obj,dict):
-        futmap = result_obj
+    if len(args) == 0:
+        """
+        Empty users list, we will get a future
+        Describes all user scram credentials
+        """
+        f = a.describe_user_scram_credentials(args)
+        try:
+            results = f.result()
+            for username, response in results.items():
+                print("Username : {}\n".format(username))
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                        f"Iterations: {scram_credential_info.iterations}")
+        except KafkaException as e:
+            print("Failed to describe all user scram credentials : {}".format(e))
+        except Exception as e:
+            raise
+    else:
+        """
+        Non-empty users list, we will get a futmap
+        Describes the user scram credentials in the
+        users list
+        """
+        futmap = a.describe_user_scram_credentials(args)
         for username, fut in futmap.items():
             print("Username: {}".format(username))
             try:
                 response = fut.result()
                 for scram_credential_info in response.scram_credential_infos:
                     print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                        f"Iterations: {scram_credential_info.iterations}")
+                          f"Iterations: {scram_credential_info.iterations}")
             except KafkaException as e:
                 print("    Error: {}".format(e))
             except Exception as e:
-                print(f"    Unexpected exception: {e}")
-    else:
-        fut = result_obj
-        results = fut.result()
-        for username, response in results.items():
-            print("Username : {}\n".format(username))
-            if isinstance(response, KafkaError):
-                print(response)
-            else:
-                for scram_credential_info in response.scram_credential_infos:
-                        print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                            f"Iterations: {scram_credential_info.iterations}")
+                raise
+
 
 def example_alter_user_scram_credentials(a, args):
     """

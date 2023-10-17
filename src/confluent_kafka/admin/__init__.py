@@ -243,22 +243,39 @@ class AdminClient (_AdminClientImpl):
             for resource, fut in futmap.items():
                 fut.set_exception(e)
 
+
     @staticmethod
     def _make_user_scram_credentials_result(f, futmap):
         try:
             results = f.result()
-            if len(futmap) > 0:
-                for username, value in results.items():
-                    fut = futmap.get(username, None)
-                    if fut is None:
-                        raise RuntimeError("Future not found for the user")
-                    if isinstance(value, KafkaError):
-                        fut.set_exception(KafkaException(value))
-                    else:
-                        fut.set_result(value)
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for username, value in results.items():
+                fut = futmap.get(username, None)
+                if fut is None:
+                    raise RuntimeError(f"username {username} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
+
+    @staticmethod
+    def _make_describe_all_user_scram_credentials_result(internal_f, f):
+        try:
+            results = internal_f.result()
+            for _, value in results.items():
+                if isinstance(value, KafkaError):
+                    f.set_exception(KafkaException(value))
+                    return
+            f.set_result(results)
+        except Exception as e:
+            f.set_exception(e)
 
     @staticmethod
     def _create_future():
@@ -308,6 +325,15 @@ class AdminClient (_AdminClientImpl):
         f.add_done_callback(lambda f: make_result_fn(f, futmap))
 
         return f, futmap
+
+    @staticmethod
+    def _make_internal_futures(make_result_fn):
+        # Create an internal future for the entire request,
+        f = AdminClient._create_future()
+        internal_f = AdminClient._create_future()
+        internal_f.add_done_callback(lambda internal_f: make_result_fn(internal_f, f))
+
+        return internal_f, f
 
     @staticmethod
     def _has_duplicates(items):
@@ -393,9 +419,13 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_describe_user_scram_credentials_request(users):
+        if users is None:
+            raise TypeError("Expected input cannot be None")
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
+            if user is None:
+                raise TypeError("'user' cannot be None")
             if not isinstance(user, string_type):
                 raise TypeError("Each value should be a string")
             if not user:
@@ -955,28 +985,35 @@ class AdminClient (_AdminClientImpl):
         Describe user SASL/SCRAM credentials.
 
         :param list(str) users: List of user names to describe.
-               Duplicate users aren't allowed.
+               Duplicate users aren't allowed. List can be empty
+               to describe all user's credentials
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
                on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures keyed by user name.
+        :returns: Either A future incase of empty users list or describe all request.
+                  The future result() method returns dict[str, UserScramCredentialsDescription]
+                  or raises KafkaException
+                  Or A dict of futures keyed by user name.
                   The future result() method returns the
                   :class:`UserScramCredentialsDescription` or
                   raises KafkaException
-
+                
+        :rtype: future
         :rtype: dict[str, future]
 
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
-        f, futmap = AdminClient._make_futures_v2(users, None,
+
+        if len(users) == 0:
+            internal_f, f = AdminClient._make_internal_futures(AdminClient._make_describe_all_user_scram_credentials_result)
+        else:
+            internal_f, f = AdminClient._make_futures_v2(users, None,
                                                  AdminClient._make_user_scram_credentials_result)
 
-        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-        if len(users) > 0 :
-            return futmap
+        super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
         return f
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
