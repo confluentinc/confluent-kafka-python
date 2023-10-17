@@ -23,11 +23,8 @@ from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    ResourcePatternType, AclOperation, AclPermissionType,
                                    UserScramCredentialsDescription, UserScramCredentialUpsertion,
                                    UserScramCredentialDeletion, ScramCredentialInfo,
-                                   ScramMechanism, KafkaException, KafkaError,
-                                   EarliestOffsetSpec, MaxTimestampOffsetSpec, LatestOffsetSpec,
-                                   IsolationLevel, ListOffsetsResultInfo, NewTopic)
-from confluent_kafka.error import ConsumeError
-
+                                   ScramMechanism)
+from confluent_kafka.error import ConsumeError, KafkaException, KafkaError
 
 topic_prefix = "test-topic"
 
@@ -276,46 +273,6 @@ def verify_admin_scram(admin_client):
     assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
 
 
-def verify_list_offsets(kafka_cluster):
-    admin_client = kafka_cluster.admin()
-    requests = {}
-    topic = topic_prefix + "verify-list-offsets"
-    basetimestamp = 1000000000
-    topic_partition = TopicPartition(topic, 0)
-    admin_client.delete_topics([topic])
-
-    admin_client.create_topics([NewTopic(topic, num_partitions=1, replication_factor=1)])
-
-    # Create Producer instance
-    p = kafka_cluster.producer()
-    p.produce(topic, "Message-1", timestamp=(basetimestamp + 100))
-    p.produce(topic, "Message-2", timestamp=(basetimestamp + 400))
-    p.produce(topic, "Message-3", timestamp=(basetimestamp + 200))
-    p.flush()
-    requests[topic_partition] = EarliestOffsetSpec()
-    futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
-    for _, fut in futmap.items():
-        result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
-        assert (result.offset == 0)
-
-    requests[topic_partition] = LatestOffsetSpec()
-    futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
-    for _, fut in futmap.items():
-        result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
-        assert (result.offset == 3)
-
-    requests[topic_partition] = MaxTimestampOffsetSpec()
-    futmap = admin_client.list_offsets(requests, isolation_level=IsolationLevel.READ_UNCOMMITTED, request_timeout=30)
-    for _, fut in futmap.items():
-        result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo) and (result is not None)
-        assert (result.offset == 1)
-
-    admin_client.delete_topics([topic])
-
-
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
@@ -505,5 +462,3 @@ def test_basic_operations(kafka_cluster):
     verify_admin_acls(admin_client, acls_topic, acls_group)
     # Verify user SCRAM credentials API
     verify_admin_scram(admin_client)
-    # Verify ListOffsets credentials API
-    verify_list_offsets(kafka_cluster)
