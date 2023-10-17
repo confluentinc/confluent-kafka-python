@@ -1,7 +1,7 @@
 Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
-**confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
+**confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all.
 [Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
 and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
