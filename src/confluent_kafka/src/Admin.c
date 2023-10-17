@@ -1819,9 +1819,8 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
         Py_INCREF(future);
 
         user_cnt = (int)PyList_Size(users);
-
-
-        c_users = malloc(sizeof(char *) * user_cnt);
+        if (user_cnt > 0)
+                c_users = malloc(sizeof(char *) * user_cnt);
 
         for (i = 0 ; i < user_cnt ; i++) {
                 PyObject *user = PyList_GET_ITEM(users, i);
