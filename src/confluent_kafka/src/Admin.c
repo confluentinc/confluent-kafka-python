@@ -78,6 +78,7 @@ struct Admin_options {
         float operation_timeout;                        /* parser: f */
         int   broker;                                   /* parser: i */
         int require_stable_offsets;                     /* needs special bool parsing */
+        rd_kafka_IsolationLevel_t isolation_level;
         rd_kafka_consumer_group_state_t* states;
         int states_cnt;
 };
@@ -88,6 +89,7 @@ struct Admin_options {
                 Admin_options_def_int,           \
                 Admin_options_def_float,         \
                 Admin_options_def_float,         \
+                Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_ptr,           \
@@ -156,6 +158,13 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->require_stable_offsets) &&
             (err_obj = rd_kafka_AdminOptions_set_require_stable_offsets(
                     c_options, options->require_stable_offsets))) {
+                strcpy(errstr, rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_int((int)options->isolation_level) &&
+             (err_obj = rd_kafka_AdminOptions_set_isolation_level(
+                     c_options,options->isolation_level))) {
                 strcpy(errstr, rd_kafka_error_string(err_obj));
                 goto err;
         }
@@ -2654,6 +2663,85 @@ const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
         "  This method should not be used directly, use confluent_kafka.AdminClient.alter_consumer_group_offsets()\n");
 
 
+PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
+        PyObject *topic_partitions, *future;
+        int topic_partitions_cnt = 0;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+
+        static char *kws[] = {"topic_partitions",
+                             "future",
+                             /* options */
+                             "isolation_level",
+                             "request_timeout",
+                             NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|if", kws,
+                                         &topic_partitions,
+                                         &future,
+                                         &options.isolation_level,
+                                         &options.request_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if (PyList_Check(topic_partitions) &&
+            (topic_partitions_cnt = (int)PyList_Size(topic_partitions)) < 1) {
+                PyErr_SetString(PyExc_ValueError,
+                        "topic_partitions must be a non-empty list");
+                goto err;
+        }
+        c_topic_partitions = py_to_c_parts(topic_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /*
+         * Call ListOffsets
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ListOffsets(self->rk, c_topic_partitions, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_topic_partition_list_destroy(c_topic_partitions);
+
+        Py_RETURN_NONE;
+err:
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+const char Admin_list_offsets_doc[] = PyDoc_STR(
+        ".. py:function:: list_offsets(topic_partitions, future, [isolation_level], [request_timeout])\n"
+        "\n"
+        "  List offset for the topic partition provided in the request.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.list_offsets()\n");
+
+
 /**
  * @brief Call rd_kafka_poll() and keep track of crashing callbacks.
  * @returns -1 if callback crashed (or poll() failed), else the number
@@ -2802,6 +2890,10 @@ static PyMethodDef Admin_methods[] = {
 
         { "describe_user_scram_credentials", (PyCFunction)Admin_describe_user_scram_credentials, METH_VARARGS|METH_KEYWORDS,
            describe_user_scram_credentials_doc
+        },
+
+        { "list_offsets", (PyCFunction)Admin_list_offsets, METH_VARARGS|METH_KEYWORDS,
+           Admin_list_offsets_doc
         },
 
         { NULL }
@@ -3704,6 +3796,51 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
         return all_groups_result;
 }
 
+/**
+ *
+ * @brief Convert C ListOffsetsResult response to pyobject.
+ *
+ */
+static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
+        PyObject *result = NULL;
+        PyObject *ListOffsetsResultInfo_type = NULL;
+        PyObject *args = NULL;
+        size_t i;
+        size_t cnt;
+        const rd_kafka_ListOffsetsResultInfo_t **result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
+
+        ListOffsetsResultInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
+                                                         "ListOffsetsResultInfo");
+        if(!ListOffsetsResultInfo_type){
+                return NULL;
+        }
+        result = PyDict_New();
+        for(i=0;i<cnt;i++){
+                PyObject *value = NULL, *kwargs;
+                const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(result_infos[i]);
+
+                int64_t timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(result_infos[i]);
+
+                if (topic_partition->err) {
+                        value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
+                } else {
+                        kwargs = PyDict_New();
+                        cfl_PyDict_SetLong(kwargs,"offset",topic_partition->offset);
+                        cfl_PyDict_SetLong(kwargs,"timestamp", timestamp);
+                        cfl_PyDict_SetInt(kwargs,"leader_epoch",
+                                rd_kafka_topic_partition_get_leader_epoch(topic_partition));
+                        args = PyTuple_New(0);
+                        value = PyObject_Call(ListOffsetsResultInfo_type, args, kwargs);
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
+                }
+                PyDict_SetItem(result, c_part_to_py(topic_partition), value);
+                Py_DECREF(value);
+        }
+        Py_DECREF(ListOffsetsResultInfo_type);
+
+        return result;
+}
 
 /**
  * @brief Event callback triggered from librdkafka's background thread
@@ -4006,6 +4143,13 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 result = Admin_c_GroupResults_to_py(c_alter_group_offset_res_responses,
                                                     c_alter_group_offset_res_cnt);
 
+                break;
+        }
+
+        case RD_KAFKA_EVENT_LISTOFFSETS_RESULT:
+        {
+                const rd_kafka_ListOffsets_result_t *c_list_offsets_result = rd_kafka_event_ListOffsets_result(rkev);
+                result = Admin_c_ListOffsetsResult_to_py(c_list_offsets_result);
                 break;
         }
 
