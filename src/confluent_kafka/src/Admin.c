@@ -3804,7 +3804,6 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
 static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *result_event) {
         PyObject *result = NULL;
         PyObject *ListOffsetsResultInfo_type = NULL;
-        PyObject *args = NULL;
         size_t i;
         size_t cnt;
         const rd_kafka_ListOffsetsResultInfo_t **result_infos = rd_kafka_ListOffsets_result_infos(result_event, &cnt);
@@ -3816,7 +3815,7 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
         }
         result = PyDict_New();
         for(i=0;i<cnt;i++){
-                PyObject *value = NULL, *kwargs;
+                PyObject *value = NULL;
                 const rd_kafka_topic_partition_t *topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(result_infos[i]);
 
                 int64_t timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(result_infos[i]);
@@ -3824,6 +3823,8 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
                 if (topic_partition->err) {
                         value = KafkaError_new_or_None(topic_partition->err,rd_kafka_err2str(topic_partition->err));
                 } else {
+                        PyObject *args = NULL;
+                        PyObject *kwargs = NULL;
                         kwargs = PyDict_New();
                         cfl_PyDict_SetLong(kwargs,"offset",topic_partition->offset);
                         cfl_PyDict_SetLong(kwargs,"timestamp", timestamp);

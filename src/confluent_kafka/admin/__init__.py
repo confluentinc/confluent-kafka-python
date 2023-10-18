@@ -496,7 +496,7 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("OffsetSpec cannot be None")
             if not isinstance(offset_spec, OffsetSpec):
                 raise TypeError("Value must be a OffsetSpec")
-        
+
         if 'isolation_level' in kwargs:
             if not isinstance(kwargs['isolation_level'], _IsolationLevel):
                 raise TypeError("isolation_level argument should be an IsolationLevel")
