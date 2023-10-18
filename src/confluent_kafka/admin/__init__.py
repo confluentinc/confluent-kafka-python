@@ -266,7 +266,7 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_generic_futmap_result(f, futmap):
+    def _make_futmap_result(f, futmap):
         try:
             results = f.result()
             len_results = len(results)
@@ -471,10 +471,10 @@ class AdminClient (_AdminClientImpl):
                                 "UserScramCredentialDeletion")
 
     @staticmethod
-    def _check_list_offsets_request(topic_partition_offsets):
+    def _check_list_offsets_request(topic_partition_offsets, kwargs):
         if not isinstance(topic_partition_offsets, dict):
             raise TypeError("Expected topic_partition_offsets to be " +
-                            "dict of [TopicPartitions,OffsetSpec] to list offsets for")
+                            "dict of [TopicPartitions,OffsetSpec] for list offsets request")
 
         if len(topic_partition_offsets) == 0:
             raise ValueError("At least one partition should be passed")
@@ -486,6 +486,8 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("partition must be a TopicPartition")
             if topic_partition.topic is None:
                 raise TypeError("partition topic name cannot be None")
+            if not isinstance(topic_partition.topic, string_type):
+                raise TypeError("partition topic name must be string")
             if not topic_partition.topic:
                 raise ValueError("partition topic name cannot be empty")
             if topic_partition.partition < 0:
@@ -494,6 +496,10 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("OffsetSpec cannot be None")
             if not isinstance(offset_spec, OffsetSpec):
                 raise TypeError("Value must be a OffsetSpec")
+        
+        if 'isolation_level' in kwargs:
+            if not isinstance(kwargs['isolation_level'], _IsolationLevel):
+                raise TypeError("isolation_level argument should be an IsolationLevel")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1081,12 +1087,9 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
-        AdminClient._check_list_offsets_request(topic_partition_offsets)
+        AdminClient._check_list_offsets_request(topic_partition_offsets, kwargs)
 
-        if 'isolation_level' in kwargs:
-            if not isinstance(kwargs['isolation_level'], _IsolationLevel):
-                raise TypeError("isolation_level argument should be an IsolationLevel")
-            kwargs['isolation_level'] = kwargs['isolation_level'].value
+        kwargs['isolation_level'] = kwargs['isolation_level'].value
 
         topic_partition_offsets_copy = []
         for topic_partition, offset_spec in topic_partition_offsets.items():
@@ -1097,7 +1100,7 @@ class AdminClient (_AdminClientImpl):
                                 for topic_partition in topic_partition_offsets_copy]
         f, futmap = AdminClient._make_futures_v2(topic_partition_keys,
                                                  _TopicPartition,
-                                                 AdminClient._make_generic_futmap_result)
+                                                 AdminClient._make_futmap_result)
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_copy, f, **kwargs)
         return futmap
