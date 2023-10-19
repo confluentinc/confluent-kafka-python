@@ -21,6 +21,7 @@ from confluent_kafka import ConsumerGroupState, TopicCollection
 
 topic_prefix = "test-topic"
 
+
 def verify_commit_result(err, _):
     assert err is not None
 
@@ -70,12 +71,12 @@ def get_future_key(*arg):
         elif arg_type is TopicCollection:
             return get_future_key_TopicCollection(arg[0])
     return None
-    
+
 
 def perform_admin_operation_sync(operation, *arg, **kwargs):
     future_key = get_future_key(*arg)
     fs = operation(*arg, **kwargs)
-    fs = fs[future_key] if future_key else fs 
+    fs = fs[future_key] if future_key else fs
     return fs.result()
 
 
@@ -87,14 +88,21 @@ def delete_acls(admin_client, acl_binding_filters):
     perform_admin_operation_sync(admin_client.delete_acls, acl_binding_filters)
 
 
-def verify_provided_describe_for_authorized_operations(admin_client, describe_fn, operation_to_allow, operation_to_check, restype, resname, *arg):
+def verify_provided_describe_for_authorized_operations(
+        admin_client,
+        describe_fn,
+        operation_to_allow,
+        operation_to_check,
+        restype,
+        resname,
+        *arg):
     kwargs = {}
     kwargs['request_timeout'] = 10
 
     # Check with include_authorized_operations as False
     kwargs['include_authorized_operations'] = False
     desc = perform_admin_operation_sync(describe_fn, *arg, **kwargs)
-    assert desc.authorized_operations == None
+    assert desc.authorized_operations is None
 
     # Check with include_authorized_operations as True
     kwargs['include_authorized_operations'] = True
@@ -105,7 +113,7 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
 
     # Update Authorized Operation by creating new ACLs
     acl_binding = AclBinding(restype, resname, ResourcePatternType.LITERAL,
-                               "User:sasl_user", "*", operation_to_allow, AclPermissionType.ALLOW)
+                             "User:sasl_user", "*", operation_to_allow, AclPermissionType.ALLOW)
     create_acls(admin_client, [acl_binding])
 
     # Check with updated authorized operations
@@ -116,18 +124,19 @@ def verify_provided_describe_for_authorized_operations(admin_client, describe_fn
 
     # Delete Updated ACLs
     acl_binding_filter = AclBindingFilter(restype, resname, ResourcePatternType.ANY,
-                                           None, None, AclOperation.ANY, AclPermissionType.ANY)
+                                          None, None, AclOperation.ANY, AclPermissionType.ANY)
     delete_acls(admin_client, [acl_binding_filter])
     return desc
 
+
 def verify_describe_topics(admin_client, topic_name):
-    desc = verify_provided_describe_for_authorized_operations(admin_client, 
-                            admin_client.describe_topics, 
-                            AclOperation.READ, 
-                            AclOperation.DELETE, 
-                            ResourceType.TOPIC, 
-                            topic_name,
-                            TopicCollection([topic_name]))
+    desc = verify_provided_describe_for_authorized_operations(admin_client,
+                                                              admin_client.describe_topics,
+                                                              AclOperation.READ,
+                                                              AclOperation.DELETE,
+                                                              ResourceType.TOPIC,
+                                                              topic_name,
+                                                              TopicCollection([topic_name]))
     assert desc.name == topic_name
     assert len(desc.partitions) == 1
     assert not desc.is_internal
@@ -151,12 +160,12 @@ def verify_describe_groups(cluster, admin_client, topic):
 
     # Verify Describe Consumer Groups
     desc = verify_provided_describe_for_authorized_operations(admin_client,
-                            admin_client.describe_consumer_groups,
-                            AclOperation.READ,
-                            AclOperation.DELETE,
-                            ResourceType.GROUP, 
-                            group,
-                            [group])
+                                                              admin_client.describe_consumer_groups,
+                                                              AclOperation.READ,
+                                                              AclOperation.DELETE,
+                                                              ResourceType.GROUP,
+                                                              group,
+                                                              [group])
     assert group == desc.group_id
     assert desc.is_simple_consumer_group is False
     assert desc.state == ConsumerGroupState.EMPTY
@@ -166,13 +175,13 @@ def verify_describe_groups(cluster, admin_client, topic):
 
 
 def verify_describe_cluster(admin_client):
-    desc = verify_provided_describe_for_authorized_operations(admin_client, 
-                            admin_client.describe_cluster, 
-                            AclOperation.ALTER, 
-                            AclOperation.ALTER_CONFIGS, 
-                            ResourceType.BROKER, 
-                            "kafka-cluster")
-    assert type(desc.cluster_id) is str
+    desc = verify_provided_describe_for_authorized_operations(admin_client,
+                                                              admin_client.describe_cluster,
+                                                              AclOperation.ALTER,
+                                                              AclOperation.ALTER_CONFIGS,
+                                                              ResourceType.BROKER,
+                                                              "kafka-cluster")
+    assert isinstance(desc.cluster_id, str)
     assert len(desc.nodes) > 0
     assert desc.controller is not None
 
@@ -188,13 +197,13 @@ def test_describe_operations(sasl_cluster):
     # Create Topic
     topic_config = {"compression.type": "gzip"}
     our_topic = sasl_cluster.create_topic(topic_prefix,
-                                        {
-                                            "num_partitions": 1,
-                                            "config": topic_config,
-                                            "replication_factor": 1,
-                                        },
-                                        validate_only=False
-                                        )
+                                          {
+                                              "num_partitions": 1,
+                                              "config": topic_config,
+                                              "replication_factor": 1,
+                                          },
+                                          validate_only=False
+                                          )
 
     # Verify Authorized Operations in Describe Topics
     verify_describe_topics(admin_client, our_topic)
