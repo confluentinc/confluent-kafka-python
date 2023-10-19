@@ -601,17 +601,14 @@ def example_alter_consumer_group_offsets(a, args):
 def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
-    If passed users list is empty, the request returns
-    a future, the result() will give a dict[str, UserScramCredentialsDescription]
-    or a KafkaException
-    Else if passed users list is non-empty, the request returns a
-    dict[str, future] where the result() of each future will give
-    a UserScramCredentialsDescription or a KafkaException
     """
     if len(args) == 0:
         """
-        Empty users list, we will get a future
-        Describes all user scram credentials
+        Case: Describes all user scram credentials
+        Input: users is an empty list or users is None
+        We will get a future the result() will give a
+        dict[str, UserScramCredentialsDescription]
+        or a KafkaException
         """
         f = a.describe_user_scram_credentials(args)
         try:
@@ -627,9 +624,11 @@ def example_describe_user_scram_credentials(a, args):
             raise
     else:
         """
-        Non-empty users list, we will get a futmap
-        Describes the user scram credentials in the
-        users list
+        Case: Describe specified user scram credentials
+        Input: users is non-empty list
+        We will get a dict[str, future] where the result() of
+        each future will give a UserScramCredentialsDescription
+        or a KafkaException
         """
         futmap = a.describe_user_scram_credentials(args)
         for username, fut in futmap.items():

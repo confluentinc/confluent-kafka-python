@@ -851,8 +851,6 @@ def test_describe_user_scram_credentials_api():
     with pytest.raises(TypeError):
         a.describe_user_scram_credentials(10)
     with pytest.raises(TypeError):
-        a.describe_user_scram_credentials(None)
-    with pytest.raises(TypeError):
         a.describe_user_scram_credentials([None])
     with pytest.raises(ValueError):
         a.describe_user_scram_credentials([""])

@@ -331,7 +331,6 @@ class AdminClient (_AdminClientImpl):
         f = AdminClient._create_future()
         internal_f = AdminClient._create_future()
         internal_f.add_done_callback(lambda internal_f: make_result_fn(internal_f, f))
-
         return internal_f, f
 
     @staticmethod
@@ -418,8 +417,6 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_describe_user_scram_credentials_request(users):
-        if users is None:
-            raise TypeError("Expected input cannot be None")
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
@@ -1006,15 +1003,16 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
 
-        if len(users) == 0:
-            internal_f, f = AdminClient    \
+        if len(users) == 0 or isinstance(users, None):
+            internal_f, fut = AdminClient    \
                             ._make_internal_futures(AdminClient._make_describe_all_user_scram_credentials_result)
+            ret_fut = fut
         else:
-            internal_f, f = AdminClient._make_futures_v2(users, None,
+            internal_f, futmap = AdminClient._make_futures_v2(users, None,
                                                          AdminClient._make_user_scram_credentials_result)
-
+            ret_fut = futmap
         super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
-        return f
+        return ret_fut
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
         """
