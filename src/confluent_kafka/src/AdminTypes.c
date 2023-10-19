@@ -584,6 +584,19 @@ static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
         PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);
 }
 
+static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
+        /* rd_kafka_IsolationLevel_t */
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_COMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_UNCOMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
+}
+
+static void AdminTypes_AddObjectsOffsetSpec (PyObject *m) {
+        /* rd_kafka_OffsetSpec_t */
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_MAX_TIMESTAMP", RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_EARLIEST", RD_KAFKA_OFFSET_SPEC_EARLIEST);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_LATEST", RD_KAFKA_OFFSET_SPEC_LATEST);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -601,4 +614,6 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsConsumerGroupStates(m);
         AdminTypes_AddObjectsAlterConfigOpType(m);
         AdminTypes_AddObjectsScramMechanismType(m);
+        AdminTypes_AddObjectsIsolationLevel(m);
+        AdminTypes_AddObjectsOffsetSpec(m);
 }

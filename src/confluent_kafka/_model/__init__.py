@@ -89,3 +89,22 @@ class ConsumerGroupState(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class IsolationLevel(Enum):
+    """
+    Enum for Kafka isolation levels.
+
+    Values
+    ------
+    READ_COMMITTED          : Skip offsets belonging to an aborted transaction.
+    READ_UNCOMMITTED        : Receive all the offsets.
+    """
+
+    READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED
+    READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
