@@ -1,5 +1,20 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.3.0
+
+v2.3.0 is a feature release with the following features, fixes and enhancements:
+
+ * Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`. (@jainruchir, #1635)
+ * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses. (@jainruchir, #1635)
+ * Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#1635, @jainruchir).
+
+confluent-kafka-python is based on librdkafka v2.3.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.2.0
 
 v2.2.0 is a feature release with the following features, fixes and enhancements:
