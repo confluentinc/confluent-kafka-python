@@ -64,28 +64,66 @@ class ConsumerGroupState(Enum):
     """
     Enumerates the different types of Consumer Group State.
 
-    Note that the state UNKOWN (typo one) is deprecated and will be removed in
-    future major release. Use UNKNOWN instead.
-
-    Values
-    ------
-    UNKNOWN                 : State is not known or not set.
-    UNKOWN                  : State is not known or not set. Typo.
-    PREPARING_REBALANCING   : Preparing rebalance for the consumer group.
-    COMPLETING_REBALANCING  : Consumer Group is completing rebalancing.
-    STABLE                  : Consumer Group is stable.
-    DEAD                    : Consumer Group is Dead.
-    EMPTY                   : Consumer Group is Empty.
+    Note that the state :py:attr:`UNKOWN` (typo one) is deprecated and will be removed in
+    future major release. Use :py:attr:`UNKNOWN` instead.
     """
+    #: State is not known or not set
     UNKNOWN = cimpl.CONSUMER_GROUP_STATE_UNKNOWN
+    #: .. deprecated:: 2.3.0
+    #:
+    #:    Use :py:attr:`UNKNOWN` instead.
     UNKOWN = UNKNOWN
+    #: Preparing rebalance for the consumer group.
     PREPARING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_PREPARING_REBALANCE
+    #: Consumer Group is completing rebalancing.
     COMPLETING_REBALANCING = cimpl.CONSUMER_GROUP_STATE_COMPLETING_REBALANCE
+    #: Consumer Group is stable.
     STABLE = cimpl.CONSUMER_GROUP_STATE_STABLE
+    #: Consumer Group is dead.
     DEAD = cimpl.CONSUMER_GROUP_STATE_DEAD
+    #: Consumer Group is empty.
     EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
 
     def __lt__(self, other):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class TopicCollection:
+    """
+    Represents collection of topics in the form of different identifiers
+    for the topic.
+
+    Parameters
+    ----------
+    topic_names: list(str)
+        List of topic names.
+    """
+
+    def __init__(self, topic_names):
+        self.topic_names = topic_names
+
+
+class TopicPartitionInfo:
+    """
+    Represents partition information.
+    Used by :class:`TopicDescription`.
+
+    Parameters
+    ----------
+    id : int
+        Id of the partition.
+    leader : Node
+        Leader broker for the partition.
+    replicas: list(Node)
+        Replica brokers for the partition.
+    isr: list(Node)
+        In-Sync-Replica brokers for the partition.
+    """
+
+    def __init__(self, id, leader, replicas, isr):
+        self.id = id
+        self.leader = leader
+        self.replicas = replicas
+        self.isr = isr
