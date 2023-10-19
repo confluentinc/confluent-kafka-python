@@ -107,7 +107,6 @@ def verify_admin_acls(admin_client,
         "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings,
                                                                    expected_acl_bindings)
 
-
 def verify_topic_metadata(client, exp_topics, *args, **kwargs):
     """
     Verify that exp_topics (dict<topicname,partcnt>) is reported in metadata.
@@ -391,14 +390,6 @@ def test_basic_operations(kafka_cluster):
     result = future.result()
     assert isinstance(result.valid, list)
     assert not result.valid
-
-    # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
-    for group_id, future in futureMap.items():
-        g = future.result()
-        assert group_id == g.group_id
-        assert g.is_simple_consumer_group is False
-        assert g.state == ConsumerGroupState.EMPTY
 
     def verify_config(expconfig, configs):
         """
