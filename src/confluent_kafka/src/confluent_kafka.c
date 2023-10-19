@@ -1455,7 +1455,7 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         const char *rack = NULL;
 
         if(!c_node)
-                return Py_None;
+                Py_RETURN_NONE;
 
         Node_type = cfl_PyObject_lookup("confluent_kafka",
                                         "Node");
