@@ -164,7 +164,8 @@ class AvroSerializer(Serializer):
     Args:
         schema_registry_client (SchemaRegistryClient): Schema Registry client instance.
 
-        schema_str (str or Schema): Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_ 
+        schema_str (str or Schema):
+            Avro `Schema Declaration. <https://avro.apache.org/docs/current/spec.html#schemas>`_
             Accepts either a string or a :py:class:`Schema` instance. Note that string
             definitions cannot reference other schemas. For referencing other schemas,
             use a :py:class:`Schema` instance.
@@ -327,9 +328,9 @@ class AvroDeserializer(Deserializer):
             client instance.
 
         schema_str (str, Schema, optional): Avro reader schema declaration Accepts
-            either a string or a :py:class:`Schema` instance. If not provided, the 
+            either a string or a :py:class:`Schema` instance. If not provided, the
             writer schema will be used as the reader schema. Note that string
-            definitions cannot reference other schemas. For referencing other schemas, 
+            definitions cannot reference other schemas. For referencing other schemas,
             use a :py:class:`Schema` instance.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.

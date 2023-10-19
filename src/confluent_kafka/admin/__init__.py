@@ -890,7 +890,7 @@ class AdminClient (_AdminClientImpl):
 
         if not isinstance(topics, _TopicCollection):
             raise TypeError("Expected input to be instance of TopicCollection")
-    
+
         topic_names = topics.topic_names
 
         if not isinstance(topic_names, list):

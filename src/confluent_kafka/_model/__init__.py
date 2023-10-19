@@ -34,12 +34,16 @@ class Node:
     rack: str
         The rack for this node.
     """
+
     def __init__(self, id, host, port, rack=None):
         self.id = id
         self.id_string = str(id)
         self.host = host
         self.port = port
         self.rack = rack
+
+    def __str__(self):
+        return f"({self.id}) {self.host}:{self.port} {f'(Rack - {self.rack})' if self.rack else ''}"
 
 
 class ConsumerGroupTopicPartitions:
@@ -55,6 +59,7 @@ class ConsumerGroupTopicPartitions:
     topic_partitions: list(TopicPartition)
         List of topic partitions information.
     """
+
     def __init__(self, group_id, topic_partitions=None):
         self.group_id = group_id
         self.topic_partitions = topic_partitions

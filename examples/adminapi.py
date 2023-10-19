@@ -503,7 +503,8 @@ def example_describe_consumer_groups(a, args):
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
             print("  Partition Assignor : {}".format(g.partition_assignor))
-            print(f"  Coordinator        : ({g.coordinator.id}) {g.coordinator.host}:{g.coordinator.port} {f'(Rack - {g.coordinator.rack})' if g.coordinator.rack else ''}")
+            print(
+                f"  Coordinator        : {g.coordinator}")
             print("  Members: ")
             for member in g.members:
                 print("    Id                : {}".format(member.member_id))
@@ -514,7 +515,7 @@ def example_describe_consumer_groups(a, args):
                     print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
                         print("      {} [{}]".format(toppar.topic, toppar.partition))
-            if(include_auth_ops):
+            if (include_auth_ops):
                 print("  Authorized operations: ")
                 op_string = ""
                 for acl_op in g.authorized_operations:
@@ -539,10 +540,10 @@ def example_describe_topics(a, args):
         try:
             t = future.result()
             print("Topic name             : {}".format(t.name))
-            if(t.is_internal):
+            if (t.is_internal):
                 print("Topic is Internal")
 
-            if(include_auth_ops):
+            if (include_auth_ops):
                 print("Authorized operations  : ")
                 op_string = ""
                 for acl_op in t.authorized_operations:
@@ -553,13 +554,13 @@ def example_describe_topics(a, args):
             for partition in t.partitions:
                 print("    Id                : {}".format(partition.id))
                 leader = partition.leader
-                print(f"    Leader            : ({leader.id}) {leader.host}:{leader.port} {f'(Rack - {leader.rack})' if leader.rack else ''}")
+                print(f"    Leader            : {leader}")
                 print("    Replicas          : {}".format(len(partition.replicas)))
                 for replica in partition.replicas:
-                    print(f"         Replica            : ({replica.id}) {replica.host}:{replica.port} {f'(Rack - {replica.rack})' if replica.rack else ''}")
+                    print(f"         Replica            : {replica}")
                 print("    In-Sync Replicas  : {}".format(len(partition.isr)))
                 for isr in partition.isr:
-                    print(f"         In-Sync Replica    : ({isr.id}) {isr.host}:{isr.port} {f'(Rack - {isr.rack})' if isr.rack else ''}")
+                    print(f"         In-Sync Replica    : {isr}")
                 print("")
             print("")
 
@@ -580,16 +581,16 @@ def example_describe_cluster(a, args):
         c = future.result()
         print("Cluster_id           : {}".format(c.cluster_id))
 
-        if(c.controller):
-            print(f"Controller: ({c.controller.id}) {c.controller.host}:{c.controller.port} {f'(Rack - {c.controller.rack})' if c.controller.rack else ''}")
+        if (c.controller):
+            print(f"Controller: {c.controller}")
         else:
             print("No Controller Information Available")
 
         print("Nodes                :")
         for node in c.nodes:
-            print(f"  Node: ({node.id}) {node.host}:{node.port} {f'(Rack - {node.rack})' if node.rack else ''}")
+            print(f"  Node: {node}")
 
-        if(include_auth_ops):
+        if (include_auth_ops):
             print("Authorized operations: ")
             op_string = ""
             for acl_op in c.authorized_operations:

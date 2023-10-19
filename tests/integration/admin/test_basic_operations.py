@@ -107,6 +107,7 @@ def verify_admin_acls(admin_client,
         "ACL bindings don't match, actual: {} expected: {}".format(acl_bindings,
                                                                    expected_acl_bindings)
 
+
 def verify_topic_metadata(client, exp_topics, *args, **kwargs):
     """
     Verify that exp_topics (dict<topicname,partcnt>) is reported in metadata.
