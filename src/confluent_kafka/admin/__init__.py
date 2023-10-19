@@ -255,8 +255,7 @@ class AdminClient (_AdminClientImpl):
             for username, value in results.items():
                 fut = futmap.get(username, None)
                 if fut is None:
-                    raise RuntimeError(
-                        f"username {username} not found in future-map: {futmap}")
+                    raise RuntimeError(f"username {username} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -264,6 +263,18 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
+
+    @staticmethod
+    def _make_describe_all_user_scram_credentials_result(internal_f, f):
+        try:
+            results = internal_f.result()
+            for _, value in results.items():
+                if isinstance(value, KafkaError):
+                    f.set_exception(KafkaException(value))
+                    return
+            f.set_result(results)
+        except Exception as e:
+            f.set_exception(e)
 
     @staticmethod
     def _create_future():
@@ -313,6 +324,14 @@ class AdminClient (_AdminClientImpl):
         f.add_done_callback(lambda f: make_result_fn(f, futmap))
 
         return f, futmap
+
+    @staticmethod
+    def _make_internal_futures(make_result_fn):
+        # Create an internal future for the entire request,
+        f = AdminClient._create_future()
+        internal_f = AdminClient._create_future()
+        internal_f.add_done_callback(lambda internal_f: make_result_fn(internal_f, f))
+        return internal_f, f
 
     @staticmethod
     def _has_duplicates(items):
@@ -401,6 +420,8 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
+            if user is None:
+                raise TypeError("'user' cannot be None")
             if not isinstance(user, string_type):
                 raise TypeError("Each value should be a string")
             if not user:
@@ -960,16 +981,21 @@ class AdminClient (_AdminClientImpl):
         Describe user SASL/SCRAM credentials.
 
         :param list(str) users: List of user names to describe.
-               Duplicate users aren't allowed.
+               Duplicate users aren't allowed. List can be empty
+               to describe all user's credentials
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
                on broker, and response. Default: `socket.timeout.ms*1000.0`
 
-        :returns: A dict of futures keyed by user name.
+        :returns: Either A future incase of empty users list or describe all request.
+                  The future result() method returns dict[str, UserScramCredentialsDescription]
+                  or raises KafkaException
+                  Or A dict of futures keyed by user name.
                   The future result() method returns the
                   :class:`UserScramCredentialsDescription` or
                   raises KafkaException
 
+        :rtype: future
         :rtype: dict[str, future]
 
         :raises TypeError: Invalid input type.
@@ -977,12 +1003,16 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
 
-        f, futmap = AdminClient._make_futures_v2(users, None,
-                                                 AdminClient._make_user_scram_credentials_result)
-
-        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-
-        return futmap
+        if len(users) == 0 or isinstance(users, None):
+            internal_f, fut = AdminClient    \
+                            ._make_internal_futures(AdminClient._make_describe_all_user_scram_credentials_result)
+            ret_fut = fut
+        else:
+            internal_f, futmap = AdminClient._make_futures_v2(users, None,
+                                                         AdminClient._make_user_scram_credentials_result)
+            ret_fut = futmap
+        super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
+        return ret_fut
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
         """
