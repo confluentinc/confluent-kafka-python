@@ -30,6 +30,7 @@ Supporting classes
     - :ref:`Node <pythonclient_node>`
     - :ref:`ConsumerGroupTopicPartitions <pythonclient_consumer_group_topic_partition>`
     - :ref:`ConsumerGroupState <pythonclient_consumer_group_state>`
+    - :ref:`Uuid <pythonclient_uuid>`
 
     - Errors:
        - :ref:`KafkaError <pythonclient_kafkaerror>`
@@ -658,6 +659,15 @@ ConsumerGroupState
 ******************
 
 .. autoclass:: confluent_kafka.ConsumerGroupState
+   :members:
+
+.. _pythonclient_uuid:
+
+****
+Uuid
+****
+
+.. autoclass:: confluent_kafka.Uuid
    :members:
 
 .. _serde_field:

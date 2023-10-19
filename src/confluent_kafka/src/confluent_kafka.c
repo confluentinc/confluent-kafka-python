@@ -823,24 +823,24 @@ static PyObject *Uuid_most_significant_bits (Uuid *self, PyObject *ignore) {
         if(self->cUuid) {
                 return cfl_PyLong_FromLong(rd_kafka_Uuid_most_significant_bits(self->cUuid));
         }
-        return Py_None;
+        Py_RETURN_NONE;
 }
 
 static PyObject *Uuid_least_significant_bits (Uuid *self, PyObject *ignore) {
         if(self->cUuid) {
                 return cfl_PyLong_FromLong(rd_kafka_Uuid_least_significant_bits(self->cUuid));
         }
-        return Py_None;
+        Py_RETURN_NONE;
 }
 
 static PyMethodDef Uuid_methods[] = {
 	{ "get_most_significant_bits", (PyCFunction)Uuid_most_significant_bits, METH_NOARGS,
-	  "  :returns: Most significant 64 bits of the 128 bits Uuid"
+	  "  :returns: Most significant 64 bits of the 128 bits Uuid\n"
 	  "  :rtype: int\n"
 	  "\n"
 	},
 	{ "get_least_significant_bits", (PyCFunction)Uuid_least_significant_bits, METH_NOARGS,
-	  "  :returns: Least significant 64 bits of the 128 bits Uuid"
+	  "  :returns: Least significant 64 bits of the 128 bits Uuid\n"
 	  "  :rtype: int\n"
 	  "\n"
 	},
@@ -854,7 +854,7 @@ static PyObject *Uuid_str0 (Uuid *self) {
                 if(base64str)
                         return cfl_PyUnistr(_FromString(base64str));
         }
-        return Py_None;
+        Py_RETURN_NONE;
 }
 
 static long Uuid_hash (Uuid *self) {
@@ -903,34 +903,34 @@ static int Uuid_traverse (Uuid *self,
 }
 
 static void Uuid_dealloc (Uuid *self) {
-        Uuid_clear(self);
         PyObject_GC_UnTrack(self);
+        Uuid_clear(self);
 
         Py_TYPE(self)->tp_free((PyObject *)self);
 }
 
 PyTypeObject UuidType = {
         PyVarObject_HEAD_INIT(NULL, 0)
-        "cimpl.Uuid",                           /*tp_name*/
-        sizeof(Uuid),                           /*tp_basicsize*/
-        0,                                      /*tp_itemsize*/
-        (destructor)Uuid_dealloc,               /*tp_dealloc*/
-        0,                                      /*tp_print*/
-        0,                                      /*tp_getattr*/
-        0,                                      /*tp_setattr*/
-        0,                                      /*tp_compare*/
-        (reprfunc)Uuid_str0,                    /*tp_repr*/
-        0,                         /*tp_as_number*/
-        0,                         /*tp_as_sequence*/
-        0,                         /*tp_as_mapping*/
-        (hashfunc)Uuid_hash, /*tp_hash */
-        0,                         /*tp_call*/
-        0,                         /*tp_str*/
-        PyObject_GenericGetAttr,   /*tp_getattro*/
-        0,                         /*tp_setattro*/
-        0,                         /*tp_as_buffer*/
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
-	Py_TPFLAGS_HAVE_GC,                         /*tp_flags*/
+        "cimpl.Uuid",                           /* tp_name */
+        sizeof(Uuid),                           /* tp_basicsize */
+        0,                                      /* tp_itemsize */
+        (destructor)Uuid_dealloc,               /* tp_dealloc */
+        0,                                      /* tp_print */
+        0,                                      /* tp_getattr */
+        0,                                      /* tp_setattr */
+        0,                                      /* tp_compare */
+        (reprfunc)Uuid_str0,                    /* tp_repr */
+        0,                                      /* tp_as_number */
+        0,                                      /* tp_as_sequence */
+        0,                                      /* tp_as_mapping */
+        (hashfunc)Uuid_hash,                    /* tp_hash */
+        0,                                      /* tp_call */
+        0,                                      /* tp_str */
+        PyObject_GenericGetAttr,                /* tp_getattro */
+        0,                                      /* tp_setattro */
+        0,                                      /* tp_as_buffer */
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | 
+	Py_TPFLAGS_HAVE_GC,                     /* tp_flags */
         "Generic Uuid. Being used in various identifiers including topic_id.\n"
         "\n"
         ".. py:function:: Uuid(most_significant_bits, least_significant_bits)\n"
@@ -941,24 +941,24 @@ PyTypeObject UuidType = {
         "  :param long least_significant_bits: Least significant 64 bits of the 128 bits Uuid.\n"
         "  :rtype: Uuid\n"
         "\n"
-        "\n",                      /*tp_doc*/
-        (traverseproc)Uuid_traverse,                         /* tp_traverse */
-        (inquiry)Uuid_clear,       /* tp_clear */
-        0,                         /* tp_richcompare */
-        0,                         /* tp_weaklistoffset */
-        0,                         /* tp_iter */
-        0,                         /* tp_iternext */
-        Uuid_methods,              /* tp_methods */
-        0,                         /* tp_members */
-        0,                         /* tp_getset */
-        0,                         /* tp_base */
-        0,                         /* tp_dict */
-        0,                         /* tp_descr_get */
-        0,                         /* tp_descr_set */
-        0,                         /* tp_dictoffset */
-        Uuid_init,                 /* tp_init */
-        0,                         /* tp_alloc */
-        Uuid_new                   /* tp_new */
+"\n",                                           /* tp_doc */
+        (traverseproc)Uuid_traverse,            /* tp_traverse */
+        (inquiry)Uuid_clear,                    /* tp_clear */
+        0,                                      /* tp_richcompare */
+        0,                                      /* tp_weaklistoffset */
+        0,                                      /* tp_iter */
+        0,                                      /* tp_iternext */
+        Uuid_methods,                           /* tp_methods */
+        0,                                      /* tp_members */
+        0,                                      /* tp_getset */
+        0,                                      /* tp_base */
+        0,                                      /* tp_dict */
+        0,                                      /* tp_descr_get */
+        0,                                      /* tp_descr_set */
+        0,                                      /* tp_dictoffset */
+        Uuid_init,                              /* tp_init */
+        0,                                      /* tp_alloc */
+        Uuid_new                                /* tp_new */
 };
 
 
@@ -1647,7 +1647,7 @@ PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
         PyObject *kwargs = NULL;
         
         if(!c_uuid)
-                return Py_None;
+                Py_RETURN_NONE;
 
         Uuid_type = cfl_PyObject_lookup("confluent_kafka",
                                         "Uuid");
