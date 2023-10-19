@@ -1096,9 +1096,7 @@ class AdminClient (_AdminClientImpl):
             topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition),
                                                 int(offset_spec._value)))
 
-        topic_partition_keys = [_TopicPartition(topic_partition.topic, topic_partition.partition)
-                                for topic_partition in topic_partition_offsets_copy]
-        f, futmap = AdminClient._make_futures_v2(topic_partition_keys,
+        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_copy,
                                                  _TopicPartition,
                                                  AdminClient._make_futmap_result)
 
