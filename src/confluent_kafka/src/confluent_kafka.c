@@ -432,16 +432,16 @@ PyObject *Message_error (Message *self, PyObject *ignore) {
 	if (self->error) {
 		Py_INCREF(self->error);
 		return self->error;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_value (Message *self, PyObject *ignore) {
 	if (self->value) {
 		Py_INCREF(self->value);
 		return self->value;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 
@@ -449,38 +449,35 @@ static PyObject *Message_key (Message *self, PyObject *ignore) {
 	if (self->key) {
 		Py_INCREF(self->key);
 		return self->key;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_topic (Message *self, PyObject *ignore) {
 	if (self->topic) {
 		Py_INCREF(self->topic);
 		return self->topic;
-	} else
-		Py_RETURN_NONE;
+	}
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_partition (Message *self, PyObject *ignore) {
 	if (self->partition != RD_KAFKA_PARTITION_UA)
 		return cfl_PyInt_FromInt(self->partition);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 
 static PyObject *Message_offset (Message *self, PyObject *ignore) {
 	if (self->offset >= 0)
 		return PyLong_FromLongLong(self->offset);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 static PyObject *Message_leader_epoch (Message *self, PyObject *ignore) {
 	if (self->leader_epoch >= 0)
 		return cfl_PyInt_FromInt(self->leader_epoch);
-	else
-		Py_RETURN_NONE;
+	Py_RETURN_NONE;
 }
 
 
@@ -496,28 +493,28 @@ static PyObject *Message_latency (Message *self, PyObject *ignore) {
 	return PyFloat_FromDouble((double)self->latency / 1000000.0);
 }
 
-static PyObject *Message_headers (Message *self, PyObject *ignore) {
+static void Message_c_headers_to_py_headers (Message *self) {
 #ifdef RD_KAFKA_V_HEADERS
-	if (self->headers) {
-        Py_INCREF(self->headers);
-		return self->headers;
-    } else if (self->c_headers) {
-        self->headers = c_headers_to_py(self->c_headers);
-        rd_kafka_headers_destroy(self->c_headers);
-        self->c_headers = NULL;
-        Py_INCREF(self->headers);
-        return self->headers;
-	} else {
-		Py_RETURN_NONE;
-    }
-#else
-		Py_RETURN_NONE;
+	if (!self->headers && self->c_headers) {
+		self->headers = c_headers_to_py(self->c_headers);
+		rd_kafka_headers_destroy(self->c_headers);
+		self->c_headers = NULL;
+	}
 #endif
 }
 
+static PyObject *Message_headers (Message *self, PyObject *ignore) {
+	Message_c_headers_to_py_headers(self);
+	if (self->headers) {
+		Py_INCREF(self->headers);
+		return self->headers;
+	}
+	Py_RETURN_NONE;
+}
+
 static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
-   if (self->headers)
-        Py_DECREF(self->headers);
+   Py_XDECREF(self->headers);
+
    self->headers = new_headers;
    Py_INCREF(self->headers);
 
@@ -525,8 +522,8 @@ static PyObject *Message_set_headers (Message *self, PyObject *new_headers) {
 }
 
 static PyObject *Message_set_value (Message *self, PyObject *new_val) {
-   if (self->value)
-        Py_DECREF(self->value);
+   Py_XDECREF(self->value);
+
    self->value = new_val;
    Py_INCREF(self->value);
 
@@ -534,12 +531,51 @@ static PyObject *Message_set_value (Message *self, PyObject *new_val) {
 }
 
 static PyObject *Message_set_key (Message *self, PyObject *new_key) {
-   if (self->key)
-        Py_DECREF(self->key);
+   Py_XDECREF(self->key);
+   
    self->key = new_key;
    Py_INCREF(self->key);
 
    Py_RETURN_NONE;
+}
+
+static PyObject *Message_set_topic (Message *self, PyObject *new_topic) {
+   Py_XDECREF(self->topic);
+
+   self->topic = new_topic;
+   Py_INCREF(self->topic);
+
+   Py_RETURN_NONE;
+}
+
+static PyObject *Message_set_error (Message *self, PyObject *new_error) {
+   Py_XDECREF(self->error);
+   
+   self->error = new_error;
+   Py_INCREF(self->error);
+
+   Py_RETURN_NONE;
+}
+
+static PyObject *Message_reduce (Message *self, PyObject *Py_UNUSED(ignored))
+{
+	Message_c_headers_to_py_headers(self);
+
+	return Py_BuildValue(
+		"O(NNNNNiiiLN)",
+		Py_TYPE(self),
+		Message_topic(self, NULL),
+		Message_value(self, NULL),
+		Message_key(self, NULL),
+		Message_headers(self, NULL),
+		Message_error(self, NULL),
+		self->partition,
+		self->offset,
+		self->leader_epoch,
+		self->timestamp,
+		(self->latency >= 0 ? 
+			PyFloat_FromDouble((double)self->latency / 1000000.0) :
+			cfl_PyInt_FromInt(-1)));
 }
 
 static PyMethodDef Message_methods[] = {
@@ -649,30 +685,33 @@ static PyMethodDef Message_methods[] = {
 	  "  :rtype: None\n"
 	  "\n"
 	},
+	{ "set_topic", (PyCFunction)Message_set_topic, METH_O,
+	  "  Set the field 'Message.topic' with new value.\n"
+          "\n"
+	  "  :param object value: Message.topic.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
+	{ "set_error", (PyCFunction)Message_set_error, METH_O,
+	  "  Set the field 'Message.error' with new value.\n"
+          "\n"
+	  "  :param object value: Message.error.\n"
+	  "  :returns: None.\n"
+	  "  :rtype: None\n"
+	  "\n"
+	},
+	{ "__reduce__", (PyCFunction)Message_reduce, METH_NOARGS,
+	  " Function for serializing Message using the pickle protocol."},
 	{ NULL }
 };
 
 static int Message_clear (Message *self) {
-	if (self->topic) {
-		Py_DECREF(self->topic);
-		self->topic = NULL;
-	}
-	if (self->value) {
-		Py_DECREF(self->value);
-		self->value = NULL;
-	}
-	if (self->key) {
-		Py_DECREF(self->key);
-		self->key = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->headers) {
-		Py_DECREF(self->headers);
-		self->headers = NULL;
-	}
+	Py_CLEAR(self->topic);
+	Py_CLEAR(self->value);
+	Py_CLEAR(self->key);
+	Py_CLEAR(self->error);
+	Py_CLEAR(self->headers);
 #ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
@@ -705,17 +744,142 @@ static int Message_traverse (Message *self,
 	return 0;
 }
 
+static PyObject *Message_richcompare(PyObject *self, PyObject *other, int op) {
+	if (op != Py_EQ && op != Py_NE) {
+		Py_INCREF(Py_NotImplemented);
+		return Py_NotImplemented;
+	}
+	
+	if (self == other) {
+		return op == Py_EQ ? Py_True : Py_False;
+	}
+
+	if (!PyObject_TypeCheck(other, &MessageType)) {
+		return op == Py_EQ ? Py_False : Py_True;
+	}
+
+	Message* msg_self = (Message*)self;
+	Message* msg_other = (Message*)other;
+
+	int result;
+
+#define _LOCAL_COMPARE(left, right) do { \
+	result = PyObject_RichCompareBool(left, right, Py_EQ); \
+	if (result < 0) return NULL; \
+	if (result == 0) return op == Py_EQ ? Py_False : Py_True; \
+}while(0)
+	_LOCAL_COMPARE(msg_self->topic, msg_other->topic);
+	_LOCAL_COMPARE(msg_self->value, msg_other->value);
+	_LOCAL_COMPARE(msg_self->key, msg_other->key);
+	_LOCAL_COMPARE(msg_self->headers, msg_other->headers);
+	_LOCAL_COMPARE(msg_self->error, msg_other->error);
+#undef _LOCAL_COMPARE
+
+#define _LOCAL_COMPARE(left, right) do { \
+	if (left != right) return op == Py_EQ ? Py_False : Py_True; \
+}while(0)
+	_LOCAL_COMPARE(msg_self->partition, msg_other->partition);
+	_LOCAL_COMPARE(msg_self->offset, msg_other->offset);
+	_LOCAL_COMPARE(msg_self->leader_epoch, msg_other->leader_epoch);
+	_LOCAL_COMPARE(msg_self->timestamp, msg_other->timestamp);
+	// latency is skipped, it is a float and not that significant.
+#undef _LOCAL_COMPARE
+
+	return Py_True;
+}
+
 static Py_ssize_t Message__len__ (Message *self) {
-	return self->value ? PyObject_Length(self->value) : 0;
+	return self->value && self->value != Py_None ? PyObject_Length(self->value) : 0;
 }
 
 static PySequenceMethods Message_seq_methods = {
 	(lenfunc)Message__len__ /* sq_length */
 };
 
+static int Message_init (PyObject *self, PyObject *args, PyObject *kwargs) {
+	PyObject *topic = NULL;
+	PyObject *value = NULL;
+	PyObject *key = NULL;
+	PyObject *headers = NULL;
+	PyObject *error = NULL;
+	int32_t partition = RD_KAFKA_PARTITION_UA;
+	int64_t offset = -1;
+	int32_t leader_epoch = -1;
+	int64_t timestamp = 0;
+	double latency = -1;
+
+	static char *kws[] = { "topic",
+		"value",
+		"key",
+		"headers",
+		"error",
+		"partition",
+		"offset",
+		"leader_epoch",
+		"timestamp",
+		"latency",
+		NULL
+	};
+
+	Message* msg = (Message*)self;
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OOOOOiLiLd", kws,
+					 &topic, &value, &key, &headers,
+					 &error, &partition, &offset,
+					 &leader_epoch, &timestamp,
+					 &latency)) {
+		return -1;
+	}
+
+	if (topic && topic != Py_None) {
+		msg->topic = topic;
+		Py_INCREF(msg->topic);
+	}
+	if (value && value != Py_None) {
+		msg->value = value;
+		Py_INCREF(msg->value);
+	}
+	if (key && key != Py_None) {
+		msg->key = key;
+		Py_INCREF(msg->key);
+	}
+	if (headers && headers != Py_None) {
+		msg->headers = headers;
+		Py_INCREF(msg->headers);
+	}
+	if (error && error != Py_None) {
+		msg->error = error;
+		Py_INCREF(msg->error);
+	}
+
+	msg->partition = partition < 0 ? -1 : partition;
+	msg->offset = offset < 0 ? -1 : offset;
+	msg->leader_epoch = leader_epoch < 0 ? -1 : leader_epoch;
+	msg->timestamp = timestamp < 0 ? 0 : timestamp;
+	// The cast might cause the value to roll over to negative values.
+	msg->latency = (int64_t)(latency >= 0 ? latency * 1000000 : -1);
+	msg->latency = msg->latency < 0 ? -1 : msg->latency;  
+
+	return 0;
+}
+
+static PyObject *Message_new (PyTypeObject *type, PyObject *args,
+				     PyObject *kwargs) {
+	PyObject *self = type->tp_alloc(type, 1);
+
+	Message* msg = (Message*)self;
+	msg->partition = RD_KAFKA_PARTITION_UA;
+	msg->offset = -1;
+	msg->leader_epoch = -1;
+	msg->timestamp = 0;
+	msg->latency = -1;
+
+	return self;
+}
+
 PyTypeObject MessageType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
-	"cimpl.Message",         /*tp_name*/
+	"confluent_kafka.cimpl.Message", /*tp_name*/
 	sizeof(Message),       /*tp_basicsize*/
 	0,                         /*tp_itemsize*/
 	(destructor)Message_dealloc, /*tp_dealloc*/
@@ -742,8 +906,6 @@ PyTypeObject MessageType = {
 	"object is a proper message (error() returns None) or an "
 	"error/event.\n"
         "\n"
-	"This class is not user-instantiable.\n"
-	"\n"
 	".. py:function:: len()\n"
 	"\n"
 	"  :returns: Message value (payload) size in bytes\n"
@@ -751,7 +913,7 @@ PyTypeObject MessageType = {
 	"\n", /*tp_doc*/
 	(traverseproc)Message_traverse,        /* tp_traverse */
 	(inquiry)Message_clear,	           /* tp_clear */
-	0,		           /* tp_richcompare */
+	Message_richcompare,       /* tp_richcompare */
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
 	0,		           /* tp_iternext */
@@ -763,8 +925,9 @@ PyTypeObject MessageType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0                          /* tp_alloc */
+	Message_init,              /* tp_init */
+	0,                         /* tp_alloc */
+	Message_new                /* tp_new */
 };
 
 /**
@@ -807,9 +970,6 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 	return (PyObject *)self;
 }
-
-
-
 
 /****************************************************************************
  *
