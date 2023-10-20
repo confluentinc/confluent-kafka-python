@@ -19,7 +19,11 @@
 from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
-from ._model import Node, ConsumerGroupTopicPartitions, ConsumerGroupState
+from ._model import (Node,  # noqa: F401
+                     ConsumerGroupTopicPartitions,
+                     ConsumerGroupState,
+                     TopicCollection,
+                     TopicPartitionInfo)
 
 from .cimpl import (Producer,
                     Consumer,
