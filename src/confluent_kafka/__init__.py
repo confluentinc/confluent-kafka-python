@@ -29,6 +29,7 @@ from .cimpl import (Producer,
                     Consumer,
                     Message,
                     TopicPartition,
+                    Uuid,
                     libversion,
                     version,
                     TIMESTAMP_NOT_AVAILABLE,
@@ -46,7 +47,7 @@ __all__ = ['admin', 'Consumer',
            'Producer', 'DeserializingConsumer',
            'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
-           'ConsumerGroupTopicPartitions', 'ConsumerGroupState']
+           'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'Uuid']
 
 __version__ = version()[0]
 

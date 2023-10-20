@@ -540,6 +540,7 @@ def example_describe_topics(a, args):
         try:
             t = future.result()
             print("Topic name             : {}".format(t.name))
+            print("Topic id               : {}".format(t.topic_id))
             if (t.is_internal):
                 print("Topic is Internal")
 
