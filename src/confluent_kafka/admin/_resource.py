@@ -26,9 +26,10 @@ class ResourceType(Enum):
     GROUP = _cimpl.RESOURCE_GROUP  #: Group resource. Resource name is group.id.
     BROKER = _cimpl.RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self.value < other.value
 
 
@@ -42,7 +43,8 @@ class ResourcePatternType(Enum):
     LITERAL = _cimpl.RESOURCE_PATTERN_LITERAL  #: Literal: A literal resource name
     PREFIXED = _cimpl.RESOURCE_PATTERN_PREFIXED  #: Prefixed: A prefixed resource name
 
-    def __lt__(self, other):
+    def __lt__(self, other: object) -> bool:
         if self.__class__ != other.__class__:
             return NotImplemented
+        assert isinstance(other, self.__class__)
         return self.value < other.value

@@ -29,3 +29,5 @@ tmp-KafkaCluster
 .venv
 venv_test
 venv_examples
+.vscode/
+.dmypy.json

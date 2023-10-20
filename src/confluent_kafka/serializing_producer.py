@@ -16,7 +16,9 @@
 # limitations under the License.
 #
 
+from typing import Callable, Dict, List, Optional, Tuple
 from confluent_kafka.cimpl import Producer as _ProducerImpl
+
 from .serialization import (MessageField,
                             SerializationContext)
 from .error import (KeySerializationError,
@@ -66,7 +68,7 @@ class SerializingProducer(_ProducerImpl):
         conf (producer): SerializingProducer configuration.
     """  # noqa E501
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict):
         conf_copy = conf.copy()
 
         self._key_serializer = conf_copy.pop('key.serializer', None)
@@ -74,8 +76,8 @@ class SerializingProducer(_ProducerImpl):
 
         super(SerializingProducer, self).__init__(conf_copy)
 
-    def produce(self, topic, key=None, value=None, partition=-1,
-                on_delivery=None, timestamp=0, headers=None):
+    def produce(self, topic: str, key: Optional[object]=None, value: Optional[object]=None, partition: int=-1,  # type:ignore[override]
+                on_delivery: Optional[Callable]=None, timestamp: float=0, headers: Optional[List[Tuple[str, str]]]=None) -> None: # type:ignore[override]
         """
         Produce a message.
 
@@ -139,7 +141,7 @@ class SerializingProducer(_ProducerImpl):
             except Exception as se:
                 raise ValueSerializationError(se)
 
-        super(SerializingProducer, self).produce(topic, value, key,
+        super(SerializingProducer, self).produce(topic, value=value, key=key,
                                                  headers=headers,
                                                  partition=partition,
                                                  timestamp=timestamp,

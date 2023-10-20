@@ -20,21 +20,23 @@
 # derived from https://github.com/verisign/python-confluent-schemaregistry.git
 #
 import logging
+from turtle import pos
+from typing import Any, Dict, Optional, Sized, Tuple, TypeVar, Union, cast
 import warnings
 import urllib3
 import json
 from collections import defaultdict
 
-from requests import Session, utils
+from requests import Session, utils, Response
+
+from confluent_kafka.schema_registry.schema_registry_client import Schema
 
 from .error import ClientError
-from . import loads
+from . import loads, schema
 
-# Python 2 considers int an instance of str
-try:
-    string_type = basestring  # noqa
-except NameError:
-    string_type = str
+import six
+
+string_type = six.string_types[0]
 
 VALID_LEVELS = ['NONE', 'FULL', 'FORWARD', 'BACKWARD']
 VALID_METHODS = ['GET', 'POST', 'PUT', 'DELETE']
@@ -66,10 +68,11 @@ class CachedSchemaRegistryClient(object):
     :param str key_location: Path to client's private key used for authentication.
     """
 
-    def __init__(self, url, max_schemas_per_subject=1000, ca_location=None, cert_location=None, key_location=None):
-        # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.
-        conf = url
-        if not isinstance(url, dict):
+    def __init__(self, url: Union[str, Dict[str, object]], max_schemas_per_subject: int=1000, ca_location: Optional[str]=None, cert_location: Optional[str]=None, key_location: Optional[str]=None):
+        # In order to maintain compatibility the url(conf in future versions) param has been preserved for now.        
+        if isinstance(url, dict):
+            conf = url
+        else:
             conf = {
                 'url': url,
                 'ssl.ca.location': ca_location,
@@ -87,7 +90,7 @@ class CachedSchemaRegistryClient(object):
             """Construct a Schema Registry client"""
 
         # Ensure URL valid scheme is included; http[s]
-        url = conf.pop('url', '')
+        url = cast(str, conf.pop('url', ''))
         if not isinstance(url, string_type):
             raise TypeError("URL must be of type str")
 
@@ -97,102 +100,113 @@ class CachedSchemaRegistryClient(object):
         self.url = url.rstrip('/')
 
         # subj => { schema => id }
-        self.subject_to_schema_ids = defaultdict(dict)
+        self.subject_to_schema_ids: Dict[str, Dict[schema.Schema, int]] = defaultdict(dict)
         # id => avro_schema
-        self.id_to_schema = defaultdict(dict)
+        self.id_to_schema: Dict[int, schema.Schema] = {}
         # subj => { schema => version }
-        self.subject_to_schema_versions = defaultdict(dict)
+        self.subject_to_schema_versions: Dict[str, Dict[schema.Schema, int]] = defaultdict(dict)
 
         s = Session()
-        ca_path = conf.pop('ssl.ca.location', None)
+        ca_path = cast(Optional[str], conf.pop('ssl.ca.location', None))
         if ca_path is not None:
             s.verify = ca_path
-        s.cert = self._configure_client_tls(conf)
+        _conf_cert = self._configure_client_tls(conf)
+        
+        # Logic in _configure_client_tls promises both of the output variables are of the same type
+        if _conf_cert == [None, None]:
+            s.cert = None
+        else:
+            s.cert = _conf_cert
+
         s.auth = self._configure_basic_auth(self.url, conf)
         self.url = utils.urldefragauth(self.url)
 
         self._session = s
         key_password = conf.pop('ssl.key.password', None)
         self._is_key_password_provided = not key_password
-        self._https_session = self._make_https_session(s.cert[0], s.cert[1], ca_path, s.auth, key_password)
+        self._https_session = self._make_https_session(s.cert[0] if s.cert is not None else None, s.cert[1] if s.cert is not None else None, ca_path, s.auth, key_password)
 
         self.auto_register_schemas = conf.pop("auto.register.schemas", True)
 
         if len(conf) > 0:
             raise ValueError("Unrecognized configuration properties: {}".format(conf.keys()))
 
-    def __del__(self):
+    def __del__(self) -> None:
         self.close()
 
-    def __enter__(self):
+    def __enter__(self) -> "CachedSchemaRegistryClient":
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> None:
         self.close()
 
-    def close(self):
+    def close(self) -> None:
         # Constructor exceptions may occur prior to _session being set.
         if hasattr(self, '_session'):
             self._session.close()
         if hasattr(self, '_https_session'):
-            self._https_session.clear()
+            self._https_session.clear() # type: ignore[no-untyped-call]
 
     @staticmethod
-    def _make_https_session(cert_location, key_location, ca_certs_path, auth, key_password):
+    def _make_https_session(cert_location: Optional[str], key_location: Optional[str], ca_certs_path: Optional[str], auth: Tuple[str, str], key_password: object) -> urllib3.PoolManager:
         https_session = urllib3.PoolManager(cert_reqs='CERT_REQUIRED', ca_certs=ca_certs_path,
                                             cert_file=cert_location, key_file=key_location, key_password=key_password)
-        https_session.auth = auth
+        https_session.auth = auth # type: ignore[attr-defined]
         return https_session
 
-    def _send_https_session_request(self, url, method, headers, body):
+    def _send_https_session_request(self, url: str, method: str, headers: Dict, body: Any) -> urllib3.response.HTTPResponse:
         request_headers = {'Accept': ACCEPT_HDR}
-        auth = self._https_session.auth
+        auth = self._https_session.auth # type: ignore[attr-defined]
         if body:
             body = json.dumps(body).encode('UTF-8')
             request_headers["Content-Length"] = str(len(body))
             request_headers["Content-Type"] = "application/vnd.schemaregistry.v1+json"
         if auth[0] != '' and auth[1] != '':
-            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" +
-                                                        auth[1]))
+            request_headers.update(urllib3.make_headers(basic_auth=auth[0] + ":" + auth[1])) # type:ignore[no-untyped-call]
         request_headers.update(headers)
-        response = self._https_session.request(method, url, headers=request_headers, body=body)
+        response = self._https_session.request(method, url, headers=request_headers, body=body) # type:ignore[no-untyped-call]
         return response
 
     @staticmethod
-    def _configure_basic_auth(url, conf):
+    def _configure_basic_auth(url: str, conf: Dict) -> Tuple[str, str]:
         auth_provider = conf.pop('basic.auth.credentials.source', 'URL').upper()
         if auth_provider not in VALID_AUTH_PROVIDERS:
             raise ValueError("schema.registry.basic.auth.credentials.source must be one of {}"
                              .format(VALID_AUTH_PROVIDERS))
+        auth: Tuple[str, str]
         if auth_provider == 'SASL_INHERIT':
             if conf.pop('sasl.mechanism', '').upper() == 'GSSAPI':
                 raise ValueError("SASL_INHERIT does not support SASL mechanism GSSAPI")
-            auth = (conf.pop('sasl.username', ''), conf.pop('sasl.password', ''))
+            auth = (cast(str, conf.pop('sasl.username', '')), cast(str, conf.pop('sasl.password', '')))
         elif auth_provider == 'USER_INFO':
-            auth = tuple(conf.pop('basic.auth.user.info', '').split(':'))
+            possible_auth = tuple(cast(str, conf.pop('basic.auth.user.info', ':')).split(':'))
+            assert len(possible_auth) == 2, possible_auth
+            auth = cast(Tuple[str, str], possible_auth)
         else:
             auth = utils.get_auth_from_url(url)
         return auth
 
+    _client_tls_ret = TypeVar("_client_tls_ret", str, None)
+
     @staticmethod
-    def _configure_client_tls(conf):
-        cert = conf.pop('ssl.certificate.location', None), conf.pop('ssl.key.location', None)
+    def _configure_client_tls(conf: Dict) -> Tuple[_client_tls_ret, _client_tls_ret]:
+        cert = cast(Optional[str], conf.pop('ssl.certificate.location', None)), cast(Optional[str], conf.pop('ssl.key.location', None))
         # Both values can be None or no values can be None
-        if bool(cert[0]) != bool(cert[1]):
+        if (cert[0] is None) != (cert[1] is None):
             raise ValueError(
                 "Both schema.registry.ssl.certificate.location and schema.registry.ssl.key.location must be set")
-        return cert
+        return cert # type: ignore[return-value]
 
-    def _send_request(self, url, method='GET', body=None, headers={}):
+    def _send_request(self, url: str, method: str='GET', body: Optional[Sized]=None, headers: Dict={}) -> Tuple[object, int]:
         if method not in VALID_METHODS:
             raise ClientError("Method {} is invalid; valid methods include {}".format(method, VALID_METHODS))
 
         if url.startswith('https') and self._is_key_password_provided:
-            response = self._send_https_session_request(url, method, headers, body)
+            http_response = self._send_https_session_request(url, method, headers, body)
             try:
-                return json.loads(response.data), response.status
+                return json.loads(http_response.data), http_response.status
             except ValueError:
-                return response.content, response.status
+                return http_response.data, http_response.status
 
         _headers = {'Accept': ACCEPT_HDR}
         if body:
@@ -207,12 +221,16 @@ class CachedSchemaRegistryClient(object):
         except ValueError:
             return response.content, response.status_code
 
+    CacheKey = TypeVar("CacheKey")
+    SubCacheKey = TypeVar("SubCacheKey")
+    SubCacheValue = TypeVar("SubCacheValue")
+
     @staticmethod
-    def _add_to_cache(cache, subject, schema, value):
+    def _add_to_cache(cache: Dict[CacheKey, Dict[SubCacheKey, SubCacheValue]], subject: CacheKey, schema: SubCacheKey, value: SubCacheValue) -> None:
         sub_cache = cache[subject]
         sub_cache[schema] = value
 
-    def _cache_schema(self, schema, schema_id, subject=None, version=None):
+    def _cache_schema(self, schema: schema.Schema, schema_id: int, subject: Optional[str]=None, version: Optional[int]=None) -> None:
         # don't overwrite anything
         if schema_id in self.id_to_schema:
             schema = self.id_to_schema[schema_id]
@@ -226,7 +244,7 @@ class CachedSchemaRegistryClient(object):
                 self._add_to_cache(self.subject_to_schema_versions,
                                    subject, schema, version)
 
-    def register(self, subject, avro_schema):
+    def register(self, subject: str, avro_schema: schema.Schema) -> int:
         """
         POST /subjects/(string: subject)/versions
         Register a schema with the registry under the given subject
@@ -243,7 +261,7 @@ class CachedSchemaRegistryClient(object):
         """
 
         schemas_to_id = self.subject_to_schema_ids[subject]
-        schema_id = schemas_to_id.get(avro_schema, None)
+        schema_id: Optional[int] = schemas_to_id.get(avro_schema, None)
         if schema_id is not None:
             return schema_id
         # send it up
@@ -265,12 +283,12 @@ class CachedSchemaRegistryClient(object):
             raise ClientError("Unable to register schema. Error code:" + str(code)
                               + " message:" + str(result))
         # result is a dict
-        schema_id = result['id']
+        schema_id = cast(Dict, result)['id']
         # cache it
         self._cache_schema(avro_schema, schema_id, subject)
         return schema_id
 
-    def check_registration(self, subject, avro_schema):
+    def check_registration(self, subject: str, avro_schema: schema.Schema) -> int:
         """
         POST /subjects/(string: subject)
         Check if a schema has already been registered under the specified subject.
@@ -303,12 +321,12 @@ class CachedSchemaRegistryClient(object):
         elif not 200 <= code <= 299:
             raise ClientError("Unable to check schema registration. Error code:" + str(code))
         # result is a dict
-        schema_id = result['id']
+        schema_id = cast(Dict, result)['id']
         # cache it
         self._cache_schema(avro_schema, schema_id, subject)
         return schema_id
 
-    def delete_subject(self, subject):
+    def delete_subject(self, subject: str) -> int:
         """
         DELETE /subjects/(string: subject)
         Deletes the specified subject and its associated compatibility level if registered.
@@ -323,9 +341,10 @@ class CachedSchemaRegistryClient(object):
         result, code = self._send_request(url, method="DELETE")
         if not (code >= 200 and code <= 299):
             raise ClientError('Unable to delete subject: {}'.format(result))
+        assert isinstance(result, int)
         return result
 
-    def get_by_id(self, schema_id):
+    def get_by_id(self, schema_id: int) -> Optional[schema.Schema]:
         """
         GET /schemas/ids/{int: id}
         Retrieve a parsed avro schema by id or None if not found
@@ -347,7 +366,9 @@ class CachedSchemaRegistryClient(object):
             return None
         else:
             # need to parse the schema
-            schema_str = result.get("schema")
+            assert isinstance(result, Dict)
+            schema_str = result["schema"]
+            assert isinstance(schema_str, str)
             try:
                 result = loads(schema_str)
                 # cache it
@@ -357,7 +378,7 @@ class CachedSchemaRegistryClient(object):
                 # bad schema - should not happen
                 raise ClientError("Received bad schema (id %s) from registry: %s" % (schema_id, e))
 
-    def get_latest_schema(self, subject):
+    def get_latest_schema(self, subject: str) -> Tuple[Optional[int], Optional[schema.Schema], Optional[int]]:
         """
         GET /subjects/(string: subject)/versions/latest
 
@@ -374,7 +395,7 @@ class CachedSchemaRegistryClient(object):
         """
         return self.get_by_version(subject, 'latest')
 
-    def get_by_version(self, subject, version):
+    def get_by_version(self, subject: str, version: object) -> Tuple[Optional[int], Optional[schema.Schema], Optional[int]]:
         """
         GET /subjects/(string: subject)/versions/(versionId: version)
 
@@ -401,8 +422,11 @@ class CachedSchemaRegistryClient(object):
             return (None, None, None)
         elif not (code >= 200 and code <= 299):
             return (None, None, None)
+        assert isinstance(result, Dict)
         schema_id = result['id']
+        assert isinstance(schema_id, int)
         version = result['version']
+        assert isinstance(version, int)
         if schema_id in self.id_to_schema:
             schema = self.id_to_schema[schema_id]
         else:
@@ -415,7 +439,7 @@ class CachedSchemaRegistryClient(object):
         self._cache_schema(schema, schema_id, subject, version)
         return (schema_id, schema, version)
 
-    def get_version(self, subject, avro_schema):
+    def get_version(self, subject: str, avro_schema: schema.Schema) -> Optional[int]:
         """
         POST /subjects/(string: subject)
 
@@ -442,12 +466,13 @@ class CachedSchemaRegistryClient(object):
         elif not (code >= 200 and code <= 299):
             log.error("Unable to get version of a schema:" + str(code))
             return None
+        assert isinstance(result, Dict)
         schema_id = result['id']
         version = result['version']
         self._cache_schema(avro_schema, schema_id, subject, version)
         return version
 
-    def test_compatibility(self, subject, avro_schema, version='latest'):
+    def test_compatibility(self, subject: str, avro_schema: schema.Schema, version: str='latest') -> Optional[bool]:
         """
         POST /compatibility/subjects/(string: subject)/versions/(versionId: version)
 
@@ -471,6 +496,7 @@ class CachedSchemaRegistryClient(object):
                 log.error(("Invalid subject or schema:" + str(code)))
                 return False
             elif code >= 200 and code <= 299:
+                assert isinstance(result, Dict)
                 return result.get('is_compatible')
             else:
                 log.error("Unable to check the compatibility: " + str(code))
@@ -479,7 +505,7 @@ class CachedSchemaRegistryClient(object):
             log.error("_send_request() failed: %s", e)
             return False
 
-    def update_compatibility(self, level, subject=None):
+    def update_compatibility(self, level: str, subject: Optional[str]=None) -> str:
         """
         PUT /config/(string: subject)
 
@@ -497,11 +523,12 @@ class CachedSchemaRegistryClient(object):
         body = {"compatibility": level}
         result, code = self._send_request(url, method='PUT', body=body)
         if code >= 200 and code <= 299:
+            assert isinstance(result, Dict)
             return result['compatibility']
         else:
             raise ClientError("Unable to update level: %s. Error code: %d" % (str(level), code))
 
-    def get_compatibility(self, subject=None):
+    def get_compatibility(self, subject: Optional[str]=None) -> bool:
         """
         GET /config
         Get the current compatibility level for a subject.  Result will be one of:
@@ -520,6 +547,7 @@ class CachedSchemaRegistryClient(object):
         if not is_successful_request:
             raise ClientError('Unable to fetch compatibility level. Error code: %d' % code)
 
+        assert isinstance(result, Dict)
         compatibility = result.get('compatibilityLevel', None)
         if compatibility not in VALID_LEVELS:
             if compatibility is None:
@@ -528,4 +556,5 @@ class CachedSchemaRegistryClient(object):
                 error_msg_suffix = str(compatibility)
             raise ClientError('Invalid compatibility level received: %s' % error_msg_suffix)
 
-        return compatibility
+        # Can't be None, as that's not in VALID_LEVELS 
+        return cast(bool, compatibility)

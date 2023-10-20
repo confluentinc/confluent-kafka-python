@@ -51,7 +51,7 @@ class ReqHandler(HTTPSERVER.BaseHTTPRequestHandler):
 
 
 class MockServer(HTTPSERVER.HTTPServer, object):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: object, **kwargs: object):
         super(MockServer, self).__init__(*args, **kwargs)
         self.counts = {}
         self.registry = MockSchemaRegistryClient()

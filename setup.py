@@ -12,13 +12,20 @@ ext_dir = os.path.join(mod_dir, 'src')
 INSTALL_REQUIRES = [
     'futures;python_version<"3.2"',
     'enum34;python_version<"3.4"',
+    'six'
 ]
 
 TEST_REQUIRES = [
     'pytest==4.6.4;python_version<"3.0"',
     'pytest;python_version>="3.0"',
     'pytest-timeout',
-    'flake8'
+    'flake8',
+    # Cap the version to avoid issues with newer editions. Should be periodically updated!
+    'mypy<=0.991',
+    'types-protobuf',
+    'types-jsonschema',
+    'types-requests',
+    'types-six'
 ]
 
 DOC_REQUIRES = ['sphinx', 'sphinx-rtd-theme']
@@ -27,7 +34,7 @@ SCHEMA_REGISTRY_REQUIRES = ['requests']
 
 AVRO_REQUIRES = ['fastavro>=0.23.0,<1.0;python_version<"3.0"',
                  'fastavro>=1.0;python_version>"3.0"',
-                 'avro>=1.11.1,<2',
+                 'avro>=1.11.2,<2',
                  ] + SCHEMA_REGISTRY_REQUIRES
 
 JSON_REQUIRES = ['pyrsistent==0.16.1;python_version<"3.0"',
@@ -81,6 +88,7 @@ setup(name='confluent-kafka',
       author_email='support@confluent.io',
       url='https://github.com/confluentinc/confluent-kafka-python',
       ext_modules=[module],
+      package_data={"confluent_kafka": ["py.typed"]},
       packages=find_packages('src'),
       package_dir={'': 'src'},
       data_files=[('', [os.path.join(work_dir, 'LICENSE.txt')])],
