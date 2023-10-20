@@ -653,26 +653,11 @@ static PyMethodDef Message_methods[] = {
 };
 
 static int Message_clear (Message *self) {
-	if (self->topic) {
-		Py_DECREF(self->topic);
-		self->topic = NULL;
-	}
-	if (self->value) {
-		Py_DECREF(self->value);
-		self->value = NULL;
-	}
-	if (self->key) {
-		Py_DECREF(self->key);
-		self->key = NULL;
-	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
-	if (self->headers) {
-		Py_DECREF(self->headers);
-		self->headers = NULL;
-	}
+	Py_CLEAR(self->topic);
+	Py_CLEAR(self->value);
+	Py_CLEAR(self->key);
+	Py_CLEAR(self->error);
+	Py_CLEAR(self->headers);
 #ifdef RD_KAFKA_V_HEADERS
     if (self->c_headers){
         rd_kafka_headers_destroy(self->c_headers);
@@ -825,10 +810,7 @@ static int TopicPartition_clear (TopicPartition *self) {
 		free(self->topic);
 		self->topic = NULL;
 	}
-	if (self->error) {
-		Py_DECREF(self->error);
-		self->error = NULL;
-	}
+	Py_CLEAR(self->error);
 	if (self->metadata) {
 		free(self->metadata);
 		self->metadata = NULL;
@@ -1797,26 +1779,10 @@ fail:
  * Clear Python object references in Handle
  */
 void Handle_clear (Handle *h) {
-        if (h->error_cb) {
-                Py_DECREF(h->error_cb);
-                h->error_cb = NULL;
-        }
-
-        if (h->throttle_cb) {
-                Py_DECREF(h->throttle_cb);
-                h->throttle_cb = NULL;
-        }
-
-        if (h->stats_cb) {
-                Py_DECREF(h->stats_cb);
-                h->stats_cb = NULL;
-        }
-
-        if (h->logger) {
-                Py_DECREF(h->logger);
-                h->logger = NULL;
-        }
-
+	Py_CLEAR(h->error_cb);
+	Py_CLEAR(h->throttle_cb);
+	Py_CLEAR(h->stats_cb);
+	Py_CLEAR(h->logger);
         if (h->initiated) {
 #ifdef WITH_PY_TSS
                 PyThread_tss_delete(&h->tlskey);
@@ -1841,6 +1807,31 @@ int Handle_traverse (Handle *h, visitproc visit, void *arg) {
 
 	return 0;
 }
+
+
+int Handle_check_initialized(Handle *handle, int expectedInitialized) {
+	if (!expectedInitialized == !handle->rk) {
+		return 1;  // OK
+	}
+
+	const char* message = "";
+
+	switch ((int)handle->type) {
+	case RD_KAFKA_PRODUCER: 
+		message = expectedInitialized ? "Producer closed" : "Producer already initialized";
+		break;
+	case RD_KAFKA_CONSUMER:
+		message = expectedInitialized ? "Consumer closed" : "Consumer already initialized";
+		break;
+	case PY_RD_KAFKA_ADMIN:
+		message = expectedInitialized ? "AdminClient closed" : "AdminClient already initialized";
+		break;
+	}
+
+	PyErr_SetString(PyExc_RuntimeError, message);
+	return 0;
+}
+
 
 /**
  * @brief Set single special producer config value.
@@ -2663,6 +2654,10 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
         rd_kafka_error_t* error;
         CallState cs;
         static char *kws[] = {"username", "password", NULL};
+
+        if(!Handle_check_initialized(self, 1)) {
+                return NULL;
+        }
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ss", kws,
                                          &username, &password)) {

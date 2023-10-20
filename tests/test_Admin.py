@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import contextlib
 import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
@@ -23,18 +24,21 @@ def test_types():
         ConfigResource(ResourceType.TOPIC, None)
 
 
-def test_acl_binding_type():
-    attrs = [ResourceType.TOPIC, "topic", ResourcePatternType.LITERAL,
+@pytest.fixture
+def acl_attrs():
+    return [ResourceType.TOPIC, "topic", ResourcePatternType.LITERAL,
              "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW]
 
+
+def test_acl_binding_type(acl_attrs):
     attrs_nullable_acl_binding_filter = [1, 3, 4]
 
     # at first it creates correctly
-    AclBinding(*attrs)
-    for i, _ in enumerate(attrs):
+    AclBinding(*acl_attrs)
+    for i, _ in enumerate(acl_attrs):
 
         # no attribute is nullable
-        attrs_copy = list(attrs)
+        attrs_copy = list(acl_attrs)
         attrs_copy[i] = None
         with pytest.raises(ValueError):
             AclBinding(*attrs_copy)
@@ -46,14 +50,14 @@ def test_acl_binding_type():
             with pytest.raises(ValueError):
                 AclBindingFilter(*attrs_copy)
 
-    for (attr_num, attr_value) in [
+    for attr_num, attr_value in [
         (0, ResourceType.ANY),
         (2, ResourcePatternType.ANY),
         (2, ResourcePatternType.MATCH),
         (5, AclOperation.ANY),
         (6, AclPermissionType.ANY),
     ]:
-        attrs_copy = list(attrs)
+        attrs_copy = list(acl_attrs)
         attrs_copy[attr_num] = attr_value
         # forbidden enums in AclBinding
         with pytest.raises(ValueError):
@@ -70,7 +74,7 @@ def test_acl_binding_type():
         (5, AclOperation.UNKNOWN),
         (6, AclPermissionType.UNKNOWN),
     ]:
-        attrs_copy = list(attrs)
+        attrs_copy = list(acl_attrs)
         attrs_copy[attr_num] = attr_value
         AclBinding(*attrs_copy)
 
@@ -987,3 +991,103 @@ def test_alter_user_scram_credentials_api():
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
     with pytest.raises(TypeError):
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+
+
+class LocalAdmin_child(AdminClient):
+    pass
+
+
+class LocalAdmin_with_new(AdminClient):
+    def __new__(cls, *a, **kw):
+        return AdminClient.__new__(cls)
+
+
+class LocalAdmin_with_init(AdminClient):
+    def __init__(self, *a, **kw):
+        pass
+
+
+@pytest.mark.parametrize(
+    "cls,exp_exc",
+    [
+        [AdminClient, (TypeError, AttributeError)],
+        [LocalAdmin_child, KafkaException],
+        [LocalAdmin_with_new, KafkaException],
+        [LocalAdmin_with_init, RuntimeError],
+    ],
+)
+def test_admin_bad_state(cls, exp_exc, acl_attrs):
+    # The intent of this test is to test many situations with an empty,
+    # not configured or incorrect Producer, and see that either an exception of
+    # the correct type is produced or that the call is a no-op.
+    # Since these method calls run C code, it is important to verify there
+    # aren't any SEGVs due to NULL pointers being accessed or the code incorrectly
+    # using an object of the wrong type.
+
+    if cls is AdminClient:
+        instance, has_invalid_state = None, True
+        with pytest.raises(exp_exc):
+            cls.__new__(object)
+        with pytest.raises(exp_exc):
+            cls.__init__(instance, {})
+
+    else:
+        instance = cls({})
+        has_invalid_state = exp_exc is RuntimeError
+
+        assert len(instance) == 0
+
+        if not has_invalid_state:
+            with pytest.raises(RuntimeError) as c:
+                cls.__init__(instance, {})
+
+            assert "AdminClient already initialized" in str(c.value)
+
+    partition = TopicPartition("a", 0, 1)
+    acl_bind = AclBinding(*acl_attrs)
+    acl_filter = AclBindingFilter(*acl_attrs)
+    cgroup_part = ConsumerGroupTopicPartitions("a")
+    cgroup_part_t = ConsumerGroupTopicPartitions("a", [TopicPartition("a", 1, 1)])
+
+    maybe_raises = (
+        pytest.raises(exp_exc) if has_invalid_state else contextlib.nullcontext()
+    )
+
+    assert str(instance)
+    assert repr(instance)
+
+    with maybe_raises:
+        cls.create_topics(instance, [NewTopic("a")], request_timeout=0)
+    with maybe_raises:
+        cls.delete_topics(instance, ["a"])
+    with pytest.raises(exp_exc) as c:
+        cls.list_topics(instance, timeout=0)
+    with pytest.raises(exp_exc):
+        cls.list_groups(instance, timeout=0)
+    with maybe_raises:
+        cls.create_partitions(instance, [NewPartitions("a", 50)])
+    with maybe_raises:
+        cls.describe_configs(instance, [ConfigResource(ResourceType.TOPIC, "a")])
+    with maybe_raises:
+        cls.alter_configs(instance, [ConfigResource(ResourceType.TOPIC, "a")])
+    with maybe_raises:
+        cls.create_acls(instance, [acl_bind])
+    with maybe_raises:
+        cls.describe_acls(instance, acl_filter)
+    with maybe_raises:
+        cls.delete_acls(instance, [acl_filter])
+    with maybe_raises:
+        cls.list_consumer_groups(instance, request_timeout=0)
+    with maybe_raises:
+        cls.describe_consumer_groups(instance, ["a"], request_timeout=0)
+    with maybe_raises:
+        cls.delete_consumer_groups(instance, ["a"], request_timeout=0)
+    with maybe_raises:
+        cls.list_consumer_group_offsets(instance, [cgroup_part], request_timeout=0)
+    with maybe_raises:
+        cls.alter_consumer_group_offsets(instance, [cgroup_part_t], request_timeout=0)
+    with maybe_raises:
+        cls.set_sasl_credentials(instance, "u", "p")
+
+    if has_invalid_state and instance:
+        assert "AdminClient closed" in str(c.value)
