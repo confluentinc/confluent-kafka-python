@@ -684,9 +684,9 @@ def example_alter_user_scram_credentials(a, args):
 
 def example_list_offsets(a, args):
     topic_partition_offsets = {}
-    if len(args) < 1:
+    if len(args) == 0:
         raise ValueError(
-            f"Invalid number of arguments for list offsets, expected at least 1, got {len(args)}")
+            "Invalid number of arguments for list offsets, expected at least 1, got 0")
     i = 1
     partition_i = 1
     isolation_level = IsolationLevel[args[0]]
