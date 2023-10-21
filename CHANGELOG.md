@@ -1,5 +1,12 @@
 # Confluent's Python client for Apache Kafka
 
+## vNext
+
+### Fixes
+
+  - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
+    issue(https://github.com/confluentinc/confluent-kafka-python/issues/1616) for more details (#1630).
+
 ## v2.2.0
 
 v2.2.0 is a feature release with the following features, fixes and enhancements:
