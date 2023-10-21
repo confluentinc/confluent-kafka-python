@@ -605,16 +605,16 @@ def example_describe_user_scram_credentials(a, args):
     if len(args) == 0:
         """
         Case: Describes all user scram credentials
-        Input: users is an empty list or users is None
-        We will get a future the result() will give a
+        Input: no argument passed
+        We will get a future which result will give a
         dict[str, UserScramCredentialsDescription]
-        or a KafkaException
+        or will throw a KafkaException
         """
-        f = a.describe_user_scram_credentials(args)
+        f = a.describe_user_scram_credentials()
         try:
             results = f.result()
             for username, response in results.items():
-                print("Username : {}\n".format(username))
+                print("Username : {}".format(username))
                 for scram_credential_info in response.scram_credential_infos:
                     print(f"    Mechanism: {scram_credential_info.mechanism} " +
                           f"Iterations: {scram_credential_info.iterations}")
@@ -625,7 +625,7 @@ def example_describe_user_scram_credentials(a, args):
     else:
         """
         Case: Describe specified user scram credentials
-        Input: users is non-empty list
+        Input: users is a list
         We will get a dict[str, future] where the result() of
         each future will give a UserScramCredentialsDescription
         or a KafkaException

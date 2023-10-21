@@ -842,7 +842,7 @@ def test_describe_user_scram_credentials_api():
     # Describe User Scram API
     a = AdminClient({"socket.timeout.ms": 10})
 
-    f = a.describe_user_scram_credentials([])
+    f = a.describe_user_scram_credentials()
     assert isinstance(f, concurrent.futures.Future)
 
     futmap = a.describe_user_scram_credentials(["user"])
