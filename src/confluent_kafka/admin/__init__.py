@@ -1002,7 +1002,8 @@ class AdminClient (_AdminClientImpl):
                   The futures yield a :class:`UserScramCredentialsDescription`
                   or raise a KafkaException
 
-        :rtype: Union[future[dict[str, UserScramCredentialsDescription]], dict[str, future[UserScramCredentialsDescription]]]
+        :rtype: Union[future[dict[str, UserScramCredentialsDescription]],
+                      dict[str, future[UserScramCredentialsDescription]]]
 
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
@@ -1013,7 +1014,7 @@ class AdminClient (_AdminClientImpl):
             internal_f, ret_fut = AdminClient._make_single_future_pair()
         else:
             internal_f, ret_fut = AdminClient._make_futures_v2(users, None,
-                                                         AdminClient._make_futmap_result)
+                                                               AdminClient._make_futmap_result)
         super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
         return ret_fut
 
