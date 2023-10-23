@@ -2890,7 +2890,7 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         static char *kws[] = {"topic_partitions",
                              "future",
                              /* options */
-                             "isolation_level",
+                             "isolation_level_value",
                              "request_timeout",
                              NULL};
 
@@ -2950,7 +2950,7 @@ err:
 }
 
 const char Admin_list_offsets_doc[] = PyDoc_STR(
-        ".. py:function:: list_offsets(topic_partitions, future, [isolation_level], [request_timeout])\n"
+        ".. py:function:: list_offsets(topic_partitions, future, [isolation_level_value], [request_timeout])\n"
         "\n"
         "  List offset for the topic partition provided in the request.\n"
         "\n"
@@ -4313,23 +4313,22 @@ Admin_c_GroupResults_to_py (const rd_kafka_group_result_t **c_result_responses,
 
 /**
  *
- * @brief Convert C ListOffsetsResult response to pyobject.
+ * @brief Convert C ListOffsetsResultInfo array to dict[TopicPartition, ListOffsetsResultInfo].
  *
  */
-static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_result_t *c_result_event) {
+static PyObject *Admin_c_ListOffsetsResultInfos_to_py (const rd_kafka_ListOffsetsResultInfo_t **c_result_infos, size_t c_result_info_cnt) {
         PyObject *result = NULL;
         PyObject *ListOffsetsResultInfo_type = NULL;
         size_t i;
-        size_t cnt;
-        const rd_kafka_ListOffsetsResultInfo_t **c_result_infos = rd_kafka_ListOffsets_result_infos(c_result_event, &cnt);
 
         ListOffsetsResultInfo_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                          "ListOffsetsResultInfo");
         if(!ListOffsetsResultInfo_type){
                 return NULL;
         }
+
         result = PyDict_New();
-        for(i=0;i<cnt;i++){
+        for(i=0; i<c_result_info_cnt; i++){
                 PyObject *value = NULL;
                 const rd_kafka_topic_partition_t *c_topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(c_result_infos[i]);
 
@@ -4349,13 +4348,19 @@ static PyObject *Admin_c_ListOffsetsResult_to_py (const rd_kafka_ListOffsets_res
                         value = PyObject_Call(ListOffsetsResultInfo_type, args, kwargs);
                         Py_DECREF(args);
                         Py_DECREF(kwargs);
+                        if (value == NULL)
+                                goto raise;
                 }
                 PyDict_SetItem(result, c_part_to_py(c_topic_partition), value);
                 Py_DECREF(value);
         }
-        Py_DECREF(ListOffsetsResultInfo_type);
 
+        Py_DECREF(ListOffsetsResultInfo_type);
         return result;
+raise:
+        Py_DECREF(result);
+        Py_DECREF(ListOffsetsResultInfo_type);
+        return NULL;
 }
 
 /**
@@ -4692,8 +4697,12 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         case RD_KAFKA_EVENT_LISTOFFSETS_RESULT:
         {
+                size_t c_result_info_cnt;
                 const rd_kafka_ListOffsets_result_t *c_list_offsets_result = rd_kafka_event_ListOffsets_result(rkev);
-                result = Admin_c_ListOffsetsResult_to_py(c_list_offsets_result);
+                const rd_kafka_ListOffsetsResultInfo_t **c_result_infos = rd_kafka_ListOffsets_result_infos(
+                        c_list_offsets_result, &c_result_info_cnt);
+
+                result = Admin_c_ListOffsetsResultInfos_to_py(c_result_infos, c_result_info_cnt);
                 break;
         }
 

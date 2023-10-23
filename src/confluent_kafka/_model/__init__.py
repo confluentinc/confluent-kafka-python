@@ -137,14 +137,11 @@ class TopicPartitionInfo:
 class IsolationLevel(Enum):
     """
     Enum for Kafka isolation levels.
-
-    Values
-    ------
-    READ_COMMITTED          : Skip offsets belonging to an aborted transaction.
-    READ_UNCOMMITTED        : Receive all the offsets.
     """
 
+    #: Skip offsets belonging to an aborted transaction.
     READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED
+    #: Receive all the offsets.
     READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED
 
     def __lt__(self, other):

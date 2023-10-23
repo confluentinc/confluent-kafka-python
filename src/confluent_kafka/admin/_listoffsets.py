@@ -55,7 +55,7 @@ class OffsetSpec(ABC):
     def for_timestamp(cls, timestamp):
         return TimestampSpec(timestamp)
 
-    def __call__(cls, index):
+    def __new__(cls, index):
         if index < 0:
             return cls._values[index]
         else:
@@ -83,6 +83,9 @@ class TimestampSpec(OffsetSpec):
     def _value(self):
         return self.timestamp
 
+    def __new__(cls, _):
+        return object.__new__(cls)
+
     def __init__(self, timestamp):
         self.timestamp = timestamp
 
@@ -94,6 +97,9 @@ class MaxTimestampSpec(OffsetSpec):
     can be specified client-side.
     """
 
+    def __new__(cls):
+        return object.__new__(cls)
+
     @property
     def _value(self):
         return cimpl.OFFSET_SPEC_MAX_TIMESTAMP
@@ -103,6 +109,9 @@ class LatestSpec(OffsetSpec):
     """
     Used in a `AdminClient.list_offsets` call to retrieve the queried partition latest offset.
     """
+
+    def __new__(cls):
+        return object.__new__(cls)
 
     @property
     def _value(self):
@@ -114,15 +123,14 @@ class EarliestSpec(OffsetSpec):
     Used in a `AdminClient.list_offsets` call to retrieve the queried partition earliest offset.
     """
 
+    def __new__(cls):
+        return object.__new__(cls)
+
     @property
     def _value(self):
         return cimpl.OFFSET_SPEC_EARLIEST
 
 
-OffsetSpec.TimestampSpec = TimestampSpec
-OffsetSpec.MaxTimestampSpec = MaxTimestampSpec
-OffsetSpec.LatestSpec = LatestSpec
-OffsetSpec.EarliestSpec = EarliestSpec
 OffsetSpec._fill_values()
 
 
@@ -137,7 +145,7 @@ class ListOffsetsResultInfo:
         The offset returned by the list_offsets call.
     timestamp: int
         The timestamp in milliseconds corresponding to the offset.
-        Not available (-1) when querying for the earliest of latest offsets.
+        Not available (-1) when querying for the earliest or the latest offsets.
     leader_epoch: int
         The leader epoch corresponding to the offset (optional).
     """

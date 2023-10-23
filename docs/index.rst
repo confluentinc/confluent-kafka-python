@@ -62,8 +62,8 @@ Supporting classes
        - :ref:`UserScramCredentialAlteration <pythonclient_user_scram_credential_alteration>`
        - :ref:`UserScramCredentialUpsertion <pythonclient_user_scram_credential_upsertion>`
        - :ref:`UserScramCredentialDeletion <pythonclient_user_scram_credential_deletion>`
-       - :ref:`OffsetSpec <pythonclient_admin_offset_spec>`
-       - :ref:`ListOffsetsResultInfo <pythonclient_admin_list_offsets_result_info>`
+       - :ref:`OffsetSpec <pythonclient_offset_spec>`
+       - :ref:`ListOffsetsResultInfo <pythonclient_list_offsets_result_info>`
        - :ref:`TopicDescription <pythonclient_topic_description>`
        - :ref:`DescribeClusterResult <pythonclient_describe_cluster_result>`
        - :ref:`BrokerMetadata <pythonclient_broker_metadata>`
@@ -270,7 +270,7 @@ UserScramCredentialDeletion
 .. autoclass:: confluent_kafka.admin.UserScramCredentialDeletion
    :members:
 
-.. _pythonclient_admin_offset_spec:
+.. _pythonclient_offset_spec:
 
 **********
 OffsetSpec
@@ -279,7 +279,7 @@ OffsetSpec
 .. autoclass:: confluent_kafka.admin.OffsetSpec
    :members:
 
-.. _pythonclient_admin_list_offsets_result_info:
+.. _pythonclient_list_offsets_result_info:
 
 *********************
 ListOffsetsResultInfo

@@ -1185,16 +1185,19 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_list_offsets_request(topic_partition_offsets, kwargs)
 
-        kwargs['isolation_level'] = kwargs['isolation_level'].value
+        if 'isolation_level' in kwargs:
 
-        topic_partition_offsets_copy = []
-        for topic_partition, offset_spec in topic_partition_offsets.items():
-            topic_partition_offsets_copy.append(_TopicPartition(topic_partition.topic, int(topic_partition.partition),
-                                                int(offset_spec._value)))
+            kwargs['isolation_level_value'] = kwargs['isolation_level'].value
+            del kwargs['isolation_level']
 
-        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_copy,
+        topic_partition_offsets_list = [
+            _TopicPartition(topic_partition.topic, int(topic_partition.partition),
+                            int(offset_spec._value))
+            for topic_partition, offset_spec in topic_partition_offsets.items()]
+
+        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
                                                  _TopicPartition,
                                                  AdminClient._make_futmap_result)
 
-        super(AdminClient, self).list_offsets(topic_partition_offsets_copy, f, **kwargs)
+        super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
         return futmap
