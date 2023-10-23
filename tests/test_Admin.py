@@ -9,7 +9,7 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel
+    IsolationLevel, TopicCollection
 import concurrent.futures
 
 
@@ -632,6 +632,32 @@ def test_describe_consumer_groups_api():
 
     with pytest.raises(ValueError):
         a.describe_consumer_groups([])
+
+
+def test_describe_topics_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    topic_names = ["test-topic-1", "test-topic-2"]
+
+    a.describe_topics(TopicCollection(topic_names))
+
+    with pytest.raises(TypeError):
+        a.describe_topics(topic_names)
+
+    with pytest.raises(TypeError):
+        a.describe_topics("test-topic-1")
+
+    with pytest.raises(ValueError):
+        a.describe_topics(TopicCollection([]))
+
+
+def test_describe_cluster():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.describe_cluster(include_authorized_operations=True)
+
+    with pytest.raises(TypeError):
+        a.describe_cluster(unknown_operation="it is")
 
 
 def test_delete_consumer_groups_api():
