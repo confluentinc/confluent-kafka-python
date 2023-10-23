@@ -134,6 +134,10 @@ blocks:
           value: linux
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - . vault-sem-get-secret dockerhub-semaphore-cred
+          - docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY
       jobs:
         - name: Build
           commands:
