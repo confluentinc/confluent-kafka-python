@@ -26,6 +26,8 @@ class TopicDescription:
     ----------
     name : str
         The topic name.
+    topic_id: Uuid
+        The topic id of the topic
     partitions : list(TopicPartitionInfo)
         Partition information.
     authorized_operations: list(AclOperation)
