@@ -48,6 +48,19 @@ def create_sasl_cluster(conf={}):
     return TrivupFixture(trivup_fixture_conf)
 
 
+def create_sasl_cluster(conf={}):
+    trivup_fixture_conf = {'with_sr': False,
+                           'version': '3.4.0',
+                           'sasl_mechanism': "PLAIN",
+                           'sasl_users': 'sasl_user=sasl_user',
+                           'debug': True,
+                           'cp_version': 'latest',
+                           'broker_conf': ['transaction.state.log.replication.factor=1',
+                                           'transaction.state.log.min.isr=1']}
+    trivup_fixture_conf.update(conf)
+    return TrivupFixture(trivup_fixture_conf)
+
+
 def create_byo_cluster(conf):
     """
     The cluster's bootstrap.servers must be set in dict.
