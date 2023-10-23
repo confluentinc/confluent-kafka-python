@@ -27,7 +27,7 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': False,
+    trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cp_version': 'latest',
                            'broker_conf': ['transaction.state.log.replication.factor=1',
@@ -37,7 +37,8 @@ def create_trivup_cluster(conf={}):
 
 
 def create_sasl_cluster(conf={}):
-    trivup_fixture_conf = {'version': '3.4.0',
+    trivup_fixture_conf = {'with_sr': False,
+                           'version': '3.4.0',
                            'sasl_mechanism': "PLAIN",
                            'sasl_users': 'sasl_user=sasl_user',
                            'debug': True,

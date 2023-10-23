@@ -13,7 +13,6 @@ global_job_config:
     commands:
       - checkout
       - mkdir artifacts
-      - . vault-sem-get-secret dockerhub-semaphore-cred
 blocks:
   - name: "Wheels: OSX x64"
     run:
