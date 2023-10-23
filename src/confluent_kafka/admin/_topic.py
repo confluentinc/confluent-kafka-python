@@ -26,14 +26,19 @@ class TopicDescription:
     ----------
     name : str
         The topic name.
+    topic_id: Uuid
+        The topic id of the topic
+    is_internal:
+        Whether the topic is internal or not
     partitions : list(TopicPartitionInfo)
         Partition information.
     authorized_operations: list(AclOperation)
         AclOperations allowed for the topic.
     """
 
-    def __init__(self, name, is_internal, partitions, authorized_operations=None):
+    def __init__(self, name, topic_id, is_internal, partitions, authorized_operations=None):
         self.name = name
+        self.topic_id = topic_id
         self.is_internal = is_internal
         self.partitions = partitions
         self.authorized_operations = None
