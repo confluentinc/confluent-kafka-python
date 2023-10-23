@@ -18,13 +18,15 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState, TopicCollection)
+                             TopicPartition, ConsumerGroupState, TopicCollection,
+                             IsolationLevel)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion,
+                                   OffsetSpec)
 import sys
 import threading
 import logging
@@ -765,6 +767,57 @@ def example_alter_user_scram_credentials(a, args):
             print("{}: Error: {}".format(username, e))
 
 
+def example_list_offsets(a, args):
+    topic_partition_offsets = {}
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for list offsets, expected at least 1, got 0")
+    i = 1
+    partition_i = 1
+    isolation_level = IsolationLevel[args[0]]
+    while i < len(args):
+        if i + 3 > len(args):
+            raise ValueError(
+                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
+                f" got {len(args) - i}")
+        topic = args[i]
+        partition = int(args[i+1])
+        topic_partition = TopicPartition(topic, partition)
+
+        if "EARLIEST" == args[i+2]:
+            offset_spec = OffsetSpec.earliest()
+
+        elif "LATEST" == args[i+2]:
+            offset_spec = OffsetSpec.latest()
+
+        elif "MAX_TIMESTAMP" == args[i+2]:
+            offset_spec = OffsetSpec.max_timestamp()
+
+        elif "TIMESTAMP" == args[i+2]:
+            if i + 4 > len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
+                    f", got {len(args) - i}")
+            offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
+            i += 1
+        else:
+            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
+        topic_partition_offsets[topic_partition] = offset_spec
+        i = i + 3
+        partition_i += 1
+
+    futmap = a.list_offsets(topic_partition_offsets, isolation_level=isolation_level, request_timeout=30)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}"
+                  .format(partition.topic, partition.partition, result.offset,
+                          result.timestamp))
+        except KafkaException as e:
+            print("Topicname : {} Partition_Index : {} Error : {}"
+                  .format(partition.topic, partition.partition, e))
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -801,6 +854,9 @@ if __name__ == '__main__':
                          '<iterations1> <password1> <salt1> ' +
                          '[UPSERT <user2> <mechanism2> <iterations2> ' +
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
+        sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
+                         '[<topic2> <partition2> <offset_spec2> ..]\n')
+
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -829,7 +885,8 @@ if __name__ == '__main__':
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
-              'alter_user_scram_credentials': example_alter_user_scram_credentials}
+              'alter_user_scram_credentials': example_alter_user_scram_credentials,
+              'list_offsets': example_list_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
