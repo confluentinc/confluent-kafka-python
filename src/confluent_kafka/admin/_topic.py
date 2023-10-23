@@ -28,6 +28,8 @@ class TopicDescription:
         The topic name.
     topic_id: Uuid
         The topic id of the topic
+    is_internal:
+        Whether the topic is internal or not
     partitions : list(TopicPartitionInfo)
         Partition information.
     authorized_operations: list(AclOperation)
