@@ -639,16 +639,20 @@ def test_describe_topics_api():
 
     topic_names = ["test-topic-1", "test-topic-2"]
 
-    a.describe_topics(TopicCollection(topic_names))
+    fs = a.describe_topics(TopicCollection([]))
+    assert len(fs) == 0
+
+    fs = a.describe_topics(TopicCollection(topic_names))
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(TypeError):
         a.describe_topics(topic_names)
 
     with pytest.raises(TypeError):
         a.describe_topics("test-topic-1")
-
-    with pytest.raises(ValueError):
-        a.describe_topics(TopicCollection([]))
 
 
 def test_describe_cluster():
