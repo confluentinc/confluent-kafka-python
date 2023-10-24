@@ -29,7 +29,8 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
-                           'cp_version': 'latest',
+                           'cp_version': '7.4.0',
+                           'version': '3.4.0',
                            'broker_conf': ['transaction.state.log.replication.factor=1',
                                            'transaction.state.log.min.isr=1']}
     trivup_fixture_conf.update(conf)

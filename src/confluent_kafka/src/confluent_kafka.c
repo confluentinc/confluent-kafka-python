@@ -1280,6 +1280,13 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 
 
 
+PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
+        return TopicPartition_new0(rktpar->topic, rktpar->partition,
+			           rktpar->offset,
+                                   rd_kafka_topic_partition_get_leader_epoch(rktpar),
+				   rktpar->metadata,
+				   rktpar->err);
+}
 
 /**
  * @brief Convert C rd_kafka_topic_partition_list_t to Python list(TopicPartition).
@@ -1294,13 +1301,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-		PyList_SET_ITEM(parts, i,
-				TopicPartition_new0(
-					rktpar->topic, rktpar->partition,
-					rktpar->offset,
-                                        rd_kafka_topic_partition_get_leader_epoch(rktpar),
-					rktpar->metadata,
-					rktpar->err));
+		PyList_SET_ITEM(parts, i, c_part_to_py(rktpar));
 	}
 
 	return parts;
