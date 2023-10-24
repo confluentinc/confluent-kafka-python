@@ -509,9 +509,6 @@ class AdminClient (_AdminClientImpl):
             raise TypeError("Expected topic_partition_offsets to be " +
                             "dict of [TopicPartitions,OffsetSpec] for list offsets request")
 
-        if len(topic_partition_offsets) == 0:
-            raise ValueError("At least one partition should be passed")
-
         for topic_partition, offset_spec in topic_partition_offsets.items():
             if topic_partition is None:
                 raise TypeError("partition cannot be None")

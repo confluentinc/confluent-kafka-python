@@ -2913,10 +2913,9 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(topic_partitions) &&
-            (topic_partitions_cnt = (int)PyList_Size(topic_partitions)) < 1) {
+        if (!PyList_Check(topic_partitions)) {
                 PyErr_SetString(PyExc_ValueError,
-                        "topic_partitions must be a non-empty list");
+                        "topic_partitions must be a list");
                 goto err;
         }
         c_topic_partitions = py_to_c_parts(topic_partitions);

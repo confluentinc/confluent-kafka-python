@@ -56,6 +56,8 @@ class OffsetSpec(ABC):
         return TimestampSpec(timestamp)
 
     def __new__(cls, index):
+        # Trying to instantiate returns one of the subclasses.
+        # Subclasses can be instantiated but aren't accessible externally.
         if index < 0:
             return cls._values[index]
         else:
