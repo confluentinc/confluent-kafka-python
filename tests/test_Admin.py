@@ -639,20 +639,35 @@ def test_describe_topics_api():
 
     topic_names = ["test-topic-1", "test-topic-2"]
 
+    # Empty TopicCollection returns empty futures
     fs = a.describe_topics(TopicCollection([]))
     assert len(fs) == 0
 
+    # Normal call
     fs = a.describe_topics(TopicCollection(topic_names))
     for f in concurrent.futures.as_completed(iter(fs.values())):
         e = f.exception(timeout=1)
         assert isinstance(e, KafkaException)
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
-    with pytest.raises(TypeError):
-        a.describe_topics(topic_names)
+    # Wrong argument type
+    for args in [
+                    [topic_names],
+                    ["test-topic-1"],
+                    [TopicCollection([3])],
+                    [TopicCollection(["correct", 3])],
+                    [TopicCollection([None])]
+                ]:
+        with pytest.raises(TypeError):
+            a.describe_topics(*args)
 
-    with pytest.raises(TypeError):
-        a.describe_topics("test-topic-1")
+    # Wrong argument value
+    for args in [
+                    [TopicCollection([""])],
+                    [TopicCollection(["correct", ""])]
+                ]:
+        with pytest.raises(ValueError):
+            a.describe_topics(*args)
 
 
 def test_describe_cluster():

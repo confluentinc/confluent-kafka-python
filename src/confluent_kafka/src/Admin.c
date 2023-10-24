@@ -2329,12 +2329,11 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                 c_topics = malloc(sizeof(char *) * topics_cnt);
                 for (i = 0 ; i < topics_cnt ; i++) {
                         PyObject *topic = PyList_GET_ITEM(topics, i);
-                        PyObject *utopic;
                         PyObject *uotopic = NULL;
 
                         if (topic == Py_None ||
-                        !(utopic = cfl_PyObject_Unistr(topic))) {
-                                PyErr_Format(PyExc_ValueError,
+                            !PyUnicode_Check(topic)) {
+                                PyErr_Format(PyExc_TypeError,
                                         "Expected list of topics strings, "
                                         "not %s",
                                         ((PyTypeObject *)PyObject_Type(topic))->
@@ -2342,10 +2341,15 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                                 goto err;
                         }
 
-                        c_topics[i] = cfl_PyUnistr_AsUTF8(utopic, &uotopic);
-
-                        Py_XDECREF(utopic);
+                        c_topics[i] = cfl_PyUnistr_AsUTF8(topic, &uotopic);
                         Py_XDECREF(uotopic);
+
+                        if (!c_topics[i][0]) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "Empty topic name at index %d isn't "
+                                        "allowed", i);
+                                goto err;
+                        }
                 }
         }
 
