@@ -6,10 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion
+    UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    TopicCollection
+    IsolationLevel, TopicCollection
 import concurrent.futures
 
 
@@ -1014,3 +1014,112 @@ def test_alter_user_scram_credentials_api():
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
     with pytest.raises(TypeError):
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+
+
+def test_list_offsets_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Wrong option types
+    for kwargs in [
+                        {
+                            "isolation_level": 10
+                        },
+                        {
+                            "request_timeout": "test"
+                        }
+                    ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(TypeError):
+            a.list_offsets(requests, **kwargs)
+
+    # Wrong option values
+    for kwargs in [
+                    {
+                        "request_timeout": -1
+                    }
+                  ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(ValueError):
+            a.list_offsets(requests, **kwargs)
+
+    for kwargs in [{},
+                   {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
+                   {"request_timeout": 0.01},
+                   {"isolation_level": IsolationLevel.READ_COMMITTED,
+                    "request_timeout": 0.01}]:
+
+        # Not a dictionary
+        with pytest.raises(TypeError):
+            a.list_offsets(None, **kwargs)
+
+        # Empty partitions
+        requests = {}
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 0
+
+        # Negative partition index
+        requests = {
+            TopicPartition("topic1", -1, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(ValueError):
+            a.list_offsets(requests, **kwargs)
+
+        # Same partition with different offsets
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 0, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 1
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Two different partitions
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 1, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 2
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Key isn't a TopicPartition
+        for requests in [
+                            {
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                None: OffsetSpec.latest()
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
+
+        # Value isn't a OffsetSpec
+        for requests in [
+                            {
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): None
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
