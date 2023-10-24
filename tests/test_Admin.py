@@ -1061,12 +1061,17 @@ def test_list_offsets_api():
         fs = a.list_offsets(requests, **kwargs)
         assert len(fs) == 0
 
-        # Negative partition index
-        requests = {
-            TopicPartition("topic1", -1, 10): OffsetSpec.earliest()
-        }
-        with pytest.raises(ValueError):
-            a.list_offsets(requests, **kwargs)
+        # Invalid TopicPartition
+        for requests in [
+                            {
+                                TopicPartition("", 0, 10): OffsetSpec.earliest()
+                            },
+                            {
+                                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
+                            }
+                        ]:
+            with pytest.raises(ValueError):
+                a.list_offsets(requests, **kwargs)
 
         # Same partition with different offsets
         requests = {
