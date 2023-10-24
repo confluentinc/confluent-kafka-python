@@ -637,37 +637,55 @@ def test_describe_consumer_groups_api():
 def test_describe_topics_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
-    topic_names = ["test-topic-1", "test-topic-2"]
-
-    # Empty TopicCollection returns empty futures
-    fs = a.describe_topics(TopicCollection([]))
-    assert len(fs) == 0
-
-    # Normal call
-    fs = a.describe_topics(TopicCollection(topic_names))
-    for f in concurrent.futures.as_completed(iter(fs.values())):
-        e = f.exception(timeout=1)
-        assert isinstance(e, KafkaException)
-        assert e.args[0].code() == KafkaError._TIMED_OUT
-
-    # Wrong argument type
-    for args in [
-                    [topic_names],
-                    ["test-topic-1"],
-                    [TopicCollection([3])],
-                    [TopicCollection(["correct", 3])],
-                    [TopicCollection([None])]
-                ]:
+    # Wrong option types
+    for kwargs in [{"include_authorized_operations": "wrong_type"},
+                   {"request_timeout": "wrong_type"}]:
         with pytest.raises(TypeError):
-            a.describe_topics(*args)
+            a.describe_topics(TopicCollection([]), **kwargs)
 
-    # Wrong argument value
-    for args in [
-                    [TopicCollection([""])],
-                    [TopicCollection(["correct", ""])]
-                ]:
+    # Wrong option values
+    for kwargs in [{"request_timeout": -1}]:
         with pytest.raises(ValueError):
-            a.describe_topics(*args)
+            a.describe_topics(TopicCollection([]), **kwargs)
+
+    # Test with different options
+    for kwargs in [{},
+                   {"include_authorized_operations": True},
+                   {"request_timeout": 0.01},
+                   {"include_authorized_operations": False,
+                    "request_timeout": 0.01}]:
+
+        topic_names = ["test-topic-1", "test-topic-2"]
+
+        # Empty TopicCollection returns empty futures
+        fs = a.describe_topics(TopicCollection([]), **kwargs)
+        assert len(fs) == 0
+
+        # Normal call
+        fs = a.describe_topics(TopicCollection(topic_names), **kwargs)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Wrong argument type
+        for args in [
+                        [topic_names],
+                        ["test-topic-1"],
+                        [TopicCollection([3])],
+                        [TopicCollection(["correct", 3])],
+                        [TopicCollection([None])]
+                    ]:
+            with pytest.raises(TypeError):
+                a.describe_topics(*args, **kwargs)
+
+        # Wrong argument value
+        for args in [
+                        [TopicCollection([""])],
+                        [TopicCollection(["correct", ""])]
+                    ]:
+            with pytest.raises(ValueError):
+                a.describe_topics(*args, **kwargs)
 
 
 def test_describe_cluster():
