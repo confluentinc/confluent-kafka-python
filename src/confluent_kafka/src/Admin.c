@@ -2880,7 +2880,6 @@ const char Admin_alter_consumer_group_offsets_doc[] = PyDoc_STR(
 
 PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
         PyObject *topic_partitions, *future;
-        int topic_partitions_cnt = 0;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         rd_kafka_topic_partition_list_t *c_topic_partitions = NULL;
