@@ -896,9 +896,6 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(topic_names, list):
             raise TypeError("Expected list of topic names to be described")
 
-        if len(topic_names) == 0:
-            raise ValueError("Expected at least one topic to be described")
-
         f, futmap = AdminClient._make_futures(topic_names, None,
                                               AdminClient._make_describe_topics_result)
 
