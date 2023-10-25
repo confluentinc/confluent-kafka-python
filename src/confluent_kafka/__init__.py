@@ -19,12 +19,17 @@
 from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
-from ._model import Node, ConsumerGroupTopicPartitions, ConsumerGroupState
+from ._model import (Node,  # noqa: F401
+                     ConsumerGroupTopicPartitions,
+                     ConsumerGroupState,
+                     TopicCollection,
+                     TopicPartitionInfo)
 
 from .cimpl import (Producer,
                     Consumer,
                     Message,
                     TopicPartition,
+                    Uuid,
                     libversion,
                     version,
                     TIMESTAMP_NOT_AVAILABLE,
@@ -42,7 +47,7 @@ __all__ = ['admin', 'Consumer',
            'Producer', 'DeserializingConsumer',
            'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
-           'ConsumerGroupTopicPartitions', 'ConsumerGroupState']
+           'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'Uuid']
 
 __version__ = version()[0]
 

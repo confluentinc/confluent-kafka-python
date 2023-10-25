@@ -43,7 +43,7 @@
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
 #define CFL_VERSION     0x02030000
-#define CFL_VERSION_STR "2.3.0rc3"
+#define CFL_VERSION_STR "2.3.0rc4"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -384,6 +384,7 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    PyObject *kwargs);
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
+PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
@@ -491,6 +492,14 @@ typedef struct {
 } NewTopic;
 
 extern PyTypeObject NewTopicType;
+
+
+typedef struct {
+        PyObject_HEAD
+		rd_kafka_Uuid_t *cUuid;
+} Uuid;
+
+extern PyTypeObject UuidType;
 
 
 typedef struct {
