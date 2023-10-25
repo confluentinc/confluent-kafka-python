@@ -1183,7 +1183,6 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_list_offsets_request(topic_partition_offsets, kwargs)
 
         if 'isolation_level' in kwargs:
-
             kwargs['isolation_level_value'] = kwargs['isolation_level'].value
             del kwargs['isolation_level']
 
