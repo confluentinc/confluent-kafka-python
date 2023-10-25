@@ -4,12 +4,14 @@
 
 v2.3.0 is a feature release with the following features, fixes and enhancements:
 
- * Add Python 3.12 wheels
- * Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`. (@jainruchir, #1635)
- * [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+ - Add Python 3.12 wheels
+ - Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`. (@jainruchir, #1635)
+ - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses. (@jainruchir, #1635)
- * Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+ - Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
    (currently, all Describe Responses) (#1635, @jainruchir).
+ - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
+   issue(https://github.com/confluentinc/confluent-kafka-python/issues/1616) for more details (#1630).
 
 confluent-kafka-python is based on librdkafka v2.3.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
