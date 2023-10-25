@@ -1820,7 +1820,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
                                          &options.request_timeout))
                 return NULL;
 
-        if (!PyList_Check(users)) {
+        if (users != Py_None && !PyList_Check(users)) {
                 PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of string "
                                 "objects in 'users' parameter");
@@ -1836,33 +1836,34 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
          * is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        user_cnt = (int)PyList_Size(users);
+        if (users != Py_None) {
+                user_cnt = (int)PyList_Size(users);
+                if (user_cnt > 0)
+                        c_users = malloc(sizeof(char *) * user_cnt);
 
+                for (i = 0 ; i < user_cnt ; i++) {
+                        PyObject *user = PyList_GET_ITEM(users, i);
+                        PyObject *u_user;
+                        PyObject *uo_user = NULL;
 
-        c_users = malloc(sizeof(char *) * user_cnt);
+                        if (user == Py_None) {
+                                PyErr_Format(PyExc_TypeError,
+                                        "User %d in 'users' parameters must not "
+                                        "be  None", i);
+                                goto err;
+                        }
 
-        for (i = 0 ; i < user_cnt ; i++) {
-                PyObject *user = PyList_GET_ITEM(users, i);
-                PyObject *u_user;
-                PyObject *uo_user = NULL;
+                        if (!(u_user = cfl_PyObject_Unistr(user))) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "User %d in 'users' parameters must "
+                                        " be convertible to str", i);
+                                goto err;
+                        }
 
-                if (user == Py_None) {
-                        PyErr_Format(PyExc_TypeError,
-                                     "User %d in 'users' parameters must not "
-                                     "be  None", i);
-                        goto err;
+                        c_users[i] = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
+                        Py_XDECREF(u_user);
+                        Py_XDECREF(uo_user);
                 }
-
-                if (!(u_user = cfl_PyObject_Unistr(user))) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "User %d in 'users' parameters must "
-                                     " be convertible to str", i);
-                        goto err;
-                }
-
-                c_users[i] = cfl_PyUnistr_AsUTF8(u_user, &uo_user);
-                Py_XDECREF(u_user);
-                Py_XDECREF(uo_user);
         }
         /* Use librdkafka's background thread queue to automatically dispatch
          * Admin_background_event_cb() when the admin operation is finished. */
