@@ -4,6 +4,7 @@
 
 v2.3.0 is a feature release with the following features, fixes and enhancements:
 
+ - Add Python 3.12 wheels
  - Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`. (@jainruchir, #1635)
  - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses. (@jainruchir, #1635)
