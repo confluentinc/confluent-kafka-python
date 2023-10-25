@@ -299,28 +299,6 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_futmap_result(f, futmap):
-        try:
-            results = f.result()
-            len_results = len(results)
-            len_futures = len(futmap)
-            if len(results) != len_futures:
-                raise RuntimeError(
-                    f"Results length {len_results} is different from future-map length {len_futures}")
-            for key, value in results.items():
-                fut = futmap.get(key, None)
-                if fut is None:
-                    raise RuntimeError(
-                        f"Key {key} not found in future-map: {futmap}")
-                if isinstance(value, KafkaError):
-                    fut.set_exception(KafkaException(value))
-                else:
-                    fut.set_result(value)
-        except Exception as e:
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
     def _create_future():
         f = concurrent.futures.Future()
         if not f.set_running_or_notify_cancel():

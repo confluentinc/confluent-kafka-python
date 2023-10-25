@@ -1809,7 +1809,7 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
                                NULL };
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        int user_cnt, i;
+        int user_cnt = 0, i;
         const char **c_users = NULL;
         rd_kafka_queue_t *rkqu;
         CallState cs;
