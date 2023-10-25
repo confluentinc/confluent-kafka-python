@@ -2317,36 +2317,43 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                             &options.include_authorized_operations))
                 goto err;
 
-        if (!PyList_Check(topics) || (topics_cnt = (int)PyList_Size(topics)) < 1) {
-                PyErr_SetString(PyExc_ValueError,
-                                "Expected non-empty list of topics");
+        if (!PyList_Check(topics)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "Expected a list of topics");
                 goto err;
         }
 
-        c_topics = malloc(sizeof(char *) * topics_cnt);
+        topics_cnt = PyList_Size(topics);
 
-        for (i = 0 ; i < topics_cnt ; i++) {
-                PyObject *topic = PyList_GET_ITEM(topics, i);
-                PyObject *utopic;
-                PyObject *uotopic = NULL;
+        if (topics_cnt) {
+                c_topics = malloc(sizeof(char *) * topics_cnt);
+                for (i = 0 ; i < topics_cnt ; i++) {
+                        PyObject *topic = PyList_GET_ITEM(topics, i);
+                        PyObject *uotopic = NULL;
 
-                if (topic == Py_None ||
-                    !(utopic = cfl_PyObject_Unistr(topic))) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "Expected list of topics strings, "
-                                     "not %s",
-                                     ((PyTypeObject *)PyObject_Type(topic))->
-                                     tp_name);
-                        goto err;
+                        if (topic == Py_None ||
+                            !PyUnicode_Check(topic)) {
+                                PyErr_Format(PyExc_TypeError,
+                                        "Expected list of topics strings, "
+                                        "not %s",
+                                        ((PyTypeObject *)PyObject_Type(topic))->
+                                        tp_name);
+                                goto err;
+                        }
+
+                        c_topics[i] = cfl_PyUnistr_AsUTF8(topic, &uotopic);
+                        Py_XDECREF(uotopic);
+
+                        if (!c_topics[i][0]) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "Empty topic name at index %d isn't "
+                                        "allowed", i);
+                                goto err;
+                        }
                 }
-
-                c_topics[i] = cfl_PyUnistr_AsUTF8(utopic, &uotopic);
-
-                Py_XDECREF(utopic);
-                Py_XDECREF(uotopic);
         }
-        c_topic_collection = rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
 
+        c_topic_collection = rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,
                                        &options, future);
         if (!c_options)  {
@@ -2420,7 +2427,7 @@ PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs
                              "include_authorized_operations",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|fO", kws,       
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|fO", kws,
                                          &future,
                                          &options.request_timeout,
                                          &include_authorized_operations
@@ -3735,8 +3742,8 @@ static PyObject *Admin_c_TopicPartitionInfo_to_py(
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetInt(kwargs, 
-                "id", 
+        cfl_PyDict_SetInt(kwargs,
+                "id",
                 rd_kafka_TopicPartitionInfo_partition(c_topic_partition_info));
 
         c_leader = rd_kafka_TopicPartitionInfo_leader(c_topic_partition_info);
@@ -3790,7 +3797,7 @@ static PyObject *Admin_c_TopicPartitionInfos_to_py_from_TopicDescription(
         size_t c_partitions_cnt;
         size_t i = 0;
         const rd_kafka_TopicPartitionInfo_t **c_partitions = NULL;
-        
+
         c_partitions = rd_kafka_TopicDescription_partitions(c_topic_description, &c_partitions_cnt);
         partitions = PyList_New(c_partitions_cnt);
         if(c_partitions_cnt > 0) {
@@ -4085,7 +4092,7 @@ static PyObject *Admin_c_DescribeClusterResult_to_py(
         PyDict_SetItemString(kwargs, "nodes", nodes);
 
         c_authorized_operations = rd_kafka_DescribeCluster_result_authorized_operations(
-                c_describe_cluster_result, 
+                c_describe_cluster_result,
                 &c_authorized_operations_cnt);
         if (c_authorized_operations) {
                 PyObject *authorized_operations = PyList_New(c_authorized_operations_cnt);
