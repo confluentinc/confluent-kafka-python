@@ -15,7 +15,7 @@
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
-PYTHON_VERSIONS=("cp36" "cp37" "cp38" "cp39" "cp310" "cp311" )
+PYTHON_VERSIONS=("cp36" "cp37" "cp38" "cp39" "cp310" "cp311" "cp312")
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
     echo "Usage: $0 <librdkafka_tag>"
@@ -85,7 +85,7 @@ done
 
 # Install packages and test
 echo "# Installing wheels"
-for PYBIN in /opt/python/cp*/bin/; do
+for PYBIN in /opt/python/cp*/bin; do
     for PYTHON_VERSION in "${PYTHON_VERSIONS[@]}"; do
         if [[ $PYBIN == *"$PYTHON_VERSION"* ]]; then
             echo "## Installing $PYBIN"
