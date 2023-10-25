@@ -1091,7 +1091,8 @@ class AdminClient (_AdminClientImpl):
                   The future yields a dict[str, UserScramCredentialsDescription]
                   or raises a KafkaException
 
-                  In case a list is passed returns a dict[str, future[UserScramCredentialsDescription]].
+                  In case a list of user names is passed, it returns
+                  a dict[str, future[UserScramCredentialsDescription]].
                   The futures yield a :class:`UserScramCredentialsDescription`
                   or raise a KafkaException
 

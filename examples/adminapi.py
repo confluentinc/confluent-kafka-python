@@ -689,8 +689,8 @@ def example_describe_user_scram_credentials(a, args):
     if len(args) == 0:
         """
         Case: Describes all user scram credentials
-        Input: no argument passed
-        We will get a future which result will give a
+        Input: no argument passed or None
+        Gets a future which result will give a
         dict[str, UserScramCredentialsDescription]
         or will throw a KafkaException
         """
@@ -710,7 +710,7 @@ def example_describe_user_scram_credentials(a, args):
         """
         Case: Describe specified user scram credentials
         Input: users is a list
-        We will get a dict[str, future] where the result() of
+        Gets a dict[str, future] where the result() of
         each future will give a UserScramCredentialsDescription
         or a KafkaException
         """
