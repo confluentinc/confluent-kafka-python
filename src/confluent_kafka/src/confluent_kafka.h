@@ -43,7 +43,7 @@
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
 #define CFL_VERSION     0x02030000
-#define CFL_VERSION_STR "2.3.0rc3"
+#define CFL_VERSION_STR "2.3.0rc4"
 
 /**
  * Minimum required librdkafka version. This is checked both during
