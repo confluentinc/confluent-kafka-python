@@ -25,6 +25,7 @@ Supporting classes
     - :ref:`Message <pythonclient_message>`
     - :ref:`TopicPartition <pythonclient_topicpartition>`
     - :ref:`ThrottleEvent <pythonclient_throttleevent>`
+    - :ref:`IsolationLevel <pythonclient_isolation_level>`
     - :ref:`TopicCollection <pythonclient_topic_collection>`
     - :ref:`TopicPartitionInfo <pythonclient_topic_partition_info>`
     - :ref:`Node <pythonclient_node>`
@@ -61,6 +62,8 @@ Supporting classes
        - :ref:`UserScramCredentialAlteration <pythonclient_user_scram_credential_alteration>`
        - :ref:`UserScramCredentialUpsertion <pythonclient_user_scram_credential_upsertion>`
        - :ref:`UserScramCredentialDeletion <pythonclient_user_scram_credential_deletion>`
+       - :ref:`OffsetSpec <pythonclient_offset_spec>`
+       - :ref:`ListOffsetsResultInfo <pythonclient_list_offsets_result_info>`
        - :ref:`TopicDescription <pythonclient_topic_description>`
        - :ref:`DescribeClusterResult <pythonclient_describe_cluster_result>`
        - :ref:`BrokerMetadata <pythonclient_broker_metadata>`
@@ -265,6 +268,24 @@ UserScramCredentialDeletion
 ***************************
 
 .. autoclass:: confluent_kafka.admin.UserScramCredentialDeletion
+   :members:
+
+.. _pythonclient_offset_spec:
+
+**********
+OffsetSpec
+**********
+
+.. autoclass:: confluent_kafka.admin.OffsetSpec
+   :members:
+
+.. _pythonclient_list_offsets_result_info:
+
+*********************
+ListOffsetsResultInfo
+*********************
+
+.. autoclass:: confluent_kafka.admin.ListOffsetsResultInfo
    :members:
 
 .. _pythonclient_topic_description:
@@ -816,6 +837,14 @@ ThrottleEvent
 .. autoclass:: confluent_kafka.ThrottleEvent
    :members:
 
+.. _pythonclient_isolation_level:
+
+**************
+IsolationLevel
+**************
+
+.. autoclass:: confluent_kafka.IsolationLevel
+   :members:
 
 .. _avro_producer:
 
