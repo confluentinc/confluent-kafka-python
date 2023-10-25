@@ -2327,36 +2327,43 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                             &options.include_authorized_operations))
                 goto err;
 
-        if (!PyList_Check(topics) || (topics_cnt = (int)PyList_Size(topics)) < 1) {
-                PyErr_SetString(PyExc_ValueError,
-                                "Expected non-empty list of topics");
+        if (!PyList_Check(topics)) {
+                PyErr_SetString(PyExc_TypeError,
+                                "Expected a list of topics");
                 goto err;
         }
 
-        c_topics = malloc(sizeof(char *) * topics_cnt);
+        topics_cnt = PyList_Size(topics);
 
-        for (i = 0 ; i < topics_cnt ; i++) {
-                PyObject *topic = PyList_GET_ITEM(topics, i);
-                PyObject *utopic;
-                PyObject *uotopic = NULL;
+        if (topics_cnt) {
+                c_topics = malloc(sizeof(char *) * topics_cnt);
+                for (i = 0 ; i < topics_cnt ; i++) {
+                        PyObject *topic = PyList_GET_ITEM(topics, i);
+                        PyObject *uotopic = NULL;
 
-                if (topic == Py_None ||
-                    !(utopic = cfl_PyObject_Unistr(topic))) {
-                        PyErr_Format(PyExc_ValueError,
-                                     "Expected list of topics strings, "
-                                     "not %s",
-                                     ((PyTypeObject *)PyObject_Type(topic))->
-                                     tp_name);
-                        goto err;
+                        if (topic == Py_None ||
+                            !PyUnicode_Check(topic)) {
+                                PyErr_Format(PyExc_TypeError,
+                                        "Expected list of topics strings, "
+                                        "not %s",
+                                        ((PyTypeObject *)PyObject_Type(topic))->
+                                        tp_name);
+                                goto err;
+                        }
+
+                        c_topics[i] = cfl_PyUnistr_AsUTF8(topic, &uotopic);
+                        Py_XDECREF(uotopic);
+
+                        if (!c_topics[i][0]) {
+                                PyErr_Format(PyExc_ValueError,
+                                        "Empty topic name at index %d isn't "
+                                        "allowed", i);
+                                goto err;
+                        }
                 }
-
-                c_topics[i] = cfl_PyUnistr_AsUTF8(utopic, &uotopic);
-
-                Py_XDECREF(utopic);
-                Py_XDECREF(uotopic);
         }
-        c_topic_collection = rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
 
+        c_topic_collection = rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,
                                        &options, future);
         if (!c_options)  {
