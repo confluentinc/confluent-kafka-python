@@ -5,7 +5,7 @@
 v2.3.0 is a feature release with the following features, fixes and enhancements:
 
  - Add Python 3.12 wheels
- - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations) Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
+ - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations): Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
  - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses. (@jainruchir, #1635)
  - [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers): Partial support of topic identifiers. Topic identifiers in metadata response are available through the new describe_topics function (#1645).
