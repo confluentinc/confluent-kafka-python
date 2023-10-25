@@ -197,31 +197,6 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_describe_topics_result(f, futmap):
-        """
-        Map per-topic results to per-topic futures in futmap.
-        """
-        try:
-
-            results = f.result()
-            futmap_values = list(futmap.values())
-            len_results = len(results)
-            len_futures = len(futmap_values)
-            if len_results != len_futures:
-                raise RuntimeError(
-                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
-            for i, result in enumerate(results):
-                fut = futmap_values[i]
-                if isinstance(result, KafkaError):
-                    fut.set_exception(KafkaException(result))
-                else:
-                    fut.set_result(result)
-        except Exception as e:
-            # Request-level exception, raise the same for all topics
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
     def _make_consumer_group_offsets_result(f, futmap):
         """
         Map per-group results to per-group futures in futmap.
@@ -292,6 +267,28 @@ class AdminClient (_AdminClientImpl):
                 else:
                     fut.set_result(value)
         except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_futmap_result_from_list(f, futmap):
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all topics
             for _, fut in futmap.items():
                 fut.set_exception(e)
 
@@ -896,8 +893,8 @@ class AdminClient (_AdminClientImpl):
         if not isinstance(topic_names, list):
             raise TypeError("Expected list of topic names to be described")
 
-        f, futmap = AdminClient._make_futures(topic_names, None,
-                                              AdminClient._make_describe_topics_result)
+        f, futmap = AdminClient._make_futures_v2(topic_names, None,
+                                                 AdminClient._make_futmap_result_from_list)
 
         super(AdminClient, self).describe_topics(topic_names, f, **kwargs)
 
