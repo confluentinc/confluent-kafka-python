@@ -5,9 +5,11 @@
 v2.3.0 is a feature release with the following features, fixes and enhancements:
 
  - Add Python 3.12 wheels
- - Add support for AdminAPI `DescribeCluster()` and `DescribeTopics()`. (@jainruchir, #1635)
+ - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations) Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
  - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
    Return authorized operations in Describe Responses. (@jainruchir, #1635)
+ - [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers): Partial support of topic identifiers. Topic identifiers in metadata response are available through the new describe_topics function (#1645).
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with the addition of `list_offsets` (#1576).
  - Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
    (currently, all Describe Responses) (#1635, @jainruchir).
  - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
