@@ -252,28 +252,6 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_user_scram_credentials_result(f, futmap):
-        try:
-            results = f.result()
-            len_results = len(results)
-            len_futures = len(futmap)
-            if len(results) != len_futures:
-                raise RuntimeError(
-                    f"Results length {len_results} is different from future-map length {len_futures}")
-            for username, value in results.items():
-                fut = futmap.get(username, None)
-                if fut is None:
-                    raise RuntimeError(
-                        f"username {username} not found in future-map: {futmap}")
-                if isinstance(value, KafkaError):
-                    fut.set_exception(KafkaException(value))
-                else:
-                    fut.set_result(value)
-        except Exception as e:
-            for _, fut in futmap.items():
-                fut.set_exception(e)
-
-    @staticmethod
     def _make_futmap_result_from_list(f, futmap):
         try:
 
