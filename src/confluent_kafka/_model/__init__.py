@@ -132,3 +132,20 @@ class TopicPartitionInfo:
         self.leader = leader
         self.replicas = replicas
         self.isr = isr
+
+
+class IsolationLevel(Enum):
+    """
+    Enum for Kafka isolation levels.
+
+    Values:
+    -------
+    """
+
+    READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED  #: Receive all the offsets.
+    READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED  #: Skip offsets belonging to an aborted transaction.
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value

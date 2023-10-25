@@ -140,7 +140,14 @@ class KafkaClusterFixture(object):
 
         return DeserializingConsumer(consumer_conf)
 
-    def admin(self):
+    def admin(self, conf=None):
+        if conf:
+            # When conf is passed create a new AdminClient
+            admin_conf = self.client_conf()
+            admin_conf.update(conf)
+            return AdminClient(admin_conf)
+
+        # Otherwise use a common one
         if self._admin is None:
             self._admin = AdminClient(self.client_conf())
         return self._admin
