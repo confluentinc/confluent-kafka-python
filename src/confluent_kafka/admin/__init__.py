@@ -46,9 +46,13 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramCredentialInfo,
                      ScramMechanism,
                      UserScramCredentialsDescription)
+
 from ._topic import (TopicDescription)  # noqa: F401
 
 from ._cluster import (DescribeClusterResult)  # noqa: F401
+
+from ._listoffsets import (OffsetSpec,  # noqa: F401
+                           ListOffsetsResultInfo)
 
 from .._model import TopicCollection as _TopicCollection
 
@@ -71,11 +75,10 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_BROKER,
                      OFFSET_INVALID)
 
-from confluent_kafka import ConsumerGroupTopicPartitions \
-    as _ConsumerGroupTopicPartitions
-
-from confluent_kafka import ConsumerGroupState \
-    as _ConsumerGroupState
+from confluent_kafka import \
+    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions, \
+    ConsumerGroupState as _ConsumerGroupState, \
+    IsolationLevel as _IsolationLevel
 
 
 try:
@@ -296,6 +299,28 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
+    def _make_futmap_result(f, futmap):
+        try:
+            results = f.result()
+            len_results = len(results)
+            len_futures = len(futmap)
+            if len(results) != len_futures:
+                raise RuntimeError(
+                    f"Results length {len_results} is different from future-map length {len_futures}")
+            for key, value in results.items():
+                fut = futmap.get(key, None)
+                if fut is None:
+                    raise RuntimeError(
+                        f"Key {key} not found in future-map: {futmap}")
+                if isinstance(value, KafkaError):
+                    fut.set_exception(KafkaException(value))
+                else:
+                    fut.set_result(value)
+        except Exception as e:
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
     def _create_future():
         f = concurrent.futures.Future()
         if not f.set_running_or_notify_cancel():
@@ -384,7 +409,6 @@ class AdminClient (_AdminClientImpl):
                     if topic_partition.partition < 0:
                         raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
                     if topic_partition.offset != OFFSET_INVALID:
-                        print(topic_partition.offset)
                         raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
 
     @staticmethod
@@ -478,6 +502,34 @@ class AdminClient (_AdminClientImpl):
                 raise TypeError("Expected each element of list 'alterations' " +
                                 "to be either a UserScramCredentialUpsertion or a " +
                                 "UserScramCredentialDeletion")
+
+    @staticmethod
+    def _check_list_offsets_request(topic_partition_offsets, kwargs):
+        if not isinstance(topic_partition_offsets, dict):
+            raise TypeError("Expected topic_partition_offsets to be " +
+                            "dict of [TopicPartitions,OffsetSpec] for list offsets request")
+
+        for topic_partition, offset_spec in topic_partition_offsets.items():
+            if topic_partition is None:
+                raise TypeError("partition cannot be None")
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("partition must be a TopicPartition")
+            if topic_partition.topic is None:
+                raise TypeError("partition topic name cannot be None")
+            if not isinstance(topic_partition.topic, string_type):
+                raise TypeError("partition topic name must be string")
+            if not topic_partition.topic:
+                raise ValueError("partition topic name cannot be empty")
+            if topic_partition.partition < 0:
+                raise ValueError("partition index must be non-negative")
+            if offset_spec is None:
+                raise TypeError("OffsetSpec cannot be None")
+            if not isinstance(offset_spec, OffsetSpec):
+                raise TypeError("Value must be a OffsetSpec")
+
+        if 'isolation_level' in kwargs:
+            if not isinstance(kwargs['isolation_level'], _IsolationLevel):
+                raise TypeError("isolation_level argument should be an IsolationLevel")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1103,5 +1155,46 @@ class AdminClient (_AdminClientImpl):
                                                  AdminClient._make_user_scram_credentials_result)
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
+        return futmap
 
+    def list_offsets(self, topic_partition_offsets, **kwargs):
+        """
+        Enables to find the beginning offset,
+        end offset as well as the offset matching a timestamp
+        or the offset with max timestamp in partitions.
+
+        :param dict([TopicPartition, OffsetSpec]) topic_partition_offsets: Dictionary of
+               TopicPartition objects associated with the corresponding OffsetSpec to query for.
+        :param IsolationLevel isolation_level: The isolation level to use when
+               querying.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by TopicPartition.
+                  The future result() method returns ListOffsetsResultInfo
+                  raises KafkaException
+
+        :rtype: dict[TopicPartition, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_list_offsets_request(topic_partition_offsets, kwargs)
+
+        if 'isolation_level' in kwargs:
+
+            kwargs['isolation_level_value'] = kwargs['isolation_level'].value
+            del kwargs['isolation_level']
+
+        topic_partition_offsets_list = [
+            _TopicPartition(topic_partition.topic, int(topic_partition.partition),
+                            int(offset_spec._value))
+            for topic_partition, offset_spec in topic_partition_offsets.items()]
+
+        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
+                                                 _TopicPartition,
+                                                 AdminClient._make_futmap_result)
+
+        super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
         return futmap
