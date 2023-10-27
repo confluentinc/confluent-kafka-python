@@ -33,7 +33,7 @@ spec:
       volumes:
         - name: secret
           secret:
-            secretName: njc-py-soak-tests-secret
+            secretName: {{ include "njc-py-soak-tests.fullname" $ }}-secret
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
