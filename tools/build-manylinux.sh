@@ -15,7 +15,11 @@
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
+<<<<<<< HEAD
 PYTHON_VERSIONS=("cp36" "cp37" "cp38" "cp39" "cp310" "cp311" "cp312")
+=======
+PYTHON_VERSIONS=("cp37" "cp38" "cp39" "cp310" "cp311" )
+>>>>>>> 64c166e (Introduced pyproject.toml and moved static metadata from setup.py)
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
     echo "Usage: $0 <librdkafka_tag>"
