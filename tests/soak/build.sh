@@ -32,8 +32,6 @@ set -u
 pushd confluent-kafka-python
 git fetch --tags
 git checkout $cflpy_version
-python3 setup.py clean -a
-python3 setup.py build
 python3 -m pip install .
 popd
 
