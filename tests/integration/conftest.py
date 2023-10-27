@@ -29,6 +29,20 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
+                           'cp_version': '7.4.0',
+                           'version': '3.4.0',
+                           'broker_conf': ['transaction.state.log.replication.factor=1',
+                                           'transaction.state.log.min.isr=1']}
+    trivup_fixture_conf.update(conf)
+    return TrivupFixture(trivup_fixture_conf)
+
+
+def create_sasl_cluster(conf={}):
+    trivup_fixture_conf = {'with_sr': False,
+                           'version': '3.4.0',
+                           'sasl_mechanism': "PLAIN",
+                           'sasl_users': 'sasl_user=sasl_user',
+                           'debug': True,
                            'cp_version': 'latest',
                            'broker_conf': ['transaction.state.log.replication.factor=1',
                                            'transaction.state.log.min.isr=1']}
@@ -73,9 +87,34 @@ def kafka_cluster_fixture(
         cluster.stop()
 
 
+def sasl_cluster_fixture(
+    trivup_cluster_conf={}
+):
+    """
+    If BROKERS environment variable is set to a CSV list of bootstrap servers
+    an existing cluster is used.
+    Additionally, if SR_URL environment variable is set the Schema-Registry
+    client will use the given URL.
+
+    If BROKERS is not set a TrivUp cluster is created and used.
+    """
+
+    cluster = create_sasl_cluster(trivup_cluster_conf)
+    try:
+        yield cluster
+    finally:
+        cluster.stop()
+
+
 @pytest.fixture(scope="package")
 def kafka_cluster():
     for fixture in kafka_cluster_fixture():
+        yield fixture
+
+
+@pytest.fixture(scope="package")
+def sasl_cluster(request):
+    for fixture in sasl_cluster_fixture(request.param):
         yield fixture
 
 
