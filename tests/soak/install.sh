@@ -34,7 +34,7 @@ else
     NODE_ARCH="arm64"
 fi
 
-COMMAND="helm upgrade --install njc-py-soak-tests njc-py-soak-tests \
+COMMAND="helm upgrade --install njc-py-soak-tests-${TESTID} ./njc-py-soak-tests \
 --set "cluster.bootstrapServers=${CC_BOOSTRAP_SERVERS}" \
 --set "cluster.username=${CC_USERNAME}" \
 --set "cluster.password=${CC_PASSWORD}" \
