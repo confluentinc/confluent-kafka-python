@@ -39,6 +39,8 @@ COMMAND="helm upgrade --install njc-py-soak-tests njc-py-soak-tests \
 --set "cluster.username=${CC_USERNAME}" \
 --set "cluster.password=${CC_PASSWORD}" \
 --set "image.repository=${DOCKER_REPOSITORY_DEFAULT}" \
+--set "testid=${TESTID}" \
+--set "fullnameOverride=njc-py-soak-tests-${TESTID}" \
 --set "image.tag=${TAG}" \
 --set "nodeSelector.kubernetes\\.io/arch=${NODE_ARCH}" \
 --namespace "${NAMESPACE}" --create-namespace"

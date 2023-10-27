@@ -56,6 +56,8 @@ spec:
               value: "http://$(NODEIP):14317"
             - name: OTEL_METRIC_EXPORT_INTERVAL
               value: "10000"
+            - name: TESTID
+              value: "{{ .Values.testid }}"
           volumeMounts:
             - name: "secret"
               mountPath: "/soaktests/confluent-kafka-python/ccloud.config"
