@@ -20,7 +20,7 @@
 # long term validation testing.
 #
 # Usage:
-#  tests/soak/soakclient.py -t <topic> -r <produce-rate> -f <client-conf-file>
+#  tests/soak/soakclient.py -i <testid> -t <topic> -r <produce-rate> -f <client-conf-file>
 #
 # A unique topic should be used for each soakclient instance.
 #
@@ -373,7 +373,7 @@ class SoakClient (object):
             else:
                 raise
 
-    def __init__(self, topic, rate, conf):
+    def __init__(self, testid, topic, rate, conf):
         """ SoakClient constructor. conf is the client configuration """
         self.topic = topic
         self.rate = rate
@@ -402,6 +402,7 @@ class SoakClient (object):
         # multiple instances of the SoakClient can run on the same machine.
         hostname = os.environ["HOSTNAME"]
         self.hostname = "py-{}-{}".format(hostname, self.topic)
+        self.testid = testid
         self.meter = metrics.get_meter("njc.python.soak.tests")
 
         self.logger.info("SoakClient id {}".format(self.hostname))
@@ -470,7 +471,8 @@ class SoakClient (object):
         if not tags:
             tags = {}
         tags.update({
-            "host": self.hostname
+            "host": self.hostname,
+            "testid": self.testid
         })
 
         full_metric_name = self.METRIC_PFX + metric_name
@@ -487,7 +489,8 @@ class SoakClient (object):
         if not tags:
             tags = {}
         tags.update({
-            "host": self.hostname
+            "host": self.hostname,
+            "testid": self.testid
         })
 
         full_metric_name = self.METRIC_PFX + metric_name
@@ -547,6 +550,7 @@ class SoakClient (object):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Kafka client soak test')
+    parser.add_argument('-i', dest='testid', type=str, required=True, help='Test id')
     parser.add_argument('-b', dest='brokers', type=str, default=None, help='Bootstrap servers')
     parser.add_argument('-t', dest='topic', type=str, required=True, help='Topic to use')
     parser.add_argument('-r', dest='rate', type=float, default=10, help='Message produce rate per second')
@@ -582,7 +586,7 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.topic, args.rate, conf)
+    soak = SoakClient(args.testid, args.topic, args.rate, conf)
 
     # Get initial resource usage
     soak.get_rusage()
