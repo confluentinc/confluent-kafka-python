@@ -42,6 +42,7 @@ import resource
 import os
 import psutil
 
+
 class SoakRecord (object):
     """ A private record type, with JSON serializer and deserializer """
 
@@ -91,7 +92,7 @@ class SoakClient (object):
             self.dr_cnt += 1
             self.incr_counter("producer.drok", 1)
             self.set_gauge("producer.latency", msg.latency(),
-                          tags={"partition": "{}".format(msg.partition())})
+                           tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
                 self.logger.debug("producer: delivered message to {} [{}] at offset {} in {}s".format(
                     msg.topic(), msg.partition(), msg.offset(), msg.latency()))
@@ -240,7 +241,7 @@ class SoakClient (object):
             if txtime is not None:
                 latency = time.time() - float(txtime)
                 self.set_gauge("consumer.e2e_latency", latency,
-                              tags={"partition": "{}".format(msg.partition())})
+                               tags={"partition": "{}".format(msg.partition())})
             else:
                 latency = None
 
@@ -329,9 +330,9 @@ class SoakClient (object):
                     "type": "{}".format(d['type'])}
 
             self.set_gauge("broker.rtt.p99",
-                          float(broker['rtt']['p99']) / 1000000.0, tags=tags)
+                           float(broker['rtt']['p99']) / 1000000.0, tags=tags)
             self.set_gauge("broker.rtt.avg",
-                          float(broker['rtt']['avg']) / 1000000.0, tags=tags)
+                           float(broker['rtt']['avg']) / 1000000.0, tags=tags)
 
     def stats_cb(self, json_str):
         """ Common statistics callback. """
@@ -412,7 +413,7 @@ class SoakClient (object):
             conf['group.id'] = 'soakclient-{}-{}-{}'.format(
                 self.hostname, version()[0], sys.version.split(' ')[0])
 
-        conf = {k: v for k, v in conf.items() }
+        conf = {k: v for k, v in conf.items()}
 
         def filter_config(conf, filter_out, strip_prefix):
             len_sp = len(strip_prefix)
@@ -466,7 +467,7 @@ class SoakClient (object):
         # Final resource usage
         soak.get_rusage()
 
-    def incr_counter(self, metric_name, incrval, tags = None):
+    def incr_counter(self, metric_name, incrval, tags=None):
         """ Increment metric counter by incrval """
         if not tags:
             tags = {}
@@ -494,7 +495,7 @@ class SoakClient (object):
         })
 
         full_metric_name = self.METRIC_PFX + metric_name
-        if not full_metric_name in self.gauge_values:
+        if full_metric_name not in self.gauge_values:
             self.gauge_values[full_metric_name] = []
 
         self.gauge_values[full_metric_name].append([val, tags])
