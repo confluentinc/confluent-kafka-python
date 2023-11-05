@@ -222,7 +222,7 @@ def _register_avro_unions_and_build_award_or_user_schema(kafka_cluster, topic):
         "award", Schema(Award.schema_str, "AVRO", [award_properties_schema_ref])
     )
 
-    references = [user_schema_ref, award_schema_ref, award_properties_schema_ref]
+    references = [user_schema_ref, award_schema_ref]
     schema = Schema(union_schema_str, "AVRO", references)
 
     sr.register_schema(subject_name=f"{topic}-value", schema=schema)
