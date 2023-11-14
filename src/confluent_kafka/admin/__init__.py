@@ -109,7 +109,7 @@ class AdminClient (_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf, **kwargs):
         """
         Create a new AdminClient using the provided configuration dictionary.
 
@@ -119,7 +119,7 @@ class AdminClient (_AdminClientImpl):
 
         At least 'bootstrap.servers' should be configured.
         """
-        super(AdminClient, self).__init__(conf)
+        super(AdminClient, self).__init__(conf, **kwargs)
 
     @staticmethod
     def _make_topics_result(f, futmap):
