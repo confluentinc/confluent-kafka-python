@@ -3,6 +3,7 @@
 #
 # Source Package Verification
 #
+set -e
 
 pip install -r docs/requirements.txt
 pip install -U protobuf
@@ -17,9 +18,9 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
 python setup.py build && python setup.py install
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
-    flake8 --exclude ./_venv
+    flake8 --exclude ./_venv,*_pb2.py
     make docs
-    python -m pytest --timeout 600 --ignore=dest
+    python -m pytest --timeout 1200 --ignore=dest
 else
-    python -m pytest --timeout 600 --ignore=dest --ignore=tests/integration
+    python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration
 fi

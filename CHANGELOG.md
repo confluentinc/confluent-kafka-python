@@ -1,9 +1,44 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.3.0
+
+v2.3.0 is a feature release with the following features, fixes and enhancements:
+
+ - Add Python 3.12 wheels
+ - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations): Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
+ - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses. (@jainruchir, #1635)
+ - [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers): Partial support of topic identifiers. Topic identifiers in metadata response are available through the new describe_topics function (#1645).
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with the addition of `list_offsets` (#1576).
+ - Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#1635, @jainruchir).
+ - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
+   issue(https://github.com/confluentinc/confluent-kafka-python/issues/1616) for more details (#1630).
+
+confluent-kafka-python is based on librdkafka v2.3.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.2.0
+
+v2.2.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-339](https://cwiki.apache.org/confluence/display/KAFKA/KIP-339%3A+Create+a+new+IncrementalAlterConfigs+API)
+   IncrementalAlterConfigs API (#1517).
+ - [KIP-554](https://cwiki.apache.org/confluence/display/KAFKA/KIP-554%3A+Add+Broker-side+SCRAM+Config+API):
+   User SASL/SCRAM credentials alteration and description (#1575).
+ - Added documentation with an example of FIPS compliant communication with Kafka cluster.
+ - Fixed wrong error code parameter name in KafkaError.
+
+confluent-kafka-python is based on librdkafka v2.2.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.2.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.1.1
 
 v2.1.1 is a maintenance release with the following fixes and enhancements:
-
 
 ### Fixes
 

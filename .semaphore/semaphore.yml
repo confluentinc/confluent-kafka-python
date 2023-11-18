@@ -3,10 +3,12 @@ name: Test on PR or create and upload wheels on tag.
 agent:
   machine:
     type: s1-prod-ubuntu20-04-amd64-1
+execution_time_limit:
+  hours: 3
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.1.1
+      value: v2.3.0
   prologue:
     commands:
       - checkout
@@ -105,12 +107,9 @@ blocks:
           value: x64
       prologue:
         commands:
-          - cache restore msys2-x64
           - ".\\tools\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
-          - cache delete msys2-x64
-          - cache store msys2-x64 c:/msys64
       jobs:
         - name: Build
           env_vars:
@@ -135,6 +134,9 @@ blocks:
           value: linux
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY
       jobs:
         - name: Build
           commands:

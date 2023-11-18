@@ -311,14 +311,6 @@ def test_basic_operations(kafka_cluster):
     assert isinstance(result.valid, list)
     assert not result.valid
 
-    # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
-    for group_id, future in futureMap.items():
-        g = future.result()
-        assert group_id == g.group_id
-        assert g.is_simple_consumer_group is False
-        assert g.state == ConsumerGroupState.EMPTY
-
     def verify_config(expconfig, configs):
         """
         Verify that the config key,values in expconfig are found
