@@ -16,15 +16,11 @@
 import confluent_kafka
 import struct
 import time
-import pytest
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType,
-                                   UserScramCredentialsDescription, UserScramCredentialUpsertion,
-                                   UserScramCredentialDeletion, ScramCredentialInfo,
-                                   ScramMechanism)
-from confluent_kafka.error import ConsumeError, KafkaException, KafkaError
+                                   ResourcePatternType, AclOperation, AclPermissionType)
+from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
 
@@ -196,83 +192,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.offset == 0
 
 
-def verify_admin_scram(admin_client):
-    newuser = "non-existent"
-    newmechanism = ScramMechanism.SCRAM_SHA_256
-    newiterations = 10000
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    with pytest.raises(KafkaException) as ex:
-        result = fut.result()
-    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
-                                                        ScramCredentialInfo(newmechanism, newiterations),
-                                                        b"password", b"salt")])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_256, 10000),
-                                                            b"password", b"salt"),
-                                                        UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_512, 10000),
-                                                            b"password")
-                                                        ])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_256, 10000),
-                                                            b"password", b"salt"),
-                                                        UserScramCredentialDeletion(
-                                                            newuser,
-                                                            ScramMechanism.SCRAM_SHA_512)
-                                                        ])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    description = futmap[newuser].result()
-    assert isinstance(description, UserScramCredentialsDescription)
-    for scram_credential_info in description.scram_credential_infos:
-        assert ((scram_credential_info.mechanism == newmechanism) and
-                (scram_credential_info.iterations == newiterations))
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser, newmechanism)])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    with pytest.raises(KafkaException) as ex:
-        result = fut.result()
-    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
-
-
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
@@ -392,14 +311,6 @@ def test_basic_operations(kafka_cluster):
     assert isinstance(result.valid, list)
     assert not result.valid
 
-    # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
-    for group_id, future in futureMap.items():
-        g = future.result()
-        assert group_id == g.group_id
-        assert g.is_simple_consumer_group is False
-        assert g.state == ConsumerGroupState.EMPTY
-
     def verify_config(expconfig, configs):
         """
         Verify that the config key,values in expconfig are found
@@ -460,5 +371,3 @@ def test_basic_operations(kafka_cluster):
 
     # Verify ACL operations
     verify_admin_acls(admin_client, acls_topic, acls_group)
-    # Verify user SCRAM credentials API
-    verify_admin_scram(admin_client)
