@@ -18,16 +18,15 @@
 import io
 import sys
 import base64
-import struct
 import warnings
 from collections import deque
 
 from google.protobuf.message import DecodeError
 from google.protobuf.message_factory import MessageFactory
 
-from . import (_MAGIC_BYTE,
-               reference_subject_name_strategy,
-               topic_subject_name_strategy,)
+from . import (reference_subject_name_strategy,
+               topic_subject_name_strategy,
+               confluent_payload_framing)
 from .schema_registry_client import (Schema,
                                      SchemaReference)
 from confluent_kafka.serialization import SerializationError
@@ -130,8 +129,7 @@ def _schema_to_str(file_descriptor):
 
 class ProtobufSerializer(object):
     """
-    Serializer for Protobuf Message derived classes. Serialization format is Protobuf,
-    with Confluent Schema Registry framing.
+    Serializer for Protobuf Message derived classes. Serialization format is Protobuf.
 
     Configuration properties:
 
@@ -195,6 +193,17 @@ class ProtobufSerializer(object):
     |                                     |          | Warning: This configuration property will be removed |
     |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(SerializationContext) -> Tuple(             |
+    |                                     |          |        Callable(bytes) -> int               # Reader |
+    |                                     |          |        Callable(BytesIO, int) -> None       # Writer |
+    |                                     |          |        )                                             |
+    |                                     |          |                                                      |
+    | ``schemaid.location``               | callable | Define how the schemaid is embedded in the kafka     |
+    |                                     |          | Message. Standard locations are defined in the       |
+    |                                     |          | confluent_kafka.schema_registry namespace.           |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to confluent_payload_framing.               |
+    +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -220,6 +229,16 @@ class ProtobufSerializer(object):
 
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
 
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
+
     Args:
         msg_type (GeneratedProtocolMessageType): Protobuf Message type.
 
@@ -233,7 +252,8 @@ class ProtobufSerializer(object):
     """  # noqa: E501
     __slots__ = ['_auto_register', '_normalize_schemas', '_use_latest_version', '_skip_known_types',
                  '_registry', '_known_subjects', '_msg_class', '_index_array', '_schema', '_schema_id',
-                 '_ref_reference_subject_func', '_subject_name_func', '_use_deprecated_format']
+                 '_ref_reference_subject_func', '_subject_name_func', '_use_deprecated_format',
+                 '_schemaid_location_func']
 
     _default_conf = {
         'auto.register.schemas': True,
@@ -243,6 +263,7 @@ class ProtobufSerializer(object):
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy,
         'use.deprecated.format': False,
+        'schemaid.location': confluent_payload_framing,
     }
 
     def __init__(self, msg_type, schema_registry_client, conf=None):
@@ -410,6 +431,7 @@ class ProtobufSerializer(object):
 
         subject = self._subject_name_func(ctx,
                                           message.DESCRIPTOR.full_name)
+        _, schemaid_writer = self._schemaid_location_func(ctx)
 
         if subject not in self._known_subjects:
             if self._use_latest_version:
@@ -431,9 +453,7 @@ class ProtobufSerializer(object):
             self._known_subjects.add(subject)
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order
-            # (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
+            schemaid_writer(fo, self._schema_id)
             # write the index array that specifies the message descriptor
             # of the serialized data.
             self._encode_varints(fo, self._index_array,
@@ -445,7 +465,7 @@ class ProtobufSerializer(object):
 
 class ProtobufDeserializer(object):
     """
-    Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
+    Deserializer for Protobuf serialized data.
 
     Args:
         message_type (Message derived type): Protobuf Message type.
@@ -467,16 +487,37 @@ class ProtobufDeserializer(object):
     |                                     |          | Warning: This configuration property will be removed |
     |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(SerializationContext) -> Tuple(             |
+    |                                     |          |        Callable(bytes) -> int               # Reader |
+    |                                     |          |        Callable(BytesIO, int) -> None       # Writer |
+    |                                     |          |        )                                             |
+    |                                     |          |                                                      |
+    | ``schemaid.location``               | callable | Define how the schemaid is embedded in the kafka     |
+    |                                     |          | Message. Standard locations are defined in the       |
+    |                                     |          | confluent_kafka.schema_registry namespace.           |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to confluent_payload_framing.               |
+    +-------------------------------------+----------+------------------------------------------------------+
 
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
 
     See Also:
     `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
     """
 
-    __slots__ = ['_msg_class', '_index_array', '_use_deprecated_format']
+    __slots__ = ['_msg_class', '_index_array', '_use_deprecated_format', '_schemaid_location_func']
 
     _default_conf = {
         'use.deprecated.format': False,
+        'schemaid.location': confluent_payload_framing,
     }
 
     def __init__(self, message_type, conf=None):
@@ -507,6 +548,8 @@ class ProtobufDeserializer(object):
                           "Please migrate your Python Protobuf producers and "
                           "consumers to 'use.deprecated.format':False as "
                           "soon as possible")
+
+        self._schemaid_location_func = conf_copy.pop('schemaid.location')
 
         descriptor = message_type.DESCRIPTOR
         self._index_array = _create_index_array(descriptor)
@@ -614,19 +657,11 @@ class ProtobufDeserializer(object):
         if data is None:
             return None
 
-        # SR wire protocol + msg_index length
-        if len(data) < 6:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
+        schemaid_reader, _  = self._schemaid_location_func(ctx)
 
+        # SR wire protocol + msg_index length
         with _ContextStringIO(data) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was "
-                                         "not produced with a Confluent "
-                                         "Schema Registry serializer")
+            schema_id = schemaid_reader(payload)
 
             # Protobuf Messages are self-describing; no need to query schema
             _ = self._read_index_array(payload, zigzag=not self._use_deprecated_format)
