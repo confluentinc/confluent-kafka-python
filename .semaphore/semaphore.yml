@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.2.0
+      value: v2.3.0
   prologue:
     commands:
       - checkout
@@ -21,7 +21,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos
+          type: s1-prod-macos-13-5-amd64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -40,7 +40,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-arm64
+          type: s1-prod-macos-13-5-arm64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -134,6 +134,9 @@ blocks:
           value: linux
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY
       jobs:
         - name: Build
           commands:
@@ -166,7 +169,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos
+          type: s1-prod-macos-13-5-amd64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -185,7 +188,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-arm64
+          type: s1-prod-macos-13-5-arm64
       env_vars:
         - name: OS_NAME
           value: osx

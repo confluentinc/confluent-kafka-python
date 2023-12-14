@@ -18,13 +18,15 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState, TopicCollection,
+                             IsolationLevel)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion,
+                                   OffsetSpec)
 import sys
 import threading
 import logging
@@ -503,7 +505,8 @@ def example_describe_consumer_groups(a, args):
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
             print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print(
+                f"  Coordinator        : {g.coordinator}")
             print("  Members: ")
             for member in g.members:
                 print("    Id                : {}".format(member.member_id))
@@ -514,7 +517,7 @@ def example_describe_consumer_groups(a, args):
                     print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
                         print("      {} [{}]".format(toppar.topic, toppar.partition))
-            if(include_auth_ops):
+            if (include_auth_ops):
                 print("  Authorized operations: ")
                 op_string = ""
                 for acl_op in g.authorized_operations:
@@ -532,16 +535,18 @@ def example_describe_topics(a, args):
     """
     include_auth_ops = bool(int(args[0]))
     args = args[1:]
-    futureMap = a.describe_topics(args, request_timeout=10, include_authorized_operations=include_auth_ops)
+    topics = TopicCollection(topic_names=args)
+    futureMap = a.describe_topics(topics, request_timeout=10, include_authorized_operations=include_auth_ops)
 
-    for topic, future in futureMap.items():
+    for topic_name, future in futureMap.items():
         try:
             t = future.result()
-            print("Topic name             : {}".format(topic))
-            if(t.is_internal):
+            print("Topic name             : {}".format(t.name))
+            print("Topic id               : {}".format(t.topic_id))
+            if (t.is_internal):
                 print("Topic is Internal")
 
-            if(include_auth_ops):
+            if (include_auth_ops):
                 print("Authorized operations  : ")
                 op_string = ""
                 for acl_op in t.authorized_operations:
@@ -551,18 +556,19 @@ def example_describe_topics(a, args):
             print("Partition Information")
             for partition in t.partitions:
                 print("    Id                : {}".format(partition.id))
-                print("    Leader            : ({}) {}:{}".format(partition.leader.id, partition.leader.host, partition.leader.port))
+                leader = partition.leader
+                print(f"    Leader            : {leader}")
                 print("    Replicas          : {}".format(len(partition.replicas)))
                 for replica in partition.replicas:
-                    print("         Replica            : ({}) {}:{}".format(replica.id, replica.host, replica.port))
-                print("    In-Sync Replicas  : {}".format(len(partition.isrs)))
-                for isr in partition.isrs:
-                    print("         In-Sync Replica    : ({}) {}:{}".format(isr.id, isr.host, isr.port))
+                    print(f"         Replica            : {replica}")
+                print("    In-Sync Replicas  : {}".format(len(partition.isr)))
+                for isr in partition.isr:
+                    print(f"         In-Sync Replica    : {isr}")
                 print("")
             print("")
 
         except KafkaException as e:
-            print("Error while describing topic '{}': {}".format(topic, e))
+            print("Error while describing topic '{}': {}".format(topic_name, e))
         except Exception:
             raise
 
@@ -578,16 +584,16 @@ def example_describe_cluster(a, args):
         c = future.result()
         print("Cluster_id           : {}".format(c.cluster_id))
 
-        if(c.controller):
-            print("Node: ({}) {}:{}".format(c.controller.id, c.controller.host, c.controller.port))
+        if (c.controller):
+            print(f"Controller: {c.controller}")
         else:
             print("No Controller Information Available")
 
         print("Nodes                :")
         for node in c.nodes:
-            print("  Node: ({}) {}:{}".format(node.id, node.host, node.port))
+            print(f"  Node: {node}")
 
-        if(include_auth_ops):
+        if (include_auth_ops):
             print("Authorized operations: ")
             op_string = ""
             for acl_op in c.authorized_operations:
@@ -682,19 +688,46 @@ def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
-    futmap = a.describe_user_scram_credentials(args)
-
-    for username, fut in futmap.items():
-        print("Username: {}".format(username))
+    if len(args) == 0:
+        """
+        Case: Describes all user scram credentials
+        Input: no argument passed or None
+        Gets a future which result will give a
+        dict[str, UserScramCredentialsDescription]
+        or will throw a KafkaException
+        """
+        f = a.describe_user_scram_credentials()
         try:
-            response = fut.result()
-            for scram_credential_info in response.scram_credential_infos:
-                print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                      f"Iterations: {scram_credential_info.iterations}")
+            results = f.result()
+            for username, response in results.items():
+                print("Username : {}".format(username))
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
         except KafkaException as e:
-            print("    Error: {}".format(e))
-        except Exception as e:
-            print(f"    Unexpected exception: {e}")
+            print("Failed to describe all user scram credentials : {}".format(e))
+        except Exception:
+            raise
+    else:
+        """
+        Case: Describe specified user scram credentials
+        Input: users is a list
+        Gets a dict[str, future] where the result() of
+        each future will give a UserScramCredentialsDescription
+        or a KafkaException
+        """
+        futmap = a.describe_user_scram_credentials(args)
+        for username, fut in futmap.items():
+            print("Username: {}".format(username))
+            try:
+                response = fut.result()
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
+            except KafkaException as e:
+                print("    Error: {}".format(e))
+            except Exception:
+                raise
 
 
 def example_alter_user_scram_credentials(a, args):
@@ -761,6 +794,57 @@ def example_alter_user_scram_credentials(a, args):
             print("{}: Error: {}".format(username, e))
 
 
+def example_list_offsets(a, args):
+    topic_partition_offsets = {}
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for list offsets, expected at least 1, got 0")
+    i = 1
+    partition_i = 1
+    isolation_level = IsolationLevel[args[0]]
+    while i < len(args):
+        if i + 3 > len(args):
+            raise ValueError(
+                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
+                f" got {len(args) - i}")
+        topic = args[i]
+        partition = int(args[i+1])
+        topic_partition = TopicPartition(topic, partition)
+
+        if "EARLIEST" == args[i+2]:
+            offset_spec = OffsetSpec.earliest()
+
+        elif "LATEST" == args[i+2]:
+            offset_spec = OffsetSpec.latest()
+
+        elif "MAX_TIMESTAMP" == args[i+2]:
+            offset_spec = OffsetSpec.max_timestamp()
+
+        elif "TIMESTAMP" == args[i+2]:
+            if i + 4 > len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
+                    f", got {len(args) - i}")
+            offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
+            i += 1
+        else:
+            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
+        topic_partition_offsets[topic_partition] = offset_spec
+        i = i + 3
+        partition_i += 1
+
+    futmap = a.list_offsets(topic_partition_offsets, isolation_level=isolation_level, request_timeout=30)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}"
+                  .format(partition.topic, partition.partition, result.offset,
+                          result.timestamp))
+        except KafkaException as e:
+            print("Topicname : {} Partition_Index : {} Error : {}"
+                  .format(partition.topic, partition.partition, e))
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -797,15 +881,17 @@ if __name__ == '__main__':
                          '<iterations1> <password1> <salt1> ' +
                          '[UPSERT <user2> <mechanism2> <iterations2> ' +
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
+        sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
+                         '[<topic2> <partition2> <offset_spec2> ..]\n')
+
         sys.exit(1)
 
     broker = sys.argv[1]
     operation = sys.argv[2]
     args = sys.argv[3:]
 
-    conf = {'bootstrap.servers': broker}
     # Create Admin client
-    a = AdminClient(conf)
+    a = AdminClient({'bootstrap.servers': broker})
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,
@@ -827,7 +913,7 @@ if __name__ == '__main__':
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
               'alter_user_scram_credentials': example_alter_user_scram_credentials,
-              'describe_topics': example_describe_topics}
+              'list_offsets': example_list_offsets}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)

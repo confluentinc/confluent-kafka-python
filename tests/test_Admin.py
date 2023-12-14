@@ -6,9 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion
+    UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
-    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
+    IsolationLevel, TopicCollection
 import concurrent.futures
 
 
@@ -636,15 +637,55 @@ def test_describe_consumer_groups_api():
 def test_describe_topics_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
-    topics = ["test-topic-1", "test-topic-2"]
+    # Wrong option types
+    for kwargs in [{"include_authorized_operations": "wrong_type"},
+                   {"request_timeout": "wrong_type"}]:
+        with pytest.raises(TypeError):
+            a.describe_topics(TopicCollection([]), **kwargs)
 
-    a.describe_topics(topics)
+    # Wrong option values
+    for kwargs in [{"request_timeout": -1}]:
+        with pytest.raises(ValueError):
+            a.describe_topics(TopicCollection([]), **kwargs)
 
-    with pytest.raises(TypeError):
-        a.describe_topics("test-topic-1")
+    # Test with different options
+    for kwargs in [{},
+                   {"include_authorized_operations": True},
+                   {"request_timeout": 0.01},
+                   {"include_authorized_operations": False,
+                    "request_timeout": 0.01}]:
 
-    with pytest.raises(ValueError):
-        a.describe_topics([])
+        topic_names = ["test-topic-1", "test-topic-2"]
+
+        # Empty TopicCollection returns empty futures
+        fs = a.describe_topics(TopicCollection([]), **kwargs)
+        assert len(fs) == 0
+
+        # Normal call
+        fs = a.describe_topics(TopicCollection(topic_names), **kwargs)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Wrong argument type
+        for args in [
+                        [topic_names],
+                        ["test-topic-1"],
+                        [TopicCollection([3])],
+                        [TopicCollection(["correct", 3])],
+                        [TopicCollection([None])]
+                    ]:
+            with pytest.raises(TypeError):
+                a.describe_topics(*args, **kwargs)
+
+        # Wrong argument value
+        for args in [
+                        [TopicCollection([""])],
+                        [TopicCollection(["correct", ""])]
+                    ]:
+            with pytest.raises(ValueError):
+                a.describe_topics(*args, **kwargs)
 
 
 def test_describe_cluster():
@@ -865,10 +906,14 @@ def test_describe_user_scram_credentials_api():
     # Describe User Scram API
     a = AdminClient({"socket.timeout.ms": 10})
 
+    f = a.describe_user_scram_credentials()
+    assert isinstance(f, concurrent.futures.Future)
+
+    futmap = a.describe_user_scram_credentials(["user"])
+    assert isinstance(futmap, dict)
+
     with pytest.raises(TypeError):
         a.describe_user_scram_credentials(10)
-    with pytest.raises(TypeError):
-        a.describe_user_scram_credentials(None)
     with pytest.raises(TypeError):
         a.describe_user_scram_credentials([None])
     with pytest.raises(ValueError):
@@ -1010,3 +1055,117 @@ def test_alter_user_scram_credentials_api():
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
     with pytest.raises(TypeError):
         a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+
+
+def test_list_offsets_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Wrong option types
+    for kwargs in [
+                        {
+                            "isolation_level": 10
+                        },
+                        {
+                            "request_timeout": "test"
+                        }
+                    ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(TypeError):
+            a.list_offsets(requests, **kwargs)
+
+    # Wrong option values
+    for kwargs in [
+                    {
+                        "request_timeout": -1
+                    }
+                  ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(ValueError):
+            a.list_offsets(requests, **kwargs)
+
+    for kwargs in [{},
+                   {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
+                   {"request_timeout": 0.01},
+                   {"isolation_level": IsolationLevel.READ_COMMITTED,
+                    "request_timeout": 0.01}]:
+
+        # Not a dictionary
+        with pytest.raises(TypeError):
+            a.list_offsets(None, **kwargs)
+
+        # Empty partitions
+        requests = {}
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 0
+
+        # Invalid TopicPartition
+        for requests in [
+                            {
+                                TopicPartition("", 0, 10): OffsetSpec.earliest()
+                            },
+                            {
+                                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
+                            }
+                        ]:
+            with pytest.raises(ValueError):
+                a.list_offsets(requests, **kwargs)
+
+        # Same partition with different offsets
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 0, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 1
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Two different partitions
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 1, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 2
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Key isn't a TopicPartition
+        for requests in [
+                            {
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                None: OffsetSpec.latest()
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
+
+        # Value isn't a OffsetSpec
+        for requests in [
+                            {
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): None
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
