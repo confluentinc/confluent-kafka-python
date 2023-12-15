@@ -2631,9 +2631,14 @@ PyObject *cfl_PyObject_lookup (const char *modulename, const char *typename) {
 
 
 void cfl_PyDict_SetString (PyObject *dict, const char *name, const char *val) {
-        PyObject *vo = cfl_PyUnistr(_FromString(val));
-        PyDict_SetItemString(dict, name, vo);
-        Py_DECREF(vo);
+        if (val) {
+                PyObject *vo = cfl_PyUnistr(_FromString(val));
+                PyDict_SetItemString(dict, name, vo);
+                Py_DECREF(vo);
+        } else {
+                Py_INCREF(Py_None);
+                PyDict_SetItemString(dict, name, Py_None);
+        }
 }
 
 void cfl_PyDict_SetInt (PyObject *dict, const char *name, int val) {
