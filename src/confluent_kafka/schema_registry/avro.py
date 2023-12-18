@@ -425,7 +425,7 @@ class AvroDeserializer(Deserializer):
             obj_dict = schemaless_reader(payload,
                                          writer_schema,
                                          self._reader_schema,
-                                         self._return_record_name)
+                                         self._return_record_name, return_record_name_override=True)
 
             if self._from_dict is not None:
                 return self._from_dict(obj_dict, ctx)
