@@ -407,8 +407,10 @@ static PyObject *Producer_topic_new (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", kws, &topic, &conf))
             return NULL;
 
-	    if (!PyDict_Check(conf))
+        if (!PyDict_Check(conf)) {
+            PyErr_SetString(PyExc_TypeError, "conf must be a dictionary or options");
             return NULL;
+        }
 
         topic_conf = rd_kafka_topic_conf_new();
         while (PyDict_Next(conf, &pos, &ko, &vo)) {
@@ -448,7 +450,7 @@ static PyObject *Producer_topic_new (Handle *self, PyObject *args,
             Py_XDECREF(vs8);
             Py_XDECREF(vs);
             Py_XDECREF(ks8);
-		    Py_DECREF(ks);
+            Py_DECREF(ks);
             continue;
 
 inner_err:
