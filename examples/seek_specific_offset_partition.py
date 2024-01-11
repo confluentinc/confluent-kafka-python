@@ -17,8 +17,7 @@
 # A simple example demonstrating use of JSONDeserializer.
 #
 
-import sys
-import numpy as np
+
 import logging
 import argparse
 from confluent_kafka import Consumer,TopicPartition
@@ -28,7 +27,7 @@ from confluent_kafka.error import KafkaException
 # TODO: MAX OFFSET TO EXTRACT AT A TIME
 
  
-def partition_list(kafka_consumer:Consumer, topic:str):
+def fetch_partition_list(kafka_consumer:Consumer, topic:str):
     """
     Parameters
     ----------
@@ -157,18 +156,26 @@ def main(args):
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'group.id': args.group,
                      'auto.offset.reset': "earliest"}
+    partition=args.partition
+    start_offset=args.start_offset
+    end_offset=args.end_offset
     
-    
-
     try:
         consumer = Consumer(consumer_conf)
     except KafkaException as exc:
         logging.error("Unable to connect to Kafka Server.\n Exception:{} "+str(exc))
     
     
-    partition_list,topic_partition,partition_offset= partition_list(consumer, topic)
+    partition_list,topic_partition,partition_offset= fetch_partition_list(consumer, topic)
 
-    total_messages,total_partition_offest=fetch_message_partition(partition,min_offset,max_offset,topic="my")
+    if partition in partition_list:
+        total_messages,total_partition_offest=fetch_message_partition(partition,start_offset,end_offset,topic="my")
+        if len(total_messages)>0:
+            total_messages_output=[[ele1,ele2[0],ele2[1]] for ele1,ele2 in zip(total_messages,total_partition_offest)]
+            with open("file.txt", "w") as output:
+                output.write(str(total_messages_output))
+    else:
+        logging.error("Partition {} not in consumer."+str(partition))
 
     consumer.close()
 
@@ -176,12 +183,21 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="JSONDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", required=True,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_json",
-                        help="Topic name")
     parser.add_argument('-g', dest="group", default="example_serde_json",
                         help="Consumer group")
+    parser.add_argument('-t', dest="topic", default="topic_z",
+                        help="Topic name")
+    parser.add_argument('-p', dest="partition", default="partition",
+                        help="Partition of topic to fetch data from")
+    parser.add_argument('-sof', dest="start_offset", required=True,
+                        help="Start Offset for Partition p")
+    parser.add_argument('-eof', dest="end_offset", required=True,
+                        help="End Offset for Partition p")
+    
+    
+    
+
+
 
     main(parser.parse_args())
 
