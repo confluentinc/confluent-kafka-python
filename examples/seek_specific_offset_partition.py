@@ -75,21 +75,25 @@ def fetch_partition_list(kafka_consumer:Consumer, topic:str):
 
 
 
-def fetch_message_partition(consumer_conf,partition,min_offset,max_offset,topic="my"):
+def fetch_message_partition(consumer_conf,topic,partition,min_offset,max_offset):
     """
     Returns list of messages and [offset,partition] for min,max offsets for a given partition and topic. 
 
     Parameters
     ----------
-    consumer_conf 
-    partition : TYPE
-        DESCRIPTION.
-    min_offset : TYPE
-        DESCRIPTION.
-    max_offset : TYPE
-        DESCRIPTION.
-    topic : TYPE, optional
-        DESCRIPTION. The default is "my".
+    consumer_conf: json
+        Kafka server Configurations to be used for creating consumer/producer object.
+    topic : str,
+        topic of Kafka server from which messages to be consumed via consumer.
+    partition : int
+        Partition of topic for which data is to be fetched.
+    min_offset : int
+        Start offset from which data is to be fetched from Partition (if available). 
+        Else from lowest available offset of the partition.
+    max_offset : int
+        End offset till which data is to be fetched from Partition (if available). 
+        Else till highest available offset of the partition.
+    
 
     Returns
     -------
@@ -106,6 +110,7 @@ def fetch_message_partition(consumer_conf,partition,min_offset,max_offset,topic=
     consumer = Consumer(consumer_conf)
     available_min_offset,available_max_offset=consumer.get_watermark_offsets(TopicPartition(topic,partition))
     
+    #Check availabel min and max offset for the partition of the topic
     if min_offset>max_offset:
         logging.info("Provided minimum offset: {} greater than Provided max offset:{} in partition:{} Topic:{}".format(str(min_offset),
                       str(max_offset),str(partition),str(topic)))
@@ -119,6 +124,7 @@ def fetch_message_partition(consumer_conf,partition,min_offset,max_offset,topic=
                       str(available_max_offset),str(partition),str(topic)))
         max_offset=available_max_offset
     
+    #Seeking the pointer to set to read message from the min offset
     try:
         partition1=TopicPartition(topic,partition,min_offset)
         consumer.assign([partition1])
@@ -127,7 +133,8 @@ def fetch_message_partition(consumer_conf,partition,min_offset,max_offset,topic=
     except Exception as exc:
         logging.error("Unable to seek consumer to Topic:{} Partition:{} and Offset:{}.\nException:{}".format(
             str(topic),str(partition),str(min_offset),str(exc)))
-        
+    
+    # Reading only the 1st message along with offset
     try:
         message=None
         while message==None:
@@ -136,7 +143,7 @@ def fetch_message_partition(consumer_conf,partition,min_offset,max_offset,topic=
             break
         total_messages.append(str(message.value()))
         total_partition_offest.append([message.offset(),message.partition()])
-
+    # Reading the messages after the 1st message
         while start_offset<max_offset:
             message = consumer.poll()
             if message !=None:
@@ -167,11 +174,14 @@ def main(args):
     
     
     partition_list,topic_partition,partition_offset= fetch_partition_list(consumer, topic)
-
+    
+    #Fetching Data From Specific Partition.
+    # Data across all partitions for a given topic can similarly be fetched via for loop or multithreading across partitions.
     if partition in partition_list:
         total_messages,total_partition_offest=fetch_message_partition(partition,start_offset,end_offset,topic="my")
         if len(total_messages)>0:
             total_messages_output=[[ele1,ele2[0],ele2[1]] for ele1,ele2 in zip(total_messages,total_partition_offest)]
+            # Saving the message along with offset and partition as txt file
             with open("file.txt", "w") as output:
                 output.write(str(total_messages_output))
     else:
@@ -180,6 +190,7 @@ def main(args):
     consumer.close()
 
 if __name__ == '__main__':
+
     parser = argparse.ArgumentParser(description="JSONDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
