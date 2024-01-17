@@ -185,11 +185,7 @@ class AvroSerializer(Serializer):
                      'subject.name.strategy': topic_subject_name_strategy}
 
     def __init__(self, schema_registry_client, schema_str, to_dict=None, conf=None):
-        if isinstance(schema_str, str):
-            schema = _schema_loads(schema_str)
-        elif isinstance(schema_str, Schema):
-            schema = schema_str
-        else:
+        if not isinstance(schema_str, (str, Schema)):
             raise TypeError('You must pass either schema string or schema object')
 
         self._registry = schema_registry_client
@@ -228,9 +224,32 @@ class AvroSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
+        (
+            self._schema,
+            self._named_schemas,
+            self._schema_name,
+            self._parsed_schema
+        ) = self._set_instance_variables(schema_str)
+
+    def _set_instance_variables(self, schema_str):
+        """
+        Function to be called upon __init__ and when serializing a message (__call__)
+        if use.latest.version is set True
+
+        Args:
+            schema_str (str, Schema):
+
+        Returns:
+            tuple: schema (Schema), named_schemas (dict), schema_name (str), parsed_schema (dict)
+        """
+        if isinstance(schema_str, str):
+            schema = _schema_loads(schema_str)
+        else:  # Type Schema (asserted on __init__)
+            schema = schema_str
+
         schema_dict = loads(schema.schema_str)
-        self._named_schemas = _resolve_named_schema(schema, schema_registry_client)
-        parsed_schema = parse_schema(schema_dict, named_schemas=self._named_schemas)
+        named_schemas = _resolve_named_schema(schema, self._registry)
+        parsed_schema = parse_schema(schema_dict, named_schemas=named_schemas)
 
         if isinstance(parsed_schema, list):
             # if parsed_schema is a list, we have an Avro union and there
@@ -246,9 +265,12 @@ class AvroSerializer(Serializer):
             # https://github.com/fastavro/fastavro/issues/415
             schema_name = parsed_schema.get("name", schema_dict["type"])
 
-        self._schema = schema
-        self._schema_name = schema_name
-        self._parsed_schema = parsed_schema
+        return (
+            schema,
+            named_schemas,
+            schema_name,
+            parsed_schema
+        )
 
     def __call__(self, obj, ctx):
         """
@@ -279,6 +301,12 @@ class AvroSerializer(Serializer):
             if self._use_latest_version:
                 latest_schema = self._registry.get_latest_version(subject)
                 self._schema_id = latest_schema.schema_id
+                (
+                    self._schema,
+                    self._named_schemas,
+                    self._schema_name,
+                    self._parsed_schema
+                ) = self._set_instance_variables(latest_schema.schema)
 
             else:
                 # Check to ensure this schema has been registered under subject_name.
