@@ -23,7 +23,7 @@ import warnings
 from collections import deque
 
 from google.protobuf.message import DecodeError
-from google.protobuf.message_factory import MessageFactory
+from google.protobuf.message_factory import GetMessageClass
 
 from . import (_MAGIC_BYTE,
                reference_subject_name_strategy,
@@ -510,7 +510,7 @@ class ProtobufDeserializer(object):
 
         descriptor = message_type.DESCRIPTOR
         self._index_array = _create_index_array(descriptor)
-        self._msg_class = MessageFactory().GetPrototype(descriptor)
+        self._msg_class = GetMessageClass(descriptor)
 
     @staticmethod
     def _decode_varint(buf, zigzag=True):
