@@ -12,3 +12,4 @@ fastavro
 avro>=1.11.1,<2
 jsonschema
 protobuf
+build

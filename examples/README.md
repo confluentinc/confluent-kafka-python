@@ -42,7 +42,9 @@ need to have a C compiler and librdkafka installed
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ python setup.py develop
+$ rm -rf dist
+$ python -m build
+$ pip install -e dist/confluent_kafka*whl
 $ cd examples
 $ pip install -r requirements.txt
 ```

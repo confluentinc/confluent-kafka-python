@@ -6,6 +6,7 @@ all:
 
 clean:
 	python setup.py clean
+	rm -rf dist
 	make -C docs clean
 
 .PHONY: docs
