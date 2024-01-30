@@ -1,5 +1,16 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.3.1 (can change)
+
+v2.3.1 is a maintenance release with the following fixes and enhancements:
+
+ - Fixed invalid write in OAUTHBEARER/OIDC extensions copy
+
+confluent-kafka-python is based on librdkafka v2.3.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.3.0
 
 v2.3.0 is a feature release with the following features, fixes and enhancements:

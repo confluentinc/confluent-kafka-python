@@ -1890,9 +1890,9 @@ static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
                 return 0;
         }
 
-        extensions[idx] = (char*)malloc(ksize);
+        extensions[idx] = (char*)malloc(ksize + 1);
         strcpy(extensions[idx], k);
-        extensions[idx + 1] = (char*)malloc(vsize);
+        extensions[idx + 1] = (char*)malloc(vsize + 1);
         strcpy(extensions[idx + 1], v);
 
         Py_DECREF(ks);
