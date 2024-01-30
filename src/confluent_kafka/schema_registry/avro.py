@@ -17,15 +17,14 @@
 
 from io import BytesIO
 from json import loads
-from struct import pack, unpack
 
 from fastavro import (parse_schema,
                       schemaless_reader,
                       schemaless_writer)
 
-from . import (_MAGIC_BYTE,
-               Schema,
-               topic_subject_name_strategy)
+from . import (Schema,
+               topic_subject_name_strategy,
+               confluent_payload_framing)
 from confluent_kafka.serialization import (Deserializer,
                                            SerializationError,
                                            Serializer)
@@ -87,7 +86,7 @@ def _resolve_named_schema(schema, schema_registry_client, named_schemas=None):
 
 class AvroSerializer(Serializer):
     """
-    Serializer that outputs Avro binary encoded data with Confluent Schema Registry framing.
+    Serializer that outputs Avro binary encoded data.
 
     Configuration properties:
 
@@ -123,6 +122,17 @@ class AvroSerializer(Serializer):
     |                           |          |                                                  |
     |                           |          | Defaults to topic_subject_name_strategy.         |
     +---------------------------+----------+--------------------------------------------------+
+    |                           |          | Callable(SerializationContext) -> Tuple(         |
+    |                           |          |        Callable(bytes) -> int           # Reader |
+    |                           |          |        Callable(BytesIO, int) -> None   # Writer |
+    |                           |          |        )                                         |
+    |                           |          |                                                  |
+    | ``schemaid.location``     | callable | Define how the schemaid is embedded in the kafka |
+    |                           |          | Message. Standard locations are defined in the   |
+    |                           |          | confluent_kafka.schema_registry namespace.       |
+    |                           |          |                                                  |
+    |                           |          | Defaults to confluent_payload_framing.           |
+    +---------------------------+----------+--------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -147,6 +157,16 @@ class AvroSerializer(Serializer):
     +--------------------------------------+------------------------------+
 
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
+
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
 
     Note:
         Prior to serialization, all values must first be converted to
@@ -177,12 +197,15 @@ class AvroSerializer(Serializer):
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema',
                  '_registry', '_schema', '_schema_id', '_schema_name',
-                 '_subject_name_func', '_to_dict', '_named_schemas']
+                 '_subject_name_func', '_to_dict', '_named_schemas',
+                 '_schemaid_location_func']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
-                     'subject.name.strategy': topic_subject_name_strategy}
+                     'subject.name.strategy': topic_subject_name_strategy,
+                     'schemaid.location': confluent_payload_framing,
+                     }
 
     def __init__(self, schema_registry_client, schema_str, to_dict=None, conf=None):
         if isinstance(schema_str, str):
@@ -223,6 +246,10 @@ class AvroSerializer(Serializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._schemaid_location_func = conf_copy.pop('schemaid.location')
+        if not callable(self._schemaid_location_func):
+            raise ValueError("schemaid.location must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -301,9 +328,10 @@ class AvroSerializer(Serializer):
         else:
             value = obj
 
+        _, schemaid_writer = self._schemaid_location_func(ctx)
+
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
+            schemaid_writer(fo, self._schema_id)
             # write the record to the rest of the buffer
             schemaless_writer(fo, self._parsed_schema, value)
 
@@ -312,8 +340,34 @@ class AvroSerializer(Serializer):
 
 class AvroDeserializer(Deserializer):
     """
-    Deserializer for Avro binary encoded data with Confluent Schema Registry
-    framing.
+    Deserializer for Avro binary encoded data.
+
+    Configuration properties:
+
+    +---------------------------+----------+--------------------------------------------------+
+    | Property Name             | Type     | Description                                      |
+    +===========================+==========+==================================================+
+    |                           |          | Callable(SerializationContext) -> Tuple(         |
+    |                           |          |        Callable(bytes) -> int           # Reader |
+    |                           |          |        Callable(BytesIO, int) -> None   # Writer |
+    |                           |          |        )                                         |
+    |                           |          |                                                  |
+    | ``schemaid.location``     | callable | Define how the schemaid is embedded in the kafka |
+    |                           |          | Message. Standard locations are defined in the   |
+    |                           |          | confluent_kafka.schema_registry namespace.       |
+    |                           |          |                                                  |
+    |                           |          | Defaults to confluent_payload_framing.           |
+    +---------------------------+----------+--------------------------------------------------+
+
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
 
     Note:
         By default, Avro complex types are returned as dicts. This behavior can
@@ -347,9 +401,22 @@ class AvroDeserializer(Deserializer):
     """
 
     __slots__ = ['_reader_schema', '_registry', '_from_dict', '_writer_schemas', '_return_record_name', '_schema',
-                 '_named_schemas']
+                 '_named_schemas', '_schemaid_location_func']
 
-    def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False):
+    _default_conf = {
+        'schemaid.location': confluent_payload_framing,
+    }
+
+    def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False, conf=None):
+        conf_copy = self._default_conf.copy()
+        if conf is not None:
+            conf_copy.update(conf)
+
+        self._schemaid_location_func = conf_copy.pop('schemaid.location')
+        if len(conf_copy) > 0:
+            raise ValueError("Unrecognized properties: {}"
+                             .format(", ".join(conf_copy.keys())))
+
         schema = None
         if schema_str is not None:
             if isinstance(schema_str, str):
@@ -403,19 +470,10 @@ class AvroDeserializer(Deserializer):
         if data is None:
             return None
 
-        if len(data) <= 5:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
+        schemaid_reader, _  = self._schemaid_location_func(ctx)
 
         with _ContextStringIO(data) as payload:
-            magic, schema_id = unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unexpected magic byte {}. This message "
-                                         "was not produced with a Confluent "
-                                         "Schema Registry serializer".format(magic))
-
+            schema_id = schemaid_reader(payload)
             writer_schema = self._writer_schemas.get(schema_id, None)
 
             if writer_schema is None:
