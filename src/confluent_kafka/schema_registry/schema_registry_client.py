@@ -287,7 +287,7 @@ class SchemaRegistryClient(object):
 
     See Also:
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
-    """  # noqa: E501
+    """  # noqa: E501 
 
     def __init__(self, conf):
         self._rest_client = _RestClient(conf)
@@ -342,6 +342,21 @@ class SchemaRegistryClient(object):
         self._cache.set(schema_id, schema, subject_name)
 
         return schema_id
+
+
+    def list_schemas(self):
+        """
+        List all schemas registered with the Schema Registry
+
+        Returns:
+            array(Schema): Registered schemas
+
+        Raises:
+            SchemaRegistryError: if schemas can't be found
+        """
+
+        return self._rest_client.get('schemas')
+
 
     def get_schema(self, schema_id):
         """
