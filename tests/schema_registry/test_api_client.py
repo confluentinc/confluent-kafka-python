@@ -177,6 +177,132 @@ def test_get_schema_cache(mock_schema_registry):
     assert count_after - count_before == 1
 
 
+def test_get_schema_types(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    result = sr.get_schema_types()
+
+    assert result == mock_schema_registry.SCHEMA_TYPES
+
+
+def test_get_schema_versions(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    schema_version = mock_schema_registry.SCHEMA_VERSIONS
+    schema_versions2 = sr.get_schema_versions(47)
+
+    assert schema_version == schema_versions2
+
+
+def test_get_schema_versions_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
+        sr.get_schema_versions(404)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40403
+
+
+def test_get_schema_by_subject_version(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema2 = sr.get_schema_by_subject_version('subject1', 3)
+
+    assert cmp_schema(schema, schema2)
+
+
+def test_get_schema_by_subject_version_no_version(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_schema_by_subject_version"
+    version = 404
+
+    with pytest.raises(SchemaRegistryError, match="Version not found") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_get_schema_by_subject_version_invalid(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_schema_by_subject_version"
+    version = 422
+
+    with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_get_schema_by_subject_version_subject_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "notfound"
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        sr.get_schema_by_subject_version(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
+def test_get_referencedby(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    referencedby = sr.get_referencedby('subject1', 3)
+
+    assert set(referencedby) == set(mock_schema_registry.REFERENCEDBY)
+
+
+def test_get_referencedby_no_version(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_referencedby"
+    version = 404
+
+    with pytest.raises(SchemaRegistryError, match="Version not found") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40402
+
+
+def test_get_referencedby_invalid(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "get_referencedby"
+    version = 422
+
+    with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 422
+    assert e.value.error_code == 42202
+
+
+def test_get_referencedby_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+
+    subject = "notfound"
+    version = 3
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        sr.get_referencedby(subject, version)
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = mock_schema_registry(conf)
