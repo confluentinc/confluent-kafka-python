@@ -105,7 +105,7 @@ class _RestClient(object):
                                  " remove basic.auth.user.info from the"
                                  " configuration")
 
-            userinfo = tuple(conf_copy.pop('basic.auth.user.info', '').split(':'))
+            userinfo = tuple(conf_copy.pop('basic.auth.user.info', '').split(':', 1))
 
             if len(userinfo) != 2:
                 raise ValueError("basic.auth.user.info must be in the form"
