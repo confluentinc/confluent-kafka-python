@@ -1173,14 +1173,14 @@ def test_list_offsets_api():
 
 def test_del_records():
     a = AdminClient({"socket.timeout.ms": 10})
-  
+ 
     # Request-type tests
     with pytest.raises(TypeError):
         a.del_records(None)
 
     with pytest.raises(TypeError):
         a.del_records(1)
-  
+
     # Request-specific tests
     with pytest.raises(TypeError):
         a.del_records(["test-1"])
