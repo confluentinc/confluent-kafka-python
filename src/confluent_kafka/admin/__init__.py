@@ -534,6 +534,26 @@ class AdminClient (_AdminClientImpl):
             if not isinstance(kwargs['isolation_level'], _IsolationLevel):
                 raise TypeError("isolation_level argument should be an IsolationLevel")
 
+    @staticmethod
+    def _check_del_records(request):
+        if request is None:
+            raise TypeError("request cannot be None")
+        if not isinstance(request,list):
+            raise TypeError("request must be a list")
+        for req in request:
+            if not isinstance(req,_TopicPartition):
+                raise TypeError("Element of the list must be of type 'TopicPartitions' ")
+            if req is None:
+                raise ValueError("'topic_partitions' cannot be null")
+            if req.topic is None:
+                raise TypeError("Elements of the list must not have topic attribute as None")
+            if not req.topic:
+                raise ValueError("Elements of the list must not have topic attrubute empty")
+            if req.partition<0:
+                raise ValueError("Elements of the list must not have negative value for 'partition' field")
+            if req.offset<0:
+                raise ValueError("Elements of the list must not have negative value for offset field")
+   
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
@@ -1203,4 +1223,35 @@ class AdminClient (_AdminClientImpl):
                                                  AdminClient._make_futmap_result)
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
+        return futmap
+    
+    def del_records(self,topic_partition_offsets_list,**kwargs):
+        """
+        Helps to delete all the records before the specified offset,
+        in the specified Topic and Partition.
+
+        :param list(TopicPartitions) topic_partitions_offset_list: A list of TopicPartition objects 
+        consisting of the Topic Partition and Offsets on which we have to perform the deleteion.
+        :param float request_timeout: The overall request timeout in seconds,
+                    including broker lookup, request transmission, operation time
+                    on broker, and response. Default: `socket.timeout.ms*1000.0`
+
+        :returns: A dict of futures keyed by the TopicPartition.
+                    The future result() method returns a TopicPartition list indicating that 
+                    deletion operation have been performed till the specified Topic Partition 
+                    and error if any has occured.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_del_records(topic_partition_offsets_list)
+
+        f,futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
+                                                _TopicPartition,
+                                                AdminClient._make_futmap_result_from_list)
+        
+        super(AdminClient,self).del_records(topic_partition_offsets_list, f, **kwargs)
         return futmap
