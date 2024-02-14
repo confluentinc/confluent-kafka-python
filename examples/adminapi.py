@@ -843,7 +843,37 @@ def example_list_offsets(a, args):
         except KafkaException as e:
             print("Topicname : {} Partition_Index : {} Error : {}"
                   .format(partition.topic, partition.partition, e))
-
+            
+def example_del_records(a, args):
+    topic_partition_offset = []
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for list offsets, expected at least 1, got 0")
+    i = 0
+    partition_i = 1
+    while i < len(args):
+        if i + 3 > len(args):
+            raise ValueError(
+                f"Invalid number of arguments for del_records, partition {partition_i}, expected 3," +
+                f" got {len(args) - i}")
+        topic = args[0]
+        partition = int(args[1])
+        offset = int(args[2])
+        topic_partition_offset.append(TopicPartition(topic,partition,offset ))
+        i+=3
+        partition_i+=1
+    
+    futmap = a.del_records(topic_partition_offset)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            print("Deleted before offset : {} in topicname : {} partition : {}".format(result.offset,partition.topic,partition.partition))
+        except KafkaException as e:
+            print("Error in deleting Topicname : {} Partition_Index : {} Offset :{} Error : {}"
+                  .format(partition.topic, partition.partition, partition.offset, e))
+        except Exception:
+            raise
+     
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
@@ -883,7 +913,8 @@ if __name__ == '__main__':
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
-
+        sys.stderr.write(' del_records <topic> <partition> <offset> ' +
+                         '[<topic> <partition> <offset> ]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -913,7 +944,8 @@ if __name__ == '__main__':
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
               'alter_user_scram_credentials': example_alter_user_scram_credentials,
-              'list_offsets': example_list_offsets}
+              'list_offsets': example_list_offsets,
+              'del_records': example_del_records}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
