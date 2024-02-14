@@ -1169,3 +1169,27 @@ def test_list_offsets_api():
                         ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
+
+def test_del_records():
+    a = AdminClient({"socket.timeout.ms": 10})
+    
+    # Request-type tests
+    with pytest.raises(TypeError):
+        a.del_records(None)
+
+    with pytest.raises(TypeError):
+        a.del_records(1)
+    
+    #Request-specific tests
+    with pytest.raises(TypeError):
+        a.del_records(["test-1"])
+
+    with pytest.raises(TypeError):
+        a.del_records([TopicPartition(None)])
+
+    with pytest.raises(ValueError):
+        a.del_records([TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.del_records([TopicPartition("test-topic1")])
+
