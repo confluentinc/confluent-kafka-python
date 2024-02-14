@@ -863,19 +863,19 @@ def example_del_records(a, args):
         topic_partition_offset.append(TopicPartition(topic, partition, offset))
         i += 3
         partition_i += 1
-    
+  
     futmap = a.del_records(topic_partition_offset)
     for partition, fut in futmap.items():
         try:
             result = fut.result()
-            print("Deleted before offset : {} in topicname : {} partition : {}".format(result.offset, 
-                                                                                       partition.topic, partition.partition))
+            print("Deleted before offset : {} in topicname : {} partition : {}".format(result.offset,
+                    partition.topic, partition.partition))
         except KafkaException as e:
             print("Error in deleting Topicname : {} Partition_Index : {} Offset :{} Error : {}"
                   .format(partition.topic, partition.partition, partition.offset, e))
         except Exception:
             raise
-   
+ 
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
