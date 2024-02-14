@@ -16,7 +16,8 @@
 from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 from confluent_kafka import TopicPartition, IsolationLevel
 
-def  test_del_records(kafka_cluster):
+
+def test_del_records(kafka_cluster):
     """
     Test del_records, delete the records upto the specified offset
     in that particular partition of the specified topic.
@@ -39,15 +40,15 @@ def  test_del_records(kafka_cluster):
 
     topic_partition = TopicPartition(topic, 0)
     requests = {topic_partition: OffsetSpec.earliest()}
-    topic_partition_offset = TopicPartition(topic,0,2)
+    topic_partition_offset = TopicPartition(topic, 0, 2)
 
     kwargs = {"isolation_level": IsolationLevel.READ_UNCOMMITTED}
-    
-    #Delete the records
+ 
+    # Delete the records
     fs1 = admin_client.del_records([topic_partition_offset])
     earliest_offset_available = 0
 
-    #Find the earliest avilable offset for that specific topic partition
+    # Find the earliest avilable offset for that specific topic partition
     fs2 = admin_client.list_offsets(requests,**kwargs)
     for _, fut in fs2.items():
         result = fut.result()
