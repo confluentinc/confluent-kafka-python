@@ -808,24 +808,24 @@ def example_list_offsets(a, args):
                 f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
                 f" got {len(args) - i}")
         topic = args[i]
-        partition = int(args[i+1])
+        partition = int(args[i + 1])
         topic_partition = TopicPartition(topic, partition)
 
-        if "EARLIEST" == args[i+2]:
+        if "EARLIEST" == args[i + 2]:
             offset_spec = OffsetSpec.earliest()
 
-        elif "LATEST" == args[i+2]:
+        elif "LATEST" == args[i + 2]:
             offset_spec = OffsetSpec.latest()
 
-        elif "MAX_TIMESTAMP" == args[i+2]:
+        elif "MAX_TIMESTAMP" == args[i + 2]:
             offset_spec = OffsetSpec.max_timestamp()
 
-        elif "TIMESTAMP" == args[i+2]:
+        elif "TIMESTAMP" == args[i + 2]:
             if i + 4 > len(args):
                 raise ValueError(
                     f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
                     f", got {len(args) - i}")
-            offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
+            offset_spec = OffsetSpec.for_timestamp(int(args[i + 3]))
             i += 1
         else:
             raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
@@ -863,19 +863,19 @@ def example_del_records(a, args):
         topic_partition_offset.append(TopicPartition(topic, partition, offset))
         i += 3
         partition_i += 1
-  
+
     futmap = a.del_records(topic_partition_offset)
     for partition, fut in futmap.items():
         try:
             result = fut.result()
-            print("Deleted before offset : {} in topicname : {} partition : {}".format(result.offset,
-                    partition.topic, partition.partition))
+            print("Deleted before offset : {} in topicname : {} partition : {}".format(
+                result.offset, partition.topic, partition.partition))
         except KafkaException as e:
             print("Error in deleting Topicname : {} Partition_Index : {} Offset :{} Error : {}"
                   .format(partition.topic, partition.partition, partition.offset, e))
         except Exception:
             raise
- 
+
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

@@ -1249,9 +1249,8 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_del_records(topic_partition_offsets_list)
 
-        f,futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
-                                                 _TopicPartition,
-                                                 AdminClient._make_futmap_result_from_list)
+        f,futmap = AdminClient._make_futures_v2(
+            topic_partition_offsets_list, _TopicPartition, AdminClient._make_futmap_result_from_list)
 
         super(AdminClient, self).del_records(topic_partition_offsets_list, f, **kwargs)
         return futmap
