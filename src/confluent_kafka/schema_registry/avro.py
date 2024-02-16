@@ -294,7 +294,10 @@ class AvroSerializer(Serializer):
                 # Update instance variables with latest schema
                 self._set_instance_variables(latest_schema.schema,
                                              schema_id=latest_schema.schema_id)
-
+                # Add to registry cache
+                self._registry._cache.set(self._schema_id, 
+                                          self._schema,
+                                          subject)
             else:
                 # Check to ensure this schema has been registered under subject_name.
                 if self._auto_register:
