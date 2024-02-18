@@ -14,7 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# A simple example demonstrating use of JSONDeserializer.
+# A simple example demonstrating use of seek method to seek messages from a specificied offset to a specified offset for a partition in a topic.
+# Conventionally, using the seek method with while loop results in some messages being skipped.
+# Proposed approach of reading a single message first and then reading the remaining messages, solves the issue. 
 #
 
 
@@ -94,15 +96,20 @@ def fetch_message_partition(consumer_conf,topic,partition,min_offset,max_offset)
         End offset till which data is to be fetched from Partition (if available). 
         Else till highest available offset of the partition.
     
-
     Returns
     -------
-    partition : TYPE
-        DESCRIPTION.
-    TYPE
-        DESCRIPTION.
-    TYPE
-        DESCRIPTION.
+    total_messages : list
+        list of messages from min offset to max offset in the partition of the topic.
+    total_partition_offest : list of lists
+        list of lists having [offset,partition] for the corresponding index of messge in total_messages list.
+    
+    Operation
+    ----------
+    1) Find the min/max available offset in the partition of the topic.
+    2) Check if required min/max offset in range of available min/max offset, else assign required min/max to available min/max accordingly.
+    3) Seek the consumer to the required min offset.
+    4) Read a single message from consumer and store the message and [partition,offset]
+    5) Read the remaining number (min-max) of messages from the consumer and store the messages and list of [partition,offset] 
 
     """
     total_messages=[]
@@ -170,7 +177,7 @@ def main(args):
     try:
         consumer = Consumer(consumer_conf)
     except KafkaException as exc:
-        logging.error("Unable to connect to Kafka Server.\n Exception:{} "+str(exc))
+        logging.error("Unable to connect to Kafka Server.\n Exception:{} ".format(str(exc)))
     
     
     partition_list,topic_partition,partition_offset= fetch_partition_list(consumer, topic)
@@ -185,7 +192,7 @@ def main(args):
             with open("file.txt", "w") as output:
                 output.write(str(total_messages_output))
     else:
-        logging.error("Partition {} not in consumer."+str(partition))
+        logging.error("Partition {} not in consumer.".format(str(partition)))
 
     consumer.close()
 
@@ -204,11 +211,6 @@ if __name__ == '__main__':
                         help="Start Offset for Partition p")
     parser.add_argument('-eof', dest="end_offset", required=True,
                         help="End Offset for Partition p")
-    
-    
-    
-
-
 
     main(parser.parse_args())
 
