@@ -857,9 +857,9 @@ def example_del_records(a, args):
             raise ValueError(
                 f"Invalid number of arguments for del_records, partition {partition_i}, expected 3," +
                 f" got {len(args) - i}")
-        topic = args[0]
-        partition = int(args[1])
-        offset = int(args[2])
+        topic = args[i]
+        partition = int(args[i + 1])
+        offset = int(args[i + 2])
         topic_partition_offset.append(TopicPartition(topic, partition, offset))
         i += 3
         partition_i += 1
@@ -915,8 +915,7 @@ if __name__ == '__main__':
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
-        sys.stderr.write(' del_records <topic> <partition> <offset> ' +
-                         '[<topic> <partition> <offset> ]\n')
+        sys.stderr.write(' del_records <topic> <partition> <offset> ...\n' )
         sys.exit(1)
 
     broker = sys.argv[1]
