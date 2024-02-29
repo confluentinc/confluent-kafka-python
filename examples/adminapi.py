@@ -849,7 +849,7 @@ def example_delete_records(a, args):
     topic_partition_offset = []
     if len(args) == 0:
         raise ValueError(
-            "Invalid number of arguments for list offsets, expected at least 1, got 0")
+            "Invalid number of arguments for delete_records, expected at least 1, got 0")
     if len(args) % 3 != 0:
         raise ValueError("Invalid number of arguments for delete_records")
 
