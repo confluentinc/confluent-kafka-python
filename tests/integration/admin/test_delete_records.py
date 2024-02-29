@@ -48,14 +48,14 @@ def test_delete_records(kafka_cluster):
     fs1 = admin_client.delete_records([topic_partition_offset])
     earliest_offset_available = 0
 
-    # Find the earliest avilable offset for that specific topic partition
+    # Find the earliest available offset for that specific topic partition
     fs2 = admin_client.list_offsets(requests, **kwargs)
     for _, fut in fs2.items():
         result = fut.result()
         assert isinstance(result, ListOffsetsResultInfo)
         earliest_offset_available = result.offset
 
-    # Check if the earliest available offset is equal to the offset passes to the delete records function
+    # Check if the earliest available offset is equal to the offset passed to the delete records function
     for _, fut in fs1.items():
         result = fut.result()
         assert isinstance(result, TopicPartition)
