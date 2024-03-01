@@ -849,7 +849,7 @@ def example_delete_records(a, args):
     topic_partition_offset = []
     if len(args) == 0:
         raise ValueError(
-            "Invalid number of arguments for delete_records, expected at least 1, got 0")
+            "Invalid number of arguments for delete_records, expected at least 3, got 0")
     if len(args) % 3 != 0:
         raise ValueError("Invalid number of arguments for delete_records")
 
@@ -867,7 +867,8 @@ def example_delete_records(a, args):
                 f"partition {partition.partition}. The minimum offset in this partition is now {result.offset}")
         except KafkaException as e:
             print(
-                f"Error deleting records in topic {partition.topic} partition {partition.partition}: {e}")
+                f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
+                f" before offset {partition.offset}: {e}")
         except Exception:
             raise
 

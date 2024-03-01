@@ -33,23 +33,29 @@ def test_delete_records(kafka_cluster):
 
     # Create Producer instance
     p = kafka_cluster.producer()
-    p.produce(topic, "Message-1",)
+    p.produce(topic, "Message-1")
     p.produce(topic, "Message-2")
     p.produce(topic, "Message-3")
     p.flush()
 
     topic_partition = TopicPartition(topic, 0)
     requests = {topic_partition: OffsetSpec.earliest()}
-    topic_partition_offset = TopicPartition(topic, 0, 2)
 
-    kwargs = {"isolation_level": IsolationLevel.READ_UNCOMMITTED}
+    # Check if the earliest avilable offset for this topic partition is 0
+    fs = admin_client.list_offsets(requests)
+    for _, fut in fs.items():
+        result = fut.result()
+        assert isinstance(result, ListOffsetsResultInfo)
+        assert (result.offset == 0)
+    
+    topic_partition_offset = TopicPartition(topic, 0, 2)
 
     # Delete the records
     fs1 = admin_client.delete_records([topic_partition_offset])
     earliest_offset_available = 0
 
-    # Find the earliest available offset for that specific topic partition
-    fs2 = admin_client.list_offsets(requests, **kwargs)
+    # Find the earliest available offset for that specific topic partition after deletion has been done
+    fs2 = admin_client.list_offsets(requests)
     for _, fut in fs2.items():
         result = fut.result()
         assert isinstance(result, ListOffsetsResultInfo)
