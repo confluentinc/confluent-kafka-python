@@ -2967,7 +2967,7 @@ const char Admin_list_offsets_doc[] = PyDoc_STR(
  * @brief Delete records 
  */
 PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
-        PyObject* topic_partition_offset, *future;
+        PyObject *topic_partition_offset = NULL, *future;
         int del_record_cnt = 1;
         rd_kafka_DeleteRecords_t **c_obj = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
@@ -2980,12 +2980,14 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
                              "future",
                              /* options */
                              "request_timeout",
+                             "operation_timeout",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|f", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|ff", kws,
                                          &topic_partition_offset,
                                          &future,
-                                         &options.request_timeout)) {
+                                         &options.request_timeout,
+                                         &options.operation_timeout)) {
                 goto err;
         }
 
@@ -3023,16 +3025,18 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         CallState_begin(self, &cs);
         rd_kafka_DeleteRecords(self->rk,c_obj,del_record_cnt,c_options,rkqu);
         CallState_end(self,&cs);
+
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_DeleteRecords_destroy_array(c_obj,del_record_cnt);
         free(c_obj);
-        Py_XDECREF(topic_partition_offset);
-        rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_offset);
 
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_offset);     
+        Py_XDECREF(topic_partition_offset);
+        
         Py_RETURN_NONE;
 err: 
-
         if (c_obj) {
                 rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
                 free(c_obj);
@@ -3050,9 +3054,9 @@ err:
 }
 
 const char Admin_delete_records_doc[] = PyDoc_STR(
-        ".. py:function:: delete_records(topic_partitions, future, [request_timeout])\n"
+        ".. py:function:: delete_records(topic_partitions, future, [request_timeout, operation_timeout])\n"
         "\n"
-        "  Delete records for the particular topic partition before the specified offset provided in the request.\n"
+        "  Delete all the records for the particular topic partition before the specified offset provided in the request.\n"
         "\n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.delete_records()\n");
 
