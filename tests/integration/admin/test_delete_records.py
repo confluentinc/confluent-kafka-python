@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
-from confluent_kafka import TopicPartition, IsolationLevel
+from confluent_kafka import TopicPartition
 
 
 def test_delete_records(kafka_cluster):
@@ -47,7 +47,7 @@ def test_delete_records(kafka_cluster):
         result = fut.result()
         assert isinstance(result, ListOffsetsResultInfo)
         assert (result.offset == 0)
-    
+
     topic_partition_offset = TopicPartition(topic, 0, 2)
 
     # Delete the records
