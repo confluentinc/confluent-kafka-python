@@ -808,24 +808,24 @@ def example_list_offsets(a, args):
                 f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
                 f" got {len(args) - i}")
         topic = args[i]
-        partition = int(args[i+1])
+        partition = int(args[i + 1])
         topic_partition = TopicPartition(topic, partition)
 
-        if "EARLIEST" == args[i+2]:
+        if "EARLIEST" == args[i + 2]:
             offset_spec = OffsetSpec.earliest()
 
-        elif "LATEST" == args[i+2]:
+        elif "LATEST" == args[i + 2]:
             offset_spec = OffsetSpec.latest()
 
-        elif "MAX_TIMESTAMP" == args[i+2]:
+        elif "MAX_TIMESTAMP" == args[i + 2]:
             offset_spec = OffsetSpec.max_timestamp()
 
-        elif "TIMESTAMP" == args[i+2]:
+        elif "TIMESTAMP" == args[i + 2]:
             if i + 4 > len(args):
                 raise ValueError(
                     f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
                     f", got {len(args) - i}")
-            offset_spec = OffsetSpec.for_timestamp(int(args[i+3]))
+            offset_spec = OffsetSpec.for_timestamp(int(args[i + 3]))
             i += 1
         else:
             raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
@@ -843,6 +843,34 @@ def example_list_offsets(a, args):
         except KafkaException as e:
             print("Topicname : {} Partition_Index : {} Error : {}"
                   .format(partition.topic, partition.partition, e))
+
+
+def example_delete_records(a, args):
+    topic_partition_offset = []
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for delete_records, expected at least 3, got 0")
+    if len(args) % 3 != 0:
+        raise ValueError("Invalid number of arguments for delete_records")
+
+    topic_partition_offset = [
+        TopicPartition(topic, int(partition), int(offset))
+        for topic, partition, offset in zip(args[::3], args[1::3], args[2::3])
+    ]
+
+    futmap = a.delete_records(topic_partition_offset)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            print(
+                f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
+                f"partition {partition.partition}. The minimum offset in this partition is now {result.offset}")
+        except KafkaException as e:
+            print(
+                f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
+                f" before offset {partition.offset}: {e}")
+        except Exception:
+            raise
 
 
 if __name__ == '__main__':
@@ -883,7 +911,7 @@ if __name__ == '__main__':
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
-
+        sys.stderr.write(' delete_records <topic1> <partition1> <offset1> <topic2> <partition2> <offset2>...\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -913,7 +941,8 @@ if __name__ == '__main__':
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
               'alter_user_scram_credentials': example_alter_user_scram_credentials,
-              'list_offsets': example_list_offsets}
+              'list_offsets': example_list_offsets,
+              'delete_records': example_delete_records}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
