@@ -862,9 +862,13 @@ def example_delete_records(a, args):
     for partition, fut in futmap.items():
         try:
             result = fut.result()
-            print(
-                f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
-                f"partition {partition.partition}. The minimum offset in this partition is now {result.offset}")
+            if result.err:
+                print(f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
+                      f" before offset {partition.offset}: {result.err}")
+            else:
+                print(
+                    f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
+                    f" partition {partition.partition}. The minimum offset in this partition is now {result.offset}")
         except KafkaException as e:
             print(
                 f"Error deleting records in topic {partition.topic} partition {partition.partition}" +

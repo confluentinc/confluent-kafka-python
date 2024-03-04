@@ -3023,13 +3023,13 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
          * the event_cb may be triggered immediately.
          */
         CallState_begin(self, &cs);
-        rd_kafka_DeleteRecords(self->rk,c_obj,del_record_cnt,c_options,rkqu);
+        rd_kafka_DeleteRecords(self->rk,c_obj, del_record_cnt, c_options,rkqu);
         CallState_end(self,&cs);
 
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         rd_kafka_AdminOptions_destroy(c_options);
-        rd_kafka_DeleteRecords_destroy_array(c_obj,del_record_cnt);
+        rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
         free(c_obj);
 
         rd_kafka_topic_partition_list_destroy(c_topic_partition_offset);     
