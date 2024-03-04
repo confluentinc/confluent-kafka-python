@@ -1237,9 +1237,10 @@ class AdminClient (_AdminClientImpl):
         :returns: A dict of futures keyed by the TopicPartition.
                     The future result() method returns a TopicPartition list indicating that
                     deletion operation have been performed till the specified Topic Partition
-                    and error if any has occured.
+                    and error if any has occured. User has to check if any error has occured
+                    during deletion in each partition.
 
-        :rtype: dict[str, future]
+        :rtype: dict[TopicPartition, future]
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeError: Invalid input type.
