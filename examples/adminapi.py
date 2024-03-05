@@ -862,9 +862,9 @@ def example_delete_records(a, args):
     for partition, fut in futmap.items():
         try:
             result = fut.result()
-            if result.err:
+            if result.error:
                 print(f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
-                      f" before offset {partition.offset}: {result.err}")
+                      f" before offset {partition.offset}: {result.error.str()}")
             else:
                 print(
                     f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
