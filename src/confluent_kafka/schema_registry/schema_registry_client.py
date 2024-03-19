@@ -97,21 +97,28 @@ class _RestClient(object):
                              " configuring ssl.key.location")
 
         userinfo = utils.get_auth_from_url(base_url)
-        if 'basic.auth.user.info' in conf_copy:
-            if userinfo != ('', ''):
-                raise ValueError("basic.auth.user.info configured with"
-                                 " userinfo credentials in the URL."
-                                 " Remove userinfo credentials from the url or"
-                                 " remove basic.auth.user.info from the"
-                                 " configuration")
+        url_basic_auth = userinfo != ('', '')
+        config_basic_auth = 'basic.auth.user.info' in conf_copy
+        config_bearer_auth = 'token' in conf_copy
+        if sum([url_basic_auth, config_basic_auth, config_bearer_auth]) > 1:
+            raise ValueError("credentials are specified more than once,"
+                             " or multiple authentication mechanisms are configured."
+                             " Please specify only one of the following options:"
+                             " (1) user credentials on the url"
+                             " (2) user credentials using 'basic.auth.user.info' configuration"
+                             " (3) token using 'token' configuration.")
 
+        if url_basic_auth:
+            self.session.auth = userinfo
+        elif config_basic_auth:
             userinfo = tuple(conf_copy.pop('basic.auth.user.info', '').split(':'))
-
             if len(userinfo) != 2:
                 raise ValueError("basic.auth.user.info must be in the form"
                                  " of {username}:{password}")
-
-        self.session.auth = userinfo if userinfo != ('', '') else None
+            self.session.auth = userinfo
+        elif config_bearer_auth:
+            token = conf_copy.pop('token')
+            self.session.headers['Authorization'] = f'Bearer {token}'
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
