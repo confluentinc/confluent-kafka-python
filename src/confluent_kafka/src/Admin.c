@@ -3351,8 +3351,12 @@ Admin_c_AclBinding_to_py (const rd_kafka_AclBinding_t *c_acl_binding) {
                                 rd_kafka_AclBinding_resource_pattern_type(c_acl_binding));
         cfl_PyDict_SetString(kwargs, "principal",
                                      rd_kafka_AclBinding_principal(c_acl_binding));
-        cfl_PyDict_SetString(kwargs, "host",
-                                     rd_kafka_AclBinding_host(c_acl_binding));
+        if (rd_kafka_AclBinding_host(c_acl_binding)) {
+                cfl_PyDict_SetString(kwargs, "host",
+                                        rd_kafka_AclBinding_host(c_acl_binding));
+        } else {
+                cfl_PyObject_SetItemString(kwargs, "host", Py_None);
+        }
         cfl_PyDict_SetInt(kwargs, "operation",
                                      rd_kafka_AclBinding_operation(c_acl_binding));
         cfl_PyDict_SetInt(kwargs, "permission_type",
@@ -3624,9 +3628,13 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
                              "client_id",
                              rd_kafka_MemberDescription_client_id(c_member));
 
-        cfl_PyDict_SetString(kwargs,
-                             "host",
-                             rd_kafka_MemberDescription_host(c_member));
+        if (rd_kafka_MemberDescription_host(c_member)) {
+                cfl_PyDict_SetString(kwargs,
+                                "host",
+                                rd_kafka_MemberDescription_host(c_member));
+        } else {
+                cfl_PyObject_SetItemString(kwargs, "host", Py_None);
+        }
 
         const char * c_group_instance_id = rd_kafka_MemberDescription_group_instance_id(c_member);
         if(c_group_instance_id) {
