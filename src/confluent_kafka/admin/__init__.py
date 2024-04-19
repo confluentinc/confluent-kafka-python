@@ -550,12 +550,14 @@ class AdminClient (_AdminClientImpl):
             
     @staticmethod
     def _check_elect_leaders(election_type, topic_partition_list):
+        if election_type is None:
+            raise TypeError("election_type cannot be None")
+        if election_type not in [0, 1]:
+            raise ValueError("Election Type should be 0 or 1 only")
         if topic_partition_list is None:
             raise TypeError("topic_partition_list cannot be None")
         if not isinstance(topic_partition_list, list):
             raise TypeError("topic_partition_list must be a list")
-        if election_type not in [0, 1]:
-            raise ValueError("Election Type should be 0 or 1 only")
         for topic_partition in topic_partition_list:
             if not isinstance(topic_partition, _TopicPartition):
                 raise TypeError("Element of the topic_partition_list must be of type 'TopicPartition' ")

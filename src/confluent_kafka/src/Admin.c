@@ -3060,10 +3060,11 @@ const char Admin_delete_records_doc[] = PyDoc_STR(
         "\n"
         "  This method should not be used directly, use confluent_kafka.AdminClient.delete_records()\n");
 
-
+/**
+ * @brief Elect leaders
+*/
 PyObject* Admin_elect_leaders (Handle *self, PyObject *args, PyObject *kwargs){
         PyObject *election_type = NULL, *topic_partition_list = NULL, *future;
-        int c_election_type;
         rd_kafka_ElectLeader_t *elect_leader = NULL;
         rd_kafka_ElectionType_t elec;
         struct Admin_options options = Admin_options_INITIALIZER;
@@ -3088,7 +3089,7 @@ PyObject* Admin_elect_leaders (Handle *self, PyObject *args, PyObject *kwargs){
                                          &options.operation_timeout)) {
                 goto err;
         }
-
+        
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ELECTLEADER,
                                        &options, future);
         if (!c_options)  {
@@ -3100,16 +3101,7 @@ PyObject* Admin_elect_leaders (Handle *self, PyObject *args, PyObject *kwargs){
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if(cfl_PyLong_Check(election_type)){
-                c_election_type = cfl_PyLong_AsLong(election_type);
-        }
-        else{
-                PyErr_SetString(PyExc_ValueError,
-                        "election_type must be an integer");
-                goto err;
-        }
-
-        if(c_election_type == 0){
+        if(election_type == 0){
                 elec = RD_KAFKA_ELECTION_TYPE_PREFERRED;
         }
         else{
@@ -3140,16 +3132,15 @@ PyObject* Admin_elect_leaders (Handle *self, PyObject *args, PyObject *kwargs){
         CallState_begin(self, &cs);
         rd_kafka_ElectLeader(self->rk, elect_leader, c_options, rkqu);
         CallState_end(self,&cs);
-
+        
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
 
         rd_kafka_AdminOptions_destroy(c_options);
         rd_kafka_ElectLeader_destroy(elect_leader);
-
         rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        
         Py_XDECREF(topic_partition_list);
-        Py_XDECREF(election_type);
-
+        
         Py_RETURN_NONE;
 err:
         if(elect_leader){
@@ -3340,8 +3331,7 @@ static PyMethodDef Admin_methods[] = {
            Admin_delete_records_doc
         },
 
-        {
-           "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS|METH_KEYWORDS,
+        { "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS|METH_KEYWORDS,
            Admin_elect_leaders_doc
         },
 
@@ -4594,20 +4584,19 @@ static PyObject *Admin_c_ElectionResult_to_py(const rd_kafka_topic_partition_res
                                               const rd_kafka_resp_err_t err){
         PyObject *result = NULL;
         rd_kafka_topic_partition_list_t *list = rd_kafka_topic_partition_list_new(cnt);
-
         size_t i;
-
+        
         if(err){
             result = KafkaError_new_or_None(err, NULL);
             return result;
         }
 
         result = PyDict_New();
-        for(int i=0; i<cnt; i++){
+        for(i=0; i<cnt; i++){
                 PyObject* value = NULL;
                 rd_kafka_topic_partition_t *rktpar;
 
-                char *topic = rd_kafka_topic_partition_result_topic(partitions[i]);
+                const char *topic = rd_kafka_topic_partition_result_topic(partitions[i]);
                 int32_t partition = rd_kafka_topic_partition_result_partition(partitions[i]);
                 rktpar = rd_kafka_topic_partition_list_add(list, topic, partition);
                 rd_kafka_resp_err_t error_code = rd_kafka_topic_partition_result_error(partitions[i]);
@@ -4618,7 +4607,6 @@ static PyObject *Admin_c_ElectionResult_to_py(const rd_kafka_topic_partition_res
                 }
                
                PyDict_SetItem(result, c_part_to_py(rktpar), value); 
-               rd_kafka_topic_partition_destroy(rktpar);
         }
 
         rd_kafka_topic_partition_list_destroy(list);

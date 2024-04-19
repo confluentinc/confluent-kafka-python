@@ -883,11 +883,10 @@ def example_elect_leaders(a, args):
     if (len(args)-1) %2 != 0:
         raise ValueError("Invalid number of arguments for elect_leaders")
     
-    election_type = args[0]
-
-    topic_partition_list = [
-        TopicPartition(topic, int(partition)) 
-        for topic, partition in zip(args[1:2], args[2:2])]
+    election_type = int(args[0])
+    
+    for topic, partition in zip(args[1::2], args[2::2]):
+        topic_partition_list.append(TopicPartition(topic, int(partition)))
 
     fut = a.elect_leaders(election_type, topic_partition_list)
 
