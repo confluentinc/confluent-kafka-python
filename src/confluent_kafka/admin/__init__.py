@@ -547,7 +547,7 @@ class AdminClient (_AdminClientImpl):
                 raise ValueError("Individual request in the request list cannot be 'None'")
             if req.partition < 0:
                 raise ValueError("Elements of the list must not have negative value for 'partition' field")
-            
+       
     @staticmethod
     def _check_elect_leaders(election_type, topic_partition_list):
         if election_type is None:
@@ -1271,14 +1271,14 @@ class AdminClient (_AdminClientImpl):
 
         super(AdminClient, self).delete_records(topic_partition_offsets_list, f, **kwargs)
         return futmap
-    
+
     def elect_leaders(self, election_type, topic_partition_list, **kwargs):
         """
         Perform Preferred or Unclean elections for,
         all the specified topic partitions.
-        
+    
         :param election_type: Preferred(0) or Unclean(1) elections
-        :param topic_partition_list: A list consisting of Topic+Partitions 
+        :param topic_partition_list: A list consisting of Topic+Partitions
                                 where the election has to be performed.
         :param float request_timeout: The overall request timeout in seconds,
                     including broker lookup, request transmission, operation time

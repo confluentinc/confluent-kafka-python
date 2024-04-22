@@ -876,15 +876,16 @@ def example_delete_records(a, args):
         except Exception:
             raise
 
+
 def example_elect_leaders(a, args):
     topic_partition_list = []
     if len(args) < 3:
         raise ValueError("Invalid number of arguments for elect_leaders, got 0 expected atleast 3")
-    if (len(args)-1) %2 != 0:
+    if (len(args) - 1) % 2 != 0:
         raise ValueError("Invalid number of arguments for elect_leaders")
-    
+
     election_type = int(args[0])
-    
+
     for topic, partition in zip(args[1::2], args[2::2]):
         topic_partition_list.append(TopicPartition(topic, int(partition)))
 
@@ -894,7 +895,8 @@ def example_elect_leaders(a, args):
         result = fut.result()
         for topic_partition, error in result.items():
             if error:
-                print(f"Error electing leader for topic {topic_partition.topic} partition {topic_partition.partition}: {error}")
+                print(f"Error electing leader for topic {topic_partition.topic}"+
+                      f" partition {topic_partition.partition}: {error}")
             else:
                 print(f"Leader elected for topic {topic_partition.topic} partition {topic_partition.partition}")
     except KafkaException as e:
