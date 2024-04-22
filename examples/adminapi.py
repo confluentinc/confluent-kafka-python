@@ -877,6 +877,34 @@ def example_delete_records(a, args):
             raise
 
 
+def example_elect_leaders(a, args):
+    topic_partition_list = []
+    if len(args) < 3:
+        raise ValueError("Invalid number of arguments for elect_leaders, got 0 expected atleast 3")
+    if (len(args) - 1) % 2 != 0:
+        raise ValueError("Invalid number of arguments for elect_leaders")
+
+    election_type = int(args[0])
+
+    for topic, partition in zip(args[1::2], args[2::2]):
+        topic_partition_list.append(TopicPartition(topic, int(partition)))
+
+    fut = a.elect_leaders(election_type, topic_partition_list)
+
+    try:
+        result = fut.result()
+        for topic_partition, error in result.items():
+            if error:
+                print(f"Error electing leader for topic {topic_partition.topic}"+
+                      f" partition {topic_partition.partition}: {error}")
+            else:
+                print(f"Leader elected for topic {topic_partition.topic} partition {topic_partition.partition}")
+    except KafkaException as e:
+        print(f"Error electing leaders: {e}")
+    except Exception:
+        raise
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -916,6 +944,7 @@ if __name__ == '__main__':
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
         sys.stderr.write(' delete_records <topic1> <partition1> <offset1> <topic2> <partition2> <offset2>...\n')
+        sys.stderr.write(' elect_leaders <election_type> <topic1> <partition1> <topic2> <partition2>...\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -946,7 +975,8 @@ if __name__ == '__main__':
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
               'alter_user_scram_credentials': example_alter_user_scram_credentials,
               'list_offsets': example_list_offsets,
-              'delete_records': example_delete_records}
+              'delete_records': example_delete_records,
+              'elect_leaders': example_elect_leaders}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
