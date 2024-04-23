@@ -547,7 +547,7 @@ class AdminClient (_AdminClientImpl):
                 raise ValueError("Individual request in the request list cannot be 'None'")
             if req.partition < 0:
                 raise ValueError("Elements of the list must not have negative value for 'partition' field")
-      
+
     @staticmethod
     def _check_elect_leaders(election_type, topic_partition_list):
         if election_type is None:
