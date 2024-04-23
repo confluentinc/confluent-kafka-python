@@ -547,7 +547,7 @@ class AdminClient (_AdminClientImpl):
                 raise ValueError("Individual request in the request list cannot be 'None'")
             if req.partition < 0:
                 raise ValueError("Elements of the list must not have negative value for 'partition' field")
-       
+      
     @staticmethod
     def _check_elect_leaders(election_type, topic_partition_list):
         if election_type is None:
@@ -1276,7 +1276,7 @@ class AdminClient (_AdminClientImpl):
         """
         Perform Preferred or Unclean elections for,
         all the specified topic partitions.
-    
+
         :param election_type: Preferred(0) or Unclean(1) elections
         :param topic_partition_list: A list consisting of Topic+Partitions
                                 where the election has to be performed.

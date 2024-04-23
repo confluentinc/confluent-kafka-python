@@ -1194,6 +1194,7 @@ def test_delete_records():
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
 
+
 def test_elect_leaders():
     a = AdminClient({"socket.timeout.ms": 10})
 

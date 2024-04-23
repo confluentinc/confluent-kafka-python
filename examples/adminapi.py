@@ -895,7 +895,7 @@ def example_elect_leaders(a, args):
         result = fut.result()
         for topic_partition, error in result.items():
             if error:
-                print(f"Error electing leader for topic {topic_partition.topic}"+
+                print(f"Error electing leader for topic {topic_partition.topic}" +
                       f" partition {topic_partition.partition}: {error}")
             else:
                 print(f"Leader elected for topic {topic_partition.topic} partition {topic_partition.partition}")
