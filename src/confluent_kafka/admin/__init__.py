@@ -548,6 +548,24 @@ class AdminClient (_AdminClientImpl):
             if req.partition < 0:
                 raise ValueError("Elements of the list must not have negative value for 'partition' field")
 
+    @staticmethod
+    def _check_elect_leaders(election_type, topic_partition_list):
+        if election_type is None:
+            raise TypeError("election_type cannot be None")
+        if election_type not in [0, 1]:
+            raise ValueError("Election Type should be 0 or 1 only")
+        if topic_partition_list is None:
+            raise TypeError("topic_partition_list cannot be None")
+        if not isinstance(topic_partition_list, list):
+            raise TypeError("topic_partition_list must be a list")
+        for topic_partition in topic_partition_list:
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("Element of the topic_partition_list must be of type 'TopicPartition' ")
+            if topic_partition is None:
+                raise ValueError("Individual topic_partition in the list cannot be 'None' ")
+            if topic_partition.partition < 0:
+                raise ValueError("Elements of the list must not have negative value for 'partition' field")
+
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
@@ -1253,3 +1271,38 @@ class AdminClient (_AdminClientImpl):
 
         super(AdminClient, self).delete_records(topic_partition_offsets_list, f, **kwargs)
         return futmap
+
+    def elect_leaders(self, election_type, topic_partition_list, **kwargs):
+        """
+        Perform Preferred or Unclean elections for,
+        all the specified topic partitions.
+
+        :param election_type: Preferred(0) or Unclean(1) elections
+        :param topic_partition_list: A list consisting of Topic+Partitions
+                                where the election has to be performed.
+        :param float request_timeout: The overall request timeout in seconds,
+                    including broker lookup, request transmission, operation time
+                    on broker, and response. Default: `socket.timeout.ms*1000.0`
+        :param float operation_timeout: The operation timeout in seconds,
+                  controlling how long the DeleteRecords request will block
+                  on the broker waiting for the partition creation to propagate
+                  in the cluster. A value of 0 returns immediately. Default: 0
+
+        :returns: A single future.
+                  The future yields a dict[TopicPartition, Error]
+                  or raises a KafkaException.
+
+        :rtype: future[dict[TopicPartition, Error]]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+
+        AdminClient._check_elect_leaders(election_type, topic_partition_list)
+
+        internal_fut, ret_fut = AdminClient._make_single_future_pair()
+
+        super(AdminClient, self).elect_leaders(election_type, topic_partition_list, internal_fut, **kwargs)
+
+        return ret_fut

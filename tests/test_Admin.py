@@ -1193,3 +1193,37 @@ def test_delete_records():
 
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
+
+
+def test_elect_leaders():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    correct_topic_partition = TopicPartition("test-topic1", 0)
+    incorrect_partition = TopicPartition("test-topic1", -1)
+
+    # Request-type tests
+    with pytest.raises(TypeError):
+        a.elect_leaders(None, [correct_topic_partition])
+
+    # incorrect election_type value
+    with pytest.raises(ValueError):
+        a.elect_leaders(2, [correct_topic_partition])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(1, 1)
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(1, None)
+
+    # Request-specific tests
+    with pytest.raises(TypeError):
+        a.elect_leaders(0, ["test-1"])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(0, [None])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(0, [TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(0, [incorrect_partition])
