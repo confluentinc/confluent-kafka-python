@@ -105,7 +105,7 @@ def test_cooperative_rebalance_1(kafka_cluster):
     # And poll again to trigger rebalance callbacks
     # It will trigger on_lost and then on_assign during rejoin
     msg4 = consumer.poll(10)
-    assert msg4 is not None # Reading messages again after rejoin
+    assert msg4 is not None  # Reading messages again after rejoin
 
     assert 3 == reb.assign_count
     assert 1 == reb.lost_count
