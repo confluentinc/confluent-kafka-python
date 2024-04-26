@@ -35,7 +35,7 @@ def _broker_conf():
 
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': False,
+    trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cp_version': '7.6.0',
                            'kraft': use_kraft(),
