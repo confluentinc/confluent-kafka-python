@@ -17,7 +17,6 @@
 #
 import inspect
 import sys
-import os
 from uuid import uuid1
 from ...common import get_consumer
 

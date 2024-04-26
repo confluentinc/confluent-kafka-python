@@ -20,7 +20,7 @@ from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
+from confluent_kafka import Producer, DeserializingConsumer, \
     SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
