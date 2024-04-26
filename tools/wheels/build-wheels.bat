@@ -15,7 +15,7 @@ echo on
 
 set CIBW_BUILD=cp37-%BW_ARCH% cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH% cp312-%BW_ARCH%
 set CIBW_BEFORE_BUILD=python -m pip install delvewheel==1.1.4
-set CIBW_TEST_REQUIRES=-r tests/requirements.txt
+set CIBW_TEST_EXTRAS="dev"
 set CIBW_TEST_COMMAND=pytest {project}\tests\test_Producer.py
 rem set CIBW_BUILD_VERBOSITY=3
 set include=%cd%\%DEST%\build\native\include
