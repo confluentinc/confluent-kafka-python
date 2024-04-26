@@ -29,6 +29,7 @@ import json
 import gc
 import struct
 import re
+from ..common import get_consumer
 
 try:
     # Memory tracker
@@ -373,7 +374,7 @@ def verify_consumer():
             'enable.partition.eof': True}
 
     # Create consumer
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
 
     def print_wmark(consumer, topic_parts):
         # Verify #294: get_watermark_offsets() should not fail on the first call
@@ -483,7 +484,7 @@ def verify_consumer():
     c.close()
 
     # Start a new client and get the committed offsets
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
     offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
@@ -500,7 +501,7 @@ def verify_consumer_performance():
             'error_cb': error_cb,
             'auto.offset.reset': 'earliest'}
 
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -608,7 +609,7 @@ def verify_batch_consumer():
             'auto.offset.reset': 'earliest'}
 
     # Create consumer
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
 
     # Subscribe to a list of topics
     c.subscribe([topic])
@@ -665,7 +666,7 @@ def verify_batch_consumer():
     c.close()
 
     # Start a new client and get the committed offsets
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
     offsets = c.committed(list(map(lambda p: confluent_kafka.TopicPartition(topic, p), range(0, 3))))
     for tp in offsets:
         print(tp)
@@ -682,7 +683,7 @@ def verify_batch_consumer_performance():
             'error_cb': error_cb,
             'auto.offset.reset': 'earliest'}
 
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
 
     def my_on_assign(consumer, partitions):
         print('on_assign:', len(partitions), 'partitions:')
@@ -989,7 +990,7 @@ def verify_stats_cb():
             'statistics.interval.ms': 200,
             'auto.offset.reset': 'earliest'}
 
-    c = confluent_kafka.Consumer(conf)
+    c = get_consumer(conf)
     c.subscribe([topic])
 
     max_msgcnt = 1000000
