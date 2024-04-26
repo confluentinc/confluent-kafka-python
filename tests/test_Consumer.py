@@ -6,6 +6,7 @@ from confluent_kafka import (Consumer, TopicPartition, KafkaError,
 import pytest
 from .common import get_consumer
 
+
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
         broker configured. """
@@ -18,8 +19,8 @@ def test_basic_api():
         pass
 
     kc = get_consumer({'group.id': 'test', 'socket.timeout.ms': '100',
-                   'session.timeout.ms': 1000,  # Avoid close() blocking too long
-                   'on_commit': dummy_commit_cb})
+                       'session.timeout.ms': 1000,  # Avoid close() blocking too long
+                       'on_commit': dummy_commit_cb})
 
     kc.subscribe(["test"])
     kc.unsubscribe()
@@ -120,10 +121,10 @@ def test_store_offsets():
     """ Basic store_offsets() tests """
 
     c = get_consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
 
@@ -162,9 +163,9 @@ def test_on_commit():
     cs = CommitState('test', 2)
 
     c = get_consumer({'group.id': 'x',
-                  'enable.auto.commit': False, 'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100,
-                  'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
+                      'enable.auto.commit': False, 'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100,
+                      'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
 
     c.assign([TopicPartition(cs.topic, cs.partition)])
 
@@ -197,10 +198,10 @@ def test_subclassing():
                     reason="requires librdkafka >=0.11.0")
 def test_offsets_for_times():
     c = get_consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
     # Query broker for timestamps for partition
     try:
         test_topic_partition = TopicPartition("test", 0, 100)
@@ -217,10 +218,10 @@ def test_multiple_close_does_not_throw_exception():
     """ Calling Consumer.close() multiple times should not throw Runtime Exception
     """
     c = get_consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
 
@@ -233,10 +234,10 @@ def test_any_method_after_close_throws_exception():
     """ Calling any consumer method after close should throw a RuntimeError
     """
     c = get_consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
     c.unsubscribe()
@@ -297,10 +298,10 @@ def test_calling_store_offsets_after_close_throws_erro():
     """ calling store_offset after close should throw RuntimeError """
 
     c = get_consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
     c.unsubscribe()
