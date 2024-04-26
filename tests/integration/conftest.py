@@ -28,11 +28,18 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
 
+
 def _use_group_protocol_consumer():
     return GROUP_PROTOCOL_ENV in os.environ and os.environ[GROUP_PROTOCOL_ENV] == 'consumer'
 
+
+def _trivup_cluster_type_kraft():
+    return TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[TRIVUP_CLUSTER_TYPE_ENV] == 'kratf'
+
+
 def _use_kraft():
-    return _use_group_protocol_consumer() or TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
+    return _use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+
 
 def _broker_conf():
     broker_conf = ['transaction.state.log.replication.factor=1',
@@ -40,6 +47,7 @@ def _broker_conf():
     if _use_group_protocol_consumer():
         broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
     return broker_conf
+
 
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
