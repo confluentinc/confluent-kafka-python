@@ -1,3 +1,0 @@
-fastavro>=0.23.0
-requests
-avro>=1.11.1,<2
