@@ -26,8 +26,8 @@ def test_logging_consumer():
     f = CountingFilter('consumer')
     logger.addFilter(f)
     kc = get_consumer({'group.id': 'test',
-                                   'debug': 'all'},
-                                  logger=logger)
+                       'debug': 'all'},
+                      logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
