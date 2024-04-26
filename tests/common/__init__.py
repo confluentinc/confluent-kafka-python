@@ -17,7 +17,8 @@
 #
 
 import os
-import confluent_kafka
+from confluent_kafka import Consumer, DeserializingConsumer
+from confluent_kafka.avro import AvroConsumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 _TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
@@ -35,9 +36,21 @@ def use_kraft():
     return use_group_protocol_consumer() or _trivup_cluster_type_kraft()
 
 
-def get_consumer(conf=None, **kwargs):
+def _get_consumer_generic(consumer_clazz, conf=None, **kwargs):
     if use_group_protocol_consumer():
         if conf is None:
             conf = {}
         conf['group.protocol'] = 'consumer'
-    return confluent_kafka.Consumer(conf, **kwargs)
+    return consumer_clazz(conf, **kwargs)
+
+
+def get_consumer(conf=None, **kwargs):
+    return _get_consumer_generic(Consumer, conf, **kwargs)
+
+
+def get_avro_consumer(conf=None, **kwargs):
+    return _get_consumer_generic(AvroConsumer, conf, **kwargs)
+
+
+def get_deserializing_consumer(conf=None, **kwargs):
+    return _get_consumer_generic(DeserializingConsumer, conf, **kwargs)
