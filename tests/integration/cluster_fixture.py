@@ -24,6 +24,8 @@ from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
     SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+import os
+from ..common import get_consumer
 
 
 class KafkaClusterFixture(object):
@@ -105,7 +107,7 @@ class KafkaClusterFixture(object):
         if conf is not None:
             consumer_conf.update(conf)
 
-        return Consumer(consumer_conf)
+        return get_consumer(consumer_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -128,6 +130,9 @@ class KafkaClusterFixture(object):
             'group.id': str(uuid1()),
             'auto.offset.reset': 'earliest'
         })
+
+        if 'TEST_CONSUMER_GROUP_PROTOCOL' in os.environ:
+            consumer_conf['group.protocol'] = os.environ['TEST_CONSUMER_GROUP_PROTOCOL']
 
         if conf is not None:
             consumer_conf.update(conf)
