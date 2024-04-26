@@ -168,13 +168,13 @@ class JSONSerializer(Serializer):
         if not isinstance(schema_str, (str, Schema)):
             raise TypeError('You must pass either schema string or schema object')
 
-        self._to_dict = to_dict
-        self._registry = schema_registry_client
-        self._known_subjects = set()
-
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
                              "to_dict(object, SerializationContext)->dict")
+
+        self._to_dict = to_dict
+        self._registry = schema_registry_client
+        self._known_subjects = set()
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -205,12 +205,18 @@ class JSONSerializer(Serializer):
         # Set common instance variables
         # Called on __init__ and
         # on __call__ if use.latest.version is set to True
-        self._set_instance_variables(schema_str)
+        self._update_schema_info(schema_str)
 
-    def _set_instance_variables(self, schema_str, schema_id=None):
+    def _update_schema_info(self, schema_str, schema_id=None):
         """
-        Function to be called upon __init__ and when serializing a message (__call__)
-        if use.latest.version is set True
+        Function to set the instance variables below upon __init__ (always) but
+         also on __call__ whenever the config param use.latest.version is set to True
+         and the subject is not in the local cache (self._known_subjects):
+          > self._schema_id
+          > self._schema
+          > self._schema_name
+          > self._parsed_schema
+          > self._are_references_provided
 
         Args:
             schema_str (str, Schema):
@@ -258,7 +264,7 @@ class JSONSerializer(Serializer):
             if self._use_latest_version:
                 latest_schema = self._registry.get_latest_version(subject)
                 # Update instance variables with latest schema
-                self._set_instance_variables(latest_schema.schema,
+                self._update_schema_info(latest_schema.schema,
                                              schema_id=latest_schema.schema_id)
                 # Add to registry cache
                 self._registry._cache.set(self._schema_id, 
