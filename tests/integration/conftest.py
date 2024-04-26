@@ -25,27 +25,50 @@ from tests.integration.cluster_fixture import ByoFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
+GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
+TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
+
+
+def _use_group_protocol_consumer():
+    return GROUP_PROTOCOL_ENV in os.environ and os.environ[GROUP_PROTOCOL_ENV] == 'consumer'
+
+
+def _trivup_cluster_type_kraft():
+    return TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[TRIVUP_CLUSTER_TYPE_ENV] == 'kratf'
+
+
+def _use_kraft():
+    return _use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+
+
+def _broker_conf():
+    broker_conf = ['transaction.state.log.replication.factor=1',
+                   'transaction.state.log.min.isr=1']
+    if _use_group_protocol_consumer():
+        broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
+    return broker_conf
+
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': True,
+    trivup_fixture_conf = {'with_sr': False,
                            'debug': True,
-                           'cp_version': '7.4.0',
-                           'version': '3.4.0',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'transaction.state.log.min.isr=1']}
+                           'cp_version': '7.6.0',
+                           'kraft': _use_kraft(),
+                           'version': 'trunk',
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
-                           'version': '3.4.0',
+                           'version': 'trunk',
                            'sasl_mechanism': "PLAIN",
+                           'kraft': _use_kraft(),
                            'sasl_users': 'sasl_user=sasl_user',
                            'debug': True,
                            'cp_version': 'latest',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'transaction.state.log.min.isr=1']}
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
