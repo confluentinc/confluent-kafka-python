@@ -60,7 +60,7 @@ for py in 3.8 ; do
         hash -r
 
         pip install -U pip pkginfo
-        pip install -r tests/requirements.txt
+        pip install .[dev]
 
         # Get the packages version so we can pin the install
         # command to this version (which hopefully loads it from the wheeldir
