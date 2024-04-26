@@ -138,12 +138,20 @@ blocks:
         commands:
           - docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY
       jobs:
-        - name: Build
+        - name: Build and Tests with 'classic' group protocol
           commands:
             - sem-version python 3.8
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
+        - name: Build and Tests with 'consumer' group protocol
+          commands:
+            - sem-version python 3.8
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (Linux arm64)"
     dependencies: []

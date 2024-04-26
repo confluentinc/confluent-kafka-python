@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-from confluent_kafka import Producer, Consumer, KafkaError, KafkaException, \
+from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
 from struct import pack
+from .common import get_consumer
 
 
 def error_cb(err):
@@ -211,7 +212,7 @@ def test_transaction_api():
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
-    consumer = Consumer({"group.id": "testgroup"})
+    consumer = get_consumer({"group.id": "testgroup"})
     group_metadata = consumer.consumer_group_metadata()
     consumer.close()
 
