@@ -1,0 +1,3 @@
+fastavro < 1.8.0;python_version == "3.7"
+fastavro >= 1.8.4, < 2; python_version > "3.7"
+avro >= 1.11.1, < 2
