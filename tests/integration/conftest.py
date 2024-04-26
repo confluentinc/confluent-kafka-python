@@ -25,12 +25,21 @@ from tests.integration.cluster_fixture import ByoFixture
 
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
+GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
+TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
+
+def _use_group_protocol_consumer():
+    return GROUP_PROTOCOL_ENV in os.environ and os.environ[GROUP_PROTOCOL_ENV] == 'consumer'
 
 def _use_kraft():
-    if 'TEST_TRIVUP_CLUSTER_TYPE' in os.environ and os.environ['TEST_TRIVUP_CLUSTER_TYPE'] == 'kraft':
-        return True
-    return 'TEST_CONSUMER_GROUP_PROTOCOL' in os.environ and os.environ['TEST_CONSUMER_GROUP_PROTOCOL'] == 'consumer'
+    return _use_group_protocol_consumer() or TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
 
+def _broker_conf():
+    broker_conf = ['transaction.state.log.replication.factor=1',
+                   'transaction.state.log.min.isr=1']
+    if _use_group_protocol_consumer():
+        broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
+    return broker_conf
 
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
@@ -38,9 +47,7 @@ def create_trivup_cluster(conf={}):
                            'cp_version': '7.6.0',
                            'kraft': _use_kraft(),
                            'version': 'trunk',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'group.coordinator.rebalance.protocols=classic,consumer',
-                                           'transaction.state.log.min.isr=1']}
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
@@ -53,9 +60,7 @@ def create_sasl_cluster(conf={}):
                            'sasl_users': 'sasl_user=sasl_user',
                            'debug': True,
                            'cp_version': 'latest',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'group.coordinator.rebalance.protocols=classic,consumer',
-                                           'transaction.state.log.min.isr=1']}
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
