@@ -17,9 +17,16 @@
 #
 import inspect
 import sys
+import os
 from uuid import uuid1
 
 from confluent_kafka import Consumer, KafkaError
+
+
+def _get_consumer(conf):
+    if 'TEST_CONSUMER_GROUP_PROTOCOL' in os.environ:
+        conf['group.protocol'] = os.environ['TEST_CONSUMER_GROUP_PROTOCOL']
+    return Consumer(conf)
 
 
 def called_by():
@@ -114,7 +121,7 @@ def test_send_offsets_committed_transaction(kafka_cluster):
         'error_cb': error_cb
     }
     consumer_conf.update(kafka_cluster.client_conf())
-    consumer = Consumer(consumer_conf)
+    consumer = _get_consumer(consumer_conf)
 
     kafka_cluster.seed_topic(input_topic)
     consumer.subscribe([input_topic])
@@ -204,7 +211,7 @@ def consume_committed(conf, topic):
                      'error_cb': prefixed_error_cb(called_by()), }
 
     consumer_conf.update(conf)
-    consumer = Consumer(consumer_conf)
+    consumer = _get_consumer(consumer_conf)
     consumer.subscribe([topic])
 
     msg_cnt = read_all_msgs(consumer)
