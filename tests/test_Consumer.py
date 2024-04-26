@@ -4,7 +4,7 @@ from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
 import pytest
-
+from .common import get_consumer
 
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
@@ -17,7 +17,7 @@ def test_basic_api():
     def dummy_commit_cb(err, partitions):
         pass
 
-    kc = Consumer({'group.id': 'test', 'socket.timeout.ms': '100',
+    kc = get_consumer({'group.id': 'test', 'socket.timeout.ms': '100',
                    'session.timeout.ms': 1000,  # Avoid close() blocking too long
                    'on_commit': dummy_commit_cb})
 
@@ -119,7 +119,7 @@ def test_basic_api():
 def test_store_offsets():
     """ Basic store_offsets() tests """
 
-    c = Consumer({'group.id': 'test',
+    c = get_consumer({'group.id': 'test',
                   'enable.auto.commit': True,
                   'enable.auto.offset.store': False,
                   'socket.timeout.ms': 50,
@@ -161,7 +161,7 @@ def test_on_commit():
 
     cs = CommitState('test', 2)
 
-    c = Consumer({'group.id': 'x',
+    c = get_consumer({'group.id': 'x',
                   'enable.auto.commit': False, 'socket.timeout.ms': 50,
                   'session.timeout.ms': 100,
                   'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
@@ -196,7 +196,7 @@ def test_subclassing():
 @pytest.mark.skipif(libversion()[1] < 0x000b0000,
                     reason="requires librdkafka >=0.11.0")
 def test_offsets_for_times():
-    c = Consumer({'group.id': 'test',
+    c = get_consumer({'group.id': 'test',
                   'enable.auto.commit': True,
                   'enable.auto.offset.store': False,
                   'socket.timeout.ms': 50,
@@ -216,7 +216,7 @@ def test_offsets_for_times():
 def test_multiple_close_does_not_throw_exception():
     """ Calling Consumer.close() multiple times should not throw Runtime Exception
     """
-    c = Consumer({'group.id': 'test',
+    c = get_consumer({'group.id': 'test',
                   'enable.auto.commit': True,
                   'enable.auto.offset.store': False,
                   'socket.timeout.ms': 50,
@@ -232,7 +232,7 @@ def test_multiple_close_does_not_throw_exception():
 def test_any_method_after_close_throws_exception():
     """ Calling any consumer method after close should throw a RuntimeError
     """
-    c = Consumer({'group.id': 'test',
+    c = get_consumer({'group.id': 'test',
                   'enable.auto.commit': True,
                   'enable.auto.offset.store': False,
                   'socket.timeout.ms': 50,
@@ -296,7 +296,7 @@ def test_any_method_after_close_throws_exception():
 def test_calling_store_offsets_after_close_throws_erro():
     """ calling store_offset after close should throw RuntimeError """
 
-    c = Consumer({'group.id': 'test',
+    c = get_consumer({'group.id': 'test',
                   'enable.auto.commit': True,
                   'enable.auto.offset.store': False,
                   'socket.timeout.ms': 50,
@@ -319,5 +319,5 @@ def test_consumer_without_groupid():
     """ Consumer should raise exception if group.id is not set """
 
     with pytest.raises(ValueError) as ex:
-        Consumer({'bootstrap.servers': "mybroker:9092"})
+        get_consumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')
