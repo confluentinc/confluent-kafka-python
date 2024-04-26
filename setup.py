@@ -5,7 +5,8 @@ from setuptools import setup
 from distutils.core import Extension
 import platform
 
-mod_dir = os.path.join('src', 'confluent_kafka')
+work_dir = os.path.dirname(os.path.realpath(__file__))
+mod_dir = os.path.join(work_dir, 'src', 'confluent_kafka')
 ext_dir = os.path.join(mod_dir, 'src')
 
 # On Un*x the library is linked as -lrdkafka,
