@@ -20,12 +20,10 @@ from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Producer, DeserializingConsumer, \
-    SerializingProducer
+from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-import os
-from ..common import get_consumer
+from ..common import get_consumer, get_deserializing_consumer
 
 
 class KafkaClusterFixture(object):
@@ -131,9 +129,6 @@ class KafkaClusterFixture(object):
             'auto.offset.reset': 'earliest'
         })
 
-        if 'TEST_CONSUMER_GROUP_PROTOCOL' in os.environ:
-            consumer_conf['group.protocol'] = os.environ['TEST_CONSUMER_GROUP_PROTOCOL']
-
         if conf is not None:
             consumer_conf.update(conf)
 
@@ -143,7 +138,7 @@ class KafkaClusterFixture(object):
         if value_deserializer is not None:
             consumer_conf['value.deserializer'] = value_deserializer
 
-        return DeserializingConsumer(consumer_conf)
+        return get_deserializing_consumer(consumer_conf)
 
     def admin(self, conf=None):
         if conf:

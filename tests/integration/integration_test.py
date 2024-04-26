@@ -29,7 +29,7 @@ import json
 import gc
 import struct
 import re
-from ..common import get_consumer
+from ..common import get_consumer, get_avro_consumer
 
 try:
     # Memory tracker
@@ -878,7 +878,7 @@ def run_avro_loop(producer_conf, consumer_conf):
         p.produce(**combo)
     p.flush()
 
-    c = avro.AvroConsumer(consumer_conf)
+    c = get_avro_consumer(consumer_conf)
     c.subscribe([(t['topic']) for t in combinations])
 
     msgcount = 0
@@ -1117,7 +1117,7 @@ def verify_avro_explicit_read_schema():
         p.produce(topic=avro_topic, **combo)
     p.flush()
 
-    c = avro.AvroConsumer(consumer_conf, reader_key_schema=reader_schema, reader_value_schema=reader_schema)
+    c = get_avro_consumer(consumer_conf, reader_key_schema=reader_schema, reader_value_schema=reader_schema)
     c.subscribe([avro_topic])
 
     msgcount = 0
