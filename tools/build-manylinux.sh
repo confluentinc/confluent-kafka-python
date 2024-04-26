@@ -92,7 +92,7 @@ for PYBIN in /opt/python/cp*/bin; do
             "${PYBIN}/pip" -V
             "${PYBIN}/pip" install --no-index -f /io/wheelhouse confluent_kafka 
             "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
-            "${PYBIN}/pip" install -r /io/tests/requirements.txt
+            "${PYBIN}/pip" install /io[dev]
             "${PYBIN}/pytest" /io/tests/test_Producer.py
             echo "## Uninstalling $PYBIN"
             "${PYBIN}/pip" uninstall -y confluent_kafka

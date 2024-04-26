@@ -5,7 +5,7 @@ all:
 
 
 clean:
-	python setup.py clean
+	pip cache purge
 	rm -rf dist
 	make -C docs clean
 
