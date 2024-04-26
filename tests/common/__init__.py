@@ -41,4 +41,3 @@ def get_consumer(conf=None, **kwargs):
             conf = {}
         conf['group.protocol'] = 'consumer'
     return confluent_kafka.Consumer(conf, **kwargs)
-

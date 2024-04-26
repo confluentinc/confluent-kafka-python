@@ -17,7 +17,7 @@
 #
 
 import os
-from ..common import *
+from ..common import use_group_protocol_consumer, use_kraft
 import pytest
 
 from tests.integration.cluster_fixture import TrivupFixture
