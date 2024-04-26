@@ -8,6 +8,7 @@ import pytest
 import os
 import time
 import sys
+from .common import get_consumer
 
 
 def test_version():
@@ -40,7 +41,7 @@ def test_error_cb():
             'error_cb': error_cb
             }
 
-    kc = confluent_kafka.Consumer(**conf)
+    kc = get_consumer(conf)
     kc.subscribe(["test"])
     while not seen_error_cb:
         kc.poll(timeout=0.1)
@@ -64,7 +65,7 @@ def test_stats_cb():
             'stats_cb': stats_cb
             }
 
-    kc = confluent_kafka.Consumer(**conf)
+    kc = get_consumer(conf)
 
     kc.subscribe(["test"])
     while not seen_stats_cb:
@@ -137,7 +138,7 @@ def test_oauth_cb():
             'oauth_cb': oauth_cb
             }
 
-    kc = confluent_kafka.Consumer(**conf)
+    kc = get_consumer(conf)
 
     while not seen_oauth_cb:
         kc.poll(timeout=0.1)
@@ -162,7 +163,7 @@ def test_oauth_cb_principal_sasl_extensions():
             'oauth_cb': oauth_cb
             }
 
-    kc = confluent_kafka.Consumer(**conf)
+    kc = get_consumer(conf)
 
     while not seen_oauth_cb:
         kc.poll(timeout=0.1)
@@ -189,7 +190,7 @@ def test_oauth_cb_failure():
             'oauth_cb': oauth_cb
             }
 
-    kc = confluent_kafka.Consumer(**conf)
+    kc = get_consumer(conf)
 
     while oauth_cb_count < 2:
         kc.poll(timeout=0.1)
@@ -267,7 +268,7 @@ def test_topic_config_update():
 def test_set_sasl_credentials_api():
     clients = [
         AdminClient({}),
-        confluent_kafka.Consumer({"group.id": "dummy"}),
+        get_consumer({"group.id": "dummy"}),
         confluent_kafka.Producer({})]
 
     for c in clients:

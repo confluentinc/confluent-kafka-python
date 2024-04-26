@@ -4,6 +4,7 @@ from io import StringIO
 import confluent_kafka
 import confluent_kafka.avro
 import logging
+from .common import get_consumer
 
 
 class CountingFilter(logging.Filter):
@@ -24,8 +25,7 @@ def test_logging_consumer():
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('consumer')
     logger.addFilter(f)
-
-    kc = confluent_kafka.Consumer({'group.id': 'test',
+    kc = get_consumer({'group.id': 'test',
                                    'debug': 'all'},
                                   logger=logger)
     while f.cnt == 0:
@@ -149,7 +149,7 @@ def test_consumer_logger_logging_in_given_format():
     handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
     logger.addHandler(handler)
 
-    c = confluent_kafka.Consumer(
+    c = get_consumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
     c.poll(0)
 
