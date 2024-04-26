@@ -5,10 +5,7 @@
 #
 set -e
 
-pip install -r docs/requirements.txt
-pip install -U protobuf
-pip install -r tests/requirements.txt
-pip install -U build
+pip install -r requirements-dev-install.txt
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
@@ -22,6 +19,7 @@ python3 -m build
 pip install dist/confluent_kafka*.whl
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
+    pip install -r requirements-doc.txt
     flake8 --exclude ./_venv,*_pb2.py
     make docs
     python -m pytest --timeout 1200 --ignore=dest

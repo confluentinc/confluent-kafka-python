@@ -144,7 +144,7 @@ RCs, so it only needs to be set once for each release.
 
 Commit these changes with a commit-message containing the version:
 
-    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
+    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h docs/conf.py pyproject.toml
 
 
 ## 5. Tag, CI build, wheel verification, upload
