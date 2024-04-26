@@ -12,7 +12,7 @@ def test_basic_api():
         broker configured. """
 
     with pytest.raises(TypeError) as ex:
-        kc = Consumer()
+        kc = get_consumer()
     assert ex.match('expected configuration dict')
 
     def dummy_commit_cb(err, partitions):

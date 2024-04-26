@@ -4,7 +4,7 @@ from io import StringIO
 import confluent_kafka
 import confluent_kafka.avro
 import logging
-from .common import get_consumer
+from .common import get_consumer, get_avro_consumer
 
 
 class CountingFilter(logging.Filter):
@@ -44,10 +44,10 @@ def test_logging_avro_consumer():
     f = CountingFilter('avroconsumer')
     logger.addFilter(f)
 
-    kc = confluent_kafka.avro.AvroConsumer({'schema.registry.url': 'http://example.com',
-                                            'group.id': 'test',
-                                            'debug': 'all'},
-                                           logger=logger)
+    kc = get_avro_consumer({'schema.registry.url': 'http://example.com',
+                            'group.id': 'test',
+                            'debug': 'all'},
+                           logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
