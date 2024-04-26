@@ -165,24 +165,16 @@ class JSONSerializer(Serializer):
                      'subject.name.strategy': topic_subject_name_strategy}
 
     def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
-        self._are_references_provided = False
-        if isinstance(schema_str, str):
-            self._schema = Schema(schema_str, schema_type="JSON")
-        elif isinstance(schema_str, Schema):
-            self._schema = schema_str
-            self._are_references_provided = bool(schema_str.references)
-        else:
-            raise TypeError('You must pass either str or Schema')
-
-        self._registry = schema_registry_client
-        self._schema_id = None
-        self._known_subjects = set()
+        if not isinstance(schema_str, (str, Schema)):
+            raise TypeError('You must pass either schema string or schema object')
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
                              "to_dict(object, SerializationContext)->dict")
 
         self._to_dict = to_dict
+        self._registry = schema_registry_client
+        self._known_subjects = set()
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -210,13 +202,39 @@ class JSONSerializer(Serializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema_dict = json.loads(self._schema.schema_str)
-        schema_name = schema_dict.get('title', None)
-        if schema_name is None:
-            raise ValueError("Missing required JSON schema annotation title")
+        # Set common instance variables
+        # Called on __init__ and
+        # on __call__ if use.latest.version is set to True
+        self._update_schema_info(schema_str)
 
-        self._schema_name = schema_name
-        self._parsed_schema = schema_dict
+    def _update_schema_info(self, schema_str, schema_id=None):
+        """
+        Function to set the instance variables below upon __init__ (always) but
+         also on __call__ whenever the config param use.latest.version is set to True
+         and the subject is not in the local cache (self._known_subjects):
+          > self._schema_id
+          > self._schema
+          > self._schema_name
+          > self._parsed_schema
+          > self._are_references_provided
+
+        Args:
+            schema_str (str, Schema):
+            schema_id (int, default None)
+        """
+        self._schema_id = schema_id
+
+        self._are_references_provided = False
+        if isinstance(schema_str, str):
+            self._schema = Schema(schema_str, schema_type="JSON")
+        else:  # type=Schema (asserted on __init__)
+            self._schema = schema_str
+            self._are_references_provided = bool(schema_str.references)
+
+        self._parsed_schema = json.loads(self._schema.schema_str)
+        self._schema_name = self._parsed_schema.get("title", None)
+        if self._schema_name is None:
+            raise ValueError("Missing required JSON schema annotation title")
 
     def __call__(self, obj, ctx):
         """
@@ -245,8 +263,13 @@ class JSONSerializer(Serializer):
         if subject not in self._known_subjects:
             if self._use_latest_version:
                 latest_schema = self._registry.get_latest_version(subject)
-                self._schema_id = latest_schema.schema_id
-
+                # Update instance variables with latest schema
+                self._update_schema_info(latest_schema.schema,
+                                             schema_id=latest_schema.schema_id)
+                # Add to registry cache
+                self._registry._cache.set(self._schema_id, 
+                                          self._schema,
+                                          subject)
             else:
                 # Check to ensure this schema has been registered under subject_name.
                 if self._auto_register:
