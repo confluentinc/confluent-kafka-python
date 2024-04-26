@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "confluent-kafka"
 version = "2.3.0"
-description = "\"Confluent's Python client for Apache Kafka\""
+description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
@@ -13,13 +13,13 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules"]
-dependencies = [ "futures;python_version<\"3.2\"", "enum34;python_version<\"3.4\"",]
+dependencies = []
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.7"
 
 [[project.authors]]
-name = "\"Confluent Inc\""
+name = "Confluent Inc"
 email = "support@confluent.io"
 
 [project.urls]
@@ -27,11 +27,14 @@ Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 
 [project.optional-dependencies]
 schema-registry = [ "requests",]
-avro = [ "fastavro>=0.23.0,<1.0;python_version<\"3.0\"", "fastavro>=1.0;python_version>\"3.0\"", "avro>=1.11.1,<2", "requests",]
-json = [ "pyrsistent==0.16.1;python_version<\"3.0\"", "pyrsistent;python_version>\"3.0\"", "jsonschema", "requests",]
-protobuf = [ "protobuf", "requests",]
-dev = [ "pytest==4.6.4;python_version<\"3.0\"", "pytest;python_version>=\"3.0\"", "pytest-timeout", "flake8", "fastavro>=0.23.0,<1.0;python_version<\"3.0\"", "fastavro>=1.0;python_version>\"3.0\"", "avro>=1.11.1,<2", "requests",]
-doc = [ "sphinx", "sphinx-rtd-theme", "fastavro>=0.23.0,<1.0;python_version<\"3.0\"", "fastavro>=1.0;python_version>\"3.0\"", "avro>=1.11.1,<2", "requests",]
+avro = [ "fastavro>=1.0,<2", "avro>=1.11.1,<2", "confluent-kafka[schema-registry]",]
+json = [ "pyrsistent", "jsonschema", "confluent-kafka[schema-registry]",]
+protobuf = [ "protobuf", "confluent-kafka[schema-registry]",]
+dev = [ "pytest", "pytest-timeout", "flake8", "requests_mock", "build",
+        "trivup>=0.8.3", "urllib3<2.0.0;python_version<=\"3.7\"",
+        "confluent-kafka[schema-registry,avro,json,protobuf]",]
+doc = [ "sphinx", "sphinx-rtd-theme", "confluent-kafka[schema-registry,avro,json,protobuf]",]
+all = ["confluent-kafka[schema-registry,avro,json,protobuf,dev,doc]"]
 
 [tool.setuptools]
 include-package-data = false
