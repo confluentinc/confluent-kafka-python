@@ -20,7 +20,11 @@ python setup.py build && python setup.py install
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv,*_pb2.py
     make docs
-    python -m pytest --timeout 1200 --ignore=dest
+    if [[ $TEST_TEST_CONSUMER_GROUP_PROTOCOL == consumer ]]; then
+        python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration/admin
+    else
+        python -m pytest --timeout 1200 --ignore=dest
+    fi
 else
     python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration
 fi
