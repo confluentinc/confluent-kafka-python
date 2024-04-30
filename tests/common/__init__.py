@@ -38,9 +38,8 @@ def use_kraft():
 
 def _get_consumer_generic(consumer_clazz, conf=None, **kwargs):
     if use_group_protocol_consumer():
-        if conf is None:
-            conf = {}
-        conf['group.protocol'] = 'consumer'
+        if conf is not None and 'group.id' in conf:
+            conf['group.protocol'] = 'consumer'
     return consumer_clazz(conf, **kwargs)
 
 
