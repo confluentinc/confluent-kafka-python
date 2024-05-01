@@ -149,3 +149,16 @@ class IsolationLevel(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+class DeleteRecordsResult:
+    """
+    DeleteRecordsResult
+    Result of a `AdminClient.delete_records` call associated to a partition.
+
+    Parameters
+    ----------
+    offset: int
+        The offset returned by the delete_records call.
+    """
+    def __init__(self, offset):
+        self.offset = offset
