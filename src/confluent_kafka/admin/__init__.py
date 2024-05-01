@@ -543,10 +543,8 @@ class AdminClient (_AdminClientImpl):
         for req in request:
             if not isinstance(req, _TopicPartition):
                 raise TypeError("Element of the request list must be of type 'TopicPartition' ")
-            if req is None:
-                raise ValueError("Individual request in the request list cannot be 'None'")
             if req.partition < 0:
-                raise ValueError("Elements of the list must not have negative value for 'partition' field")
+                raise ValueError(" 'partition' cannot be negative")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1235,10 +1233,8 @@ class AdminClient (_AdminClientImpl):
                   in the cluster. A value of 0 returns immediately. Default: 0
 
         :returns: A dict of futures keyed by the TopicPartition.
-                    The future result() method returns a TopicPartition list indicating that
-                    deletion operation have been performed till the specified Topic Partition
-                    and error if any has occured. User has to check if any error has occured
-                    during deletion in each partition.
+                    The future result() method returns DeleteRecordsResult
+                    or raises KafkaException
 
         :rtype: dict[TopicPartition, future]
 
@@ -1249,7 +1245,7 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_delete_records(topic_partition_offsets_list)
 
         f, futmap = AdminClient._make_futures_v2(
-            topic_partition_offsets_list, _TopicPartition, AdminClient._make_futmap_result_from_list)
+            topic_partition_offsets_list, _TopicPartition, AdminClient._make_futmap_result)
 
         super(AdminClient, self).delete_records(topic_partition_offsets_list, f, **kwargs)
         return futmap
