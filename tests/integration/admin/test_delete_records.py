@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
-from confluent_kafka import TopicPartition
+from confluent_kafka.admin import OffsetSpec
+from confluent_kafka import TopicPartition, DeleteRecordsResult
 
 
 def test_delete_records(kafka_cluster):
@@ -43,29 +43,21 @@ def test_delete_records(kafka_cluster):
 
     # Check if the earliest avilable offset for this topic partition is 0
     fs = admin_client.list_offsets(requests)
-    for _, fut in fs.items():
-        result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo)
-        assert (result.offset == 0)
+    result = list(fs.values())[0].result()
+    assert (result.offset == 0)
 
     topic_partition_offset = TopicPartition(topic, 0, 2)
 
     # Delete the records
     fs1 = admin_client.delete_records([topic_partition_offset])
-    earliest_offset_available = 0
 
     # Find the earliest available offset for that specific topic partition after deletion has been done
     fs2 = admin_client.list_offsets(requests)
-    for _, fut in fs2.items():
-        result = fut.result()
-        assert isinstance(result, ListOffsetsResultInfo)
-        earliest_offset_available = result.offset
 
     # Check if the earliest available offset is equal to the offset passed to the delete records function
-    for _, fut in fs1.items():
-        result = fut.result()
-        assert isinstance(result, TopicPartition)
-        assert (result.offset == earliest_offset_available)
+    res = list(fs1.values())[0].result()
+    assert isinstance(res, DeleteRecordsResult)
+    assert (res.offset == list(fs2.values())[0].result().offset)
 
     # Delete created topic
     fs = admin_client.delete_topics([topic])
