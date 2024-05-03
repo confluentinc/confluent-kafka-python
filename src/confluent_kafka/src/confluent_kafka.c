@@ -1623,7 +1623,7 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         if (rd_kafka_Node_host(c_node))
                 cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
         else
-                cfl_PyObject_SetItemString(kwargs, "host", Py_None);
+                PyDict_SetItemString(kwargs, "host", Py_None);
         if((rack = rd_kafka_Node_rack(c_node)))
                 cfl_PyDict_SetString(kwargs, "rack", rack);
 
