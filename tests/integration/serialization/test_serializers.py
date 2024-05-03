@@ -122,12 +122,12 @@ def test_mixed_serialization(kafka_single_broker_cluster, key_serializer, value_
     topic = kafka_single_broker_cluster.create_topic("serialization-numeric")
 
     producer = kafka_single_broker_cluster.producer(key_serializer=key_serializer,
-                                      value_serializer=value_serializer)
+                                                    value_serializer=value_serializer)
     producer.produce(topic, key=key, value=value)
     producer.flush()
 
     consumer = kafka_single_broker_cluster.consumer(key_deserializer=key_deserializer,
-                                      value_deserializer=value_deserializer)
+                                                    value_deserializer=value_deserializer)
     consumer.subscribe([topic])
 
     msg = consumer.poll()
