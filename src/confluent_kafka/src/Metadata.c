@@ -208,18 +208,10 @@ static PyObject *c_broker_to_py(Handle *self, PyObject *BrokerMetadata_type,
         }
         Py_DECREF(key);
 
-        if (c_broker.host) {
-                if (cfl_PyObject_SetString(broker, "host",
-                                                c_broker.host) == -1) {
-                        Py_DECREF(broker);
-                        return NULL;
-                }
-        } else {
-                if (cfl_PyObject_SetItemString(broker, "host",
-                                                Py_None) == -1) {
-                        Py_DECREF(broker);
-                        return NULL;
-                }
+        if (cfl_PyObject_SetString(broker, "host",
+                                        c_broker.host) == -1) {
+                Py_DECREF(broker);
+                return NULL;
         }
         if (cfl_PyObject_SetInt(broker, "port",
                                 (int)c_broker.port) == -1) {
