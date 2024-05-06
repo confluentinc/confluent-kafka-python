@@ -24,21 +24,23 @@ _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 _TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
 
 
+def _update_conf_group_protocol(conf=None):
+    if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
+        conf['group.protocol'] = 'consumer'
+
+
 def _trivup_cluster_type_kraft():
     return _TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[_TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
 
 
-def use_group_protocol_consumer():
-    return _GROUP_PROTOCOL_ENV in os.environ and os.environ[_GROUP_PROTOCOL_ENV] == 'consumer'
+class TestUtils:
+    @staticmethod
+    def use_kraft():
+        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
 
-
-def use_kraft():
-    return use_group_protocol_consumer() or _trivup_cluster_type_kraft()
-
-
-def _update_conf_group_protocol(conf=None):
-    if conf is not None and 'group.id' in conf and use_group_protocol_consumer():
-        conf['group.protocol'] = 'consumer'
+    @staticmethod
+    def use_group_protocol_consumer():
+        return _GROUP_PROTOCOL_ENV in os.environ and os.environ[_GROUP_PROTOCOL_ENV] == 'consumer'
 
 
 class TestConsumer(Consumer):
