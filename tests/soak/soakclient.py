@@ -30,7 +30,7 @@ from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 from collections import defaultdict
 from builtins import int
-from common import get_consumer
+from common import TestConsumer
 import argparse
 import threading
 import time
@@ -445,7 +445,7 @@ class SoakClient (object):
         cconf['error_cb'] = self.consumer_error_cb
         cconf['on_commit'] = self.consumer_commit_cb
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
-        self.consumer = get_consumer(cconf)
+        self.consumer = TestConsumer(cconf)
 
         # Create and start producer thread
         self.producer_thread = threading.Thread(target=self.producer_thread_main)

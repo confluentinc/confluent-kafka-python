@@ -36,20 +36,24 @@ def use_kraft():
     return use_group_protocol_consumer() or _trivup_cluster_type_kraft()
 
 
-def _get_consumer_generic(consumer_clazz, conf=None, **kwargs):
-    if use_group_protocol_consumer():
-        if conf is not None and 'group.id' in conf:
-            conf['group.protocol'] = 'consumer'
-    return consumer_clazz(conf, **kwargs)
+def _update_conf_group_protocol(conf=None):
+    if conf is not None and 'group.id' in conf and use_group_protocol_consumer():
+        conf['group.protocol'] = 'consumer'
 
 
-def get_consumer(conf=None, **kwargs):
-    return _get_consumer_generic(Consumer, conf, **kwargs)
+class TestConsumer(Consumer):
+    def __init__(self, conf, **kwargs):
+        _update_conf_group_protocol(conf)
+        super(TestConsumer, self).__init__(conf, **kwargs)
 
 
-def get_avro_consumer(conf=None, **kwargs):
-    return _get_consumer_generic(AvroConsumer, conf, **kwargs)
+class TestDeserializingConsumer(DeserializingConsumer):
+    def __init__(self, conf, **kwargs):
+        _update_conf_group_protocol(conf)
+        super(TestDeserializingConsumer, self).__init__(conf, **kwargs)
 
 
-def get_deserializing_consumer(conf=None, **kwargs):
-    return _get_consumer_generic(DeserializingConsumer, conf, **kwargs)
+class TestAvroConsumer(AvroConsumer):
+    def __init__(self, conf, **kwargs):
+        _update_conf_group_protocol(conf)
+        super(TestAvroConsumer, self).__init__(conf, **kwargs)
