@@ -18,7 +18,7 @@
 import inspect
 import sys
 from uuid import uuid1
-from ...common import get_consumer
+from ...common import TestConsumer
 
 from confluent_kafka import KafkaError
 
@@ -115,7 +115,7 @@ def test_send_offsets_committed_transaction(kafka_cluster):
         'error_cb': error_cb
     }
     consumer_conf.update(kafka_cluster.client_conf())
-    consumer = get_consumer(consumer_conf)
+    consumer = TestConsumer(consumer_conf)
 
     kafka_cluster.seed_topic(input_topic)
     consumer.subscribe([input_topic])
@@ -205,7 +205,7 @@ def consume_committed(conf, topic):
                      'error_cb': prefixed_error_cb(called_by()), }
 
     consumer_conf.update(conf)
-    consumer = get_consumer(consumer_conf)
+    consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
     msg_cnt = read_all_msgs(consumer)
