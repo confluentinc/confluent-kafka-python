@@ -4,7 +4,7 @@ from io import StringIO
 import confluent_kafka
 import confluent_kafka.avro
 import logging
-from .common import get_consumer, get_avro_consumer
+from .common import TestConsumer, TestAvroConsumer
 
 
 class CountingFilter(logging.Filter):
@@ -25,7 +25,7 @@ def test_logging_consumer():
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('consumer')
     logger.addFilter(f)
-    kc = get_consumer({'group.id': 'test',
+    kc = TestConsumer({'group.id': 'test',
                        'debug': 'all'},
                       logger=logger)
     while f.cnt == 0:
@@ -44,10 +44,10 @@ def test_logging_avro_consumer():
     f = CountingFilter('avroconsumer')
     logger.addFilter(f)
 
-    kc = get_avro_consumer({'schema.registry.url': 'http://example.com',
-                            'group.id': 'test',
-                            'debug': 'all'},
-                           logger=logger)
+    kc = TestAvroConsumer({'schema.registry.url': 'http://example.com',
+                           'group.id': 'test',
+                           'debug': 'all'},
+                          logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
@@ -149,7 +149,7 @@ def test_consumer_logger_logging_in_given_format():
     handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
     logger.addHandler(handler)
 
-    c = get_consumer(
+    c = TestConsumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
     c.poll(0)
 
