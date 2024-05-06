@@ -42,18 +42,18 @@ def _update_conf_group_protocol(conf=None):
 
 
 class TestConsumer(Consumer):
-    def __init__(self, conf, **kwargs):
+    def __init__(self, conf=None, **kwargs):
         _update_conf_group_protocol(conf)
         super(TestConsumer, self).__init__(conf, **kwargs)
 
 
 class TestDeserializingConsumer(DeserializingConsumer):
-    def __init__(self, conf, **kwargs):
+    def __init__(self, conf=None, **kwargs):
         _update_conf_group_protocol(conf)
         super(TestDeserializingConsumer, self).__init__(conf, **kwargs)
 
 
 class TestAvroConsumer(AvroConsumer):
-    def __init__(self, conf, **kwargs):
+    def __init__(self, conf=None, **kwargs):
         _update_conf_group_protocol(conf)
         super(TestAvroConsumer, self).__init__(conf, **kwargs)
