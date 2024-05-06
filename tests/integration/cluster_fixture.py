@@ -20,10 +20,10 @@ from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
-    SerializingProducer
+from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from ..common import TestDeserializingConsumer, TestConsumer
 
 
 class KafkaClusterFixture(object):
@@ -105,7 +105,7 @@ class KafkaClusterFixture(object):
         if conf is not None:
             consumer_conf.update(conf)
 
-        return Consumer(consumer_conf)
+        return TestConsumer(consumer_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -138,7 +138,7 @@ class KafkaClusterFixture(object):
         if value_deserializer is not None:
             consumer_conf['value.deserializer'] = value_deserializer
 
-        return DeserializingConsumer(consumer_conf)
+        return TestDeserializingConsumer(consumer_conf)
 
     def admin(self, conf=None):
         if conf:
