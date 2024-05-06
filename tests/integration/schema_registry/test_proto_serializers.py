@@ -47,19 +47,19 @@ from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import 
                 one_id='oneof_str',
                 is_active=False)})
 ])
-def test_protobuf_message_serialization(kafka_cluster, pb2, data):
+def test_protobuf_message_serialization(kafka_single_broker_cluster, pb2, data):
     """
     Validates that we get the same message back that we put in.
 
     """
-    topic = kafka_cluster.create_topic("serialization-proto")
-    sr = kafka_cluster.schema_registry()
+    topic = kafka_single_broker_cluster.create_topic("serialization-proto")
+    sr = kafka_single_broker_cluster.schema_registry()
 
     value_serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
     value_deserializer = ProtobufDeserializer(pb2, {'use.deprecated.format': False})
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    producer = kafka_single_broker_cluster.producer(value_serializer=value_serializer)
+    consumer = kafka_single_broker_cluster.consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
     expect = pb2(**data)
@@ -78,16 +78,16 @@ def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     (DependencyMessage, ['NestedTestProto.proto', 'PublicTestProto.proto']),
     (ClickCas, ['metadata_proto.proto', 'common_proto.proto'])
 ])
-def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
+def test_protobuf_reference_registration(kafka_single_broker_cluster, pb2, expected_refs):
     """
     Registers multiple messages with dependencies then queries the Schema
     Registry to ensure the references match up.
 
     """
-    sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic("serialization-proto-refs")
+    sr = kafka_single_broker_cluster.schema_registry()
+    topic = kafka_single_broker_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
-    producer = kafka_cluster.producer(key_serializer=serializer)
+    producer = kafka_single_broker_cluster.producer(key_serializer=serializer)
 
     producer.produce(topic, key=pb2(), partition=0)
     producer.flush()
@@ -97,7 +97,7 @@ def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
     assert expected_refs.sort() == [ref.name for ref in registered_refs].sort()
 
 
-def test_protobuf_serializer_type_mismatch(kafka_cluster):
+def test_protobuf_serializer_type_mismatch(kafka_single_broker_cluster):
     """
     Ensures an Exception is raised when deserializing an unexpected type.
 
@@ -105,11 +105,11 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
     pb2_1 = TestProto_pb2.TestMessage
     pb2_2 = NestedTestProto_pb2.NestedMessage
 
-    sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic("serialization-proto-refs")
+    sr = kafka_single_broker_cluster.schema_registry()
+    topic = kafka_single_broker_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
 
-    producer = kafka_cluster.producer(key_serializer=serializer)
+    producer = kafka_single_broker_cluster.producer(key_serializer=serializer)
 
     with pytest.raises(KafkaException,
                        match=r"message must be of type <class"
@@ -118,7 +118,7 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
         producer.produce(topic, key=pb2_2())
 
 
-def test_protobuf_deserializer_type_mismatch(kafka_cluster):
+def test_protobuf_deserializer_type_mismatch(kafka_single_broker_cluster):
     """
     Ensures an Exception is raised when deserializing an unexpected type.
 
@@ -126,13 +126,13 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     pb2_1 = PublicTestProto_pb2.TestMessage
     pb2_2 = metadata_proto_pb2.HDFSOptions
 
-    sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic("serialization-proto-refs")
+    sr = kafka_single_broker_cluster.schema_registry()
+    topic = kafka_single_broker_cluster.create_topic("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
     deserializer = ProtobufDeserializer(pb2_2, {'use.deprecated.format': False})
 
-    producer = kafka_cluster.producer(key_serializer=serializer)
-    consumer = kafka_cluster.consumer(key_deserializer=deserializer)
+    producer = kafka_single_broker_cluster.producer(key_serializer=serializer)
+    consumer = kafka_single_broker_cluster.consumer(key_deserializer=deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
     def dr(err, msg):
