@@ -1,5 +1,14 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.4.0
+
+v2.4.0 is a feature release with the following features, fixes and enhancements:
+
+confluent-kafka-python is based on librdkafka v2.4.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.3.0
 
 v2.3.0 is a feature release with the following features, fixes and enhancements:
