@@ -121,19 +121,19 @@ class _RestClient(object):
     def _close(self):
         self.session.close()
 
-    def get(self, url, query=None):
-        return self.send_request(url, method='GET', query=query)
+    def get(self, url, query=None, **kwargs):
+        return self.send_request(url, method='GET', query=query, **kwargs)
 
     def post(self, url, body, **kwargs):
-        return self.send_request(url, method='POST', body=body)
+        return self.send_request(url, method='POST', body=body, **kwargs)
 
-    def delete(self, url):
-        return self.send_request(url, method='DELETE')
+    def delete(self, url, **kwargs):
+        return self.send_request(url, method='DELETE', **kwargs)
 
-    def put(self, url, body=None):
-        return self.send_request(url, method='PUT', body=body)
+    def put(self, url, body=None, **kwargs):
+        return self.send_request(url, method='PUT', body=body, **kwargs)
 
-    def send_request(self, url, method, body=None, query=None):
+    def send_request(self, url, method, body=None, query=None, **kwargs):
         """
         Sends HTTP request to the SchemaRegistry.
 
@@ -167,7 +167,7 @@ class _RestClient(object):
 
         response = self.session.request(
             method, url="/".join([self.base_url, url]),
-            headers=headers, data=body, params=query)
+            headers=headers, data=body, params=query, **kwargs)
 
         try:
             if 200 <= response.status_code <= 299:
@@ -300,7 +300,7 @@ class SchemaRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client._close()
 
-    def register_schema(self, subject_name, schema, normalize_schemas=False):
+    def register_schema(self, subject_name, schema, normalize_schemas=False, *, timeout=None):
         """
         Registers a schema under ``subject_name``.
 
@@ -335,15 +335,19 @@ class SchemaRegistryClient(object):
                                      for ref in schema.references]
 
         response = self._rest_client.post(
-            'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
-            body=request)
+            'subjects/{}/versions?normalize={}'.format(
+                _urlencode(subject_name), normalize_schemas
+            ),
+            body=request,
+            timeout=timeout,
+        )
 
         schema_id = response['id']
         self._cache.set(schema_id, schema, subject_name)
 
         return schema_id
 
-    def get_schema(self, schema_id):
+    def get_schema(self, schema_id, *, timeout=None):
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -366,7 +370,10 @@ class SchemaRegistryClient(object):
         if schema is not None:
             return schema
 
-        response = self._rest_client.get('schemas/ids/{}'.format(schema_id))
+        response = self._rest_client.get(
+            'schemas/ids/{}'.format(schema_id),
+            timeout=timeout
+        )
         schema = Schema(schema_str=response['schema'],
                         schema_type=response.get('schemaType', 'AVRO'))
 
@@ -379,7 +386,7 @@ class SchemaRegistryClient(object):
 
         return schema
 
-    def lookup_schema(self, subject_name, schema, normalize_schemas=False):
+    def lookup_schema(self, subject_name, schema, normalize_schemas=False, *, timeout=None):
         """
         Returns ``schema`` registration information for ``subject``.
 
@@ -410,7 +417,8 @@ class SchemaRegistryClient(object):
 
         response = self._rest_client.post('subjects/{}?normalize={}'
                                           .format(_urlencode(subject_name), normalize_schemas),
-                                          body=request)
+                                          body=request,
+                                          timeout=timeout)
 
         schema_type = response.get('schemaType', 'AVRO')
 
@@ -426,7 +434,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_subjects(self):
+    def get_subjects(self, *, timeout=None):
         """
         List all subjects registered with the Schema Registry
 
@@ -440,9 +448,9 @@ class SchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects')
+        return self._rest_client.get('subjects', timeout=timeout)
 
-    def delete_subject(self, subject_name, permanent=False):
+    def delete_subject(self, subject_name, permanent=False, *, timeout=None):
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
@@ -462,16 +470,20 @@ class SchemaRegistryClient(object):
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
-        list = self._rest_client.delete('subjects/{}'
-                                        .format(_urlencode(subject_name)))
+        list = self._rest_client.delete(
+            'subjects/{}'.format(_urlencode(subject_name)),
+            timeout=timeout,
+        )
 
         if permanent:
-            self._rest_client.delete('subjects/{}?permanent=true'
-                                     .format(_urlencode(subject_name)))
+            self._rest_client.delete(
+                'subjects/{}?permanent=true'.format(_urlencode(subject_name)),
+                timeout=timeout,
+            )
 
         return list
 
-    def get_latest_version(self, subject_name):
+    def get_latest_version(self, subject_name, *, timeout=None):
         """
         Retrieves latest registered version for subject
 
@@ -488,9 +500,10 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        response = self._rest_client.get('subjects/{}/versions/{}'
-                                         .format(_urlencode(subject_name),
-                                                 'latest'))
+        response = self._rest_client.get(
+            'subjects/{}/versions/latest'.format(_urlencode(subject_name)),
+            timeout=timeout,
+        )
 
         schema_type = response.get('schemaType', 'AVRO')
         return RegisteredSchema(schema_id=response['id'],
@@ -505,7 +518,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_version(self, subject_name, version):
+    def get_version(self, subject_name, version, *, timeout=None):
         """
         Retrieves a specific schema registered under ``subject_name``.
 
@@ -524,9 +537,10 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        response = self._rest_client.get('subjects/{}/versions/{}'
-                                         .format(_urlencode(subject_name),
-                                                 version))
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version),
+            timeout=timeout,
+        )
 
         schema_type = response.get('schemaType', 'AVRO')
         return RegisteredSchema(schema_id=response['id'],
@@ -541,7 +555,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_versions(self, subject_name):
+    def get_versions(self, subject_name, *, timeout=None):
         """
         Get a list of all versions registered with this subject.
 
@@ -558,9 +572,12 @@ class SchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
+        return self._rest_client.get(
+            'subjects/{}/versions'.format(_urlencode(subject_name)),
+            timeout=timeout,
+        )
 
-    def delete_version(self, subject_name, version):
+    def delete_version(self, subject_name, version, *, timeout=None):
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -579,12 +596,13 @@ class SchemaRegistryClient(object):
             `Delete Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        response = self._rest_client.delete('subjects/{}/versions/{}'.
-                                            format(_urlencode(subject_name),
-                                                   version))
+        response = self._rest_client.delete(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version),
+            timeout=timeout,
+        )
         return response
 
-    def set_compatibility(self, subject_name=None, level=None):
+    def set_compatibility(self, subject_name=None, level=None, *, timeout=None):
         """
         Update global or subject level compatibility level.
 
@@ -610,13 +628,15 @@ class SchemaRegistryClient(object):
 
         if subject_name is None:
             return self._rest_client.put('config',
-                                         body={'compatibility': level.upper()})
+                                         body={'compatibility': level.upper()},
+                                         timeout=timeout)
 
         return self._rest_client.put('config/{}'
                                      .format(_urlencode(subject_name)),
-                                     body={'compatibility': level.upper()})
+                                     body={'compatibility': level.upper()},
+                                     timeout=timeout)
 
-    def get_compatibility(self, subject_name=None):
+    def get_compatibility(self, subject_name=None, *, timeout=None):
         """
         Get the current compatibility level.
 
@@ -639,10 +659,10 @@ class SchemaRegistryClient(object):
         else:
             url = 'config'
 
-        result = self._rest_client.get(url)
+        result = self._rest_client.get(url, timeout=timeout)
         return result['compatibilityLevel']
 
-    def test_compatibility(self, subject_name, schema, version="latest"):
+    def test_compatibility(self, subject_name, schema, version="latest", *, timeout=None):
         """Test the compatibility of a candidate schema for a given subject and version
 
         Args:
@@ -673,7 +693,9 @@ class SchemaRegistryClient(object):
             ]
 
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions/{}'.format(subject_name, version), body=request
+            'compatibility/subjects/{}/versions/{}'.format(subject_name, version),
+            body=request,
+            timeout=timeout,
         )
 
         return response['is_compatible']
