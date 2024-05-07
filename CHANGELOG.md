@@ -1,5 +1,17 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.4.0
+
+v2.4.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Added KIP-848 based new consumer group rebalance protocol. The feature is an **Early Access**: not production ready yet. Please refer [detailed doc](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#next-generation-of-the-consumer-group-protocol-kip-848) for more information.
+ - Fix segfault with describe_topics and flaky connection (@lpsinger, #1692)
+
+confluent-kafka-python is based on librdkafka v2.4.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.3.0
 
 v2.3.0 is a feature release with the following features, fixes and enhancements:
