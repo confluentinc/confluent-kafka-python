@@ -3061,6 +3061,111 @@ const char Admin_delete_records_doc[] = PyDoc_STR(
         "  This method should not be used directly, use confluent_kafka.AdminClient.delete_records()\n");
 
 /**
+ * @brief Elect leaders
+*/
+PyObject* Admin_elect_leaders (Handle *self, PyObject *args, PyObject *kwargs){
+        PyObject *election_type = NULL, *topic_partition_list = NULL, *future;
+        rd_kafka_ElectLeader_t *elect_leader = NULL;
+        rd_kafka_ElectionType_t elec;
+        struct Admin_options options = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partition_list = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+
+        static char *kws[] = {"election_type",
+                              "topic_partition_offset",
+                              "future",
+                              /* options */
+                              "request_timeout",
+                              "operation_timeout",
+                              NULL};
+        
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iOO|ff", kws,
+                                         &election_type,
+                                         &topic_partition_list,
+                                         &future,
+                                         &options.request_timeout,
+                                         &options.operation_timeout)) {
+                goto err;
+        }
+        
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ELECTLEADER,
+                                       &options, future);
+        if (!c_options)  {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        if(election_type == 0){
+                elec = RD_KAFKA_ELECTION_TYPE_PREFERRED;
+        }
+        else{
+                elec = RD_KAFKA_ELECTION_TYPE_UNCLEAN;
+        }
+
+        if (!PyList_Check(topic_partition_list)) {
+                PyErr_SetString(PyExc_ValueError,
+                        "topic_partitions_list must be a list");
+                goto err;
+        }
+        c_topic_partition_list = py_to_c_parts(topic_partition_list);
+
+        elect_leader = rd_kafka_ElectLeader_new(elec, c_topic_partition_list);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+        * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /**
+         * 
+         * Call ElectLeaders
+         * 
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         * 
+        */
+        CallState_begin(self, &cs);
+        rd_kafka_ElectLeader(self->rk, elect_leader, c_options, rkqu);
+        CallState_end(self,&cs);
+        
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_ElectLeader_destroy(elect_leader);
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        
+        Py_XDECREF(topic_partition_list);
+        
+        Py_RETURN_NONE;
+err:
+        if(elect_leader){
+                rd_kafka_ElectLeader_destroy(elect_leader);
+        }
+
+        if(c_options){
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        if(c_topic_partition_list) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        }
+        Py_XDECREF(topic_partition_list);
+        return NULL;
+}
+
+const char Admin_elect_leaders_doc[] = PyDoc_STR(
+        ".. py:function:: elect_leaders(election_type, topic_partition_list, future, [request_timeout, operation_timeout])\n"
+        "\n"
+        "  Perform Preffered or Unclean election for the specified Topic+Partitions.\n"
+        "\n"
+        "  This method should not be used directly, use confluent_kafka.AdminClient.elect_leaders()\n");
+
+/**
  * @brief Call rd_kafka_poll() and keep track of crashing callbacks.
  * @returns -1 if callback crashed (or poll() failed), else the number
  * of events served.
@@ -3220,10 +3325,6 @@ static PyMethodDef Admin_methods[] = {
 
         { "list_offsets", (PyCFunction)Admin_list_offsets, METH_VARARGS|METH_KEYWORDS,
            Admin_list_offsets_doc
-        },
-        
-        { "delete_records", (PyCFunction)Admin_delete_records, METH_VARARGS|METH_KEYWORDS,
-           Admin_delete_records_doc
         },
 
         { NULL }
@@ -4514,6 +4615,85 @@ raise:
     return NULL;
 }
 
+static PyObject *Admin_c_DeleteRecordsResult_to_py (const rd_kafka_topic_partition_list_t *c_topic_partitions) {
+    
+    size_t c_topic_partition_cnt = c_topic_partitions->cnt;
+    PyObject *result = NULL;
+    PyObject *DeleteRecordsResult_type = NULL;
+    size_t i;
+
+    DeleteRecordsResult_type = cfl_PyObject_lookup("confluent_kafka", "DeleteRecordsResult");
+ 
+    if(!DeleteRecordsResult_type){
+        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeleteRecordsResult type");
+        return NULL;
+    }
+
+    result = PyDict_New();
+    for(i=0; i<c_topic_partition_cnt; i++){
+        PyObject *value = NULL;
+        rd_kafka_topic_partition_t *c_topic_partition = &c_topic_partitions->elems[i];
+        if (c_topic_partitions->elems[i].err) {
+            value = KafkaError_new_or_None(c_topic_partitions->elems[i].err, rd_kafka_err2str(c_topic_partitions->elems[i].err));
+        } else {
+            PyObject *args = NULL;
+            PyObject *kwargs = NULL;
+            kwargs = PyDict_New();
+            cfl_PyDict_SetLong(kwargs, "offset", c_topic_partitions->elems[i].offset);
+            args = PyTuple_New(0);
+            value = PyObject_Call(DeleteRecordsResult_type, args, kwargs);
+            Py_DECREF(args);
+            Py_DECREF(kwargs);
+            if (value == NULL)
+                goto raise;
+        }
+        PyDict_SetItem(result, c_part_to_py(c_topic_partition), value);
+        Py_DECREF(value);
+    }
+
+    Py_DECREF(DeleteRecordsResult_type);
+    return result;
+raise:
+    Py_DECREF(result);
+    Py_DECREF(DeleteRecordsResult_type);
+    return NULL;
+}
+
+static PyObject *Admin_c_ElectionResult_to_py(const rd_kafka_topic_partition_result_t **partitions, 
+                                              size_t cnt, 
+                                              const rd_kafka_resp_err_t err){
+        PyObject *result = NULL;
+        rd_kafka_topic_partition_list_t *list = rd_kafka_topic_partition_list_new(cnt);
+        size_t i;
+        
+        if(err){
+            result = KafkaError_new_or_None(err, NULL);
+            return result;
+        }
+
+        result = PyDict_New();
+        for(i=0; i<cnt; i++){
+                PyObject* value = NULL;
+                rd_kafka_topic_partition_t *rktpar;
+
+                const char *topic = rd_kafka_topic_partition_result_topic(partitions[i]);
+                int32_t partition = rd_kafka_topic_partition_result_partition(partitions[i]);
+                rktpar = rd_kafka_topic_partition_list_add(list, topic, partition);
+                rd_kafka_resp_err_t error_code = rd_kafka_topic_partition_result_error(partitions[i]);
+                const char *err_str = rd_kafka_topic_partition_result_error_string(partitions[i]);
+                
+                if(error_code){
+                        value = KafkaError_new_or_None(error_code, err_str);
+                }
+               
+               PyDict_SetItem(result, c_part_to_py(rktpar), value); 
+        }
+
+        rd_kafka_topic_partition_list_destroy(list);
+
+        return result;
+}
+
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -4854,15 +5034,6 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         c_list_offsets_result, &c_result_info_cnt);
 
                 result = Admin_c_ListOffsetsResultInfos_to_py(c_result_infos, c_result_info_cnt);
-                break;
-        }
-
-        case RD_KAFKA_EVENT_DELETERECORDS_RESULT:
-        {
-                const rd_kafka_DeleteRecords_result_t *c_delete_records_res = rd_kafka_event_DeleteRecords_result(rkev);
-                const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
-                
-                result = Admin_c_DeleteRecordsResult_to_py(c_delete_records_res_list);
                 break;
         }
 
