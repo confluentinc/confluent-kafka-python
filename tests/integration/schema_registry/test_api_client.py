@@ -21,7 +21,7 @@ import pytest
 
 from confluent_kafka.schema_registry import Schema
 from confluent_kafka.schema_registry.error import SchemaRegistryError
-from ..conftest import kafka_cluster_fixture
+from tests.integration.conftest import kafka_cluster_fixture
 
 
 @pytest.fixture(scope="module")
