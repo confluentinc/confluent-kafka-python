@@ -246,6 +246,7 @@ class _SchemaCache(object):
             if schema in self.subject_schemas[subject]:
                 return self.schema_index.get(schema, None)
 
+
 class _RegisteredSchemaCache(object):
     """
     Thread-safe cache for use with the Schema Registry Client.
@@ -483,17 +484,22 @@ class SchemaRegistryClient(object):
 
         schema_type = response.get('schemaType', 'AVRO')
 
-        registered_schema = RegisteredSchema(schema_id=response['id'],
-                                schema=Schema(response['schema'],
-                                              schema_type,
-                                              [
-                                                  SchemaReference(name=ref['name'],
-                                                                  subject=ref['subject'],
-                                                                  version=ref['version'])
-                                                  for ref in response.get('references', [])
-                                              ]),
-                                subject=response['subject'],
-                                version=response['version'])
+        registered_schema = RegisteredSchema(
+            schema_id=response['id'],
+            schema=Schema(
+                response['schema'],
+                schema_type,
+                [
+                    SchemaReference(
+                        name=ref['name'],
+                        subject=ref['subject'],
+                        version=ref['version']
+                    ) for ref in response.get('references', [])
+                ]
+            ),
+            subject=response['subject'],
+            version=response['version']
+        )
         self._metadata_cache.set(subject_name, schema, None, registered_schema)
 
         return registered_schema
@@ -605,17 +611,22 @@ class SchemaRegistryClient(object):
                                                  version))
 
         schema_type = response.get('schemaType', 'AVRO')
-        registered_schema = RegisteredSchema(schema_id=response['id'],
-                                schema=Schema(response['schema'],
-                                              schema_type,
-                                              [
-                                                  SchemaReference(name=ref['name'],
-                                                                  subject=ref['subject'],
-                                                                  version=ref['version'])
-                                                  for ref in response.get('references', [])
-                                              ]),
-                                subject=response['subject'],
-                                version=response['version'])
+        registered_schema = RegisteredSchema(
+            schema_id=response['id'],
+            schema=Schema(
+                response['schema'],
+                schema_type,
+                [
+                    SchemaReference(
+                        name=ref['name'],
+                        subject=ref['subject'],
+                        version=ref['version']
+                    ) for ref in response.get('references', [])
+                ]
+            ),
+            subject=response['subject'],
+            version=response['version']
+        )
         self._metadata_cache.set(subject_name, None, version, registered_schema)
 
         return registered_schema
