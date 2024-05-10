@@ -17,7 +17,7 @@
 #
 
 import os
-from ..common import TestUtils
+from tests.common import TestUtils
 import pytest
 
 from tests.integration.cluster_fixture import TrivupFixture
@@ -34,12 +34,18 @@ def _broker_conf():
     return broker_conf
 
 
+def _broker_version():
+    return (TestUtils.use_group_protocol_consumer() and
+            'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07' or
+            '3.7.0')
+
+
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cp_version': '7.6.0',
                            'kraft': TestUtils.use_kraft(),
-                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
+                           'version': _broker_version(),
                            'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
@@ -47,7 +53,7 @@ def create_trivup_cluster(conf={}):
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
-                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
+                           'version': _broker_version(),
                            'sasl_mechanism': "PLAIN",
                            'kraft': TestUtils.use_kraft(),
                            'sasl_users': 'sasl_user=sasl_user',
@@ -114,20 +120,13 @@ def sasl_cluster_fixture(
         cluster.stop()
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def kafka_cluster():
     for fixture in kafka_cluster_fixture():
         yield fixture
 
 
-@pytest.fixture(scope="package")
-def kafka_single_broker_cluster():
-    for fixture in kafka_cluster_fixture(
-            trivup_cluster_conf={'broker_cnt': 1}):
-        yield fixture
-
-
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def sasl_cluster(request):
     for fixture in sasl_cluster_fixture(request.param):
         yield fixture
