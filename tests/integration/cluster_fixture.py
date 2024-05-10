@@ -23,7 +23,7 @@ from trivup.clusters.KafkaCluster import KafkaCluster
 from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from ..common import TestDeserializingConsumer, TestConsumer
+from tests.common import TestDeserializingConsumer, TestConsumer
 
 
 class KafkaClusterFixture(object):

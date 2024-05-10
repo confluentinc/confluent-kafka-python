@@ -17,7 +17,7 @@
 #
 
 import os
-from ..common import TestUtils
+from tests.common import TestUtils
 import pytest
 
 from tests.integration.cluster_fixture import TrivupFixture
@@ -114,20 +114,13 @@ def sasl_cluster_fixture(
         cluster.stop()
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def kafka_cluster():
     for fixture in kafka_cluster_fixture():
         yield fixture
 
 
-@pytest.fixture(scope="package")
-def kafka_single_broker_cluster():
-    for fixture in kafka_cluster_fixture(
-            trivup_cluster_conf={'broker_cnt': 1}):
-        yield fixture
-
-
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def sasl_cluster(request):
     for fixture in sasl_cluster_fixture(request.param):
         yield fixture

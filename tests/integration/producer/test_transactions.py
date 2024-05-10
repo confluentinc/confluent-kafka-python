@@ -18,7 +18,7 @@
 import inspect
 import sys
 from uuid import uuid1
-from ...common import TestConsumer
+from tests.common import TestConsumer
 
 from confluent_kafka import KafkaError
 
