@@ -17,6 +17,7 @@
 #
 
 import pytest
+import time
 
 from confluent_kafka.serialization import (DoubleSerializer,
                                            IntegerSerializer,
@@ -78,6 +79,7 @@ def test_string_serialization(kafka_cluster, data, codec):
 
     """
     topic = kafka_cluster.create_topic("serialization-string")
+    time.sleep(1)
 
     producer = kafka_cluster.producer(value_serializer=StringSerializer(codec))
 
@@ -122,12 +124,12 @@ def test_mixed_serialization(kafka_cluster, key_serializer, value_serializer,
     topic = kafka_cluster.create_topic("serialization-numeric")
 
     producer = kafka_cluster.producer(key_serializer=key_serializer,
-                                      value_serializer=value_serializer)
+                                                    value_serializer=value_serializer)
     producer.produce(topic, key=key, value=value)
     producer.flush()
 
     consumer = kafka_cluster.consumer(key_deserializer=key_deserializer,
-                                      value_deserializer=value_deserializer)
+                                                    value_deserializer=value_deserializer)
     consumer.subscribe([topic])
 
     msg = consumer.poll()

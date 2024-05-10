@@ -17,7 +17,7 @@
 #
 
 import os
-
+from tests.common import TestUtils
 import pytest
 
 from tests.integration.cluster_fixture import TrivupFixture
@@ -26,26 +26,34 @@ from tests.integration.cluster_fixture import ByoFixture
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
+def _broker_conf():
+    broker_conf = ['transaction.state.log.replication.factor=1',
+                   'transaction.state.log.min.isr=1']
+    if TestUtils.use_group_protocol_consumer():
+        broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
+    return broker_conf
+
+
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
-                           'cp_version': '7.4.0',
-                           'version': '3.4.0',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'transaction.state.log.min.isr=1']}
+                           'cp_version': '7.6.0',
+                           'kraft': TestUtils.use_kraft(),
+                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
-                           'version': '3.4.0',
+                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
                            'sasl_mechanism': "PLAIN",
+                           'kraft': TestUtils.use_kraft(),
                            'sasl_users': 'sasl_user=sasl_user',
                            'debug': True,
                            'cp_version': 'latest',
-                           'broker_conf': ['transaction.state.log.replication.factor=1',
-                                           'transaction.state.log.min.isr=1']}
+                           'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
@@ -106,13 +114,13 @@ def sasl_cluster_fixture(
         cluster.stop()
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def kafka_cluster():
     for fixture in kafka_cluster_fixture():
         yield fixture
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def sasl_cluster(request):
     for fixture in sasl_cluster_fixture(request.param):
         yield fixture

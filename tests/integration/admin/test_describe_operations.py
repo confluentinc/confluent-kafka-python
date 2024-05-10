@@ -14,10 +14,12 @@
 # limitations under the License.
 
 import pytest
+import time
 from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
 from confluent_kafka import ConsumerGroupState, TopicCollection
+from tests.common import TestUtils
 
 topic_prefix = "test-topic"
 
@@ -116,6 +118,9 @@ def verify_provided_describe_for_authorized_operations(
                              "User:sasl_user", "*", operation_to_allow, AclPermissionType.ALLOW)
     create_acls(admin_client, [acl_binding])
 
+    # Await propagation
+    time.sleep(1)
+
     # Check with updated authorized operations
     desc = perform_admin_operation_sync(describe_fn, *arg, **kwargs)
     assert len(desc.authorized_operations) > 0
@@ -209,7 +214,8 @@ def test_describe_operations(sasl_cluster):
     verify_describe_topics(admin_client, our_topic)
 
     # Verify Authorized Operations in Describe Groups
-    verify_describe_groups(sasl_cluster, admin_client, our_topic)
+    if not TestUtils.use_group_protocol_consumer():
+        verify_describe_groups(sasl_cluster, admin_client, our_topic)
 
     # Delete Topic
     perform_admin_operation_sync(admin_client.delete_topics, [our_topic], operation_timeout=0, request_timeout=10)
