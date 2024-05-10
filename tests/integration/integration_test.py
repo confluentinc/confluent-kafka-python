@@ -29,7 +29,7 @@ import json
 import gc
 import struct
 import re
-from ..common import TestConsumer, TestAvroConsumer
+from tests.common import TestConsumer, TestAvroConsumer
 
 try:
     # Memory tracker

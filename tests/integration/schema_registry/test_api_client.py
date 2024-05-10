@@ -24,7 +24,7 @@ from confluent_kafka.schema_registry.error import SchemaRegistryError
 from tests.integration.conftest import kafka_cluster_fixture
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def kafka_cluster_cp_7_0_1():
     """
     Returns a Trivup cluster with CP version 7.0.1.
