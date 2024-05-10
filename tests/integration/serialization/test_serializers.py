@@ -17,6 +17,7 @@
 #
 
 import pytest
+import time
 
 from confluent_kafka.serialization import (DoubleSerializer,
                                            IntegerSerializer,
@@ -78,6 +79,7 @@ def test_string_serialization(kafka_cluster, data, codec):
 
     """
     topic = kafka_cluster.create_topic("serialization-string")
+    time.sleep(1)
 
     producer = kafka_cluster.producer(value_serializer=StringSerializer(codec))
 

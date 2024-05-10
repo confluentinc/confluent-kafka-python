@@ -15,6 +15,7 @@
 # limitations under the License.
 #
 import pytest
+import time
 
 from confluent_kafka import TopicPartition, KafkaException, KafkaError
 from confluent_kafka.error import ConsumeError
@@ -54,6 +55,8 @@ def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     """
     topic = kafka_cluster.create_topic("serialization-proto")
     sr = kafka_cluster.schema_registry()
+
+    time.sleep(1)
 
     value_serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
     value_deserializer = ProtobufDeserializer(pb2, {'use.deprecated.format': False})
