@@ -58,6 +58,9 @@ def verify_admin_acls(admin_client,
     for acl_binding, f in fs.items():
         f.result()  # trigger exception if there was an error
 
+    # Await propagation
+    time.sleep(1)
+
     acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.PREFIXED,
@@ -94,6 +97,10 @@ def verify_admin_acls(admin_client,
         assert deleted_acl_bindings == expected, \
             "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
                                                                              expected)
+
+    # Await propagation
+    time.sleep(1)
+
     #
     # All the ACLs should have been deleted
     #
@@ -344,6 +351,9 @@ def test_basic_operations(kafka_cluster):
 
     fs = admin_client.alter_configs([resource])
     fs[resource].result()  # will raise exception on failure
+
+    # Await propagation
+    time.sleep(1)
 
     #
     # Read the config back again and verify.
