@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from confluent_kafka.admin import ConfigResource, \
     ConfigEntry, ResourceType, \
     AlterConfigOpType
@@ -103,6 +104,9 @@ def test_incremental_alter_configs(kafka_cluster):
 
     assert_operation_succeeded(fs, 2)
 
+    # Await propagation
+    time.sleep(1)
+
     #
     # Get current topic config
     #
@@ -133,6 +137,9 @@ def test_incremental_alter_configs(kafka_cluster):
     fs = admin_client.incremental_alter_configs([res2])
 
     assert_operation_succeeded(fs, 1)
+
+    # Await propagation
+    time.sleep(1)
 
     #
     # Get current topic config

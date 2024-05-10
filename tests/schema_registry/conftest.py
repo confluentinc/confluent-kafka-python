@@ -396,7 +396,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return {'is_compatible': True}
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def load_avsc():
     def get_handle(name):
         with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
