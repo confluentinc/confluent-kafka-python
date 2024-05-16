@@ -20,7 +20,6 @@
 
 """ Test script for confluent_kafka module """
 
-import confluent_kafka
 import os
 import time
 import uuid
@@ -29,7 +28,10 @@ import json
 import gc
 import struct
 import re
-from ..common import TestConsumer, TestAvroConsumer
+
+import confluent_kafka
+
+from tests.common import TestConsumer, TestAvroConsumer
 
 try:
     # Memory tracker

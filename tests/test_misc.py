@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 
-import confluent_kafka
-from confluent_kafka import Consumer, Producer
-from confluent_kafka.admin import AdminClient
 import json
 import pytest
 import os
 import time
 import sys
-from .common import TestConsumer
+
+import confluent_kafka
+from confluent_kafka import Consumer, Producer
+from confluent_kafka.admin import AdminClient
+
+from tests.common import TestConsumer
 
 
 def test_version():

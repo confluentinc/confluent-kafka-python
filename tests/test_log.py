@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
 from io import StringIO
+import logging
+
 import confluent_kafka
 import confluent_kafka.avro
-import logging
-from .common import TestConsumer, TestAvroConsumer
+
+from tests.common import TestConsumer, TestAvroConsumer
 
 
 class CountingFilter(logging.Filter):

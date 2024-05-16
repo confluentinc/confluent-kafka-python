@@ -18,10 +18,10 @@
 import inspect
 import sys
 from uuid import uuid1
-from ...common import TestConsumer
 
 from confluent_kafka import KafkaError
 
+from tests.common import TestConsumer
 
 def called_by():
     if sys.version_info < (3, 5):
