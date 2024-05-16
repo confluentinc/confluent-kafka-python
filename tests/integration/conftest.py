@@ -17,9 +17,9 @@
 #
 
 import os
-from ..common import TestUtils
 import pytest
 
+from tests.common import TestUtils
 from tests.integration.cluster_fixture import TrivupFixture
 from tests.integration.cluster_fixture import ByoFixture
 
@@ -34,12 +34,16 @@ def _broker_conf():
     return broker_conf
 
 
+def _broker_version():
+    return 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07' if TestUtils.use_group_protocol_consumer() else '3.7.0'
+
+
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cp_version': '7.6.0',
                            'kraft': TestUtils.use_kraft(),
-                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
+                           'version': _broker_version(),
                            'broker_conf': _broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
@@ -47,7 +51,7 @@ def create_trivup_cluster(conf={}):
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
-                           'version': 'trunk@f6c9feea76d01a46319b0ca602d70aa855057b07',
+                           'version': _broker_version(),
                            'sasl_mechanism': "PLAIN",
                            'kraft': TestUtils.use_kraft(),
                            'sasl_users': 'sasl_user=sasl_user',

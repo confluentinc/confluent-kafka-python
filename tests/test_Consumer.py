@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+import pytest
+
 from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
-import pytest
-from .common import TestConsumer
+
+from tests.common import TestConsumer
 
 
 def test_basic_api():

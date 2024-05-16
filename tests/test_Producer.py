@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import pytest
+from struct import pack
 
 from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
-from struct import pack
-from .common import TestConsumer
+
+from tests.common import TestConsumer
 
 
 def error_cb(err):
