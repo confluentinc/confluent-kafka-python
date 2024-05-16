@@ -13,8 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
+import time
+
 from confluent_kafka import TopicPartition, IsolationLevel
+from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 
 
 def test_list_offsets(kafka_cluster):
@@ -32,6 +34,7 @@ def test_list_offsets(kafka_cluster):
                                            "num_partitions": 1,
                                            "replication_factor": 1,
                                        })
+    time.sleep(1)
 
     # Create Producer instance
     p = kafka_cluster.producer()
