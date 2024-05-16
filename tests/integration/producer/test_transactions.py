@@ -23,6 +23,7 @@ from confluent_kafka import KafkaError
 
 from tests.common import TestConsumer
 
+
 def called_by():
     if sys.version_info < (3, 5):
         return inspect.stack()[1][3]

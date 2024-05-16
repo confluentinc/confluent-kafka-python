@@ -24,6 +24,7 @@ from confluent_kafka.error import KafkaException, KafkaError
 
 from tests.common import TestUtils
 
+
 def test_user_scram_credentials(kafka_cluster):
     """
     Tests for the alter and describe SASL/SCRAM credential operations.
