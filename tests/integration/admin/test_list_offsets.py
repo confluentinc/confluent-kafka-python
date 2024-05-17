@@ -17,6 +17,7 @@ import time
 
 from confluent_kafka import TopicPartition, IsolationLevel
 from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
+from tests.common import TestUtils
 
 
 def test_list_offsets(kafka_cluster):
@@ -65,12 +66,13 @@ def test_list_offsets(kafka_cluster):
             assert isinstance(result, ListOffsetsResultInfo)
             assert (result.offset == 3)
 
-        requests = {topic_partition: OffsetSpec.max_timestamp()}
-        futmap = admin_client.list_offsets(requests, **kwargs)
-        for _, fut in futmap.items():
-            result = fut.result()
-            assert isinstance(result, ListOffsetsResultInfo)
-            assert (result.offset == 1)
+        if TestUtils.use_kraft():
+            requests = {topic_partition: OffsetSpec.max_timestamp()}
+            futmap = admin_client.list_offsets(requests, **kwargs)
+            for _, fut in futmap.items():
+                result = fut.result()
+                assert isinstance(result, ListOffsetsResultInfo)
+                assert (result.offset == 1)
 
         requests = {topic_partition: OffsetSpec.for_timestamp(base_timestamp + 150)}
         futmap = admin_client.list_offsets(requests, **kwargs)
