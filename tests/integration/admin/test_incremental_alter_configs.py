@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from confluent_kafka.admin import ConfigResource, \
     ConfigEntry, ResourceType, \
     AlterConfigOpType
@@ -58,12 +60,14 @@ def test_incremental_alter_configs(kafka_cluster):
                                                "config": topic_config,
                                                "replication_factor": 1,
                                            })
+    time.sleep(1)
     our_topic2 = kafka_cluster.create_topic(topic_prefix2,
                                             {
                                                 "num_partitions": num_partitions,
                                                 "config": topic_config,
                                                 "replication_factor": 1,
                                             })
+    time.sleep(1)
 
     admin_client = kafka_cluster.admin()
 
@@ -100,6 +104,7 @@ def test_incremental_alter_configs(kafka_cluster):
     # Incrementally alter some configuration values
     #
     fs = admin_client.incremental_alter_configs([res1, res2])
+    time.sleep(1)
 
     assert_operation_succeeded(fs, 2)
 
@@ -131,6 +136,7 @@ def test_incremental_alter_configs(kafka_cluster):
     # Incrementally alter some configuration values
     #
     fs = admin_client.incremental_alter_configs([res2])
+    time.sleep(1)
 
     assert_operation_succeeded(fs, 1)
 
