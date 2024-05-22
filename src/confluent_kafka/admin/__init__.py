@@ -544,7 +544,7 @@ class AdminClient (_AdminClientImpl):
             if not isinstance(req, _TopicPartition):
                 raise TypeError("Element of the request list must be of type 'TopicPartition' ")
             if req.partition < 0:
-                raise ValueError(" 'partition' cannot be negative")
+                raise ValueError("'partition' cannot be negative")
 
     def create_topics(self, new_topics, **kwargs):
         """
