@@ -1233,7 +1233,7 @@ class AdminClient (_AdminClientImpl):
                   in the cluster. A value of 0 returns immediately. Default: 0
 
         :returns: A dict of futures keyed by the TopicPartition.
-                    The future result() method returns DeleteRecordsResult
+                    The future result() method returns DeletedRecords
                     or raises KafkaException
 
         :rtype: dict[TopicPartition, future]
