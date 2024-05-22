@@ -539,7 +539,7 @@ class AdminClient (_AdminClientImpl):
         if request is None:
             raise TypeError("request cannot be None")
         if not isinstance(request, list):
-            raise TypeError("request must be a list")
+            raise TypeError("Request must be a list")
         for req in request:
             if not isinstance(req, _TopicPartition):
                 raise TypeError("Element of the request list must be of type 'TopicPartition' ")
