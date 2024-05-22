@@ -541,7 +541,7 @@ class AdminClient (_AdminClientImpl):
         for req in request:
             if not isinstance(req, _TopicPartition):
                 raise TypeError(f"Element of the request list must be of type 'TopicPartition'" +
-                                " got '{type(req).__name__}' ")
+                                f" got '{type(req).__name__}' ")
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
 
