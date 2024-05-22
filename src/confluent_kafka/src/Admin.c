@@ -160,28 +160,28 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_int(options->require_stable_offsets) &&
             (err_obj = rd_kafka_AdminOptions_set_require_stable_offsets(
                     c_options, options->require_stable_offsets))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
+                snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
                 goto err;
         }
 
         if (Admin_options_is_set_int(options->include_authorized_operations) &&
             (err_obj = rd_kafka_AdminOptions_set_include_authorized_operations(
                     c_options, options->include_authorized_operations))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
+                snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
                 goto err;
         }
 
         if (Admin_options_is_set_int((int)options->isolation_level) &&
              (err_obj = rd_kafka_AdminOptions_set_isolation_level(
                      c_options,options->isolation_level))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
+                snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
                 goto err;
         }
 
         if (Admin_options_is_set_ptr(options->states) &&
             (err_obj = rd_kafka_AdminOptions_set_match_consumer_group_states(
                 c_options, options->states, options->states_cnt))) {
-                strcpy(errstr, rd_kafka_error_string(err_obj));
+                snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
                 goto err;
         }
 
