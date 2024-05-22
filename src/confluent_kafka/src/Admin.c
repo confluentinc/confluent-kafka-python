@@ -4481,7 +4481,7 @@ static PyObject *Admin_c_DeleteRecordsResult_to_py (const rd_kafka_topic_partiti
  
     if(!DeleteRecordsResult_type){
         cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeleteRecordsResult type");
-        return NULL;
+        goto raise;
     }
 
     result = PyDict_New();
