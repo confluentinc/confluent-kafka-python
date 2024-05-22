@@ -14,7 +14,7 @@
 # limitations under the License.
 
 from confluent_kafka.admin import OffsetSpec
-from confluent_kafka import TopicPartition, DeleteRecordsResult
+from confluent_kafka import TopicPartition, DeleteRecords
 
 
 def test_delete_records(kafka_cluster):
@@ -56,8 +56,8 @@ def test_delete_records(kafka_cluster):
 
     # Check if the earliest available offset is equal to the offset passed to the delete records function
     res = list(fs1.values())[0].result()
-    assert isinstance(res, DeleteRecordsResult)
-    assert (res.offset == list(fs2.values())[0].result().offset)
+    assert isinstance(res, DeleteRecords)
+    assert (res.low_watermark == list(fs2.values())[0].result().offset)
 
     # Delete created topic
     fs = admin_client.delete_topics([topic])

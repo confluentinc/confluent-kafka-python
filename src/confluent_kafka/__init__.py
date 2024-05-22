@@ -25,7 +25,7 @@ from ._model import (Node,  # noqa: F401
                      TopicCollection,
                      TopicPartitionInfo,
                      IsolationLevel,
-                     DeleteRecordsResult)
+                     DeleteRecords)
 
 from .cimpl import (Producer,
                     Consumer,

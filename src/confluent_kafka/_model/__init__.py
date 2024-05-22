@@ -151,15 +151,15 @@ class IsolationLevel(Enum):
         return self.value < other.value
 
 
-class DeleteRecordsResult:
+class DeleteRecords:
     """
-    DeleteRecordsResult
+    DeleteRecords
     Result of a `AdminClient.delete_records` call associated to a partition.
 
     Parameters
     ----------
-    offset: int
+    low_watermark: int
         The "low watermark" for the topic partition on which the deletion was executed.
     """
-    def __init__(self, offset):
-        self.offset = offset
+    def __init__(self, low_watermark):
+        self.low_watermark = low_watermark

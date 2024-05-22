@@ -536,13 +536,11 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_delete_records(request):
-        if request is None:
-            raise TypeError("request cannot be None")
         if not isinstance(request, list):
-            raise TypeError("Request must be a list")
+            raise TypeError(f"Expected Request to be a list, got '{type(request).__name__}' ")
         for req in request:
             if not isinstance(req, _TopicPartition):
-                raise TypeError("Element of the request list must be of type 'TopicPartition' ")
+                raise TypeError(f"Element of the request list must be of type 'TopicPartition' got '{type(req).__name__}' ")
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
 
@@ -555,7 +553,7 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreateTopics request will block
                   on the broker waiting for the topic creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately. Default: 60
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -588,7 +586,7 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the DeleteTopics request will block
                   on the broker waiting for the topic deletion to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately. Default: 60
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -626,7 +624,7 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreatePartitions request will block
                   on the broker waiting for the partition creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately. Default: 60
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -1228,9 +1226,9 @@ class AdminClient (_AdminClientImpl):
                     including broker lookup, request transmission, operation time
                     on broker, and response. Default: `socket.timeout.ms*1000.0`
         :param float operation_timeout: The operation timeout in seconds,
-                  controlling how long the DeleteRecords request will block
-                  on the broker waiting for the partition creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  controlling how long the delete_records request will block
+                  on the broker waiting for the record deletion to propagate
+                  in the cluster. A value of 0 returns immediately. Default: 60
 
         :returns: A dict of futures keyed by the TopicPartition.
                     The future result() method returns DeletedRecords

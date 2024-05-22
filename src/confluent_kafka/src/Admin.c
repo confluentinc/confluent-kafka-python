@@ -4474,13 +4474,13 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
     
     size_t c_topic_partition_cnt = c_topic_partitions->cnt;
     PyObject *result = NULL;
-    PyObject *DeleteRecordsResult_type = NULL;
+    PyObject *DeleteRecords_type = NULL;
     size_t i;
 
-    DeleteRecordsResult_type = cfl_PyObject_lookup("confluent_kafka", "DeleteRecordsResult");
+    DeleteRecords_type = cfl_PyObject_lookup("confluent_kafka", "DeleteRecords");
  
-    if(!DeleteRecordsResult_type){
-        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeleteRecordsResult type");
+    if(!DeleteRecords_type){
+        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeleteRecords type");
         goto raise;
     }
 
@@ -4494,23 +4494,25 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
             PyObject *args = NULL;
             PyObject *kwargs = NULL;
             kwargs = PyDict_New();
-            cfl_PyDict_SetLong(kwargs, "offset", c_topic_partitions->elems[i].offset);
+            cfl_PyDict_SetLong(kwargs, "low_watermark", c_topic_partitions->elems[i].offset);
             args = PyTuple_New(0);
-            value = PyObject_Call(DeleteRecordsResult_type, args, kwargs);
+            value = PyObject_Call(DeleteRecords_type, args, kwargs);
             Py_DECREF(args);
             Py_DECREF(kwargs);
             if (value == NULL)
                 goto raise;
         }
-        PyDict_SetItem(result, c_part_to_py(c_topic_partition), value);
+        PyObject *key = c_part_to_py(c_topic_partition);
+        PyDict_SetItem(result, key, value);
+        Py_DECREF(key);
         Py_DECREF(value);
     }
 
-    Py_DECREF(DeleteRecordsResult_type);
+    Py_DECREF(DeleteRecords_type);
     return result;
 raise:
     Py_XDECREF(result);
-    Py_XDECREF(DeleteRecordsResult_type);
+    Py_XDECREF(DeleteRecords_type);
     return NULL;
 }
 
@@ -4862,7 +4864,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 const rd_kafka_DeleteRecords_result_t *c_delete_records_res = rd_kafka_event_DeleteRecords_result(rkev);
                 const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
                 
-                result = Admin_c_DeleteRecordsResult_to_py(c_delete_records_res_list);
+                result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list);
                 break;
         }
 
