@@ -4470,7 +4470,7 @@ raise:
         return NULL;
 }
 
-static PyObject *Admin_c_DeleteRecordsResult_to_py (const rd_kafka_topic_partition_list_t *c_topic_partitions) {
+static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_list_t *c_topic_partitions) {
     
     size_t c_topic_partition_cnt = c_topic_partitions->cnt;
     PyObject *result = NULL;
