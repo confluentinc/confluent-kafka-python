@@ -159,7 +159,7 @@ class DeleteRecordsResult:
     Parameters
     ----------
     offset: int
-        The offset returned by the delete_records call.
+        The "low watermark" for the topic partition on which the deletion was executed.
     """
     def __init__(self, offset):
         self.offset = offset
