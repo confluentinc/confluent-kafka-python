@@ -4509,8 +4509,8 @@ static PyObject *Admin_c_DeleteRecordsResult_to_py (const rd_kafka_topic_partiti
     Py_DECREF(DeleteRecordsResult_type);
     return result;
 raise:
-    Py_DECREF(result);
-    Py_DECREF(DeleteRecordsResult_type);
+    Py_XDECREF(result);
+    Py_XDECREF(DeleteRecordsResult_type);
     return NULL;
 }
 
