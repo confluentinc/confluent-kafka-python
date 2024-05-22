@@ -149,3 +149,17 @@ class IsolationLevel(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class DeleteRecords:
+    """
+    DeleteRecords
+    Result of a `AdminClient.delete_records` call associated to a partition.
+
+    Parameters
+    ----------
+    low_watermark: int
+        The "low watermark" for the topic partition on which the deletion was executed.
+    """
+    def __init__(self, low_watermark):
+        self.low_watermark = low_watermark
