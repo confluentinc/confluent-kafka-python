@@ -848,12 +848,12 @@ def example_list_offsets(a, args):
 def example_delete_records(a, args):
     if len(args) == 0:
         raise ValueError(
-            f"Invalid number of arguments for delete_records, expected at least 3 " +
-            f"(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
+            "Invalid number of arguments for delete_records, expected at least 3 " +
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
     if len(args) % 3 != 0:
         raise ValueError(
-            f"Invalid number of arguments for delete_records " +
-            f"(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
+            "Invalid number of arguments for delete_records " +
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
 
     topic_partition_offset = [
         TopicPartition(topic, int(partition), int(offset))
