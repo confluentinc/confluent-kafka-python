@@ -1183,7 +1183,7 @@ def test_delete_records():
 
     # Request-specific tests
     with pytest.raises(TypeError,
-                   match="Element of the request list must be of type 'TopicPartition' got 'str'"):
+                       match="Element of the request list must be of type 'TopicPartition' got 'str'"):
         a.delete_records(["test-1"])
 
     with pytest.raises(TypeError):
