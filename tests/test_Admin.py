@@ -1175,15 +1175,15 @@ def test_delete_records():
     a = AdminClient({"socket.timeout.ms": 10})
 
     # Request-type tests
-    with pytest.raises(TypeError, match = "Expected Request to be a list, got 'NoneType'"):
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'NoneType'"):
         a.delete_records(None)
 
-    with pytest.raises(TypeError, match = "Expected Request to be a list, got 'int'"):
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'int'"):
         a.delete_records(1)
 
     # Request-specific tests
-    with pytest.raises(TypeError, 
-        match = "Element of the request list must be of type 'TopicPartition' got 'str'"):
+    with pytest.raises(TypeError,
+                   match="Element of the request list must be of type 'TopicPartition' got 'str'"):
         a.delete_records(["test-1"])
 
     with pytest.raises(TypeError):
