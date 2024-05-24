@@ -1620,7 +1620,10 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
 
         cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
         cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
-        cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+        if (rd_kafka_Node_host(c_node))
+                cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+        else
+                PyDict_SetItemString(kwargs, "host", Py_None);
         if((rack = rd_kafka_Node_rack(c_node)))
                 cfl_PyDict_SetString(kwargs, "rack", rack);
 
@@ -1890,10 +1893,10 @@ static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
                 return 0;
         }
 
-        extensions[idx] = (char*)malloc(ksize);
-        strcpy(extensions[idx], k);
-        extensions[idx + 1] = (char*)malloc(vsize);
-        strcpy(extensions[idx + 1], v);
+        extensions[idx] = (char*)malloc(ksize + 1);
+        snprintf(extensions[idx], ksize + 1, "%s", k);
+        extensions[idx + 1] = (char*)malloc(vsize + 1);
+        snprintf(extensions[idx + 1], vsize + 1, "%s", v);
 
         Py_DECREF(ks);
         Py_XDECREF(ks8);
