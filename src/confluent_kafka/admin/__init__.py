@@ -545,6 +545,7 @@ class AdminClient (_AdminClientImpl):
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
 
+
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
