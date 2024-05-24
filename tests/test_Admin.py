@@ -1169,3 +1169,28 @@ def test_list_offsets_api():
                         ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
+
+
+def test_delete_records():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Request-type tests
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'NoneType'"):
+        a.delete_records(None)
+
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'int'"):
+        a.delete_records(1)
+
+    # Request-specific tests
+    with pytest.raises(TypeError,
+                   match="Element of the request list must be of type 'TopicPartition' got 'str'"):
+        a.delete_records(["test-1"])
+
+    with pytest.raises(TypeError):
+        a.delete_records([TopicPartition(None)])
+
+    with pytest.raises(ValueError):
+        a.delete_records([TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.delete_records([TopicPartition("test-topic1")])
