@@ -10,8 +10,8 @@ v2.5.0 is a feature release with the following features, fixes and enhancements:
  - Fixed documentation for default value of operation_timeout in create_topics, delete_topics, create_partitions apis (#1710)
 
 
-confluent-kafka-python is based on librdkafka v2.4.1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.1)
+confluent-kafka-python is based on librdkafka v2.5.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
