@@ -1222,18 +1222,18 @@ class AdminClient (_AdminClientImpl):
         in the specified Topic and Partition.
 
         :param list(TopicPartitions) topic_partitions_offset_list: A list of TopicPartition objects
-        consisting of the Topic Partition and Offsets on which we have to perform the deleteion.
+                consisting of the Topic Partition and Offsets on which we have to perform the deletion.
         :param float request_timeout: The overall request timeout in seconds,
-                    including broker lookup, request transmission, operation time
-                    on broker, and response. Default: `socket.timeout.ms*1000.0`
+                including broker lookup, request transmission, operation time
+                on broker, and response. Default: `socket.timeout.ms*1000.0`
         :param float operation_timeout: The operation timeout in seconds,
-                  controlling how long the delete_records request will block
-                  on the broker waiting for the record deletion to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 60
+                controlling how long the delete_records request will block
+                on the broker waiting for the record deletion to propagate
+                in the cluster. A value of 0 returns immediately. Default: 60
 
         :returns: A dict of futures keyed by the TopicPartition.
-                    The future result() method returns DeletedRecords
-                    or raises KafkaException
+                  The future result() method returns DeletedRecords
+                  or raises KafkaException
 
         :rtype: dict[TopicPartition, future]
 
