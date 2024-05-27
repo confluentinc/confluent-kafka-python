@@ -1216,13 +1216,14 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
         return futmap
 
-    def delete_records(self, topic_partition_offsets_list, **kwargs):
+    def delete_records(self, topic_partition_offsets, **kwargs):
         """
         Deletes all the records before the specified offset,
         in the specified Topic and Partition.
 
-        :param list(TopicPartitions) topic_partitions_offset_list: A list of TopicPartition objects
-                consisting of the Topic Partition and Offsets on which we have to perform the deletion.
+        param list(TopicPartitions) topic_partition_offsets: A list of
+                TopicPartition objects having `offset` field set to the offset
+                before which all the records should be deleted.
         :param float request_timeout: The overall request timeout in seconds,
                 including broker lookup, request transmission, operation time
                 on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -1241,10 +1242,10 @@ class AdminClient (_AdminClientImpl):
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
-        AdminClient._check_delete_records(topic_partition_offsets_list)
+        AdminClient._check_delete_records(topic_partition_offsets)
 
         f, futmap = AdminClient._make_futures_v2(
-            topic_partition_offsets_list, _TopicPartition, AdminClient._make_futmap_result)
+            topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result)
 
-        super(AdminClient, self).delete_records(topic_partition_offsets_list, f, **kwargs)
+        super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap

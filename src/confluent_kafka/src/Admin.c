@@ -2967,16 +2967,16 @@ const char Admin_list_offsets_doc[] = PyDoc_STR(
  * @brief Delete records 
  */
 PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
-        PyObject *topic_partition_offset = NULL, *future;
+        PyObject *topic_partition_offsets = NULL, *future;
         int del_record_cnt = 1;
         rd_kafka_DeleteRecords_t **c_obj = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partition_offset = NULL;
+        rd_kafka_topic_partition_list_t *c_topic_partition_offsets = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
 
-        static char *kws[] = {"topic_partition_offset",
+        static char *kws[] = {"topic_partition_offsets",
                              "future",
                              /* options */
                              "request_timeout",
@@ -2984,7 +2984,7 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
                              NULL};
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OO|ff", kws,
-                                         &topic_partition_offset,
+                                         &topic_partition_offsets,
                                          &future,
                                          &options.request_timeout,
                                          &options.operation_timeout)) {
@@ -3002,15 +3002,15 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (!PyList_Check(topic_partition_offset)) {
+        if (!PyList_Check(topic_partition_offsets)) {
                 PyErr_SetString(PyExc_ValueError,
-                        "topic_partitions_offset must be a list");
+                        "topic_partitions_offsets must be a list");
                 goto err;
         }
-        c_topic_partition_offset = py_to_c_parts(topic_partition_offset);
+        c_topic_partition_offsets = py_to_c_parts(topic_partition_offsets);
         
         c_obj = malloc(sizeof(rd_kafka_DeleteRecords_t *) * del_record_cnt);
-        c_obj[0] = rd_kafka_DeleteRecords_new(c_topic_partition_offset);
+        c_obj[0] = rd_kafka_DeleteRecords_new(c_topic_partition_offsets);
 
         /* Use librdkafka's background thread queue to automatically dispatch
         * Admin_background_event_cb() when the admin operation is finished. */
@@ -3032,8 +3032,8 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
         free(c_obj);
 
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_offset);     
-        Py_XDECREF(topic_partition_offset);
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);     
+        Py_XDECREF(topic_partition_offsets);
         
         Py_RETURN_NONE;
 err: 
@@ -3045,16 +3045,16 @@ err:
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
         }
-        if(c_topic_partition_offset) {
-                rd_kafka_topic_partition_list_destroy(c_topic_partition_offset);
+        if(c_topic_partition_offsets) {
+                rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
         }
-        Py_XDECREF(topic_partition_offset);
+        Py_XDECREF(topic_partition_offsets);
         return NULL;
 
 }
 
 const char Admin_delete_records_doc[] = PyDoc_STR(
-        ".. py:function:: delete_records(topic_partitions, future, [request_timeout, operation_timeout])\n"
+        ".. py:function:: delete_records(topic_partition_offsets, future, [request_timeout, operation_timeout])\n"
         "\n"
         "  Delete all the records for the particular topic partition before the specified offset provided in the request.\n"
         "\n"
@@ -4478,7 +4478,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         size_t i;
 
         DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka", 
-                                                 "DeletedRecords");
+                                                  "DeletedRecords");
         if(!DeletedRecords_type){
                 cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeletedRecords type");
                 goto raise;
