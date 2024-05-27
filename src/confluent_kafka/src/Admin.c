@@ -4470,52 +4470,56 @@ raise:
         return NULL;
 }
 
-static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_list_t *c_topic_partitions, size_t c_topic_partition_cnt) {
-    PyObject *result = NULL;
-    PyObject *DeleteRecords_type = NULL;
-    size_t i;
+static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_list_t *c_topic_partitions) {
+        PyObject *result = NULL;
+        PyObject *DeletedRecords_type = NULL;
 
-    DeleteRecords_type = cfl_PyObject_lookup("confluent_kafka", 
-                                             "DeleteRecords");
-    if(!DeleteRecords_type){
-        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeleteRecords type");
-        goto raise;
-    }
+        size_t c_topic_partition_cnt = c_topic_partitions->cnt;
+        size_t i;
 
-    result = PyDict_New();
-    for(i=0; i<c_topic_partition_cnt; i++){
-        PyObject *key = NULL;
-        PyObject *value = NULL;
-        
-        rd_kafka_topic_partition_t *c_topic_partition = &c_topic_partitions->elems[i];
-
-        key = c_part_to_py(c_topic_partition);
-
-        if (c_topic_partition->err) {
-            value = KafkaError_new_or_None(c_topic_partition->err, rd_kafka_err2str(c_topic_partition->err));
-        } else {
-            PyObject *args = NULL;
-            PyObject *kwargs = NULL;
-            kwargs = PyDict_New();
-            cfl_PyDict_SetLong(kwargs, "low_watermark", c_topic_partition->offset);
-            args = PyTuple_New(0);
-            value = PyObject_Call(DeleteRecords_type, args, kwargs);
-            Py_DECREF(args);
-            Py_DECREF(kwargs);
-            if (value == NULL)
+        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka", 
+                                                 "DeletedRecords");
+        if(!DeletedRecords_type){
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeletedRecords type");
                 goto raise;
         }
-        PyDict_SetItem(result, key, value);
-        Py_DECREF(key);
-        Py_DECREF(value);
-    }
 
-    Py_DECREF(DeleteRecords_type);
-    return result;
+        result = PyDict_New();
+        for(i=0; i<c_topic_partition_cnt; i++){
+                PyObject *key = NULL;
+                PyObject *value = NULL;
+        
+                rd_kafka_topic_partition_t *c_topic_partition = &c_topic_partitions->elems[i];
+                key = c_part_to_py(c_topic_partition);
+
+                if (c_topic_partition->err) {
+                        value = KafkaError_new_or_None(c_topic_partition->err, rd_kafka_err2str(c_topic_partition->err));
+                } else {
+                        PyObject *args = NULL;
+                        PyObject *kwargs = NULL;
+                        kwargs = PyDict_New();
+                        cfl_PyDict_SetLong(kwargs, "low_watermark", c_topic_partition->offset);
+                        args = PyTuple_New(0);
+                        value = PyObject_Call(DeletedRecords_type, args, kwargs);
+                        Py_DECREF(args);
+                        Py_DECREF(kwargs);
+
+                        if (value == NULL)
+                                goto raise;
+                }
+                
+                PyDict_SetItem(result, key, value);
+                Py_DECREF(key);
+                Py_DECREF(value);
+        }
+
+        Py_DECREF(DeletedRecords_type);
+        return result;
+
 raise:
-    Py_XDECREF(result);
-    Py_XDECREF(DeleteRecords_type);
-    return NULL;
+        Py_XDECREF(result);
+        Py_XDECREF(DeletedRecords_type);
+        return NULL;
 }
 
 /**
@@ -4866,7 +4870,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 const rd_kafka_DeleteRecords_result_t *c_delete_records_res = rd_kafka_event_DeleteRecords_result(rkev);
                 const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
                 
-                result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list, c_delete_records_res_list->cnt);
+                result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list);
                 break;
         }
 

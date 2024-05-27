@@ -151,10 +151,10 @@ class IsolationLevel(Enum):
         return self.value < other.value
 
 
-class DeleteRecords:
+class DeletedRecords:
     """
-    DeleteRecords
-    Result of a `AdminClient.delete_records` call associated to a partition.
+    DeletedRecords
+    Represents information about deleted records.
 
     Parameters
     ----------
