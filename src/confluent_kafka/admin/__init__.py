@@ -554,7 +554,8 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreateTopics request will block
                   on the broker waiting for the topic creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 60
+                  in the cluster. A value of 0 returns immediately. 
+                  Default: `socket.timeout.ms/1000.0` 
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -587,7 +588,8 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the DeleteTopics request will block
                   on the broker waiting for the topic deletion to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 60
+                  in the cluster. A value of 0 returns immediately. 
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -625,7 +627,8 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreatePartitions request will block
                   on the broker waiting for the partition creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 60
+                  in the cluster. A value of 0 returns immediately. 
+                  Default: `socket.timeout.ms/1000.0` 
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
                   on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -1218,8 +1221,8 @@ class AdminClient (_AdminClientImpl):
 
     def delete_records(self, topic_partition_offsets, **kwargs):
         """
-        Deletes all the records before the specified offset,
-        in the specified Topic and Partition.
+        Deletes all the records before the specified offsets (not including),
+        in the specified Topic and Partitions.
 
         param list(TopicPartitions) topic_partition_offsets: A list of
                 TopicPartition objects having `offset` field set to the offset
@@ -1230,7 +1233,8 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                 controlling how long the delete_records request will block
                 on the broker waiting for the record deletion to propagate
-                in the cluster. A value of 0 returns immediately. Default: 60
+                in the cluster. A value of 0 returns immediately. 
+                Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures keyed by the TopicPartition.
                   The future result() method returns DeletedRecords

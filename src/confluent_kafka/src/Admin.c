@@ -4474,7 +4474,6 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         PyObject *result = NULL;
         PyObject *DeletedRecords_type = NULL;
 
-        size_t c_topic_partition_cnt = c_topic_partitions->cnt;
         size_t i;
 
         DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka", 
@@ -4485,7 +4484,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         }
 
         result = PyDict_New();
-        for(i=0; i<c_topic_partition_cnt; i++){
+        for(i=0; i<c_topic_partitions->cnt; i++){
                 PyObject *key = NULL;
                 PyObject *value = NULL;
         
@@ -4504,8 +4503,10 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
                         Py_DECREF(args);
                         Py_DECREF(kwargs);
 
-                        if (value == NULL)
+                        if (value == NULL){
+                                Py_DECREF(key);
                                 goto raise;
+                        }
                 }
                 
                 PyDict_SetItem(result, key, value);
