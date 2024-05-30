@@ -4474,7 +4474,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         PyObject *result = NULL;
         PyObject *DeletedRecords_type = NULL;
 
-        size_t i;
+        int i;
 
         DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka", 
                                                   "DeletedRecords");
