@@ -890,8 +890,16 @@ if __name__ == '__main__':
     operation = sys.argv[2]
     args = sys.argv[3:]
 
+    # Custom logger
+    logger = logging.getLogger('AdminClient')
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(asctime)-15s %(levelname)-8s %(message)s'))
+    logger.addHandler(handler)
+
     # Create Admin client
-    a = AdminClient({'bootstrap.servers': broker})
+    a = AdminClient({'bootstrap.servers': broker},
+                     logger=logger)
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,
@@ -920,3 +928,6 @@ if __name__ == '__main__':
         sys.exit(1)
 
     opsmap[operation](a, args)
+
+    # Log messages through custom logger if provided
+    a.poll(0)
