@@ -1,2 +1,3 @@
 # See go/codeowners - automatically generated for confluentinc/confluent-kafka-python:
 *	@confluentinc/clients
+*   @confluentinc/data-governance
