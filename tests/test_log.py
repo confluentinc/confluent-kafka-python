@@ -3,6 +3,7 @@
 from io import StringIO
 import confluent_kafka
 import confluent_kafka.avro
+import confluent_kafka.admin
 import logging
 
 
@@ -158,3 +159,43 @@ def test_consumer_logger_logging_in_given_format():
     c.close()
 
     assert "Consumer Logger | INIT" in logMessage
+
+
+def test_admin_logger_logging_in_given_format_when_provided_in_conf():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer = StringIO()
+    logger = logging.getLogger('Admin')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+
+    admin_client = confluent_kafka.admin.AdminClient(
+        {"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
+    admin_client.poll(0)
+
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+
+    assert "Admin Logger | INIT" in logMessage
+
+
+def test_admin_logger_logging_in_given_format_when_provided_as_admin_client_argument():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer = StringIO()
+    logger = logging.getLogger('Admin')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+
+    admin_client = confluent_kafka.admin.AdminClient(
+        {"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
+    admin_client.poll(0)
+
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+
+    assert "Admin Logger | INIT" in logMessage
