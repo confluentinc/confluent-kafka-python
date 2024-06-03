@@ -109,7 +109,7 @@ class AdminClient (_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf, logger=None):
         """
         Create a new AdminClient using the provided configuration dictionary.
 
@@ -117,8 +117,13 @@ class AdminClient (_AdminClientImpl):
         the standard librdkafka configuration properties as specified at
         https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
+        :param dict config: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set\n"
+        :param Logger logger: Optional Logger instance to use as a custom log messages handler.
+
         At least 'bootstrap.servers' should be configured.
         """
+        if logger is not None:
+            conf['logger'] = logger
         super(AdminClient, self).__init__(conf)
 
     @staticmethod

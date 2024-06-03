@@ -6,6 +6,8 @@ v2.4.1 is a maintenance release with the following fixes and enhancements:
 
  - Removed usage of `strcpy` to enhance security of the client (#1745)
  - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy (#1745)
+ - Fixed `logger` not working when provided as an argument to `AdminClient`
+ - Updated `examples/adminapi.py` to include usage of the custom logger with `AdminClient` 
 
 confluent-kafka-python is based on librdkafka v2.4.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.1)
