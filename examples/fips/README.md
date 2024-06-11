@@ -82,7 +82,7 @@ To make client (consumer, producer or admin client) FIPS compliant, you must ena
 
 ## Communication between client and Schema Registry
 
-This part is not tested for FIPS compliance right now.
+The communication between client and Schema Registry is also FIPS compliant if the underlying python is using FIPS compliant OpenSSL. This depends on the system level OpenSSL if the python is installed in default way. To know more on how to use FIPS provider with OpenSSL, check [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html) and [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md) links. The steps are briefly described above as well.
 
 ## References
 * [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
