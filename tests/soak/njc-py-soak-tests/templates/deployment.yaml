@@ -53,7 +53,7 @@ spec:
             - name: OTEL_TRACES_EXPORTER
               value: "none"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value: "http://$(NODEIP):14317"
+              value: "http://$(NODEIP):4317"
             - name: OTEL_METRIC_EXPORT_INTERVAL
               value: "10000"
             - name: TESTID
