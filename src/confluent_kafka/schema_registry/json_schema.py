@@ -165,8 +165,13 @@ class JSONSerializer(Serializer):
                      'subject.name.strategy': topic_subject_name_strategy}
 
     def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
-        if not isinstance(schema_str, (str, Schema)):
-            raise TypeError('You must pass either schema string or schema object')
+        if isinstance(schema_str, str):
+            schema = Schema(schema_str, schema_type="JSON")
+        elif isinstance(schema_str, Schema):
+            schema = schema_str
+            self._are_references_provided = bool(schema_str.references)
+        else:
+            raise TypeError('You must pass either str or Schema')
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
@@ -205,9 +210,9 @@ class JSONSerializer(Serializer):
         # Set common instance variables
         # Called on __init__ and
         # on __call__ if use.latest.version is set to True
-        self._update_schema_info(schema_str)
+        self._update_schema_info(schema)
 
-    def _update_schema_info(self, schema_str, schema_id=None):
+    def _update_schema_info(self, schema, schema_id=None):
         """
         Function to set the instance variables below upon __init__ (always) but
          also on __call__ whenever the config param use.latest.version is set to True
@@ -219,17 +224,12 @@ class JSONSerializer(Serializer):
           > self._are_references_provided
 
         Args:
-            schema_str (str, Schema):
+            schema (Schema):
             schema_id (int, default None)
         """
+        self._schema = schema
+        self._are_references_provided = bool(schema.references)
         self._schema_id = schema_id
-
-        self._are_references_provided = False
-        if isinstance(schema_str, str):
-            self._schema = Schema(schema_str, schema_type="JSON")
-        else:  # type=Schema (asserted on __init__)
-            self._schema = schema_str
-            self._are_references_provided = bool(schema_str.references)
 
         self._parsed_schema = json.loads(self._schema.schema_str)
         self._schema_name = self._parsed_schema.get("title", None)
@@ -265,7 +265,7 @@ class JSONSerializer(Serializer):
                 latest_schema = self._registry.get_latest_version(subject)
                 # Update instance variables with latest schema
                 self._update_schema_info(latest_schema.schema,
-                                             schema_id=latest_schema.schema_id)
+                                         schema_id=latest_schema.schema_id)
                 # Add to registry cache
                 self._registry._cache.set(self._schema_id, 
                                           self._schema,
