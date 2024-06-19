@@ -191,7 +191,7 @@ class AvroSerializer(Serializer):
             schema = schema_str
         else:
             raise TypeError('You must pass either schema string or schema object')
-        
+
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
                              "to_dict(object, SerializationContext)->dict")
@@ -300,9 +300,7 @@ class AvroSerializer(Serializer):
                 self._update_schema_info(latest_schema.schema,
                                          schema_id=latest_schema.schema_id)
                 # Add to registry cache
-                self._registry._cache.set(self._schema_id, 
-                                          self._schema,
-                                          subject)
+                self._registry._cache.set(self._schema_id, self._schema, subject)
             else:
                 # Check to ensure this schema has been registered under subject_name.
                 if self._auto_register:
