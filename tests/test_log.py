@@ -25,7 +25,7 @@ def _setup_string_buffer_logger(name):
     handler = logging.StreamHandler(stringBuffer)
     handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
     logger.addHandler(handler)
-    return stringBuffer,logger
+    return stringBuffer, logger
 
 
 def test_logging_consumer():
