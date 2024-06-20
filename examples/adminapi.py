@@ -899,7 +899,7 @@ if __name__ == '__main__':
 
     # Create Admin client
     a = AdminClient({'bootstrap.servers': broker},
-                     logger=logger)
+                    logger=logger)
 
     opsmap = {'create_topics': example_create_topics,
               'delete_topics': example_delete_topics,
