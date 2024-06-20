@@ -18,9 +18,9 @@ class CountingFilter(logging.Filter):
         print(record)
 
 
-def _setup_string_buffer_logger():
+def _setup_string_buffer_logger(name):
     stringBuffer = StringIO()
-    logger = logging.getLogger('Producer')
+    logger = logging.getLogger(name)
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(stringBuffer)
     handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
@@ -131,7 +131,7 @@ def test_logging_constructor():
 def test_producer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer, logger = _setup_string_buffer_logger()
+    stringBuffer, logger = _setup_string_buffer_logger('Producer')
 
     p = confluent_kafka.Producer(
         {"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
@@ -148,7 +148,7 @@ def test_producer_logger_logging_in_given_format():
 def test_consumer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer, logger = _setup_string_buffer_logger()
+    stringBuffer, logger = _setup_string_buffer_logger('Consumer')
 
     c = confluent_kafka.Consumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
@@ -164,7 +164,7 @@ def test_consumer_logger_logging_in_given_format():
 def test_admin_logger_logging_in_given_format_when_provided_in_conf():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer, logger = _setup_string_buffer_logger()
+    stringBuffer, logger = _setup_string_buffer_logger('Admin')
 
     admin_client = confluent_kafka.admin.AdminClient(
         {"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
@@ -179,7 +179,7 @@ def test_admin_logger_logging_in_given_format_when_provided_in_conf():
 def test_admin_logger_logging_in_given_format_when_provided_as_admin_client_argument():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer, logger = _setup_string_buffer_logger()
+    stringBuffer, logger = _setup_string_buffer_logger('Admin')
 
     admin_client = confluent_kafka.admin.AdminClient(
         {"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
