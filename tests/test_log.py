@@ -18,6 +18,16 @@ class CountingFilter(logging.Filter):
         print(record)
 
 
+def _setup_string_buffer_logger():
+    stringBuffer = StringIO()
+    logger = logging.getLogger('Producer')
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+    return stringBuffer,logger
+
+
 def test_logging_consumer():
     """ Tests that logging works """
 
@@ -121,12 +131,7 @@ def test_logging_constructor():
 def test_producer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Producer')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger()
 
     p = confluent_kafka.Producer(
         {"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
@@ -143,12 +148,7 @@ def test_producer_logger_logging_in_given_format():
 def test_consumer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Consumer')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger()
 
     c = confluent_kafka.Consumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
@@ -164,12 +164,7 @@ def test_consumer_logger_logging_in_given_format():
 def test_admin_logger_logging_in_given_format_when_provided_in_conf():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Admin')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger()
 
     admin_client = confluent_kafka.admin.AdminClient(
         {"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
@@ -184,12 +179,7 @@ def test_admin_logger_logging_in_given_format_when_provided_in_conf():
 def test_admin_logger_logging_in_given_format_when_provided_as_admin_client_argument():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Admin')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger()
 
     admin_client = confluent_kafka.admin.AdminClient(
         {"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
