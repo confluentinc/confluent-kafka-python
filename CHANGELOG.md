@@ -1,4 +1,14 @@
 # Confluent's Python client for Apache Kafka
+## v2.5.1
+
+v2.5.1 is a maintenance release with the following fixes and enhancements:
+
+ - Added an example for OAUTH OIDC producer with support for confluent cloud (#1769, @sarwarbhuiyan)
+
+confluent-kafka-python is based on librdkafka v2.5.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.6.0
 
