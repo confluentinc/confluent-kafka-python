@@ -47,6 +47,7 @@ def producer_config(args):
 
     return params
 
+
 def delivery_report(err, msg):
     """
     Reports the failure or success of a message delivery.
@@ -120,5 +121,5 @@ if __name__ == '__main__':
                         help="Scopes requested from OAuth server.")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
-  
+
     main(parser.parse_args())
