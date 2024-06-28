@@ -52,7 +52,7 @@ def test_consume_error_commit(kafka_cluster):
     """
     topic = kafka_cluster.create_topic("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest',
-                     'session.timeout.ms': 1500}
+                     'session.timeout.ms': 100}
 
     producer = kafka_cluster.producer()
     producer.produce(topic=topic, value="a")
@@ -61,6 +61,8 @@ def test_consume_error_commit(kafka_cluster):
     consumer = kafka_cluster.cimpl_consumer(consumer_conf)
     consumer.subscribe([topic])
     try:
+        # Since the session timeout value is low, JoinGroupRequest will fail
+        # and we get error in a message while polling.
         m = consumer.poll(1)
         consumer.commit(m)
     except KafkaException as e:
@@ -74,7 +76,7 @@ def test_consume_error_store_offsets(kafka_cluster):
     """
     topic = kafka_cluster.create_topic("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest',
-                     'session.timeout.ms': 1500,
+                     'session.timeout.ms': 100,
                      'enable.auto.offset.store': True,
                      'enable.auto.commit': False}
 
@@ -85,6 +87,8 @@ def test_consume_error_store_offsets(kafka_cluster):
     consumer = kafka_cluster.cimpl_consumer(consumer_conf)
     consumer.subscribe([topic])
     try:
+        # Since the session timeout value is low, JoinGroupRequest will fail
+        # and we get error in a message while polling.
         m = consumer.poll(1)
         consumer.store_offsets(m)
     except KafkaException as e:
