@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import confluent_kafka
 import struct
 import time
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
+
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
@@ -55,6 +55,7 @@ def verify_admin_acls(admin_client,
                                "User:test-user-2", "*", AclOperation.ALL, AclPermissionType.ALLOW)
 
     fs = admin_client.create_acls([acl_binding_1, acl_binding_2, acl_binding_3])
+    time.sleep(1)
     for acl_binding, f in fs.items():
         f.result()  # trigger exception if there was an error
 
@@ -78,6 +79,7 @@ def verify_admin_acls(admin_client,
     #
     expected_acl_bindings = [acl_binding_2, acl_binding_3]
     fs = admin_client.delete_acls([acl_binding_filter2])
+    time.sleep(1)
     deleted_acl_bindings = sorted(fs[acl_binding_filter2].result())
     assert deleted_acl_bindings == expected_acl_bindings, \
         "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
@@ -89,6 +91,7 @@ def verify_admin_acls(admin_client,
     expected_acl_bindings = [[acl_binding_1], []]
     delete_acl_binding_filters = [acl_binding_filter3, acl_binding_filter4]
     fs = admin_client.delete_acls(delete_acl_binding_filters)
+    time.sleep(1)
     for acl_binding, expected in zip(delete_acl_binding_filters, expected_acl_bindings):
         deleted_acl_bindings = sorted(fs[acl_binding].result())
         assert deleted_acl_bindings == expected, \
@@ -209,6 +212,7 @@ def test_basic_operations(kafka_cluster):
                                                },
                                                validate_only=validate
                                                )
+        time.sleep(1)
 
     admin_client = kafka_cluster.admin()
 
@@ -270,7 +274,7 @@ def test_basic_operations(kafka_cluster):
                     print('Read all the required messages: exiting')
                     break
             except ConsumeError as e:
-                if msg is not None and e.code == confluent_kafka.KafkaError._PARTITION_EOF:
+                if msg is not None and e.code == KafkaError._PARTITION_EOF:
                     print('Reached end of %s [%d] at offset %d' % (
                           msg.topic(), msg.partition(), msg.offset()))
                     eof_reached[(msg.topic(), msg.partition())] = True
@@ -343,6 +347,7 @@ def test_basic_operations(kafka_cluster):
         resource.set_config(key, value)
 
     fs = admin_client.alter_configs([resource])
+    time.sleep(1)
     fs[resource].result()  # will raise exception on failure
 
     #

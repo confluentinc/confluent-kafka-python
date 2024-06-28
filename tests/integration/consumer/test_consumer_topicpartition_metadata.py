@@ -29,11 +29,11 @@ def commit_and_check(consumer, topic, metadata):
     assert offsets[0].metadata == metadata
 
 
-def test_consumer_topicpartition_metadata(kafka_cluster):
-    topic = kafka_cluster.create_topic("test_topicpartition")
+def test_consumer_topicpartition_metadata(kafka_single_broker_cluster):
+    topic = kafka_single_broker_cluster.create_topic("test_topicpartition")
     consumer_conf = {'group.id': 'pytest'}
 
-    c = kafka_cluster.consumer(consumer_conf)
+    c = kafka_single_broker_cluster.consumer(consumer_conf)
 
     # Commit without any metadata.
     metadata = None
