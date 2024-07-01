@@ -1,3 +1,6 @@
+-r requirements/requirements-avro.txt
+-r requirements/requirements-json.txt
+-r requirements/requeriments-protobuf.txt
 urllib3<2.0.0;python_version<="3.7"
 urllib3
 flake8
@@ -5,4 +8,3 @@ pytest
 pytest-timeout
 requests-mock
 trivup>=0.8.3
-build
