@@ -17,18 +17,13 @@ import sys
 import os
 from glob import glob
 
-# If extensions (or modules to document with autodoc) are in another directory,
-# add these directories to sys.path here. If the directory is relative to the
-# documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path[:0] = [os.path.abspath(x) for x in glob('../build/lib.*')]
-
 # -- General configuration ------------------------------------------------
 
 
 ######################################################################
 # General information about the project.
 project = u'confluent-kafka'
-copyright = u'2016-2023, Confluent Inc.'
+copyright = u'2016-2024, Confluent Inc.'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
