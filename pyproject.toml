@@ -34,8 +34,8 @@ optional-dependencies.schemaregistry = { file = ["requirements/requirements-sche
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
-optional-dependencies.dev = { file = ["requirements/requirements-tests.txt", "requirements/requirements-docs.txt", "requirements/examples.txt"] }
+optional-dependencies.dev = { file = ["requirements/requirements-tests.txt", "requirements/requirements-docs.txt", "requirements/requirements-examples.txt"] }
 optional-dependencies.docs = { file = ["requirements/requirements-docs.txt"] }
 optional-dependencies.tests = { file = ["requirements/requirements-tests.txt"] }
-optional-dependencies.examples = { file = ["requirements/examples.txt"] }
-optional-dependencies.soaktest = { file = ["requirements/soaktest.txt"] }
+optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
+optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
