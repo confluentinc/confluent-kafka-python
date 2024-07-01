@@ -1,16 +1,3 @@
-# pyproject.toml doesn't supoort "-r" hence we need to manually copy dependencies here from various requirements files
-# -r requirements-avro.txt
-fastavro>=0.23.0
-requests
-avro>=1.11.1,<2
-
-# -r requirements-json.txt
-pyrsistent
-jsonschema
-
-# -r requirements-protobuf.txt
-protobuf>=3.6.0
-
 # core test requirements
 urllib3<2.0.0;python_version<="3.7"
 urllib3
@@ -19,3 +6,12 @@ pytest
 pytest-timeout
 requests-mock
 trivup>=0.8.3
+
+# other requirements
+fastavro<1.8.0;python_version=="3.7"
+fastavro>=1.8.4;python_version>"3.7"
+fastavro
+requests
+avro>=1.11.1,<2
+jsonschema
+protobuf>=3.6.0
