@@ -13,9 +13,6 @@
 # serve to show the default.
 
 import sphinx_rtd_theme
-import sys
-import os
-from glob import glob
 
 # -- General configuration ------------------------------------------------
 
