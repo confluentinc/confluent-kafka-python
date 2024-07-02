@@ -197,6 +197,17 @@ class _SchemaCache(object):
         self.schema_index = {}
         self.subject_schemas = defaultdict(set)
 
+    def __getstate__(self) -> dict:
+        state = self.__dict__.copy()
+        # Remove the unpicklable lock
+        del state["lock"]
+
+        return state
+
+    def __setstate__(self, state: dict) -> None:
+        self.__dict__.update(state)
+        self.lock = Lock()
+
     def set(self, schema_id, schema, subject_name=None):
         """
         Add a Schema identified by schema_id to the cache.
