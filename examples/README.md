@@ -30,8 +30,8 @@ To setup a venv with the latest release version of confluent-kafka and dependenc
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ cd examples
-$ pip install -r requirements.txt
+$ pip install confluent_kafka
+$ pip install -r requirements/requirements-examples.txt
 ```
 
 To setup a venv that uses the current source tree version of confluent_kafka, you
@@ -42,9 +42,7 @@ need to have a C compiler and librdkafka installed
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ python setup.py develop
-$ cd examples
-$ pip install -r requirements.txt
+$ pip install .[examples]
 ```
 
 When you're finished with the venv:
