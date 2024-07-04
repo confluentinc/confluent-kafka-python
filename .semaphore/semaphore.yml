@@ -14,203 +14,218 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-13-5-amd64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-13-5-arm64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: CIBW_ARCHS
-          value: arm64
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: Linux arm64"
-    run:
-      when: "tag =~ '.*'"
+  - name: "Source Build"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
         machine:
           type: s1-prod-ubuntu20-04-arm64-1
-      env_vars:
-        - name: OS_NAME
-          value: linux
-        - name: ARCH
-          value: arm64
       jobs:
         - name: Build
           commands:
-            - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
-            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: Linux x64"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-amd64-3
-      env_vars:
-        - name: OS_NAME
-          value: linux
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: Windows"
-    run:
-      when: "tag =~ '.*'"
-    dependencies: []
-    task:
-      agent:
-          machine:
-            type: s1-prod-windows
-      env_vars:
-        - name: OS_NAME
-          value: windows
-        - name: ARCH
-          value: x64
-      prologue:
-        commands:
-          - ".\\tools\\mingw-w64\\setup-msys2.ps1"
-          - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
-          - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
-      jobs:
-        - name: Build
-          env_vars:
-            - name: CHERE_INVOKING
-              value: 'yes'
-            - name: MSYSTEM
-              value: UCRT64
-          commands:
-            - bash tools/mingw-w64/semaphore_commands.sh
-            - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
-            - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
-            - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
-            - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
-  - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-amd64-2
-      env_vars:
-        - name: OS_NAME
-          value: linux
-        - name: ARCH
-          value: x64
-      prologue:
-        commands:
-          - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
-  - name: "Source package verification with Python 3 (Linux arm64)"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-ubuntu20-04-arm64-1
-      env_vars:
-        - name: OS_NAME
-          value: linux
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
-  - name: "Source package verification with Python 3 (OSX x64) +docs"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-13-5-amd64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: x64
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
-  - name: "Source package verification with Python 3 (OSX arm64) +docs"
-    dependencies: []
-    task:
-      agent:
-        machine:
-          type: s1-prod-macos-13-5-arm64
-      env_vars:
-        - name: OS_NAME
-          value: osx
-        - name: ARCH
-          value: arm64
-      jobs:
-        - name: Build
-          commands:
-            - sem-version python 3.8
-            # use a virtualenv
-            - python3 -m venv _venv && source _venv/bin/activate
-            - chmod u+r+x tools/source-package-verification.sh
-            - tools/source-package-verification.sh
+            - python setup.py sdist
+            - ls -al
+            - artifact push workflow dist/*.tar.gz
+  # - name: "Wheels: OSX x64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-13-5-amd64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: OSX arm64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-13-5-arm64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: CIBW_ARCHS
+  #         value: arm64
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: Linux arm64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-arm64-1
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
+  #           - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: Linux x64"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-amd64-3
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+  #           - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  # - name: "Wheels: Windows"
+  #   run:
+  #     when: "tag =~ '.*'"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #         machine:
+  #           type: s1-prod-windows
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: windows
+  #       - name: ARCH
+  #         value: x64
+  #     prologue:
+  #       commands:
+  #         - ".\\tools\\mingw-w64\\setup-msys2.ps1"
+  #         - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
+  #         - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+  #     jobs:
+  #       - name: Build
+  #         env_vars:
+  #           - name: CHERE_INVOKING
+  #             value: 'yes'
+  #           - name: MSYSTEM
+  #             value: UCRT64
+  #         commands:
+  #           - bash tools/mingw-w64/semaphore_commands.sh
+  #           - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
+  #           - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+  #           - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
+  #           - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
+  # - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-amd64-2
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: x64
+  #     prologue:
+  #       commands:
+  #         - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - sem-version python 3.8
+  #           # use a virtualenv
+  #           - python3 -m venv _venv && source _venv/bin/activate
+  #           - chmod u+r+x tools/source-package-verification.sh
+  #           - tools/source-package-verification.sh
+  # - name: "Source package verification with Python 3 (Linux arm64)"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-ubuntu20-04-arm64-1
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: linux
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - sem-version python 3.8
+  #           # use a virtualenv
+  #           - python3 -m venv _venv && source _venv/bin/activate
+  #           - chmod u+r+x tools/source-package-verification.sh
+  #           - tools/source-package-verification.sh
+  # - name: "Source package verification with Python 3 (OSX x64) +docs"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-13-5-amd64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: x64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - sem-version python 3.8
+  #           # use a virtualenv
+  #           - python3 -m venv _venv && source _venv/bin/activate
+  #           - chmod u+r+x tools/source-package-verification.sh
+  #           - tools/source-package-verification.sh
+  # - name: "Source package verification with Python 3 (OSX arm64) +docs"
+  #   dependencies: []
+  #   task:
+  #     agent:
+  #       machine:
+  #         type: s1-prod-macos-13-5-arm64
+  #     env_vars:
+  #       - name: OS_NAME
+  #         value: osx
+  #       - name: ARCH
+  #         value: arm64
+  #     jobs:
+  #       - name: Build
+  #         commands:
+  #           - sem-version python 3.8
+  #           # use a virtualenv
+  #           - python3 -m venv _venv && source _venv/bin/activate
+  #           - chmod u+r+x tools/source-package-verification.sh
+  #           - tools/source-package-verification.sh
   - name: "Packaging"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64"
-      - "Wheels: OSX arm64"
-      - "Wheels: Linux arm64"
-      - "Wheels: Linux x64"
-      - "Wheels: Windows"
+      # - "Wheels: OSX x64"
+      # - "Wheels: OSX arm64"
+      # - "Wheels: Linux arm64"
+      # - "Wheels: Linux x64"
+      # - "Wheels: Windows"
+      - "Source Build"
     task:
       agent:
         machine:
@@ -220,7 +235,9 @@ blocks:
           commands:
             - artifact pull workflow artifacts
             - cd artifacts
-            - ls *.tgz |xargs -n1 tar -xvf
+            # - ls *.tgz |xargs -n1 tar -xvf
+            - ls -la
+            - mv *.tar.gz wheelhouse/
             - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
             - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
