@@ -26,6 +26,7 @@ blocks:
         - name: Build
           commands:
             - python setup.py sdist
+            - ls -al
             - artifact push workflow dist/*.tar.gz
   # - name: "Wheels: OSX x64"
   #   run:
