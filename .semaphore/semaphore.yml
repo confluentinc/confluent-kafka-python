@@ -27,7 +27,7 @@ blocks:
           commands:
             - python setup.py sdist
             - ls -al
-            - artifact push workflow dist/*.tar.gz
+            - artifact push workflow dist/*.tar.gz --destination artifacts/source.tgz/
   # - name: "Wheels: OSX x64"
   #   run:
   #     when: "tag =~ '.*'"
@@ -235,9 +235,9 @@ blocks:
           commands:
             - artifact pull workflow artifacts
             - cd artifacts
-            # - ls *.tgz |xargs -n1 tar -xvf
+            - ls *.tgz |xargs -n1 tar -xvf
             - ls -la
-            - mv *.tar.gz wheelhouse/
+            - mv confluent-kafka-python*.tar.gz wheelhouse/
             - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
             - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
