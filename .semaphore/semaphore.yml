@@ -25,10 +25,6 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - ls -al build
-            - rm -rf build
-            - ls -al dist
-            - rm -rf dist
             - python setup.py sdist
             - artifact push workflow dist/*.tar.gz --destination artifacts/
   # - name: "Wheels: OSX x64"
