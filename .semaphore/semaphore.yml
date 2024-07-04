@@ -26,8 +26,10 @@ blocks:
         - name: Build
           commands:
             - python setup.py sdist
-            - ls -al
-            - artifact push workflow dist/*.tar.gz --destination artifacts
+            - cd dist
+            - export SOURCE_BUILD_FILENAME=`ls *.tar.gz`
+            - cd ..
+            - artifact push workflow dist/${SOURCE_BUILD_FILENAME} --destination artifacts/${SOURCE_BUILD_FILENAME}
   # - name: "Wheels: OSX x64"
   #   run:
   #     when: "tag =~ '.*'"
