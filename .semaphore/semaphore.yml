@@ -26,7 +26,7 @@ blocks:
         - name: Build
           commands:
             - python setup.py sdist
-            - artifact push workflow dist/*.tar.gz --destination artifacts/
+            - artifact push workflow dist/*.tar.gz
   # - name: "Wheels: OSX x64"
   #   run:
   #     when: "tag =~ '.*'"
