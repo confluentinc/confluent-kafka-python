@@ -9,7 +9,7 @@ v2.4.1 is a maintenance release with the following fixes and enhancements:
  - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy (#1745)
  - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy.
  - Fixed a segfault when `commit` or `store_offsets` consumer method is called incorrectly with errored Message object
- - Fixed `logger` not working when provided as an argument to `AdminClient`
+ - Fixed `logger` not working when provided as an argument to `AdminClient` instead of a configuration property
 
 confluent-kafka-python is based on librdkafka v2.4.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.1)

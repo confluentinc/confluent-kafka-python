@@ -16,10 +16,17 @@ handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter('%(asctime)-15s %(levelname)-8s %(message)s'))
 logger.addHandler(handler)
 
-# Create Admin client
+# Create Admin client with logger
 a = AdminClient({'bootstrap.servers': broker,
                  'debug': 'all'},
                 logger=logger)
+
+# Alternatively, pass the logger as a key.
+# When passing it as an argument, it overwrites the key.
+#
+# a = AdminClient({'bootstrap.servers': broker,
+#                  'debug': 'all',
+#                  'logger': logger})
 
 # Sample Admin API call
 future = a.list_consumer_groups(request_timeout=10)
