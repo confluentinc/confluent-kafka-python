@@ -4436,6 +4436,7 @@ static PyObject *Admin_c_ListOffsetsResultInfos_to_py (const rd_kafka_ListOffset
         result = PyDict_New();
         for(i=0; i<c_result_info_cnt; i++){
                 PyObject *value = NULL;
+                PyObject *key = NULL;
                 const rd_kafka_topic_partition_t *c_topic_partition = rd_kafka_ListOffsetsResultInfo_topic_partition(c_result_infos[i]);
 
                 int64_t c_timestamp = rd_kafka_ListOffsetsResultInfo_timestamp(c_result_infos[i]);
@@ -4457,7 +4458,9 @@ static PyObject *Admin_c_ListOffsetsResultInfos_to_py (const rd_kafka_ListOffset
                         if (value == NULL)
                                 goto raise;
                 }
-                PyDict_SetItem(result, c_part_to_py(c_topic_partition), value);
+                key = c_part_to_py(c_topic_partition);
+                PyDict_SetItem(result, key, value);
+                Py_DECREF(key);
                 Py_DECREF(value);
         }
 

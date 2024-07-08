@@ -12,6 +12,7 @@ v2.5.0 is a feature release with the following features, fixes and enhancements:
  - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy.
  - Fixed a segfault when `commit` or `store_offsets` consumer method is called incorrectly with errored Message object
  - Fixed `logger` not working when provided as an argument to `AdminClient` instead of a configuration property
+ - Fixed a memory leak in ListOffsets Result.
 
 confluent-kafka-python is based on librdkafka v2.5.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
