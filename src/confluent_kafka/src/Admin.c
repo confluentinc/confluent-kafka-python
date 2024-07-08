@@ -2993,7 +2993,7 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETERECORDS,
                                        &options, future);
-        if (!c_options)  {
+        if (!c_options) {
                 goto err; /* Exception raised by options_to_c() */
         }
 
@@ -3002,12 +3002,11 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (!PyList_Check(topic_partition_offsets)) {
-                PyErr_SetString(PyExc_ValueError,
-                        "topic_partitions_offsets must be a list");
-                goto err;
-        }
         c_topic_partition_offsets = py_to_c_parts(topic_partition_offsets);
+
+        if(!c_topic_partition_offsets) {
+                goto err; /* Exception raised by py_to_c_parts() */
+        }
         
         c_obj = malloc(sizeof(rd_kafka_DeleteRecords_t *) * del_record_cnt);
         c_obj[0] = rd_kafka_DeleteRecords_new(c_topic_partition_offsets);
@@ -4476,7 +4475,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
 
         int i;
 
-        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka", 
+        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin", 
                                                   "DeletedRecords");
         if(!DeletedRecords_type){
                 cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeletedRecords type");
@@ -4503,7 +4502,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
                         Py_DECREF(args);
                         Py_DECREF(kwargs);
 
-                        if (value == NULL){
+                        if (!value){
                                 Py_DECREF(key);
                                 goto raise;
                         }

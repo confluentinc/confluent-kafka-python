@@ -849,25 +849,29 @@ def example_delete_records(a, args):
     if len(args) == 0:
         raise ValueError(
             "Invalid number of arguments for delete_records, expected at least 3 " +
-            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..])")
     if len(args) % 3 != 0:
         raise ValueError(
             "Invalid number of arguments for delete_records " +
-            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...])")
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..])")
 
-    topic_partition_offset = [
+    topic_partition_offsets = [
         TopicPartition(topic, int(partition), int(offset))
         for topic, partition, offset in zip(args[::3], args[1::3], args[2::3])
     ]
 
-    futmap = a.delete_records(topic_partition_offset)
+    futmap = a.delete_records(topic_partition_offsets)
     for partition, fut in futmap.items():
         try:
             result = fut.result()
-            print(
-                f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
-                f" partition {partition.partition}. The minimum offset in this partition" +
-                f" is now {result.low_watermark}")
+            if partition.offset == -1:
+                print(f"All records deleted in topic {partition.topic} partition {partition.partition}." +
+                      f"The minimum offset in this partition is now {result.low_watermark}")
+            else:
+                print(
+                    f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
+                    f" partition {partition.partition}. The minimum offset in this partition" +
+                    f" is now {result.low_watermark}")
         except KafkaException as e:
             print(
                 f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
@@ -912,7 +916,7 @@ if __name__ == '__main__':
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
-        sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2>...]\n')
+        sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]

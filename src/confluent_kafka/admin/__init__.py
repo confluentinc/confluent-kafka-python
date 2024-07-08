@@ -54,6 +54,8 @@ from ._cluster import (DescribeClusterResult)  # noqa: F401
 from ._listoffsets import (OffsetSpec,  # noqa: F401
                            ListOffsetsResultInfo)
 
+from ._records import DeletedRecords  # noqa: F401
+
 from .._model import TopicCollection as _TopicCollection
 
 from ..cimpl import (KafkaException,  # noqa: F401
@@ -1225,17 +1227,19 @@ class AdminClient (_AdminClientImpl):
         Deletes all the records before the specified offsets (not including),
         in the specified Topic and Partitions.
 
-        param list(TopicPartitions) topic_partition_offsets: A list of
-                TopicPartition objects having `offset` field set to the offset
-                before which all the records should be deleted.
+        :param list(TopicPartitions) topic_partition_offsets: A list of
+               TopicPartition objects having `offset` field set to the offset
+               before which all the records should be deleted.
+               `offset` can be set to :py:const:`OFFSET_END` (-1) to delete all records
+               in the partition.
         :param float request_timeout: The overall request timeout in seconds,
-                including broker lookup, request transmission, operation time
-                on broker, and response. Default: `socket.timeout.ms*1000.0`
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
         :param float operation_timeout: The operation timeout in seconds,
-                controlling how long the delete_records request will block
-                on the broker waiting for the record deletion to propagate
-                in the cluster. A value of 0 returns immediately.
-                Default: `socket.timeout.ms/1000.0`
+               controlling how long the delete_records request will block
+               on the broker waiting for the record deletion to propagate
+               in the cluster. A value of 0 returns immediately.
+               Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures keyed by the TopicPartition.
                   The future result() method returns DeletedRecords

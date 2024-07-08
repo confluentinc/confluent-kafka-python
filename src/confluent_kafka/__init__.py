@@ -24,8 +24,7 @@ from ._model import (Node,  # noqa: F401
                      ConsumerGroupState,
                      TopicCollection,
                      TopicPartitionInfo,
-                     IsolationLevel,
-                     DeletedRecords)
+                     IsolationLevel)
 
 from .cimpl import (Producer,
                     Consumer,
@@ -50,7 +49,7 @@ __all__ = ['admin', 'Consumer',
            'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
            'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'Uuid',
-           'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo', 'DeletedRecords']
+           'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo']
 
 __version__ = version()[0]
 

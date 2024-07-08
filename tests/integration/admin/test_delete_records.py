@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka.admin import OffsetSpec
-from confluent_kafka import TopicPartition, DeletedRecords
+from confluent_kafka.admin import OffsetSpec, DeletedRecords
+from confluent_kafka import TopicPartition
 
 
 def test_delete_records(kafka_cluster):
