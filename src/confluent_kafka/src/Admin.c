@@ -4480,10 +4480,8 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
 
         DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin", 
                                                   "DeletedRecords");
-        if(!DeletedRecords_type){
-                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Unable to load DeletedRecords type");
-                goto raise;
-        }
+        if(!DeletedRecords_type)
+                goto raise;  /* Exception raised by lookup() */
 
         result = PyDict_New();
         for(i=0; i<c_topic_partitions->cnt; i++){
