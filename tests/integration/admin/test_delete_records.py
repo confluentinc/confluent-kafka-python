@@ -63,3 +63,74 @@ def test_delete_records(kafka_cluster):
     fs = admin_client.delete_topics([topic])
     for topic, f in fs.items():
         f.result()
+
+
+def test_delete_records_multiple_topics_and_partitions(kafka_cluster):
+    """
+    Test delete_records, delete the records upto the specified offset
+    in that particular partition of the specified topic.
+    """
+    admin_client = kafka_cluster.admin()
+    num_partitions = 3
+    # Create two topics with a single partition
+    topic = kafka_cluster.create_topic("test-del-records",
+                                       {
+                                           "num_partitions": num_partitions,
+                                           "replication_factor": 1,
+                                       })
+    topic2 = kafka_cluster.create_topic("test-del-records2",
+                                        {
+                                           "num_partitions": num_partitions,
+                                           "replication_factor": 1,
+                                        })
+    topics = [topic, topic2]
+    partitions = list(range(num_partitions))
+    # Create Producer instance
+    p = kafka_cluster.producer()
+    for t in topics:
+        for partition in partitions:
+            p.produce(t, "Message-1", partition=partition)
+            p.produce(t, "Message-2", partition=partition)
+            p.produce(t, "Message-3", partition=partition)
+    p.flush()
+    requests = dict(
+        [
+            (TopicPartition(t, partition), OffsetSpec.earliest())
+            for t in topics
+            for partition in partitions
+        ]
+    )
+    # Check if the earliest available offset for this topic partition is 0
+    fs = admin_client.list_offsets(requests)
+    assert all([p.result().offset == 0 for p in fs.values()])
+    delete_index = 0
+    # Delete the records
+    for delete_partitions in [
+        # Single partition no deletion
+        [TopicPartition(topic, 0, 0)],
+        # Single topic, two partitions, single record deleted
+        [TopicPartition(topic, 0, 1), TopicPartition(topic, 1, 1)],
+        # Two topics, four partitions, two records deleted
+        [TopicPartition(topic, 2, 2), TopicPartition(topic2, 0, 2),
+         TopicPartition(topic2, 1, 2), TopicPartition(topic2, 2, 2)],
+    ]:
+        list_offsets_requests = dict([
+            (part, OffsetSpec.earliest()) for part in delete_partitions
+        ])
+        futmap_delete = admin_client.delete_records(delete_partitions)
+        delete_results = [(part, fut.result())
+                          for part, fut in futmap_delete.items()]
+        futmap_list = admin_client.list_offsets(list_offsets_requests)
+        list_results = dict([(part, fut.result())
+                            for part, fut in futmap_list.items()])
+        for part, delete_result in delete_results:
+            list_result = list_results[part]
+            assert isinstance(delete_result, DeletedRecords)
+            assert delete_result.low_watermark == list_result.offset
+            assert delete_result.low_watermark == delete_index
+        delete_index += 1
+
+    # Delete created topics
+    fs = admin_client.delete_topics(topics)
+    for topic, f in fs.items():
+        f.result()
