@@ -77,6 +77,7 @@ Supporting classes
        - :ref:`MemberAssignment <pythonclient_member_assignment>`
        - :ref:`MemberDescription <pythonclient_member_description>`
        - :ref:`ConsumerGroupDescription <pythonclient_consumer_group_description>`
+       - :ref:`DeletedRecords <pythonclient_deleted_records>`
 
 Experimental
    These classes are experimental and are likely to be removed, or subject to incompatible
@@ -385,6 +386,15 @@ ConsumerGroupDescription
 ************************
 
 .. autoclass:: confluent_kafka.admin.ConsumerGroupDescription
+   :members:
+
+.. _pythonclient_deleted_records:
+
+**************
+DeletedRecords
+**************
+
+.. autoclass:: confluent_kafka.admin.DeletedRecords
    :members:
 
 .. _pythonclient_member_assignment:
