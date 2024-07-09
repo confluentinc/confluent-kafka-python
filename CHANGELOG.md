@@ -8,6 +8,7 @@ v2.5.0 is a feature release with the following features, fixes and enhancements:
  - Added an example to show the usage of the custom logger with `AdminClient`. (#1758)
  - Improve caching on Schema Registry client. (#1744)
  - Removed usage of `strcpy` to enhance security of the client. (#1745)
+ - Removed support for centos6 and centos7. (#1776)
  - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy. (#1745)
  - Fixed documentation for default value of `operation_timeout` and `request_timeout` in various Admin apis. (#1710)
  - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy. (#1764)
