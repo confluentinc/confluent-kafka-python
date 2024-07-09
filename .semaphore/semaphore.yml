@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.4.0
+      value: v2.5.0-RC3
   prologue:
     commands:
       - checkout
