@@ -1,18 +1,21 @@
 # Confluent's Python client for Apache Kafka
 
-## v2.4.1
+## v2.5.0
 
-v2.4.1 is a maintenance release with the following fixes and enhancements:
+v2.5.0 is a feature release with the following features, fixes and enhancements:
 
+ - [KIP-107](https://cwiki.apache.org/confluence/display/KAFKA/KIP-107%3A+Add+deleteRecordsBefore%28%29+API+in+AdminClient) Added delete_records API (#1710)
  - Added an example to show the usage of the custom logger with `AdminClient` 
  - Removed usage of `strcpy` to enhance security of the client (#1745)
  - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy (#1745)
+ - Fixed documentation for default value of `operation_timeout` and `request_timeout` in various Admin apis (#1710)
  - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy.
  - Fixed a segfault when `commit` or `store_offsets` consumer method is called incorrectly with errored Message object
  - Fixed `logger` not working when provided as an argument to `AdminClient` instead of a configuration property
+ - Fixed some memory leaks related to `PyDict_SetItem`.
 
-confluent-kafka-python is based on librdkafka v2.4.1, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.1)
+confluent-kafka-python is based on librdkafka v2.5.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
