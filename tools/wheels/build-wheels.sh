@@ -12,6 +12,8 @@ export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
+export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
+export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
 
 
 librdkafka_version=$1
