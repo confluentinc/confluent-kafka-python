@@ -1,4 +1,5 @@
 # Confluent's Python client for Apache Kafka
+
 ## v2.5.1
 
 v2.5.1 is a maintenance release with the following fixes and enhancements:
