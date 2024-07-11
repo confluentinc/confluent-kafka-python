@@ -34,6 +34,8 @@ for version in "${python_versions[@]}"; do
     echo Python version: `python -V`
     echo Pip version: `pip -V`
 
+    pip install --upgrade pip
+
     echo "Uninstalling confluent_kafka if already installed"
     pip uninstall -y confluent_kafka > /dev/null 2>&1 || true
 
