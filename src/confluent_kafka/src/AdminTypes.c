@@ -455,7 +455,7 @@ PyTypeObject NewPartitionsType = {
         "  Instantiate a NewPartitions object.\n"
         "\n"
         "  :param string topic: Topic name\n"
-        "  :param int new_total_cnt: Increase the topic's partition count to this value.\n"
+        "  :param int new_total_count: Increase the topic's partition count to this value.\n"
         "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
         "  :rtype: NewPartitions\n"
         "\n"
