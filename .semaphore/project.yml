@@ -28,6 +28,7 @@ spec:
       - main
       - /^v\d+\.\d+\.x$/
       - /^gh-readonly-queue.*/
+      - dev_release-through-ci
   custom_permissions: true
   debug_permissions:
   - empty
