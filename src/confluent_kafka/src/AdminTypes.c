@@ -524,6 +524,7 @@ static void AdminTypes_AddObjectsResourceType (PyObject *m) {
         PyModule_AddIntConstant(m, "RESOURCE_TOPIC", RD_KAFKA_RESOURCE_TOPIC);
         PyModule_AddIntConstant(m, "RESOURCE_GROUP", RD_KAFKA_RESOURCE_GROUP);
         PyModule_AddIntConstant(m, "RESOURCE_BROKER", RD_KAFKA_RESOURCE_BROKER);
+        PyModule_AddIntConstant(m, "RESOURCE_TRANSACTIONAL_ID", RD_KAFKA_RESOURCE_TRANSACTIONAL_ID);
 }
 
 static void AdminTypes_AddObjectsResourcePatternType (PyObject *m) {
