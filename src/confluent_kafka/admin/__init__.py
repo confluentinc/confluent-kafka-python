@@ -75,7 +75,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
-                     RESOURCE_TRANSACTION,
+                     RESOURCE_TRANSACTIONAL_ID,
                      OFFSET_INVALID)
 
 from confluent_kafka import \
