@@ -48,7 +48,7 @@ __all__ = ['admin', 'Consumer',
            'Producer', 'DeserializingConsumer',
            'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
-           'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'Uuid',
+           'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'ConsumerGroupType', 'Uuid',
            'IsolationLevel']
 
 __version__ = version()[0]
