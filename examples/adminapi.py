@@ -18,8 +18,8 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState, TopicCollection,
-                             IsolationLevel)
+                             TopicPartition, ConsumerGroupState,
+                             TopicCollection, IsolationLevel)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
@@ -27,6 +27,8 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    ScramMechanism, ScramCredentialInfo,
                                    UserScramCredentialUpsertion, UserScramCredentialDeletion,
                                    OffsetSpec)
+from confluent_kafka._model import ConsumerGroupType
+
 import sys
 import threading
 import logging
@@ -471,18 +473,64 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
+def getConsumerGroupState(state_string):
+    if state_string == "STABLE":
+        return ConsumerGroupState.STABLE
+    elif state_string == "DEAD":
+        return ConsumerGroupState.DEAD
+    elif state_string == "PREPARING_REBALANCING":
+        return ConsumerGroupState.PREPARING_REBALANCING
+    elif state_string == "COMPLETING_REBALANCING":
+        return ConsumerGroupState.COMPLETING_REBALANCING
+    elif state_string == "EMPTY":
+        return ConsumerGroupState.EMPTY
+    return ConsumerGroupState.UNKNOWN
+
+
+def getConsumerGroupType(type_string):
+    if type_string == "CONSUMER":
+        return ConsumerGroupType.CONSUMER
+    elif type_string == "CLASSIC":
+        return ConsumerGroupType.CLASSIC
+    return ConsumerGroupType.UNKNOWN
+
+
 def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = {ConsumerGroupState[state] for state in args}
-    future = a.list_consumer_groups(request_timeout=10, states=states)
+    states = set()
+    group_types = set()
+    if len(args) > 0:
+        isType = False
+        isState = False
+        for i in range(0, len(args)):
+            if (args[i] == "-states"):
+                if (isState):
+                    raise Exception("Invalid Arguments\n Usage: list_consumer_groups [-states <state1> <state2> ..] " +
+                                    "[-types <grouptype1> <grouptype2> ..]")
+                isState = True
+            elif (args[i] == "-types"):
+                if (isType):
+                    raise Exception("Invalid Arguments\n Usage: list_consumer_groups [-states <state1> <state2> ..] " +
+                                    "[-types <grouptype1> <grouptype2> ..]")
+                isType = True
+            else:
+                if (isType):
+                    group_types.add(getConsumerGroupType(args[i]))
+                elif (isState):
+                    states.add(getConsumerGroupState(args[i]))
+                else:
+                    raise Exception("Invalid Arguments\n Usage: list_consumer_groups [-states <state1> <state2> ..] " +
+                                    "[-types <grouptype1> <grouptype2> ..]")
+
+    future = a.list_consumer_groups(request_timeout=10, states=states, group_types=group_types)
     try:
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
         for valid in list_consumer_groups_result.valid:
-            print("    id: {} is_simple: {} state: {}".format(
-                valid.group_id, valid.is_simple_consumer_group, valid.state))
+            print("    id: {} is_simple: {} state: {} group_type: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state, valid.group_type))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
             print("    error: {}".format(error))
@@ -900,7 +948,8 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
-        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
+        sys.stderr.write(' list_consumer_groups [-states <state1> <state2> ..] ' +
+                         '[-types <grouptype1> <grouptype2> ..]\n')
         sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
         sys.stderr.write(' describe_topics <include_authorized_operations> <topic1> <topic2> ..\n')
         sys.stderr.write(' describe_cluster <include_authorized_operations>\n')

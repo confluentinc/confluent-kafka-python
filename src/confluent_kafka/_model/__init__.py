@@ -95,6 +95,24 @@ class ConsumerGroupState(Enum):
         return self.value < other.value
 
 
+class ConsumerGroupType(Enum):
+    """
+    Enumerates the different types of Consumer Group Type.
+
+    """
+    #: Type is not known or not set
+    UNKNOWN = cimpl.CONSUMER_GROUP_TYPE_UNKNOWN
+    #: Consumer Type
+    CONSUMER = cimpl.CONSUMER_GROUP_TYPE_CONSUMER
+    #: Classic Type
+    CLASSIC = cimpl.CONSUMER_GROUP_TYPE_CLASSIC
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value
+
+
 class TopicCollection:
     """
     Represents collection of topics in the form of different identifiers

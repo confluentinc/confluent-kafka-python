@@ -8,7 +8,7 @@ import confluent_kafka.avro
 import confluent_kafka.admin
 
 from tests.common import TestConsumer, TestAvroConsumer
-
+import confluent_kafka.admin
 
 class CountingFilter(logging.Filter):
     def __init__(self, name):

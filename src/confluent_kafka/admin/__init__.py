@@ -56,7 +56,7 @@ from ._listoffsets import (OffsetSpec,  # noqa: F401
 
 from ._records import DeletedRecords  # noqa: F401
 
-from .._model import TopicCollection as _TopicCollection
+from .._model import TopicCollection as _TopicCollection, ConsumerGroupType as _ConsumerGroupType
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -881,6 +881,8 @@ class AdminClient (_AdminClientImpl):
                   on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param set(ConsumerGroupState) states: only list consumer groups which are currently in
                   these states.
+        :param set(ConsumerGroupType) group_types: only list consumer groups which are currently of
+                  these types.
 
         :returns: a future. Result method of the future returns :class:`ListConsumerGroupsResult`.
 
@@ -900,6 +902,16 @@ class AdminClient (_AdminClientImpl):
                         raise TypeError("All elements of states must be of type ConsumerGroupState")
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
+        if "group_types" in kwargs:
+            group_types = kwargs["group_types"]
+            if group_types is not None:
+                if not isinstance(group_types, set):
+                    raise TypeError("'group_types' must be a set")
+                for group_type in group_types:
+                    if not isinstance(group_type, _ConsumerGroupType):
+                        raise TypeError("All elements of group_types must be of type ConsumerGroupType")
+                kwargs["group_types_int"] = [group_type.value for group_type in group_types]
+            kwargs.pop("group_types")
 
         f, _ = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
 
