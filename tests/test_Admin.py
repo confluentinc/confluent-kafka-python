@@ -6,7 +6,7 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec
+    UserScramCredentialUpsertion, OffsetSpec, _ConsumerGroupType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
     IsolationLevel, TopicCollection
@@ -615,6 +615,18 @@ def test_list_consumer_groups_api():
 
     with pytest.raises(TypeError):
         a.list_consumer_groups(states=["EMPTY"])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(group_types=["UNKNOWN"])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(group_types="UNKNOWN")
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(group_types=[_ConsumerGroupType.UNKNOWN])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(group_types=[_ConsumerGroupType.CLASSIC, _ConsumerGroupType.CLASSIC])
 
     with pytest.raises(TypeError):
         a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])

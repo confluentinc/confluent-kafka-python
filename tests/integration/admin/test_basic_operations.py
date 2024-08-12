@@ -17,11 +17,12 @@ import struct
 import time
 
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
+from confluent_kafka._model import ConsumerGroupType
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
-
+from tests.common import TestUtils
 topic_prefix = "test-topic"
 
 
@@ -314,6 +315,17 @@ def test_basic_operations(kafka_cluster):
     result = future.result()
     assert isinstance(result.valid, list)
     assert not result.valid
+
+    # List Consumer Groups with Group Type Option Test
+    if TestUtils.use_group_protocol_consumer():
+        future = admin_client.list_consumer_groups(request_timeout=10, types={ConsumerGroupType.CLASSIC})
+        result = future.result()
+        group_ids = [group.group_id for group in result.valid]
+        assert group1 not in group_ids, "Consumer group {} was found despite passing Classic Group Type".format(group1)
+        assert group2 not in group_ids, "Consumer group {} was found despite passing Classic Group Type".format(group2)
+        for group in group_ids:
+            assert group.group_type == ConsumerGroupType.CLASSIC
+
 
     def verify_config(expconfig, configs):
         """
