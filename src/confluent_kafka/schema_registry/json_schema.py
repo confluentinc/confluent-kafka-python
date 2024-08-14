@@ -296,16 +296,18 @@ class JSONDeserializer(Deserializer):
     framing.
 
     Args:
-        schema_str (str, Schema):
+        schema_str (str, Schema, optional):
             `JSON schema definition <https://json-schema.org/understanding-json-schema/reference/generic.html>`_
             Accepts schema as either a string or a :py:class:`Schema` instance.
             Note that string definitions cannot reference other schemas. For referencing other schemas,
-            use a :py:class:`Schema` instance.
+            use a :py:class:`Schema` instance.  If not provided, schemas will be
+            retrieved from schema_registry_client based on the schema ID in the
+            wire header of each message.
 
         from_dict (callable, optional): Callable(dict, SerializationContext) -> object.
             Converts a dict to a Python object instance.
 
-        schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas.
+        schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas or is not provided.
     """  # noqa: E501
 
     __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
