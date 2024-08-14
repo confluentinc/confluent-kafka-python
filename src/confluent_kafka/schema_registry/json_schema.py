@@ -320,10 +320,16 @@ class JSONDeserializer(Deserializer):
             if self._are_references_provided and schema_registry_client is None:
                 raise ValueError(
                     """schema_registry_client must be provided if "schema_str" is a Schema instance with references""")
+        elif schema_str is None:
+            if schema_registry_client is None:
+                raise ValueError(
+                    """schema_registry_client must be provided if "schema_str" is not provided"""
+                )
+            schema = schema_str
         else:
             raise TypeError('You must pass either str or Schema')
 
-        self._parsed_schema = json.loads(schema.schema_str)
+        self._parsed_schema = json.loads(schema.schema_str) if schema else None
         self._schema = schema
         self._registry = schema_registry_client
 
@@ -378,7 +384,13 @@ class JSONDeserializer(Deserializer):
                                                                               self._parsed_schema,
                                                                               store=named_schemas))
                 else:
-                    validate(instance=obj_dict, schema=self._parsed_schema)
+                    if self._parsed_schema is None:
+                        schema = self._registry.get_schema(schema_id)
+                        # TODO: cache the parsed schemas too?
+                        parsed_schema = json.loads(schema.schema_str)
+                    else:
+                        parsed_schema = self._parsed_schema
+                    validate(instance=obj_dict, schema=parsed_schema)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
 
