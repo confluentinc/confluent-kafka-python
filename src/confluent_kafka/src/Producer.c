@@ -123,9 +123,9 @@ static int Producer_traverse (Handle *self,
 
 static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 			   void *opaque) {
+        // printf("rkm is %p\n", rkm);
 	struct Producer_msgstate *msgstate = rkm->_private;
 	Handle *self = opaque;
-	CallState *cs;
 	PyObject *args;
 	PyObject *result;
 	PyObject *msgobj;
@@ -133,8 +133,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (!msgstate)
 		return;
 
-	cs = CallState_get(self);
-
+        // printf("msgstate is %p\n", msgstate);
 	if (!msgstate->dr_cb) {
 		/* No callback defined */
 		goto done;
@@ -144,6 +143,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
         if (self->u.Producer.dr_only_error && !rkm->err)
                 goto done;
 
+        // printf("rkm->err is %d\n", rkm->err);
 	msgobj = Message_new0(self, rkm);
 
         args = Py_BuildValue("(OO)", ((Message *)msgobj)->error, msgobj);
@@ -153,23 +153,24 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (!args) {
 		cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
 				 "Unable to build callback args");
-		CallState_crash(cs);
+		// CallState_crash(cs);
 		goto done;
 	}
 
+        // printf("calling dr_cb\n");
 	result = PyObject_CallObject(msgstate->dr_cb, args);
 	Py_DECREF(args);
 
 	if (result)
 		Py_DECREF(result);
 	else {
-		CallState_crash(cs);
+		// CallState_crash(cs);
 		rd_kafka_yield(rk);
 	}
 
  done:
 	Producer_msgstate_destroy(msgstate);
-	CallState_resume(cs);
+	// CallState_resume(cs);
 }
 
 
@@ -845,10 +846,41 @@ static PyNumberMethods Producer_num_methods = {
 };
 
 
+void background_event_cb(rd_kafka_t *rk, rd_kafka_event_t *rkev, void *opaque) {
+        PyGILState_STATE gstate;
+
+        gstate = PyGILState_Ensure();
+        switch (rd_kafka_event_type(rkev)) {
+                case RD_KAFKA_EVENT_DR:
+                // Delivery report callback
+                size_t msg_cnt = rd_kafka_event_message_count(rkev);
+                while(msg_cnt--) {
+                        dr_msg_cb(rk, rd_kafka_event_message_next(rkev), opaque);
+                }
+                // printf("Message delivered successfully\n");
+                break;
+                case RD_KAFKA_EVENT_ERROR:
+                // Error event callback
+                printf("Kafka error: %s\n", rd_kafka_event_error_string(rkev));
+                break;
+                default:
+                // Other events
+                printf("Unhandled event: %s\n", rd_kafka_event_name(rkev));
+                break;
+        }
+
+        PyGILState_Release(gstate);
+        rd_kafka_event_destroy(rkev);
+
+}
+
+
 static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
         Handle *self = (Handle *)selfobj;
         char errstr[256];
         rd_kafka_conf_t *conf;
+        rd_kafka_queue_t *bg_queue;
+        rd_kafka_queue_t *main_queue;
 
         if (self->rk) {
                 PyErr_SetString(PyExc_RuntimeError,
@@ -862,7 +894,9 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                                        args, kwargs)))
                 return -1;
 
-        rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
+        // rd_kafka_conf_set_dr_msg_cb(conf, dr_msg_cb);
+        rd_kafka_conf_set_events(conf, RD_KAFKA_EVENT_DR | RD_KAFKA_EVENT_ERROR);
+        rd_kafka_conf_set_background_event_cb(conf, background_event_cb);
 
         self->rk = rd_kafka_new(RD_KAFKA_PRODUCER, conf,
                                 errstr, sizeof(errstr));
@@ -872,6 +906,11 @@ static int Producer_init (PyObject *selfobj, PyObject *args, PyObject *kwargs) {
                 rd_kafka_conf_destroy(conf);
                 return -1;
         }
+
+        bg_queue = rd_kafka_queue_get_background(self->rk);
+        main_queue = rd_kafka_queue_get_main(self->rk);
+        rd_kafka_queue_forward(main_queue, bg_queue);
+
 
         /* Forward log messages to poll queue */
         if (self->logger)
