@@ -7,6 +7,7 @@ v2.5.3 is a maintenance release with the following fixes and enhancements:
 ### Fixes
 
 * Fix an assert being triggered during push telemetry call when no metrics matched on the client side.
+* Minor enhancement to JSONDeserializer to retrieve schema from Schema Registry if not provided
 
 confluent-kafka-python is based on librdkafka v2.5.3, see the
 [librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.5.3)
