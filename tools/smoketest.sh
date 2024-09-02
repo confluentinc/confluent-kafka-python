@@ -30,7 +30,7 @@ fi
 pyvers_tested=
 
 # Run tests with python3
-for py in 3.8 ; do
+for py in 3.9 ; do
     echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then
