@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
+
 from confluent_kafka.admin import ConfigResource, \
     ConfigEntry, ResourceType, \
     AlterConfigOpType
@@ -52,18 +54,18 @@ def test_incremental_alter_configs(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
 
-    our_topic = kafka_cluster.create_topic(topic_prefix,
-                                           {
-                                               "num_partitions": num_partitions,
-                                               "config": topic_config,
-                                               "replication_factor": 1,
-                                           })
-    our_topic2 = kafka_cluster.create_topic(topic_prefix2,
-                                            {
-                                                "num_partitions": num_partitions,
-                                                "config": topic_config,
-                                                "replication_factor": 1,
-                                            })
+    our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+                                                                {
+                                                                    "num_partitions": num_partitions,
+                                                                    "config": topic_config,
+                                                                    "replication_factor": 1,
+                                                                })
+    our_topic2 = kafka_cluster.create_topic_and_wait_propogation(topic_prefix2,
+                                                                 {
+                                                                     "num_partitions": num_partitions,
+                                                                     "config": topic_config,
+                                                                     "replication_factor": 1,
+                                                                 })
 
     admin_client = kafka_cluster.admin()
 
@@ -103,6 +105,8 @@ def test_incremental_alter_configs(kafka_cluster):
 
     assert_operation_succeeded(fs, 2)
 
+    time.sleep(1)
+
     #
     # Get current topic config
     #
@@ -133,6 +137,8 @@ def test_incremental_alter_configs(kafka_cluster):
     fs = admin_client.incremental_alter_configs([res2])
 
     assert_operation_succeeded(fs, 1)
+
+    time.sleep(1)
 
     #
     # Get current topic config
