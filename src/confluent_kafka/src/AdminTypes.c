@@ -597,6 +597,12 @@ static void AdminTypes_AddObjectsOffsetSpec (PyObject *m) {
         PyModule_AddIntConstant(m,"OFFSET_SPEC_LATEST", RD_KAFKA_OFFSET_SPEC_LATEST);
 }
 
+static void AdminTypes_AddObjectsElectionType (PyObject *m) {
+        /* rd_kafka_ElectionType_t */
+        PyModule_AddIntConstant(m,"ELECTION_TYPE_PREFERRED", RD_KAFKA_ELECTION_TYPE_PREFERRED);
+        PyModule_AddIntConstant(m,"ELECTION_TYPE_UNCLEAN", RD_KAFKA_ELECTION_TYPE_UNCLEAN);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -616,4 +622,5 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsScramMechanismType(m);
         AdminTypes_AddObjectsIsolationLevel(m);
         AdminTypes_AddObjectsOffsetSpec(m);
+        AdminTypes_AddObjectsElectionType(m);
 }
