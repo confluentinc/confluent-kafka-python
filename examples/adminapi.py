@@ -26,7 +26,7 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
                                    UserScramCredentialUpsertion, UserScramCredentialDeletion,
-                                   OffsetSpec)
+                                   OffsetSpec, ElectionType, ElectLeadersRequest)
 import sys
 import threading
 import logging
@@ -878,6 +878,43 @@ def example_delete_records(a, args):
                 f" before offset {partition.offset}: {e}")
 
 
+def example_elect_leaders(a, args):
+    topic_partition_list = []
+    if len(args) < 3:
+        raise ValueError("Invalid number of arguments for elect_leaders, got 0 expected atleast 3")
+    # Ensure the number of arguments (excluding the first one) is even.
+    # This is necessary because the arguments should be in pairs of topic and partition.
+    # If the number of arguments is odd, it means there is an incomplete pair, which would cause errors.
+    if (len(args) - 1) % 2 != 0:
+        raise ValueError("Invalid number of arguments for elect_leaders")
+
+    try:
+        election_type = ElectionType[args[0]]
+    except KeyError:
+        raise ValueError(f"Invalid election_type: {args[0]}")
+
+    for topic, partition in zip(args[1::2], args[2::2]):
+        topic_partition_list.append(TopicPartition(topic, int(partition)))
+
+    elect_leaders_request = ElectLeadersRequest(election_type, topic_partition_list)
+
+    fut = a.elect_leaders(elect_leaders_request)
+
+    try:
+        result = fut.result()
+        for topic_partition, error in result.items():
+            if error:
+                print(f"Error electing leader for topic {topic_partition.topic}" +
+                      f" partition {topic_partition.partition}: {error}")
+            else:
+                print(
+                    f"Leader Election started for topic {
+                        topic_partition.topic} partition {
+                        topic_partition.partition}")
+    except KafkaException as e:
+        print(f"Error electing leaders: {e}")
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -917,6 +954,7 @@ if __name__ == '__main__':
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
         sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..]\n')
+        sys.stderr.write(' elect_leaders <election_type> <topic1> <partition1> <topic2> <partition2>...\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -947,7 +985,8 @@ if __name__ == '__main__':
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
               'alter_user_scram_credentials': example_alter_user_scram_credentials,
               'list_offsets': example_list_offsets,
-              'delete_records': example_delete_records}
+              'delete_records': example_delete_records,
+              'elect_leaders': example_elect_leaders}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
