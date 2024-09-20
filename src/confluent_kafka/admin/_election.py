@@ -15,6 +15,7 @@
 from enum import Enum
 from .. import cimpl as _cimpl
 
+
 class ElectionType(Enum):
     """
     Enumerates the different types of leader elections.
@@ -26,11 +27,13 @@ class ElectionType(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
-    
+
+
 class ElectLeadersRequest(object):
     """
     Request to elect leaders for partitions.
     """
+
     def __init__(self, election_type, partitions):
         """
         Parameters

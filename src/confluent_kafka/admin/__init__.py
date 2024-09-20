@@ -549,7 +549,7 @@ class AdminClient (_AdminClientImpl):
                                 f" got '{type(req).__name__}' ")
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
- 
+
     @staticmethod
     def _check_elect_leaders(elect_leaders_request):
         if not isinstance(elect_leaders_request, ElectLeadersRequest):
@@ -1274,7 +1274,7 @@ class AdminClient (_AdminClientImpl):
 
         super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap
-    
+
     def elect_leaders(self, elect_leaders_request, **kwargs):
         """
         Perform Preferred or Unclean elections for,

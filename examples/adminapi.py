@@ -877,6 +877,7 @@ def example_delete_records(a, args):
                 f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
                 f" before offset {partition.offset}: {e}")
 
+
 def example_elect_leaders(a, args):
     topic_partition_list = []
     if len(args) < 3:
@@ -906,7 +907,10 @@ def example_elect_leaders(a, args):
                 print(f"Error electing leader for topic {topic_partition.topic}" +
                       f" partition {topic_partition.partition}: {error}")
             else:
-                print(f"Leader Election started for topic {topic_partition.topic} partition {topic_partition.partition}")
+                print(
+                    f"Leader Election started for topic {
+                        topic_partition.topic} partition {
+                        topic_partition.partition}")
     except KafkaException as e:
         print(f"Error electing leaders: {e}")
 

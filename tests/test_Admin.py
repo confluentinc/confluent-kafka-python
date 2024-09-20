@@ -1196,6 +1196,7 @@ def test_delete_records():
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
 
+
 def test_elect_leaders():
     a = AdminClient({"socket.timeout.ms": 10})
 
@@ -1212,7 +1213,7 @@ def test_elect_leaders():
     with pytest.raises(AttributeError):
         invalid_request = ElectLeadersRequest(2, [correct_topic_partition])
         a.elect_leaders(invalid_request)
-    
+
     with pytest.raises(KeyError):
         invalid_request = ElectLeadersRequest(ElectionType[2], [correct_topic_partition])
         a.elect_leaders(invalid_request)
