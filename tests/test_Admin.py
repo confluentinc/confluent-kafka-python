@@ -6,7 +6,8 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec
+    UserScramCredentialUpsertion, OffsetSpec, \
+    ElectLeadersRequest, ElectionType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
     IsolationLevel, TopicCollection
@@ -1194,3 +1195,59 @@ def test_delete_records():
 
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
+
+
+def test_elect_leaders():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    correct_topic_partition = TopicPartition("test-topic1", 0)
+    incorrect_partition = TopicPartition("test-topic1", -1)
+    preferred_election_type = ElectionType.PREFERRED
+    unclean_election_type = ElectionType.UNCLEAN
+
+    # Request-type tests
+    with pytest.raises(TypeError):
+        a.elect_leaders(None)
+
+    # incorrect election_type value
+    with pytest.raises(AttributeError):
+        invalid_request = ElectLeadersRequest(2, [correct_topic_partition])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(KeyError):
+        invalid_request = ElectLeadersRequest(ElectionType[2], [correct_topic_partition])
+        a.elect_leaders(invalid_request)
+
+    # Request-specific tests
+    with pytest.raises(TypeError):
+        invalid_request = ElectLeadersRequest(preferred_election_type, ["test-1"])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(TypeError):
+        invalid_request = ElectLeadersRequest(preferred_election_type, [None])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(ValueError):
+        invalid_request = ElectLeadersRequest(preferred_election_type, [TopicPartition("")])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(ValueError):
+        invalid_request = ElectLeadersRequest(preferred_election_type, [incorrect_partition])
+        a.elect_leaders(invalid_request)
+
+    # Test with unclean election type
+    with pytest.raises(TypeError):
+        invalid_request = ElectLeadersRequest(unclean_election_type, ["test-1"])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(TypeError):
+        invalid_request = ElectLeadersRequest(unclean_election_type, [None])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(ValueError):
+        invalid_request = ElectLeadersRequest(unclean_election_type, [TopicPartition("")])
+        a.elect_leaders(invalid_request)
+
+    with pytest.raises(ValueError):
+        invalid_request = ElectLeadersRequest(unclean_election_type, [incorrect_partition])
+        a.elect_leaders(invalid_request)
