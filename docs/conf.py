@@ -28,14 +28,14 @@ sys.path[:0] = [os.path.abspath(x) for x in glob('../build/lib.*')]
 ######################################################################
 # General information about the project.
 project = u'confluent-kafka'
-copyright = u'2016-2023, Confluent Inc.'
+copyright = u'2016-2024, Confluent Inc.'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
 # built documents.
 #
 # The short X.Y version.
-version = '2.4.0'
+version = '2.5.3'
 # The full version, including alpha/beta/rc tags.
 release = version
 ######################################################################

@@ -54,6 +54,8 @@ from ._cluster import (DescribeClusterResult)  # noqa: F401
 from ._listoffsets import (OffsetSpec,  # noqa: F401
                            ListOffsetsResultInfo)
 
+from ._records import DeletedRecords  # noqa: F401
+
 from .._model import TopicCollection as _TopicCollection
 
 from ..cimpl import (KafkaException,  # noqa: F401
@@ -109,17 +111,18 @@ class AdminClient (_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf, **kwargs):
         """
         Create a new AdminClient using the provided configuration dictionary.
 
         The AdminClient is a standard Kafka protocol client, supporting
         the standard librdkafka configuration properties as specified at
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+        https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
 
-        At least 'bootstrap.servers' should be configured.
+        :param dict conf: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set\n"
+        :param Logger logger: Optional Logger instance to use as a custom log messages handler.
         """
-        super(AdminClient, self).__init__(conf)
+        super(AdminClient, self).__init__(conf, **kwargs)
 
     @staticmethod
     def _make_topics_result(f, futmap):
@@ -534,6 +537,17 @@ class AdminClient (_AdminClientImpl):
             if not isinstance(kwargs['isolation_level'], _IsolationLevel):
                 raise TypeError("isolation_level argument should be an IsolationLevel")
 
+    @staticmethod
+    def _check_delete_records(request):
+        if not isinstance(request, list):
+            raise TypeError(f"Expected Request to be a list, got '{type(request).__name__}' ")
+        for req in request:
+            if not isinstance(req, _TopicPartition):
+                raise TypeError("Element of the request list must be of type 'TopicPartition'" +
+                                f" got '{type(req).__name__}' ")
+            if req.partition < 0:
+                raise ValueError("'partition' cannot be negative")
+
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
@@ -543,10 +557,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreateTopics request will block
                   on the broker waiting for the topic creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param bool validate_only: If true, the request is only validated
                   without creating the topic. Default: False
 
@@ -576,10 +591,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the DeleteTopics request will block
                   on the broker waiting for the topic deletion to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each topic, keyed by the topic name.
                   The future result() method returns None.
@@ -614,10 +630,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreatePartitions request will block
                   on the broker waiting for the partition creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param bool validate_only: If true, the request is only validated
                   without creating the partitions. Default: False
 
@@ -651,7 +668,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to get the configuration for.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
                   The type of the value returned by the future result() method is
@@ -695,7 +712,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to update configuration of.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`.
         :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
 
@@ -728,7 +745,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to update configuration of.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`.
         :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
         :param int broker: Broker id to send the request to. When
@@ -760,7 +777,7 @@ class AdminClient (_AdminClientImpl):
                          to create.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each ACL binding, keyed by the :class:`AclBinding` object.
                   The future result() method returns None on success.
@@ -799,7 +816,7 @@ class AdminClient (_AdminClientImpl):
                   that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A future returning a list(:class:`AclBinding`) as result
 
@@ -834,7 +851,7 @@ class AdminClient (_AdminClientImpl):
                   that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each ACL binding filter, keyed by the :class:`AclBindingFilter` object.
                   The future result() method returns a list of :class:`AclBinding`.
@@ -861,7 +878,7 @@ class AdminClient (_AdminClientImpl):
 
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param set(ConsumerGroupState) states: only list consumer groups which are currently in
                   these states.
 
@@ -898,7 +915,7 @@ class AdminClient (_AdminClientImpl):
         :param bool include_authorized_operations: If True, fetches group AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns :class:`ConsumerGroupDescription`.
@@ -931,7 +948,7 @@ class AdminClient (_AdminClientImpl):
         :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each topic, keyed by the topic.
                   The future result() method returns :class:`TopicDescription`.
@@ -965,7 +982,7 @@ class AdminClient (_AdminClientImpl):
         :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A future returning description of the cluster as result
 
@@ -989,7 +1006,7 @@ class AdminClient (_AdminClientImpl):
         :param list(str) group_ids: List of group_ids which need to be deleted.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns None.
@@ -1026,7 +1043,7 @@ class AdminClient (_AdminClientImpl):
         :param bool require_stable: If True, fetches stable offsets. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
@@ -1059,7 +1076,7 @@ class AdminClient (_AdminClientImpl):
                     partition; and corresponding offset to be updated.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
@@ -1109,7 +1126,7 @@ class AdminClient (_AdminClientImpl):
                to describe all user's credentials.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
-               on broker, and response. Default: `socket.timeout.ms*1000.0`
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: In case None is passed it returns a single future.
                   The future yields a dict[str, UserScramCredentialsDescription]
@@ -1145,7 +1162,7 @@ class AdminClient (_AdminClientImpl):
                The pair (user, mechanism) must be unique among alterations.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
-               on broker, and response. Default: `socket.timeout.ms*1000.0`
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures keyed by user name.
                   The future result() method returns None or
@@ -1176,7 +1193,7 @@ class AdminClient (_AdminClientImpl):
                querying.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
-               on broker, and response. Default: `socket.timeout.ms*1000.0`
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures keyed by TopicPartition.
                   The future result() method returns ListOffsetsResultInfo
@@ -1203,4 +1220,41 @@ class AdminClient (_AdminClientImpl):
                                                  AdminClient._make_futmap_result)
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
+        return futmap
+
+    def delete_records(self, topic_partition_offsets, **kwargs):
+        """
+        Deletes all the records before the specified offsets (not including),
+        in the specified topics and partitions.
+
+        :param list(TopicPartition) topic_partition_offsets: A list of
+               :class:`.TopicPartition` objects having `offset` field set to the offset
+               before which all the records should be deleted.
+               `offset` can be set to :py:const:`OFFSET_END` (-1) to delete all records
+               in the partition.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
+        :param float operation_timeout: The operation timeout in seconds,
+               controlling how long the `delete_records` request will block
+               on the broker waiting for the record deletion to propagate
+               in the cluster. A value of 0 returns immediately.
+               Default: `socket.timeout.ms/1000.0`
+
+        :returns: A dict of futures keyed by the :class:`.TopicPartition`.
+                  The future result() method returns :class:`.DeletedRecords`
+                  or raises :class:`.KafkaException`
+
+        :rtype: dict[TopicPartition, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_delete_records(topic_partition_offsets)
+
+        f, futmap = AdminClient._make_futures_v2(
+            topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result)
+
+        super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap
