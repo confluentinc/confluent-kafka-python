@@ -2650,10 +2650,15 @@ PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObj
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support listing only 1 consumer groups offset information");
+        if (PyList_Check(request)) {
+                if ((int)PyList_Size(request) != 1) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "Currently we support listing only 1 consumer groups offset inforation");
+                        goto err;
+                }
+        } else {
+                PyErr_SetString(PyExc_TypeError,
+                        "Expected 'request' to be a list");
                 goto err;
         }
 
