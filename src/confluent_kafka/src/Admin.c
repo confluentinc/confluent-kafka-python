@@ -2305,8 +2305,8 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
         int topics_cnt = 0;
         int i = 0;
 
-        static char *kws[] = {"future",
-                             "topic_names",
+        static char *kws[] = {"topic_names",
+                             "future",
                              /* options */
                              "request_timeout",
                              "include_authorized_operations",
