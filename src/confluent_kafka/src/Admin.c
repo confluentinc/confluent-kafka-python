@@ -2794,10 +2794,15 @@ PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyOb
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (PyList_Check(request) &&
-            (requests_cnt = (int)PyList_Size(request)) != 1) {
-                PyErr_SetString(PyExc_ValueError,
-                        "Currently we support alter consumer groups offset request for 1 group only");
+        if (PyList_Check(request)) {
+                if ((int)PyList_Size(request) != 1) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "Currently we support alter consumer groups offset request for 1 group only");
+                        goto err;
+                }
+        } else {
+                PyErr_SetString(PyExc_TypeError,
+                        "Expected 'request' to be a list");
                 goto err;
         }
 
