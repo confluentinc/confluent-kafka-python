@@ -1330,8 +1330,8 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 		TopicPartition *tp = (TopicPartition *)
 			PyList_GetItem(plist, i);
 
-		if (PyObject_Type((PyObject *)tp) !=
-		    (PyObject *)&TopicPartitionType) {
+		if (PyObject_TypeCheck((PyObject *)tp,
+		    (PyObject *)&TopicPartitionType) == 0) {
 			PyErr_Format(PyExc_TypeError,
 				     "expected %s",
 				     TopicPartitionType.tp_name);
