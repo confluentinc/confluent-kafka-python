@@ -14,6 +14,7 @@ export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
+export CIBW_ENVIRONMENT_MACOS="MACOSX_DEPLOYMENT_TARGET=10.9"
 
 
 librdkafka_version=$1
