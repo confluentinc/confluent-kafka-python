@@ -45,6 +45,8 @@ case $OSTYPE in
         lib_dir=dest/runtimes/osx-$ARCH/native
         export CFLAGS="-I${PWD}/dest/build/native/include"
         export LDFLAGS="-L${PWD}/$lib_dir"
+        echo $MACOSX_DEPLOYMENT_TARGET
+        export MACOSX_DEPLOYMENT_TARGET=10.9
         ;;
     *)
         echo "$0: Unsupported OSTYPE $OSTYPE"
