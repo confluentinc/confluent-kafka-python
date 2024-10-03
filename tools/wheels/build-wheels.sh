@@ -14,8 +14,7 @@ export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
-export CIBW_ENVIRONMENT_MACOS="MACOSX_DEPLOYMENT_TARGET=10.9"
-
+export CIBW_BEFORE_ALL_MACOS="pip install delocate=0.10.7"
 
 librdkafka_version=$1
 wheeldir=$2
@@ -46,8 +45,6 @@ case $OSTYPE in
         lib_dir=dest/runtimes/osx-$ARCH/native
         export CFLAGS="-I${PWD}/dest/build/native/include"
         export LDFLAGS="-L${PWD}/$lib_dir"
-        echo $MACOSX_DEPLOYMENT_TARGET
-        export MACOSX_DEPLOYMENT_TARGET=10.9
         ;;
     *)
         echo "$0: Unsupported OSTYPE $OSTYPE"
