@@ -6,7 +6,8 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec
+    UserScramCredentialUpsertion, OffsetSpec, \
+    ElectionType
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
     IsolationLevel, TopicCollection
@@ -1194,3 +1195,53 @@ def test_delete_records():
 
     with pytest.raises(ValueError):
         a.delete_records([TopicPartition("test-topic1")])
+
+def test_elect_leaders():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    correct_topic_partition = TopicPartition("test-topic1", 0)
+    incorrect_partition = TopicPartition("test-topic1", -1)
+
+    preferred_election_type = ElectionType.PREFERRED
+    unclean_election_type = ElectionType.UNCLEAN
+
+    # Request-type tests
+    with pytest.raises(TypeError):
+        a.elect_leaders(None, [correct_topic_partition])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(preferred_election_type, 1)
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(preferred_election_type, None)
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(unclean_election_type, 1)
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(unclean_election_type, None)
+
+    # Request-specific tests
+    with pytest.raises(TypeError):
+        a.elect_leaders(preferred_election_type, ["test-1"])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(preferred_election_type, [None])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(preferred_election_type, [TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(preferred_election_type, [incorrect_partition])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(unclean_election_type, ["test-1"])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders(unclean_election_type, [None])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(unclean_election_type, [TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(unclean_election_type, [incorrect_partition])
