@@ -18,7 +18,7 @@ export CIBW_BEFORE_ALL_MACOS="pip install delocate=0.10.7"
 
 librdkafka_version=$1
 wheeldir=$2
-cibuildwheel_version="2.21.1"
+cibuildwheel_version="2.21.2"
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"
