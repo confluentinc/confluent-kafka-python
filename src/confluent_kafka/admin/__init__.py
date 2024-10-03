@@ -54,6 +54,8 @@ from ._cluster import (DescribeClusterResult)  # noqa: F401
 from ._listoffsets import (OffsetSpec,  # noqa: F401
                            ListOffsetsResultInfo)
 
+from ._election import (ElectionType)  # noqa: F401
+
 from ._records import DeletedRecords  # noqa: F401
 
 from .._model import TopicCollection as _TopicCollection
@@ -372,6 +374,28 @@ class AdminClient (_AdminClientImpl):
         return internal_f, f
 
     @staticmethod
+    def _make_single_future_pair_v2():
+        """
+        Create an pair of futures, one for internal usage and one
+        to use externally, the external one throws a KafkaException if
+        we are getting a KafkaError as a result.
+        """
+        def single_future_result(internal_f, f):
+            try:
+                results = internal_f.result()
+                if isinstance(results, KafkaError):
+                    f.set_exception(KafkaException(results))
+                    return
+                f.set_result(results)
+            except Exception as e:
+                f.set_exception(e)
+
+        f = AdminClient._create_future()
+        internal_f = AdminClient._create_future()
+        internal_f.add_done_callback(lambda internal_f: single_future_result(internal_f, f))
+        return internal_f, f
+
+    @staticmethod
     def _has_duplicates(items):
         return len(set(items)) != len(items)
 
@@ -547,6 +571,18 @@ class AdminClient (_AdminClientImpl):
                                 f" got '{type(req).__name__}' ")
             if req.partition < 0:
                 raise ValueError("'partition' cannot be negative")
+
+    @staticmethod
+    def _check_elect_leaders(election_type, partitions):
+        if not isinstance(election_type, ElectionType):
+            raise TypeError("Expected election_type to be of type ElectionType")
+        if not isinstance(partitions, list):
+            raise TypeError("topic_partition_list must be a list")
+        for topic_partition in partitions:
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("Element of the topic_partition_list must be of type 'TopicPartition' ")
+            if topic_partition.partition < 0:
+                raise ValueError("Elements of the list must not have negative value for 'partition' field")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1257,4 +1293,40 @@ class AdminClient (_AdminClientImpl):
             topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result)
 
         super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
+        return futmap
+
+    def elect_leaders(self, election_type, partitions, **kwargs):
+        """
+        Perform Preferred or Unclean elections for,
+        all the specified topic partitions.
+
+        :param election_type: ElectionType - The type of election to perform.
+        :param partitions: List[TopicPartition] - The topic partitions to perform
+               the election on.
+        :param float request_timeout: The overall request timeout in seconds,
+                     including broker lookup, request transmission, operation time
+                     on broker, and response. Default: `socket.timeout.ms*1000.0`
+        :param float operation_timeout: The operation timeout in seconds,
+                     controlling how long the 'elect_leaders' request will block
+                     on the broker waiting for the election to propagate
+                     in the cluster. A value of 0 returns immediately.
+                     Default: `socket.timeout.ms/1000.0`
+
+        :returns: A single future.
+                  The future yields a dict[TopicPartition, Error]
+                  or raises a KafkaException if there is a top level error.
+
+        :rtype: rtype: future[dict[TopicPartition, Error]]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+
+        AdminClient._check_elect_leaders(election_type, partitions)
+
+        f, futmap = AdminClient._make_single_future_pair_v2()
+
+        super(AdminClient, self).elect_leaders(int(election_type.value), partitions, f, **kwargs)
+
         return futmap
