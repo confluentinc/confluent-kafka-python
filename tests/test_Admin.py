@@ -6,10 +6,11 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec, _ConsumerGroupType
+    UserScramCredentialUpsertion, OffsetSpec, \
+    ListConsumerGroupsResult
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel, TopicCollection
+    IsolationLevel, TopicCollection, ConsumerGroupType
 import concurrent.futures
 
 
@@ -617,19 +618,27 @@ def test_list_consumer_groups_api():
         a.list_consumer_groups(states=["EMPTY"])
 
     with pytest.raises(TypeError):
-        a.list_consumer_groups(group_types=["UNKNOWN"])
-
-    with pytest.raises(TypeError):
-        a.list_consumer_groups(group_types="UNKNOWN")
-
-    with pytest.raises(TypeError):
-        a.list_consumer_groups(group_types=[_ConsumerGroupType.UNKNOWN])
-
-    with pytest.raises(TypeError):
-        a.list_consumer_groups(group_types=[_ConsumerGroupType.CLASSIC, _ConsumerGroupType.CLASSIC])
-
-    with pytest.raises(TypeError):
         a.list_consumer_groups(states=[ConsumerGroupState.EMPTY, ConsumerGroupState.STABLE])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(types=[ConsumerGroupType.CLASSIC])
+
+    with pytest.raises(TypeError):
+        a.list_consumer_groups(types="UNKNOWN")
+
+    with pytest.raises(ValueError):
+        a.list_consumer_groups(types={ConsumerGroupType.UNKNOWN})
+
+    f = a.list_consumer_groups(types={ConsumerGroupType.CLASSIC,
+                                      ConsumerGroupType.CLASSIC},
+                               request_timeout=0.5)
+    r = f.result(timeout=1)
+    assert isinstance(r, ListConsumerGroupsResult)
+    assert len(r.errors) == 1
+    assert len(r.valid) == 0
+    e = r.errors[0]
+    assert isinstance(e, KafkaError)
+    assert e.code() == KafkaError._TIMED_OUT
 
 
 def test_describe_consumer_groups_api():

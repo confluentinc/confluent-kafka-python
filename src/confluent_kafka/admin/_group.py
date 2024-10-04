@@ -31,17 +31,17 @@ class ConsumerGroupListing:
         Whether a consumer group is simple or not.
     state : ConsumerGroupState
         Current state of the consumer group.
-    group_type : ConsumerGroupType
-        Current type of the consumer group.
+    type : ConsumerGroupType
+        Type of the consumer group.
     """
 
-    def __init__(self, group_id, is_simple_consumer_group, state=None, group_type=None):
+    def __init__(self, group_id, is_simple_consumer_group, state=None, type=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
-        if group_type is not None:
-            self.group_type = ConversionUtil.convert_to_enum(group_type, ConsumerGroupType)
+        if type is not None:
+            self.type = ConversionUtil.convert_to_enum(type, ConsumerGroupType)
 
 
 class ListConsumerGroupsResult:
@@ -123,8 +123,6 @@ class ConsumerGroupDescription:
         Partition assignor.
     state : ConsumerGroupState
         Current state of the consumer group.
-    group_type : ConsumerGroupType
-        Current type of the consumer group.
     coordinator: Node
         Consumer group coordinator.
     authorized_operations: list(AclOperation)
@@ -132,7 +130,7 @@ class ConsumerGroupDescription:
     """
 
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 coordinator, authorized_operations=None, group_type=None):
+                 coordinator, authorized_operations=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
@@ -145,7 +143,4 @@ class ConsumerGroupDescription:
         self.partition_assignor = partition_assignor
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
-        if group_type is not None:
-            self.group_type = ConversionUtil.convert_to_enum(group_type, ConsumerGroupType)
-
         self.coordinator = coordinator
