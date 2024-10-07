@@ -3063,12 +3063,12 @@ const char Admin_delete_records_doc[] = PyDoc_STR(
  * @brief Elect leaders
  */
 PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *election_type = NULL, *topic_partition_list = NULL, *future;
+        PyObject *election_type = NULL, *partitions = NULL, *future;
         rd_kafka_ElectLeaders_t *elect_leaders = NULL;
         rd_kafka_ElectionType_t elec;
         struct Admin_options options       = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
-        rd_kafka_topic_partition_list_t *c_topic_partition_list = NULL;
+        rd_kafka_topic_partition_list_t *c_partitions = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
 
@@ -3078,9 +3078,9 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
                               /* options */
                               "request_timeout", "operation_timeout", NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iOO|ff", kws,
-                                         &election_type, &topic_partition_list,
-                                         &future, &options.request_timeout,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO|ff", kws,
+                                         &election_type, &partitions, &future,
+                                         &options.request_timeout,
                                          &options.operation_timeout)) {
                 goto err;
         }
@@ -3096,21 +3096,16 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
          * admin operation is finished, so we need to keep our own refcount. */
         Py_INCREF(future);
 
-        if (election_type == 0) {
-                elec = RD_KAFKA_ELECTION_TYPE_PREFERRED;
-        } else {
-                elec = RD_KAFKA_ELECTION_TYPE_UNCLEAN;
-        }
+        elec = (rd_kafka_ElectionType_t)cfl_PyInt_AsInt(election_type);
 
-        if (!PyList_Check(topic_partition_list)) {
-                PyErr_SetString(PyExc_ValueError,
-                                "topic_partitions_list must be a list");
+        if (!PyList_Check(partitions)) {
+                PyErr_SetString(PyExc_ValueError, "partitions must be a list");
                 goto err;
         }
-        c_topic_partition_list = py_to_c_parts(topic_partition_list);
+        c_partitions = py_to_c_parts(partitions);
 
-        elect_leaders = rd_kafka_ElectLeaders_new(elec, c_topic_partition_list);
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_list);
+        elect_leaders = rd_kafka_ElectLeaders_new(elec, c_partitions);
+        rd_kafka_topic_partition_list_destroy(c_partitions);
 
         /* Use librdkafka's background thread queue to automatically dispatch
          * Admin_background_event_cb() when the admin operation is finished. */
@@ -4626,42 +4621,28 @@ raise:
 
 static PyObject *Admin_c_ElectLeadersResult_to_py(
     const rd_kafka_topic_partition_result_t **partitions,
-    size_t cnt,
-    const rd_kafka_resp_err_t err) {
+    size_t cnt) {
         PyObject *result = NULL;
-        rd_kafka_topic_partition_list_t *list =
-            rd_kafka_topic_partition_list_new(cnt);
         size_t i;
-
-        if (err) {
-                result = KafkaError_new_or_None(err, NULL);
-                return result;
-        }
 
         result = PyDict_New();
         for (i = 0; i < cnt; i++) {
                 PyObject *value = NULL;
                 rd_kafka_topic_partition_t *rktpar;
+                rd_kafka_error_t *error;
 
-                const char *topic =
-                    rd_kafka_topic_partition_result_topic(partitions[i]);
-                int32_t partition =
-                    rd_kafka_topic_partition_result_partition(partitions[i]);
                 rktpar =
-                    rd_kafka_topic_partition_list_add(list, topic, partition);
-                rd_kafka_resp_err_t error_code =
-                    rd_kafka_topic_partition_result_error(partitions[i]);
-                const char *err_str =
-                    rd_kafka_topic_partition_result_error_string(partitions[i]);
-                if (error_code) {
-                        value = KafkaError_new_or_None(error_code, err_str);
+                    rd_kafka_topic_partition_result_partition(partitions[i]);
+                error = rd_kafka_topic_partition_result_error(partitions[i]);
+                if (rd_kafka_error_code(error)) {
+                        value = KafkaError_new_or_None(
+                            rd_kafka_error_code(error),
+                            rd_kafka_error_string(error));
                 }
 
                 PyDict_SetItem(result, c_part_to_py(rktpar), value);
                 Py_XDECREF(value);
         }
-
-        rd_kafka_topic_partition_list_destroy(list);
 
         return result;
 }
@@ -5020,20 +5001,19 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         case RD_KAFKA_EVENT_ELECTLEADERS_RESULT: {
                 size_t c_result_cnt;
-                const rd_kafka_ElectLeaders_result_t *c_elect_leaders_res_event =
+                const rd_kafka_ElectLeaders_result_t
+                    *c_elect_leaders_res_event =
                         rd_kafka_event_ElectLeaders_result(rkev);
                 const rd_kafka_ElectLeadersResult_t *c_elect_leaders_res =
                     rd_kafka_ElectLeaders_result(c_elect_leaders_res_event);
 
-                const rd_kafka_resp_err_t c_election_result_err =
-                    rd_kafka_ElectLeadersResult_error(c_elect_leaders_res);
-                const rd_kafka_topic_partition_result_t **c_election_result_partitions =
+                const rd_kafka_topic_partition_result_t *
+                    *c_election_result_partitions =
                         rd_kafka_ElectLeadersResult_partitions(
                             c_elect_leaders_res, &c_result_cnt);
 
                 result = Admin_c_ElectLeadersResult_to_py(
-                    c_election_result_partitions, c_result_cnt,
-                    c_election_result_err);
+                    c_election_result_partitions, c_result_cnt);
                 break;
         }
 

@@ -374,28 +374,6 @@ class AdminClient (_AdminClientImpl):
         return internal_f, f
 
     @staticmethod
-    def _make_single_future_pair_v2():
-        """
-        Create an pair of futures, one for internal usage and one
-        to use externally, the external one throws a KafkaException if
-        we are getting a KafkaError as a result.
-        """
-        def single_future_result(internal_f, f):
-            try:
-                results = internal_f.result()
-                if isinstance(results, KafkaError):
-                    f.set_exception(KafkaException(results))
-                    return
-                f.set_result(results)
-            except Exception as e:
-                f.set_exception(e)
-
-        f = AdminClient._create_future()
-        internal_f = AdminClient._create_future()
-        internal_f.add_done_callback(lambda internal_f: single_future_result(internal_f, f))
-        return internal_f, f
-
-    @staticmethod
     def _has_duplicates(items):
         return len(set(items)) != len(items)
 
@@ -575,12 +553,14 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _check_elect_leaders(election_type, partitions):
         if not isinstance(election_type, ElectionType):
-            raise TypeError("Expected election_type to be of type ElectionType")
+            raise TypeError("Expected election_type to be of type 'ElectionType'")
         if not isinstance(partitions, list):
-            raise TypeError("topic_partition_list must be a list")
+            raise TypeError("Expected partitions to be a list, got " +
+                            f"'{type(partitions).__name__}' ")
         for topic_partition in partitions:
             if not isinstance(topic_partition, _TopicPartition):
-                raise TypeError("Element of the topic_partition_list must be of type 'TopicPartition' ")
+                raise TypeError("Element of the partitions list must be of type 'TopicPartition'" +
+                                f" got '{type(topic_partition).__name__}' ")
             if topic_partition.partition < 0:
                 raise ValueError("Elements of the list must not have negative value for 'partition' field")
 
@@ -1312,11 +1292,11 @@ class AdminClient (_AdminClientImpl):
                      in the cluster. A value of 0 returns immediately.
                      Default: `socket.timeout.ms/1000.0`
 
-        :returns: A single future.
-                  The future yields a dict[TopicPartition, Error]
-                  or raises a KafkaException if there is a top level error.
+        :returns: A dict of futures keyed by the :class:`.TopicPartition`.
+                  The future result() method returns None or
+                  raises KafkaException.
 
-        :rtype: rtype: future[dict[TopicPartition, Error]]
+        :rtype: rtype: dict[TopicPartition, future]
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeError: Invalid input type.
@@ -1325,8 +1305,8 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_elect_leaders(election_type, partitions)
 
-        f, futmap = AdminClient._make_single_future_pair_v2()
+        f, futmap = AdminClient._make_futures_v2(partitions, _TopicPartition, AdminClient._make_futmap_result)
 
-        super(AdminClient, self).elect_leaders(int(election_type.value), partitions, f, **kwargs)
+        super(AdminClient, self).elect_leaders(election_type.value, partitions, f, **kwargs)
 
         return futmap

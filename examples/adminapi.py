@@ -879,14 +879,14 @@ def example_delete_records(a, args):
 
 
 def example_elect_leaders(a, args):
-    topic_partition_list = []
-    if len(args) < 3:
-        raise ValueError("Invalid number of arguments for elect_leaders, got 0 expected atleast 3")
+    partitions = []
     # Ensure the number of arguments (excluding the first one) is even.
     # This is necessary because the arguments should be in pairs of topic and partition.
     # If the number of arguments is odd, it means there is an incomplete pair, which would cause errors.
-    if (len(args) - 1) % 2 != 0:
-        raise ValueError("Invalid number of arguments for elect_leaders")
+    if len(args) < 3 or (len(args) - 1) % 2 != 0:
+        raise ValueError("Invalid number of arguments for elect_leaders, Expected format: " +
+                         "elect_leaders <election_type(PREFERRED/ UNCLEAN)> <topic1> <partition1>" +
+                         " <topic2> <partition2>...")
 
     try:
         election_type = ElectionType[args[0]]
@@ -894,22 +894,15 @@ def example_elect_leaders(a, args):
         raise ValueError(f"Invalid election_type: {args[0]}")
 
     for topic, partition in zip(args[1::2], args[2::2]):
-        topic_partition_list.append(TopicPartition(topic, int(partition)))
+        partitions.append(TopicPartition(topic, int(partition)))
 
-    fut = a.elect_leaders(election_type, topic_partition_list)
-
-    try:
-        result = fut.result()
-        for topic_partition, error in result.items():
-            if error:
-                print(f"Error electing leader for topic {topic_partition.topic}" +
-                      f" partition {topic_partition.partition}: {error}")
-            else:
-                print("Leader Election started for topic " +
-                      f"{topic_partition.topic} partition " +
-                      f"{topic_partition.partition}")
-    except KafkaException as e:
-        print(f"Error electing leaders: {e}")
+    futmap = a.elect_leaders(election_type, partitions)
+    for partition, fut in futmap.items():
+        try:
+            fut.result()
+            print(f"Leader Election Started for topic {partition.topic} partition {partition.partition}")
+        except KafkaException as e:
+            print(f"Error electing leader for topic {partition.topic} partition {partition.partition}: {e}")
 
 
 if __name__ == '__main__':
