@@ -3060,6 +3060,98 @@ const char Admin_delete_records_doc[] = PyDoc_STR(
         "  This method should not be used directly, use confluent_kafka.AdminClient.delete_records()\n");
 
 /**
+ * @brief Elect leaders
+ */
+PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
+        PyObject *election_type = NULL, *partitions = NULL, *future;
+        rd_kafka_ElectLeaders_t *elect_leaders = NULL;
+        rd_kafka_ElectionType_t elec;
+        struct Admin_options options       = Admin_options_INITIALIZER;
+        rd_kafka_AdminOptions_t *c_options = NULL;
+        rd_kafka_topic_partition_list_t *c_partitions = NULL;
+        CallState cs;
+        rd_kafka_queue_t *rkqu;
+
+        static char *kws[] = {"election_type",
+                              "partitions"
+                              "future",
+                              /* options */
+                              "request_timeout", "operation_timeout", NULL};
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "OOO|ff", kws,
+                                         &election_type, &partitions, &future,
+                                         &options.request_timeout,
+                                         &options.operation_timeout)) {
+                goto err;
+        }
+
+        c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ELECTLEADERS,
+                                       &options, future);
+        if (!c_options) {
+                goto err; /* Exception raised by options_to_c() */
+        }
+
+        /* options_to_c() sets future as the opaque, which is used in the
+         * background_event_cb to set the results on the future as the
+         * admin operation is finished, so we need to keep our own refcount. */
+        Py_INCREF(future);
+
+        elec = (rd_kafka_ElectionType_t)cfl_PyInt_AsInt(election_type);
+
+        if (!PyList_Check(partitions)) {
+                PyErr_SetString(PyExc_ValueError, "partitions must be a list");
+                goto err;
+        }
+        c_partitions = py_to_c_parts(partitions);
+
+        elect_leaders = rd_kafka_ElectLeaders_new(elec, c_partitions);
+        rd_kafka_topic_partition_list_destroy(c_partitions);
+
+        /* Use librdkafka's background thread queue to automatically dispatch
+         * Admin_background_event_cb() when the admin operation is finished. */
+        rkqu = rd_kafka_queue_get_background(self->rk);
+
+        /**
+         *
+         * Call ElectLeaders
+         *
+         * We need to set up a CallState and release GIL here since
+         * the event_cb may be triggered immediately.
+         *
+         */
+        CallState_begin(self, &cs);
+        rd_kafka_ElectLeaders(self->rk, elect_leaders, c_options, rkqu);
+        CallState_end(self, &cs);
+
+        rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
+
+        rd_kafka_AdminOptions_destroy(c_options);
+        rd_kafka_ElectLeaders_destroy(elect_leaders);
+
+        Py_RETURN_NONE;
+err:
+        if (elect_leaders) {
+                rd_kafka_ElectLeaders_destroy(elect_leaders);
+        }
+
+        if (c_options) {
+                rd_kafka_AdminOptions_destroy(c_options);
+                Py_DECREF(future);
+        }
+        return NULL;
+}
+
+const char Admin_elect_leaders_doc[] = PyDoc_STR(
+    ".. py:function:: elect_leaders(election_type, topic_partition_list, "
+    "future, [request_timeout, operation_timeout])\n"
+    "\n"
+    "  Perform Preffered or Unclean election for the specified "
+    "Topic+Partitions.\n"
+    "\n"
+    "  This method should not be used directly, use "
+    "confluent_kafka.AdminClient.elect_leaders()\n");
+
+/**
  * @brief Call rd_kafka_poll() and keep track of crashing callbacks.
  * @returns -1 if callback crashed (or poll() failed), else the number
  * of events served.
@@ -3223,6 +3315,10 @@ static PyMethodDef Admin_methods[] = {
         
         { "delete_records", (PyCFunction)Admin_delete_records, METH_VARARGS|METH_KEYWORDS,
            Admin_delete_records_doc
+        },
+
+        { "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS | METH_KEYWORDS, 
+           Admin_elect_leaders_doc
         },
 
         { NULL }
@@ -4523,6 +4619,34 @@ raise:
         return NULL;
 }
 
+static PyObject *Admin_c_ElectLeadersResult_to_py(
+    const rd_kafka_topic_partition_result_t **partitions,
+    size_t cnt) {
+        PyObject *result = NULL;
+        size_t i;
+
+        result = PyDict_New();
+        for (i = 0; i < cnt; i++) {
+                PyObject *value = NULL;
+                rd_kafka_topic_partition_t *rktpar;
+                rd_kafka_error_t *error;
+
+                rktpar =
+                    rd_kafka_topic_partition_result_partition(partitions[i]);
+                error = rd_kafka_topic_partition_result_error(partitions[i]);
+                if (rd_kafka_error_code(error)) {
+                        value = KafkaError_new_or_None(
+                            rd_kafka_error_code(error),
+                            rd_kafka_error_string(error));
+                }
+
+                PyDict_SetItem(result, c_part_to_py(rktpar), value);
+                Py_XDECREF(value);
+        }
+
+        return result;
+}
+
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -4872,6 +4996,24 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
                 
                 result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list);
+                break;
+        }
+
+        case RD_KAFKA_EVENT_ELECTLEADERS_RESULT: {
+                size_t c_result_cnt;
+                const rd_kafka_ElectLeaders_result_t
+                    *c_elect_leaders_res_event =
+                        rd_kafka_event_ElectLeaders_result(rkev);
+                const rd_kafka_ElectLeadersResult_t *c_elect_leaders_res =
+                    rd_kafka_ElectLeaders_result(c_elect_leaders_res_event);
+
+                const rd_kafka_topic_partition_result_t *
+                    *c_election_result_partitions =
+                        rd_kafka_ElectLeadersResult_partitions(
+                            c_elect_leaders_res, &c_result_cnt);
+
+                result = Admin_c_ElectLeadersResult_to_py(
+                    c_election_result_partitions, c_result_cnt);
                 break;
         }
 
