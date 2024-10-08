@@ -18,8 +18,9 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState, TopicCollection,
-                             IsolationLevel)
+                             TopicPartition, ConsumerGroupState,
+                             TopicCollection, IsolationLevel,
+                             ConsumerGroupType)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
@@ -471,18 +472,51 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
+def parse_list_consumer_groups_args(args, states, types):
+    def usage(message):
+        raise Exception(f"{message}\nUsage: list_consumer_groups [-states <state1> <state2> ..] "
+                        "[-types <type1> <type2> ..]")
+
+    if len(args) > 0:
+        typeArray = False
+        stateArray = False
+        lastArray = 0
+        for i in range(0, len(args)):
+            if (args[i] == "-states"):
+                if (stateArray):
+                    usage("Cannot pass the states flag (-states) more than once")
+                lastArray = 1
+                stateArray = True
+            elif (args[i] == "-types"):
+                if (typeArray):
+                    usage("Cannot pass the types flag (-types) more than once")
+                lastArray = 2
+                typeArray = True
+            else:
+                if (lastArray == 1):
+                    states.add(ConsumerGroupState[args[i]])
+                elif (lastArray == 2):
+                    types.add(ConsumerGroupType[args[i]])
+                else:
+                    usage(f"Unknown argument: {args[i]}")
+
+
 def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = {ConsumerGroupState[state] for state in args}
-    future = a.list_consumer_groups(request_timeout=10, states=states)
+
+    states = set()
+    types = set()
+    parse_list_consumer_groups_args(args, states, types)
+
+    future = a.list_consumer_groups(request_timeout=10, states=states, types=types)
     try:
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
         for valid in list_consumer_groups_result.valid:
-            print("    id: {} is_simple: {} state: {}".format(
-                valid.group_id, valid.is_simple_consumer_group, valid.state))
+            print("    id: {} is_simple: {} state: {} type: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state, valid.type))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
             print("    error: {}".format(error))
