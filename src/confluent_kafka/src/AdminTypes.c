@@ -570,8 +570,14 @@ static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
         PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
 }
 
+static void AdminTypes_AddObjectsConsumerGroupTypes (PyObject *m) {
+        /* rd_kafka_consumer_group_type_t */
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CONSUMER", RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CLASSIC", RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC);
+}
+
 static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
-        /* rd_kafka_consumer_group_state_t */
         PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SET", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET);
         PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_DELETE", RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE);
         PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_APPEND", RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND);
@@ -620,6 +626,7 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
+        AdminTypes_AddObjectsConsumerGroupTypes(m);
         AdminTypes_AddObjectsAlterConfigOpType(m);
         AdminTypes_AddObjectsScramMechanismType(m);
         AdminTypes_AddObjectsIsolationLevel(m);
