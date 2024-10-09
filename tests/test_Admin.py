@@ -1217,7 +1217,7 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, "1")
 
     # Partition-specific tests
-    with pytest.raises(TypeError, 
+    with pytest.raises(TypeError,
                        match="Element of the 'partitions' list must be of type 'TopicPartition' got 'str'"):
         a.elect_leaders(correct_election_type, ["test-1"])
 
