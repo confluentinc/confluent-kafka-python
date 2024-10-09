@@ -31,6 +31,7 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
 import sys
 import threading
 import logging
+import argparse
 
 logging.basicConfig()
 
@@ -473,32 +474,28 @@ def example_list(a, args):
 
 
 def parse_list_consumer_groups_args(args, states, types):
-    def usage(message):
-        raise Exception(f"{message}\nUsage: list_consumer_groups [-states <state1> <state2> ..] "
-                        "[-types <type1> <type2> ..]")
+    parser = argparse.ArgumentParser(prog='list_consumer_groups')
+    parser.add_argument('-states')
+    parser.add_argument('-types')
+    parsed_args = parser.parse_args(args)
 
-    if len(args) > 0:
-        typeArray = False
-        stateArray = False
-        lastArray = 0
-        for i in range(0, len(args)):
-            if (args[i] == "-states"):
-                if (stateArray):
-                    usage("Cannot pass the states flag (-states) more than once")
-                lastArray = 1
-                stateArray = True
-            elif (args[i] == "-types"):
-                if (typeArray):
-                    usage("Cannot pass the types flag (-types) more than once")
-                lastArray = 2
-                typeArray = True
-            else:
-                if (lastArray == 1):
-                    states.add(ConsumerGroupState[args[i]])
-                elif (lastArray == 2):
-                    types.add(ConsumerGroupType[args[i]])
-                else:
-                    usage(f"Unknown argument: {args[i]}")
+    def usage(message):
+        print(message)
+        parser.print_usage()
+        sys.exit(1)
+
+    if parsed_args.states:
+        for arg in parsed_args.states.split(","):
+            try:
+                states.add(ConsumerGroupState[arg])
+            except KeyError:
+                usage(f"Invalid state: {arg}")
+    if parsed_args.types:
+        for arg in parsed_args.types.split(","):
+            try:
+                types.add(ConsumerGroupType[arg])
+            except KeyError:
+                usage(f"Invalid type: {arg}")
 
 
 def example_list_consumer_groups(a, args):
@@ -964,7 +961,8 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
-        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
+        sys.stderr.write(' list_consumer_groups [-states <state1>,<state2>,..] ' +
+                         '[-types <type1>,<type2>,..]\n')
         sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
         sys.stderr.write(' describe_topics <include_authorized_operations> <topic1> <topic2> ..\n')
         sys.stderr.write(' describe_cluster <include_authorized_operations>\n')
