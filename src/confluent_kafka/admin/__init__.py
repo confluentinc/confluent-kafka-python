@@ -1282,17 +1282,17 @@ class AdminClient (_AdminClientImpl):
         Perform Preferred or Unclean leader election for
         all the specified topic partitions.
 
-        :param election_type: ElectionType - The type of election to perform.
-        :param partitions: List[TopicPartition]|None - The topic partitions to perform
+        :param ElectionType election_type: The type of election to perform.
+        :param List[TopicPartition]|None partitions: The topic partitions to perform
                the election on. Use ``None`` to perform on all the topic partitions.
         :param float request_timeout: The overall request timeout in seconds,
-                     including broker lookup, request transmission, operation time
-                     on broker, and response. Default: `socket.timeout.ms*1000.0`
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
         :param float operation_timeout: The operation timeout in seconds,
-                     controlling how long the 'elect_leaders' request will block
-                     on the broker waiting for the election to propagate
-                     in the cluster. A value of 0 returns immediately.
-                     Default: `socket.timeout.ms/1000.0`
+               controlling how long the 'elect_leaders' request will block
+               on the broker waiting for the election to propagate
+               in the cluster. A value of 0 returns immediately.
+               Default: `socket.timeout.ms/1000.0`
 
         :returns: A future. Method result() of the future returns
                   dict[TopicPartition, KafkaException|None].

@@ -903,7 +903,7 @@ def example_elect_leaders(a, args):
             else:
                 print(
                     "Leader Election Failed for topic: " +
-                    f"'{partition.topic}' partition '{partition.partition}': {exception}")
+                    f"'{partition.topic}' partition: '{partition.partition}': {exception}")
     except KafkaException as e:
         print(f"Error electing leaders: {e}")
 
