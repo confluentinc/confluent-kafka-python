@@ -14,7 +14,7 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64"
+  - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -30,10 +30,33 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64"
+  - name: "Wheels: OSX x64 - Python 3.13"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-13-5-amd64
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: x64
+        - name: CIBW_SKIP
+          value: cp36-* cp37-* cp-* cp38-* cp39-* cp310-* cp311-* cp312-*
+        - name: CIBW_ENVIRONMENT_MACOS
+          value: MACOSX_DEPLOYMENT_TARGET=13
+      jobs:
+        - name: Build
+          commands:
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -51,9 +74,34 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.13"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-13-5-arm64
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: CIBW_ARCHS
+          value: arm64
+        - name: ARCH
+          value: arm64
+        - name: CIBW_SKIP
+          value: cp38-* cp39-* cp310-* cp311-* cp312-*
+        - name: CIBW_ENVIRONMENT_MACOS
+          value: MACOSX_DEPLOYMENT_TARGET=13
+      jobs:
+        - name: Build
+          commands:
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -206,8 +254,10 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64"
-      - "Wheels: OSX arm64"
+      - "Wheels: OSX x64 - Python 3.6-3.12"
+      - "Wheels: OSX x64 - Python 3.13"
+      - "Wheels: OSX arm64 - Python 3.8-3.12"
+      - "Wheels: OSX arm64 - Python 3.13"
       - "Wheels: Linux arm64"
       - "Wheels: Linux x64"
       - "Wheels: Windows"

@@ -8,4 +8,4 @@ export MAKE=mingw32-make  # so that Autotools can find it
 
 cmd /c mklink /D C:\Python38\python3.exe C:\Python38\python.exe
 
-python -m pip install cibuildwheel==2.16.2
+python -m pip install cibuildwheel==2.21.2

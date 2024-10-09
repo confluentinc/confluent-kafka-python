@@ -15,7 +15,7 @@
 #  docker run -t -v $(pwd):/io quay.io/pypa/manylinux2010_x86_64:latest  /io/tools/build-manylinux.sh <librdkafka_tag>
 
 LIBRDKAFKA_VERSION=$1
-PYTHON_VERSIONS=("cp36" "cp37" "cp38" "cp39" "cp310" "cp311" "cp312")
+PYTHON_VERSIONS=("cp36" "cp37" "cp38" "cp39" "cp310" "cp311" "cp312" "cp313")
 
 if [[ -z "$LIBRDKAFKA_VERSION" ]]; then
     echo "Usage: $0 <librdkafka_tag>"
@@ -51,7 +51,7 @@ fi
 #
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html
+yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html libffi-devel
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
@@ -92,7 +92,7 @@ for PYBIN in /opt/python/cp*/bin; do
             "${PYBIN}/pip" -V
             "${PYBIN}/pip" install --no-index -f /io/wheelhouse confluent_kafka 
             "${PYBIN}/python" -c 'import confluent_kafka; print(confluent_kafka.libversion())'
-            "${PYBIN}/pip" install -r /io/tests/requirements.txt
+            "${PYBIN}/pip" install pytest
             "${PYBIN}/pytest" /io/tests/test_Producer.py
             echo "## Uninstalling $PYBIN"
             "${PYBIN}/pip" uninstall -y confluent_kafka
