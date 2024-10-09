@@ -4624,14 +4624,14 @@ raise:
 }
 
 static PyObject *Admin_c_ElectLeadersResult_to_py(
-    const rd_kafka_ElectLeadersResult_t *elect_leaders_result) {
+    const rd_kafka_ElectLeaders_result_t *elect_leaders_result_event) {
         PyObject *result = NULL;
         size_t i, c_result_cnt;
 
         const rd_kafka_topic_partition_result_t *
                     *partition_results =
-                        rd_kafka_ElectLeadersResult_partitions(
-                            elect_leaders_result, &c_result_cnt);
+                        rd_kafka_ElectLeaders_result_partitions(
+                            elect_leaders_result_event, &c_result_cnt);
 
         result = PyDict_New();
 
@@ -5013,10 +5013,8 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                 const rd_kafka_ElectLeaders_result_t
                     *c_elect_leaders_res_event =
                         rd_kafka_event_ElectLeaders_result(rkev);
-                const rd_kafka_ElectLeadersResult_t *c_elect_leaders_res =
-                    rd_kafka_ElectLeaders_result(c_elect_leaders_res_event);
 
-                result = Admin_c_ElectLeadersResult_to_py(c_elect_leaders_res);
+                result = Admin_c_ElectLeadersResult_to_py(c_elect_leaders_res_event);
                 break;
         }
 
