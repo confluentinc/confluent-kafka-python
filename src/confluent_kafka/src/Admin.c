@@ -3099,7 +3099,8 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         c_election_type = (rd_kafka_ElectionType_t)cfl_PyInt_AsInt(election_type);
 
         if (partitions != Py_None && !PyList_Check(partitions)) {
-                PyErr_SetString(PyExc_ValueError, "partitions must be a list");
+                PyErr_SetString(PyExc_ValueError, "partitions must be None or a list");
+
                 goto err;
         }
         if (partitions != Py_None) {
@@ -3108,7 +3109,9 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
 
         c_elect_leaders = rd_kafka_ElectLeaders_new(c_election_type, c_partitions);
         
-        rd_kafka_topic_partition_list_destroy(c_partitions);
+        if(c_partitions) {
+                rd_kafka_topic_partition_list_destroy(c_partitions);
+        }
 
         /* Use librdkafka's background thread queue to automatically dispatch
          * Admin_background_event_cb() when the admin operation is finished. */
@@ -3137,7 +3140,6 @@ err:
         if (c_elect_leaders) {
                 rd_kafka_ElectLeaders_destroy(c_elect_leaders);
         }
-
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
                 Py_DECREF(future);
@@ -4623,39 +4625,6 @@ raise:
         return NULL;
 }
 
-static PyObject *Admin_c_ElectLeadersResult_to_py(
-    const rd_kafka_ElectLeaders_result_t *elect_leaders_result_event) {
-        PyObject *result = NULL;
-        size_t i, c_result_cnt;
-
-        const rd_kafka_topic_partition_result_t *
-                    *partition_results =
-                        rd_kafka_ElectLeaders_result_partitions(
-                            elect_leaders_result_event, &c_result_cnt);
-
-        result = PyDict_New();
-
-        for (i = 0; i < c_result_cnt; i++) {
-                PyObject *key;
-                PyObject *value;
-                const rd_kafka_topic_partition_t *c_topic_partition;
-                const rd_kafka_error_t *c_error;
-
-                c_topic_partition =
-                    rd_kafka_topic_partition_result_partition(partition_results[i]);
-                c_error = rd_kafka_topic_partition_result_error(partition_results[i]);
-                value = KafkaException_new_or_none(rd_kafka_error_code(c_error),
-                                                   rd_kafka_error_string(c_error));
-                key = c_part_to_py(c_topic_partition);
-               
-                PyDict_SetItem(result, key, value);
-                Py_DECREF(key);
-                Py_DECREF(value);
-        }
-
-        return result;
-}
-
 /**
  * @brief Event callback triggered from librdkafka's background thread
  *        when Admin API results are ready.
@@ -5010,11 +4979,18 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
 
         case RD_KAFKA_EVENT_ELECTLEADERS_RESULT: 
         {
+                size_t c_result_cnt;
+
                 const rd_kafka_ElectLeaders_result_t
                     *c_elect_leaders_res_event =
                         rd_kafka_event_ElectLeaders_result(rkev);
 
-                result = Admin_c_ElectLeadersResult_to_py(c_elect_leaders_res_event);
+                const rd_kafka_topic_partition_result_t **partition_results =
+                        rd_kafka_ElectLeaders_result_partitions(
+                            c_elect_leaders_res_event, &c_result_cnt);
+
+                result = c_topic_partition_result_to_py_dict(partition_results, c_result_cnt);
+
                 break;
         }
 

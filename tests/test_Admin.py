@@ -1213,15 +1213,16 @@ def test_elect_leaders():
         a.elect_leaders("1", [correct_partitions])
 
     # Incorrect Partitions type
-    with pytest.raises(TypeError, match="Expected partitions to be a list, got 'str'"):
+    with pytest.raises(TypeError, match="Expected 'partitions' to be a list, got 'str'"):
         a.elect_leaders(correct_election_type, "1")
 
     # Partition-specific tests
-    with pytest.raises(TypeError, match="Element of the partitions list must be of type 'TopicPartition' got 'str'"):
+    with pytest.raises(TypeError, 
+                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'str'"):
         a.elect_leaders(correct_election_type, ["test-1"])
 
     with pytest.raises(TypeError,
-                       match="Element of the partitions list must be of type 'TopicPartition' got 'NoneType'"):
+                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'NoneType'"):
         a.elect_leaders(correct_election_type, [None])
 
     with pytest.raises(ValueError):

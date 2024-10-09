@@ -388,6 +388,9 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
 PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
+PyObject *c_topic_partition_result_to_py_dict(
+    const rd_kafka_topic_partition_result_t **partition_results,
+    size_t cnt);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);

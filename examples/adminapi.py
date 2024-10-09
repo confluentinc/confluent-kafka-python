@@ -880,13 +880,10 @@ def example_delete_records(a, args):
 
 def example_elect_leaders(a, args):
     partitions = []
-    # Ensure the number of arguments (excluding the first one) is even.
-    # This is necessary because the arguments should be in pairs of topic and partition.
-    # If the number of arguments is odd, it means there is an incomplete pair, which would cause errors.
     if (len(args) - 1) % 2 != 0:
         raise ValueError("Invalid number of arguments for elect_leaders, Expected format: " +
-                         "elect_leaders <election_type> <topic1> <partition1>" +
-                         " [<topic2> <partition2>..]")
+                         "elect_leaders <election_type> [<topic1> <partition1>" +
+                         " <topic2> <partition2> ..]")
 
     try:
         election_type = ElectionType[args[0]]
@@ -900,13 +897,13 @@ def example_elect_leaders(a, args):
     try:
         results = f.result()
         for partition, exception in results.items():
-
             if exception is None:
-                print(f"Leader Election Successful for topic {partition.topic} partition {partition.partition}")
+                print(f"Leader Election Successful for topic: '{partition.topic}'" +
+                      f" partition: '{partition.partition}'")
             else:
                 print(
-                    "Leader Election Failed for topic " +
-                    f"{partition.topic} partition {partition.partition}: {exception}")
+                    "Leader Election Failed for topic: " +
+                    f"'{partition.topic}' partition '{partition.partition}': {exception}")
     except KafkaException as e:
         print(f"Error electing leaders: {e}")
 
@@ -950,7 +947,7 @@ if __name__ == '__main__':
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
         sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..]\n')
-        sys.stderr.write(' elect_leaders <election_type> <topic1> <partition1> [<topic2> <partition2> ..]\n')
+        sys.stderr.write(' elect_leaders <election_type> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]

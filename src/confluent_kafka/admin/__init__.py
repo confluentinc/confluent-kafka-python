@@ -553,17 +553,18 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _check_elect_leaders(election_type, partitions):
         if not isinstance(election_type, ElectionType):
-            raise TypeError("Expected election_type to be of type 'ElectionType'")
+            raise TypeError("Expected 'election_type' to be of type 'ElectionType'")
         if partitions is not None:
             if not isinstance(partitions, list):
-                raise TypeError("Expected partitions to be a list, got " +
-                                f"'{type(partitions).__name__}' ")
+                raise TypeError("Expected 'partitions' to be a list, got " +
+                                f"'{type(partitions).__name__}'")
             for partition in partitions:
                 if not isinstance(partition, _TopicPartition):
-                    raise TypeError("Element of the partitions list must be of type 'TopicPartition'" +
+                    raise TypeError("Element of the 'partitions' list must be of type 'TopicPartition'" +
                                     f" got '{type(partition).__name__}' ")
                 if partition.partition < 0:
-                    raise ValueError("Elements of the list must not have negative value for 'partition' field")
+                    raise ValueError("Elements of the 'partitions' list must not have negative value" +
+                                     " for 'partition' field")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1276,14 +1277,14 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap
 
-    def elect_leaders(self, election_type, partitions, **kwargs):
+    def elect_leaders(self, election_type, partitions=None, **kwargs):
         """
         Perform Preferred or Unclean leader election for
         all the specified topic partitions.
 
         :param election_type: ElectionType - The type of election to perform.
-        :param partitions: List[TopicPartition] - The topic partitions to perform
-               the election on.
+        :param partitions: List[TopicPartition]|None - The topic partitions to perform
+               the election on. Use ``None`` to perform on all the topic partitions.
         :param float request_timeout: The overall request timeout in seconds,
                      including broker lookup, request transmission, operation time
                      on broker, and response. Default: `socket.timeout.ms*1000.0`
@@ -1294,7 +1295,7 @@ class AdminClient (_AdminClientImpl):
                      Default: `socket.timeout.ms/1000.0`
 
         :returns: A future. Method result() of the future returns
-                  dict[TopicPartition, KafkaException/None].
+                  dict[TopicPartition, KafkaException|None].
 
         :rtype: future
 

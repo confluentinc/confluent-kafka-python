@@ -415,8 +415,10 @@ PyObject *KafkaException_new_or_none (rd_kafka_resp_err_t err, const char *str) 
         if (err) {
                 PyObject *excargs , *exc;
                 PyObject *error = KafkaError_new0(err, str);
+
                 excargs = PyTuple_New(1);
                 PyTuple_SetItem(excargs, 0, error);
+
                 exc = ((PyTypeObject *)KafkaException)->tp_new(
                 (PyTypeObject *)KafkaException, NULL, NULL);
                 exc->ob_type->tp_init(exc, excargs, NULL);
@@ -1376,6 +1378,42 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	}
 
 	return c_parts;
+}
+
+/**
+ * @brief Convert C rd_kafka_topic_partition_result_t to Python dict(TopicPartition, KafkaException).
+ * 
+ * @returns The new Python dict object.
+ */
+PyObject *c_topic_partition_result_to_py_dict(
+    const rd_kafka_topic_partition_result_t **partition_results,
+    size_t cnt) {
+        PyObject *result = NULL;
+        size_t i;
+
+        result = PyDict_New();
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *key;
+                PyObject *value;
+                const rd_kafka_topic_partition_t *c_topic_partition;
+                const rd_kafka_error_t *c_error;
+
+                c_topic_partition =
+                    rd_kafka_topic_partition_result_partition(partition_results[i]);
+                c_error = rd_kafka_topic_partition_result_error(partition_results[i]);
+
+                value = KafkaException_new_or_none(rd_kafka_error_code(c_error),
+                                                   rd_kafka_error_string(c_error));
+                key = c_part_to_py(c_topic_partition);
+               
+                PyDict_SetItem(result, key, value);
+
+                Py_DECREF(key);
+                Py_DECREF(value);
+        }
+
+        return result;
 }
 
 #ifdef RD_KAFKA_V_HEADERS
