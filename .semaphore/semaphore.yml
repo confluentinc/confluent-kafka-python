@@ -13,6 +13,9 @@ global_job_config:
     commands:
       - checkout
       - mkdir artifacts
+      - mkdir -p /tmp/clamav-db
+      - curl https://cfltavupdates.s3.us-west-2.amazonaws.com/downloads/signatures.tgz -o /tmp/clamav-db/signatures.tgz
+      - tar -xzf /tmp/clamav-db/signatures.tgz -C /tmp/clamav-db
 blocks:
   - name: "Wheels: OSX x64"
     run:
@@ -31,6 +34,7 @@ blocks:
         - name: Build
           commands:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - clamscan -d /tmp/clamav-db --max-scansize=1024M --max-filesize=1024M -ir wheelhouse > python-mac-x86-malware-scan.txt || ( . assume-iam-role arn:aws:iam::368821881613:role/semaphore-access ; aws s3 cp python-mac-x86-malware-scan.txt s3://malware-scan-results/librdkafka/$SEMAPHORE_GIT_TAG_NAME/python-mac-x86-malware-scan.txt; false)
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64"
@@ -52,6 +56,7 @@ blocks:
         - name: Build
           commands:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - clamscan -d /tmp/clamav-db --max-scansize=1024M --max-filesize=1024M -ir wheelhouse > python-mac-arm-malware-scan.txt || ( . assume-iam-role arn:aws:iam::368821881613:role/semaphore-access ; aws s3 cp python-mac-arm-malware-scan.txt s3://malware-scan-results/librdkafka/$SEMAPHORE_GIT_TAG_NAME/python-mac-arm-malware-scan.txt; false)
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux arm64"
@@ -71,6 +76,7 @@ blocks:
         - name: Build
           commands:
             - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
+            - clamscan -d /tmp/clamav-db --max-scansize=1024M --max-filesize=1024M -ir wheelhouse > python-linux-x86-malware-scan.txt || ( . assume-iam-role arn:aws:iam::368821881613:role/semaphore-access ; aws s3 cp python-linux-x86-malware-scan.txt s3://malware-scan-results/librdkafka/$SEMAPHORE_GIT_TAG_NAME/python-linux-x86-malware-scan.txt; false)
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
@@ -90,6 +96,7 @@ blocks:
         - name: Build
           commands:
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - clamscan -d /tmp/clamav-db --max-scansize=1024M --max-filesize=1024M -ir wheelhouse > python-linux-x86-malware-scan.txt || ( . assume-iam-role arn:aws:iam::368821881613:role/semaphore-access ; aws s3 cp python-linux-x86-malware-scan.txt s3://malware-scan-results/librdkafka/$SEMAPHORE_GIT_TAG_NAME/python-linux-x86-malware-scan.txt; false)
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
@@ -110,6 +117,9 @@ blocks:
           - ".\\tools\\mingw-w64\\setup-msys2.ps1"
           - $env:PATH = 'C:\msys64\usr\bin;' + $env:PATH
           - bash -lc './tools/mingw-w64/msys2-dependencies.sh'
+          - Invoke-WebRequest -Uri https://malware-scan-clamav-signatures.s3.us-west-2.amazonaws.com/clamav-signatures.zip  -OutFile clamav-signatures.zip
+          - powershell -command "Expand-Archive clamav-signatures.zip C:\clamav-db"
+          - del clamav-signatures.zip
       jobs:
         - name: Build
           env_vars:
@@ -121,6 +131,7 @@ blocks:
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
+            - clamscan -d C:\clamav-db --max-scansize=1024M --max-filesize=1024M -ir wheelhouse > python-win-malware-scan-results.txt; if ($?){artifact push workflow python-win-malware-scan-results.txt} else {artifact push workflow python-win-malware-scan-results.txt; exit /b 1}
             - tar -czf wheelhouse-windows-${Env:ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-windows-${Env:ARCH}.tgz --destination artifacts/wheels-${Env:OS_NAME}-${Env:ARCH}.tgz/
   - name: "Source package verification and Integration tests with Python 3 (Linux x64)"
