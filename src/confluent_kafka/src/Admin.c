@@ -3100,7 +3100,6 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
 
         if (partitions != Py_None && !PyList_Check(partitions)) {
                 PyErr_SetString(PyExc_ValueError, "partitions must be None or a list");
-
                 goto err;
         }
 
