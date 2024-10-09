@@ -4,7 +4,7 @@
 
 v2.6.0 is a feature release with the following features, fixes and enhancements:
 
-- [KIP-848 EA](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Admin API for listing consumer groups now has an optional filter to return only groups of given types (#).
+- [KIP-848 EA](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Admin API for listing consumer groups now has an optional filter to return only groups of given types (#1830).
 
 confluent-kafka-python is based on librdkafka v2.6.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.0)
