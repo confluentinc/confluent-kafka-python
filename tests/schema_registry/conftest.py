@@ -64,7 +64,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         - VERSION = 3
         - VERSIONS = [1, 2, 3, 4]
         - SCHEMA = 'basic_schema.avsc'
-        - SUBJECTS = ['subject1', 'subject2'].
+        - SUBJECTS = ['subject1', 'subject2']
+        - SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
+        - SCHEMA_VERSIONS = [{'subject':'subject1', 'version':3}]
+        - REFERENCEDBY = [42, 17]
 
     Trigger keywords may also be used in the body of the requests. At this time
     the only endpoint which supports this is /config which will return an
@@ -79,6 +82,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     +========+=================================================+=======+==============================+
     | GET    | /schemas/ids/404                                | 40403 | Schema not found             |
     +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /schemas/ids/404/versions                       | 40403 | Schema not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
     | GET    | /subjects/notfound/versions                     | 40401 | Subject not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
     | GET    | /subjects/notfound/versions/[0-9]               | 40401 | Subject not found            |
@@ -86,6 +91,18 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     | GET    | /subjects/notfound/versions/404                 | 40402 | Version not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
     | GET    | /subjects/notfound/versions/422                 | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/[0-9]/schema        | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/404/schema          | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/422/schema          | 42202 | Invalid version              |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/[0-9]/referencedby  | 40401 | Subject not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/404/referencedby    | 40402 | Version not found            |
+    +--------+-------------------------------------------------+-------+------------------------------+
+    | GET    | /subjects/notfound/versions/422/referencedby    | 42202 | Invalid version              |
     +--------+-------------------------------------------------+-------+------------------------------+
     | DELETE | /subjects/notfound                              | 40401 | Subject not found            |
     +--------+-------------------------------------------------+-------+------------------------------+
@@ -131,9 +148,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     """
     # request paths
+    schemas_types = re.compile("/schemas/types/?(.*)$")
     schemas = re.compile("/schemas/ids/([0-9]*)$")
+    schemas_versions = re.compile("/schemas/ids/([0-9]*)/versions/?(.*)$")
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
+    subject_versions_schema = re.compile("/subjects/(.*)/versions/(.*)/schema/?$")
+    subject_versions_referencedby = re.compile("/subjects/(.*)/versions/(.*)/referencedby/?$")
     compatibility = re.compile("/config/?(.*)$")
     compatibility_subjects_versions = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
 
@@ -144,6 +165,9 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     SCHEMA = 'basic_schema.avsc'
     SUBJECTS = ['subject1', 'subject2']
     USERINFO = 'mock_user:mock_password'
+    SCHEMA_TYPES = ['JSON', 'PROTOBUF', 'AVRO']
+    SCHEMA_VERSIONS = [{'subject': 'subject1', 'version': 3}]
+    REFERENCEDBY = [42, 17]
 
     # Counts requests handled per path by HTTP method
     # {HTTP method: { path : count}}
@@ -161,8 +185,12 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         adapter.register_uri('PUT', self.compatibility,
                              json=self.put_compatibility_callback)
 
+        adapter.register_uri('GET', self.schemas_types,
+                             json=self.get_schemas_types_callback)
         adapter.register_uri('GET', self.schemas,
                              json=self.get_schemas_callback)
+        adapter.register_uri('GET', self.schemas_versions,
+                             json=self.get_schemas_versions_callback)
 
         adapter.register_uri('DELETE', self.subjects,
                              json=self.delete_subject_callback)
@@ -177,6 +205,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                              json=self.delete_subject_version_callback)
         adapter.register_uri('POST', self.subject_versions,
                              json=self.post_subject_version_callback)
+        adapter.register_uri('GET', self.subject_versions_schema,
+                             json=self.get_subject_version_schema_callback)
+        adapter.register_uri('GET', self.subject_versions_referencedby,
+                             json=self.get_subject_version_referencedby_callback)
         adapter.register_uri('POST', self.compatibility_subjects_versions,
                              json=self.post_compatibility_subjects_versions_callback)
 
@@ -276,6 +308,73 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
                 "id": self.SCHEMA_ID,
                 "version": self.VERSION,
                 "schema": request.json()['schema']}
+
+    def get_schemas_types_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        context.status_code = 200
+        return self.SCHEMA_TYPES
+
+    def get_schemas_versions_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        path_match = re.match(self.schemas_versions, request.path)
+        schema_id = path_match.group(1)
+
+        if int(schema_id) == 404:
+            context.status_code = 404
+            return {'error_code': 40403,
+                    'message': "Schema not found"}
+
+        context.status_code = 200
+        return self.SCHEMA_VERSIONS
+
+    def get_subject_version_schema_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        path_match = re.match(self.subject_versions_schema, request.path)
+        subject_name = path_match.group(1)
+        version = path_match.group(2)
+        version_num = -1 if version == 'latest' else int(version)
+
+        if version_num == 404:
+            context.status_code = 404
+            return {'error_code': 40402,
+                    'message': "Version not found"}
+        if version_num == 422:
+            context.status_code = 422
+            return {'error_code': 42202,
+                    'message': "Invalid version"}
+        if subject_name == 'notfound':
+            context.status_code = 404
+            return {'error_code': 40401,
+                    'message': "Subject not found"}
+        context.status_code = 200
+        return self._load_avsc(self.SCHEMA)
+        # NOTE: schema_str is returned as unescaped string, i.e. json for type=AVRO.
+
+    def get_subject_version_referencedby_callback(self, request, context):
+        self.counter['GET'][request.path] += 1
+
+        path_match = re.match(self.subject_versions_referencedby, request.path)
+        subject_name = path_match.group(1)
+        version = path_match.group(2)
+        version_num = -1 if version == 'latest' else int(version)
+
+        if version_num == 404:
+            context.status_code = 404
+            return {'error_code': 40402,
+                    'message': "Version not found"}
+        if version_num == 422:
+            context.status_code = 422
+            return {'error_code': 42202,
+                    'message': "Invalid version"}
+        if subject_name == 'notfound':
+            context.status_code = 404
+            return {'error_code': 40401,
+                    'message': "Subject not found"}
+        context.status_code = 200
+        return self.REFERENCEDBY
 
     def get_schemas_callback(self, request, context):
         self.counter['GET'][request.path] += 1
