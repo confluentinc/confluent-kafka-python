@@ -340,6 +340,32 @@ static PyTypeObject KafkaErrorType = {
         KafkaError_new             /* tp_new */
 };
 
+/**
+ * @brief Creates a KafkaException from error code and error string.
+ */
+PyObject *KafkaException_new_or_none (rd_kafka_resp_err_t err, const char *str) {
+        if (err) {
+
+                PyObject *excargs = NULL, *exc = NULL;;
+                PyObject *error = KafkaError_new0(err, str);
+                PyObject *exctype = KafkaException;
+                excargs = PyTuple_New(1);
+                PyTuple_SetItem(excargs, 0, error);
+                exc = ((PyTypeObject *)exctype)->tp_new(
+                (PyTypeObject *)exctype, NULL, NULL);
+
+                exc->ob_type->tp_init(exc, excargs, NULL);
+
+
+                Py_DECREF(excargs);
+                Py_XDECREF(error);
+
+                return exc;
+        }
+        else
+                Py_RETURN_NONE;
+}
+
 
 /**
  * @brief Internal factory to create KafkaError object.
