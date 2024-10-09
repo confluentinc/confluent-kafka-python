@@ -554,15 +554,16 @@ class AdminClient (_AdminClientImpl):
     def _check_elect_leaders(election_type, partitions):
         if not isinstance(election_type, ElectionType):
             raise TypeError("Expected election_type to be of type 'ElectionType'")
-        if not isinstance(partitions, list):
-            raise TypeError("Expected partitions to be a list, got " +
-                            f"'{type(partitions).__name__}' ")
-        for topic_partition in partitions:
-            if not isinstance(topic_partition, _TopicPartition):
-                raise TypeError("Element of the partitions list must be of type 'TopicPartition'" +
-                                f" got '{type(topic_partition).__name__}' ")
-            if topic_partition.partition < 0:
-                raise ValueError("Elements of the list must not have negative value for 'partition' field")
+        if partitions is not None:
+            if not isinstance(partitions, list):
+                raise TypeError("Expected partitions to be a list, got " +
+                                f"'{type(partitions).__name__}' ")
+            for topic_partition in partitions:
+                if not isinstance(topic_partition, _TopicPartition):
+                    raise TypeError("Element of the partitions list must be of type 'TopicPartition'" +
+                                    f" got '{type(topic_partition).__name__}' ")
+                if topic_partition.partition < 0:
+                    raise ValueError("Elements of the list must not have negative value for 'partition' field")
 
     def create_topics(self, new_topics, **kwargs):
         """
@@ -1292,11 +1293,9 @@ class AdminClient (_AdminClientImpl):
                      in the cluster. A value of 0 returns immediately.
                      Default: `socket.timeout.ms/1000.0`
 
-        :returns: A dict of futures keyed by the :class:`.TopicPartition`.
-                  The future result() method returns None or
-                  raises KafkaException.
+        :returns: A future containing per partition results.
 
-        :rtype: rtype: dict[TopicPartition, future]
+        :rtype: future
 
         :raises KafkaException: Operation failed locally or on broker.
         :raises TypeError: Invalid input type.
@@ -1305,8 +1304,8 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_elect_leaders(election_type, partitions)
 
-        f, futmap = AdminClient._make_futures_v2(partitions, _TopicPartition, AdminClient._make_futmap_result)
+        f = AdminClient._create_future()
 
         super(AdminClient, self).elect_leaders(election_type.value, partitions, f, **kwargs)
 
-        return futmap
+        return f

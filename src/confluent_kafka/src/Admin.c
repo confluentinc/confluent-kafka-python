@@ -3102,7 +3102,9 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
                 PyErr_SetString(PyExc_ValueError, "partitions must be a list");
                 goto err;
         }
-        c_partitions = py_to_c_parts(partitions);
+        if (partitions != Py_None) {
+                c_partitions = py_to_c_parts(partitions);
+        }
 
         elect_leaders = rd_kafka_ElectLeaders_new(elec, c_partitions);
         rd_kafka_topic_partition_list_destroy(c_partitions);
@@ -4626,6 +4628,7 @@ static PyObject *Admin_c_ElectLeadersResult_to_py(
         size_t i;
 
         result = PyDict_New();
+
         for (i = 0; i < cnt; i++) {
                 PyObject *value = NULL;
                 rd_kafka_topic_partition_t *rktpar;
@@ -4634,12 +4637,9 @@ static PyObject *Admin_c_ElectLeadersResult_to_py(
                 rktpar =
                     rd_kafka_topic_partition_result_partition(partitions[i]);
                 error = rd_kafka_topic_partition_result_error(partitions[i]);
-                if (rd_kafka_error_code(error)) {
-                        value = KafkaError_new_or_None(
-                            rd_kafka_error_code(error),
-                            rd_kafka_error_string(error));
-                }
-
+                value = KafkaException_new_or_none(rd_kafka_error_code(error),
+                                                   rd_kafka_error_string(error));
+               
                 PyDict_SetItem(result, c_part_to_py(rktpar), value);
                 Py_XDECREF(value);
         }
