@@ -1293,7 +1293,7 @@ class AdminClient (_AdminClientImpl):
                      in the cluster. A value of 0 returns immediately.
                      Default: `socket.timeout.ms/1000.0`
 
-        :returns: A future. Method result() of the future returns 
+        :returns: A future. Method result() of the future returns
                   dict[TopicPartition, KafkaException/None].
 
         :rtype: future
