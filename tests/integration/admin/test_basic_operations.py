@@ -17,11 +17,12 @@ import struct
 import time
 
 from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
+from confluent_kafka import ConsumerGroupType
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
-
+from tests.common import TestUtils
 topic_prefix = "test-topic"
 
 
@@ -307,16 +308,33 @@ def test_basic_operations(kafka_cluster):
     assert group2 in groups, "Consumer group {} not found".format(group2)
 
     # List Consumer Groups new API test
+    current_type = TestUtils.use_group_protocol_consumer() and \
+        ConsumerGroupType.CONSUMER or ConsumerGroupType.CLASSIC
+    opposite_type = current_type == ConsumerGroupType.CONSUMER and \
+        ConsumerGroupType.CLASSIC or ConsumerGroupType.CONSUMER
     future = admin_client.list_consumer_groups(request_timeout=10)
     result = future.result()
     group_ids = [group.group_id for group in result.valid]
     assert group1 in group_ids, "Consumer group {} not found".format(group1)
     assert group2 in group_ids, "Consumer group {} not found".format(group2)
 
-    future = admin_client.list_consumer_groups(request_timeout=10, states={ConsumerGroupState.STABLE})
+    future = admin_client.list_consumer_groups(request_timeout=10,
+                                               states={ConsumerGroupState.STABLE},
+                                               types={current_type})
     result = future.result()
     assert isinstance(result.valid, list)
     assert not result.valid
+
+    # List Consumer Groups with group type option, should not return any group
+    # of those being tested.
+    if TestUtils.use_group_protocol_consumer():
+        future = admin_client.list_consumer_groups(request_timeout=10, types={opposite_type})
+        result = future.result()
+        group_ids = [group.group_id for group in result.valid]
+        assert group1 not in group_ids, f"Consumer group {group1} was found despite passing {opposite_type}"
+        assert group2 not in group_ids, f"Consumer group {group2} was found despite passing {opposite_type}"
+        for group in group_ids:
+            assert group.type == ConsumerGroupType.CLASSIC
 
     def verify_config(expconfig, configs):
         """
