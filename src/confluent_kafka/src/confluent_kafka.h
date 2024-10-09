@@ -188,6 +188,7 @@ extern PyObject *KafkaException;
 PyObject *KafkaError_new0 (rd_kafka_resp_err_t err, const char *fmt, ...);
 PyObject *KafkaError_new_or_None (rd_kafka_resp_err_t err, const char *str);
 PyObject *KafkaError_new_from_error_destroy (rd_kafka_error_t *error);
+PyObject *KafkaException_new_or_none (rd_kafka_resp_err_t err, const char *str);
 
 /**
  * @brief Raise an exception using KafkaError.
