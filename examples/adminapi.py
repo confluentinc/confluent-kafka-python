@@ -904,7 +904,9 @@ def example_elect_leaders(a, args):
             if exception is None:
                 print(f"Leader Election Started for topic {partition.topic} partition {partition.partition}")
             else:
-                print(f"Leader Election Failed for topic {partition.topic} partition {partition.partition}: {exception}")
+                print(
+                    "Leader Election Failed for topic " +
+                    f"{partition.topic} partition {partition.partition}: {exception}")
     except KafkaException as e:
         print(f"Error electing leaders: {e}")
 

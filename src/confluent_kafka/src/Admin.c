@@ -4631,8 +4631,8 @@ static PyObject *Admin_c_ElectLeadersResult_to_py(
 
         for (i = 0; i < cnt; i++) {
                 PyObject *value = NULL;
-                rd_kafka_topic_partition_t *rktpar;
-                rd_kafka_error_t *error;
+                const rd_kafka_topic_partition_t *rktpar;
+                const rd_kafka_error_t *error;
 
                 rktpar =
                     rd_kafka_topic_partition_result_partition(partitions[i]);
