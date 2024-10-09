@@ -222,8 +222,7 @@ class _SchemaCache(object):
         Args:
             subject_name (str): Subject name the schema is registered under.
         """
-        
-        
+
         with self.lock:
             if subject_name in self.subject_schemas:
                 for schema in self.subject_schemas[subject_name]:
@@ -233,7 +232,6 @@ class _SchemaCache(object):
                     self.schema_index.pop(Schema, None)
 
                 del self.subject_schemas[subject_name]
-
 
     def get_schema(self, schema_id):
         """
@@ -566,9 +564,9 @@ class SchemaRegistryClient(object):
         if permanent:
             self._rest_client.delete('subjects/{}?permanent=true'
                                      .format(_urlencode(subject_name)))
-        
+
         self._cache.remove_by_subject(subject_name)
-        
+
         return list
 
     def get_latest_version(self, subject_name):
