@@ -1,6 +1,6 @@
 fastavro>=0.23.0
 pyrsistent==0.16.1;python_version<"3.0"
 pyrsistent;python_version>"3.0"
-jsonschema
+jsonschema<4.18.0 # Due to https://github.com/tfranzel/drf-spectacular/issues/1132
 protobuf
 requests

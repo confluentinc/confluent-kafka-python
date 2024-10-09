@@ -10,15 +10,14 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Skip PyPy, Python2, old Python3 versions, musl, and x86 builds.
 export CIBW_SKIP="pp* cp27-* cp35-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
-export CIBW_TEST_REQUIRES="-r tests/requirements.txt"
+export CIBW_TEST_REQUIRES="pytest"
 export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
 
-
 librdkafka_version=$1
 wheeldir=$2
-cibuildwheel_version="2.16.2"
+cibuildwheel_version=${3:-"2.21.2"}
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"
