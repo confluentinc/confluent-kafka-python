@@ -902,7 +902,7 @@ def example_elect_leaders(a, args):
         for partition, exception in results.items():
 
             if exception is None:
-                print(f"Leader Election Started for topic {partition.topic} partition {partition.partition}")
+                print(f"Leader Election Successful for topic {partition.topic} partition {partition.partition}")
             else:
                 print(
                     "Leader Election Failed for topic " +
@@ -950,7 +950,7 @@ if __name__ == '__main__':
         sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
                          '[<topic2> <partition2> <offset_spec2> ..]\n')
         sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..]\n')
-        sys.stderr.write(' elect_leaders <election_type> <topic1> <partition1> [<topic2> <partition2>..]\n')
+        sys.stderr.write(' elect_leaders <election_type> <topic1> <partition1> [<topic2> <partition2> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]

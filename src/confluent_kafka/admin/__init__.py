@@ -558,11 +558,11 @@ class AdminClient (_AdminClientImpl):
             if not isinstance(partitions, list):
                 raise TypeError("Expected partitions to be a list, got " +
                                 f"'{type(partitions).__name__}' ")
-            for topic_partition in partitions:
-                if not isinstance(topic_partition, _TopicPartition):
+            for partition in partitions:
+                if not isinstance(partition, _TopicPartition):
                     raise TypeError("Element of the partitions list must be of type 'TopicPartition'" +
-                                    f" got '{type(topic_partition).__name__}' ")
-                if topic_partition.partition < 0:
+                                    f" got '{type(partition).__name__}' ")
+                if partition.partition < 0:
                     raise ValueError("Elements of the list must not have negative value for 'partition' field")
 
     def create_topics(self, new_topics, **kwargs):
@@ -1278,7 +1278,7 @@ class AdminClient (_AdminClientImpl):
 
     def elect_leaders(self, election_type, partitions, **kwargs):
         """
-        Perform Preferred or Unclean elections for,
+        Perform Preferred or Unclean leader election for
         all the specified topic partitions.
 
         :param election_type: ElectionType - The type of election to perform.
@@ -1293,7 +1293,8 @@ class AdminClient (_AdminClientImpl):
                      in the cluster. A value of 0 returns immediately.
                      Default: `socket.timeout.ms/1000.0`
 
-        :returns: A future containing per partition results.
+        :returns: A future. Method result() of the future returns 
+                  dict[TopicPartition, KafkaException/None].
 
         :rtype: future
 

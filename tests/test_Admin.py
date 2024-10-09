@@ -1200,20 +1200,23 @@ def test_delete_records():
 def test_elect_leaders():
     a = AdminClient({"socket.timeout.ms": 10})
 
-    correct_topic_partition = TopicPartition("test-topic1", 0)
-    incorrect_partition = TopicPartition("test-topic1", -1)
+    correct_partitions = TopicPartition("test-topic1", 0)
+    incorrect_partitions = TopicPartition("test-topic1", -1)
 
     correct_election_type = ElectionType.PREFERRED
 
     # Incorrect Election Type
     with pytest.raises(TypeError):
-        a.elect_leaders(None, [correct_topic_partition])
+        a.elect_leaders(None, [correct_partitions])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders("1", [correct_partitions])
 
     # Incorrect Partitions type
     with pytest.raises(TypeError, match="Expected partitions to be a list, got 'str'"):
         a.elect_leaders(correct_election_type, "1")
 
-    # Request-specific tests
+    # Partition-specific tests
     with pytest.raises(TypeError, match="Element of the partitions list must be of type 'TopicPartition' got 'str'"):
         a.elect_leaders(correct_election_type, ["test-1"])
 
@@ -1225,4 +1228,4 @@ def test_elect_leaders():
         a.elect_leaders(correct_election_type, [TopicPartition("")])
 
     with pytest.raises(ValueError):
-        a.elect_leaders(correct_election_type, [incorrect_partition])
+        a.elect_leaders(correct_election_type, [incorrect_partitions])
