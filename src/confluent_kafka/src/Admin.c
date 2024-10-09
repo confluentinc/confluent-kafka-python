@@ -3103,6 +3103,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
 
                 goto err;
         }
+
         if (partitions != Py_None) {
                 c_partitions = py_to_c_parts(partitions);
         }
