@@ -670,7 +670,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
-    def delete_version(self, subject_name, version):
+    def delete_version(self, subject_name, version, permanent=False):
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -678,6 +678,8 @@ class SchemaRegistryClient(object):
             subject_name (str) Subject name
 
             version (int): Version number
+
+            permanent (bool): True for a hard delete, False (default) for a soft delete
 
         Returns:
             int: Version number which was deleted
@@ -692,6 +694,10 @@ class SchemaRegistryClient(object):
         response = self._rest_client.delete('subjects/{}/versions/{}'.
                                             format(_urlencode(subject_name),
                                                    version))
+        if permanent:
+            self._rest_client.delete('subjects/{}/versions/{}?permanent=true'.
+                                     format(_urlencode(subject_name),
+                                            version))
         return response
 
     def set_compatibility(self, subject_name=None, level=None):
