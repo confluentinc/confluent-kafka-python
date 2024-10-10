@@ -22,6 +22,7 @@ from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401
                      ConsumerGroupTopicPartitions,
                      ConsumerGroupState,
+                     ConsumerGroupType,
                      TopicCollection,
                      TopicPartitionInfo,
                      IsolationLevel,
@@ -49,7 +50,8 @@ __all__ = ['admin', 'Consumer',
            'Producer', 'DeserializingConsumer',
            'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
            'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
-           'ConsumerGroupTopicPartitions', 'ConsumerGroupState', 'Uuid',
+           'ConsumerGroupTopicPartitions', 'ConsumerGroupState',
+           'ConsumerGroupType', 'Uuid',
            'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo']
 
 __version__ = version()[0]

@@ -82,6 +82,8 @@ struct Admin_options {
         rd_kafka_IsolationLevel_t isolation_level;
         rd_kafka_consumer_group_state_t* states;
         int states_cnt;
+        rd_kafka_consumer_group_type_t* types;
+        int types_cnt;
 };
 
 /**@brief "unset" value initializers for Admin_options
@@ -94,6 +96,8 @@ struct Admin_options {
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
                 Admin_options_def_int,           \
+                Admin_options_def_ptr,           \
+                Admin_options_def_cnt,           \
                 Admin_options_def_ptr,           \
                 Admin_options_def_cnt,           \
         }
@@ -181,6 +185,13 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         if (Admin_options_is_set_ptr(options->states) &&
             (err_obj = rd_kafka_AdminOptions_set_match_consumer_group_states(
                 c_options, options->states, options->states_cnt))) {
+                snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
+                goto err;
+        }
+
+        if (Admin_options_is_set_ptr(options->types) &&
+            (err_obj = rd_kafka_AdminOptions_set_match_consumer_group_types(
+                c_options, options->types, options->types_cnt))) {
                 snprintf(errstr, sizeof(errstr), "%s", rd_kafka_error_string(err_obj));
                 goto err;
         }
@@ -1698,24 +1709,28 @@ static const char Admin_delete_acls_doc[] = PyDoc_STR(
  * @brief List consumer groups
  */
 PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kwargs) {
-        PyObject *future, *states_int = NULL;
+        PyObject *future, *states_int = NULL, *types_int = NULL;
         struct Admin_options options = Admin_options_INITIALIZER;
         rd_kafka_AdminOptions_t *c_options = NULL;
         CallState cs;
         rd_kafka_queue_t *rkqu;
         rd_kafka_consumer_group_state_t *c_states = NULL;
+        rd_kafka_consumer_group_type_t *c_types = NULL;
         int states_cnt = 0;
+        int types_cnt = 0;
         int i = 0;
 
         static char *kws[] = {"future",
                              /* options */
                              "states_int",
+                             "types_int",
                              "request_timeout",
                              NULL};
 
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|Of", kws,
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|OOf", kws,
                                          &future,
                                          &states_int,
+                                         &types_int,
                                          &options.request_timeout)) {
                 goto err;
         }
@@ -1736,13 +1751,40 @@ PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kw
                                 PyObject *state = PyList_GET_ITEM(states_int, i);
                                 if(!cfl_PyInt_Check(state)) {
                                         PyErr_SetString(PyExc_ValueError,
-                                                "Element of states must be a valid state");
+                                                "Element of states must be valid states");
                                         goto err;
                                 }
                                 c_states[i] = (rd_kafka_consumer_group_state_t) cfl_PyInt_AsInt(state);
                         }
                         options.states = c_states;
                         options.states_cnt = states_cnt;
+                }
+        }
+
+        if(types_int != NULL && types_int != Py_None) {
+                if(!PyList_Check(types_int)) {
+                        PyErr_SetString(PyExc_ValueError,
+                                "types must of type list");
+                        goto err;
+                }
+
+                types_cnt = (int)PyList_Size(types_int);
+
+                if(types_cnt > 0) {
+                        c_types = (rd_kafka_consumer_group_type_t *)
+                                        malloc(types_cnt *
+                                               sizeof(rd_kafka_consumer_group_type_t));
+                        for(i = 0 ; i < types_cnt ; i++) {
+                                PyObject *type = PyList_GET_ITEM(types_int, i);
+                                if(!cfl_PyInt_Check(type)) {
+                                        PyErr_SetString(PyExc_ValueError,
+                                                "Element of types must be valid group types");
+                                        goto err;
+                                }
+                                c_types[i] = (rd_kafka_consumer_group_type_t) cfl_PyInt_AsInt(type);
+                        }
+                        options.types = c_types;
+                        options.types_cnt = types_cnt;
                 }
         }
 
@@ -1774,13 +1816,18 @@ PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kw
         if(c_states) {
                 free(c_states);
         }
+        if(c_types) {
+                free(c_types);
+        }
         rd_kafka_queue_destroy(rkqu); /* drop reference from get_background */
         rd_kafka_AdminOptions_destroy(c_options);
-
         Py_RETURN_NONE;
 err:
         if(c_states) {
                 free(c_states);
+        }
+        if(c_types) {
+                free(c_types);
         }
         if (c_options) {
                 rd_kafka_AdminOptions_destroy(c_options);
@@ -1789,7 +1836,7 @@ err:
         return NULL;
 }
 const char Admin_list_consumer_groups_doc[] = PyDoc_STR(
-        ".. py:function:: list_consumer_groups(future, [states_int], [request_timeout])\n"
+        ".. py:function:: list_consumer_groups(future, [states_int], [types_int], [request_timeout])\n"
         "\n"
         "  List all the consumer groups.\n"
         "\n"
@@ -2964,7 +3011,7 @@ const char Admin_list_offsets_doc[] = PyDoc_STR(
 
 
 /**
- * @brief Delete records 
+ * @brief Delete records
  */
 PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         PyObject *topic_partition_offsets = NULL, *future;
@@ -3007,7 +3054,7 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         if(!c_topic_partition_offsets) {
                 goto err; /* Exception raised by py_to_c_parts() */
         }
-        
+
         c_obj = malloc(sizeof(rd_kafka_DeleteRecords_t *) * del_record_cnt);
         c_obj[0] = rd_kafka_DeleteRecords_new(c_topic_partition_offsets);
 
@@ -3031,11 +3078,11 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
         free(c_obj);
 
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);     
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
         Py_XDECREF(topic_partition_offsets);
-        
+
         Py_RETURN_NONE;
-err: 
+err:
         if (c_obj) {
                 rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
                 free(c_obj);
@@ -3318,7 +3365,7 @@ static PyMethodDef Admin_methods[] = {
         { "list_offsets", (PyCFunction)Admin_list_offsets, METH_VARARGS|METH_KEYWORDS,
            Admin_list_offsets_doc
         },
-        
+
         { "delete_records", (PyCFunction)Admin_delete_records, METH_VARARGS|METH_KEYWORDS,
            Admin_delete_records_doc
         },
@@ -3710,6 +3757,8 @@ static PyObject *Admin_c_ListConsumerGroupsResults_to_py(
                         Py_DECREF(py_is_simple_consumer_group);
 
                         cfl_PyDict_SetInt(kwargs, "state", rd_kafka_ConsumerGroupListing_state(c_valid_responses[i]));
+
+                        cfl_PyDict_SetInt(kwargs, "type", rd_kafka_ConsumerGroupListing_type(c_valid_responses[i]));
 
                         args = PyTuple_New(0);
 
@@ -4580,7 +4629,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
 
         int i;
 
-        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin", 
+        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "DeletedRecords");
         if(!DeletedRecords_type)
                 goto raise;  /* Exception raised by lookup() */
@@ -4589,7 +4638,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         for(i=0; i<c_topic_partitions->cnt; i++){
                 PyObject *key = NULL;
                 PyObject *value = NULL;
-        
+
                 rd_kafka_topic_partition_t *c_topic_partition = &c_topic_partitions->elems[i];
                 key = c_part_to_py(c_topic_partition);
 
@@ -4610,7 +4659,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
                                 goto raise;
                         }
                 }
-                
+
                 PyDict_SetItem(result, key, value);
                 Py_DECREF(key);
                 Py_DECREF(value);
@@ -4972,7 +5021,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         {
                 const rd_kafka_DeleteRecords_result_t *c_delete_records_res = rd_kafka_event_DeleteRecords_result(rkev);
                 const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
-                
+
                 result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list);
                 break;
         }
