@@ -30,7 +30,7 @@ def commit_and_check(consumer, topic, metadata):
 
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
-    topic = kafka_cluster.create_topic("test_topicpartition")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_topicpartition")
     consumer_conf = {'group.id': 'pytest'}
 
     c = kafka_cluster.consumer(consumer_conf)

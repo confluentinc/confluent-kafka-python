@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 from confluent_kafka import TopicPartition, IsolationLevel
+from confluent_kafka.admin import ListOffsetsResultInfo, OffsetSpec
 
 
 def test_list_offsets(kafka_cluster):
@@ -27,11 +27,11 @@ def test_list_offsets(kafka_cluster):
     admin_client = kafka_cluster.admin()
 
     # Create a topic with a single partition
-    topic = kafka_cluster.create_topic("test-topic-verify-list-offsets",
-                                       {
-                                           "num_partitions": 1,
-                                           "replication_factor": 1,
-                                       })
+    topic = kafka_cluster.create_topic_and_wait_propogation("test-topic-verify-list-offsets",
+                                                            {
+                                                                "num_partitions": 1,
+                                                                "replication_factor": 1,
+                                                            })
 
     # Create Producer instance
     p = kafka_cluster.producer()

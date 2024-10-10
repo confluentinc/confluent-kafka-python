@@ -25,11 +25,11 @@ def test_delete_records(kafka_cluster):
     admin_client = kafka_cluster.admin()
 
     # Create a topic with a single partition
-    topic = kafka_cluster.create_topic("test-del-records",
-                                       {
-                                           "num_partitions": 1,
-                                           "replication_factor": 1,
-                                       })
+    topic = kafka_cluster.create_topic_and_wait_propogation("test-del-records",
+                                                            {
+                                                                "num_partitions": 1,
+                                                                "replication_factor": 1,
+                                                            })
 
     # Create Producer instance
     p = kafka_cluster.producer()
@@ -73,16 +73,17 @@ def test_delete_records_multiple_topics_and_partitions(kafka_cluster):
     admin_client = kafka_cluster.admin()
     num_partitions = 3
     # Create two topics with a single partition
-    topic = kafka_cluster.create_topic("test-del-records",
-                                       {
-                                           "num_partitions": num_partitions,
-                                           "replication_factor": 1,
-                                       })
-    topic2 = kafka_cluster.create_topic("test-del-records2",
-                                        {
-                                           "num_partitions": num_partitions,
-                                           "replication_factor": 1,
-                                        })
+    topic = kafka_cluster.create_topic_and_wait_propogation("test-del-records",
+                                                            {
+                                                                "num_partitions": num_partitions,
+                                                                "replication_factor": 1,
+                                                            })
+    topic2 = kafka_cluster.create_topic_and_wait_propogation("test-del-records2",
+                                                             {
+                                                                 "num_partitions": num_partitions,
+                                                                 "replication_factor": 1,
+                                                             })
+
     topics = [topic, topic2]
     partitions = list(range(num_partitions))
     # Create Producer instance

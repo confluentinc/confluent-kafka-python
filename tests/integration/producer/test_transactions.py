@@ -19,7 +19,9 @@ import inspect
 import sys
 from uuid import uuid1
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import KafkaError
+
+from tests.common import TestConsumer
 
 
 def called_by():
@@ -49,7 +51,7 @@ def prefixed_delivery_cb(prefix):
 
 
 def test_commit_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -64,7 +66,7 @@ def test_commit_transaction(kafka_cluster):
 
 
 def test_abort_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -79,7 +81,7 @@ def test_abort_transaction(kafka_cluster):
 
 
 def test_abort_retry_commit_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -97,8 +99,8 @@ def test_abort_retry_commit_transaction(kafka_cluster):
 
 
 def test_send_offsets_committed_transaction(kafka_cluster):
-    input_topic = kafka_cluster.create_topic("input_topic")
-    output_topic = kafka_cluster.create_topic("output_topic")
+    input_topic = kafka_cluster.create_topic_and_wait_propogation("input_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
     error_cb = prefixed_error_cb('test_send_offsets_committed_transaction')
     producer = kafka_cluster.producer({
         'client.id': 'producer1',
@@ -114,7 +116,7 @@ def test_send_offsets_committed_transaction(kafka_cluster):
         'error_cb': error_cb
     }
     consumer_conf.update(kafka_cluster.client_conf())
-    consumer = Consumer(consumer_conf)
+    consumer = TestConsumer(consumer_conf)
 
     kafka_cluster.seed_topic(input_topic)
     consumer.subscribe([input_topic])
@@ -204,7 +206,7 @@ def consume_committed(conf, topic):
                      'error_cb': prefixed_error_cb(called_by()), }
 
     consumer_conf.update(conf)
-    consumer = Consumer(consumer_conf)
+    consumer = TestConsumer(consumer_conf)
     consumer.subscribe([topic])
 
     msg_cnt = read_all_msgs(consumer)

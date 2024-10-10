@@ -27,7 +27,7 @@ def test_consumer_memberid(kafka_cluster):
 
     topic = "testmemberid"
 
-    kafka_cluster.create_topic(topic)
+    kafka_cluster.create_topic_and_wait_propogation(topic)
 
     consumer = kafka_cluster.consumer(consumer_conf)
 
