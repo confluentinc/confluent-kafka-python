@@ -98,6 +98,9 @@ class ConsumerGroupState(Enum):
 class ConsumerGroupType(Enum):
     """
     Enumerates the different types of Consumer Group Type.
+
+    Values:
+    -------
     """
     #: Type is not known or not set
     UNKNOWN = cimpl.CONSUMER_GROUP_TYPE_UNKNOWN
