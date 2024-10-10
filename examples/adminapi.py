@@ -18,8 +18,9 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState, TopicCollection,
-                             IsolationLevel, ElectionType)
+                             TopicPartition, ConsumerGroupState,
+                             TopicCollection, IsolationLevel,
+                             ConsumerGroupType, ElectionType)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
@@ -30,6 +31,7 @@ from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigR
 import sys
 import threading
 import logging
+import argparse
 
 logging.basicConfig()
 
@@ -471,18 +473,47 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
+def parse_list_consumer_groups_args(args, states, types):
+    parser = argparse.ArgumentParser(prog='list_consumer_groups')
+    parser.add_argument('-states')
+    parser.add_argument('-types')
+    parsed_args = parser.parse_args(args)
+
+    def usage(message):
+        print(message)
+        parser.print_usage()
+        sys.exit(1)
+
+    if parsed_args.states:
+        for arg in parsed_args.states.split(","):
+            try:
+                states.add(ConsumerGroupState[arg])
+            except KeyError:
+                usage(f"Invalid state: {arg}")
+    if parsed_args.types:
+        for arg in parsed_args.types.split(","):
+            try:
+                types.add(ConsumerGroupType[arg])
+            except KeyError:
+                usage(f"Invalid type: {arg}")
+
+
 def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = {ConsumerGroupState[state] for state in args}
-    future = a.list_consumer_groups(request_timeout=10, states=states)
+
+    states = set()
+    types = set()
+    parse_list_consumer_groups_args(args, states, types)
+
+    future = a.list_consumer_groups(request_timeout=10, states=states, types=types)
     try:
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
         for valid in list_consumer_groups_result.valid:
-            print("    id: {} is_simple: {} state: {}".format(
-                valid.group_id, valid.is_simple_consumer_group, valid.state))
+            print("    id: {} is_simple: {} state: {} type: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state, valid.type))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
             print("    error: {}".format(error))
@@ -937,7 +968,8 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
-        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
+        sys.stderr.write(' list_consumer_groups [-states <state1>,<state2>,..] ' +
+                         '[-types <type1>,<type2>,..]\n')
         sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
         sys.stderr.write(' describe_topics <include_authorized_operations> <topic1> <topic2> ..\n')
         sys.stderr.write(' describe_cluster <include_authorized_operations>\n')
