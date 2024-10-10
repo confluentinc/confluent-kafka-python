@@ -3152,7 +3152,7 @@ const char Admin_elect_leaders_doc[] = PyDoc_STR(
     "future, [request_timeout, operation_timeout])\n"
     "\n"
     "  Perform Preferred or Unclean election for the specified "
-    "Topic Partitions.\n"
+    "partion or all partition in the cluster.\n"
     "\n"
     "  This method should not be used directly, use "
     "confluent_kafka.AdminClient.elect_leaders()\n");

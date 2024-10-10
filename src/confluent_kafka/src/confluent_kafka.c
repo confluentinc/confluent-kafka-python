@@ -408,33 +408,6 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
         PyErr_SetObject(KafkaException, eo);
 }
 
-/**
- * @brief Creates a KafkaException from error code and error string.
- */
-PyObject *KafkaException_new_or_none (rd_kafka_resp_err_t err, const char *str) {
-        if (err) {
-                PyObject *excargs , *exc;
-                PyObject *error = KafkaError_new0(err, str);
-
-                excargs = PyTuple_New(1);
-                PyTuple_SetItem(excargs, 0, error);
-
-                exc = ((PyTypeObject *)KafkaException)->tp_new(
-                (PyTypeObject *)KafkaException, NULL, NULL);
-                exc->ob_type->tp_init(exc, excargs, NULL);
-
-                Py_DECREF(excargs);
-                Py_DECREF(error);
-
-                return exc;
-        }
-        else
-                Py_RETURN_NONE;
-}
-
-
-
-
 
 /****************************************************************************
  *
@@ -1403,8 +1376,8 @@ PyObject *c_topic_partition_result_to_py_dict(
                     rd_kafka_topic_partition_result_partition(partition_results[i]);
                 c_error = rd_kafka_topic_partition_result_error(partition_results[i]);
 
-                value = KafkaException_new_or_none(rd_kafka_error_code(c_error),
-                                                   rd_kafka_error_string(c_error));
+                value = KafkaError_new_or_None(rd_kafka_error_code(c_error),
+                                               rd_kafka_error_string(c_error));
                 key = c_part_to_py(c_topic_partition);
                
                 PyDict_SetItem(result, key, value);
