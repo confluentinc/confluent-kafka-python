@@ -54,11 +54,10 @@ from ._cluster import (DescribeClusterResult)  # noqa: F401
 from ._listoffsets import (OffsetSpec,  # noqa: F401
                            ListOffsetsResultInfo)
 
-from ._election import (ElectionType)  # noqa: F401
-
 from ._records import DeletedRecords  # noqa: F401
 
-from .._model import TopicCollection as _TopicCollection
+from .._model import (TopicCollection as _TopicCollection,
+                      ElectionType as _ElectionType)
 
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
@@ -552,7 +551,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_elect_leaders(election_type, partitions):
-        if not isinstance(election_type, ElectionType):
+        if not isinstance(election_type, _ElectionType):
             raise TypeError("Expected 'election_type' to be of type 'ElectionType'")
         if partitions is not None:
             if not isinstance(partitions, list):
@@ -1280,7 +1279,7 @@ class AdminClient (_AdminClientImpl):
     def elect_leaders(self, election_type, partitions=None, **kwargs):
         """
         Perform Preferred or Unclean leader election for
-        all the specified topic partitions.
+        all the specified partitions or all partitions in the cluster.
 
         :param ElectionType election_type: The type of election to perform.
         :param List[TopicPartition]|None partitions: The topic partitions to perform

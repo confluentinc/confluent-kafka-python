@@ -24,7 +24,8 @@ from ._model import (Node,  # noqa: F401
                      ConsumerGroupState,
                      TopicCollection,
                      TopicPartitionInfo,
-                     IsolationLevel)
+                     IsolationLevel,
+                     ElectionType)
 
 from .cimpl import (Producer,
                     Consumer,
