@@ -149,3 +149,22 @@ class IsolationLevel(Enum):
         if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
+
+
+class ElectionType(Enum):
+    """
+    Enumerates the different types of leader elections.
+
+    Values:
+    -------
+    """
+
+    #: Preferred election
+    PREFERRED = cimpl.ELECTION_TYPE_PREFERRED
+    #: Unclean election
+    UNCLEAN = cimpl.ELECTION_TYPE_UNCLEAN
+
+    def __lt__(self, other):
+        if self.__class__ != other.__class__:
+            return NotImplemented
+        return self.value < other.value

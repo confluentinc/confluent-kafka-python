@@ -6,11 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec, \
-    ElectionType
+    UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel, TopicCollection
+    IsolationLevel, TopicCollection, ElectionType
 import concurrent.futures
 
 
@@ -1230,3 +1229,7 @@ def test_elect_leaders():
 
     with pytest.raises(ValueError):
         a.elect_leaders(correct_election_type, [incorrect_partitions])
+
+    with pytest.raises(KafkaException):
+        a.elect_leaders(correct_election_type, [correct_partitions])\
+            .result(timeout=1)

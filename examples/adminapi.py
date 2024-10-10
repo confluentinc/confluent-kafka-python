@@ -19,14 +19,14 @@
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicPartition, ConsumerGroupState, TopicCollection,
-                             IsolationLevel)
+                             IsolationLevel, ElectionType)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
                                    UserScramCredentialUpsertion, UserScramCredentialDeletion,
-                                   OffsetSpec, ElectionType)
+                                   OffsetSpec)
 import sys
 import threading
 import logging
@@ -893,17 +893,24 @@ def example_elect_leaders(a, args):
     for topic, partition in zip(args[1::2], args[2::2]):
         partitions.append(TopicPartition(topic, int(partition)))
 
+    if len(partitions) == 0:
+        # When passing None as partitions, election is triggered for
+        # all partitions in the cluster
+        partitions = None
+
     f = a.elect_leaders(election_type, partitions)
     try:
         results = f.result()
-        for partition, exception in results.items():
-            if exception is None:
+        print(f"Elect leaders call returned {len(results)} result(s):")
+        for partition, error in results.items():
+            if error is None:
                 print(f"Leader Election Successful for topic: '{partition.topic}'" +
                       f" partition: '{partition.partition}'")
             else:
                 print(
                     "Leader Election Failed for topic: " +
-                    f"'{partition.topic}' partition: '{partition.partition}': {exception}")
+                    f"'{partition.topic}' partition: '{partition.partition}' " +
+                    f"error code: {error.code()} error message: {error.str()}")
     except KafkaException as e:
         print(f"Error electing leaders: {e}")
 
