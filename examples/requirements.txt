@@ -5,6 +5,6 @@ uvicorn
 six
 pyrsistent==0.16.1;python_version<"3.0"
 pyrsistent;python_version>"3.0"
-jsonschema<4.18.0
+jsonschema
 protobuf
 requests
