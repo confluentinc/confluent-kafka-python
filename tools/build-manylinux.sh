@@ -51,7 +51,7 @@ fi
 #
 
 echo "# Installing basic system dependencies"
-yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html libffi-devel
+yum install -y zlib-devel gcc-c++ python3 curl-devel perl-IPC-Cmd perl-Pod-Html
 
 echo "# Building librdkafka ${LIBRDKAFKA_VERSION}"
 $(dirname $0)/bootstrap-librdkafka.sh --require-ssl ${LIBRDKAFKA_VERSION} /usr
