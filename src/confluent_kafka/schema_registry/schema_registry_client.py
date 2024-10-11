@@ -841,6 +841,8 @@ class RegisteredSchema(object):
         self.subject = subject
         self.version = version
 
+    def __str__(self) -> str:
+        return self.schema.schema_str
 
 class SchemaReference(object):
     """
