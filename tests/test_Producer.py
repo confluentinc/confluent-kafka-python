@@ -97,6 +97,27 @@ def test_produce_headers():
         print('headers', type(headers), headers)
         p.produce('mytopic', value='somedata', key='a key', headers=headers)
         p.produce('mytopic', value='somedata', headers=headers)
+        def dcallback(err, msg):
+            # headers will always be converted to a list, with binary values,
+            # so adjust expectations accordingly
+            expected_headers = []
+            if type(headers) == dict:
+                for key in headers:
+                    value = headers[key]
+                    if type(value) == str:
+                        expected_headers.append((key, value.encode('utf-8')))
+                    else:
+                        expected_headers.append((key, value))
+            elif type(headers) == list:
+                for entry in headers:
+                    if type(entry[1]) == str:
+                        expected_headers.append((entry[0],entry[1].encode('utf-8')))
+                    else:
+                        expected_headers.append(entry)
+            # finally test that the expected headers are actually on the message
+            assert msg.headers() == expected_headers
+        p.produce('mytopic', value='somedata', headers=headers, on_delivery=dcallback)
+        p.flush()  # force timeout to occur and callback to be called
 
     with pytest.raises(TypeError):
         p.produce('mytopic', value='somedata', key='a key', headers=('a', 'b'))
