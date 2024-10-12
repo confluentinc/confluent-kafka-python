@@ -31,7 +31,7 @@ from . import (_MAGIC_BYTE,
 from .schema_registry_client import (Schema,
                                      SchemaReference)
 from confluent_kafka.serialization import SerializationError
-
+from .serde import BaseSerializer, BaseDeserializer
 
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
@@ -128,7 +128,7 @@ def _schema_to_str(file_descriptor):
     return base64.standard_b64encode(file_descriptor.serialized_pb).decode('ascii')
 
 
-class ProtobufSerializer(object):
+class ProtobufSerializer(BaseSerializer):
     """
     Serializer for Protobuf Message derived classes. Serialization format is Protobuf,
     with Confluent Schema Registry framing.
@@ -161,6 +161,15 @@ class ProtobufSerializer(object):
     |                                     |          | being serialized.                                    |
     |                                     |          |                                                      |
     |                                     |          | Defaults to False.                                   |
+    +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to use the latest subject version with       |
+    | ``use.latest.with.metadata``        | bool     | the given metadata.                                  |
+    |                                     |          |                                                      |
+    |                                     |          | WARNING: There is no check that the latest           |
+    |                                     |          | schema is backwards compatible with the object       |
+    |                                     |          | being serialized.                                    |
+    |                                     |          |                                                      |
+    |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether or not to skip known types when resolving    |
     | ``skip.known.types``                | bool     | schema dependencies.                                 |
@@ -231,14 +240,14 @@ class ProtobufSerializer(object):
     See Also:
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
     """  # noqa: E501
-    __slots__ = ['_auto_register', '_normalize_schemas', '_use_latest_version', '_skip_known_types',
-                 '_registry', '_known_subjects', '_msg_class', '_index_array', '_schema', '_schema_id',
-                 '_ref_reference_subject_func', '_subject_name_func', '_use_deprecated_format']
+    __slots__ = ['_skip_known_types', '_known_subjects', '_msg_class', '_index_array', '_schema', '_schema_id',
+                 '_ref_reference_subject_func', '_use_deprecated_format']
 
     _default_conf = {
         'auto.register.schemas': True,
         'normalize.schemas': False,
         'use.latest.version': False,
+        'use.latest.with.metadata': None,
         'skip.known.types': False,
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy,
@@ -246,6 +255,7 @@ class ProtobufSerializer(object):
     }
 
     def __init__(self, msg_type, schema_registry_client, conf=None):
+        super().__init__()
 
         if conf is None or 'use.deprecated.format' not in conf:
             raise RuntimeError(
@@ -271,6 +281,11 @@ class ProtobufSerializer(object):
             raise ValueError("use.latest.version must be a boolean value")
         if self._use_latest_version and self._auto_register:
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
+
+        self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
+        if (self._use_latest_with_metadata is not None and
+            not isinstance(self._use_latest_with_metadata, dict)):
+            raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._skip_known_types = conf_copy.pop('skip.known.types')
         if not isinstance(self._skip_known_types, bool):
@@ -443,7 +458,7 @@ class ProtobufSerializer(object):
             return fo.getvalue()
 
 
-class ProtobufDeserializer(object):
+class ProtobufDeserializer(BaseDeserializer):
     """
     Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
 
@@ -480,6 +495,7 @@ class ProtobufDeserializer(object):
     }
 
     def __init__(self, message_type, conf=None):
+        super().__init__()
 
         # Require use.deprecated.format to be explicitly configured
         # during a transitionary period since old/new format are

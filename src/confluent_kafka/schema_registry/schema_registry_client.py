@@ -226,10 +226,9 @@ class _SchemaCache(object):
         with self.lock:
             if subject_name in self.subject_schemas:
                 for schema in self.subject_schemas[subject_name]:
-                    schema_id = self.schema_index.get(schema, None)
+                    schema_id = self.schema_index.pop(schema, None)
                     if schema_id is not None:
                         self.schema_id_index.pop(schema_id, None)
-                    self.schema_index.pop(Schema, None)
 
                 del self.subject_schemas[subject_name]
 
@@ -586,6 +585,7 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
+        # TODO RAY - add cache
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
                                                  'latest'))
@@ -800,19 +800,23 @@ class Schema(object):
 
         references ([SchemaReference]): SchemaReferences used in this schema.
     """
-    __slots__ = ['schema_str', 'schema_type', 'references', '_hash']
+    __slots__ = ['schema_str', 'schema_type', 'references', 'metadata', 'ruleSet', '_hash']
 
-    def __init__(self, schema_str, schema_type, references=[]):
-        super(Schema, self).__init__()
-
+    def __init__(self, schema_str, schema_type, references=[], metadata=None, ruleSet=None):
         self.schema_str = schema_str
         self.schema_type = schema_type
         self.references = references
+        self.metadata = metadata
+        self.ruleSet = ruleSet
+        # TODO RAY - fix hash
         self._hash = hash(schema_str)
 
     def __eq__(self, other):
         return all([self.schema_str == other.schema_str,
-                    self.schema_type == other.schema_type])
+                    self.schema_type == other.schema_type,
+                    self.references == other.references,
+                    self.metadata == other.metadata,
+                    self.ruleSet == other.ruleSet])
 
     def __hash__(self):
         return self._hash
@@ -859,7 +863,6 @@ class SchemaReference(object):
     """
 
     def __init__(self, name, subject, version):
-        super(SchemaReference, self).__init__()
         self.name = name
         self.subject = subject
         self.version = version
