@@ -25,4 +25,3 @@ module = Extension('confluent_kafka.cimpl',
                             os.path.join(ext_dir, 'AdminTypes.c'),
                             os.path.join(ext_dir, 'Admin.c')])
 
-setup(ext_modules=[module])
