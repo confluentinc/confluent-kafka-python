@@ -13,10 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import confluent_kafka
 import struct
 import time
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
+
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
@@ -58,6 +58,8 @@ def verify_admin_acls(admin_client,
     for acl_binding, f in fs.items():
         f.result()  # trigger exception if there was an error
 
+    time.sleep(1)
+
     acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.PREFIXED,
@@ -83,6 +85,8 @@ def verify_admin_acls(admin_client,
         "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
                                                                          expected_acl_bindings)
 
+    time.sleep(1)
+
     #
     # Delete the ACLs with TOPIC and GROUP
     #
@@ -94,6 +98,9 @@ def verify_admin_acls(admin_client,
         assert deleted_acl_bindings == expected, \
             "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
                                                                              expected)
+
+    time.sleep(1)
+
     #
     # All the ACLs should have been deleted
     #
@@ -201,14 +208,14 @@ def test_basic_operations(kafka_cluster):
     # Second iteration: create topic.
     #
     for validate in (True, False):
-        our_topic = kafka_cluster.create_topic(topic_prefix,
-                                               {
-                                                   "num_partitions": num_partitions,
-                                                   "config": topic_config,
-                                                   "replication_factor": 1,
-                                               },
-                                               validate_only=validate
-                                               )
+        our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+                                                                    {
+                                                                        "num_partitions": num_partitions,
+                                                                        "config": topic_config,
+                                                                        "replication_factor": 1,
+                                                                    },
+                                                                    validate_only=validate
+                                                                    )
 
     admin_client = kafka_cluster.admin()
 
@@ -270,7 +277,7 @@ def test_basic_operations(kafka_cluster):
                     print('Read all the required messages: exiting')
                     break
             except ConsumeError as e:
-                if msg is not None and e.code == confluent_kafka.KafkaError._PARTITION_EOF:
+                if msg is not None and e.code == KafkaError._PARTITION_EOF:
                     print('Reached end of %s [%d] at offset %d' % (
                           msg.topic(), msg.partition(), msg.offset()))
                     eof_reached[(msg.topic(), msg.partition())] = True
@@ -344,6 +351,8 @@ def test_basic_operations(kafka_cluster):
 
     fs = admin_client.alter_configs([resource])
     fs[resource].result()  # will raise exception on failure
+
+    time.sleep(1)
 
     #
     # Read the config back again and verify.
