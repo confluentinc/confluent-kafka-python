@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limit
 
+import time
 from confluent_kafka import TopicPartition
 
 
@@ -30,10 +31,11 @@ def commit_and_check(consumer, topic, metadata):
 
 
 def test_consumer_topicpartition_metadata(kafka_cluster):
-    topic = kafka_cluster.create_topic("test_topicpartition")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_topicpartition")
     consumer_conf = {'group.id': 'pytest'}
 
     c = kafka_cluster.consumer(consumer_conf)
+    time.sleep(2)
 
     # Commit without any metadata.
     metadata = None
