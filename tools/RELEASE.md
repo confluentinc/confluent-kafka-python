@@ -11,7 +11,7 @@ v0.11.4rc3 for the 3rd v0.11.4 release candidate.
 With the addition of prebuilt binary wheels we make use of Semaphore CI
 to build OSX, Linux and Windows binaries which are uploaded to build's
 artifact directory. These artifacts are downloaded and then uploaded manually
-to PyPi.
+to PyPI.
 
 **Note**: Python package versions use a lowercase `rcN` suffix to indicate
           release candidates while librdkafka uses `-RCN`. The Python format
@@ -36,10 +36,10 @@ time line:
  * Create test tag to trigger CI builds, test.
  * Work out any release build issues.
  * librdkafka is released, update librdkafka version.
- * Create release candidate tag, wait for CI builds, deploy to test-PyPi.
+ * Create release candidate tag, wait for CI builds, deploy to test-PyPI.
  * Create PR, get it reviewed.
  * When it is time for final release, merge the PR.
- * On master, create release tag, wait for CI builds, deploy to PyPi.
+ * On master, create release tag, wait for CI builds, deploy to PyPI.
  * Update confluent.io docs.
  * Announce release.
 
@@ -290,7 +290,7 @@ With the PR merged to master, check out and update master:
 Now go back to 5.1 and start the final RELEASE ITERATION.
 
 
-### 5.6. Upload wheel packages to PyPi
+### 5.6. Upload wheel packages to PyPI
 
 **CANDIDATE ITERATION:** To upload binary packages to test.pypi.org, use:
 
@@ -301,7 +301,7 @@ Now go back to 5.1 and start the final RELEASE ITERATION.
     $ twine upload dl-v0.11.4rc1/*
 
 
-### 5.7. Upload source packages to PyPi
+### 5.7. Upload source packages to PyPI
 
 When uploading source packages make sure to have checked out the correct tag
 and that you do not have any uncommited modifications and that the `build/`
@@ -316,7 +316,19 @@ directory is empty.
     $ python setup.py sdist upload
 
 
-### 5.8. Verify installation from PyPi
+### 5.8. Verify installation from PyPI
+
+#### New way
+
+Use `tools/test-released-wheels` script to test installation from PyPI
+
+**CANDIDATE ITERATION:**
+    $ ./tools/test-released-wheels 0.11.4rc1 test
+
+**RELEASE ITERATION:**
+    $ ./tools/test-released-wheels 0.11.4
+
+#### Old way
 
 In the same virtualenv as created above:
 
