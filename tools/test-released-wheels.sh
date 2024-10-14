@@ -15,7 +15,7 @@ if ! command -v pyenv &> /dev/null; then
 fi
 
 # List of Python versions to run the code with
-python_versions=("3.6.15" "3.7.17" "3.8.18" "3.9.18" "3.10.11" "3.11.7" "3.12.1")
+python_versions=("3.6.15" "3.7.17" "3.8.18" "3.9.18" "3.10.11" "3.11.7" "3.12.1" "3.13.0")
 
 eval "$(pyenv init -)"
 
@@ -44,7 +44,7 @@ for version in "${python_versions[@]}"; do
         pip install --index-url https://test.pypi.org/simple/ confluent_kafka==$1 > /dev/null 2>&1
     else
         echo "Installing confluent_kafka"
-        pip install confluent_kafka==$1 > /dev/null 2>&1
+        pip install confluent_kafka==$1
     fi
 
     echo "Testing confluent_kafka"    
