@@ -45,9 +45,7 @@ source $venv/bin/activate
 
 pip install -U pip
 
-pip install -v .
-
-pip install -r tests/soak/requirements.txt
+pip install -v .[soaktest]
 
 popd # ..python
 

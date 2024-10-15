@@ -13,7 +13,7 @@ set WHEELHOUSE=%4
 if [%WHEELHOUSE%]==[] goto usage
 echo on
 
-set CIBW_BUILD=cp36-%BW_ARCH% cp37-%BW_ARCH% cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH% cp312-%BW_ARCH% cp313-%BW_ARCH%
+set CIBW_BUILD=cp37-%BW_ARCH% cp38-%BW_ARCH% cp39-%BW_ARCH% cp310-%BW_ARCH% cp311-%BW_ARCH% cp312-%BW_ARCH% cp313-%BW_ARCH%
 set CIBW_BEFORE_BUILD=python -m pip install delvewheel==1.1.4
 set CIBW_TEST_REQUIRES=pytest
 set CIBW_TEST_COMMAND=pytest {project}\tests\test_Producer.py
