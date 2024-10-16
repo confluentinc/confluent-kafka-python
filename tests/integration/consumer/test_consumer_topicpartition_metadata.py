@@ -35,7 +35,8 @@ def test_consumer_topicpartition_metadata(kafka_cluster):
     consumer_conf = {'group.id': 'pytest'}
 
     c = kafka_cluster.consumer(consumer_conf)
-    time.sleep(2)
+    c.subscribe([topic])
+    time.sleep(5)
 
     # Commit without any metadata.
     metadata = None
