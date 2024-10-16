@@ -5,7 +5,7 @@ pytest==4.6.9;python_version<="3.0"
 pytest>=6.0.0;python_version>="3.0"
 pytest-timeout
 requests-mock
-trivup>=0.8.3
+tests/trivup/trivup-0.12.6.tar.gz
 fastavro<1.8.0;python_version=="3.7"
 fastavro>=1.8.4;python_version>"3.7"
 fastavro
