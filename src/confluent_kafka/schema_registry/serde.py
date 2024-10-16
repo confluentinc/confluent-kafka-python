@@ -19,32 +19,11 @@
 __all__ = ['BaseSerializer',
            'BaseDeserializer']
 
-from enum import Enum
-from typing import Callable
-
 from confluent_kafka.schema_registry import RegisteredSchema
+from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
+    FieldTransformer
 from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext
-
-
-FieldTransform = Callable[[object, object, object], object]
-#FieldTransform = Callable[[RuleContext, FieldContext, object], object]
-
-
-FieldTransformer = Callable[[object, FieldTransform, object], object]
-#FieldTransformer = Callable[[RuleContext, FieldTransform, object], object]
-
-
-class RuleMode(str, Enum):
-    UPGRADE = "UPGRADE"
-    DOWNGRADE = "DOWNGRADE"
-    UPDOWN = "UPDOWN"
-    READ = "READ"
-    WRITE = "WRITE"
-    WRITEREAD = "WRITEREAD"
-
-    def __str__(self) -> str:
-        return str(self.value)
 
 
 class BaseSerde(object):
@@ -62,7 +41,7 @@ class BaseSerde(object):
 
     def _execute_rules(self, ctx: SerializationContext, subject: str,
         rule_mode: RuleMode, source: RegisteredSchema, target: RegisteredSchema,
-        message: object, fieldTransformer: FieldTransformer) -> object:
+        message: object, field_transformer: FieldTransformer) -> object:
         # TODO
         return message
 

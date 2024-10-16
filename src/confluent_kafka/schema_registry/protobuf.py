@@ -397,7 +397,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message, ctx):
+    def __call__(self, message, ctx=None):
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -607,7 +607,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         return msg_index
 
-    def __call__(self, data, ctx):
+    def __call__(self, data, ctx=None):
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.

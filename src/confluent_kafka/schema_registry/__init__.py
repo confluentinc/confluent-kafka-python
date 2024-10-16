@@ -15,7 +15,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from .schema_registry_client import (RegisteredSchema,
+from .schema_registry_client import (Metadata,
+                                     MetadataProperties,
+                                     MetadataTags,
+                                     RegisteredSchema,
+                                     Rule,
+                                     RuleKind,
+                                     RuleMode,
+                                     RuleParams,
                                      Schema,
                                      SchemaRegistryClient,
                                      SchemaRegistryError,
@@ -23,7 +30,14 @@ from .schema_registry_client import (RegisteredSchema,
 
 _MAGIC_BYTE = 0
 
-__all__ = ["RegisteredSchema",
+__all__ = ["Metadata",
+           "MetadataProperties",
+           "MetadataTags",
+           "RegisteredSchema",
+           "Rule",
+           "RuleKind",
+           "RuleMode",
+           "RuleParams",
            "Schema",
            "SchemaRegistryClient",
            "SchemaRegistryError",

@@ -25,11 +25,9 @@ from fastavro import (parse_schema,
 
 from . import (_MAGIC_BYTE,
                Schema,
-               topic_subject_name_strategy, RegisteredSchema)
-from confluent_kafka.serialization import (Deserializer,
-                                           SerializationError,
-                                           Serializer)
-from .serde import BaseSerializer, BaseDeserializer, RuleMode
+               topic_subject_name_strategy, RegisteredSchema, RuleMode)
+from confluent_kafka.serialization import (SerializationError)
+from .serde import BaseSerializer, BaseDeserializer
 
 
 class _ContextStringIO(BytesIO):
@@ -264,7 +262,7 @@ class AvroSerializer(BaseSerializer):
         self._schema_name = schema_name
         self._parsed_schema = parsed_schema
 
-    def __call__(self, obj, ctx):
+    def __call__(self, obj, ctx=None):
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -412,7 +410,7 @@ class AvroDeserializer(BaseDeserializer):
         if not isinstance(self._return_record_name, bool):
             raise ValueError("return_record_name must be a boolean value")
 
-    def __call__(self, data, ctx):
+    def __call__(self, data, ctx=None):
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.

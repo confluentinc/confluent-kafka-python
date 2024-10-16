@@ -27,9 +27,7 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              topic_subject_name_strategy)
 from confluent_kafka.schema_registry.serde import BaseSerializer, \
     BaseDeserializer
-from confluent_kafka.serialization import (SerializationError,
-                                           Deserializer,
-                                           Serializer)
+from confluent_kafka.serialization import (SerializationError)
 
 
 class _ContextStringIO(BytesIO):
@@ -235,7 +233,7 @@ class JSONSerializer(BaseSerializer):
         self._schema_name = schema_name
         self._parsed_schema = schema_dict
 
-    def __call__(self, obj, ctx):
+    def __call__(self, obj, ctx=None):
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -359,7 +357,7 @@ class JSONDeserializer(BaseDeserializer):
 
         self._from_dict = from_dict
 
-    def __call__(self, data, ctx):
+    def __call__(self, data, ctx=None):
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
