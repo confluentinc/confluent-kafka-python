@@ -829,14 +829,6 @@ class SchemaRegistryClient(object):
         return response['is_compatible']
 
 
-FieldTransform = Callable[[object, object, object], object]
-#FieldTransform = Callable[[RuleContext, FieldContext, object], object]
-
-
-FieldTransformer = Callable[[object, FieldTransform, object], object]
-#FieldTransformer = Callable[[RuleContext, FieldTransform, object], object]
-
-
 T = TypeVar("T")
 
 

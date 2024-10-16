@@ -19,11 +19,89 @@
 __all__ = ['BaseSerializer',
            'BaseDeserializer']
 
+from enum import Enum, IntEnum
+from typing import Callable
+
 from confluent_kafka.schema_registry import RegisteredSchema
-from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
-    FieldTransformer
+from confluent_kafka.schema_registry.schema_registry_client import RuleMode
 from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext
+
+
+class RuleContext(object):
+    __slots__ = ['ctx', 'subject', 'rule_mode', 'source', 'target', 'message', 'field_transformer']
+
+    def __init__(self, ctx, subject, rule_mode, source, target, message, field_transformer):
+        self.ctx = ctx
+        self.subject = subject
+        self.rule_mode = rule_mode
+        self.source = source
+        self.target = target
+        self.message = message
+        self.field_transformer = field_transformer
+
+
+class RuleBase(object):
+    pass
+
+
+class RuleExecutor(RuleBase):
+    pass
+
+
+class FieldRuleExecutor(RuleExecutor):
+    pass
+
+
+class FieldContext(object):
+    pass
+
+
+class FieldType(IntEnum):
+    TYPE_RECORD = 1
+    TYPE_ENUM = 2
+    TYPE_ARRAY = 3
+    TYPE_MAP = 4
+    TYPE_COMBINED = 5
+    TYPE_FIXED = 6
+    TYPE_STRING = 7
+    TYPE_BYTES = 8
+    TYPE_INT = 9
+    TYPE_LONG = 10
+    TYPE_FLOAT = 11
+    TYPE_DOUBLE = 12
+    TYPE_BOOLEAN = 13
+    TYPE_NULL = 14
+
+
+FieldTransform = Callable[[RuleContext, FieldContext, object], object]
+
+
+FieldTransformer = Callable[[RuleContext, FieldTransform, object], object]
+
+
+class RuleAction(object):
+    pass
+
+
+class ErrorAction(RuleAction):
+    pass
+
+
+class NoneAction(RuleAction):
+    pass
+
+
+class RuleError(Exception):
+    pass
+
+
+class RuleConditionError(RuleError):
+    pass
+
+
+class Migration(object):
+    pass
 
 
 class BaseSerde(object):
