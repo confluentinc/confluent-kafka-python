@@ -1,17 +1,8 @@
 # core test requirements
 urllib3<2.0.0;python_version<="3.7"
-urllib3
+urllib3 >= 2.0.0,<3; python_version > "3.7"
 flake8
 pytest
 pytest-timeout
 requests-mock
 trivup>=0.8.3
-
-# other requirements
-fastavro<1.8.0;python_version=="3.7"
-fastavro>=1.8.4;python_version>"3.7"
-fastavro
-requests
-avro>=1.11.1,<2
-jsonschema
-protobuf>=3.6.0

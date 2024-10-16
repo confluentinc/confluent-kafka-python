@@ -15,7 +15,7 @@ If librdkafka is installed in a non-standard location provide the include and li
 
 ## Generate Documentation
 
-Install sphinx and sphinx_rtd_theme packages:
+Install docs dependencies:
 
     $ pip install .[docs]
 

@@ -5,9 +5,7 @@
 #
 set -e
 
-pip install -r requirements/requirements-docs.txt
-pip install -U protobuf
-pip install -r requirements/requirements-tests.txt
+pip install -r requirements/requirements-tests-install.txt
 pip install -U build
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
@@ -21,6 +19,7 @@ python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     flake8 --exclude ./_venv,*_pb2.py
+    pip install -r requirements/requirements-docs.txt
     make docs
     python -m pytest --timeout 1200 --ignore=dest
 else

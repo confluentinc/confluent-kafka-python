@@ -16,7 +16,7 @@ classifiers = [
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.7"
-dynamic = ["optional-dependencies","dependencies"]
+dynamic = ["dependencies", "optional-dependencies"]
 
 [[project.authors]]
 name = "Confluent Inc."
@@ -34,8 +34,39 @@ optional-dependencies.schemaregistry = { file = ["requirements/requirements-sche
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
-optional-dependencies.dev = { file = ["requirements/requirements-tests.txt", "requirements/requirements-docs.txt", "requirements/requirements-examples.txt"] }
-optional-dependencies.docs = { file = ["requirements/requirements-docs.txt"] }
-optional-dependencies.tests = { file = ["requirements/requirements-tests.txt"] }
+optional-dependencies.src = { file = [
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.dev = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.docs = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.tests = { file = [
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
 optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
 optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
+optional-dependencies.all = { file = [
+    "requirements/requirements-soaktest.txt",
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }

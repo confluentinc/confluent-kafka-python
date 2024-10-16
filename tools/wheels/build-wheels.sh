@@ -33,14 +33,13 @@ ARCH=${ARCH:-x64}
 case $OSTYPE in
     linux*)
         os=linux
-        # Need to set up env vars (in docker) so that setup.py
-        # finds librdkafka.
+        # Need to set up env vars (in docker) so that cibuildwheel finds librdkafka.
         lib_dir=dest/runtimes/linux-$ARCH/native
         export CIBW_ENVIRONMENT="CFLAGS=-I\$PWD/dest/build/native/include LDFLAGS=-L\$PWD/$lib_dir LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:\$PWD/$lib_dir"
         ;;
     darwin*)
         os=macos
-        # Need to set up env vars so that setup.py finds librdkafka.
+        # Need to set up env vars so that cibuildwheel finds librdkafka.
         lib_dir=dest/runtimes/osx-$ARCH/native
         export CFLAGS="-I${PWD}/dest/build/native/include"
         export LDFLAGS="-L${PWD}/$lib_dir"
