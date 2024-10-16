@@ -254,7 +254,7 @@ class ProtobufSerializer(BaseSerializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(self, msg_type, schema_registry_client, conf=None):
+    def __init__(self, msg_type, schema_registry_client, conf=None, rule_registry=None):
         super().__init__()
 
         if conf is None or 'use.deprecated.format' not in conf:
@@ -318,6 +318,7 @@ class ProtobufSerializer(BaseSerializer):
                              .format(", ".join(conf_copy.keys())))
 
         self._registry = schema_registry_client
+        self._rule_registry = rule_registry
         self._schema_id = None
         self._known_subjects = set()
         self._msg_class = msg_type
@@ -397,7 +398,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message, ctx):
+    def __call__(self, message, ctx=None):
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -494,8 +495,11 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(self, message_type, conf=None):
+    def __init__(self, message_type, conf=None, schema_registry_client=None, rule_registry=None):
         super().__init__()
+
+        self._registry = schema_registry_client
+        self._rule_registry = rule_registry
 
         # Require use.deprecated.format to be explicitly configured
         # during a transitionary period since old/new format are
@@ -607,7 +611,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         return msg_index
 
-    def __call__(self, data, ctx):
+    def __call__(self, data, ctx=None):
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.

@@ -131,7 +131,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     """
     # request paths
-    schemas = re.compile("/schemas/ids/([0-9]*)$")
+    schemas = re.compile("/schemas/ids/([0-9]*)?(.*)$")
     subjects = re.compile("/subjects/?(.*)$")
     subject_versions = re.compile("/subjects/(.*)/versions/?(.*)$")
     compatibility = re.compile("/config/?(.*)$")
