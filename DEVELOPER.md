@@ -15,9 +15,9 @@ If librdkafka is installed in a non-standard location provide the include and li
 
 ## Generate Documentation
 
-Install doc dependencies:
+Install docs dependencies:
 
-    $ pip install .[doc]
+    $ pip install .[docs]
 
 Build HTML docs:
 

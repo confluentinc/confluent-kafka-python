@@ -1,0 +1,9 @@
+-r requirements.txt
+-r requirements-schemaregistry.txt
+-r requirements-avro.txt
+-r requirements-protobuf.txt
+-r requirements-json.txt
+-r requirements-examples.txt
+-r requirements-tests.txt
+-r requirements-docs.txt
+-r requirements-soaktest.txt
