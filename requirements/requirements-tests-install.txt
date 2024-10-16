@@ -1,0 +1,5 @@
+-r requirements-tests.txt
+-r requirements-schemaregistry.txt
+-r requirements-avro.txt
+-r requirements-protobuf.txt
+-r requirements-json.txt

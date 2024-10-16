@@ -4,6 +4,7 @@
 
 v2.6.1 is a maintenance release with the following fixes and enhancements:
 
+ - Migrated build system from `setup.py` to `pyproject.toml` in accordance with `PEP 517` and `PEP 518`, improving project configuration, build system requirements management, and compatibility with modern Python packaging tools like `pip` and `build`.
  - Added an example for OAUTH OIDC producer with support for confluent cloud (#1769, @sarwarbhuiyan)
 
 confluent-kafka-python is based on librdkafka v2.6.1, see the
