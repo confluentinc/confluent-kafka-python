@@ -36,7 +36,7 @@
 
 
 /**
- * @brief confluent-kafka-python version, must match that of setup.py.
+ * @brief confluent-kafka-python version, must match that of pyproject.toml.
  *
  * Hex version representation:
  *  0xMMmmRRPP

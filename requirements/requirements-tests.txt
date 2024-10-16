@@ -1,0 +1,9 @@
+pytest
+pytest-timeout
+flake8
+requests_mock
+build
+distutils; python_version <= "3.7"
+trivup >= 0.8.3
+urllib3 < 2.0.0; python_version <= "3.7"
+urllib3 >= 2.0.0,<3; python_version > "3.7"
