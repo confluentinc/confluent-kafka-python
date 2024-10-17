@@ -173,7 +173,8 @@ class JSONSerializer(BaseSerializer):
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
+    def __init__(self, schema_str, schema_registry_client,
+        to_dict=None, conf=None, rule_registry=None):
         super().__init__()
         self._are_references_provided = False
         if isinstance(schema_str, str):
@@ -185,6 +186,7 @@ class JSONSerializer(BaseSerializer):
             raise TypeError('You must pass either str or Schema')
 
         self._registry = schema_registry_client
+        self._rule_registry = rule_registry
         self._schema_id = None
         self._known_subjects = set()
 
@@ -327,7 +329,8 @@ class JSONDeserializer(BaseDeserializer):
 
     __slots__ = ['_parsed_schema', '_from_dict', '_are_references_provided', '_schema']
 
-    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
+    def __init__(self, schema_str, from_dict=None, schema_registry_client=None,
+        conf=None, rule_registry=None):
         super().__init__()
         self._are_references_provided = False
         if isinstance(schema_str, str):
@@ -350,6 +353,7 @@ class JSONDeserializer(BaseDeserializer):
         self._parsed_schema = json.loads(schema.schema_str) if schema else None
         self._schema = schema
         self._registry = schema_registry_client
+        self._rule_registry = rule_registry
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature"

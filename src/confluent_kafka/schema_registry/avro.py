@@ -191,7 +191,8 @@ class AvroSerializer(BaseSerializer):
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self, schema_registry_client, schema_str, to_dict=None, conf=None):
+    def __init__(self, schema_registry_client, schema_str,
+        to_dict=None, conf=None, rule_registry=None):
         super().__init__()
         if isinstance(schema_str, str):
             schema = _schema_loads(schema_str)
@@ -201,6 +202,7 @@ class AvroSerializer(BaseSerializer):
             raise TypeError('You must pass either schema string or schema object')
 
         self._registry = schema_registry_client
+        self._rule_registry = rule_registry
         self._known_subjects = set()
 
         if to_dict is not None and not callable(to_dict):
@@ -378,7 +380,8 @@ class AvroDeserializer(BaseDeserializer):
 
     __slots__ = ['_reader_schema', '_from_dict', '_writer_schemas', '_return_record_name', '_schema']
 
-    def __init__(self, schema_registry_client, schema_str=None, from_dict=None, return_record_name=False):
+    def __init__(self, schema_registry_client, schema_str=None,
+        from_dict=None, return_record_name=False, conf= None, rule_registry=None):
         super().__init__()
         schema = None
         if schema_str is not None:
@@ -391,6 +394,7 @@ class AvroDeserializer(BaseDeserializer):
 
         self._schema = schema
         self._registry = schema_registry_client
+        self._rule_registry = rule_registry
         self._writer_schemas = {}
 
         if schema:

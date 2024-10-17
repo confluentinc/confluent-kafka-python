@@ -20,10 +20,11 @@ __all__ = ['BaseSerializer',
            'BaseDeserializer']
 
 from enum import IntEnum
-from typing import Callable
+from typing import Callable, List, Optional
 
 from confluent_kafka.schema_registry import RegisteredSchema
-from confluent_kafka.schema_registry.schema_registry_client import RuleMode
+from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
+    Rule
 from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext
 
@@ -106,7 +107,8 @@ class Migration(object):
 
 class BaseSerde(object):
     __slots__ = ['_use_latest_version', '_use_latest_with_metadata',
-                 '_registry', '_subject_name_func']
+                 '_registry', '_rule_registry', '_subject_name_func']
+
 
     def _get_reader_schema(self, subject: str) -> RegisteredSchema:
         latest_schema = None
@@ -122,7 +124,7 @@ class BaseSerde(object):
         message: object, field_transformer: FieldTransformer) -> object:
         if message is None or target is None:
             return None
-        rules = None
+        rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
             if target.schema.rule_set is not None:
                 rules = target.schema.rule_set.migration_rules
@@ -131,6 +133,27 @@ class BaseSerde(object):
                 rules = source.schema.rule_set.migration_rules
                 if rules is not None:
                     rules = rules[:].reverse()
+
+        if rules is None:
+            return message
+
+        for rule in rules:
+            if rule.disabled:
+                continue
+            if rule.mode == RuleMode.WRITEREAD:
+                if rule_mode != RuleMode.READ and rule_mode != RuleMode.WRITE:
+                    continue
+                continue
+            elif rule.mode == RuleMode.UPDOWN:
+                if rule_mode != RuleMode.UPGRADE and rule_mode != RuleMode.DOWNGRADE:
+                    continue
+            elif rule.mode != rule_mode:
+                continue
+
+            ctx = RuleContext(ctx, subject, rule_mode, source, target, message, field_transformer)
+            #rule_executor = getRuleExecutor(self._rule_registry, rule.type.upper())
+
+
 
         # TODO
         return message
