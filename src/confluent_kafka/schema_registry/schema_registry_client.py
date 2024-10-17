@@ -23,8 +23,8 @@ from attrs import field as _attrs_field
 from collections import defaultdict
 from enum import Enum
 from threading import Lock
-from typing import Callable, Literal, List, Union, Dict, Any, Type, TypeVar, \
-    cast
+from typing import List, Dict, Any, Type, TypeVar, \
+    cast, Optional
 
 from requests import (Session,
                       utils)
@@ -53,14 +53,6 @@ except NameError:
 
 log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
-
-
-class Unset:
-    def __bool__(self) -> Literal[False]:
-        return False
-
-
-UNSET: Unset = Unset()
 
 
 class _RestClient(object):
@@ -470,11 +462,11 @@ class SchemaRegistryClient(object):
             SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version'])
             for ref in response.get('references', [])
         ]
-        metadata: Union[Unset, Dict[str, Any]] = response.get("metadata", UNSET)
-        if not isinstance(metadata, Unset):
+        metadata: Optional[Dict[str, Any]] = response.get("metadata", None)
+        if not metadata is None:
             schema.metadata = Metadata.from_dict(metadata)
-        rule_set: Union[Unset, Dict[str, Any]] = response.get("ruleSet", UNSET)
-        if not isinstance(rule_set, Unset):
+        rule_set: Optional[Dict[str, Any]] = response.get("ruleSet", None)
+        if not rule_set is None:
             schema.rule_set = RuleSet.from_dict(rule_set)
 
         self._cache.set(schema_id, schema)
@@ -536,11 +528,11 @@ class SchemaRegistryClient(object):
             subject=response['subject'],
             version=response['version']
         )
-        metadata: Union[Unset, Dict[str, Any]] = response.get("metadata", UNSET)
-        if not isinstance(metadata, Unset):
+        metadata: Optional[Dict[str, Any]] = response.get("metadata", None)
+        if not metadata is None:
             registered_schema.schema.metadata = Metadata.from_dict(metadata)
-        rule_set: Union[Unset, Dict[str, Any]] = response.get("ruleSet", UNSET)
-        if not isinstance(rule_set, Unset):
+        rule_set: Optional[Dict[str, Any]] = response.get("ruleSet", None)
+        if not rule_set is None:
             registered_schema.schema.rule_set = RuleSet.from_dict(rule_set)
 
         self._metadata_cache.set(subject_name, schema, None, registered_schema)
@@ -628,11 +620,11 @@ class SchemaRegistryClient(object):
                                               ]),
                                 subject=response['subject'],
                                 version=response['version'])
-        metadata: Union[Unset, Dict[str, Any]] = response.get("metadata", UNSET)
-        if not isinstance(metadata, Unset):
+        metadata: Optional[Dict[str, Any]] = response.get("metadata", None)
+        if not metadata is None:
             registered_schema.schema.metadata = Metadata.from_dict(metadata)
-        rule_set: Union[Unset, Dict[str, Any]] = response.get("ruleSet", UNSET)
-        if not isinstance(rule_set, Unset):
+        rule_set: Optional[Dict[str, Any]] = response.get("ruleSet", None)
+        if not rule_set is None:
             registered_schema.schema.rule_set = RuleSet.from_dict(rule_set)
         # TODO RAY - add cache
         return registered_schema
@@ -681,11 +673,11 @@ class SchemaRegistryClient(object):
             subject=response['subject'],
             version=response['version']
         )
-        metadata: Union[Unset, Dict[str, Any]] = response.get("metadata", UNSET)
-        if not isinstance(metadata, Unset):
+        metadata: Optional[Dict[str, Any]] = response.get("metadata", None)
+        if not metadata is None:
             registered_schema.schema.metadata = Metadata.from_dict(metadata)
-        rule_set: Union[Unset, Dict[str, Any]] = response.get("ruleSet", UNSET)
-        if not isinstance(rule_set, Unset):
+        rule_set: Optional[Dict[str, Any]] = response.get("ruleSet", None)
+        if not rule_set is None:
             registered_schema.schema.rule_set = RuleSet.from_dict(rule_set)
         self._metadata_cache.set(subject_name, None, version, registered_schema)
 
@@ -889,40 +881,37 @@ class RuleParams:
 
 @_attrs_define
 class Rule:
-    name: Union[Unset, str] = UNSET
-    doc: Union[Unset, str] = UNSET
-    kind: Union[Unset, RuleKind] = UNSET
-    mode: Union[Unset, RuleMode] = UNSET
-    type: Union[Unset, str] = UNSET
-    tags: Union[Unset, List[str]] = UNSET
-    params: Union[Unset, "RuleParams"] = UNSET
-    expr: Union[Unset, str] = UNSET
-    on_success: Union[Unset, str] = UNSET
-    on_failure: Union[Unset, str] = UNSET
-    disabled: Union[Unset, bool] = UNSET
-    additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
+    name: Optional[str]
+    doc: Optional[str]
+    kind: Optional[RuleKind]
+    mode: Optional[RuleMode]
+    type: Optional[str]
+    tags: Optional[List[str]]
+    params: Optional[RuleParams]
+    expr: Optional[str]
+    on_success: Optional[str]
+    on_failure: Optional[str]
+    disabled: Optional[bool]
 
     def to_dict(self) -> Dict[str, Any]:
         name = self.name
 
         doc = self.doc
 
-        kind: Union[Unset, str] = UNSET
-        if not isinstance(self.kind, Unset):
+        kind: Optional[str] = None
+        if not self.kind is None:
             kind = self.kind.value
 
-        mode: Union[Unset, str] = UNSET
-        if not isinstance(self.mode, Unset):
+        mode: Optional[str] = None
+        if not self.mode is None:
             mode = self.mode.value
 
         type = self.type
 
-        tags: Union[Unset, List[str]] = UNSET
-        if not isinstance(self.tags, Unset):
-            tags = self.tags
+        tags = self.tags
 
-        params: Union[Unset, Dict[str, Any]] = UNSET
-        if not isinstance(self.params, Unset):
+        params: Optional[Dict[str, Any]] = None
+        if not self.params is None:
             params = self.params.to_dict()
 
         expr = self.expr
@@ -934,29 +923,28 @@ class Rule:
         disabled = self.disabled
 
         field_dict: Dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
         field_dict.update({})
-        if name is not UNSET:
+        if name is not None:
             field_dict["name"] = name
-        if doc is not UNSET:
+        if doc is not None:
             field_dict["doc"] = doc
-        if kind is not UNSET:
+        if kind is not None:
             field_dict["kind"] = kind
-        if mode is not UNSET:
+        if mode is not None:
             field_dict["mode"] = mode
-        if type is not UNSET:
+        if type is not None:
             field_dict["type"] = type
-        if tags is not UNSET:
+        if tags is not None:
             field_dict["tags"] = tags
-        if params is not UNSET:
+        if params is not None:
             field_dict["params"] = params
-        if expr is not UNSET:
+        if expr is not None:
             field_dict["expr"] = expr
-        if on_success is not UNSET:
+        if on_success is not None:
             field_dict["onSuccess"] = on_success
-        if on_failure is not UNSET:
+        if on_failure is not None:
             field_dict["onFailure"] = on_failure
-        if disabled is not UNSET:
+        if disabled is not None:
             field_dict["disabled"] = disabled
 
         return field_dict
@@ -965,42 +953,36 @@ class Rule:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
 
         d = src_dict.copy()
-        name = d.pop("name", UNSET)
+        name = d.pop("name", None)
 
-        doc = d.pop("doc", UNSET)
+        doc = d.pop("doc", None)
 
-        _kind = d.pop("kind", UNSET)
-        kind: Union[Unset, RuleKind]
-        if isinstance(_kind, Unset):
-            kind = UNSET
-        else:
+        _kind = d.pop("kind", None)
+        kind: Optional[RuleKind] = None
+        if not _kind is None:
             kind = RuleKind(_kind)
 
-        _mode = d.pop("mode", UNSET)
-        mode: Union[Unset, RuleMode]
-        if isinstance(_mode, Unset):
-            mode = UNSET
-        else:
+        _mode = d.pop("mode", None)
+        mode: Optional[RuleMode] = None
+        if not _mode is None:
             mode = RuleMode(_mode)
 
-        type = d.pop("type", UNSET)
+        type = d.pop("type", None)
 
-        tags = cast(List[str], d.pop("tags", UNSET))
+        tags = cast(List[str], d.pop("tags", None))
 
-        _params = d.pop("params", UNSET)
-        params: Union[Unset, RuleParams]
-        if isinstance(_params, Unset):
-            params = UNSET
-        else:
+        _params: Optional[Dict[str, Any]] = d.pop("params", None)
+        params: Optional[RuleParams] = None
+        if not _params is None:
             params = RuleParams.from_dict(_params)
 
-        expr = d.pop("expr", UNSET)
+        expr = d.pop("expr", None)
 
-        on_success = d.pop("onSuccess", UNSET)
+        on_success = d.pop("onSuccess", None)
 
-        on_failure = d.pop("onFailure", UNSET)
+        on_failure = d.pop("onFailure", None)
 
-        disabled = d.pop("disabled", UNSET)
+        disabled = d.pop("disabled", None)
 
         rule = cls(
             name=name,
@@ -1016,53 +998,34 @@ class Rule:
             disabled=disabled,
         )
 
-        rule.additional_properties = d
         return rule
-
-    @property
-    def additional_keys(self) -> List[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
 
 
 @_attrs_define
 class RuleSet:
-    migration_rules: Union[Unset, List["Rule"]] = UNSET
-    domain_rules: Union[Unset, List["Rule"]] = UNSET
-    additional_properties: Dict[str, Any] = _attrs_field(init=False, factory=dict)
+    migration_rules: Optional[List["Rule"]]
+    domain_rules: Optional[List["Rule"]]
 
     def to_dict(self) -> Dict[str, Any]:
-        migration_rules: Union[Unset, List[Dict[str, Any]]] = UNSET
-        if not isinstance(self.migration_rules, Unset):
+        migration_rules: Optional[List[Dict[str, Any]]] = None
+        if not self.migration_rules is None:
             migration_rules = []
             for migration_rules_item_data in self.migration_rules:
                 migration_rules_item = migration_rules_item_data.to_dict()
                 migration_rules.append(migration_rules_item)
 
-        domain_rules: Union[Unset, List[Dict[str, Any]]] = UNSET
-        if not isinstance(self.domain_rules, Unset):
+        domain_rules: Optional[List[Dict[str, Any]]] = None
+        if not self.domain_rules is None:
             domain_rules = []
             for domain_rules_item_data in self.domain_rules:
                 domain_rules_item = domain_rules_item_data.to_dict()
                 domain_rules.append(domain_rules_item)
 
         field_dict: Dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
         field_dict.update({})
-        if migration_rules is not UNSET:
+        if migration_rules is not None:
             field_dict["migrationRules"] = migration_rules
-        if domain_rules is not UNSET:
+        if domain_rules is not None:
             field_dict["domainRules"] = domain_rules
 
         return field_dict
@@ -1072,17 +1035,15 @@ class RuleSet:
 
         d = src_dict.copy()
         migration_rules = []
-        _migration_rules = d.pop("migrationRules", UNSET)
+        _migration_rules = d.pop("migrationRules", None)
         for migration_rules_item_data in _migration_rules or []:
             migration_rules_item = Rule.from_dict(migration_rules_item_data)
-
             migration_rules.append(migration_rules_item)
 
         domain_rules = []
-        _domain_rules = d.pop("domainRules", UNSET)
+        _domain_rules = d.pop("domainRules", None)
         for domain_rules_item_data in _domain_rules or []:
             domain_rules_item = Rule.from_dict(domain_rules_item_data)
-
             domain_rules.append(domain_rules_item)
 
         rule_set = cls(
@@ -1090,33 +1051,16 @@ class RuleSet:
             domain_rules=domain_rules,
         )
 
-        rule_set.additional_properties = d
         return rule_set
-
-    @property
-    def additional_keys(self) -> List[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
 
 
 @_attrs_define
 class MetadataTags:
-    additional_properties: Dict[str, List[str]] = _attrs_field(init=False, factory=dict)
+    tags: Dict[str, List[str]] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         field_dict: Dict[str, Any] = {}
-        for prop_name, prop in self.additional_properties.items():
+        for prop_name, prop in self.tags.items():
             field_dict[prop_name] = prop
 
         return field_dict
@@ -1126,39 +1070,23 @@ class MetadataTags:
         d = src_dict.copy()
         metadata_tags = cls()
 
-        additional_properties = {}
+        tags = {}
         for prop_name, prop_dict in d.items():
-            additional_property = cast(List[str], prop_dict)
+            tag = cast(List[str], prop_dict)
 
-            additional_properties[prop_name] = additional_property
+            tags[prop_name] = tag
 
-        metadata_tags.additional_properties = additional_properties
+        metadata_tags.tags = tags
         return metadata_tags
-
-    @property
-    def additional_keys(self) -> List[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> List[str]:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: List[str]) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
 
 
 @_attrs_define
 class MetadataProperties:
-    additional_properties: Dict[str, str] = _attrs_field(init=False, factory=dict)
+    properties: Dict[str, str] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         field_dict: Dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
+        field_dict.update(self.properties)
 
         return field_dict
 
@@ -1167,54 +1095,37 @@ class MetadataProperties:
         d = src_dict.copy()
         metadata_properties = cls()
 
-        metadata_properties.additional_properties = d
+        metadata_properties.properties = d
         return metadata_properties
 
-    @property
-    def additional_keys(self) -> List[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> str:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: str) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
 
 @_attrs_define
 class Metadata:
-    tags: Union[Unset, MetadataTags] = UNSET
-    properties: Union[Unset, MetadataProperties] = UNSET
-    sensitive: Union[Unset, List[str]] = UNSET
-    additional_properties: Dict[str, str] = _attrs_field(init=False, factory=dict)
+    tags: Optional[MetadataTags]
+    properties: Optional[MetadataProperties]
+    sensitive: Optional[List[str]]
 
     def to_dict(self) -> Dict[str, Any]:
-        tags: Union[Unset, Dict[str, Any]] = UNSET
-        if not isinstance(self.tags, Unset):
+        tags: Optional[Dict[str, Any]] = None
+        if not self.tags is None:
             tags = self.tags.to_dict()
 
-        properties: Union[Unset, Dict[str, Any]] = UNSET
-        if not isinstance(self.properties, Unset):
+        properties: Optional[Dict[str, Any]] = None
+        if not self.properties is None:
             properties = self.properties.to_dict()
 
-        sensitive: Union[Unset, List[str]] = UNSET
-        if not isinstance(self.sensitive, Unset):
+        sensitive: Optional[List[str]] = None
+        if not self.sensitive is None:
             sensitive = []
             for sensitive_item in self.sensitive:
                 sensitive.append(sensitive_item)
 
         field_dict: Dict[str, Any] = {}
-        field_dict.update(self.additional_properties)
-        if tags is not UNSET:
+        if tags is not None:
             field_dict["tags"] = tags
-        if properties is not UNSET:
+        if properties is not None:
             field_dict["properties"] = properties
-        if sensitive is not UNSET:
+        if sensitive is not None:
             field_dict["sensitive"] = sensitive
 
         return field_dict
@@ -1223,22 +1134,18 @@ class Metadata:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
 
         d = src_dict.copy()
-        _tags = d.pop("tags", UNSET)
-        tags: Union[Unset, MetadataTags]
-        if isinstance(_tags, Unset):
-            tags = UNSET
-        else:
+        _tags: Optional[Dict[str, Any]] = d.pop("tags", None)
+        tags: Optional[MetadataTags] = None
+        if not _tags is None:
             tags = MetadataTags.from_dict(_tags)
 
-        _properties = d.pop("properties", UNSET)
-        properties: Union[Unset, MetadataProperties]
-        if isinstance(_properties, Unset):
-            properties = UNSET
-        else:
+        _properties: Optional[Dict[str, Any]] = d.pop("properties", None)
+        properties: Optional[MetadataProperties] = None
+        if not _properties is None:
             properties = MetadataProperties.from_dict(_properties)
 
         sensitive = []
-        _sensitive = d.pop("sensitive", UNSET)
+        _sensitive = d.pop("sensitive", None)
         for sensitive_item in _sensitive or []:
             sensitive.append(sensitive_item)
 
@@ -1248,24 +1155,7 @@ class Metadata:
             sensitive=sensitive,
         )
 
-        metadata.additional_properties = d
         return metadata
-
-    @property
-    def additional_keys(self) -> List[str]:
-        return list(self.additional_properties.keys())
-
-    def __getitem__(self, key: str) -> Any:
-        return self.additional_properties[key]
-
-    def __setitem__(self, key: str, value: Any) -> None:
-        self.additional_properties[key] = value
-
-    def __delitem__(self, key: str) -> None:
-        del self.additional_properties[key]
-
-    def __contains__(self, key: str) -> bool:
-        return key in self.additional_properties
 
 
 class Schema(object):

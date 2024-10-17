@@ -19,7 +19,7 @@
 __all__ = ['BaseSerializer',
            'BaseDeserializer']
 
-from enum import Enum, IntEnum
+from enum import IntEnum
 from typing import Callable
 
 from confluent_kafka.schema_registry import RegisteredSchema
@@ -120,6 +120,18 @@ class BaseSerde(object):
     def _execute_rules(self, ctx: SerializationContext, subject: str,
         rule_mode: RuleMode, source: RegisteredSchema, target: RegisteredSchema,
         message: object, field_transformer: FieldTransformer) -> object:
+        if message is None or target is None:
+            return None
+        rules = None
+        if rule_mode == RuleMode.UPGRADE:
+            if target.schema.rule_set is not None:
+                rules = target.schema.rule_set.migration_rules
+        elif rule_mode == RuleMode.DOWNGRADE:
+            if source.schema.rule_set is not None:
+                rules = source.schema.rule_set.migration_rules
+                if rules is not None:
+                    rules = rules[:].reverse()
+
         # TODO
         return message
 
