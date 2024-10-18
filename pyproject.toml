@@ -1,0 +1,67 @@
+[build-system]
+requires = [ "setuptools>=62", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "confluent-kafka"
+version = "2.6.0.post1.dev1"
+description = "Confluent's Python client for Apache Kafka"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules"]
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.7"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[[project.authors]]
+name = "Confluent Inc."
+email = "support@confluent.io"
+
+[project.urls]
+Homepage = "https://github.com/confluentinc/confluent-kafka-python"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements/requirements.txt"]}
+optional-dependencies.schemaregistry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.dev = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.docs = { file = [
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.tests = { file = [
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
+optional-dependencies.examples = { file = ["requirements/requirements-examples.txt"] }
+optional-dependencies.soaktest = { file = ["requirements/requirements-soaktest.txt"] }
+optional-dependencies.all = { file = [
+    "requirements/requirements-soaktest.txt",
+    "requirements/requirements-docs.txt",
+    "requirements/requirements-examples.txt",
+    "requirements/requirements-tests.txt",
+    "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-avro.txt",
+    "requirements/requirements-json.txt",
+    "requirements/requirements-protobuf.txt"] }
