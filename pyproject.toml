@@ -34,11 +34,6 @@ optional-dependencies.schemaregistry = { file = ["requirements/requirements-sche
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
-optional-dependencies.src = { file = [
-    "requirements/requirements-schemaregistry.txt",
-    "requirements/requirements-avro.txt",
-    "requirements/requirements-json.txt",
-    "requirements/requirements-protobuf.txt"] }
 optional-dependencies.dev = { file = [
     "requirements/requirements-docs.txt",
     "requirements/requirements-examples.txt",
