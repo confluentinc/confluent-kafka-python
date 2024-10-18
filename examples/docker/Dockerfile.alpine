@@ -73,9 +73,10 @@ RUN \
     mkdir -p /usr/src/confluent-kafka-python && \
     cd /usr/src/confluent-kafka-python && \
     rm -rf build && \
-    python3 setup.py clean -a && \
-    python3 setup.py build && \
-    python3 setup.py install && \
+    rm -rf dist && \
+    python3 -m pip install build \
+    python3 -m build && \
+    python3 -m pip install dist/confluent_kafka*whl && \
     cd / && \
     rm -rf /usr/src/confluent-kafka-python
 

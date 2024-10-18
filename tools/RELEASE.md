@@ -140,11 +140,11 @@ RCs, so it only needs to be set once for each release.
  * `src/confluent_kafka/src/confluent_kafka.h`
     update both `CFL_VERSION` and `CFL_VERSION_STR`.
  * `docs/conf.py` - change `version` variable.
- * `setup.py` - change `version` argument to `setup()`.
+ * `pyproject.toml` - change `version` field.
 
 Commit these changes with a commit-message containing the version:
 
-    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.c docs/conf.py setup.py
+    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h docs/conf.py pyproject.toml
 
 
 ## 5. Tag, CI build, wheel verification, upload
@@ -290,30 +290,29 @@ With the PR merged to master, check out and update master:
 Now go back to 5.1 and start the final RELEASE ITERATION.
 
 
-### 5.6. Upload wheel packages to PyPi
+### 5.6. Create source distribution
+
+When creating the source packages make sure to have checked out the correct tag
+and that you do not have any uncommited modifications and that the `dist/`
+directory is empty.
+
+    $ python -m build -s
+
+The above command will create the necessary source distribution. Move this
+generated sdist file to correct `tools\dl-<tag>` folder
+
+    $ mv dist/confluent-kafka-0.11.4rc1.tar.gz tools/dl-v0.11.4rc1/
+
+
+### 5.7. Upload wheel packages and sdist to PyPi
 
 **CANDIDATE ITERATION:** To upload binary packages to test.pypi.org, use:
 
-    $ twine upload -r test dl-v0.11.4rc1/*
+    $ twine upload -r test tools/dl-v0.11.4rc1/*
 
 **RELEASE ITERATION:** To upload binary packages to the proper pypi.org (WARNING!), use:
 
-    $ twine upload dl-v0.11.4rc1/*
-
-
-### 5.7. Upload source packages to PyPi
-
-When uploading source packages make sure to have checked out the correct tag
-and that you do not have any uncommited modifications and that the `build/`
-directory is empty.
-
-**CANDIDATE ITERATION:** Upload source packages to test.pypi.org:
-
-    $ python setup.py sdist upload -r test
-
-**RELEASE ITERATION:** Upload source packages to the proper pypi.org (WARNING!):
-
-    $ python setup.py sdist upload
+    $ twine upload tools/dl-v0.11.4rc1/*
 
 
 ### 5.8. Verify installation from PyPi
