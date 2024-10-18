@@ -94,7 +94,7 @@ FieldTransform = Callable[[RuleContext, FieldContext, object], object]
 FieldTransformer = Callable[[RuleContext, FieldTransform, object], object]
 
 
-class RuleAction(object):
+class RuleAction(RuleBase):
     pass
 
 
@@ -190,8 +190,9 @@ class BaseSerde(object):
                 self._run_action(ctx, rule_mode, rule, rule.on_failure, message, e, 'ERROR')
         return message
 
-    def _run_action(self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule, action: str, message: object,
-        ex: Exception, default_action: str):
+    def _run_action(self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule,
+        action: Optional[str], message: object,
+        ex: Optional[Exception], default_action: str):
         action_name = self._get_rule_action_name(rule, rule_mode, action)
         if action_name is None:
             action_name = default_action
@@ -205,7 +206,8 @@ class BaseSerde(object):
         except Exception as e:
             log.warning(f"Could not run post-rule action {action_name}: {e}")
 
-    def _get_rule_action_name(self, rule: Rule, rule_mode: RuleMode, action_name: str) -> Optional[str]:
+    def _get_rule_action_name(self, rule: Rule, rule_mode: RuleMode,
+        action_name: Optional[str]) -> Optional[str]:
         if action_name is None or action_name == "":
             return None
         if (rule.mode == RuleMode.WRITEREAD or rule.mode == RuleMode.UPDOWN) and ',' in action_name:
@@ -216,7 +218,7 @@ class BaseSerde(object):
                 return parts[1]
         return action_name
 
-    def _get_rule_action(self, ctx: RuleContext, action_name: str) -> RuleAction:
+    def _get_rule_action(self, ctx: RuleContext, action_name: str) -> Optional[RuleAction]:
         if action_name == 'ERROR':
             return ErrorAction()
         elif action_name == 'NONE':
