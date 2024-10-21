@@ -18,9 +18,11 @@ export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
-    flake8 --exclude ./_venv,*_pb2.py
-    pip install -r requirements/requirements-docs.txt
-    make docs
+    if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
+        flake8 --exclude ./_venv,*_pb2.py
+        pip install -r requirements/requirements-docs.txt
+        make docs
+    fi
     python -m pytest --timeout 1200 --ignore=dest
 else
     python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration
