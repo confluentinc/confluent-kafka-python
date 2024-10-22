@@ -29,6 +29,7 @@ from typing import Callable, List, Optional, Set, Dict
 from confluent_kafka.schema_registry import RegisteredSchema
 from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
     Rule, RuleKind, Schema, RuleSet
+from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
 from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext, SerializationError
 
@@ -131,7 +132,7 @@ class RuleContext(object):
             self.target.schema.metadata.tags is not None):
             tags = self.target.schema.metadata.tags.tags
             for k, v in tags.items():
-                if k.full_name == full_name:
+                if wildcard_match(full_name, k):
                     tags.update(v)
         return result
 
