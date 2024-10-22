@@ -28,7 +28,7 @@ def test_consume_error(kafka_cluster):
     Tests to ensure librdkafka errors are propagated as
     an instance of ConsumeError.
     """
-    topic = kafka_cluster.create_topic("test_commit_transaction")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest', 'enable.partition.eof': True}
 
     producer = kafka_cluster.producer()
@@ -50,7 +50,7 @@ def test_consume_error_commit(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when commiting.
     """
-    topic = kafka_cluster.create_topic("test_commit_transaction")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest',
                      'session.timeout.ms': 100}
 
@@ -74,7 +74,7 @@ def test_consume_error_store_offsets(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when storing offsets.
     """
-    topic = kafka_cluster.create_topic("test_commit_transaction")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest',
                      'session.timeout.ms': 100,
                      'enable.auto.offset.store': True,
