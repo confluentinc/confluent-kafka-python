@@ -188,7 +188,7 @@ blocks:
       jobs:
         - name: Build and Tests with 'classic' group protocol
           commands:
-            - sem-version python 3.8
+            - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
