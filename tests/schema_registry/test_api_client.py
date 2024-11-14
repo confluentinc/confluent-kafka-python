@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import pickle
 import pytest
 
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -418,3 +419,19 @@ def test_test_compatibility_with_error(
         sr.test_compatibility(subject_name, schema, version)
     assert e.value.http_status_code == status_code
     assert e.value.error_code == error_code
+
+
+def test_pickling_schema_registry(mock_schema_registry, tmp_path):
+    file_path = tmp_path / "schema_registry.pkl"
+    conf = {'url': TEST_URL}
+    sr = mock_schema_registry(conf)
+    with open(file_path, "wb") as pickle_file:
+        pickle.dump(sr, pickle_file)
+    assert file_path.exists()
+
+    with open(file_path, "rb") as pickle_file:
+        unpickled_schema_registry = pickle.load(pickle_file)
+
+    assert sr.schemas == unpickled_schema_registry.schemas
+    assert sr.subjects == unpickled_schema_registry.subjects
+    assert sr.subject_versions == unpickled_schema_registry.subject_versions
