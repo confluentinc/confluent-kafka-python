@@ -603,7 +603,7 @@ class SchemaRegistryClient(object):
                                 subject=response['subject'],
                                 version=response['version'])
 
-    def get_version(self, subject_name, version):
+    def get_version(self, subject_name, version=None):
         """
         Retrieves a specific schema registered under ``subject_name``.
 
@@ -628,7 +628,7 @@ class SchemaRegistryClient(object):
 
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
-                                                 version))
+                                                 version if version else 'latest'))
 
         schema_type = response.get('schemaType', 'AVRO')
         registered_schema = RegisteredSchema(
