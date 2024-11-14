@@ -463,6 +463,102 @@ class SchemaRegistryClient(object):
 
         return schema
 
+    def get_schema_types(self):
+        """
+        List all schema types registered with the Schema Registry
+
+        Returns:
+            list(str): Registered schema types
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types->`_
+        """  # noqa: E501
+
+        return self._rest_client.get('schemas/types')
+
+    def get_schema_versions(self, schema_id):
+        """
+        List all subject-version pairs identified by the ``schema_id``.
+        Returns a list of dicts with keys:
+            - subject (str): Name of the subject
+            - version (int): Version of the returned schema
+
+        Args:
+            schema_id (int): Schema id
+
+        Returns:
+            list(dict)
+
+        Raises:
+            SchemaRegistryError: if subjects can't be found
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+        """  # noqa: E501
+
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
+        return response
+
+    def get_schema_by_subject_version(self, subject_name, version):
+        """
+        Fetches the schema associated with ``subject_name`` and ``version`` from the
+        Schema Registry.
+
+        Args:
+            subject_name (str) Subject name
+
+            version (int): Version number
+
+        Returns:
+            Schema: Schema instance identified by the ``subject_name`` and ``version``
+
+        Raises:
+            SchemaRegistryError: If schema can't be found.
+
+        See Also:
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+        """  # noqa: E501
+
+        response = self._rest_client.get('subjects/{}/versions/{}/schema'
+                                         .format(_urlencode(subject_name),
+                                                 version))
+        # TODO: Response is the unescaped schema string.
+        #   I.e. for AVRO: An avsc json, so python converts it to a dict.
+        #   How to support other schema types? (json/proto)
+        #   Should we return str (unescaped), dict, or Schema class?
+        #   Add protobuf/json tests.
+        schema_str = str(response)  # TODO: Avoid str-json-dict-str roundtrip
+
+        schema = Schema(schema_str=schema_str,
+                        schema_type='AVRO')  # TODO: Hard AVRO assumption.
+        return schema
+
+    def get_referencedby(self, subject_name, version):
+        """
+        List all schema_id's that reference the schema with the given ``subject_name``
+        and ``version``.
+
+        Args:
+            subject_name (str) Subject name
+
+            version (int): Version number
+
+        Returns:
+            list(int): Referencing ``schema_id``s
+
+
+        Raises:
+            SchemaRegistryError: If schema can't be found.
+
+        See Also:
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+
+        response = self._rest_client.get('subjects/{}/versions/{}/referencedby'
+                                         .format(_urlencode(subject_name),
+                                                 version))
+        return response
+
     def lookup_schema(self, subject_name, schema, normalize_schemas=False):
         """
         Returns ``schema`` registration information for ``subject``.
