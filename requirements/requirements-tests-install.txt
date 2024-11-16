@@ -1,0 +1,6 @@
+-r requirements-tests.txt  
+-r requirements-schemaregistry.txt  
+-r requirements-avro.txt  
+-r requirements-protobuf.txt  
+-r requirements-json.txt
+tests/trivup/trivup-0.12.7.tar.gz

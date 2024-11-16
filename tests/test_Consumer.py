@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
+import pytest
+
 from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
-import pytest
+
+from tests.common import TestConsumer
 
 
 def test_basic_api():
@@ -11,15 +14,15 @@ def test_basic_api():
         broker configured. """
 
     with pytest.raises(TypeError) as ex:
-        kc = Consumer()
+        kc = TestConsumer()
     assert ex.match('expected configuration dict')
 
     def dummy_commit_cb(err, partitions):
         pass
 
-    kc = Consumer({'group.id': 'test', 'socket.timeout.ms': '100',
-                   'session.timeout.ms': 1000,  # Avoid close() blocking too long
-                   'on_commit': dummy_commit_cb})
+    kc = TestConsumer({'group.id': 'test', 'socket.timeout.ms': '100',
+                       'session.timeout.ms': 1000,  # Avoid close() blocking too long
+                       'on_commit': dummy_commit_cb})
 
     kc.subscribe(["test"])
     kc.unsubscribe()
@@ -119,11 +122,11 @@ def test_basic_api():
 def test_store_offsets():
     """ Basic store_offsets() tests """
 
-    c = Consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+    c = TestConsumer({'group.id': 'test',
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
 
@@ -161,10 +164,10 @@ def test_on_commit():
 
     cs = CommitState('test', 2)
 
-    c = Consumer({'group.id': 'x',
-                  'enable.auto.commit': False, 'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100,
-                  'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
+    c = TestConsumer({'group.id': 'x',
+                      'enable.auto.commit': False, 'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100,
+                      'on_commit': lambda err, ps: commit_cb(cs, err, ps)})
 
     c.assign([TopicPartition(cs.topic, cs.partition)])
 
@@ -185,7 +188,7 @@ def test_on_commit():
 def test_subclassing():
     class SubConsumer(Consumer):
         def poll(self, somearg):
-            assert type(somearg) == str
+            assert isinstance(somearg, str)
             super(SubConsumer, self).poll(timeout=0.0001)
 
     sc = SubConsumer({"group.id": "test", "session.timeout.ms": "90"})
@@ -196,11 +199,11 @@ def test_subclassing():
 @pytest.mark.skipif(libversion()[1] < 0x000b0000,
                     reason="requires librdkafka >=0.11.0")
 def test_offsets_for_times():
-    c = Consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+    c = TestConsumer({'group.id': 'test',
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
     # Query broker for timestamps for partition
     try:
         test_topic_partition = TopicPartition("test", 0, 100)
@@ -216,11 +219,11 @@ def test_offsets_for_times():
 def test_multiple_close_does_not_throw_exception():
     """ Calling Consumer.close() multiple times should not throw Runtime Exception
     """
-    c = Consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+    c = TestConsumer({'group.id': 'test',
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
 
@@ -232,11 +235,11 @@ def test_multiple_close_does_not_throw_exception():
 def test_any_method_after_close_throws_exception():
     """ Calling any consumer method after close should throw a RuntimeError
     """
-    c = Consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+    c = TestConsumer({'group.id': 'test',
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
     c.unsubscribe()
@@ -296,11 +299,11 @@ def test_any_method_after_close_throws_exception():
 def test_calling_store_offsets_after_close_throws_erro():
     """ calling store_offset after close should throw RuntimeError """
 
-    c = Consumer({'group.id': 'test',
-                  'enable.auto.commit': True,
-                  'enable.auto.offset.store': False,
-                  'socket.timeout.ms': 50,
-                  'session.timeout.ms': 100})
+    c = TestConsumer({'group.id': 'test',
+                      'enable.auto.commit': True,
+                      'enable.auto.offset.store': False,
+                      'socket.timeout.ms': 50,
+                      'session.timeout.ms': 100})
 
     c.subscribe(["test"])
     c.unsubscribe()
@@ -319,5 +322,5 @@ def test_consumer_without_groupid():
     """ Consumer should raise exception if group.id is not set """
 
     with pytest.raises(ValueError) as ex:
-        Consumer({'bootstrap.servers': "mybroker:9092"})
+        TestConsumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')

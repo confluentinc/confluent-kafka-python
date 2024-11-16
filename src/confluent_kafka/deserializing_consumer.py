@@ -40,11 +40,11 @@ class DeserializingConsumer(_ConsumerImpl):
     +-------------------------+---------------------+-----------------------------------------------------+
     | Property Name           | Type                | Description                                         |
     +=========================+=====================+=====================================================+
-    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    |                         |                     | Callable(bytes, SerializationContext) -> obj        |
     | ``key.deserializer``    | callable            |                                                     |
     |                         |                     | Deserializer used for message keys.                 |
     +-------------------------+---------------------+-----------------------------------------------------+
-    |                         |                     | Callable(SerializationContext, bytes) -> obj        |
+    |                         |                     | Callable(bytes, SerializationContext) -> obj        |
     | ``value.deserializer``  | callable            |                                                     |
     |                         |                     | Deserializer used for message values.               |
     +-------------------------+---------------------+-----------------------------------------------------+

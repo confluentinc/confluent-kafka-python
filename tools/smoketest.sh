@@ -30,7 +30,7 @@ fi
 pyvers_tested=
 
 # Run tests with python3
-for py in 3.8 ; do
+for py in 3.9 ; do
     echo "$0: # Smoketest with Python$py"
 
     if ! python$py -V ; then
@@ -60,7 +60,7 @@ for py in 3.8 ; do
         hash -r
 
         pip install -U pip pkginfo
-        pip install -r tests/requirements.txt
+        pip install -r requirements/requirements-tests-install.txt
 
         # Get the packages version so we can pin the install
         # command to this version (which hopefully loads it from the wheeldir

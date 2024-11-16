@@ -17,7 +17,7 @@
 #
 
 import pytest
-from confluent_kafka import TopicPartition, OFFSET_END, KafkaError
+from confluent_kafka import TopicPartition, OFFSET_END, KafkaError, KafkaException
 
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.serialization import StringSerializer
@@ -28,7 +28,7 @@ def test_consume_error(kafka_cluster):
     Tests to ensure librdkafka errors are propagated as
     an instance of ConsumeError.
     """
-    topic = kafka_cluster.create_topic("test_commit_transaction")
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
     consumer_conf = {'group.id': 'pytest', 'enable.partition.eof': True}
 
     producer = kafka_cluster.producer()
@@ -44,3 +44,53 @@ def test_consume_error(kafka_cluster):
         consumer.poll()
     assert exc_info.value.args[0].code() == KafkaError._PARTITION_EOF, \
         "Expected _PARTITION_EOF, not {}".format(exc_info)
+
+
+def test_consume_error_commit(kafka_cluster):
+    """
+    Tests to ensure that we handle messages with errors when commiting.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
+    consumer_conf = {'group.id': 'pytest',
+                     'session.timeout.ms': 100}
+
+    producer = kafka_cluster.producer()
+    producer.produce(topic=topic, value="a")
+    producer.flush()
+
+    consumer = kafka_cluster.cimpl_consumer(consumer_conf)
+    consumer.subscribe([topic])
+    try:
+        # Since the session timeout value is low, JoinGroupRequest will fail
+        # and we get error in a message while polling.
+        m = consumer.poll(1)
+        consumer.commit(m)
+    except KafkaException as e:
+        assert e.args[0].code() == KafkaError._INVALID_ARG, \
+            "Expected INVALID_ARG, not {}".format(e)
+
+
+def test_consume_error_store_offsets(kafka_cluster):
+    """
+    Tests to ensure that we handle messages with errors when storing offsets.
+    """
+    topic = kafka_cluster.create_topic_and_wait_propogation("test_commit_transaction")
+    consumer_conf = {'group.id': 'pytest',
+                     'session.timeout.ms': 100,
+                     'enable.auto.offset.store': True,
+                     'enable.auto.commit': False}
+
+    producer = kafka_cluster.producer()
+    producer.produce(topic=topic, value="a")
+    producer.flush()
+
+    consumer = kafka_cluster.cimpl_consumer(consumer_conf)
+    consumer.subscribe([topic])
+    try:
+        # Since the session timeout value is low, JoinGroupRequest will fail
+        # and we get error in a message while polling.
+        m = consumer.poll(1)
+        consumer.store_offsets(m)
+    except KafkaException as e:
+        assert e.args[0].code() == KafkaError._INVALID_ARG, \
+            "Expected INVALID_ARG, not {}".format(e)

@@ -16,14 +16,16 @@
 # limitations under the License.
 #
 
+import time
 from uuid import uuid1
 
 from trivup.clusters.KafkaCluster import KafkaCluster
 
-from confluent_kafka import Consumer, Producer, DeserializingConsumer, \
-    SerializingProducer
+from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+
+from tests.common import TestDeserializingConsumer, TestConsumer
 
 
 class KafkaClusterFixture(object):
@@ -105,7 +107,7 @@ class KafkaClusterFixture(object):
         if conf is not None:
             consumer_conf.update(conf)
 
-        return Consumer(consumer_conf)
+        return TestConsumer(consumer_conf)
 
     def consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
         """
@@ -138,9 +140,16 @@ class KafkaClusterFixture(object):
         if value_deserializer is not None:
             consumer_conf['value.deserializer'] = value_deserializer
 
-        return DeserializingConsumer(consumer_conf)
+        return TestDeserializingConsumer(consumer_conf)
 
-    def admin(self):
+    def admin(self, conf=None):
+        if conf:
+            # When conf is passed create a new AdminClient
+            admin_conf = self.client_conf()
+            admin_conf.update(conf)
+            return AdminClient(admin_conf)
+
+        # Otherwise use a common one
         if self._admin is None:
             self._admin = AdminClient(self.client_conf())
         return self._admin
@@ -160,6 +169,25 @@ class KafkaClusterFixture(object):
                                                   **create_topic_kwargs)
 
         future_topic.get(name).result()
+        return name
+
+    def create_topic_and_wait_propogation(self, prefix, conf=None, **create_topic_kwargs):
+        """
+        Creates a new topic with this cluster. Wait for the topic to be propogated to all brokers.
+
+        :param str prefix: topic name
+        :param dict conf: additions/overrides to topic configuration.
+        :returns: The topic's name
+        :rtype: str
+        """
+        name = self.create_topic(prefix, conf, **create_topic_kwargs)
+
+        # wait for topic propogation across all the brokers.
+        # FIXME: find a better way to wait for topic creation
+        #        for all languages, given option to send request to
+        #        a specific broker isn't present everywhere.
+        time.sleep(1)
+
         return name
 
     def seed_topic(self, topic, value_source=None, key_source=None, header_source=None):

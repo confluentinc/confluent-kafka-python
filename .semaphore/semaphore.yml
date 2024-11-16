@@ -8,20 +8,20 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.2.0
+      value: v2.6.0
   prologue:
     commands:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64"
+  - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
         machine:
-          type: s1-prod-macos
+          type: s1-prod-macos-13-5-amd64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -30,17 +30,40 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64"
+  - name: "Wheels: OSX x64 - Python 3.13"
     run:
       when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
         machine:
-          type: s1-prod-macos-arm64
+          type: s1-prod-macos-13-5-amd64
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: ARCH
+          value: x64
+        - name: CIBW_SKIP
+          value: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
+        - name: CIBW_ENVIRONMENT_MACOS
+          value: MACOSX_DEPLOYMENT_TARGET=13
+      jobs:
+        - name: Build
+          commands:
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.8-3.12"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-13-5-arm64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -51,9 +74,34 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.13"
+    run:
+      when: "tag =~ '.*'"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-macos-13-5-arm64
+      env_vars:
+        - name: OS_NAME
+          value: osx
+        - name: CIBW_ARCHS
+          value: arm64
+        - name: ARCH
+          value: arm64
+        - name: CIBW_SKIP
+          value: cp38-* cp39-* cp310-* cp311-* cp312-*
+        - name: CIBW_ENVIRONMENT_MACOS
+          value: MACOSX_DEPLOYMENT_TARGET=13
+      jobs:
+        - name: Build
+          commands:
+            - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
+            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -134,13 +182,24 @@ blocks:
           value: linux
         - name: ARCH
           value: x64
+      prologue:
+        commands:
+          - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
       jobs:
-        - name: Build
+        - name: Build and Tests with 'classic' group protocol
           commands:
-            - sem-version python 3.8
+            - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
+        - name: Build and Tests with 'consumer' group protocol
+          commands:
+            - sem-version python 3.9
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
   - name: "Source package verification with Python 3 (Linux arm64)"
     dependencies: []
@@ -156,7 +215,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.8
+            - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -166,7 +225,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos
+          type: s1-prod-macos-13-5-amd64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -175,7 +234,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.8
+            - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -185,7 +244,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-arm64
+          type: s1-prod-macos-13-5-arm64
       env_vars:
         - name: OS_NAME
           value: osx
@@ -194,7 +253,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.8
+            - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -203,8 +262,10 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64"
-      - "Wheels: OSX arm64"
+      - "Wheels: OSX x64 - Python 3.6-3.12"
+      - "Wheels: OSX x64 - Python 3.13"
+      - "Wheels: OSX arm64 - Python 3.8-3.12"
+      - "Wheels: OSX arm64 - Python 3.13"
       - "Wheels: Linux arm64"
       - "Wheels: Linux x64"
       - "Wheels: Windows"

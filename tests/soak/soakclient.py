@@ -20,16 +20,18 @@
 # long term validation testing.
 #
 # Usage:
-#  tests/soak/soakclient.py -t <topic> -r <produce-rate> -f <client-conf-file>
+#  tests/soak/soakclient.py -i <testid> -t <topic> -r <produce-rate> -f <client-conf-file>
 #
 # A unique topic should be used for each soakclient instance.
 #
 
 from confluent_kafka import KafkaError, KafkaException, version
-from confluent_kafka import Producer, Consumer
+from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 from collections import defaultdict
 from builtins import int
+from opentelemetry import metrics
+from common import TestConsumer
 import argparse
 import threading
 import time
@@ -40,7 +42,6 @@ import traceback
 import resource
 import os
 import psutil
-import datadog
 
 
 class SoakRecord (object):
@@ -72,8 +73,8 @@ class SoakClient (object):
         The producer and consumer run in separate background threads.
     """
 
-    # DataDog metric name prefix
-    DD_PFX = "kafka.client.soak.python."
+    # metric name prefix
+    METRIC_PFX = "kafka.client.soak.python."
 
     def dr_cb(self, err, msg):
         """ Producer delivery report callback """
@@ -81,17 +82,18 @@ class SoakClient (object):
             self.logger.warning("producer: delivery failed: {} [{}]: {}".
                                 format(msg.topic(), msg.partition(), err))
             self.dr_err_cnt += 1
-            self.dd_incr("producer.drerr", 1)
-            self.dd.event("Message delivery failure",
-                          "Message delivery failed: {} [{}]: {}".
-                          format(msg.topic(), msg.partition(), err),
-                          hostname=self.hostname)
+            self.incr_counter("producer.drerr", 1)
+            self.incr_counter("producer.delivery.failure", 1, {
+                "topic": msg.topic(),
+                "partition": str(msg.partition()),
+                "err": str(err)
+            })
 
         else:
             self.dr_cnt += 1
-            self.dd_incr("producer.drok", 1)
-            self.dd_gauge("producer.latency", msg.latency(),
-                          tags=["partition:{}".format(msg.partition())])
+            self.incr_counter("producer.drok", 1)
+            self.set_gauge("producer.latency", msg.latency(),
+                           tags={"partition": "{}".format(msg.partition())})
             if (self.dr_cnt % self.disprate) == 0:
                 self.logger.debug("producer: delivered message to {} [{}] at offset {} in {}s".format(
                     msg.topic(), msg.partition(), msg.offset(), msg.latency()))
@@ -118,7 +120,7 @@ class SoakClient (object):
                 continue
 
         self.producer_msgid += 1
-        self.dd_incr("producer.send", 1)
+        self.incr_counter("producer.send", 1)
 
     def producer_status(self):
         """ Print producer status """
@@ -218,7 +220,7 @@ class SoakClient (object):
             if msg.error() is not None:
                 self.logger.error("consumer: error: {}".format(msg.error()))
                 self.consumer_err_cnt += 1
-                self.dd_incr("consumer.error", 1)
+                self.incr_counter("consumer.error", 1)
                 continue
 
             try:
@@ -229,18 +231,18 @@ class SoakClient (object):
                                  "{} [{}] at offset {} (headers {}): {}".format(
                                      msg.topic(), msg.partition(), msg.offset(), msg.headers(), ex))
                 self.msg_err_cnt += 1
-                self.dd_incr("consumer.msgerr", 1)
+                self.incr_counter("consumer.msgerr", 1)
 
             self.msg_cnt += 1
-            self.dd_incr("consumer.msg", 1)
+            self.incr_counter("consumer.msg", 1)
 
             # end-to-end latency
             headers = dict(msg.headers())
             txtime = headers.get('time', None)
             if txtime is not None:
                 latency = time.time() - float(txtime)
-                self.dd_gauge("consumer.e2e_latency", latency,
-                              tags=["partition:{}".format(msg.partition())])
+                self.set_gauge("consumer.e2e_latency", latency,
+                               tags={"partition": "{}".format(msg.partition())})
             else:
                 latency = None
 
@@ -265,7 +267,7 @@ class SoakClient (object):
                                             msg.offset(), msg.headers(), hw,
                                             self.last_committed))
                     self.msg_dup_cnt += (hw + 1) - msg.offset()
-                    self.dd_incr("consumer.msgdup", 1)
+                    self.incr_counter("consumer.msgdup", 1)
                 elif msg.offset() > hw + 1:
                     self.logger.warning("consumer: Lost messages, now at {} "
                                         "[{}] at offset {} (headers {}): "
@@ -274,7 +276,7 @@ class SoakClient (object):
                                             msg.offset(), msg.headers(), hw,
                                             self.last_committed))
                     self.msg_miss_cnt += msg.offset() - (hw + 1)
-                    self.dd_incr("consumer.missedmsg", 1)
+                    self.incr_counter("consumer.missedmsg", 1)
 
             hwmarks[hwkey] = msg.offset()
 
@@ -297,14 +299,14 @@ class SoakClient (object):
         """ Consumer error callback """
         self.logger.error("consumer: error_cb: {}".format(err))
         self.consumer_error_cb_cnt += 1
-        self.dd_incr("consumer.errorcb", 1)
+        self.incr_counter("consumer.errorcb", 1)
 
     def consumer_commit_cb(self, err, partitions):
         """ Auto commit result callback """
         if err is not None:
             self.logger.error("consumer: offset commit failed for {}: {}".format(partitions, err))
             self.consumer_err_cnt += 1
-            self.dd_incr("consumer.error", 1)
+            self.incr_counter("consumer.error", 1)
         else:
             self.last_committed = partitions
 
@@ -312,7 +314,7 @@ class SoakClient (object):
         """ Producer error callback """
         self.logger.error("producer: error_cb: {}".format(err))
         self.producer_error_cb_cnt += 1
-        self.dd_incr("producer.errorcb", 1)
+        self.incr_counter("producer.errorcb", 1)
 
     def rtt_stats(self, d):
         """ Extract broker rtt statistics from the stats dict in @param d """
@@ -324,14 +326,14 @@ class SoakClient (object):
 
             parts = ','.join([str(x['partition']) for x in broker['toppars'].values()])
 
-            tags = ["broker:{}".format(broker['nodeid']),
-                    "partitions:{}".format(parts),
-                    "type:{}".format(d['type'])]
+            tags = {"broker": "{}".format(broker['nodeid']),
+                    "partitions": "{}".format(parts),
+                    "type": "{}".format(d['type'])}
 
-            self.dd_gauge("broker.rtt.p99",
-                          float(broker['rtt']['p99']) / 1000000.0, tags=tags)
-            self.dd_gauge("broker.rtt.avg",
-                          float(broker['rtt']['avg']) / 1000000.0, tags=tags)
+            self.set_gauge("broker.rtt.p99",
+                           float(broker['rtt']['p99']) / 1000000.0, tags=tags)
+            self.set_gauge("broker.rtt.avg",
+                           float(broker['rtt']['avg']) / 1000000.0, tags=tags)
 
     def stats_cb(self, json_str):
         """ Common statistics callback. """
@@ -350,16 +352,15 @@ class SoakClient (object):
         self.logger.info("{} stats: {}/{} brokers UP, {} partition leaders: {}".format(
             d['name'], len(up_brokers), broker_cnt, self.topic, leaders))
 
-        # Emit the full raw stats every now and then for troubleshooting.
+        # Emit the full raw stats for troubleshooting.
         self.stats_cnt[d['type']] += 1
-        if (self.stats_cnt[d['type']] % 11) == 0:
-            self.logger.info("{} raw stats: {}".format(d['name'], json_str))
+        self.logger.info("{} raw stats: {}".format(d['name'], json_str))
 
         self.rtt_stats(d)
 
         # Sample the producer queue length
         if d['type'] == 'producer':
-            self.dd_gauge("producer.outq", len(self.producer))
+            self.set_gauge("producer.outq", len(self.producer))
 
     def create_topic(self, topic, conf):
         """ Create the topic if it doesn't already exist """
@@ -374,7 +375,7 @@ class SoakClient (object):
             else:
                 raise
 
-    def __init__(self, topic, rate, conf):
+    def __init__(self, testid, topic, rate, conf):
         """ SoakClient constructor. conf is the client configuration """
         self.topic = topic
         self.rate = rate
@@ -382,6 +383,12 @@ class SoakClient (object):
         self.run = True
         self.stats_cnt = {'producer': 0, 'consumer': 0}
         self.start_time = time.time()
+
+        # OTEL instruments
+        self.counters = {}
+        self.gauges = {}
+        self.gauge_cbs = {}
+        self.gauge_values = {}
 
         self.last_rusage = None
         self.last_rusage_time = None
@@ -395,8 +402,10 @@ class SoakClient (object):
 
         # Construct a unique id to use for metrics hostname so that
         # multiple instances of the SoakClient can run on the same machine.
-        hostname = datadog.util.hostname.get_hostname()
+        hostname = os.environ["HOSTNAME"]
         self.hostname = "py-{}-{}".format(hostname, self.topic)
+        self.testid = testid
+        self.meter = metrics.get_meter("njc.python.soak.tests")
 
         self.logger.info("SoakClient id {}".format(self.hostname))
 
@@ -405,13 +414,7 @@ class SoakClient (object):
             conf['group.id'] = 'soakclient-{}-{}-{}'.format(
                 self.hostname, version()[0], sys.version.split(' ')[0])
 
-        # Separate datadog config from client config
-        datadog_conf = {k[len("datadog."):]: conf[k]
-                        for k in conf.keys() if k.startswith("datadog.")}
-        conf = {k: v for k, v in conf.items() if not k.startswith("datadog.")}
-
-        # Set up datadog agent
-        self.init_datadog(datadog_conf)
+        conf = {k: v for k, v in conf.items()}
 
         def filter_config(conf, filter_out, strip_prefix):
             len_sp = len(strip_prefix)
@@ -432,7 +435,7 @@ class SoakClient (object):
         # Create Producer and Consumer, each running in its own thread.
         #
         conf['stats_cb'] = self.stats_cb
-        conf['statistics.interval.ms'] = 10000
+        conf['statistics.interval.ms'] = 120000
 
         # Producer
         pconf = filter_config(conf, ["consumer.", "admin."], "producer.")
@@ -444,7 +447,7 @@ class SoakClient (object):
         cconf['error_cb'] = self.consumer_error_cb
         cconf['on_commit'] = self.consumer_commit_cb
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
-        self.consumer = Consumer(cconf)
+        self.consumer = TestConsumer(cconf)
 
         # Create and start producer thread
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
@@ -465,36 +468,66 @@ class SoakClient (object):
         # Final resource usage
         soak.get_rusage()
 
-    def init_datadog(self, options):
-        """ Initialize datadog agent """
-        datadog.initialize(**options)
+    def incr_counter(self, metric_name, incrval, tags=None):
+        """ Increment metric counter by incrval """
+        if not tags:
+            tags = {}
+        tags.update({
+            "host": self.hostname,
+            "testid": self.testid
+        })
 
-        self.dd = datadog.ThreadStats()
-        self.dd.start()
+        full_metric_name = self.METRIC_PFX + metric_name
+        if full_metric_name not in self.counters:
+            self.counters[full_metric_name] = self.meter.create_counter(
+                full_metric_name,
+                description=full_metric_name,
+            )
+        counter = self.counters[full_metric_name]
+        counter.add(incrval, tags)
 
-    def dd_incr(self, metric_name, incrval):
-        """ Increment datadog metric counter by incrval """
-        self.dd.increment(self.DD_PFX + metric_name, incrval, host=self.hostname)
+    def set_gauge(self, metric_name, val, tags=None):
+        """ Set metric gauge to val """
+        if not tags:
+            tags = {}
+        tags.update({
+            "host": self.hostname,
+            "testid": self.testid
+        })
 
-    def dd_gauge(self, metric_name, val, tags=None):
-        """ Set datadog metric gauge to val """
-        self.dd.gauge(self.DD_PFX + metric_name, val,
-                      tags=tags, host=self.hostname)
+        full_metric_name = self.METRIC_PFX + metric_name
+        if full_metric_name not in self.gauge_values:
+            self.gauge_values[full_metric_name] = []
+
+        self.gauge_values[full_metric_name].append([val, tags])
+
+        if full_metric_name not in self.gauges:
+            def cb(_):
+                for value in self.gauge_values[full_metric_name]:
+                    yield metrics.Observation(value[0], value[1])
+                self.gauge_values[full_metric_name] = []
+
+            self.gauge_cbs[full_metric_name] = cb
+            self.gauges[full_metric_name] = self.meter.create_observable_gauge(
+                callbacks=[self.gauge_cbs[full_metric_name]],
+                name=full_metric_name,
+                description=full_metric_name
+            )
 
     def calc_rusage_deltas(self, curr, prev, elapsed):
         """ Calculate deltas between previous and current resource usage """
 
         # User CPU %
         user_cpu = ((curr.ru_utime - prev.ru_utime) / elapsed) * 100.0
-        self.dd_gauge("cpu.user", user_cpu)
+        self.set_gauge("cpu.user", user_cpu)
 
         # System CPU %
         sys_cpu = ((curr.ru_stime - prev.ru_stime) / elapsed) * 100.0
-        self.dd_gauge("cpu.system", sys_cpu)
+        self.set_gauge("cpu.system", sys_cpu)
 
         # Max RSS memory (monotonic)
         max_rss = curr.ru_maxrss / 1024.0
-        self.dd_gauge("memory.rss.max", max_rss)
+        self.set_gauge("memory.rss.max", max_rss)
 
         self.logger.info("User CPU: {:.1f}%, System CPU: {:.1f}%, MaxRSS {:.3f}MiB".format(
             user_cpu, sys_cpu, max_rss))
@@ -513,12 +546,13 @@ class SoakClient (object):
 
         # Current RSS memory
         rss = float(self.proc.memory_info().rss) / (1024.0*1024.0)
-        self.dd_gauge("memory.rss", rss)
+        self.set_gauge("memory.rss", rss)
 
 
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='Kafka client soak test')
+    parser.add_argument('-i', dest='testid', type=str, required=True, help='Test id')
     parser.add_argument('-b', dest='brokers', type=str, default=None, help='Bootstrap servers')
     parser.add_argument('-t', dest='topic', type=str, required=True, help='Topic to use')
     parser.add_argument('-r', dest='rate', type=float, default=10, help='Message produce rate per second')
@@ -554,7 +588,7 @@ if __name__ == '__main__':
     conf['enable.partition.eof'] = False
 
     # Create SoakClient
-    soak = SoakClient(args.topic, args.rate, conf)
+    soak = SoakClient(args.testid, args.topic, args.rate, conf)
 
     # Get initial resource usage
     soak.get_rusage()

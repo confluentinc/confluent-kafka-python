@@ -1,5 +1,111 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.6.1
+
+v2.6.1 is a maintenance release with the following fixes and enhancements:
+
+ - Migrated build system from `setup.py` to `pyproject.toml` in accordance with `PEP 517` and `PEP 518`, improving project configuration, build system requirements management, and compatibility with modern Python packaging tools like `pip` and `build`.
+ - Added an example for OAUTH OIDC producer with support for confluent cloud (#1769, @sarwarbhuiyan)
+
+confluent-kafka-python is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.6.0
+
+v2.6.0 is a feature release with the following features, fixes and enhancements:
+
+- Added Python 3.13 wheels (#1828).
+- [KIP-848 EA](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Admin API for listing consumer groups now has an optional filter to return only groups of given types (#1830).
+- [KIP-460](https://cwiki.apache.org/confluence/display/KAFKA/KIP-460%3A+Admin+Leader+Election+RPC) Admin Leader Election RPC (#1818)
+- Added Transactional id resource type for ACL operations (@JohnPreston, #1834).
+
+confluent-kafka-python is based on librdkafka v2.6.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.5.3
+
+v2.5.3 is a maintenance release with the following fixes and enhancements:
+
+### Fixes
+
+* Fix an assert being triggered during push telemetry call when no metrics matched on the client side.
+* Minor enhancement to JSONDeserializer to retrieve schema from Schema Registry if not provided
+
+confluent-kafka-python is based on librdkafka v2.5.3, see the
+[librdkafka release notes](https://github.com/edenhill/librdkafka/releases/tag/v2.5.3)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+
+## v2.5.0
+
+> [!WARNING]
+This version has introduced a regression in which an assert is triggered during **PushTelemetry** call. This happens when no metric is matched on the client side among those requested by broker subscription. 
+>
+> You won't face any problem if:
+> * Broker doesn't support [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability).
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the broker side.
+> * [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) feature is disabled on the client side. This is enabled by default. Set configuration `enable.metrics.push` to `false`.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side and there is no subscription configured there.
+> * If [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) is enabled on the broker side with subscriptions that match the [KIP-714](https://cwiki.apache.org/confluence/display/KAFKA/KIP-714%3A+Client+metrics+and+observability) metrics defined on the client.
+> 
+> Having said this, we strongly recommend using `v2.5.3` and above to not face this regression at all.
+
+v2.5.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-107](https://cwiki.apache.org/confluence/display/KAFKA/KIP-107%3A+Add+deleteRecordsBefore%28%29+API+in+AdminClient) Added delete_records API. (#1710)
+ - Added an example to show the usage of the custom logger with `AdminClient`. (#1758)
+ - Improve caching on Schema Registry client. (#1744)
+ - Removed usage of `strcpy` to enhance security of the client. (#1745)
+ - Removed support for centos6 and centos7. (#1776)
+ - Fixed invalid write in `OAUTHBEARER/OIDC` extensions copy. (#1745)
+ - Fixed documentation for default value of `operation_timeout` and `request_timeout` in various Admin apis. (#1710)
+ - Fixed an issue related to import error of `TopicCollection` and `TopicPartitionInfo` classes when importing through other module like mypy. (#1764)
+ - Fixed a segfault when `commit` or `store_offsets` consumer method is called incorrectly with errored Message object. (#1754)
+ - Fixed `logger` not working when provided as an argument to `AdminClient` instead of a configuration property. (#1758)
+ - Fixed some memory leaks related to `PyDict_SetItem`. (#1710)
+
+confluent-kafka-python is based on librdkafka v2.5.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.5.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.4.0
+
+v2.4.0 is a feature release with the following features, fixes and enhancements:
+
+ - [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol): Added KIP-848 based new consumer group rebalance protocol. The feature is an **Early Access**: not production ready yet. Please refer [detailed doc](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#next-generation-of-the-consumer-group-protocol-kip-848) for more information.
+ - Fix segfault with describe_topics and flaky connection (@lpsinger, #1692)
+
+confluent-kafka-python is based on librdkafka v2.4.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.4.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.3.0
+
+v2.3.0 is a feature release with the following features, fixes and enhancements:
+
+ - Add Python 3.12 wheels
+ - [KIP-117](https://cwiki.apache.org/confluence/display/KAFKA/KIP-117%3A+Add+a+public+AdminClient+API+for+Kafka+admin+operations): Add support for AdminAPI `describe_cluster()` and `describe_topics()`. (@jainruchir, #1635)
+ - [KIP-430](https://cwiki.apache.org/confluence/display/KAFKA/KIP-430+-+Return+Authorized+Operations+in+Describe+Responses):
+   Return authorized operations in Describe Responses. (@jainruchir, #1635)
+ - [KIP-516](https://cwiki.apache.org/confluence/display/KAFKA/KIP-516%3A+Topic+Identifiers): Partial support of topic identifiers. Topic identifiers in metadata response are available through the new describe_topics function (#1645).
+ - [KIP-396](https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=97551484): completed the implementation with the addition of `list_offsets` (#1576).
+ - Add `Rack` to the `Node` type, so AdminAPI calls can expose racks for brokers
+   (currently, all Describe Responses) (#1635, @jainruchir).
+ - Fix the Describe User Scram Credentials for Describe all users or empty users list. Please refer to
+   issue(https://github.com/confluentinc/confluent-kafka-python/issues/1616) for more details (#1630).
+
+confluent-kafka-python is based on librdkafka v2.3.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.3.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.2.0
 
 v2.2.0 is a feature release with the following features, fixes and enhancements:

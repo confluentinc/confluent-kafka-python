@@ -496,6 +496,16 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		}
 
 		m = (Message *)msg;
+                
+                if (m->error != Py_None) {
+                        PyObject *error = Message_error(m, NULL);
+                        PyObject *errstr = PyObject_CallMethod(error, "str", NULL);
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                         "Cannot commit offsets for message with error: '%s'" , PyUnicode_AsUTF8(errstr));
+                        Py_DECREF(error);
+                        Py_DECREF(errstr);
+                        return NULL;
+                }
 
 		c_offsets = rd_kafka_topic_partition_list_new(1);
 		rktpar = rd_kafka_topic_partition_list_add(
@@ -626,6 +636,16 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 		}
 
 		m = (Message *)msg;
+
+                if (m->error != Py_None) {
+                        PyObject *error = Message_error(m, NULL);
+                        PyObject *errstr = PyObject_CallMethod(error, "str", NULL);
+                        cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                         "Cannot store offsets for message with error: '%s'" , PyUnicode_AsUTF8(errstr));
+                        Py_DECREF(error);
+                        Py_DECREF(errstr);
+                        return NULL;
+                }
 
 		c_offsets = rd_kafka_topic_partition_list_new(1);
 		rktpar = rd_kafka_topic_partition_list_add(
@@ -1248,7 +1268,7 @@ static PyMethodDef Consumer_methods[] = {
         { "incremental_assign", (PyCFunction)Consumer_incremental_assign, METH_O,
           ".. py:function:: incremental_assign(partitions)\n"
           "\n"
-          "  Incrementally add the provided list of :py:class:`TopicPartition`s "
+          "  Incrementally add the provided list of :py:class:`TopicPartition` "
           "to the current partition assignment. This list must not contain "
           "duplicate entries, or any entry corresponding to an already "
           "assigned partition. When a COOPERATIVE assignor (i.e. incremental "

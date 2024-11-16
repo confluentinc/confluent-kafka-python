@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
 from io import StringIO
+import logging
+
 import confluent_kafka
 import confluent_kafka.avro
-import logging
+import confluent_kafka.admin
+
+from tests.common import TestConsumer, TestAvroConsumer
 
 
 class CountingFilter(logging.Filter):
@@ -17,6 +21,16 @@ class CountingFilter(logging.Filter):
         print(record)
 
 
+def _setup_string_buffer_logger(name):
+    stringBuffer = StringIO()
+    logger = logging.getLogger(name)
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(stringBuffer)
+    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
+    logger.addHandler(handler)
+    return stringBuffer, logger
+
+
 def test_logging_consumer():
     """ Tests that logging works """
 
@@ -24,10 +38,9 @@ def test_logging_consumer():
     logger.setLevel(logging.DEBUG)
     f = CountingFilter('consumer')
     logger.addFilter(f)
-
-    kc = confluent_kafka.Consumer({'group.id': 'test',
-                                   'debug': 'all'},
-                                  logger=logger)
+    kc = TestConsumer({'group.id': 'test',
+                       'debug': 'all'},
+                      logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
@@ -44,10 +57,10 @@ def test_logging_avro_consumer():
     f = CountingFilter('avroconsumer')
     logger.addFilter(f)
 
-    kc = confluent_kafka.avro.AvroConsumer({'schema.registry.url': 'http://example.com',
-                                            'group.id': 'test',
-                                            'debug': 'all'},
-                                           logger=logger)
+    kc = TestAvroConsumer({'schema.registry.url': 'http://example.com',
+                           'group.id': 'test',
+                           'debug': 'all'},
+                          logger=logger)
     while f.cnt == 0:
         kc.poll(timeout=0.5)
 
@@ -120,12 +133,7 @@ def test_logging_constructor():
 def test_producer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Producer')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger('Producer')
 
     p = confluent_kafka.Producer(
         {"bootstrap.servers": "test", "logger": logger, "debug": "msg"})
@@ -142,14 +150,9 @@ def test_producer_logger_logging_in_given_format():
 def test_consumer_logger_logging_in_given_format():
     """Test that asserts that logging is working by matching part of the log message"""
 
-    stringBuffer = StringIO()
-    logger = logging.getLogger('Consumer')
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(stringBuffer)
-    handler.setFormatter(logging.Formatter('%(name)s Logger | %(message)s'))
-    logger.addHandler(handler)
+    stringBuffer, logger = _setup_string_buffer_logger('Consumer')
 
-    c = confluent_kafka.Consumer(
+    c = TestConsumer(
         {"bootstrap.servers": "test", "group.id": "test", "logger": logger, "debug": "msg"})
     c.poll(0)
 
@@ -158,3 +161,33 @@ def test_consumer_logger_logging_in_given_format():
     c.close()
 
     assert "Consumer Logger | INIT" in logMessage
+
+
+def test_admin_logger_logging_in_given_format_when_provided_in_conf():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer, logger = _setup_string_buffer_logger('Admin')
+
+    admin_client = confluent_kafka.admin.AdminClient(
+        {"bootstrap.servers": "test", "logger": logger, "debug": "admin"})
+    admin_client.poll(0)
+
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+
+    assert "Admin Logger | INIT" in logMessage
+
+
+def test_admin_logger_logging_in_given_format_when_provided_as_admin_client_argument():
+    """Test that asserts that logging is working by matching part of the log message"""
+
+    stringBuffer, logger = _setup_string_buffer_logger('Admin')
+
+    admin_client = confluent_kafka.admin.AdminClient(
+        {"bootstrap.servers": "test", "debug": "admin"}, logger=logger)
+    admin_client.poll(0)
+
+    logMessage = stringBuffer.getvalue().strip()
+    stringBuffer.close()
+
+    assert "Admin Logger | INIT" in logMessage

@@ -36,14 +36,14 @@
 
 
 /**
- * @brief confluent-kafka-python version, must match that of setup.py.
+ * @brief confluent-kafka-python version, must match that of pyproject.toml.
  *
  * Hex version representation:
  *  0xMMmmRRPP
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x02020000
-#define CFL_VERSION_STR "2.2.0"
+#define CFL_VERSION     0x02060000
+#define CFL_VERSION_STR "2.6.0"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -51,19 +51,19 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x020200ff
+#define MIN_RD_KAFKA_VERSION 0x020600ff
 
 #ifdef __APPLE__
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.2.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.6.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.2.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.6.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
-#error "confluent-kafka-python requires librdkafka v2.2.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#error "confluent-kafka-python requires librdkafka v2.6.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#error "confluent-kafka-python requires librdkafka v2.2.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#error "confluent-kafka-python requires librdkafka v2.6.0 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -382,9 +382,14 @@ rd_kafka_conf_t *common_conf_setup (rd_kafka_type_t ktype,
 				    Handle *h,
 				    PyObject *args,
 				    PyObject *kwargs);
+PyObject *c_part_to_py(const rd_kafka_topic_partition_t *c_part);
 PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts);
 PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node);
+PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid);
 rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist);
+PyObject *c_topic_partition_result_to_py_dict(
+    const rd_kafka_topic_partition_result_t **partition_results,
+    size_t cnt);
 PyObject *list_topics (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *list_groups (Handle *self, PyObject *args, PyObject *kwargs);
 PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs);
@@ -491,6 +496,14 @@ typedef struct {
 } NewTopic;
 
 extern PyTypeObject NewTopicType;
+
+
+typedef struct {
+        PyObject_HEAD
+		rd_kafka_Uuid_t *cUuid;
+} Uuid;
+
+extern PyTypeObject UuidType;
 
 
 typedef struct {

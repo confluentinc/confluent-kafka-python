@@ -16,12 +16,11 @@ fi
 
 python_branch=$1
 librdkafka_branch=$2
+venv=$PWD/venv
 
 sudo apt update
-sudo apt install -y make gcc g++ zlib1g-dev libssl-dev libzstd-dev screen \
-     python3.6-dev python3-pip python3-virtualenv
-
-pushd $HOME
+sudo apt install -y git curl make gcc g++ zlib1g-dev libssl-dev libzstd-dev \
+    python3-dev python3-pip python3-venv
 
 if [[ ! -d confluent-kafka-python ]]; then
     git clone https://github.com/confluentinc/confluent-kafka-python
@@ -33,22 +32,20 @@ git checkout $python_branch
 
 echo "Installing librdkafka $librdkafka_branch"
 tools/bootstrap-librdkafka.sh --require-ssl $librdkafka_branch /usr
+rm -rf tmp-build
 
-echo "Installing interceptors"
-tools/install-interceptors.sh
+# echo "Installing interceptors"
+# tools/install-interceptors.sh
 
-venv=$HOME/venv
 echo "Setting up virtualenv in $venv"
 if [[ ! -d $venv ]]; then
-    virtualenv -p python3.6 $venv
+    python3 -m venv $venv
 fi
 source $venv/bin/activate
 
 pip install -U pip
 
-pip install -v .
-
-pip install -r tests/soak/requirements.txt
+pip install -v .[soaktest]
 
 popd # ..python
 
@@ -56,8 +53,6 @@ echo "Verifying python client installation"
 python -c "import confluent_kafka; print(confluent_kafka.version(), confluent_kafka.libversion())"
 
 deactivate
-
-popd # $HOME
 
 echo "All done, activate the virtualenv in $venv before running the client:"
 echo "source $venv/bin/activate"

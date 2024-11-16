@@ -13,18 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import confluent_kafka
 import struct
 import time
-import pytest
-from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState
+
+from confluent_kafka import ConsumerGroupTopicPartitions, TopicPartition, ConsumerGroupState, KafkaError
 from confluent_kafka.admin import (NewPartitions, ConfigResource,
                                    AclBinding, AclBindingFilter, ResourceType,
-                                   ResourcePatternType, AclOperation, AclPermissionType,
-                                   UserScramCredentialsDescription, UserScramCredentialUpsertion,
-                                   UserScramCredentialDeletion, ScramCredentialInfo,
-                                   ScramMechanism)
-from confluent_kafka.error import ConsumeError, KafkaException, KafkaError
+                                   ResourcePatternType, AclOperation, AclPermissionType)
+from confluent_kafka.error import ConsumeError
 
 topic_prefix = "test-topic"
 
@@ -62,6 +58,8 @@ def verify_admin_acls(admin_client,
     for acl_binding, f in fs.items():
         f.result()  # trigger exception if there was an error
 
+    time.sleep(1)
+
     acl_binding_filter1 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
                                            None, None, AclOperation.ANY, AclPermissionType.ANY)
     acl_binding_filter2 = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.PREFIXED,
@@ -87,6 +85,8 @@ def verify_admin_acls(admin_client,
         "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
                                                                          expected_acl_bindings)
 
+    time.sleep(1)
+
     #
     # Delete the ACLs with TOPIC and GROUP
     #
@@ -98,6 +98,9 @@ def verify_admin_acls(admin_client,
         assert deleted_acl_bindings == expected, \
             "Deleted ACL bindings don't match, actual {} expected {}".format(deleted_acl_bindings,
                                                                              expected)
+
+    time.sleep(1)
+
     #
     # All the ACLs should have been deleted
     #
@@ -196,83 +199,6 @@ def verify_consumer_group_offsets_operations(client, our_topic, group_id):
         assert topic_partition.offset == 0
 
 
-def verify_admin_scram(admin_client):
-    newuser = "non-existent"
-    newmechanism = ScramMechanism.SCRAM_SHA_256
-    newiterations = 10000
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    with pytest.raises(KafkaException) as ex:
-        result = fut.result()
-    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(newuser,
-                                                        ScramCredentialInfo(newmechanism, newiterations),
-                                                        b"password", b"salt")])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_256, 10000),
-                                                            b"password", b"salt"),
-                                                        UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_512, 10000),
-                                                            b"password")
-                                                        ])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialUpsertion(
-                                                            newuser,
-                                                            ScramCredentialInfo(
-                                                                ScramMechanism.SCRAM_SHA_256, 10000),
-                                                            b"password", b"salt"),
-                                                        UserScramCredentialDeletion(
-                                                            newuser,
-                                                            ScramMechanism.SCRAM_SHA_512)
-                                                        ])
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    description = futmap[newuser].result()
-    assert isinstance(description, UserScramCredentialsDescription)
-    for scram_credential_info in description.scram_credential_infos:
-        assert ((scram_credential_info.mechanism == newmechanism) and
-                (scram_credential_info.iterations == newiterations))
-
-    futmap = admin_client.alter_user_scram_credentials([UserScramCredentialDeletion(newuser, newmechanism)])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    result = fut.result()
-    assert result is None
-
-    futmap = admin_client.describe_user_scram_credentials([newuser])
-    assert isinstance(futmap, dict)
-    assert len(futmap) == 1
-    assert newuser in futmap
-    fut = futmap[newuser]
-    with pytest.raises(KafkaException) as ex:
-        result = fut.result()
-    assert ex.value.args[0] == KafkaError.RESOURCE_NOT_FOUND
-
-
 def test_basic_operations(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
@@ -282,14 +208,14 @@ def test_basic_operations(kafka_cluster):
     # Second iteration: create topic.
     #
     for validate in (True, False):
-        our_topic = kafka_cluster.create_topic(topic_prefix,
-                                               {
-                                                   "num_partitions": num_partitions,
-                                                   "config": topic_config,
-                                                   "replication_factor": 1,
-                                               },
-                                               validate_only=validate
-                                               )
+        our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+                                                                    {
+                                                                        "num_partitions": num_partitions,
+                                                                        "config": topic_config,
+                                                                        "replication_factor": 1,
+                                                                    },
+                                                                    validate_only=validate
+                                                                    )
 
     admin_client = kafka_cluster.admin()
 
@@ -351,7 +277,7 @@ def test_basic_operations(kafka_cluster):
                     print('Read all the required messages: exiting')
                     break
             except ConsumeError as e:
-                if msg is not None and e.code == confluent_kafka.KafkaError._PARTITION_EOF:
+                if msg is not None and e.code == KafkaError._PARTITION_EOF:
                     print('Reached end of %s [%d] at offset %d' % (
                           msg.topic(), msg.partition(), msg.offset()))
                     eof_reached[(msg.topic(), msg.partition())] = True
@@ -392,14 +318,6 @@ def test_basic_operations(kafka_cluster):
     assert isinstance(result.valid, list)
     assert not result.valid
 
-    # Describe Consumer Groups API test
-    futureMap = admin_client.describe_consumer_groups([group1, group2], request_timeout=10)
-    for group_id, future in futureMap.items():
-        g = future.result()
-        assert group_id == g.group_id
-        assert g.is_simple_consumer_group is False
-        assert g.state == ConsumerGroupState.EMPTY
-
     def verify_config(expconfig, configs):
         """
         Verify that the config key,values in expconfig are found
@@ -434,6 +352,8 @@ def test_basic_operations(kafka_cluster):
     fs = admin_client.alter_configs([resource])
     fs[resource].result()  # will raise exception on failure
 
+    time.sleep(1)
+
     #
     # Read the config back again and verify.
     #
@@ -460,5 +380,3 @@ def test_basic_operations(kafka_cluster):
 
     # Verify ACL operations
     verify_admin_acls(admin_client, acls_topic, acls_group)
-    # Verify user SCRAM credentials API
-    verify_admin_scram(admin_client)

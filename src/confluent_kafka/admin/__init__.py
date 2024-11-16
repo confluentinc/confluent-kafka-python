@@ -47,6 +47,19 @@ from ._scram import (UserScramCredentialAlteration,  # noqa: F401
                      ScramMechanism,
                      UserScramCredentialsDescription)
 
+from ._topic import (TopicDescription)  # noqa: F401
+
+from ._cluster import (DescribeClusterResult)  # noqa: F401
+
+from ._listoffsets import (OffsetSpec,  # noqa: F401
+                           ListOffsetsResultInfo)
+
+from ._records import DeletedRecords  # noqa: F401
+
+from .._model import (TopicCollection as _TopicCollection,
+                      ConsumerGroupType as _ConsumerGroupType,
+                      ElectionType as _ElectionType)
+
 from ..cimpl import (KafkaException,  # noqa: F401
                      KafkaError,
                      _AdminClientImpl,
@@ -64,13 +77,13 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      RESOURCE_TOPIC,
                      RESOURCE_GROUP,
                      RESOURCE_BROKER,
+                     RESOURCE_TRANSACTIONAL_ID,
                      OFFSET_INVALID)
 
-from confluent_kafka import ConsumerGroupTopicPartitions \
-    as _ConsumerGroupTopicPartitions
-
-from confluent_kafka import ConsumerGroupState \
-    as _ConsumerGroupState
+from confluent_kafka import \
+    ConsumerGroupTopicPartitions as _ConsumerGroupTopicPartitions, \
+    ConsumerGroupState as _ConsumerGroupState, \
+    IsolationLevel as _IsolationLevel
 
 
 try:
@@ -101,17 +114,18 @@ class AdminClient (_AdminClientImpl):
     Requires broker version v0.11.0.0 or later.
     """
 
-    def __init__(self, conf):
+    def __init__(self, conf, **kwargs):
         """
         Create a new AdminClient using the provided configuration dictionary.
 
         The AdminClient is a standard Kafka protocol client, supporting
         the standard librdkafka configuration properties as specified at
-        https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+        https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
 
-        At least 'bootstrap.servers' should be configured.
+        :param dict conf: Configuration properties. At a minimum ``bootstrap.servers`` **should** be set\n"
+        :param Logger logger: Optional Logger instance to use as a custom log messages handler.
         """
-        super(AdminClient, self).__init__(conf)
+        super(AdminClient, self).__init__(conf, **kwargs)
 
     @staticmethod
     def _make_topics_result(f, futmap):
@@ -244,7 +258,29 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_user_scram_credentials_result(f, futmap):
+    def _make_futmap_result_from_list(f, futmap):
+        try:
+
+            results = f.result()
+            futmap_values = list(futmap.values())
+            len_results = len(results)
+            len_futures = len(futmap_values)
+            if len_results != len_futures:
+                raise RuntimeError(
+                    "Results length {} is different from future-map length {}".format(len_results, len_futures))
+            for i, result in enumerate(results):
+                fut = futmap_values[i]
+                if isinstance(result, KafkaError):
+                    fut.set_exception(KafkaException(result))
+                else:
+                    fut.set_result(result)
+        except Exception as e:
+            # Request-level exception, raise the same for all topics
+            for _, fut in futmap.items():
+                fut.set_exception(e)
+
+    @staticmethod
+    def _make_futmap_result(f, futmap):
         try:
             results = f.result()
             len_results = len(results)
@@ -252,11 +288,11 @@ class AdminClient (_AdminClientImpl):
             if len(results) != len_futures:
                 raise RuntimeError(
                     f"Results length {len_results} is different from future-map length {len_futures}")
-            for username, value in results.items():
-                fut = futmap.get(username, None)
+            for key, value in results.items():
+                fut = futmap.get(key, None)
                 if fut is None:
                     raise RuntimeError(
-                        f"username {username} not found in future-map: {futmap}")
+                        f"Key {key} not found in future-map: {futmap}")
                 if isinstance(value, KafkaError):
                     fut.set_exception(KafkaException(value))
                 else:
@@ -315,6 +351,30 @@ class AdminClient (_AdminClientImpl):
         return f, futmap
 
     @staticmethod
+    def _make_single_future_pair():
+        """
+        Create an pair of futures, one for internal usage and one
+        to use externally, the external one throws a KafkaException if
+        any of the values in the map returned by the first future is
+        a KafkaError.
+        """
+        def single_future_result(internal_f, f):
+            try:
+                results = internal_f.result()
+                for _, value in results.items():
+                    if isinstance(value, KafkaError):
+                        f.set_exception(KafkaException(value))
+                        return
+                f.set_result(results)
+            except Exception as e:
+                f.set_exception(e)
+
+        f = AdminClient._create_future()
+        internal_f = AdminClient._create_future()
+        internal_f.add_done_callback(lambda internal_f: single_future_result(internal_f, f))
+        return internal_f, f
+
+    @staticmethod
     def _has_duplicates(items):
         return len(set(items)) != len(items)
 
@@ -354,7 +414,6 @@ class AdminClient (_AdminClientImpl):
                     if topic_partition.partition < 0:
                         raise ValueError("Element of 'topic_partitions' must not have negative 'partition' value")
                     if topic_partition.offset != OFFSET_INVALID:
-                        print(topic_partition.offset)
                         raise ValueError("Element of 'topic_partitions' must not have 'offset' value")
 
     @staticmethod
@@ -398,9 +457,13 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_describe_user_scram_credentials_request(users):
+        if users is None:
+            return
         if not isinstance(users, list):
             raise TypeError("Expected input to be list of String")
         for user in users:
+            if user is None:
+                raise TypeError("'user' cannot be None")
             if not isinstance(user, string_type):
                 raise TypeError("Each value should be a string")
             if not user:
@@ -449,6 +512,61 @@ class AdminClient (_AdminClientImpl):
                                 "to be either a UserScramCredentialUpsertion or a " +
                                 "UserScramCredentialDeletion")
 
+    @staticmethod
+    def _check_list_offsets_request(topic_partition_offsets, kwargs):
+        if not isinstance(topic_partition_offsets, dict):
+            raise TypeError("Expected topic_partition_offsets to be " +
+                            "dict of [TopicPartitions,OffsetSpec] for list offsets request")
+
+        for topic_partition, offset_spec in topic_partition_offsets.items():
+            if topic_partition is None:
+                raise TypeError("partition cannot be None")
+            if not isinstance(topic_partition, _TopicPartition):
+                raise TypeError("partition must be a TopicPartition")
+            if topic_partition.topic is None:
+                raise TypeError("partition topic name cannot be None")
+            if not isinstance(topic_partition.topic, string_type):
+                raise TypeError("partition topic name must be string")
+            if not topic_partition.topic:
+                raise ValueError("partition topic name cannot be empty")
+            if topic_partition.partition < 0:
+                raise ValueError("partition index must be non-negative")
+            if offset_spec is None:
+                raise TypeError("OffsetSpec cannot be None")
+            if not isinstance(offset_spec, OffsetSpec):
+                raise TypeError("Value must be a OffsetSpec")
+
+        if 'isolation_level' in kwargs:
+            if not isinstance(kwargs['isolation_level'], _IsolationLevel):
+                raise TypeError("isolation_level argument should be an IsolationLevel")
+
+    @staticmethod
+    def _check_delete_records(request):
+        if not isinstance(request, list):
+            raise TypeError(f"Expected Request to be a list, got '{type(request).__name__}' ")
+        for req in request:
+            if not isinstance(req, _TopicPartition):
+                raise TypeError("Element of the request list must be of type 'TopicPartition'" +
+                                f" got '{type(req).__name__}' ")
+            if req.partition < 0:
+                raise ValueError("'partition' cannot be negative")
+
+    @staticmethod
+    def _check_elect_leaders(election_type, partitions):
+        if not isinstance(election_type, _ElectionType):
+            raise TypeError("Expected 'election_type' to be of type 'ElectionType'")
+        if partitions is not None:
+            if not isinstance(partitions, list):
+                raise TypeError("Expected 'partitions' to be a list, got " +
+                                f"'{type(partitions).__name__}'")
+            for partition in partitions:
+                if not isinstance(partition, _TopicPartition):
+                    raise TypeError("Element of the 'partitions' list must be of type 'TopicPartition'" +
+                                    f" got '{type(partition).__name__}' ")
+                if partition.partition < 0:
+                    raise ValueError("Elements of the 'partitions' list must not have negative value" +
+                                     " for 'partition' field")
+
     def create_topics(self, new_topics, **kwargs):
         """
         Create one or more new topics.
@@ -458,10 +576,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreateTopics request will block
                   on the broker waiting for the topic creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param bool validate_only: If true, the request is only validated
                   without creating the topic. Default: False
 
@@ -491,10 +610,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the DeleteTopics request will block
                   on the broker waiting for the topic deletion to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each topic, keyed by the topic name.
                   The future result() method returns None.
@@ -529,10 +649,11 @@ class AdminClient (_AdminClientImpl):
         :param float operation_timeout: The operation timeout in seconds,
                   controlling how long the CreatePartitions request will block
                   on the broker waiting for the partition creation to propagate
-                  in the cluster. A value of 0 returns immediately. Default: 0
+                  in the cluster. A value of 0 returns immediately.
+                  Default: `socket.timeout.ms/1000.0`
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param bool validate_only: If true, the request is only validated
                   without creating the partitions. Default: False
 
@@ -566,7 +687,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to get the configuration for.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each resource, keyed by the ConfigResource.
                   The type of the value returned by the future result() method is
@@ -610,7 +731,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to update configuration of.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`.
         :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
 
@@ -643,7 +764,7 @@ class AdminClient (_AdminClientImpl):
         :param list(ConfigResource) resources: Resources to update configuration of.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`.
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`.
         :param bool validate_only: If true, the request is validated only,
                   without altering the configuration. Default: False
         :param int broker: Broker id to send the request to. When
@@ -675,7 +796,7 @@ class AdminClient (_AdminClientImpl):
                          to create.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each ACL binding, keyed by the :class:`AclBinding` object.
                   The future result() method returns None on success.
@@ -714,7 +835,7 @@ class AdminClient (_AdminClientImpl):
                   that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A future returning a list(:class:`AclBinding`) as result
 
@@ -749,7 +870,7 @@ class AdminClient (_AdminClientImpl):
                   that is a prefix of the given resource name
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each ACL binding filter, keyed by the :class:`AclBindingFilter` object.
                   The future result() method returns a list of :class:`AclBinding`.
@@ -776,9 +897,11 @@ class AdminClient (_AdminClientImpl):
 
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
         :param set(ConsumerGroupState) states: only list consumer groups which are currently in
                   these states.
+        :param set(ConsumerGroupType) types: only list consumer groups of
+                  these types.
 
         :returns: a future. Result method of the future returns :class:`ListConsumerGroupsResult`.
 
@@ -798,6 +921,16 @@ class AdminClient (_AdminClientImpl):
                         raise TypeError("All elements of states must be of type ConsumerGroupState")
                 kwargs["states_int"] = [state.value for state in states]
             kwargs.pop("states")
+        if "types" in kwargs:
+            types = kwargs["types"]
+            if types is not None:
+                if not isinstance(types, set):
+                    raise TypeError("'types' must be a set")
+                for type in types:
+                    if not isinstance(type, _ConsumerGroupType):
+                        raise TypeError("All elements of types must be of type ConsumerGroupType")
+                kwargs["types_int"] = [type.value for type in types]
+            kwargs.pop("types")
 
         f, _ = AdminClient._make_futures([], None, AdminClient._make_list_consumer_groups_result)
 
@@ -810,9 +943,10 @@ class AdminClient (_AdminClientImpl):
         Describe consumer groups.
 
         :param list(str) group_ids: List of group_ids which need to be described.
+        :param bool include_authorized_operations: If True, fetches group AclOperations. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns :class:`ConsumerGroupDescription`.
@@ -837,6 +971,65 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
+    def describe_topics(self, topics, **kwargs):
+        """
+        Describe topics.
+
+        :param TopicCollection topics: Collection of list of topic names to describe.
+        :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
+
+        :returns: A dict of futures for each topic, keyed by the topic.
+                  The future result() method returns :class:`TopicDescription`.
+
+        :rtype: dict[str, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+
+        if not isinstance(topics, _TopicCollection):
+            raise TypeError("Expected input to be instance of TopicCollection")
+
+        topic_names = topics.topic_names
+
+        if not isinstance(topic_names, list):
+            raise TypeError("Expected list of topic names to be described")
+
+        f, futmap = AdminClient._make_futures_v2(topic_names, None,
+                                                 AdminClient._make_futmap_result_from_list)
+
+        super(AdminClient, self).describe_topics(topic_names, f, **kwargs)
+
+        return futmap
+
+    def describe_cluster(self, **kwargs):
+        """
+        Describe cluster.
+
+        :param bool include_authorized_operations: If True, fetches topic AclOperations. Default: False
+        :param float request_timeout: The overall request timeout in seconds,
+                  including broker lookup, request transmission, operation time
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
+
+        :returns: A future returning description of the cluster as result
+
+        :rtype: future containing the description of the cluster in result.
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+
+        f = AdminClient._create_future()
+
+        super(AdminClient, self).describe_cluster(f, **kwargs)
+
+        return f
+
     def delete_consumer_groups(self, group_ids, **kwargs):
         """
         Delete the given consumer groups.
@@ -844,7 +1037,7 @@ class AdminClient (_AdminClientImpl):
         :param list(str) group_ids: List of group_ids which need to be deleted.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group_id.
                   The future result() method returns None.
@@ -852,8 +1045,8 @@ class AdminClient (_AdminClientImpl):
         :rtype: dict[str, future]
 
         :raises KafkaException: Operation failed locally or on broker.
-        :raises TypeException: Invalid input.
-        :raises ValueException: Invalid input.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
         """
         if not isinstance(group_ids, list):
             raise TypeError("Expected input to be list of group ids to be deleted")
@@ -881,7 +1074,7 @@ class AdminClient (_AdminClientImpl):
         :param bool require_stable: If True, fetches stable offsets. Default: False
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
@@ -914,7 +1107,7 @@ class AdminClient (_AdminClientImpl):
                     partition; and corresponding offset to be updated.
         :param float request_timeout: The overall request timeout in seconds,
                   including broker lookup, request transmission, operation time
-                  on broker, and response. Default: `socket.timeout.ms*1000.0`
+                  on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures for each group, keyed by the group id.
                   The future result() method returns :class:`ConsumerGroupTopicPartitions`.
@@ -955,34 +1148,41 @@ class AdminClient (_AdminClientImpl):
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
 
-    def describe_user_scram_credentials(self, users, **kwargs):
+    def describe_user_scram_credentials(self, users=None, **kwargs):
         """
         Describe user SASL/SCRAM credentials.
 
         :param list(str) users: List of user names to describe.
-               Duplicate users aren't allowed.
+               Duplicate users aren't allowed. Can be None
+               to describe all user's credentials.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
-               on broker, and response. Default: `socket.timeout.ms*1000.0`
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
 
-        :returns: A dict of futures keyed by user name.
-                  The future result() method returns the
-                  :class:`UserScramCredentialsDescription` or
-                  raises KafkaException
+        :returns: In case None is passed it returns a single future.
+                  The future yields a dict[str, UserScramCredentialsDescription]
+                  or raises a KafkaException
 
-        :rtype: dict[str, future]
+                  In case a list of user names is passed, it returns
+                  a dict[str, future[UserScramCredentialsDescription]].
+                  The futures yield a :class:`UserScramCredentialsDescription`
+                  or raise a KafkaException
+
+        :rtype: Union[future[dict[str, UserScramCredentialsDescription]],
+                      dict[str, future[UserScramCredentialsDescription]]]
 
         :raises TypeError: Invalid input type.
         :raises ValueError: Invalid input value.
         """
         AdminClient._check_describe_user_scram_credentials_request(users)
 
-        f, futmap = AdminClient._make_futures_v2(users, None,
-                                                 AdminClient._make_user_scram_credentials_result)
-
-        super(AdminClient, self).describe_user_scram_credentials(users, f, **kwargs)
-
-        return futmap
+        if users is None:
+            internal_f, ret_fut = AdminClient._make_single_future_pair()
+        else:
+            internal_f, ret_fut = AdminClient._make_futures_v2(users, None,
+                                                               AdminClient._make_futmap_result)
+        super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
+        return ret_fut
 
     def alter_user_scram_credentials(self, alterations, **kwargs):
         """
@@ -993,7 +1193,7 @@ class AdminClient (_AdminClientImpl):
                The pair (user, mechanism) must be unique among alterations.
         :param float request_timeout: The overall request timeout in seconds,
                including broker lookup, request transmission, operation time
-               on broker, and response. Default: `socket.timeout.ms*1000.0`
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
 
         :returns: A dict of futures keyed by user name.
                   The future result() method returns None or
@@ -1007,8 +1207,120 @@ class AdminClient (_AdminClientImpl):
         AdminClient._check_alter_user_scram_credentials_request(alterations)
 
         f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
-                                                 AdminClient._make_user_scram_credentials_result)
+                                                 AdminClient._make_futmap_result)
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
-
         return futmap
+
+    def list_offsets(self, topic_partition_offsets, **kwargs):
+        """
+        Enables to find the beginning offset,
+        end offset as well as the offset matching a timestamp
+        or the offset with max timestamp in partitions.
+
+        :param dict([TopicPartition, OffsetSpec]) topic_partition_offsets: Dictionary of
+               TopicPartition objects associated with the corresponding OffsetSpec to query for.
+        :param IsolationLevel isolation_level: The isolation level to use when
+               querying.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
+
+        :returns: A dict of futures keyed by TopicPartition.
+                  The future result() method returns ListOffsetsResultInfo
+                  raises KafkaException
+
+        :rtype: dict[TopicPartition, future]
+
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_list_offsets_request(topic_partition_offsets, kwargs)
+
+        if 'isolation_level' in kwargs:
+            kwargs['isolation_level_value'] = kwargs['isolation_level'].value
+            del kwargs['isolation_level']
+
+        topic_partition_offsets_list = [
+            _TopicPartition(topic_partition.topic, int(topic_partition.partition),
+                            int(offset_spec._value))
+            for topic_partition, offset_spec in topic_partition_offsets.items()]
+
+        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
+                                                 _TopicPartition,
+                                                 AdminClient._make_futmap_result)
+
+        super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
+        return futmap
+
+    def delete_records(self, topic_partition_offsets, **kwargs):
+        """
+        Deletes all the records before the specified offsets (not including),
+        in the specified topics and partitions.
+
+        :param list(TopicPartition) topic_partition_offsets: A list of
+               :class:`.TopicPartition` objects having `offset` field set to the offset
+               before which all the records should be deleted.
+               `offset` can be set to :py:const:`OFFSET_END` (-1) to delete all records
+               in the partition.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms/1000.0`
+        :param float operation_timeout: The operation timeout in seconds,
+               controlling how long the `delete_records` request will block
+               on the broker waiting for the record deletion to propagate
+               in the cluster. A value of 0 returns immediately.
+               Default: `socket.timeout.ms/1000.0`
+
+        :returns: A dict of futures keyed by the :class:`.TopicPartition`.
+                  The future result() method returns :class:`.DeletedRecords`
+                  or raises :class:`.KafkaException`
+
+        :rtype: dict[TopicPartition, future]
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+        AdminClient._check_delete_records(topic_partition_offsets)
+
+        f, futmap = AdminClient._make_futures_v2(
+            topic_partition_offsets, _TopicPartition, AdminClient._make_futmap_result)
+
+        super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
+        return futmap
+
+    def elect_leaders(self, election_type, partitions=None, **kwargs):
+        """
+        Perform Preferred or Unclean leader election for
+        all the specified partitions or all partitions in the cluster.
+
+        :param ElectionType election_type: The type of election to perform.
+        :param List[TopicPartition]|None partitions: The topic partitions to perform
+               the election on. Use ``None`` to perform on all the topic partitions.
+        :param float request_timeout: The overall request timeout in seconds,
+               including broker lookup, request transmission, operation time
+               on broker, and response. Default: `socket.timeout.ms*1000.0`
+        :param float operation_timeout: The operation timeout in seconds,
+               controlling how long the 'elect_leaders' request will block
+               on the broker waiting for the election to propagate
+               in the cluster. A value of 0 returns immediately.
+               Default: `socket.timeout.ms/1000.0`
+
+        :returns: A future. Method result() of the future returns
+                  dict[TopicPartition, KafkaException|None].
+
+        :rtype: future
+
+        :raises KafkaException: Operation failed locally or on broker.
+        :raises TypeError: Invalid input type.
+        :raises ValueError: Invalid input value.
+        """
+
+        AdminClient._check_elect_leaders(election_type, partitions)
+
+        f = AdminClient._create_future()
+
+        super(AdminClient, self).elect_leaders(election_type.value, partitions, f, **kwargs)
+
+        return f

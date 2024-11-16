@@ -18,16 +18,20 @@
 # Example use of AdminClient operations.
 
 from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
-                             TopicPartition, ConsumerGroupState)
+                             TopicPartition, ConsumerGroupState,
+                             TopicCollection, IsolationLevel,
+                             ConsumerGroupType, ElectionType)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
                                    ConfigEntry, ConfigSource, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
-                                   UserScramCredentialUpsertion, UserScramCredentialDeletion)
+                                   UserScramCredentialUpsertion, UserScramCredentialDeletion,
+                                   OffsetSpec)
 import sys
 import threading
 import logging
+import argparse
 
 logging.basicConfig()
 
@@ -469,18 +473,47 @@ def example_list(a, args):
                 print("id {} client_id: {} client_host: {}".format(m.id, m.client_id, m.client_host))
 
 
+def parse_list_consumer_groups_args(args, states, types):
+    parser = argparse.ArgumentParser(prog='list_consumer_groups')
+    parser.add_argument('-states')
+    parser.add_argument('-types')
+    parsed_args = parser.parse_args(args)
+
+    def usage(message):
+        print(message)
+        parser.print_usage()
+        sys.exit(1)
+
+    if parsed_args.states:
+        for arg in parsed_args.states.split(","):
+            try:
+                states.add(ConsumerGroupState[arg])
+            except KeyError:
+                usage(f"Invalid state: {arg}")
+    if parsed_args.types:
+        for arg in parsed_args.types.split(","):
+            try:
+                types.add(ConsumerGroupType[arg])
+            except KeyError:
+                usage(f"Invalid type: {arg}")
+
+
 def example_list_consumer_groups(a, args):
     """
     List Consumer Groups
     """
-    states = {ConsumerGroupState[state] for state in args}
-    future = a.list_consumer_groups(request_timeout=10, states=states)
+
+    states = set()
+    types = set()
+    parse_list_consumer_groups_args(args, states, types)
+
+    future = a.list_consumer_groups(request_timeout=10, states=states, types=types)
     try:
         list_consumer_groups_result = future.result()
         print("{} consumer groups".format(len(list_consumer_groups_result.valid)))
         for valid in list_consumer_groups_result.valid:
-            print("    id: {} is_simple: {} state: {}".format(
-                valid.group_id, valid.is_simple_consumer_group, valid.state))
+            print("    id: {} is_simple: {} state: {} type: {}".format(
+                valid.group_id, valid.is_simple_consumer_group, valid.state, valid.type))
         print("{} errors".format(len(list_consumer_groups_result.errors)))
         for error in list_consumer_groups_result.errors:
             print("    error: {}".format(error))
@@ -492,8 +525,9 @@ def example_describe_consumer_groups(a, args):
     """
     Describe Consumer Groups
     """
-
-    futureMap = a.describe_consumer_groups(args, request_timeout=10)
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    futureMap = a.describe_consumer_groups(args, include_authorized_operations=include_auth_ops, request_timeout=10)
 
     for group_id, future in futureMap.items():
         try:
@@ -502,7 +536,8 @@ def example_describe_consumer_groups(a, args):
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
             print("  Partition Assignor : {}".format(g.partition_assignor))
-            print("  Coordinator        : ({}) {}:{}".format(g.coordinator.id, g.coordinator.host, g.coordinator.port))
+            print(
+                f"  Coordinator        : {g.coordinator}")
             print("  Members: ")
             for member in g.members:
                 print("    Id                : {}".format(member.member_id))
@@ -513,10 +548,92 @@ def example_describe_consumer_groups(a, args):
                     print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
                         print("      {} [{}]".format(toppar.topic, toppar.partition))
+            if (include_auth_ops):
+                print("  Authorized operations: ")
+                op_string = ""
+                for acl_op in g.authorized_operations:
+                    op_string += acl_op.name + "  "
+                print("    {}".format(op_string))
         except KafkaException as e:
             print("Error while describing group id '{}': {}".format(group_id, e))
         except Exception:
             raise
+
+
+def example_describe_topics(a, args):
+    """
+    Describe Topics
+    """
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    topics = TopicCollection(topic_names=args)
+    futureMap = a.describe_topics(topics, request_timeout=10, include_authorized_operations=include_auth_ops)
+
+    for topic_name, future in futureMap.items():
+        try:
+            t = future.result()
+            print("Topic name             : {}".format(t.name))
+            print("Topic id               : {}".format(t.topic_id))
+            if (t.is_internal):
+                print("Topic is Internal")
+
+            if (include_auth_ops):
+                print("Authorized operations  : ")
+                op_string = ""
+                for acl_op in t.authorized_operations:
+                    op_string += acl_op.name + "  "
+                print("    {}".format(op_string))
+
+            print("Partition Information")
+            for partition in t.partitions:
+                print("    Id                : {}".format(partition.id))
+                leader = partition.leader
+                print(f"    Leader            : {leader}")
+                print("    Replicas          : {}".format(len(partition.replicas)))
+                for replica in partition.replicas:
+                    print(f"         Replica            : {replica}")
+                print("    In-Sync Replicas  : {}".format(len(partition.isr)))
+                for isr in partition.isr:
+                    print(f"         In-Sync Replica    : {isr}")
+                print("")
+            print("")
+
+        except KafkaException as e:
+            print("Error while describing topic '{}': {}".format(topic_name, e))
+        except Exception:
+            raise
+
+
+def example_describe_cluster(a, args):
+    """
+    Describe Cluster
+    """
+    include_auth_ops = bool(int(args[0]))
+    args = args[1:]
+    future = a.describe_cluster(request_timeout=10, include_authorized_operations=include_auth_ops)
+    try:
+        c = future.result()
+        print("Cluster_id           : {}".format(c.cluster_id))
+
+        if (c.controller):
+            print(f"Controller: {c.controller}")
+        else:
+            print("No Controller Information Available")
+
+        print("Nodes                :")
+        for node in c.nodes:
+            print(f"  Node: {node}")
+
+        if (include_auth_ops):
+            print("Authorized operations: ")
+            op_string = ""
+            for acl_op in c.authorized_operations:
+                op_string += acl_op.name + "  "
+            print("    {}".format(op_string))
+    except KafkaException as e:
+        print("Error while describing cluster: {}".format(e))
+    except Exception:
+        raise
 
 
 def example_delete_consumer_groups(a, args):
@@ -602,19 +719,46 @@ def example_describe_user_scram_credentials(a, args):
     """
     Describe User Scram Credentials
     """
-    futmap = a.describe_user_scram_credentials(args)
-
-    for username, fut in futmap.items():
-        print("Username: {}".format(username))
+    if len(args) == 0:
+        """
+        Case: Describes all user scram credentials
+        Input: no argument passed or None
+        Gets a future which result will give a
+        dict[str, UserScramCredentialsDescription]
+        or will throw a KafkaException
+        """
+        f = a.describe_user_scram_credentials()
         try:
-            response = fut.result()
-            for scram_credential_info in response.scram_credential_infos:
-                print(f"    Mechanism: {scram_credential_info.mechanism} " +
-                      f"Iterations: {scram_credential_info.iterations}")
+            results = f.result()
+            for username, response in results.items():
+                print("Username : {}".format(username))
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
         except KafkaException as e:
-            print("    Error: {}".format(e))
-        except Exception as e:
-            print(f"    Unexpected exception: {e}")
+            print("Failed to describe all user scram credentials : {}".format(e))
+        except Exception:
+            raise
+    else:
+        """
+        Case: Describe specified user scram credentials
+        Input: users is a list
+        Gets a dict[str, future] where the result() of
+        each future will give a UserScramCredentialsDescription
+        or a KafkaException
+        """
+        futmap = a.describe_user_scram_credentials(args)
+        for username, fut in futmap.items():
+            print("Username: {}".format(username))
+            try:
+                response = fut.result()
+                for scram_credential_info in response.scram_credential_infos:
+                    print(f"    Mechanism: {scram_credential_info.mechanism} " +
+                          f"Iterations: {scram_credential_info.iterations}")
+            except KafkaException as e:
+                print("    Error: {}".format(e))
+            except Exception:
+                raise
 
 
 def example_alter_user_scram_credentials(a, args):
@@ -681,6 +825,127 @@ def example_alter_user_scram_credentials(a, args):
             print("{}: Error: {}".format(username, e))
 
 
+def example_list_offsets(a, args):
+    topic_partition_offsets = {}
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for list offsets, expected at least 1, got 0")
+    i = 1
+    partition_i = 1
+    isolation_level = IsolationLevel[args[0]]
+    while i < len(args):
+        if i + 3 > len(args):
+            raise ValueError(
+                f"Invalid number of arguments for list offsets, partition {partition_i}, expected 3," +
+                f" got {len(args) - i}")
+        topic = args[i]
+        partition = int(args[i + 1])
+        topic_partition = TopicPartition(topic, partition)
+
+        if "EARLIEST" == args[i + 2]:
+            offset_spec = OffsetSpec.earliest()
+
+        elif "LATEST" == args[i + 2]:
+            offset_spec = OffsetSpec.latest()
+
+        elif "MAX_TIMESTAMP" == args[i + 2]:
+            offset_spec = OffsetSpec.max_timestamp()
+
+        elif "TIMESTAMP" == args[i + 2]:
+            if i + 4 > len(args):
+                raise ValueError(
+                    f"Invalid number of arguments for list offsets, partition {partition_i}, expected 4" +
+                    f", got {len(args) - i}")
+            offset_spec = OffsetSpec.for_timestamp(int(args[i + 3]))
+            i += 1
+        else:
+            raise ValueError("Invalid OffsetSpec, must be EARLIEST, LATEST, MAX_TIMESTAMP or TIMESTAMP")
+        topic_partition_offsets[topic_partition] = offset_spec
+        i = i + 3
+        partition_i += 1
+
+    futmap = a.list_offsets(topic_partition_offsets, isolation_level=isolation_level, request_timeout=30)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}"
+                  .format(partition.topic, partition.partition, result.offset,
+                          result.timestamp))
+        except KafkaException as e:
+            print("Topicname : {} Partition_Index : {} Error : {}"
+                  .format(partition.topic, partition.partition, e))
+
+
+def example_delete_records(a, args):
+    if len(args) == 0:
+        raise ValueError(
+            "Invalid number of arguments for delete_records, expected at least 3 " +
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..])")
+    if len(args) % 3 != 0:
+        raise ValueError(
+            "Invalid number of arguments for delete_records " +
+            "(Usage: delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..])")
+
+    topic_partition_offsets = [
+        TopicPartition(topic, int(partition), int(offset))
+        for topic, partition, offset in zip(args[::3], args[1::3], args[2::3])
+    ]
+
+    futmap = a.delete_records(topic_partition_offsets)
+    for partition, fut in futmap.items():
+        try:
+            result = fut.result()
+            if partition.offset == -1:
+                print(f"All records deleted in topic {partition.topic} partition {partition.partition}." +
+                      f"The minimum offset in this partition is now {result.low_watermark}")
+            else:
+                print(
+                    f"All records deleted before offset {partition.offset} in topic {partition.topic}" +
+                    f" partition {partition.partition}. The minimum offset in this partition" +
+                    f" is now {result.low_watermark}")
+        except KafkaException as e:
+            print(
+                f"Error deleting records in topic {partition.topic} partition {partition.partition}" +
+                f" before offset {partition.offset}: {e}")
+
+
+def example_elect_leaders(a, args):
+    partitions = []
+    if (len(args) - 1) % 2 != 0:
+        raise ValueError("Invalid number of arguments for elect_leaders, Expected format: " +
+                         "elect_leaders <election_type> [<topic1> <partition1>" +
+                         " <topic2> <partition2> ..]")
+
+    try:
+        election_type = ElectionType[args[0]]
+    except KeyError:
+        raise ValueError(f"Invalid election_type: {args[0]}, expected 'PREFERRED' or 'UNCLEAN'")
+
+    for topic, partition in zip(args[1::2], args[2::2]):
+        partitions.append(TopicPartition(topic, int(partition)))
+
+    if len(partitions) == 0:
+        # When passing None as partitions, election is triggered for
+        # all partitions in the cluster
+        partitions = None
+
+    f = a.elect_leaders(election_type, partitions)
+    try:
+        results = f.result()
+        print(f"Elect leaders call returned {len(results)} result(s):")
+        for partition, error in results.items():
+            if error is None:
+                print(f"Leader Election Successful for topic: '{partition.topic}'" +
+                      f" partition: '{partition.partition}'")
+            else:
+                print(
+                    "Leader Election Failed for topic: " +
+                    f"'{partition.topic}' partition: '{partition.partition}' " +
+                    f"error code: {error.code()} error message: {error.str()}")
+    except KafkaException as e:
+        print(f"Error electing leaders: {e}")
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 3:
         sys.stderr.write('Usage: %s <bootstrap-brokers> <operation> <args..>\n\n' % sys.argv[0])
@@ -703,8 +968,11 @@ if __name__ == '__main__':
         sys.stderr.write(' delete_acls <resource_type1> <resource_name1> <resource_patter_type1> ' +
                          '<principal1> <host1> <operation1> <permission_type1> ..\n')
         sys.stderr.write(' list [<all|topics|brokers|groups>]\n')
-        sys.stderr.write(' list_consumer_groups [<state1> <state2> ..]\n')
-        sys.stderr.write(' describe_consumer_groups <group1> <group2> ..\n')
+        sys.stderr.write(' list_consumer_groups [-states <state1>,<state2>,..] ' +
+                         '[-types <type1>,<type2>,..]\n')
+        sys.stderr.write(' describe_consumer_groups <include_authorized_operations> <group1> <group2> ..\n')
+        sys.stderr.write(' describe_topics <include_authorized_operations> <topic1> <topic2> ..\n')
+        sys.stderr.write(' describe_cluster <include_authorized_operations>\n')
         sys.stderr.write(' delete_consumer_groups <group1> <group2> ..\n')
         sys.stderr.write(' list_consumer_group_offsets <group> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.stderr.write(
@@ -715,6 +983,10 @@ if __name__ == '__main__':
                          '<iterations1> <password1> <salt1> ' +
                          '[UPSERT <user2> <mechanism2> <iterations2> ' +
                          ' <password2> <salt2> DELETE <user3> <mechanism3> ..]\n')
+        sys.stderr.write(' list_offsets <isolation_level> <topic1> <partition1> <offset_spec1> ' +
+                         '[<topic2> <partition2> <offset_spec2> ..]\n')
+        sys.stderr.write(' delete_records <topic1> <partition1> <offset1> [<topic2> <partition2> <offset2> ..]\n')
+        sys.stderr.write(' elect_leaders <election_type> [<topic1> <partition1> <topic2> <partition2> ..]\n')
         sys.exit(1)
 
     broker = sys.argv[1]
@@ -737,11 +1009,16 @@ if __name__ == '__main__':
               'list': example_list,
               'list_consumer_groups': example_list_consumer_groups,
               'describe_consumer_groups': example_describe_consumer_groups,
+              'describe_topics': example_describe_topics,
+              'describe_cluster': example_describe_cluster,
               'delete_consumer_groups': example_delete_consumer_groups,
               'list_consumer_group_offsets': example_list_consumer_group_offsets,
               'alter_consumer_group_offsets': example_alter_consumer_group_offsets,
               'describe_user_scram_credentials': example_describe_user_scram_credentials,
-              'alter_user_scram_credentials': example_alter_user_scram_credentials}
+              'alter_user_scram_credentials': example_alter_user_scram_credentials,
+              'list_offsets': example_list_offsets,
+              'delete_records': example_delete_records,
+              'elect_leaders': example_elect_leaders}
 
     if operation not in opsmap:
         sys.stderr.write('Unknown operation: %s\n' % operation)
