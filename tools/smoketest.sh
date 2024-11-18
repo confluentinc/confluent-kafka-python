@@ -91,7 +91,7 @@ for py in 3.9 ; do
 
     # Change to a neutral path where there is no confluent_kafka sub-directory
     # that might interfere with module load.
-    pushd $testdir/tests
+    pushd $testdir
     echo "$0: Running unit tests"
     pytest
 
@@ -125,7 +125,7 @@ c = Consumer({"group.id": "test-linux", "plugin.library.paths": "monitoring-inte
         all_fails="$all_fails \[py$py: $fails\]"
     fi
 
-    popd # $testdir/tests
+    popd # $testdir
 done
 
 if [[ -z $pyvers_tested ]]; then
