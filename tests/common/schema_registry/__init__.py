@@ -18,7 +18,7 @@
 
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.avro import AvroConsumer
-from tests.common import TestUtils
+from .. import TestUtils
 
 
 class TestDeserializingConsumer(DeserializingConsumer):

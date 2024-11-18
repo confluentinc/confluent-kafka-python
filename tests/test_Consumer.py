@@ -6,7 +6,7 @@ from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              KafkaException, TIMESTAMP_NOT_AVAILABLE,
                              OFFSET_INVALID, libversion)
 
-from tests.common import TestConsumer
+from .common import TestConsumer
 
 
 def test_basic_api():

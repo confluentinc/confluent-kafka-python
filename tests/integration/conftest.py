@@ -19,7 +19,7 @@
 import os
 import pytest
 
-from tests.common import TestUtils
+from ..common import TestUtils
 from tests.integration.cluster_fixture import TrivupFixture
 from tests.integration.cluster_fixture import ByoFixture
 

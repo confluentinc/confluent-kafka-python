@@ -86,6 +86,7 @@ for py in 3.9 ; do
     # directories from the source tree.
     testdir=$(mktemp -d /tmp/_testdirXXXXXX)
     cp tests/*.py $testdir/
+    cp -r tests/common $testdir/
 
     # Change to a neutral path where there is no confluent_kafka sub-directory
     # that might interfere with module load.
