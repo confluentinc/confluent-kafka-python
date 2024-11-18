@@ -21,7 +21,7 @@ from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
 from confluent_kafka.error import ConsumeError
 from confluent_kafka import ConsumerGroupState, TopicCollection
 
-from tests.common import TestUtils
+from ...common import TestUtils
 
 topic_prefix = "test-topic"
 

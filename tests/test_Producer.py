@@ -6,7 +6,7 @@ from struct import pack
 from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
 
-from tests.common import TestConsumer
+from .common import TestConsumer
 
 
 def error_cb(err):

@@ -21,7 +21,7 @@ from uuid import uuid1
 
 from confluent_kafka import KafkaError
 
-from tests.common import TestConsumer
+from ...common import TestConsumer
 
 
 def called_by():

@@ -7,7 +7,8 @@ import confluent_kafka
 import confluent_kafka.avro
 import confluent_kafka.admin
 
-from tests.common import TestConsumer, TestAvroConsumer
+from .common import TestConsumer
+from .common.schema_registry import TestAvroConsumer
 
 
 class CountingFilter(logging.Filter):

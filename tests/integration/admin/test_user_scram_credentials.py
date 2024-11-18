@@ -22,7 +22,7 @@ from confluent_kafka.admin import UserScramCredentialsDescription, UserScramCred
     ScramMechanism
 from confluent_kafka.error import KafkaException, KafkaError
 
-from tests.common import TestUtils
+from ...common import TestUtils
 
 
 def test_user_scram_credentials(kafka_cluster):
