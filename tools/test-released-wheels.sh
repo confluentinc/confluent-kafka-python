@@ -15,7 +15,7 @@ if ! command -v pyenv &> /dev/null; then
 fi
 
 # List of Python versions to run the code with
-python_versions=("3.6.15" "3.7.17" "3.8.18" "3.9.18" "3.10.11" "3.11.7" "3.12.1" "3.13.0")
+python_versions=("3.7.17" "3.8.18" "3.9.18" "3.10.11" "3.11.7" "3.12.1" "3.13.0")
 
 eval "$(pyenv init -)"
 
