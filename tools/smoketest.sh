@@ -85,11 +85,13 @@ for py in 3.9 ; do
     # Copy unit tests to temporary directory to avoid any conflicting __pycache__
     # directories from the source tree.
     testdir=$(mktemp -d /tmp/_testdirXXXXXX)
-    cp tests/*.py $testdir/
+    mkdir -p $testdir/tests
+    cp tests/*.py $testdir/tests/
+    cp -r tests/common $testdir/tests/
 
     # Change to a neutral path where there is no confluent_kafka sub-directory
     # that might interfere with module load.
-    pushd $testdir
+    pushd $testdir/tests
     echo "$0: Running unit tests"
     pytest
 
@@ -123,7 +125,7 @@ c = Consumer({"group.id": "test-linux", "plugin.library.paths": "monitoring-inte
         all_fails="$all_fails \[py$py: $fails\]"
     fi
 
-    popd # $testdir
+    popd # $testdir/tests
 done
 
 if [[ -z $pyvers_tested ]]; then
