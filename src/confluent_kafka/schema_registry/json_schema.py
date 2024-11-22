@@ -18,13 +18,13 @@
 from io import BytesIO
 
 import json
-import struct
 
 from jsonschema import validate, ValidationError, RefResolver
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
-                                             topic_subject_name_strategy)
+from confluent_kafka.schema_registry import (Schema,
+                                             topic_subject_name_strategy,
+                                             confluent_payload_framing,
+                                             )
 from confluent_kafka.serialization import (SerializationError,
                                            Deserializer,
                                            Serializer)
@@ -104,6 +104,18 @@ class JSONSerializer(Serializer):
     |                           |          |                                                    |
     |                           |          | Defaults to topic_subject_name_strategy.           |
     +---------------------------+----------+----------------------------------------------------+
+    |                           |          | Callable(SerializationContext) -> Tuple(           |
+    |                           |          |        Callable(bytes) -> int             # Reader |
+    |                           |          |        Callable(BytesIO, int) -> None     # Writer |
+    |                           |          |        )                                           |
+    |                           |          |                                                    |
+    | ``schemaid.location``     | callable | Define how the schemaid is embedded in the kafka   |
+    |                           |          | Message. Standard locations are defined in the     |
+    |                           |          | confluent_kafka.schema_registry namespace.         |
+    |                           |          |                                                    |
+    |                           |          | Defaults to confluent_payload_framing.             |
+    +---------------------------+----------+----------------------------------------------------+
+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -128,6 +140,16 @@ class JSONSerializer(Serializer):
     +--------------------------------------+------------------------------+
 
     See `Subject name strategy <https://docs.confluent.io/current/schema-registry/serializer-formatter.html#subject-name-strategy>`_ for additional details.
+
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
 
     Notes:
         The ``title`` annotation, referred to elsewhere as a record name
@@ -157,12 +179,15 @@ class JSONSerializer(Serializer):
     """  # noqa: E501
     __slots__ = ['_hash', '_auto_register', '_normalize_schemas', '_use_latest_version',
                  '_known_subjects', '_parsed_schema', '_registry', '_schema', '_schema_id',
-                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided']
+                 '_schema_name', '_subject_name_func', '_to_dict', '_are_references_provided',
+                 '_schemaid_location_func']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
                      'use.latest.version': False,
-                     'subject.name.strategy': topic_subject_name_strategy}
+                     'subject.name.strategy': topic_subject_name_strategy,
+                     'schemaid.location': confluent_payload_framing,
+                     }
 
     def __init__(self, schema_str, schema_registry_client, to_dict=None, conf=None):
         self._are_references_provided = False
@@ -205,6 +230,10 @@ class JSONSerializer(Serializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+        
+        self._schemaid_location_func = conf_copy.pop('schemaid.location')
+        if not callable(self._schemaid_location_func):
+            raise ValueError("schemaid.location must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -280,9 +309,10 @@ class JSONSerializer(Serializer):
         except ValidationError as ve:
             raise SerializationError(ve.message)
 
+        _, schemaid_writer = self._schemaid_location_func(ctx)
+
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
+            schemaid_writer(fo, self._schema_id)
             # JSON dump always writes a str never bytes
             # https://docs.python.org/3/library/json.html
             fo.write(json.dumps(value).encode('utf8'))
@@ -294,6 +324,33 @@ class JSONDeserializer(Deserializer):
     """
     Deserializer for JSON encoded data with Confluent Schema Registry
     framing.
+
+    Configuration properties:
+
+    +---------------------------+----------+--------------------------------------------------+
+    | Property Name             | Type     | Description                                      |
+    +===========================+==========+==================================================+
+    |                           |          | Callable(SerializationContext) -> Tuple(         |
+    |                           |          |        Callable(bytes) -> int           # Reader |
+    |                           |          |        Callable(BytesIO, int) -> None   # Writer |
+    |                           |          |        )                                         |
+    |                           |          |                                                  |
+    | ``schemaid.location``     | callable | Define how the schemaid is embedded in the kafka |
+    |                           |          | Message. Standard locations are defined in the   |
+    |                           |          | confluent_kafka.schema_registry namespace.       |
+    |                           |          |                                                  |
+    |                           |          | Defaults to confluent_payload_framing.           |
+    +---------------------------+----------+--------------------------------------------------+
+
+    Supported schemaid locations:
+
+    +--------------------------------------+-------------------------------------+
+    | Schema ID Location                   | Output Format                       |
+    +======================================+=====================================+
+    | confluent_payload_framing(default)   | magic byte {0} + 4 byte unsigned id |
+    +--------------------------------------+-------------------------------------+
+    | apicurio_payload_framing             | magic byte {0} + 8 byte signed id   |
+    +--------------------------------------+-------------------------------------+
 
     Args:
         schema_str (str, Schema, optional):
@@ -310,9 +367,22 @@ class JSONDeserializer(Deserializer):
         schema_registry_client (SchemaRegistryClient, optional): Schema Registry client instance. Needed if ``schema_str`` is a schema referencing other schemas or is not provided.
     """  # noqa: E501
 
-    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema']
+    __slots__ = ['_parsed_schema', '_from_dict', '_registry', '_are_references_provided', '_schema', '_schemaid_location_func']
 
-    def __init__(self, schema_str, from_dict=None, schema_registry_client=None):
+    _default_conf = {
+        'schemaid.location': confluent_payload_framing,
+    }
+
+    def __init__(self, schema_str, from_dict=None, schema_registry_client=None, conf=None):
+        conf_copy = self._default_conf.copy()
+        if conf is not None:
+            conf_copy.update(conf)
+
+        self._schemaid_location_func = conf_copy.pop('schemaid.location')
+        if len(conf_copy) > 0:
+            raise ValueError("Unrecognized properties: {}"
+                             .format(", ".join(conf_copy.keys())))
+
         self._are_references_provided = False
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
@@ -362,19 +432,10 @@ class JSONDeserializer(Deserializer):
         if data is None:
             return None
 
-        if len(data) <= 5:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
+        schemaid_reader, _  = self._schemaid_location_func(ctx)
 
         with _ContextStringIO(data) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unexpected magic byte {}. This message "
-                                         "was not produced with a Confluent "
-                                         "Schema Registry serializer".format(magic))
-
+            schema_id = schemaid_reader(payload)
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read())
 
