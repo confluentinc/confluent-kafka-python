@@ -1,0 +1,13 @@
+azure-identity
+azure-keyvault-keys
+boto3
+cel-python
+google-auth
+google-api-core
+google-cloud-kms
+hkdf
+hvac
+jsonata-python
+tink
+
+
