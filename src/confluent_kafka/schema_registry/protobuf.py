@@ -871,7 +871,7 @@ class ProtobufDeserializer(BaseDeserializer):
                 except DecodeError as e:
                     raise SerializationError(str(e))
 
-                obj_dict = json_format.MessageToDict(msg, always_print_fields_with_no_presence=True)
+                obj_dict = json_format.MessageToDict(msg, True)
                 obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
                 msg = GetMessageClass(reader_desc)()
                 msg = json_format.ParseDict(obj_dict, msg)
