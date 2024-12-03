@@ -116,12 +116,10 @@ class _BaseRestClient(object):
 
         # The following adds support for proxy config
         # If specified: it uses the specified proxy details when making requests
-        self.proxies = None
-        proxies = conf_copy.pop('proxies', None)
-        if proxies is not None:
-            if not isinstance(proxies, dict):
-                raise TypeError("proxies must be a dict, not " + str(type(proxies)))
-            self.proxies = proxies
+        self.proxy = None
+        proxy = conf_copy.pop('proxy', None)
+        if proxy is not None:
+            self.proxy = proxy
 
         self.timeout = None
         timeout = conf_copy.pop('timeout', None)
@@ -188,7 +186,7 @@ class _RestClient(_BaseRestClient):
             verify=self.verify,
             cert=self.cert,
             auth=self.auth,
-            proxies=self.proxies,
+            proxy=self.proxy,
             timeout=self.timeout
         )
 
@@ -494,10 +492,9 @@ class SchemaRegistryClient(object):
     |                              |      | By default userinfo is extracted from           |
     |                              |      | the URL if present.                             |
     +------------------------------+------+-------------------------------------------------+
-    |                              |      | (optional) Dictionary mapping protocol          |
-    |                              |      | to the URL of the proxy. eg:                    |
-    | ``proxies``                  | dict |                                                 |
-    |                              |      | ``{'http':'http://proxyhost:proxyport',...}``   |
+    |                              |      |                                                 |
+    | ``proxy``                    | str  | Proxy such as http://localhost:8030.            |
+    |                              |      |                                                 |
     +------------------------------+------+-------------------------------------------------+
     |                              |      |                                                 |
     | ``timeout``                  | int  | Request timeout.                                |

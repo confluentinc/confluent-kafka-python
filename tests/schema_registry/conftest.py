@@ -125,23 +125,23 @@ be used to verify the handling of in valid compatibility settings.
 
 @pytest.fixture()
 def mock_schema_registry():
-    with respx.mock as respx_mock:
-        respx.route().mock(side_effect=_auth_matcher)
+  with respx.mock as respx_mock:
+        respx_mock.route().mock(side_effect=_auth_matcher)
 
-        respx.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(side_effect=post_compatibility_subjects_versions_callback)
+        respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(side_effect=post_compatibility_subjects_versions_callback)
 
-        respx.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
-        respx.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
+        respx_mock.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
+        respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
 
-        respx.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
+        respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
 
-        respx.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
-        respx.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
-        respx.post(SUBJECTS_VERSIONS_RE).mock(side_effect=post_subject_version_callback)
+        respx_mock.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
+        respx_mock.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
+        respx_mock.post(SUBJECTS_VERSIONS_RE).mock(side_effect=post_subject_version_callback)
 
-        respx.delete(SUBJECTS_RE).mock(side_effect=delete_subject_callback)
-        respx.get(SUBJECTS_RE).mock(side_effect=get_subject_callback)
-        respx.post(SUBJECTS_RE).mock(side_effect=post_subject_callback)
+        respx_mock.delete(SUBJECTS_RE).mock(side_effect=delete_subject_callback)
+        respx_mock.get(SUBJECTS_RE).mock(side_effect=get_subject_callback)
+        respx_mock.post(SUBJECTS_RE).mock(side_effect=post_subject_callback)
 
         yield respx_mock
 

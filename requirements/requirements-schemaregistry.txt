@@ -1,4 +1,4 @@
 attrs
 cachetools
-httpx
+httpx<0.28.0
 requests
