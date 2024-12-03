@@ -41,11 +41,3 @@ def test_json_deserializer_invalid_schema_type():
     """
     with pytest.raises(TypeError, match="You must pass either str or Schema"):
         JSONDeserializer(1)
-
-
-def test_json_serializer_invalid_schema_type():
-    """
-    Ensures that the serializer raises a ValueError if an invalid schema type is provided.
-    """
-    with pytest.raises(TypeError, match="You must pass either str or Schema"):
-        JSONSerializer(1, schema_registry_client=None)

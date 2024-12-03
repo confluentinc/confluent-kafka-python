@@ -16,6 +16,8 @@
 # limitations under the License.
 #
 import struct as _struct
+from enum import Enum
+
 from confluent_kafka.error import KafkaException
 
 __all__ = ['Deserializer',
@@ -30,8 +32,10 @@ __all__ = ['Deserializer',
            'SerializationError',
            'Serializer']
 
+from confluent_kafka.schema_registry import RegisteredSchema
 
-class MessageField(object):
+
+class MessageField(str, Enum):
     """
     Enum like object for identifying Message fields.
 
@@ -44,6 +48,9 @@ class MessageField(object):
     NONE = 'none'
     KEY = 'key'
     VALUE = 'value'
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class SerializationContext(object):
