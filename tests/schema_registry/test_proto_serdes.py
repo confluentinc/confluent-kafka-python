@@ -67,7 +67,7 @@ JsonataExecutor.register()
 LocalKmsDriver.register()
 
 _BASE_URL = "mock://"
-#_BASE_URL = "http://localhost:8081"
+# _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
 _SUBJECT = _TOPIC + "-value"
 
@@ -77,7 +77,7 @@ def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
 
-    yield # this is where the testing happens
+    yield  # this is where the testing happens
 
     # Teardown : fill with any logic you want
     conf = {'url': _BASE_URL}
@@ -315,7 +315,7 @@ def test_proto_cel_condition_fail():
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     try:
-        obj_bytes = ser(obj, ser_ctx)
+        ser(obj, ser_ctx)
     except Exception as e:
         assert isinstance(e.__cause__, RuleConditionError)
 
@@ -455,7 +455,7 @@ def test_proto_cel_field_condition_fail():
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     try:
-        obj_bytes = ser(obj, ser_ctx)
+        ser(obj, ser_ctx)
     except Exception as e:
         assert isinstance(e.__cause__, RuleConditionError)
 
@@ -713,5 +713,3 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser = ProtobufDeserializer(newerwidget_pb2.NewerWidget, deser_conf, client)
     newobj = deser(obj_bytes, ser_ctx)
     assert obj3.length == newobj.length
-
-

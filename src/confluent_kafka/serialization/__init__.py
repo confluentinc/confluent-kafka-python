@@ -32,8 +32,6 @@ __all__ = ['Deserializer',
            'SerializationError',
            'Serializer']
 
-from confluent_kafka.schema_registry import RegisteredSchema
-
 
 class MessageField(str, Enum):
     """

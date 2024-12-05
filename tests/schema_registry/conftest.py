@@ -123,12 +123,14 @@ be used to verify the handling of in valid compatibility settings.
 
 """
 
+
 @pytest.fixture()
 def mock_schema_registry():
-  with respx.mock as respx_mock:
+    with (respx.mock as respx_mock):
         respx_mock.route().mock(side_effect=_auth_matcher)
 
-        respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(side_effect=post_compatibility_subjects_versions_callback)
+        respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(
+            side_effect=post_compatibility_subjects_versions_callback)
 
         respx_mock.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
         respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
@@ -144,6 +146,7 @@ def mock_schema_registry():
         respx_mock.post(SUBJECTS_RE).mock(side_effect=post_subject_callback)
 
         yield respx_mock
+
 
 # request paths
 SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)?(.*)$")
@@ -167,6 +170,7 @@ COUNTER = {'DELETE': defaultdict(int),
            'POST': defaultdict(int),
            'PUT': defaultdict(int)}
 
+
 def _auth_matcher(request):
     headers = request.headers
 
@@ -184,10 +188,12 @@ def _auth_matcher(request):
                     'message': "401 Unauthorized"}
     return Response(401, json=unauthorized)
 
+
 def _load_avsc(name):
     with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
                            'data', name)) as fd:
         return fd.read()
+
 
 def get_compatibility_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
@@ -201,6 +207,7 @@ def get_compatibility_callback(request, route):
 
     return Response(200, json={'compatibility': 'FULL'})
 
+
 def put_compatibility_callback(request, route):
     COUNTER['PUT'][request.url.path] += 1
 
@@ -212,6 +219,7 @@ def put_compatibility_callback(request, route):
                                    'message': "Invalid compatibility level"})
 
     return Response(200, json=body)
+
 
 def delete_subject_callback(request, route):
     COUNTER['DELETE'][request.url.path] += 1
@@ -225,10 +233,12 @@ def delete_subject_callback(request, route):
 
     return Response(200, json=VERSIONS)
 
+
 def get_subject_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
 
     return Response(200, json=SUBJECTS)
+
 
 def post_subject_callback(request, route):
     COUNTER['POST'][request.url.path] += 1
@@ -249,6 +259,7 @@ def post_subject_callback(request, route):
                                "version": VERSION,
                                "schema": body['schema']})
 
+
 def get_schemas_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
 
@@ -260,6 +271,7 @@ def get_schemas_callback(request, route):
                                    'message': "Schema not found"})
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
+
 
 def get_subject_version_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
@@ -283,6 +295,7 @@ def get_subject_version_callback(request, route):
                                'version': version_num,
                                'schema': _load_avsc(SCHEMA)})
 
+
 def delete_subject_version_callback(request, route):
     COUNTER['DELETE'][request.url.path] += 1
 
@@ -305,6 +318,7 @@ def delete_subject_version_callback(request, route):
 
     return Response(200, json=version_num)
 
+
 def post_subject_version_callback(request, route):
     COUNTER['POST'][request.url.path] += 1
 
@@ -320,6 +334,7 @@ def post_subject_version_callback(request, route):
                                    'message': "Invalid Schema"})
     else:
         return Response(200, json={'id': SCHEMA_ID})
+
 
 def post_compatibility_subjects_versions_callback(request, route):
     COUNTER['POST'][request.url.path] += 1

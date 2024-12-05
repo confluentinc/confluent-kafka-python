@@ -57,7 +57,7 @@ JsonataExecutor.register()
 LocalKmsDriver.register()
 
 _BASE_URL = "mock://"
-#_BASE_URL = "http://localhost:8081"
+# _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
 _SUBJECT = _TOPIC + "-value"
 
@@ -67,7 +67,7 @@ def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
 
-    yield # this is where the testing happens
+    yield  # this is where the testing happens
 
     # Teardown : fill with any logic you want
     conf = {'url': _BASE_URL}
@@ -98,17 +98,17 @@ def test_json_basic_serialization():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -136,25 +136,25 @@ def test_json_serialize_nested():
         'nested': nested
     }
     schema = {
-        "type" : "object",
-        "properties" : {
-            "otherField" : {
-                "type" : "object",
-                "properties" : {
-                    "intField" : {
-                        "type" : "integer"
+        "type": "object",
+        "properties": {
+            "otherField": {
+                "type": "object",
+                "properties": {
+                    "intField": {
+                        "type": "integer"
                     },
-                    "doubleField" : {
-                        "type" : "number"
+                    "doubleField": {
+                        "type": "number"
                     },
-                    "stringField" : {
-                        "type" : "string"
+                    "stringField": {
+                        "type": "string"
                     },
-                    "booleanField" : {
-                        "type" : "boolean"
+                    "booleanField": {
+                        "type": "boolean"
                     },
-                    "bytesField" : {
-                        "type" : "string"
+                    "bytesField": {
+                        "type": "string"
                     }
                 }
             }
@@ -187,17 +187,17 @@ def test_json_serialize_references():
     ref_schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -205,7 +205,7 @@ def test_json_serialize_references():
     schema = {
         "type": "object",
         "properties": {
-            "otherField": { "$ref": "ref" }
+            "otherField": {"$ref": "ref"}
         }
     }
     refs = [SchemaReference('ref', 'ref', 1)]
@@ -227,17 +227,17 @@ def test_json_cel_condition():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -286,17 +286,17 @@ def test_json_cel_condition_fail():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -332,7 +332,7 @@ def test_json_cel_condition_fail():
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     try:
-        obj_bytes = ser(obj, ser_ctx)
+        ser(obj, ser_ctx)
     except Exception as e:
         assert isinstance(e.__cause__, RuleConditionError)
 
@@ -344,17 +344,17 @@ def test_json_cel_condition_ignore_fail():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -403,17 +403,17 @@ def test_json_cel_field_transform():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -467,34 +467,34 @@ def test_json_cel_field_transform_with_def():
     client = SchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
-        "$schema" : "http://json-schema.org/draft-07/schema#",
-        "additionalProperties" : False,
-        "definitions" : {
-            "Address" : {
-                "additionalProperties" : False,
-                "properties" : {
-                    "doornumber" : {
-                        "type" : "integer"
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "additionalProperties": False,
+        "definitions": {
+            "Address": {
+                "additionalProperties": False,
+                "properties": {
+                    "doornumber": {
+                        "type": "integer"
                     },
-                    "doorpin" : {
-                        "confluent:tags" : [ "PII" ],
-                        "type" : "string"
+                    "doorpin": {
+                        "confluent:tags": ["PII"],
+                        "type": "string"
                     }
                 },
-                "type" : "object"
+                "type": "object"
             }
         },
-        "properties" : {
-            "address" : {
-                "$ref" : "#/definitions/Address"
+        "properties": {
+            "address": {
+                "$ref": "#/definitions/Address"
             },
-            "name" : {
-                "confluent:tags" : [ "PII" ],
-                "type" : "string"
+            "name": {
+                "confluent:tags": ["PII"],
+                "type": "string"
             }
         },
-        "title" : "Sample Event",
-        "type" : "object"
+        "title": "Sample Event",
+        "type": "object"
     }
 
     rule = Rule(
@@ -503,7 +503,7 @@ def test_json_cel_field_transform_with_def():
         RuleKind.TRANSFORM,
         RuleMode.WRITE,
         "CEL_FIELD",
-        [ "PII"],
+        ["PII"],
         None,
         "value + '-suffix'",
         None,
@@ -557,7 +557,7 @@ def test_json_cel_field_transform_complex():
             "objectField": {
                 "type": "object",
                 "properties": {
-                    "stringField": { "type": "string" }
+                    "stringField": {"type": "string"}
                 }
             },
             "unionField": {
@@ -569,7 +569,7 @@ def test_json_cel_field_transform_complex():
                         "type": "string"
                     }
                 ],
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -634,7 +634,7 @@ def test_json_cel_field_transform_complex_with_none():
             "objectField": {
                 "type": "object",
                 "properties": {
-                    "stringField": { "type": "string" }
+                    "stringField": {"type": "string"}
                 }
             },
             "unionField": {
@@ -646,7 +646,7 @@ def test_json_cel_field_transform_complex_with_none():
                         "type": "string"
                     }
                 ],
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -659,7 +659,7 @@ def test_json_cel_field_transform_complex_with_none():
         "CEL_FIELD",
         None,
         None,
-       "typeName == 'STRING' ; value + '-suffix'",
+        "typeName == 'STRING' ; value + '-suffix'",
         None,
         None,
         False
@@ -702,17 +702,17 @@ def test_json_cel_field_condition():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -761,17 +761,17 @@ def test_json_cel_field_condition_fail():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -807,7 +807,7 @@ def test_json_cel_field_condition_fail():
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     try:
-        obj_bytes = ser(obj, ser_ctx)
+        ser(obj, ser_ctx)
     except Exception as e:
         assert isinstance(e.__cause__, RuleConditionError)
 
@@ -822,17 +822,17 @@ def test_json_encryption():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -894,8 +894,8 @@ def test_json_encryption_with_union():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "oneOf": [
                     {
@@ -905,13 +905,13 @@ def test_json_encryption_with_union():
                         "type": "string"
                     }
                 ],
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -973,8 +973,8 @@ def test_json_encryption_with_references():
     schema = {
         "type": "object",
         "properties": {
-            "intField": { "type": "integer" },
-            "doubleField": { "type": "number" },
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
             "stringField": {
                 "oneOf": [
                     {
@@ -984,13 +984,13 @@ def test_json_encryption_with_references():
                         "type": "string"
                     }
                 ],
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "booleanField": { "type": "boolean" },
+            "booleanField": {"type": "boolean"},
             "bytesField": {
                 "type": "string",
                 "contentEncoding": "base64",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             }
         }
     }
@@ -999,7 +999,7 @@ def test_json_encryption_with_references():
     schema = {
         "type": "object",
         "properties": {
-            "otherField": { "$ref": "ref" }
+            "otherField": {"$ref": "ref"}
         }
     }
     refs = [SchemaReference('ref', 'ref', 1)]
@@ -1071,10 +1071,10 @@ def test_json_jsonata_fully_compatible():
         "properties": {
             "name": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "size": { "type": "number" },
-            "version": { "type": "integer" }
+            "size": {"type": "number"},
+            "version": {"type": "integer"}
         }
     }
     client.register_schema(_SUBJECT, Schema(
@@ -1094,10 +1094,10 @@ def test_json_jsonata_fully_compatible():
         "properties": {
             "name": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "height": { "type": "number" },
-            "version": { "type": "integer" }
+            "height": {"type": "number"},
+            "version": {"type": "integer"}
         }
     }
 
@@ -1144,10 +1144,10 @@ def test_json_jsonata_fully_compatible():
         "properties": {
             "name": {
                 "type": "string",
-                "confluent:tags": [ "PII" ]
+                "confluent:tags": ["PII"]
             },
-            "length": { "type": "number" },
-            "version": { "type": "integer" }
+            "length": {"type": "number"},
+            "version": {"type": "integer"}
         }
     }
 
@@ -1244,6 +1244,7 @@ def test_json_jsonata_fully_compatible():
 
     deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
+
 def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser_conf = {
         'use.latest.with.metadata': {
@@ -1271,5 +1272,3 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser = JSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
     newobj = deser(obj_bytes, ser_ctx)
     assert obj3 == newobj
-
-

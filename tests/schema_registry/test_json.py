@@ -19,7 +19,7 @@
 import pytest
 
 from confluent_kafka.schema_registry import SchemaReference, Schema
-from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
+from confluent_kafka.schema_registry.json_schema import JSONDeserializer
 
 
 def test_json_deserializer_referenced_schema_no_schema_registry_client(load_avsc):
