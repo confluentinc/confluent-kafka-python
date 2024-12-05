@@ -1,6 +1,6 @@
 azure-identity
 azure-keyvault-keys
-boto3>=1.33.0
+boto3
 cel-python>=0.1.5
 google-auth
 google-api-core
@@ -10,5 +10,4 @@ hvac
 jsonata-python
 # Dependency of cel-python.  Use version 6 due to https://github.com/yaml/pyyaml/issues/601
 pyyaml>=6.0.0
-# See https://github.com/tink-crypto/tink/issues/694
-tink>=1.8.0
+tink
