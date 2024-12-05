@@ -1,0 +1,14 @@
+azure-identity
+azure-keyvault-keys
+boto>=1.35.0
+cel-python>=0.1.5
+google-auth
+google-api-core
+google-cloud-kms
+hkdf
+hvac
+jsonata-python
+pyyaml>=6.0.0
+tink
+
+
