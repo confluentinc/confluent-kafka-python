@@ -547,7 +547,7 @@ class JSONDeserializer(BaseDeserializer):
 
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
-        if subject is not None:
+        if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject)
 
         with _ContextStringIO(data) as payload:
@@ -560,12 +560,13 @@ class JSONDeserializer(BaseDeserializer):
             # JSON documents are self-describing; no need to query schema
             obj_dict = json.loads(payload.read())
 
-            writer_schema_raw = self._registry.get_schema(schema_id)
-            writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
+            if self._registry is not None:
+                writer_schema_raw = self._registry.get_schema(schema_id)
+                writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
 
             if subject is None:
                 subject = self._subject_name_func(ctx, writer_schema.get("title"))
-                if subject is not None:
+                if subject is not None and self._registry is not None:
                     latest_schema = self._get_reader_schema(subject)
 
             if latest_schema is not None:
