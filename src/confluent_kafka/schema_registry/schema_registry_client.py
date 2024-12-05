@@ -83,6 +83,12 @@ class _RestClient(object):
         if ca is not None:
             self.session.verify = ca
 
+        ssl_verify = conf_copy.pop('ssl.verify', True)
+        if not isinstance(ssl_verify, bool):
+            raise ValueError("ssl.verify must be a boolean(True or False)")  
+        self.session.verify = ssl_verify
+
+
         key = conf_copy.pop('ssl.key.location', None)
         cert = conf_copy.pop('ssl.certificate.location', None)
 
@@ -357,6 +363,10 @@ class SchemaRegistryClient(object):
     | ``ssl.certificate.location`` | str  |                                                 |
     |                              |      | May be set without ssl.key.location if the      |
     |                              |      | private key is stored within the PEM as well.   |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Disable SSL verification.                       |
+    | ``ssl.verify``               | bool | - ``True``: Default, enables verification.      |
+    |                              |      | - ``False``: Disables verification (testing).   |
     +------------------------------+------+-------------------------------------------------+
     |                              |      | Client HTTP credentials in the form of          |
     |                              |      | ``username:password``.                          |
