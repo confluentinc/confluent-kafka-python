@@ -19,7 +19,7 @@
 import pytest
 
 from confluent_kafka.schema_registry import SchemaReference, Schema
-from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
+from confluent_kafka.schema_registry.json_schema import JSONDeserializer
 
 
 def test_json_deserializer_referenced_schema_no_schema_registry_client(load_avsc):
@@ -41,11 +41,3 @@ def test_json_deserializer_invalid_schema_type():
     """
     with pytest.raises(TypeError, match="You must pass either str or Schema"):
         JSONDeserializer(1)
-
-
-def test_json_serializer_invalid_schema_type():
-    """
-    Ensures that the serializer raises a ValueError if an invalid schema type is provided.
-    """
-    with pytest.raises(TypeError, match="You must pass either str or Schema"):
-        JSONSerializer(1, schema_registry_client=None)

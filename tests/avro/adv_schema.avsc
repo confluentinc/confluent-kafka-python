@@ -17,7 +17,8 @@
             "doc": "a name",
             "type": [
                 "string"
-            ]
+            ],
+            "confluent:tags": [ "PII" ]
         },
         {
             "name": "friends",
