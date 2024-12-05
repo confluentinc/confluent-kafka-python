@@ -3,8 +3,33 @@ fastapi
 pydantic
 uvicorn
 six
-pyrsistent==0.16.1;python_version<"3.0"
-pyrsistent;python_version>"3.0"
-jsonschema
-protobuf
+
+attrs
+cachetools
+# Temporary constraint due to https://github.com/lundberg/respx/issues/277
+httpx<0.28.0
+
+fastavro < 1.8.0; python_version == "3.7"
+fastavro < 2; python_version > "3.7"
 requests
+avro>=1.11.1,<2
+
+pyrsistent
+jsonschema
+
+protobuf
+
+azure-identity
+azure-keyvault-keys
+boto3
+cel-python>=0.1.5
+google-auth
+google-api-core
+google-cloud-kms
+hkdf==0.0.3
+hvac
+jsonata-python
+# Dependency of cel-python.  Use version 6 due to https://github.com/yaml/pyyaml/issues/601
+pyyaml>=6.0.0
+# See https://github.com/tink-crypto/tink/issues/694
+tink>=1.8.0
