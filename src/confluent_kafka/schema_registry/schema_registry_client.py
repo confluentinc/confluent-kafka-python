@@ -190,7 +190,6 @@ class _RestClient(_BaseRestClient):
             timeout=self.timeout
         )
 
-
     def get(self, url: str, query: dict = None) -> Any:
         return self.send_request(url, method='GET', query=query)
 
@@ -203,8 +202,10 @@ class _RestClient(_BaseRestClient):
     def put(self, url: str, body: dict = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url: str, method: str, body: dict = None,
-        query: dict = None) -> Any:
+    def send_request(
+        self, url: str, method: str, body: dict = None,
+        query: dict = None
+    ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry.
 
@@ -243,8 +244,8 @@ class _RestClient(_BaseRestClient):
                 headers=headers, data=body, params=query)
 
             if (is_success(response.status_code)
-                or not is_retriable(response.status_code)
-                or i >= self.max_retries):
+                    or not is_retriable(response.status_code)
+                    or i >= self.max_retries):
                 break
 
             time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
@@ -271,7 +272,7 @@ def is_retriable(status_code: int) -> bool:
     return status_code in (408, 429, 500, 502, 503, 504)
 
 
-def full_jitter(base_delay_ms: int, max_delay_ms:int, retries_attempted: int) -> float:
+def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
 
@@ -381,8 +382,10 @@ class _RegisteredSchemaCache(object):
         self.schema_version_index = defaultdict(dict)
         self.schema_index = defaultdict(dict)
 
-    def set(self, subject_name: str, schema: 'Schema', version: int,
-        registered_schema: 'RegisteredSchema'):
+    def set(
+        self, subject_name: str, schema: 'Schema', version: int,
+        registered_schema: 'RegisteredSchema'
+    ):
         """
         Add a Schema identified by schema_id to the cache.
 
@@ -402,8 +405,9 @@ class _RegisteredSchemaCache(object):
             elif version is not None:
                 self.schema_version_index[subject_name][version] = registered_schema
 
-    def get_registered_schema_by_version(self, subject_name: str,
-        version: int) -> Optional['RegisteredSchema']:
+    def get_registered_schema_by_version(
+        self, subject_name: str, version: int
+    ) -> Optional['RegisteredSchema']:
         """
         Get the registered schema instance associated with version from the cache.
 
@@ -419,8 +423,9 @@ class _RegisteredSchemaCache(object):
         with self.lock:
             return self.schema_version_index.get(subject_name, {}).get(version, None)
 
-    def get_registered_schema_by_schema(self, subject_name: str,
-        schema: 'Schema') -> Optional['RegisteredSchema']:
+    def get_registered_schema_by_schema(
+        self, subject_name: str, schema: 'Schema'
+    ) -> Optional['RegisteredSchema']:
         """
         Get the registered schema instance associated with schema from the cache.
 
@@ -537,16 +542,16 @@ class SchemaRegistryClient(object):
     def config(self):
         return self._conf
 
-    def register_schema(self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False) -> int:
+    def register_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> int:
         """
         Registers a schema under ``subject_name``.
 
         Args:
             subject_name (str): subject to register a schema under
-
             schema (Schema): Schema instance to register
-            
             normalize_schemas (bool): Normalize schema before registering
 
         Returns:
@@ -575,8 +580,9 @@ class SchemaRegistryClient(object):
 
         return schema_id
 
-    def get_schema(self, schema_id: int, subject_name: str = None,
-        fmt: str = None) -> 'Schema':
+    def get_schema(
+        self, schema_id: int, subject_name: str = None, fmt: str = None
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -584,9 +590,7 @@ class SchemaRegistryClient(object):
 
         Args:
             schema_id (int): Schema id
-            
             subject_name (str): Subject name the schema is registered under
-            
             fmt (str): Format of the schema
 
         Returns:
@@ -617,18 +621,17 @@ class SchemaRegistryClient(object):
 
         return schema
 
-    def lookup_schema(self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False) -> 'RegisteredSchema':
+    def lookup_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False, deleted: bool = False
+    ) -> 'RegisteredSchema':
         """
         Returns ``schema`` registration information for ``subject``.
 
         Args:
             subject_name (str): Subject name the schema is registered under
-
             schema (Schema): Schema instance.
-            
             normalize_schemas (bool): Normalize schema before registering
-
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
@@ -694,7 +697,7 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         versions = self._rest_client.delete('subjects/{}'
-                                        .format(_urlencode(subject_name)))
+                                            .format(_urlencode(subject_name)))
 
         if permanent:
             self._rest_client.delete('subjects/{}?permanent=true'
@@ -705,14 +708,14 @@ class SchemaRegistryClient(object):
 
         return versions
 
-    def get_latest_version(self, subject_name: str,
-        fmt: str = None) -> 'RegisteredSchema':
+    def get_latest_version(
+        self, subject_name: str, fmt: str = None
+    ) -> 'RegisteredSchema':
         """
         Retrieves latest registered version for subject
 
         Args:
             subject_name (str): Subject name.
-            
             fmt (str): Format of the schema
 
         Returns:
@@ -740,8 +743,10 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_latest_with_metadata(self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: str = None) -> 'RegisteredSchema':
+    def get_latest_with_metadata(
+        self, subject_name: str, metadata: Dict[str, str],
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
         """
         Retrieves latest registered version for subject with the given metadata
 
@@ -778,18 +783,17 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_version(self, subject_name: str, version: int,
-        deleted: bool = False, fmt: str = None) -> 'RegisteredSchema':
+    def get_version(
+        self, subject_name: str, version: int,
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
         """
         Retrieves a specific schema registered under ``subject_name``.
 
         Args:
             subject_name (str): Subject name.
-
             version (int): version number. Defaults to latest version.
-            
             deleted (bool): Whether to include deleted schemas.
-            
             fmt (str): Format of the schema
 
         Returns:
@@ -918,15 +922,15 @@ class SchemaRegistryClient(object):
         result = self._rest_client.get(url)
         return result['compatibilityLevel']
 
-    def test_compatibility(self, subject_name: str, schema: 'Schema',
-        version: Union[int, str] = "latest") -> bool:
+    def test_compatibility(
+        self, subject_name: str, schema: 'Schema',
+        version: Union[int, str] = "latest"
+    ) -> bool:
         """Test the compatibility of a candidate schema for a given subject and version
 
         Args:
             subject_name (str): Subject name the schema is registered under
-
             schema (Schema): Schema instance.
-
             version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
 
         Returns:
@@ -1674,7 +1678,7 @@ class RegisteredSchema:
 
         schema = cls(
             schema_id=schema_id,
-            schema = schema,
+            schema=schema,
             subject=subject,
             version=version,
         )

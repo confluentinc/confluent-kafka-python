@@ -37,9 +37,10 @@ class MockDekRegistryClient(DekRegistryClient):
     def __init__(self, conf: dict):
         super().__init__(conf)
 
-
-    def register_kek(self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None) -> Kek:
+    def register_kek(
+        self, name: str, kms_type: str, kms_key_id: str,
+        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None
+    ) -> Kek:
         cache_key = KekId(name=name, deleted=False)
         kek = self._kek_cache.get_kek(cache_key)
         if kek is not None:
@@ -66,8 +67,10 @@ class MockDekRegistryClient(DekRegistryClient):
 
         raise SchemaRegistryError(404, 40470, "Key Not Found")
 
-    def register_dek(self, kek_name: str, subject: str, encrypted_key_material: str,
-        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM, version: int = 1) -> Dek:
+    def register_dek(
+        self, kek_name: str, subject: str, encrypted_key_material: str,
+        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM, version: int = 1
+    ) -> Dek:
         cache_key = DekId(
             kek_name=kek_name,
             subject=subject,
@@ -92,15 +95,17 @@ class MockDekRegistryClient(DekRegistryClient):
 
         return dek
 
-    def get_dek(self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
-        version: int = 1, deleted: bool = False) -> Dek:
+    def get_dek(
+        self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
+        version: int = 1, deleted: bool = False
+    ) -> Dek:
         if version == -1:
             # Find the latest version
             latest_version = 0
             for dek_id in self._dek_cache.get_dek_ids():
                 if (dek_id.kek_name == kek_name
-                    and dek_id.subject == subject
-                    and dek_id.algorithm == algorithm):
+                        and dek_id.subject == subject
+                        and dek_id.algorithm == algorithm):
                     latest_version = max(latest_version, dek_id.version)
             if latest_version == 0:
                 raise SchemaRegistryError(404, 40470, "Key Not Found")

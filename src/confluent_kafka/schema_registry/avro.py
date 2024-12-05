@@ -90,8 +90,10 @@ def _schema_loads(schema_str: str) -> Schema:
     return Schema(schema_str, schema_type='AVRO')
 
 
-def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient,
-    named_schemas: Dict[str, AvroSchema] = None) -> Dict[str, AvroSchema]:
+def _resolve_named_schema(
+    schema: Schema, schema_registry_client: SchemaRegistryClient,
+    named_schemas: Dict[str, AvroSchema] = None
+) -> Dict[str, AvroSchema]:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -217,13 +219,15 @@ class AvroSerializer(BaseSerializer):
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self,
+    def __init__(
+        self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
         to_dict: Callable[[object, SerializationContext], dict] = None,
         conf: dict = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
         if isinstance(schema_str, str):
             schema = _schema_loads(schema_str)
@@ -264,7 +268,7 @@ class AvroSerializer(BaseSerializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -336,13 +340,11 @@ class AvroSerializer(BaseSerializer):
                 # The schema name will always be the same. We can't however register
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
-                self._schema_id = self._registry.register_schema(subject,
-                                                           self._schema,
-                                                           self._normalize_schemas)
+                self._schema_id = self._registry.register_schema(
+                    subject, self._schema, self._normalize_schemas)
             else:
-                registered_schema = self._registry.lookup_schema(subject,
-                                                                 self._schema,
-                                                                 self._normalize_schemas)
+                registered_schema = self._registry.lookup_schema(
+                    subject, self._schema, self._normalize_schemas)
                 self._schema_id = registered_schema.schema_id
 
             self._known_subjects.add(subject)
@@ -354,7 +356,7 @@ class AvroSerializer(BaseSerializer):
 
         if latest_schema is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
-            field_transformer = lambda rule_ctx, field_transform, msg: (
+            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
                 transform(rule_ctx, parsed_schema, msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         # TODO RAY - check if we need to get inline tags from named_schemas
@@ -451,14 +453,16 @@ class AvroDeserializer(BaseDeserializer):
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy}
 
-    def __init__(self,
+    def __init__(
+        self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
         from_dict: Callable[[dict, SerializationContext], object] = None,
         return_record_name: bool = False,
         conf: dict = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
         schema = None
         if schema_str is not None:
@@ -484,7 +488,7 @@ class AvroDeserializer(BaseDeserializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -585,7 +589,7 @@ class AvroDeserializer(BaseDeserializer):
                                              reader_schema,
                                              self._return_record_name)
 
-            field_transformer = lambda rule_ctx, field_transform, message: (
+            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
                 transform(rule_ctx, reader_schema, message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            # TODO RAY - check if we need to get inline tags from named_schemas
@@ -611,8 +615,10 @@ class AvroDeserializer(BaseDeserializer):
         return parsed_schema
 
 
-def transform(ctx: RuleContext, schema: AvroSchema, message: AvroMessage,
-    field_transform: FieldTransform) -> AvroMessage:
+def transform(
+    ctx: RuleContext, schema: AvroSchema, message: AvroMessage,
+    field_transform: FieldTransform
+) -> AvroMessage:
     if message is None or schema is None:
         return message
     field_ctx = ctx.current_field()
@@ -644,8 +650,10 @@ def transform(ctx: RuleContext, schema: AvroSchema, message: AvroMessage,
     return message
 
 
-def _transform_field(ctx: RuleContext, schema: AvroSchema, field: dict,
-    message: AvroMessage, field_transform: FieldTransform):
+def _transform_field(
+    ctx: RuleContext, schema: AvroSchema, field: dict,
+    message: AvroMessage, field_transform: FieldTransform
+):
     field_type = field["type"]
     name = field["name"]
     full_name = schema["name"] + "." + name
@@ -720,7 +728,7 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Optional[AvroSch
     for subschema in schema:
         try:
             validate(message, subschema)
-        except:
+        except:  # noqa: E722
             continue
         return subschema
     return None
@@ -732,8 +740,10 @@ def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
     return inline_tags
 
 
-def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema],
-    tags: Dict[str, Set[str]]):
+def _get_inline_tags_recursively(
+    ns: str, name: str, schema: Optional[AvroSchema],
+    tags: Dict[str, Set[str]]
+):
     if schema is None:
         return
     if isinstance(schema, list):
@@ -765,5 +775,5 @@ def _get_inline_tags_recursively(ns: str, name: str, schema: Optional[AvroSchema
 
 
 def _implied_namespace(name: str) -> Optional[str]:
-    match = re.match("^(.*)\.[^.]+$", name)
+    match = re.match(r"^(.*)\.[^.]+$", name)
     return match.group(1) if match else None

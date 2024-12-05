@@ -61,7 +61,7 @@ class AwsKmsDriver(KmsDriver):
 def _key_uri_to_key_arn(key_uri: str) -> str:
     if not key_uri.startswith(_PREFIX):
         raise tink.TinkError('invalid key URI')
-    return key_uri[len(_PREFIX) :]
+    return key_uri[len(_PREFIX):]
 
 
 def _get_region_from_key_arn(key_arn: str) -> str:
@@ -71,5 +71,3 @@ def _get_region_from_key_arn(key_arn: str) -> str:
     if len(key_arn_parts) < 6:
         raise tink.TinkError('invalid key id')
     return key_arn_parts[3]
-
-

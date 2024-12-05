@@ -96,7 +96,7 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
             return 0
         try:
             dek_expiry_days = int(dek_expiry_days_str)
-        except:
+        except ValueError:
             raise RuleError("invalid expiry days")
         if dek_expiry_days < 0:
             raise RuleError("negative expiry days")
@@ -129,10 +129,10 @@ class Cryptor:
             # Construct AES256_SIV_RAW since it doesn't exist in Tink
             key_format = aes_siv_pb2.AesSivKeyFormat(
                 # Generate 2 256-bit keys
-                key_size = 64,
+                key_size=64,
             )
             self.key_template = tink_pb2.KeyTemplate(
-                type_url = daead.deterministic_aead_key_templates.AES256_SIV.type_url,
+                type_url=daead.deterministic_aead_key_templates.AES256_SIV.type_url,
                 output_prefix_type=tink_pb2.RAW,
                 value=key_format.SerializeToString(),
             )
@@ -222,8 +222,10 @@ class FieldEncryptionExecutorTransform(object):
                 return None
             raise RuleError(f"could not get kek {kek_id.name}") from e
 
-    def _store_kek_to_registry(self, kek_id: KekId, kms_type: str,
-        kms_key_id: str, shared: bool) -> Optional[Kek]:
+    def _store_kek_to_registry(
+        self, kek_id: KekId, kms_type: str,
+        kms_key_id: str, shared: bool
+    ) -> Optional[Kek]:
         try:
             return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared)
         except Exception as e:

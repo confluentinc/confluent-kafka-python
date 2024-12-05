@@ -56,6 +56,7 @@ JsonSchema = Union[bool, dict]
 
 DEFAULT_SPEC = referencing.jsonschema.DRAFT7
 
+
 class _ContextStringIO(BytesIO):
     """
     Wrapper to allow use of StringIO via 'with' constructs.
@@ -75,8 +76,10 @@ def _retrieve_via_httpx(uri: str):
         response.json(), default_specification=DEFAULT_SPEC)
 
 
-def _resolve_named_schema(schema: Schema, schema_registry_client: SchemaRegistryClient,
-    ref_registry: Registry = None) -> Registry:
+def _resolve_named_schema(
+    schema: Schema, schema_registry_client: SchemaRegistryClient,
+    ref_registry: Registry = None
+) -> Registry:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -215,13 +218,15 @@ class JSONSerializer(BaseSerializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'validate': True}
 
-    def __init__(self,
+    def __init__(
+        self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: SchemaRegistryClient,
         to_dict: Callable[[object, SerializationContext], dict] = None,
         conf: dict = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
         if isinstance(schema_str, str):
             self._schema = Schema(schema_str, schema_type="JSON")
@@ -262,7 +267,7 @@ class JSONSerializer(BaseSerializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -343,7 +348,7 @@ class JSONSerializer(BaseSerializer):
             root_resource = Resource.from_contents(
                 parsed_schema, default_specification=DEFAULT_SPEC)
             ref_resolver = ref_registry.resolver_with_root(root_resource)
-            field_transformer = lambda rule_ctx, field_transform, msg: (
+            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
                 transform(rule_ctx, parsed_schema, ref_resolver, "$", msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         latest_schema.schema, value, None,
@@ -443,13 +448,15 @@ class JSONDeserializer(BaseDeserializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'validate': True}
 
-    def __init__(self,
+    def __init__(
+        self,
         schema_str: Union[str, Schema, None],
         from_dict: Callable[[dict, SerializationContext], object] = None,
-        schema_registry_client: SchemaRegistryClient  =None,
+        schema_registry_client: SchemaRegistryClient = None,
         conf: dict = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
@@ -482,7 +489,7 @@ class JSONDeserializer(BaseDeserializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -580,7 +587,7 @@ class JSONDeserializer(BaseDeserializer):
             reader_root_resource = Resource.from_contents(
                 reader_schema, default_specification=DEFAULT_SPEC)
             reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
-            field_transformer = lambda rule_ctx, field_transform, message: (
+            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
                 transform(rule_ctx, reader_schema, reader_ref_resolver, "$", message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            reader_schema_raw, obj_dict, None,
@@ -616,8 +623,10 @@ class JSONDeserializer(BaseDeserializer):
         return parsed_schema, ref_registry
 
 
-def transform(ctx: RuleContext, schema: JsonSchema, ref_resolver: Resolver,
-    path: str, message: JsonMessage, field_transform: FieldTransform) -> Optional[JsonMessage]:
+def transform(
+    ctx: RuleContext, schema: JsonSchema, ref_resolver: Resolver,
+    path: str, message: JsonMessage, field_transform: FieldTransform
+) -> Optional[JsonMessage]:
     if message is None or schema is None or isinstance(schema, bool):
         return message
     field_ctx = ctx.current_field()
@@ -662,8 +671,10 @@ def transform(ctx: RuleContext, schema: JsonSchema, ref_resolver: Resolver,
     return message
 
 
-def _transform_field(ctx: RuleContext, path: str, prop_name: str, message: JsonMessage,
-    prop_schema: JsonSchema, ref_resolver: Resolver, field_transform: FieldTransform):
+def _transform_field(
+    ctx: RuleContext, path: str, prop_name: str, message: JsonMessage,
+    prop_schema: JsonSchema, ref_resolver: Resolver, field_transform: FieldTransform
+):
     full_name = path + "." + prop_name
     try:
         ctx.enter_field(
@@ -684,8 +695,10 @@ def _transform_field(ctx: RuleContext, path: str, prop_name: str, message: JsonM
         ctx.exit_field()
 
 
-def _validate_subschemas(subschemas: List[JsonSchema],
-    message: str) -> Optional[JsonSchema]:
+def _validate_subschemas(
+    subschemas: List[JsonSchema],
+    message: str
+) -> Optional[JsonSchema]:
     for subschema in subschemas:
         try:
             validate(instance=message, schema=subschema)

@@ -24,11 +24,11 @@ from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import
 
 _PREFIX = "gcp-kms://"
 _ACCOUNT_TYPE = "account.type"
-_CLIENT_ID= "client.id"
+_CLIENT_ID = "client.id"
 _CLIENT_EMAIL = "client.email"
 _PRIVATE_KEY_ID = "private.key.id"
-_PRIVATE_KEY= "private.key"
-_TOKEN_URI= "token.uri"
+_PRIVATE_KEY = "private.key"
+_TOKEN_URI = "token.uri"
 
 
 class GcpKmsDriver(KmsDriver):
@@ -74,7 +74,7 @@ class GcpKmsDriver(KmsDriver):
 def _key_uri_to_key_arn(key_uri: str) -> str:
     if not key_uri.startswith(_PREFIX):
         raise tink.TinkError('invalid key URI')
-    return key_uri[len(_PREFIX) :]
+    return key_uri[len(_PREFIX):]
 
 
 def _get_region_from_key_arn(key_arn: str) -> str:
@@ -84,5 +84,3 @@ def _get_region_from_key_arn(key_arn: str) -> str:
     if len(key_arn_parts) < 6:
         raise tink.TinkError('invalid key id')
     return key_arn_parts[3]
-
-

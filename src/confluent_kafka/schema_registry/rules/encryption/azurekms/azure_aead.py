@@ -19,27 +19,26 @@ from tink import aead
 
 
 class AzureKmsAead(aead.Aead):
-  """Implements the Aead interface for Azure KMS."""
+    """Implements the Aead interface for Azure KMS."""
 
-  def __init__(
-      self, client: CryptographyClient, algorithm: EncryptionAlgorithm
-  ) -> None:
-    if not client:
-      raise tink.TinkError('client cannot be null.')
-    self.client = client
-    self.algorithm = algorithm
+    def __init__(
+        self, client: CryptographyClient, algorithm: EncryptionAlgorithm
+    ) -> None:
+        if not client:
+            raise tink.TinkError('client cannot be null.')
+        self.client = client
+        self.algorithm = algorithm
 
+    def encrypt(self, plaintext: bytes, associated_data: bytes) -> bytes:
+        try:
+            response = self.client.encrypt(self.algorithm, plaintext)
+            return response.ciphertext
+        except ValueError as e:
+            raise tink.TinkError(e)
 
-  def encrypt(self, plaintext: bytes, associated_data: bytes) -> bytes:
-    try:
-      response = self.client.encrypt(self.algorithm, plaintext)
-      return response.ciphertext
-    except ValueError as e:
-      raise tink.TinkError(e)
-
-  def decrypt(self, ciphertext: bytes, associated_data: bytes) -> bytes:
-    try:
-      response = self.client.decrypt(self.algorithm, ciphertext)
-      return response.plaintext
-    except ValueError as e:
-      raise tink.TinkError(e)
+    def decrypt(self, ciphertext: bytes, associated_data: bytes) -> bytes:
+        try:
+            response = self.client.decrypt(self.algorithm, ciphertext)
+            return response.plaintext
+        except ValueError as e:
+            raise tink.TinkError(e)

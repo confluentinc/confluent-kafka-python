@@ -49,7 +49,7 @@ class CelExecutor(RuleExecutor):
         return "CEL"
 
     def transform(self, ctx: RuleContext, msg: Any) -> Any:
-        args = { "message": msg_to_cel(msg) }
+        args = {"message": msg_to_cel(msg)}
         return self.execute(ctx, msg, args)
 
     def execute(self, ctx: RuleContext, msg: Any, args: Any) -> Any:

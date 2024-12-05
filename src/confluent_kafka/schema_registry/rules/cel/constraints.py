@@ -15,7 +15,6 @@
 
 import typing
 
-import celpy  # type: ignore
 from celpy import celtypes  # type: ignore
 from google.protobuf import descriptor, message, message_factory
 

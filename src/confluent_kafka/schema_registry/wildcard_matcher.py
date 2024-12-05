@@ -93,4 +93,3 @@ def _double_slashes(dst: str, src: str, i: int) -> Tuple[str, int]:
         # A backslash at the very end is treated like an escaped backslash
         dst += '\\'
     return dst, i
-

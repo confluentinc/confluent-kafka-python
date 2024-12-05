@@ -465,8 +465,10 @@ class DekRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client.session.close()
 
-    def register_kek(self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None) -> Kek:
+    def register_kek(
+        self, name: str, kms_type: str, kms_key_id: str,
+        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None
+    ) -> Kek:
         """
         Register a new Key Encryption Key (KEK) with the DEK Registry.
 
@@ -535,8 +537,10 @@ class DekRegistryClient(object):
 
         return kek
 
-    def register_dek(self, kek_name: str, subject: str, encrypted_key_material: str,
-        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM, version: int = 1) -> Dek:
+    def register_dek(
+        self, kek_name: str, subject: str, encrypted_key_material: str,
+        algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM, version: int = 1
+    ) -> Dek:
         """
         Register a new Data Encryption Key (DEK) with the DEK Registry.
 
@@ -573,7 +577,7 @@ class DekRegistryClient(object):
         )
 
         response = self._rest_client.post('/dek-registry/v1/keks/{}/deks'
-                                          .format(urllib.parse.quote(kek_name), safe=''),
+                                          .format(urllib.parse.quote(kek_name)),
                                           request.to_dict())
         dek = Dek.from_dict(response)
 
@@ -596,8 +600,10 @@ class DekRegistryClient(object):
 
         return dek
 
-    def get_dek(self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
-        version: int = 1, deleted: bool = False) -> Dek:
+    def get_dek(
+        self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,
+        version: int = 1, deleted: bool = False
+    ) -> Dek:
         """
         Get a Data Encryption Key (DEK) from the DEK Registry.
 
@@ -628,15 +634,14 @@ class DekRegistryClient(object):
 
         query = {'deleted': deleted}
         response = self._rest_client.get('/dek-registry/v1/keks/{}/deks/{}/versions/{}'
-                                          .format(urllib.parse.quote(kek_name, safe=''),
-                                                  urllib.parse.quote(subject, safe=''),
-                                                  version), query)
+                                         .format(urllib.parse.quote(kek_name),
+                                                 urllib.parse.quote(subject, safe=''),
+                                                 version), query)
         dek = Dek.from_dict(response)
 
         self._dek_cache.set(cache_key, dek)
 
         return dek
-
 
     @staticmethod
     def new_client(conf: dict) -> 'DekRegistryClient':

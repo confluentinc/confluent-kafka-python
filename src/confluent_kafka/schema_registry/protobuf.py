@@ -183,8 +183,10 @@ def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorPr
     return file_descriptor_proto
 
 
-def _resolve_named_schema(schema: Schema,
-    schema_registry_client: SchemaRegistryClient, pool: DescriptorPool):
+def _resolve_named_schema(
+    schema: Schema,
+    schema_registry_client: SchemaRegistryClient, pool: DescriptorPool
+):
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
@@ -360,12 +362,14 @@ class ProtobufSerializer(BaseSerializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(self,
+    def __init__(
+        self,
         msg_type: Message,
         schema_registry_client: SchemaRegistryClient,
         conf: dict = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
 
         if conf is None or 'use.deprecated.format' not in conf:
@@ -395,7 +399,7 @@ class ProtobufSerializer(BaseSerializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._skip_known_types = conf_copy.pop('skip.known.types')
@@ -484,8 +488,10 @@ class ProtobufSerializer(BaseSerializer):
         for value in ints:
             ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(self, ctx: SerializationContext,
-        file_desc: FileDescriptor) -> List[SchemaReference]:
+    def _resolve_dependencies(
+        self, ctx: SerializationContext,
+        file_desc: FileDescriptor
+    ) -> List[SchemaReference]:
         """
         Resolves and optionally registers schema references recursively.
 
@@ -568,7 +574,7 @@ class ProtobufSerializer(BaseSerializer):
             fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
-            field_transformer = lambda rule_ctx, field_transform, msg: (
+            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
                 transform(rule_ctx, desc, msg, field_transform))
             message = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                           latest_schema.schema, message, None,
@@ -658,12 +664,14 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(self,
+    def __init__(
+        self,
         message_type: Message,
         conf: dict = None,
         schema_registry_client: SchemaRegistryClient = None,
         rule_conf: dict = None,
-        rule_registry: RuleRegistry = None):
+        rule_registry: RuleRegistry = None
+    ):
         super().__init__()
 
         self._registry = schema_registry_client
@@ -690,7 +698,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
         if (self._use_latest_with_metadata is not None and
-            not isinstance(self._use_latest_with_metadata, dict)):
+                not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
@@ -883,11 +891,11 @@ class ProtobufDeserializer(BaseDeserializer):
                 except DecodeError as e:
                     raise SerializationError(str(e))
 
-            field_transformer = lambda rule_ctx, field_transform, message: (
+            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
                 transform(rule_ctx, reader_desc, message, field_transform))
             msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                           reader_schema_raw, msg, None,
-                                           field_transformer)
+                                      reader_schema_raw, msg, None,
+                                      field_transformer)
 
             return msg
 
@@ -904,17 +912,21 @@ class ProtobufDeserializer(BaseDeserializer):
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
 
-    def _get_message_desc(self, pool: DescriptorPool, fd: FileDescriptor,
-        msg_index: List[int]) -> Descriptor:
+    def _get_message_desc(
+        self, pool: DescriptorPool, fd: FileDescriptor,
+        msg_index: List[int]
+    ) -> Descriptor:
         file_desc_proto = descriptor_pb2.FileDescriptorProto()
         fd.CopyToProto(file_desc_proto)
         (full_name, desc_proto) = self._get_message_desc_proto("", file_desc_proto, msg_index)
         return pool.FindMessageTypeByName(file_desc_proto.package + full_name)
 
-    def _get_message_desc_proto(self,
+    def _get_message_desc_proto(
+        self,
         path: str,
         desc: Union[descriptor_pb2.FileDescriptorProto, descriptor_pb2.DescriptorProto],
-        msg_index: List[int]) -> Tuple[str, descriptor_pb2.DescriptorProto]:
+        msg_index: List[int]
+    ) -> Tuple[str, descriptor_pb2.DescriptorProto]:
         index = msg_index[0]
         if isinstance(desc, descriptor_pb2.FileDescriptorProto):
             msg = desc.message_type[index]
@@ -930,8 +942,10 @@ class ProtobufDeserializer(BaseDeserializer):
             return self._get_message_desc_proto(path, msg, msg_index[1:])
 
 
-def transform(ctx: RuleContext, descriptor: Descriptor, message: Any,
-    field_transform: FieldTransform) -> Any:
+def transform(
+    ctx: RuleContext, descriptor: Descriptor, message: Any,
+    field_transform: FieldTransform
+) -> Any:
     if message is None or descriptor is None:
         return message
     if isinstance(message, list):
@@ -952,8 +966,10 @@ def transform(ctx: RuleContext, descriptor: Descriptor, message: Any,
     return message
 
 
-def _transform_field(ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor,
-    message: Message, field_transform: FieldTransform):
+def _transform_field(
+    ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor,
+    message: Message, field_transform: FieldTransform
+):
     try:
         ctx.enter_field(
             message,
@@ -975,6 +991,7 @@ def _transform_field(ctx: RuleContext, fd: FieldDescriptor, desc: Descriptor,
             _set_field(fd, message, new_value)
     finally:
         ctx.exit_field()
+
 
 def _set_field(fd: FieldDescriptor, message: Message, value: Any):
     if isinstance(value, list):
@@ -1006,14 +1023,15 @@ def get_type(fd: FieldDescriptor) -> FieldType:
                    FieldDescriptor.TYPE_SFIXED32):
         return FieldType.INT
     if fd.type in (FieldDescriptor.TYPE_INT64, FieldDescriptor.TYPE_SINT64,
-                    FieldDescriptor.TYPE_UINT64, FieldDescriptor.TYPE_FIXED64,
-                    FieldDescriptor.TYPE_SFIXED64):
+                   FieldDescriptor.TYPE_UINT64, FieldDescriptor.TYPE_FIXED64,
+                   FieldDescriptor.TYPE_SFIXED64):
         return FieldType.LONG
     if fd.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
         return FieldType.DOUBLE
     if fd.type == FieldDescriptor.TYPE_BOOL:
         return FieldType.BOOLEAN
     return FieldType.NULL
+
 
 def is_map_field(fd: FieldDescriptor):
     return (fd.type == FieldDescriptor.TYPE_MESSAGE

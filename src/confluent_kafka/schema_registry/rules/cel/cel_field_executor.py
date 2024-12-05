@@ -44,8 +44,8 @@ class CelFieldExecutor(FieldRuleExecutor):
             "fullName": field_ctx.full_name,
             "name": field_ctx.name,
             "typeName": field_ctx.type_name(),
-            "tags": [ celtypes.StringType(tag) for tag in field_ctx.tags ],
-            "message": msg_to_cel(field_value) ,
+            "tags": [celtypes.StringType(tag) for tag in field_ctx.tags],
+            "message": msg_to_cel(field_value),
         }
         return self._executor.execute(ctx, field_value, args)
 

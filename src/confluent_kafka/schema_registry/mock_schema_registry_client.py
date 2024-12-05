@@ -58,8 +58,10 @@ class _SchemaStore(object):
                 return self.schema_index.get(schema, None)
             return None
 
-    def get_registered_schema_by_schema(self, subject: str,
-        schema: Schema) -> Optional[RegisteredSchema]:
+    def get_registered_schema_by_schema(
+        self, subject: str,
+        schema: Schema
+    ) -> Optional[RegisteredSchema]:
         with self.lock:
             for rs in self.subject_schemas[subject]:
                 if rs.schema == schema:
@@ -86,16 +88,18 @@ class _SchemaStore(object):
                 return latest_schema
             return None
 
-    def get_latest_with_metadata(self, subject_name: str,
-        metadata: Dict[str, str]) -> Optional[RegisteredSchema]:
+    def get_latest_with_metadata(
+        self, subject_name: str,
+        metadata: Dict[str, str]
+    ) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 rs: RegisteredSchema
                 for rs in self.subject_schemas[subject_name]:
                     if (rs.schema
-                        and rs.schema.metadata
-                        and rs.schema.metadata.properties
-                        and metadata.items() <= rs.schema.metadata.properties.properties.items()):
+                            and rs.schema.metadata
+                            and rs.schema.metadata.properties
+                            and metadata.items() <= rs.schema.metadata.properties.properties.items()):
                         return rs
             return None
 
@@ -138,8 +142,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         super().__init__(conf)
         self._store = _SchemaStore()
 
-    def register_schema(self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False) -> int:
+    def register_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> int:
         schema_id = self._store.get_schema_id_by_subject(subject_name, schema)
         if schema_id is not None:
             return schema_id
@@ -158,16 +164,20 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         return schema_id
 
-    def get_schema(self, schema_id: int, subject_name: str = None,
-        fmt: str = None) -> 'Schema':
+    def get_schema(
+        self, schema_id: int, subject_name: str = None,
+        fmt: str = None
+    ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
         if schema is not None:
             return schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def lookup_schema(self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False) -> 'RegisteredSchema':
+    def lookup_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False, deleted: bool = False
+    ) -> 'RegisteredSchema':
 
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
         if registered_schema is not None:
@@ -181,24 +191,27 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     def delete_subject(self, subject_name: str, permanent: bool = False):
         self._store.remove_by_subject(subject_name)
 
-    def get_latest_version(self, subject_name: str,
-        fmt: str = None) -> 'RegisteredSchema':
+    def get_latest_version(self, subject_name: str, fmt: str = None) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_version(subject_name)
         if registered_schema is not None:
             return registered_schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_latest_with_metadata(self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: str = None) -> 'RegisteredSchema':
+    def get_latest_with_metadata(
+        self, subject_name: str, metadata: Dict[str, str],
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_with_metadata(subject_name, metadata)
         if registered_schema is not None:
             return registered_schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_version(self, subject_name: str, version: int,
-        deleted: bool = False, fmt: str = None) -> 'RegisteredSchema':
+    def get_version(
+        self, subject_name: str, version: int,
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
         registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             return registered_schema
@@ -216,9 +229,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def set_config(self, subject_name: Optional[str] = None, config: 'ServerConfig' = None) -> 'ServerConfig':
+    def set_config(
+        self, subject_name: Optional[str] = None, config: 'ServerConfig' = None  # noqa F821
+    ) -> 'ServerConfig':  # noqa F821
         return None
 
-    def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
+    def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':  # noqa F821
         return None
-

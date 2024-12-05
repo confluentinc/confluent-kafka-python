@@ -67,8 +67,10 @@ class FieldType(str, Enum):
 class FieldContext(object):
     __slots__ = ['containing_message', 'full_name', 'name', 'field_type', 'tags']
 
-    def __init__(self, containing_message: Any, full_name: str, name: str,
-        field_type: FieldType, tags: Set[str]):
+    def __init__(
+        self, containing_message: Any, full_name: str, name: str,
+        field_type: FieldType, tags: Set[str]
+    ):
         self.containing_message = containing_message
         self.full_name = full_name
         self.name = name
@@ -88,9 +90,11 @@ class RuleContext(object):
     __slots__ = ['ser_ctx', 'source', 'target', 'subject', 'rule_mode', 'rule',
                  'index', 'rules', 'inline_tags', 'field_transformer', '_field_contexts']
 
-    def __init__(self, ser_ctx: SerializationContext, source: Optional[Schema],
+    def __init__(
+        self, ser_ctx: SerializationContext, source: Optional[Schema],
         target: Optional[Schema], subject: str, rule_mode: RuleMode, rule: Rule,
-        index: int, rules: List[Rule], inline_tags: Optional[Dict[str, Set[str]]], field_transformer):
+        index: int, rules: List[Rule], inline_tags: Optional[Dict[str, Set[str]]], field_transformer
+    ):
         self.ser_ctx = ser_ctx
         self.source = source
         self.target = target
@@ -109,9 +113,9 @@ class RuleContext(object):
             value = params.params.get(name)
             if value is not None:
                 return value
-        if (self.target is not None and
-            self.target.metadata is not None and
-            self.target.metadata.properties is not None):
+        if (self.target is not None
+                and self.target.metadata is not None
+                and self.target.metadata.properties is not None):
             value = self.target.metadata.properties.properties.get(name)
             if value is not None:
                 return value
@@ -127,8 +131,10 @@ class RuleContext(object):
             return None
         return self._field_contexts[-1]
 
-    def enter_field(self, containing_message: Any, full_name: str, name: str,
-        field_type: FieldType, tags: Optional[Set[str]]) -> FieldContext:
+    def enter_field(
+        self, containing_message: Any, full_name: str, name: str,
+        field_type: FieldType, tags: Optional[Set[str]]
+    ) -> FieldContext:
         all_tags = set(tags if tags is not None else self._get_inline_tags(full_name))
         all_tags.update(self.get_tags(full_name))
         field_context = FieldContext(containing_message, full_name, name, field_type, all_tags)
@@ -137,9 +143,9 @@ class RuleContext(object):
 
     def get_tags(self, full_name: str) -> Set[str]:
         result = set()
-        if (self.target is not None and
-            self.target.metadata is not None and
-            self.target.metadata.tags is not None):
+        if (self.target is not None
+                and self.target.metadata is not None
+                and self.target.metadata.tags is not None):
             tags = self.target.metadata.tags.tags
             for k, v in tags.items():
                 if wildcard_match(full_name, k):
@@ -209,7 +215,7 @@ class FieldRuleExecutor(RuleExecutor):
 class RuleAction(RuleBase):
     @abc.abstractmethod
     def run(self, ctx: RuleContext, message: Any, ex: Optional[Exception]):
-       raise NotImplementedError()
+        raise NotImplementedError()
 
 
 class ErrorAction(RuleAction):
@@ -252,8 +258,10 @@ class RuleConditionError(RuleError):
 class Migration(object):
     __slots__ = ['rule_mode', 'source', 'target']
 
-    def __init__(self, rule_mode: RuleMode, source: Optional[RegisteredSchema],
-        target: Optional[RegisteredSchema]):
+    def __init__(
+        self, rule_mode: RuleMode, source: Optional[RegisteredSchema],
+        target: Optional[RegisteredSchema]
+    ):
         self.rule_mode = rule_mode
         self.source = source
         self.target = target
@@ -273,11 +281,13 @@ class BaseSerde(object):
             latest_schema = self._registry.get_latest_version(subject, fmt)
         return latest_schema
 
-    def _execute_rules(self, ser_ctx: SerializationContext, subject: str,
+    def _execute_rules(
+        self, ser_ctx: SerializationContext, subject: str,
         rule_mode: RuleMode,
         source: Optional[Schema], target: Optional[Schema],
         message: Any, inline_tags: Optional[Dict[str, Set[str]]],
-        field_transformer: Optional[FieldTransformer]) -> Any:
+        field_transformer: Optional[FieldTransformer]
+    ) -> Any:
         if message is None or target is None:
             return None
         rules: Optional[List[Rule]] = None
@@ -340,9 +350,11 @@ class BaseSerde(object):
                 self._run_action(ctx, rule_mode, rule, rule.on_failure, message, e, 'ERROR')
         return message
 
-    def _run_action(self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule,
+    def _run_action(
+        self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule,
         action: Optional[str], message: Any,
-        ex: Optional[Exception], default_action: str):
+        ex: Optional[Exception], default_action: str
+    ):
         action_name = self._get_rule_action_name(rule, rule_mode, action)
         if action_name is None:
             action_name = default_action
@@ -357,8 +369,9 @@ class BaseSerde(object):
         except Exception as e:
             log.warning("Could not run post-rule action %s: %s", action_name, e)
 
-    def _get_rule_action_name(self, rule: Rule, rule_mode: RuleMode,
-        action_name: Optional[str]) -> Optional[str]:
+    def _get_rule_action_name(
+        self, rule: Rule, rule_mode: RuleMode, action_name: Optional[str]
+    ) -> Optional[str]:
         if action_name is None or action_name == "":
             return None
         if rule.mode in (RuleMode.WRITEREAD, RuleMode.UPDOWN) and ',' in action_name:
@@ -398,8 +411,10 @@ class BaseDeserializer(BaseSerde, Deserializer):
         elif mode == RuleMode.WRITEREAD:
             return any(rule.mode == mode for rule in rule_set.migration_rules or [])
 
-    def _get_migrations(self, subject: str, source_info: Schema,
-        target: RegisteredSchema, fmt: Optional[str]) -> List[Migration]:
+    def _get_migrations(
+        self, subject: str, source_info: Schema,
+        target: RegisteredSchema, fmt: Optional[str]
+    ) -> List[Migration]:
         source = self._registry.lookup_schema(subject, source_info, False, True)
         migrations = []
         if source.version < target.version:
@@ -430,8 +445,10 @@ class BaseDeserializer(BaseSerde, Deserializer):
             migrations.reverse()
         return migrations
 
-    def _get_schemas_between(self, subject: str, first: RegisteredSchema,
-        last: RegisteredSchema, fmt: str = None) -> List[RegisteredSchema]:
+    def _get_schemas_between(
+        self, subject: str, first: RegisteredSchema,
+        last: RegisteredSchema, fmt: str = None
+    ) -> List[RegisteredSchema]:
         if last.version - first.version <= 1:
             return [first, last]
         version1 = first.version
@@ -442,8 +459,10 @@ class BaseDeserializer(BaseSerde, Deserializer):
         result.append(last)
         return result
 
-    def _execute_migrations(self, ser_ctx: SerializationContext, subject: str,
-        migrations: List[Migration], message: Any) -> Any:
+    def _execute_migrations(
+        self, ser_ctx: SerializationContext, subject: str,
+        migrations: List[Migration], message: Any
+    ) -> Any:
         for migration in migrations:
             message = self._execute_rules(ser_ctx, subject, migration.rule_mode,
                                           migration.source.schema, migration.target.schema,
