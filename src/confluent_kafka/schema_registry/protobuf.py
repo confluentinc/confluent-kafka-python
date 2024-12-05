@@ -852,26 +852,26 @@ class ProtobufDeserializer(BaseDeserializer):
                 fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
                 writer_schema = pool.FindFileByName(fd_proto.name)
                 writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+            else:
+                writer_schema_raw = None
+                writer_schema = None
 
             if subject is None:
                 subject = self._subject_name_func(ctx, writer_desc.full_name)
                 if subject is not None and self._registry is not None:
                     latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
-            migrations = None
-            reader_schema_raw = None
-            reader_schema = None
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
                 reader_schema_raw = latest_schema.schema
                 fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
                 reader_schema = pool.FindFileByName(fd_proto.name)
-            elif self._registry is not None:
+            else:
                 migrations = None
                 reader_schema_raw = writer_schema_raw
                 reader_schema = writer_schema
 
-            if self._registry is not None:
+            if reader_schema is not None:
                 # Initialize reader desc to first message in file
                 reader_desc = self._get_message_desc(pool, reader_schema, [0])
                 # Attempt to find a reader desc with the same name as the writer
