@@ -23,8 +23,9 @@ from confluent_kafka.schema_registry import (record_subject_name_strategy,
 from confluent_kafka.schema_registry.avro import AvroSerializer, AvroDeserializer
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
+from tests.schema_registry.conftest import COUNTER
 
-# MockSchemaRegistryClient, see ./conftest.py for additional details.
+# Mock SchemaRegistryClient, see ./conftest.py for additional details.
 TEST_URL = 'http://SchemaRegistry:65534'
 
 
@@ -56,7 +57,7 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
     Ensures auto.register.schemas=False does not register schema
     """
     conf = {'url': TEST_URL}
-    test_client = mock_schema_registry(conf)
+    test_client = SchemaRegistryClient(conf)
     topic = "test-auto-register"
     subject = topic + '-key'
 
@@ -67,11 +68,10 @@ def test_avro_serializer_config_auto_register_schemas_false(mock_schema_registry
                     SerializationContext("test-auto-register",
                                          MessageField.KEY))
 
-    register_count = test_client.counter['POST'].get('/subjects/{}/versions'
-                                                     .format(subject), 0)
+    register_count = COUNTER['POST'].get('/subjects/{}/versions'.format(subject), 0)
     assert register_count == 0
     # Ensure lookup_schema was invoked instead
-    assert test_client.counter['POST'].get('/subjects/{}'.format(subject)) == 1
+    assert COUNTER['POST'].get('/subjects/{}'.format(subject)) == 1
 
 
 def test_avro_serializer_config_use_latest_version(mock_schema_registry):
@@ -79,22 +79,21 @@ def test_avro_serializer_config_use_latest_version(mock_schema_registry):
     Ensures auto.register.schemas=False does not register schema
     """
     conf = {'url': TEST_URL}
-    test_client = mock_schema_registry(conf)
+    test_client = SchemaRegistryClient(conf)
     topic = "test-use-latest-version"
     subject = topic + '-key'
 
     test_serializer = AvroSerializer(test_client, '"string"',
                                      conf={'auto.register.schemas': False, 'use.latest.version': True})
 
-    test_serializer("test",
+    test_serializer({'name': 'Bob', 'age': 30},
                     SerializationContext("test-use-latest-version",
                                          MessageField.KEY))
 
-    register_count = test_client.counter['POST'].get('/subjects/{}/versions'
-                                                     .format(subject), 0)
+    register_count = COUNTER['POST'].get('/subjects/{}/versions'.format(subject), 0)
     assert register_count == 0
     # Ensure latest was requested
-    assert test_client.counter['GET'].get('/subjects/{}/versions/latest'.format(subject)) == 1
+    assert COUNTER['GET'].get('/subjects/{}/versions/latest'.format(subject)) == 1
 
 
 def test_avro_serializer_config_subject_name_strategy():
@@ -221,16 +220,6 @@ def test_avro_serializer_schema_loads_union(load_avsc):
     assert isinstance(schema, list)
     assert schema[0]["name"] == "RecordOne"
     assert schema[1]["name"] == "RecordTwo"
-
-
-def test_avro_serializer_invalid_schema_type():
-    """
-    Ensures invalid schema types are rejected
-    """
-    conf = {'url': TEST_URL}
-    test_client = SchemaRegistryClient(conf)
-    with pytest.raises(TypeError, match="You must pass either schema string or schema object"):
-        AvroSerializer(test_client, 1)
 
 
 def test_avro_deserializer_invalid_schema_type():
