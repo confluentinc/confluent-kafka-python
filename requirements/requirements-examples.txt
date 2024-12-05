@@ -21,7 +21,7 @@ protobuf
 
 azure-identity
 azure-keyvault-keys
-boto3
+boto3>=1.33.0
 cel-python>=0.1.5
 google-auth
 google-api-core
