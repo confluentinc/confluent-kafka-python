@@ -27,7 +27,7 @@ from google.protobuf.message_factory import MessageFactory
 
 from . import (_MAGIC_BYTE,
                reference_subject_name_strategy,
-               topic_subject_name_strategy,)
+               topic_subject_name_strategy, )
 from .schema_registry_client import (Schema,
                                      SchemaReference)
 from confluent_kafka.serialization import SerializationError
@@ -35,25 +35,14 @@ from confluent_kafka.serialization import SerializationError
 
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
-# Python2.chr() -> str(alias for bytes)
-if sys.version > '3':
-    def _bytes(v):
-        """
-        Convert int to bytes
+def _bytes(v):
+    """
+    Convert int to bytes
 
-        Args:
-            v (int): The int to convert to bytes.
-        """
-        return bytes((v,))
-else:
-    def _bytes(v):
-        """
-        Convert int to bytes
-
-        Args:
-            v (int): The int to convert to bytes.
-        """
-        return chr(v)
+    Args:
+        v (int): The int to convert to bytes.
+    """
+    return bytes((v,))
 
 
 class _ContextStringIO(io.BytesIO):
