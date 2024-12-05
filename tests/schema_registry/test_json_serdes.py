@@ -121,6 +121,43 @@ def test_json_basic_serialization():
     assert obj == obj2
 
 
+def test_json_basic_deserialization_no_client():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = JSONDeserializer(json.dumps(schema))
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_json_serialize_nested():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)

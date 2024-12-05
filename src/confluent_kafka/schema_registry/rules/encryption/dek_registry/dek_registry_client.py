@@ -647,6 +647,8 @@ class DekRegistryClient(object):
     def new_client(conf: dict) -> 'DekRegistryClient':
         from .mock_dek_registry_client import MockDekRegistryClient
         url = conf.get("url")
+        if url is None:
+            return MockDekRegistryClient({"url": "mock://"})
         if url.startswith("mock://"):
             return MockDekRegistryClient(conf)
         return DekRegistryClient(conf)

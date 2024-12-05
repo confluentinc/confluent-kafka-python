@@ -445,7 +445,7 @@ class ProtobufSerializer(BaseSerializer):
                               schema_type='PROTOBUF')
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else None, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
 
     @staticmethod
     def _write_varint(buf: io.BytesIO, val: int, zigzag: bool = True):
@@ -722,7 +722,7 @@ class ProtobufDeserializer(BaseDeserializer):
         self._msg_class = GetMessageClass(descriptor)
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else None, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
 
     @staticmethod
     def _decode_varint(buf: io.BytesIO, zigzag: bool = True) -> int:
@@ -858,6 +858,9 @@ class ProtobufDeserializer(BaseDeserializer):
                 if subject is not None and self._registry is not None:
                     latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
+            migrations = None
+            reader_schema_raw = None
+            reader_schema = None
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
                 reader_schema_raw = latest_schema.schema

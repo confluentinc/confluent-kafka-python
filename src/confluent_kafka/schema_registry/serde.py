@@ -289,7 +289,7 @@ class BaseSerde(object):
         field_transformer: Optional[FieldTransformer]
     ) -> Any:
         if message is None or target is None:
-            return None
+            return message
         rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
             if target.rule_set is not None:

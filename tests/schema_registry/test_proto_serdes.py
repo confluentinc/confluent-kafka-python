@@ -119,6 +119,31 @@ def test_proto_basic_serialization():
     assert obj == obj2
 
 
+def test_proto_basic_deserialization_no_client():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False
+    }
+    obj = example_pb2.Author(
+        name='Kafka',
+        id=123,
+        picture=b'foobar',
+        works=['The Castle ', 'TheTrial']
+    )
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {
+        'use.deprecated.format': False
+    }
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_proto_second_message():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
