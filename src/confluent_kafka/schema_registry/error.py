@@ -41,7 +41,7 @@ class SchemaRegistryError(Exception):
     """  # noqa: E501
     UNKNOWN = -1
 
-    def __init__(self, http_status_code, error_code, error_message):
+    def __init__(self, http_status_code: int, error_code: int, error_message: str):
         self.http_status_code = http_status_code
         self.error_code = error_code
         self.error_message = error_message
