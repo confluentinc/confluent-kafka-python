@@ -16,10 +16,11 @@
 # limitations under the License.
 
 
-# A simple example demonstrating use of AvroDeserializer.
+# A simple example demonstrating use of JSONDeserializer.
 
 import argparse
 
+from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
     FieldEncryptionExecutor
 
@@ -40,8 +41,7 @@ from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
 
 from confluent_kafka import Consumer
 from confluent_kafka.serialization import SerializationContext, MessageField
-from confluent_kafka.schema_registry import SchemaRegistryClient
-from confluent_kafka.schema_registry.avro import AvroDeserializer
+from confluent_kafka.schema_registry.json_schema import JSONDeserializer
 
 
 class User(object):
@@ -50,9 +50,7 @@ class User(object):
 
     Args:
         name (str): User's name
-
         favorite_number (int): User's favorite number
-
         favorite_color (str): User's favorite color
     """
 
@@ -67,10 +65,9 @@ def dict_to_user(obj, ctx):
     Converts object literal(dict) to a User instance.
 
     Args:
-        obj (dict): Object literal(dict)
-
         ctx (SerializationContext): Metadata pertaining to the serialization
             operation.
+        obj (dict): Object literal(dict)
     """
 
     if obj is None:
@@ -93,15 +90,15 @@ def main(args):
     topic = args.topic
 
     # When using Data Contract rules, a schema should not be passed to the
-    # AvroDeserializer. The schema is fetched from the Schema Registry.
+    # JSONDeserializer. The schema is fetched from the Schema Registry.
     schema_str = None
 
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
 
-    avro_deserializer = AvroDeserializer(schema_registry_client,
-                                         schema_str,
-                                         dict_to_user)
+    json_deserializer = JSONDeserializer(schema_str,
+                                         dict_to_user,
+                                         schema_registry_client)
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'group.id': args.group,
@@ -117,7 +114,8 @@ def main(args):
             if msg is None:
                 continue
 
-            user = avro_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+            user = json_deserializer(msg.value(), SerializationContext(msg.topic(), MessageField.VALUE))
+
             if user is not None:
                 print("User record {}: name: {}\n"
                       "\tfavorite_number: {}\n"
@@ -132,14 +130,14 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="AvroDeserializer example")
+    parser = argparse.ArgumentParser(description="JSONDeserializer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
                         help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_avro",
+    parser.add_argument('-t', dest="topic", default="example_serde_json",
                         help="Topic name")
-    parser.add_argument('-g', dest="group", default="example_serde_avro",
+    parser.add_argument('-g', dest="group", default="example_serde_json",
                         help="Consumer group")
 
     main(parser.parse_args())

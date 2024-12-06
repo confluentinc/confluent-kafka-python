@@ -196,6 +196,8 @@ def _resolve_named_schema(
     """
     if schema.references is not None:
         for ref in schema.references:
+            if _is_builtin(ref.name):
+                continue
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
@@ -281,7 +283,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Whether or not to skip known types when resolving    |
     | ``skip.known.types``                | bool     | schema dependencies.                                 |
     |                                     |          |                                                      |
-    |                                     |          | Defaults to False.                                   |
+    |                                     |          | Defaults to True.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Callable(SerializationContext, str) -> str           |
     |                                     |          |                                                      |
@@ -356,7 +358,7 @@ class ProtobufSerializer(BaseSerializer):
         'normalize.schemas': False,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
-        'skip.known.types': False,
+        'skip.known.types': True,
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy,
         'use.deprecated.format': False,
@@ -504,7 +506,7 @@ class ProtobufSerializer(BaseSerializer):
 
         schema_refs = []
         for dep in file_desc.dependencies:
-            if self._skip_known_types and dep.name.startswith("google/protobuf/"):
+            if self._skip_known_types and _is_builtin(dep.name):
                 continue
             dep_refs = self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
@@ -926,7 +928,9 @@ class ProtobufDeserializer(BaseDeserializer):
         file_desc_proto = descriptor_pb2.FileDescriptorProto()
         fd.CopyToProto(file_desc_proto)
         (full_name, desc_proto) = self._get_message_desc_proto("", file_desc_proto, msg_index)
-        return pool.FindMessageTypeByName(file_desc_proto.package + full_name)
+        package = file_desc_proto.package
+        qualified_name = package + "." + full_name if package else full_name
+        return pool.FindMessageTypeByName(qualified_name)
 
     def _get_message_desc_proto(
         self,
@@ -937,13 +941,13 @@ class ProtobufDeserializer(BaseDeserializer):
         index = msg_index[0]
         if isinstance(desc, descriptor_pb2.FileDescriptorProto):
             msg = desc.message_type[index]
-            path = path + "." + msg.name
+            path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
             return self._get_message_desc_proto(path, msg, msg_index[1:])
         else:
             msg = desc.nested_type[index]
-            path = path + "." + msg.name
+            path = path + "." + msg.name if path else msg.name
             if len(msg_index) == 1:
                 return path, msg
             return self._get_message_desc_proto(path, msg, msg_index[1:])
@@ -1058,3 +1062,9 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
         if tag in tags2:
             return False
     return True
+
+
+def _is_builtin(name: str) -> bool:
+    return name.startswith('confluent/') or \
+           name.startswith('google/protobuf/') or \
+           name.startswith('google/type/')

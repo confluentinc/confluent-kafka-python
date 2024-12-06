@@ -16,10 +16,9 @@
 # limitations under the License.
 
 
-# A simple example demonstrating use of AvroSerializer.
+# A simple example demonstrating use of JSONSerializer.
 
 import argparse
-import os
 from uuid import uuid4
 
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
@@ -31,21 +30,21 @@ from confluent_kafka.schema_registry.rules.encryption.localkms.local_driver impo
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
     HcVaultKmsDriver
 
+from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
+    GcpKmsDriver
+
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
     AzureKmsDriver
 
 from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
     AwsKmsDriver
-
-from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
-    GcpKmsDriver
 from six.moves import input
 
 from confluent_kafka import Producer
 from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
 from confluent_kafka.schema_registry import SchemaRegistryClient, Rule, \
     RuleKind, RuleMode, RuleParams, Schema, RuleSet
-from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
 
 
 class User(object):
@@ -92,20 +91,11 @@ def user_to_dict(user, ctx):
 
 def delivery_report(err, msg):
     """
-    Reports the failure or success of a message delivery.
+    Reports the success or failure of a message delivery.
 
     Args:
         err (KafkaError): The error that occurred on None on success.
-
         msg (Message): The message that was produced or failed.
-
-    Note:
-        In the delivery report callback the Message.key() and Message.value()
-        will be the binary format as encoded by any configured Serializers and
-        not the same object that was passed to produce().
-        If you wish to pass the original object(s) for key and value to delivery
-        report callback we recommend a bound callback or lambda where you pass
-        the objects along.
     """
 
     if err is not None:
@@ -125,21 +115,35 @@ def main(args):
     FieldEncryptionExecutor.register()
 
     topic = args.topic
-    is_specific = args.specific == "true"
     kek_name = args.kek_name
     kms_type = args.kms_type
     kms_key_id = args.kms_key_id
 
-    # Note both schemas have tagged the name as PII
-    if is_specific:
-        schema = "user_specific.avsc"
-    else:
-        schema = "user_generic.avsc"
-
-    path = os.path.realpath(os.path.dirname(__file__))
-    with open(f"{path}/avro/{schema}") as f:
-        schema_str = f.read()
-
+    schema_str = """
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "description": "A Confluent Kafka Python User",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "User's name",
+          "type": "string",
+          "confluent:tags": ["PII"]
+        },
+        "favorite_number": {
+          "description": "User's favorite number",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "favorite_color": {
+          "description": "User's favorite color",
+          "type": "string"
+        }
+      },
+      "required": [ "name", "favorite_number", "favorite_color" ]
+    }
+    """
     schema_registry_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
@@ -164,7 +168,7 @@ def main(args):
     subject = f"{topic}-value"
     schema_registry_client.register_schema(subject, Schema(
         schema_str,
-        "AVRO",
+        "JSON",
         [],
         None,
         RuleSet(None, [rule])
@@ -175,17 +179,15 @@ def main(args):
     # KMS credentials can be passed as follows
     # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
     # Alternatively, the KMS credentials can be set via environment variables
-    avro_serializer = AvroSerializer(schema_registry_client,
-                                     schema_str,
+    json_serializer = JSONSerializer(schema_str,
+                                     schema_registry_client,
                                      user_to_dict,
                                      conf=ser_conf,
                                      rule_conf=rule_conf)
 
     string_serializer = StringSerializer('utf_8')
 
-    producer_conf = {'bootstrap.servers': args.bootstrap_servers}
-
-    producer = Producer(producer_conf)
+    producer = Producer({'bootstrap.servers': args.bootstrap_servers})
 
     print("Producing user records to topic {}. ^C to exit.".format(topic))
     while True:
@@ -202,7 +204,7 @@ def main(args):
                         favorite_number=user_favorite_number)
             producer.produce(topic=topic,
                              key=string_serializer(str(uuid4())),
-                             value=avro_serializer(user, SerializationContext(topic, MessageField.VALUE)),
+                             value=json_serializer(user, SerializationContext(topic, MessageField.VALUE)),
                              on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
@@ -215,15 +217,13 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="AvroSerializer example")
+    parser = argparse.ArgumentParser(description="JSONSerailizer example")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
                         help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default="example_serde_avro",
+    parser.add_argument('-t', dest="topic", default="example_serde_json",
                         help="Topic name")
-    parser.add_argument('-p', dest="specific", default="true",
-                        help="Avro specific record")
 
     parser.add_argument('-kn', dest="kek_name", required=True,
                         help="KEK name")
