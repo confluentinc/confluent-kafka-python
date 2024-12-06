@@ -305,7 +305,8 @@ class AvroSerializer(BaseSerializer):
         self._parsed_schema = parsed_schema
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {},
+                           rule_conf if rule_conf else {})
 
     def __call__(self, obj: object, ctx: SerializationContext = None) -> Optional[bytes]:
         """
@@ -514,7 +515,8 @@ class AvroDeserializer(BaseDeserializer):
             raise ValueError("return_record_name must be a boolean value")
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {},
+                           rule_conf if rule_conf else {})
 
     def __call__(self, data: bytes, ctx: SerializationContext = None) -> Union[dict, object, None]:
         """

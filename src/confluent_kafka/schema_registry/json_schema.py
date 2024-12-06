@@ -293,7 +293,8 @@ class JSONSerializer(BaseSerializer):
         self._ref_registry = ref_registry
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {},
+                           rule_conf if rule_conf else {})
 
     def __call__(self, obj: object, ctx: SerializationContext = None) -> Optional[bytes]:
         """
@@ -516,7 +517,8 @@ class JSONDeserializer(BaseDeserializer):
         self._from_dict = from_dict
 
         for rule in self._rule_registry.get_executors():
-            rule.configure(self._registry.config() if self._registry else {}, rule_conf)
+            rule.configure(self._registry.config() if self._registry else {},
+                           rule_conf if rule_conf else {})
 
     def __call__(self, data: bytes, ctx: SerializationContext = None) -> Union[dict, object, None]:
         """
