@@ -1023,7 +1023,6 @@ def _set_field(fd: FieldDescriptor, message: Message, value: Any):
 
 
 def get_type(fd: FieldDescriptor) -> FieldType:
-    # TODO RAY check
     if is_map_field(fd):
         return FieldType.MAP
     if fd.type == FieldDescriptor.TYPE_MESSAGE:

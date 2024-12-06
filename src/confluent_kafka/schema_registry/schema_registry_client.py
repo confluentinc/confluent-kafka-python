@@ -32,7 +32,7 @@ from threading import Lock
 from typing import List, Dict, Type, TypeVar, \
     cast, Optional, Union, Any, Tuple
 
-from cachetools import TTLCache
+from cachetools import TTLCache, LRUCache
 
 from .error import SchemaRegistryError
 
@@ -127,6 +127,20 @@ class _BaseRestClient(object):
             if not isinstance(timeout, (int, float)):
                 raise TypeError("timeout must be a number, not " + str(type(timeout)))
             self.timeout = timeout
+
+        self.cache_capacity = 1000
+        cache_capacity = conf_copy.pop('cache.capacity', None)
+        if cache_capacity is not None:
+            if not isinstance(cache_capacity, (int, float)):
+                raise TypeError("cache.capacity must be a number, not " + str(type(cache_capacity)))
+            self.cache_capacity = cache_capacity
+
+        self.cache_latest_ttl_sec = None
+        cache_latest_ttl_sec = conf_copy.pop('cache.latest.ttl.sec', None)
+        if cache_latest_ttl_sec is not None:
+            if not isinstance(cache_latest_ttl_sec, (int, float)):
+                raise TypeError("cache.latest.ttl.sec must be a number, not " + str(type(cache_latest_ttl_sec)))
+            self.cache_latest_ttl_sec = cache_latest_ttl_sec
 
         self.max_retries = 2
         max_retries = conf_copy.pop('max.retries', None)
@@ -506,6 +520,14 @@ class SchemaRegistryClient(object):
     |                              |      |                                                 |
     +------------------------------+------+-------------------------------------------------+
     |                              |      |                                                 |
+    | ``cache.capacity``           | int  | Cache capacity.  Defaults to 1000.              |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``cache.latest.ttl.sec``     | int  | TTL in seconds for caching the latest schema.   |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
     | ``max.retries``              | int  | Maximum retries for a request.  Defaults to 2.  |
     |                              |      |                                                 |
     +------------------------------+------+-------------------------------------------------+
@@ -528,9 +550,14 @@ class SchemaRegistryClient(object):
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
         self._metadata_cache = _RegisteredSchemaCache()
-        # TODO RAY cache ttl
-        self._latest_version_cache = TTLCache(1000, 60)
-        self._latest_with_metadata_cache = TTLCache(1000, 60)
+        cache_capacity = self._rest_client.cache_capacity
+        cache_ttl = self._rest_client.cache_latest_ttl_sec
+        if cache_ttl is not None:
+            self._latest_version_cache = TTLCache(cache_capacity, cache_ttl)
+            self._latest_with_metadata_cache = TTLCache(cache_capacity, cache_ttl)
+        else:
+            self._latest_version_cache = LRUCache(cache_capacity)
+            self._latest_with_metadata_cache = LRUCache(cache_capacity)
 
     def __enter__(self):
         return self
