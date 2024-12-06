@@ -43,11 +43,11 @@ class AwsKmsDriver(KmsDriver):
         key_arn = _key_uri_to_key_arn(uri_prefix)
         region = _get_region_from_key_arn(key_arn)
         if key is None or secret is None:
-            client = boto3.client('kms', region=region)
+            client = boto3.client('kms', region_name=region)
         else:
             client = boto3.client(
                 'kms',
-                region=region,
+                region_name=region,
                 aws_access_key_id=key,
                 aws_secret_access_key=secret
             )
