@@ -55,14 +55,17 @@ class GcpKmsDriver(KmsDriver):
         if token_uri is None:
             token_uri = "https://oauth2.googleapis.com/token"
 
-        creds = service_account.Credentials.from_service_account_info({
-            "type": account_type,
-            "client_id": client_id,
-            "client_email": client_email,
-            "private_key_id": private_key_id,
-            "private_key": private_key,
-            "token_uri": token_uri
-        })
+        if client_id is None or client_email is None or private_key_id is None or private_key is None:
+            creds = None
+        else:
+            creds = service_account.Credentials.from_service_account_info({
+                "type": account_type,
+                "client_id": client_id,
+                "client_email": client_email,
+                "private_key_id": private_key_id,
+                "private_key": private_key,
+                "token_uri": token_uri
+            })
 
         return _GcpKmsClient(uri_prefix, creds)
 
