@@ -185,7 +185,9 @@ def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorPr
 
 def _resolve_named_schema(
     schema: Schema,
-    schema_registry_client: SchemaRegistryClient, pool: DescriptorPool
+    schema_registry_client: SchemaRegistryClient,
+    pool: DescriptorPool,
+    visited: Set[str] = None
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
@@ -194,12 +196,15 @@ def _resolve_named_schema(
     :param pool: DescriptorPool to add resolved schemas to.
     :return: DescriptorPool
     """
+    if visited is None:
+        visited = set()
     if schema.references is not None:
         for ref in schema.references:
-            if _is_builtin(ref.name):
+            if _is_builtin(ref.name) or ref.name in visited:
                 continue
+            visited.add(ref.name)
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
-            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool)
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
 
