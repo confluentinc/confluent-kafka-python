@@ -45,7 +45,6 @@ class HcVaultKmsClient(tink.KmsClient):
           TinkError: If the key uri is not valid.
         """
 
-        super().__init__(key_uri, None)
         if not key_uri:
             self._key_uri = None
         elif key_uri.startswith(VAULT_KEYURI_PREFIX):
