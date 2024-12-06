@@ -285,27 +285,27 @@ blocks:
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
-  - name: "Docs"
-      dependencies: []
-      task:
-        jobs:
-          - name: Build Docs
-            commands:
-              - sem-version python 3.9
-              - export TAR_FILE_PATH="./docs-dependencies"
-              - pip install avro-python3 requests fastavro jsonschema protobuf Sphinx==4.0.2 sphinx_rtd_theme==0.2.5b1 sphinxcontrib-applehelp==1.0.4 sphinxcontrib-devhelp==1.0.2 sphinxcontrib-htmlhelp==2.0.1 sphinxcontrib-jsmath==1.0.1 sphinxcontrib-qthelp==1.0.3 sphinxcontrib-serializinghtml==1.1.5
-              - git clone git@github.com:confluentinc/librdkafka.git && cd librdkafka
-              - export LIBRDKAFKA_DIR=${PWD}
-              - ./configure --clean
-              - ./configure --prefix=${LIBRDKAFKA_DIR}/compiled --disable-ssl
-              - make libs install
-              - cd ..
-              - export OUTPUT_PATH="./docs/_build/html"
-              - CFLAGS=-I${LIBRDKAFKA_DIR}/compiled/include LDFLAGS=-L${LIBRDKAFKA_DIR}/compiled/lib/ python setup.py build
-              - cd docs
-              - LD_LIBRARY_PATH=${LIBRDKAFKA_DIR}/compiled/lib/ make clean html && cd ..
-              - ls ${OUTPUT_PATH}
-              - export TAR_NAME="dotnet-docs.tgz"
-              - mkdir -p ${TAR_FILE_PATH}
-              - tar -cvzf ${TAR_FILE_PATH}/${TAR_NAME} ${OUTPUT_PATH}
-              - artifact push workflow ${TAR_FILE_PATH}
+  # - name: "Docs"
+  #     dependencies: []
+  #     task:
+  #       jobs:
+  #         - name: Build Docs
+  #           commands:
+  #             - sem-version python 3.9
+  #             - export TAR_FILE_PATH="./docs-dependencies"
+  #             - pip install avro-python3 requests fastavro jsonschema protobuf Sphinx==4.0.2 sphinx_rtd_theme==0.2.5b1 sphinxcontrib-applehelp==1.0.4 sphinxcontrib-devhelp==1.0.2 sphinxcontrib-htmlhelp==2.0.1 sphinxcontrib-jsmath==1.0.1 sphinxcontrib-qthelp==1.0.3 sphinxcontrib-serializinghtml==1.1.5
+  #             - git clone git@github.com:confluentinc/librdkafka.git && cd librdkafka
+  #             - export LIBRDKAFKA_DIR=${PWD}
+  #             - ./configure --clean
+  #             - ./configure --prefix=${LIBRDKAFKA_DIR}/compiled --disable-ssl
+  #             - make libs install
+  #             - cd ..
+  #             - export OUTPUT_PATH="./docs/_build/html"
+  #             - CFLAGS=-I${LIBRDKAFKA_DIR}/compiled/include LDFLAGS=-L${LIBRDKAFKA_DIR}/compiled/lib/ python setup.py build
+  #             - cd docs
+  #             - LD_LIBRARY_PATH=${LIBRDKAFKA_DIR}/compiled/lib/ make clean html && cd ..
+  #             - ls ${OUTPUT_PATH}
+  #             - export TAR_NAME="dotnet-docs.tgz"
+  #             - mkdir -p ${TAR_FILE_PATH}
+  #             - tar -cvzf ${TAR_FILE_PATH}/${TAR_NAME} ${OUTPUT_PATH}
+  #             - artifact push workflow ${TAR_FILE_PATH}
