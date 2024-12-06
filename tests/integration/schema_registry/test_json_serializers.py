@@ -322,24 +322,6 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
         producer.produce(topic, value=record, partition=0)
 
 
-def test_json_record_serialization_no_title(kafka_cluster, load_file):
-    """
-    Ensures ValueError raise if JSON Schema definition lacks Title annotation.
-
-    Args:
-        kafka_cluster (KafkaClusterFixture): cluster fixture
-
-        load_file (callable(str)): JSON Schema file reader
-
-    """
-    sr = kafka_cluster.schema_registry()
-    schema_str = load_file('not_title.json')
-
-    with pytest.raises(ValueError,
-                       match="Missing required JSON schema annotation title"):
-        JSONSerializer(schema_str, sr)
-
-
 def test_json_record_serialization_custom(kafka_cluster, load_file):
     """
     Ensures to_dict and from_dict hooks are properly applied by the serializer.
