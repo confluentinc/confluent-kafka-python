@@ -45,7 +45,6 @@ class AzureKmsClient(tink.KmsClient):
           TinkError: If the key uri is not valid.
         """
 
-        super().__init__(key_uri)
         if not key_uri:
             self._key_uri = None
         elif key_uri.startswith(AZURE_KEYURI_PREFIX):
