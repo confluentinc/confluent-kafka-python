@@ -19,7 +19,6 @@
 # A simple example demonstrating use of AvroDeserializer.
 
 import argparse
-import os
 
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
     FieldEncryptionExecutor
