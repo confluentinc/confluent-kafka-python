@@ -20,6 +20,8 @@ import time
 from datetime import datetime, timedelta
 
 import pytest
+from confluent_kafka.schema_registry.rule_registry import RuleRegistry, \
+    RuleOverride
 from fastavro._logical_readers import UUID
 
 from confluent_kafka.schema_registry import SchemaRegistryClient, \
@@ -580,6 +582,63 @@ def test_avro_cel_field_transform():
     deser = AvroDeserializer(client)
     newobj = deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
+
+
+def test_avro_cel_field_transform_disable():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string'},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes'},
+        ]
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "name == 'stringField' ; value + '-suffix'",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+
+    registry = RuleRegistry()
+    registry.register_rule_executor(CelFieldExecutor())
+    registry.register_override(RuleOverride("CEL_FIELD", None, None, True))
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    newobj = deser(obj_bytes, ser_ctx)
+    assert obj == newobj
 
 
 def test_avro_cel_field_transform_complex():
