@@ -327,7 +327,7 @@ class BaseSerde(object):
                               index, rules, inline_tags, field_transformer)
             rule_executor = self._rule_registry.get_executor(rule.type.upper())
             if rule_executor is None:
-                self._run_action(ctx, rule_mode, rule, rule.on_failure, message,
+                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message,
                                  RuleError(f"Could not find rule executor of type {rule.type}"),
                                  'ERROR')
                 return message
@@ -340,15 +340,35 @@ class BaseSerde(object):
                 elif rule.kind == RuleKind.TRANSFORM:
                     message = result
                     break
-                self._run_action(ctx, rule_mode, rule,
-                                 rule.on_failure if message is None else rule.on_success,
-                                 message, None,
-                                 'ERROR' if message is None else 'NONE')
+                self._run_action(
+                    ctx, rule_mode, rule,
+                    self._get_on_failure(rule) if message is None else self._get_on_success(rule),
+                    message, None,
+                    'ERROR' if message is None else 'NONE')
             except SerializationError:
                 raise
             except Exception as e:
-                self._run_action(ctx, rule_mode, rule, rule.on_failure, message, e, 'ERROR')
+                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule),
+                                 message, e, 'ERROR')
         return message
+
+    def _get_on_success(self, rule: Rule) -> Optional[str]:
+        override = self._rule_registry.get_override(rule.type)
+        if override is not None and override.on_success is not None:
+            return override.on_success
+        return rule.on_success
+
+    def _get_on_failure(self, rule: Rule) -> Optional[str]:
+        override = self._rule_registry.get_override(rule.type)
+        if override is not None and override.on_failure is not None:
+            return override.on_failure
+        return rule.on_failure
+
+    def _is_disabled(self, rule: Rule) -> Optional[bool]:
+        override = self._rule_registry.get_override(rule.type)
+        if override is not None and override.disabled is not None:
+            return override.disabled
+        return rule.disabled
 
     def _run_action(
         self, ctx: RuleContext, rule_mode: RuleMode, rule: Rule,

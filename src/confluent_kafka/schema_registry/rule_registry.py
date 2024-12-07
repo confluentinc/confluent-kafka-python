@@ -16,17 +16,27 @@
 # limitations under the License.
 #
 
+from attrs import define as _attrs_define
 from typing import Optional, List
 
 from confluent_kafka.schema_registry.serde import RuleExecutor, RuleAction
 
 
+@_attrs_define(frozen=True)
+class RuleOverride:
+    type: str
+    on_success: Optional[str]
+    on_failure: Optional[str]
+    disabled: Optional[bool]
+
+
 class RuleRegistry(object):
-    __slots__ = ['_rule_executors', '_rule_actions']
+    __slots__ = ['_rule_executors', '_rule_actions', '_rule_overrides']
 
     def __init__(self):
         self._rule_executors = {}
         self._rule_actions = {}
+        self._rule_overrides = {}
 
     def register_executor(self, rule_executor: RuleExecutor):
         self._rule_executors[rule_executor.type()] = rule_executor
@@ -46,9 +56,19 @@ class RuleRegistry(object):
     def get_actions(self) -> List[RuleAction]:
         return list(self._rule_actions.values())
 
+    def register_override(self, rule_override: RuleOverride):
+        self._rule_overrides[rule_override.type()] = rule_override
+
+    def get_override(self, name: str) -> Optional[RuleOverride]:
+        return self._rule_overrides.get(name)
+
+    def get_overrides(self) -> List[RuleOverride]:
+        return list(self._rule_overrides.values())
+
     def clear(self):
         self._rule_executors.clear()
         self._rule_actions.clear()
+        self._rule_overrides.clear()
 
     @staticmethod
     def get_global_instance():
@@ -61,6 +81,10 @@ class RuleRegistry(object):
     @staticmethod
     def register_rule_action(rule_action: RuleAction):
         _global_instance.register_action(rule_action)
+
+    @staticmethod
+    def register_rule_override(rule_override: RuleOverride):
+        _global_instance.register_override(rule_override)
 
 
 _global_instance = RuleRegistry()
