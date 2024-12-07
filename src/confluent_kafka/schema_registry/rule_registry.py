@@ -57,7 +57,7 @@ class RuleRegistry(object):
         return list(self._rule_actions.values())
 
     def register_override(self, rule_override: RuleOverride):
-        self._rule_overrides[rule_override.type()] = rule_override
+        self._rule_overrides[rule_override.type] = rule_override
 
     def get_override(self, name: str) -> Optional[RuleOverride]:
         return self._rule_overrides.get(name)
@@ -85,6 +85,5 @@ class RuleRegistry(object):
     @staticmethod
     def register_rule_override(rule_override: RuleOverride):
         _global_instance.register_override(rule_override)
-
 
 _global_instance = RuleRegistry()
