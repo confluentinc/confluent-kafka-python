@@ -86,4 +86,5 @@ class RuleRegistry(object):
     def register_rule_override(rule_override: RuleOverride):
         _global_instance.register_override(rule_override)
 
+
 _global_instance = RuleRegistry()
