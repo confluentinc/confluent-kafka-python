@@ -20,19 +20,22 @@ import pytest
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError
-from confluent_kafka.schema_registry.schema_registry_client import Schema
+from confluent_kafka.schema_registry.schema_registry_client import Schema, \
+    SchemaRegistryClient
+from tests.schema_registry.conftest import USERINFO, \
+    SCHEMA_ID, SCHEMA, SUBJECTS, COUNTER, VERSION, VERSIONS
 
 """
     Basic SchemaRegistryClient API functionality tests.
 
-    These tests cover the following criteria using the MockSchemaRegistryClient:
+    These tests cover the following criteria using the mock SchemaRegistryClient:
         - Proper request/response handling:
             The right data sent to the right place in the right format
         - Error handling: (SR error codes are converted to a
             SchemaRegistryError correctly)
         - Caching: Caching of schema_ids and schemas works as expected.
 
-    See ./conftest.py for details on MockSchemaRegistryClient usage.
+    See ./conftest.py for details on mock SchemaRegistryClient usage.
 """
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
@@ -58,7 +61,7 @@ def cmp_schema(schema1, schema2):
 def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL,
             'basic.auth.user.info': "user:secret"}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="401 Unauthorized"):
         sr.get_subjects()
@@ -66,26 +69,26 @@ def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
 
 def test_basic_auth_authorized(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL,
-            'basic.auth.user.info': mock_schema_registry.USERINFO}
-    sr = mock_schema_registry(conf)
+            'basic.auth.user.info': USERINFO}
+    sr = SchemaRegistryClient(conf)
 
     result = sr.get_subjects()
 
-    assert result == mock_schema_registry.SUBJECTS
+    assert result == SUBJECTS
 
 
 def test_register_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     result = sr.register_schema('test-key', schema)
-    assert result == mock_schema_registry.SCHEMA_ID
+    assert result == SCHEMA_ID
 
 
 def test_register_schema_incompatible(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Incompatible Schema") as e:
@@ -97,7 +100,7 @@ def test_register_schema_incompatible(mock_schema_registry, load_avsc):
 
 def test_register_schema_invalid(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Invalid Schema") as e:
@@ -109,10 +112,10 @@ def test_register_schema_invalid(mock_schema_registry, load_avsc):
 
 def test_register_schema_cache(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = load_avsc('basic_schema.avsc')
 
-    count_before = sr.counter['POST'].get(
+    count_before = COUNTER['POST'].get(
         '/subjects/test-cache/versions', 0)
 
     # Caching only starts after the first response is handled.
@@ -127,7 +130,7 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
                                       'test-cache', schema))
     wait(fs)
 
-    count_after = sr.counter['POST'].get(
+    count_after = COUNTER['POST'].get(
         '/subjects/test-cache/versions')
 
     assert count_after - count_before == 1
@@ -135,9 +138,9 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
 
 def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
-    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
     schema2 = sr.get_schema(47)
 
     assert cmp_schema(schema, schema2)
@@ -145,7 +148,7 @@ def test_get_schema(mock_schema_registry, load_avsc):
 
 def test_get_schema_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
         sr.get_schema(404)
@@ -155,9 +158,9 @@ def test_get_schema_not_found(mock_schema_registry):
 
 def test_get_schema_cache(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
-    count_before = mock_schema_registry.counter['GET'].get(
+    count_before = COUNTER['GET'].get(
         '/schemas/ids/47', 0)
 
     # Caching only starts after the first response is handled.
@@ -171,7 +174,7 @@ def test_get_schema_cache(mock_schema_registry):
             fs.append(executor.submit(sr.get_schema, 47))
     wait(fs)
 
-    count_after = mock_schema_registry.counter['GET'].get(
+    count_after = COUNTER['GET'].get(
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
@@ -179,25 +182,25 @@ def test_get_schema_cache(mock_schema_registry):
 
 def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = 'get_registration'
-    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     response = sr.lookup_schema(subject, schema)
 
     assert response.subject == subject
-    assert response.version == mock_schema_registry.VERSION
-    assert response.schema_id == mock_schema_registry.SCHEMA_ID
+    assert response.version == VERSION
+    assert response.schema_id == SCHEMA_ID
     assert cmp_schema(response.schema, schema)
 
 
 def test_get_registration_subject_not_found(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = 'notfound'
-    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
         sr.lookup_schema(subject, schema)
@@ -207,10 +210,10 @@ def test_get_registration_subject_not_found(mock_schema_registry, load_avsc):
 
 def test_get_registration_schema_not_found(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = 'schemanotfound'
-    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
         sr.lookup_schema(subject, schema)
@@ -220,24 +223,24 @@ def test_get_registration_schema_not_found(mock_schema_registry, load_avsc):
 
 def test_get_subjects(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     result = sr.get_subjects()
 
-    assert result == mock_schema_registry.SUBJECTS
+    assert result == SUBJECTS
 
 
 def test_delete(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     result = sr.delete_subject("delete_subject")
-    assert result == mock_schema_registry.VERSIONS
+    assert result == VERSIONS
 
 
 def test_delete_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
         sr.delete_subject("notfound")
@@ -247,22 +250,22 @@ def test_delete_subject_not_found(mock_schema_registry):
 
 def test_get_version(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 3
-    schema = Schema(load_avsc(mock_schema_registry.SCHEMA), schema_type='AVRO')
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     result = sr.get_version(subject, version)
     assert result.subject == subject
     assert result.version == version
     assert cmp_schema(result.schema, schema)
-    assert result.schema_id == mock_schema_registry.SCHEMA_ID
+    assert result.schema_id == SCHEMA_ID
 
 
 def test_get_version_no_version(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 404
@@ -275,7 +278,7 @@ def test_get_version_no_version(mock_schema_registry):
 
 def test_get_version_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 422
@@ -288,7 +291,7 @@ def test_get_version_invalid(mock_schema_registry):
 
 def test_get_version_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     subject = "notfound"
     version = 3
@@ -301,7 +304,7 @@ def test_get_version_subject_not_found(mock_schema_registry):
 
 def test_delete_version(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     result = sr.delete_version("delete_version", 3)
 
@@ -310,7 +313,7 @@ def test_delete_version(mock_schema_registry):
 
 def test_delete_version_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Version not found") as e:
         sr.delete_version("delete_version", 404)
@@ -320,7 +323,7 @@ def test_delete_version_not_found(mock_schema_registry):
 
 def test_delete_version_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
         sr.delete_version("notfound", 3)
@@ -330,7 +333,7 @@ def test_delete_version_subject_not_found(mock_schema_registry):
 
 def test_delete_version_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
         sr.delete_version("invalid_version", 422)
@@ -340,7 +343,7 @@ def test_delete_version_invalid(mock_schema_registry):
 
 def test_set_compatibility(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     result = sr.set_compatibility(level="FULL")
     assert result == {'compatibility': 'FULL'}
@@ -348,7 +351,7 @@ def test_set_compatibility(mock_schema_registry):
 
 def test_set_compatibility_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     with pytest.raises(SchemaRegistryError, match="Invalid compatibility level") as e:
         sr.set_compatibility(level="INVALID")
     e.value.http_status_code = 422
@@ -357,7 +360,7 @@ def test_set_compatibility_invalid(mock_schema_registry):
 
 def test_get_compatibility_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
         sr.get_compatibility("notfound")
@@ -391,7 +394,7 @@ def test_test_compatibility_no_error(
     mock_schema_registry, load_avsc, subject_name, version, expected_compatibility
 ):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     is_compatible = sr.test_compatibility(subject_name, schema)
@@ -411,7 +414,7 @@ def test_test_compatibility_with_error(
     mock_schema_registry, load_avsc, subject_name, version, match_str, status_code, error_code
 ):
     conf = {'url': TEST_URL}
-    sr = mock_schema_registry(conf)
+    sr = SchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match=match_str) as e:
