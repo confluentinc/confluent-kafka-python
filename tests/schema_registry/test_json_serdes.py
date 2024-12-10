@@ -912,6 +912,7 @@ def test_json_encryption():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
@@ -991,6 +992,7 @@ def test_json_encryption_with_union():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
@@ -1081,6 +1083,7 @@ def test_json_encryption_with_references():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['otherField']['stringField'] != 'hi'
     obj['otherField']['stringField'] = 'hi'
     obj['otherField']['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 

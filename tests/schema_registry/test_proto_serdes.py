@@ -532,6 +532,7 @@ def test_proto_encryption():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj.name != 'Kafka'
     obj = example_pb2.Author(
         name='Kafka',
         id=123,

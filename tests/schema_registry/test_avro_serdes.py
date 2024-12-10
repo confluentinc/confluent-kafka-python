@@ -919,6 +919,7 @@ def test_avro_encryption():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
 
@@ -986,6 +987,7 @@ def test_avro_encryption_dek_rotation():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
@@ -1004,6 +1006,7 @@ def test_avro_encryption_dek_rotation():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
     obj2 = deser(obj_bytes, ser_ctx)
@@ -1019,6 +1022,7 @@ def test_avro_encryption_dek_rotation():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
     obj2 = deser(obj_bytes, ser_ctx)
@@ -1216,7 +1220,7 @@ def test_avro_encryption_dek_rotation_f1_preserialized():
 
 
 def test_avro_encryption_references():
-    FieldEncryptionExecutor.register_with_clock(FakeClock())
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
@@ -1239,7 +1243,7 @@ def test_avro_encryption_references():
         'fields': [
             {'name': 'intField', 'type': 'int'},
             {'name': 'doubleField', 'type': 'double'},
-            {'name': 'stringField', 'type': 'string'},
+            {'name': 'stringField', 'type': 'string', 'confluent:tags': ['PII']},
             {'name': 'booleanField', 'type': 'boolean'},
             {'name': 'bytesField', 'type': 'bytes'},
         ]
@@ -1279,14 +1283,17 @@ def test_avro_encryption_references():
     ))
 
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['refField']['stringField'] != 'hi'
     obj['refField']['stringField'] = 'hi'
     obj['refField']['bytesField'] = b'foobar'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
+    executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1348,6 +1355,7 @@ def test_avro_encryption_with_union():
     obj_bytes = ser(obj, ser_ctx)
 
     # reset encrypted fields
+    assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
 
