@@ -360,7 +360,6 @@ class AvroSerializer(BaseSerializer):
             field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
                 transform(rule_ctx, parsed_schema, msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
-                                        # TODO RAY - check if we need to get inline tags from named_schemas
                                         latest_schema.schema, value, get_inline_tags(parsed_schema),
                                         field_transformer)
         else:
@@ -594,7 +593,6 @@ class AvroDeserializer(BaseDeserializer):
             field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
                 transform(rule_ctx, reader_schema, message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                           # TODO RAY - check if we need to get inline tags from named_schemas
                                            reader_schema_raw, obj_dict, get_inline_tags(reader_schema),
                                            field_transformer)
 
