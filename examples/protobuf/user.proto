@@ -1,7 +1,11 @@
 syntax = "proto3";
 
+import "confluent/meta.proto";
+
 message User {
-    string name = 1;
+    string name = 1 [
+        (confluent.field_meta).tags = "PII"
+    ];
     int64 favorite_number = 2;
     string favorite_color = 3;
 }
