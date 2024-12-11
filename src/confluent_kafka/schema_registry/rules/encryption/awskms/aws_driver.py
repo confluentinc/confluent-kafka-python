@@ -82,8 +82,8 @@ class AwsKmsDriver(KmsDriver):
             if role_external_id is not None:
                 params['ExternalId'] = role_external_id
             session._session._credentials = DeferredRefreshableCredentials(
-                method = 'sts-assume-role',
-                refresh_using = create_assume_role_refresher(
+                method='sts-assume-role',
+                refresh_using=create_assume_role_refresher(
                     sts_client,
                     params,
                 ),

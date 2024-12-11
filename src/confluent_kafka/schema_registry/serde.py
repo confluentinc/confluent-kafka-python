@@ -273,13 +273,12 @@ class BaseSerde(object):
                  '_field_transformer']
 
     def _get_reader_schema(self, subject: str, fmt: str = None) -> RegisteredSchema:
-        latest_schema = None
         if self._use_latest_with_metadata is not None:
-            latest_schema = self._registry.get_latest_with_metadata(
+            return self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, True, fmt)
         if self._use_latest_version:
-            latest_schema = self._registry.get_latest_version(subject, fmt)
-        return latest_schema
+            return self._registry.get_latest_version(subject, fmt)
+        return None
 
     def _execute_rules(
         self, ser_ctx: SerializationContext, subject: str,
