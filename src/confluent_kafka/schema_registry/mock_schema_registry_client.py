@@ -33,7 +33,7 @@ class _SchemaStore(object):
         self.schema_index = {}
         self.subject_schemas = defaultdict(set)
 
-    def set(self, registered_schema: RegisteredSchema) -> int:
+    def set(self, registered_schema: RegisteredSchema) -> RegisteredSchema:
         with self.lock:
             self.max_id += 1
             rs = RegisteredSchema(
@@ -45,7 +45,7 @@ class _SchemaStore(object):
             self.schema_id_index[rs.schema_id] = rs
             self.schema_index[rs.schema] = rs.schema_id
             self.subject_schemas[rs.subject].add(rs)
-            return self.max_id
+            return rs
 
     def get_schema(self, schema_id: int) -> Optional[Schema]:
         with self.lock:
@@ -146,6 +146,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> int:
+        registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        return registered_schema.schema_id
+
+    def register_schema_full_response(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> 'RegisteredSchema':
         schema_id = self._store.get_schema_id_by_subject(subject_name, schema)
         if schema_id is not None:
             return schema_id
@@ -160,9 +167,9 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             version=latest_version
         )
 
-        schema_id = self._store.set(registered_schema)
+        registered_schema = self._store.set(registered_schema)
 
-        return schema_id
+        return registered_schema
 
     def get_schema(
         self, schema_id: int, subject_name: str = None,

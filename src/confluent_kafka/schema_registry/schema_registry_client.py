@@ -624,9 +624,9 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
-        if registered_schema is not None:
-            return registered_schema
+        schema_id = self._cache.get_id_by_schema(subject_name, schema)
+        if schema_id is not None:
+            return RegisteredSchema(schema_id, schema, subject_name, None)
 
         request = schema.to_dict()
 
@@ -636,7 +636,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema)
+        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.schema)
 
         return registered_schema
 
