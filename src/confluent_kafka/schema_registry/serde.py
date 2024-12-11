@@ -272,7 +272,7 @@ class BaseSerde(object):
                  '_registry', '_rule_registry', '_subject_name_func',
                  '_field_transformer']
 
-    def _get_reader_schema(self, subject: str, fmt: str = None) -> RegisteredSchema:
+    def _get_reader_schema(self, subject: str, fmt: str = None) -> Optional[RegisteredSchema]:
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, True, fmt)

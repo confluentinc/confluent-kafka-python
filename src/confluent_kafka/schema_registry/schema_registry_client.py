@@ -124,8 +124,6 @@ class _BaseRestClient(object):
         self.timeout = None
         timeout = conf_copy.pop('timeout', None)
         if timeout is not None:
-            if not isinstance(timeout, (int, float)):
-                raise TypeError("timeout must be a number, not " + str(type(timeout)))
             self.timeout = timeout
 
         self.cache_capacity = 1000
@@ -301,33 +299,56 @@ class _SchemaCache(object):
 
     def __init__(self):
         self.lock = Lock()
-        self.schema_id_index = {}
+        self.schemaid_index = {}
         self.schema_index = {}
-        self.subject_schemas = defaultdict(set)
+        self.schema_id_index = defaultdict(dict)
+        self.schema_index = defaultdict(dict)
+        self.rs_id_index = defaultdict(dict)
+        self.rs_version_index = defaultdict(dict)
+        self.rs_schema_index = defaultdict(dict)
 
-    def set(self, schema_id: int, schema: 'Schema', subject_name: str = None):
+    def set_schema(self, subject: str, schema_id: int, schema: 'Schema'):
         """
         Add a Schema identified by schema_id to the cache.
 
         Args:
+            subject (str): The subject this schema is associated with
+
             schema_id (int): Schema's registration id
 
             schema (Schema): Schema instance
-
-            subject_name(str): Optional, subject schema is registered under
         """
 
         with self.lock:
-            self.schema_id_index[schema_id] = schema
-            self.schema_index[schema] = schema_id
-            if subject_name is not None:
-                self.subject_schemas[subject_name].add(schema)
+            self.schema_id_index[subject][schema_id] = schema
+            self.schema_index[subject][schema] = schema_id
 
-    def get_schema(self, schema_id: int) -> Optional['Schema']:
+    def set_registered_schema(self, registered_schema: 'RegisteredSchema'):
         """
-        Get the schema instance associated with schema_id from the cache.
+        Add a RegisteredSchema to the cache.
 
         Args:
+            registered_schema (RegisteredSchema): RegisteredSchema instance
+        """
+
+        subject = registered_schema.subject
+        schema_id = registered_schema.schema_id
+        version = registered_schema.version
+        schema = registered_schema.schema
+        with self.lock:
+            self.schema_id_index[subject][schema_id] = schema
+            self.schema_index[subject][schema] = schema_id
+            self.rs_id_index[subject][schema_id] = registered_schema
+            self.rs_version_index[subject][version] = registered_schema
+            self.rs_schema_index[subject][schema] = registered_schema
+
+    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional['Schema']:
+        """
+        Get the schema instance associated with schema id from the cache.
+
+        Args:
+            subject (str): The subject this schema is associated with
+
             schema_id (int): Id used to identify a schema
 
         Returns:
@@ -335,41 +356,122 @@ class _SchemaCache(object):
         """
 
         with self.lock:
-            return self.schema_id_index.get(schema_id, None)
+            return self.schema_id_index.get(subject, {}).get(schema_id, None)
 
-    def get_schema_id_by_subject(self, subject: str, schema: 'Schema') -> Optional[int]:
+    def get_id_by_schema(self, subject: str, schema: 'Schema') -> Optional[int]:
         """
-        Get the schema_id associated with this schema registered under subject.
+        Get the schema id associated with schema instance from the cache.
 
         Args:
             subject (str): The subject this schema is associated with
 
-            schema (Schema): The schema associated with this schema_id
+            schema (Schema): The schema
 
         Returns:
-            int: Schema ID if known; else None
+            int: The schema id if known; else None
         """
 
         with self.lock:
-            if schema in self.subject_schemas[subject]:
-                return self.schema_index.get(schema, None)
+            return self.schema_index.get(subject, {}).get(schema, None)
 
-    def remove_by_subject(self, subject_name: str):
+    def get_registered_by_subject_schema(self, subject: str, schema: 'Schema') -> Optional['RegisteredSchema']:
+        """
+        Get the schema associated with this schema registered under subject.
+
+        Args:
+            subject (str): The subject this schema is associated with
+
+            schema (Schema): The schema associated with this schema
+
+        Returns:
+            RegisteredSchema: The registered schema if known; else None
+        """
+
+        with self.lock:
+            return self.rs_schema_index.get(subject, {}).get(schema, None)
+
+    def get_registered_by_subject_id(self, subject: str, schema_id: int) -> Optional['RegisteredSchema']:
+        """
+        Get the schema associated with this id registered under subject.
+
+        Args:
+            subject (str): The subject this schema is associated with
+
+            schema_id (int): The schema id associated with this schema
+
+        Returns:
+            RegisteredSchema: The registered schema if known; else None
+        """
+
+        with self.lock:
+            return self.rs_id_index.get(subject, {}).get(schema_id, None)
+
+    def get_registered_by_subject_version(self, subject: str, version: int) -> Optional['RegisteredSchema']:
+        """
+        Get the schema associated with this version registered under subject.
+
+        Args:
+            subject (str): The subject this schema is associated with
+
+            version (int): The version associated with this schema
+
+        Returns:
+            RegisteredSchema: The registered schema if known; else None
+        """
+
+        with self.lock:
+            return self.rs_version_index.get(subject, {}).get(version, None)
+
+    def remove_by_subject(self, subject: str):
         """
         Remove schemas with the given subject.
 
         Args:
-            subject_name (str): The subject
+            subject (str): The subject
         """
 
         with self.lock:
-            if subject_name in self.subject_schemas:
-                for schema in self.subject_schemas[subject_name]:
-                    schema_id = self.schema_index.pop(schema, None)
-                    if schema_id is not None:
-                        self.schema_id_index.pop(schema_id, None)
+            if subject in self.schema_id_index:
+                del self.schema_id_index[subject]
+            if subject in self.schema_index:
+                del self.schema_index[subject]
+            if subject in self.rs_id_index:
+                del self.rs_id_index[subject]
+            if subject in self.rs_version_index:
+                del self.rs_version_index[subject]
+            if subject in self.rs_schema_index:
+                del self.rs_schema_index[subject]
 
-                del self.subject_schemas[subject_name]
+    def remove_by_subject_version(self, subject: str, version: int):
+        """
+        Remove schemas with the given subject.
+
+        Args:
+            subject (str): The subject
+
+            version (int) The version
+        """
+
+        with self.lock:
+            if subject in self.rs_id_index:
+                for schema_id, registered_schema in self.rs_id_index[subject].items():
+                    if registered_schema.version == version:
+                        del self.rs_schema_index[subject][schema_id]
+            if subject in self.rs_schema_index:
+                for schema, registered_schema in self.rs_schema_index[subject].items():
+                    if registered_schema.version == version:
+                        del self.rs_schema_index[subject][schema]
+            rs = None
+            if subject in self.rs_version_index:
+                if version in self.rs_version_index[subject]:
+                    rs = self.rs_version_index[subject][version]
+                    del self.rs_version_index[subject][version]
+            if rs is not None:
+                if subject in self.schema_id_index:
+                    if rs.schema_id in self.schema_id_index[subject]:
+                        del self.schema_id_index[subject][rs.schema_id]
+                    if rs.schema in self.schema_index[subject]:
+                        del self.schema_index[subject][rs.schema]
 
     def clear(self):
         """
@@ -379,104 +481,9 @@ class _SchemaCache(object):
         with self.lock:
             self.schema_id_index.clear()
             self.schema_index.clear()
-            self.subject_schemas.clear()
-
-
-class _RegisteredSchemaCache(object):
-    """
-    Thread-safe cache for use with the Schema Registry Client.
-
-    This cache may be used to retrieve registered schemas based on subject_name/version/schema
-    - Get registered schema based on subject name + version
-    - Get registered schema based on subject name + schema
-    """
-
-    def __init__(self):
-        self.lock = Lock()
-        self.schema_version_index = defaultdict(dict)
-        self.schema_index = defaultdict(dict)
-
-    def set(
-        self, subject_name: str, schema: 'Schema', version: int,
-        registered_schema: 'RegisteredSchema'
-    ):
-        """
-        Add a Schema identified by schema_id to the cache.
-
-        Args:
-            subject_name (str): The subject name this registered schema is associated with
-
-            schema (Schema): The schema this registered schema is associated with
-
-            version (int): The version this registered schema is associated with
-
-            registered_schema (RegisteredSchema): The registered schema instance
-        """
-
-        with self.lock:
-            if schema is not None:
-                self.schema_index[subject_name][schema] = registered_schema
-            elif version is not None:
-                self.schema_version_index[subject_name][version] = registered_schema
-
-    def get_registered_schema_by_version(
-        self, subject_name: str, version: int
-    ) -> Optional['RegisteredSchema']:
-        """
-        Get the registered schema instance associated with version from the cache.
-
-        Args:
-            subject_name (str): The subject name this registered schema is associated with
-
-            version (int): The version this registered schema is associated with
-
-        Returns:
-            RegisteredSchema: The registered schema if known; else None
-        """
-
-        with self.lock:
-            return self.schema_version_index.get(subject_name, {}).get(version, None)
-
-    def get_registered_schema_by_schema(
-        self, subject_name: str, schema: 'Schema'
-    ) -> Optional['RegisteredSchema']:
-        """
-        Get the registered schema instance associated with schema from the cache.
-
-        Args:
-            subject_name (str): The subject name this registered schema is associated with
-
-            schema (Schema): The schema this registered schema is associated with
-
-        Returns:
-            RegisteredSchema: The registered schema if known; else None
-        """
-
-        with self.lock:
-            return self.schema_index.get(subject_name, {}).get(schema, None)
-
-    def remove_by_subject(self, subject_name: str):
-        """
-        Remove schemas with the given subject.
-
-        Args:
-            subject_name (str): The subject
-        """
-
-        with self.lock:
-            if subject_name in self.schema_index:
-                del self.schema_index[subject_name]
-            if subject_name in self.schema_version_index:
-                del self.schema_version_index[subject_name]
-
-    def clear(self):
-        """
-        Clear the cache.
-        """
-
-        with self.lock:
-            self.schema_version_index.clear()
-            self.schema_index.clear()
+            self.rs_id_index.clear()
+            self.rs_version_index.clear()
+            self.rs_schema_index.clear()
 
 
 class SchemaRegistryClient(object):
@@ -549,7 +556,6 @@ class SchemaRegistryClient(object):
         self._conf = conf
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
-        self._metadata_cache = _RegisteredSchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         if cache_ttl is not None:
@@ -592,9 +598,35 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        schema_id = self._cache.get_schema_id_by_subject(subject_name, schema)
-        if schema_id is not None:
-            return schema_id
+        registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        return registered_schema.schema_id
+
+    def register_schema_full_response(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> 'RegisteredSchema':
+        """
+        Registers a schema under ``subject_name``.
+
+        Args:
+            subject_name (str): subject to register a schema under
+            schema (Schema): Schema instance to register
+            normalize_schemas (bool): Normalize schema before registering
+
+        Returns:
+            int: Schema id
+
+        Raises:
+            SchemaRegistryError: if Schema violates this subject's
+                Compatibility policy or is otherwise invalid.
+
+        See Also:
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+        """  # noqa: E501
+
+        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
+        if registered_schema is not None:
+            return registered_schema
 
         request = schema.to_dict()
 
@@ -602,10 +634,11 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        schema_id = response['id']
-        self._cache.set(schema_id, schema, subject_name)
+        registered_schema = RegisteredSchema.from_dict(response)
 
-        return schema_id
+        self._cache.set_registered_schema(registered_schema)
+
+        return registered_schema
 
     def get_schema(
         self, schema_id: int, subject_name: str = None, fmt: str = None
@@ -630,7 +663,7 @@ class SchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        schema = self._cache.get_schema(schema_id)
+        schema = self._cache.get_schema_by_id(subject_name, schema_id)
         if schema is not None:
             return schema
 
@@ -644,7 +677,7 @@ class SchemaRegistryClient(object):
 
         schema = Schema.from_dict(response)
 
-        self._cache.set(schema_id, schema)
+        self._cache.set_schema(subject_name, schema_id, schema)
 
         return schema
 
@@ -671,7 +704,7 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = self._metadata_cache.get_registered_schema_by_schema(subject_name, schema)
+        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
             return registered_schema
 
@@ -683,7 +716,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._metadata_cache.set(subject_name, schema, None, registered_schema)
+        self._cache.set_registered_schema(registered_schema)
 
         return registered_schema
 
@@ -731,7 +764,6 @@ class SchemaRegistryClient(object):
                                      .format(_urlencode(subject_name)))
 
         self._cache.remove_by_subject(subject_name)
-        self._metadata_cache.remove_by_subject(subject_name)
 
         return versions
 
@@ -790,7 +822,7 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
         """  # noqa: E501
 
-        cache_key = (subject_name, frozenset(metadata.items()))
+        cache_key = (subject_name, frozenset(metadata.items()), deleted)
         registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
         if registered_schema is not None:
             return registered_schema
@@ -833,7 +865,7 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._metadata_cache.get_registered_schema_by_version(subject_name, version)
+        registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
         if registered_schema is not None:
             return registered_schema
 
@@ -844,7 +876,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._metadata_cache.set(subject_name, None, version, registered_schema)
+        self._cache.set_registered_schema(registered_schema)
 
         return registered_schema
 
@@ -889,6 +921,9 @@ class SchemaRegistryClient(object):
         response = self._rest_client.delete('subjects/{}/versions/{}'.
                                             format(_urlencode(subject_name),
                                                    version))
+
+        self._cache.remove_by_subject_version(subject_name, version)
+
         return response
 
     def set_compatibility(self, subject_name: Optional[str] = None, level: str = None) -> str:
@@ -1044,7 +1079,6 @@ class SchemaRegistryClient(object):
         self._latest_version_cache.clear()
         self._latest_with_metadata_cache.clear()
         self._cache.clear()
-        self._metadata_cache.clear()
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':
