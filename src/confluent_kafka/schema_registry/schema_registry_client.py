@@ -15,17 +15,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
 import json
 import logging
+import random
+import time
 import urllib
-from collections import defaultdict
-from threading import Lock
+from urllib.parse import unquote, urlparse
 
-from requests import (Session,
-                      utils)
+import httpx
+from attrs import define as _attrs_define
+from attrs import field as _attrs_field
+from collections import defaultdict
+from enum import Enum
+from threading import Lock
+from typing import List, Dict, Type, TypeVar, \
+    cast, Optional, Union, Any, Tuple
+
+from cachetools import TTLCache, LRUCache
 
 from .error import SchemaRegistryError
-
 
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.
@@ -38,31 +47,21 @@ from .error import SchemaRegistryError
 try:
     string_type = basestring  # noqa
 
-    def _urlencode(value):
+    def _urlencode(value: str) -> str:
         return urllib.quote(value, safe='')
 except NameError:
     string_type = str
 
-    def _urlencode(value):
+    def _urlencode(value: str) -> str:
         return urllib.parse.quote(value, safe='')
 
 log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
-class _RestClient(object):
-    """
-    HTTP client for Confluent Schema Registry.
+class _BaseRestClient(object):
 
-    See SchemaRegistryClient for configuration details.
-
-    Args:
-        conf (dict): Dictionary containing _RestClient configuration
-    """
-
-    def __init__(self, conf):
-        self.session = Session()
-
+    def __init__(self, conf: dict):
         # copy dict to avoid mutating the original
         conf_copy = conf.copy()
 
@@ -70,33 +69,35 @@ class _RestClient(object):
         if base_url is None:
             raise ValueError("Missing required configuration property url")
         if not isinstance(base_url, string_type):
-            raise TypeError("url must be an instance of str, not "
-                            + str(type(base_url)))
-        if not base_url.startswith('http'):
+            raise TypeError("url must be a str, not " + str(type(base_url)))
+        if not base_url.startswith('http') and not base_url.startswith('mock'):
             raise ValueError("Invalid url {}".format(base_url))
         self.base_url = base_url.rstrip('/')
 
-        # The following configs map Requests Session class properties.
-        # See the API docs for specifics.
-        # https://requests.readthedocs.io/en/master/api/#request-sessions
+        self.verify = True
         ca = conf_copy.pop('ssl.ca.location', None)
         if ca is not None:
-            self.session.verify = ca
+            self.verify = ca
 
-        key = conf_copy.pop('ssl.key.location', None)
-        cert = conf_copy.pop('ssl.certificate.location', None)
+        key: Optional[str] = conf_copy.pop('ssl.key.location', None)
+        client_cert: Optional[str] = conf_copy.pop('ssl.certificate.location', None)
+        self.cert: Union[str, Tuple[str, str], None] = None
 
-        if cert is not None and key is not None:
-            self.session.cert = (cert, key)
+        if client_cert is not None and key is not None:
+            self.cert = (client_cert, key)
 
-        if cert is not None and key is None:
-            self.session.cert = cert
+        if client_cert is not None and key is None:
+            self.cert = client_cert
 
-        if key is not None and cert is None:
+        if key is not None and client_cert is None:
             raise ValueError("ssl.certificate.location required when"
                              " configuring ssl.key.location")
 
-        userinfo = utils.get_auth_from_url(base_url)
+        parsed = urlparse(base_url)
+        try:
+            userinfo = (unquote(parsed.username), unquote(parsed.password))
+        except (AttributeError, TypeError):
+            userinfo = ("", "")
         if 'basic.auth.user.info' in conf_copy:
             if userinfo != ('', ''):
                 raise ValueError("basic.auth.user.info configured with"
@@ -111,34 +112,117 @@ class _RestClient(object):
                 raise ValueError("basic.auth.user.info must be in the form"
                                  " of {username}:{password}")
 
-        self.session.auth = userinfo if userinfo != ('', '') else None
+        self.auth = userinfo if userinfo != ('', '') else None
+
+        # The following adds support for proxy config
+        # If specified: it uses the specified proxy details when making requests
+        self.proxy = None
+        proxy = conf_copy.pop('proxy', None)
+        if proxy is not None:
+            self.proxy = proxy
+
+        self.timeout = None
+        timeout = conf_copy.pop('timeout', None)
+        if timeout is not None:
+            self.timeout = timeout
+
+        self.cache_capacity = 1000
+        cache_capacity = conf_copy.pop('cache.capacity', None)
+        if cache_capacity is not None:
+            if not isinstance(cache_capacity, (int, float)):
+                raise TypeError("cache.capacity must be a number, not " + str(type(cache_capacity)))
+            self.cache_capacity = cache_capacity
+
+        self.cache_latest_ttl_sec = None
+        cache_latest_ttl_sec = conf_copy.pop('cache.latest.ttl.sec', None)
+        if cache_latest_ttl_sec is not None:
+            if not isinstance(cache_latest_ttl_sec, (int, float)):
+                raise TypeError("cache.latest.ttl.sec must be a number, not " + str(type(cache_latest_ttl_sec)))
+            self.cache_latest_ttl_sec = cache_latest_ttl_sec
+
+        self.max_retries = 2
+        max_retries = conf_copy.pop('max.retries', None)
+        if max_retries is not None:
+            if not isinstance(timeout, (int, float)):
+                raise TypeError("max.retries must be a number, not " + str(type(max_retries)))
+            self.max_retries = max_retries
+
+        self.retries_wait_ms = 1000
+        retries_wait_ms = conf_copy.pop('retries.wait.ms', None)
+        if retries_wait_ms is not None:
+            if not isinstance(retries_wait_ms, (int, float)):
+                raise TypeError("retries.wait.ms must be a number, not "
+                                + str(type(retries_wait_ms)))
+            self.retries_wait_ms = retries_wait_ms
+
+        self.retries_max_wait_ms = 20000
+        retries_max_wait_ms = conf_copy.pop('retries.max.wait.ms', None)
+        if retries_max_wait_ms is not None:
+            if not isinstance(retries_max_wait_ms, (int, float)):
+                raise TypeError("retries.max.wait.ms must be a number, not "
+                                + str(type(retries_max_wait_ms)))
+            self.retries_max_wait_ms = retries_max_wait_ms
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-    def _close(self):
-        self.session.close()
+    def get(self, url: str, query: dict = None) -> Any:
+        raise NotImplementedError()
 
-    def get(self, url, query=None):
+    def post(self, url: str, body: dict, **kwargs) -> Any:
+        raise NotImplementedError()
+
+    def delete(self, url: str) -> Any:
+        raise NotImplementedError()
+
+    def put(self, url: str, body: dict = None) -> Any:
+        raise NotImplementedError()
+
+
+class _RestClient(_BaseRestClient):
+    """
+    HTTP client for Confluent Schema Registry.
+
+    See SchemaRegistryClient for configuration details.
+
+    Args:
+        conf (dict): Dictionary containing _RestClient configuration
+    """
+
+    def __init__(self, conf: dict):
+        super().__init__(conf)
+
+        self.session = httpx.Client(
+            verify=self.verify,
+            cert=self.cert,
+            auth=self.auth,
+            proxy=self.proxy,
+            timeout=self.timeout
+        )
+
+    def get(self, url: str, query: dict = None) -> Any:
         return self.send_request(url, method='GET', query=query)
 
-    def post(self, url, body, **kwargs):
+    def post(self, url: str, body: dict, **kwargs) -> Any:
         return self.send_request(url, method='POST', body=body)
 
-    def delete(self, url):
+    def delete(self, url: str) -> Any:
         return self.send_request(url, method='DELETE')
 
-    def put(self, url, body=None):
+    def put(self, url: str, body: dict = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
-    def send_request(self, url, method, body=None, query=None):
+    def send_request(
+        self, url: str, method: str, body: dict = None,
+        query: dict = None
+    ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry.
 
         All unsuccessful attempts will raise a SchemaRegistryError with the
-        response contents. In most cases this will be accompanied with a
+        response contents. In most cases this will be accompanied by a
         Schema Registry supplied error code.
 
         In the event the response is malformed an error_code of -1 will be used.
@@ -165,9 +249,18 @@ class _RestClient(object):
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
-        response = self.session.request(
-            method, url="/".join([self.base_url, url]),
-            headers=headers, data=body, params=query)
+        response = None
+        for i in range(self.max_retries + 1):
+            response = self.session.request(
+                method, url="/".join([self.base_url, url]),
+                headers=headers, data=body, params=query)
+
+            if (is_success(response.status_code)
+                    or not is_retriable(response.status_code)
+                    or i >= self.max_retries):
+                break
+
+            time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
 
         try:
             if 200 <= response.status_code <= 299:
@@ -183,6 +276,19 @@ class _RestClient(object):
                                       + str(response.content))
 
 
+def is_success(status_code: int) -> bool:
+    return 200 <= status_code <= 299
+
+
+def is_retriable(status_code: int) -> bool:
+    return status_code in (408, 429, 500, 502, 503, 504)
+
+
+def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
+    no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
+    return random.random() * min(no_jitter_delay, max_delay_ms)
+
+
 class _SchemaCache(object):
     """
     Thread-safe cache for use with the Schema Registry Client.
@@ -193,51 +299,56 @@ class _SchemaCache(object):
 
     def __init__(self):
         self.lock = Lock()
-        self.schema_id_index = {}
+        self.schemaid_index = {}
         self.schema_index = {}
-        self.subject_schemas = defaultdict(set)
+        self.schema_id_index = defaultdict(dict)
+        self.schema_index = defaultdict(dict)
+        self.rs_id_index = defaultdict(dict)
+        self.rs_version_index = defaultdict(dict)
+        self.rs_schema_index = defaultdict(dict)
 
-    def set(self, schema_id, schema, subject_name=None):
+    def set_schema(self, subject: str, schema_id: int, schema: 'Schema'):
         """
         Add a Schema identified by schema_id to the cache.
 
         Args:
+            subject (str): The subject this schema is associated with
+
             schema_id (int): Schema's registration id
 
             schema (Schema): Schema instance
-
-            subject_name(str): Optional, subject schema is registered under
         """
 
         with self.lock:
-            self.schema_id_index[schema_id] = schema
-            self.schema_index[schema] = schema_id
-            if subject_name is not None:
-                self.subject_schemas[subject_name].add(schema)
+            self.schema_id_index[subject][schema_id] = schema
+            self.schema_index[subject][schema] = schema_id
 
-    def remove_by_subject(self, subject_name):
+    def set_registered_schema(self, registered_schema: 'RegisteredSchema'):
         """
-        Remove a Schema from the cache.
+        Add a RegisteredSchema to the cache.
 
         Args:
-            subject_name (str): Subject name the schema is registered under.
+            registered_schema (RegisteredSchema): RegisteredSchema instance
         """
 
+        subject = registered_schema.subject
+        schema_id = registered_schema.schema_id
+        version = registered_schema.version
+        schema = registered_schema.schema
         with self.lock:
-            if subject_name in self.subject_schemas:
-                for schema in self.subject_schemas[subject_name]:
-                    schema_id = self.schema_index.get(schema, None)
-                    if schema_id is not None:
-                        self.schema_id_index.pop(schema_id, None)
-                    self.schema_index.pop(Schema, None)
+            self.schema_id_index[subject][schema_id] = schema
+            self.schema_index[subject][schema] = schema_id
+            self.rs_id_index[subject][schema_id] = registered_schema
+            self.rs_version_index[subject][version] = registered_schema
+            self.rs_schema_index[subject][schema] = registered_schema
 
-                del self.subject_schemas[subject_name]
-
-    def get_schema(self, schema_id):
+    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional['Schema']:
         """
-        Get the schema instance associated with schema_id from the cache.
+        Get the schema instance associated with schema id from the cache.
 
         Args:
+            subject (str): The subject this schema is associated with
+
             schema_id (int): Id used to identify a schema
 
         Returns:
@@ -245,91 +356,134 @@ class _SchemaCache(object):
         """
 
         with self.lock:
-            return self.schema_id_index.get(schema_id, None)
+            return self.schema_id_index.get(subject, {}).get(schema_id, None)
 
-    def get_schema_id_by_subject(self, subject, schema):
+    def get_id_by_schema(self, subject: str, schema: 'Schema') -> Optional[int]:
         """
-        Get the schema_id associated with this schema registered under subject.
+        Get the schema id associated with schema instance from the cache.
 
         Args:
             subject (str): The subject this schema is associated with
 
-            schema (Schema): The schema associated with this schema_id
+            schema (Schema): The schema
 
         Returns:
-            int: Schema ID if known; else None
+            int: The schema id if known; else None
         """
 
         with self.lock:
-            if schema in self.subject_schemas[subject]:
-                return self.schema_index.get(schema, None)
+            return self.schema_index.get(subject, {}).get(schema, None)
 
-
-class _RegisteredSchemaCache(object):
-    """
-    Thread-safe cache for use with the Schema Registry Client.
-
-    This cache may be used to retrieve registered schemas based on subject_name/version/schema
-    - Get registered schema based on subject name + version
-    - Get registered schema based on subject name + schema
-    """
-
-    def __init__(self):
-        self.lock = Lock()
-        self.schema_version_index = defaultdict(dict)
-        self.schema_index = defaultdict(dict)
-
-    def set(self, subject_name, schema, version, registered_schema):
+    def get_registered_by_subject_schema(self, subject: str, schema: 'Schema') -> Optional['RegisteredSchema']:
         """
-        Add a Schema identified by schema_id to the cache.
+        Get the schema associated with this schema registered under subject.
 
         Args:
-            subject_name (str): The subject name this registered schema is associated with
+            subject (str): The subject this schema is associated with
 
-            schema (Schema): The schema this registered schema is associated with
-
-            version (int): The version this registered schema is associated with
-
-            registered_schema (RegisteredSchema): The registered schema instance
-        """
-
-        with self.lock:
-            if schema is not None:
-                self.schema_index[subject_name][schema] = registered_schema
-            elif version is not None:
-                self.schema_version_index[subject_name][version] = registered_schema
-
-    def get_registered_schema_by_version(self, subject_name, version):
-        """
-        Get the registered schema instance associated with version from the cache.
-
-        Args:
-            subject_name (str): The subject name this registered schema is associated with
-
-            version (int): The version this registered schema is associated with
+            schema (Schema): The schema associated with this schema
 
         Returns:
             RegisteredSchema: The registered schema if known; else None
         """
 
         with self.lock:
-            return self.schema_version_index.get(subject_name, {}).get(version, None)
+            return self.rs_schema_index.get(subject, {}).get(schema, None)
 
-    def get_registered_schema_by_schema(self, subject_name, schema):
+    def get_registered_by_subject_id(self, subject: str, schema_id: int) -> Optional['RegisteredSchema']:
         """
-        Get the registered schema instance associated with schema from the cache.
+        Get the schema associated with this id registered under subject.
 
         Args:
-            subject_name (str): The subject name this registered schema is associated with
+            subject (str): The subject this schema is associated with
 
-            schema (Schema): The schema this registered schema is associated with
+            schema_id (int): The schema id associated with this schema
 
         Returns:
             RegisteredSchema: The registered schema if known; else None
         """
 
         with self.lock:
-            return self.schema_index.get(subject_name, {}).get(schema, None)
+            return self.rs_id_index.get(subject, {}).get(schema_id, None)
+
+    def get_registered_by_subject_version(self, subject: str, version: int) -> Optional['RegisteredSchema']:
+        """
+        Get the schema associated with this version registered under subject.
+
+        Args:
+            subject (str): The subject this schema is associated with
+
+            version (int): The version associated with this schema
+
+        Returns:
+            RegisteredSchema: The registered schema if known; else None
+        """
+
+        with self.lock:
+            return self.rs_version_index.get(subject, {}).get(version, None)
+
+    def remove_by_subject(self, subject: str):
+        """
+        Remove schemas with the given subject.
+
+        Args:
+            subject (str): The subject
+        """
+
+        with self.lock:
+            if subject in self.schema_id_index:
+                del self.schema_id_index[subject]
+            if subject in self.schema_index:
+                del self.schema_index[subject]
+            if subject in self.rs_id_index:
+                del self.rs_id_index[subject]
+            if subject in self.rs_version_index:
+                del self.rs_version_index[subject]
+            if subject in self.rs_schema_index:
+                del self.rs_schema_index[subject]
+
+    def remove_by_subject_version(self, subject: str, version: int):
+        """
+        Remove schemas with the given subject.
+
+        Args:
+            subject (str): The subject
+
+            version (int) The version
+        """
+
+        with self.lock:
+            if subject in self.rs_id_index:
+                for schema_id, registered_schema in self.rs_id_index[subject].items():
+                    if registered_schema.version == version:
+                        del self.rs_schema_index[subject][schema_id]
+            if subject in self.rs_schema_index:
+                for schema, registered_schema in self.rs_schema_index[subject].items():
+                    if registered_schema.version == version:
+                        del self.rs_schema_index[subject][schema]
+            rs = None
+            if subject in self.rs_version_index:
+                if version in self.rs_version_index[subject]:
+                    rs = self.rs_version_index[subject][version]
+                    del self.rs_version_index[subject][version]
+            if rs is not None:
+                if subject in self.schema_id_index:
+                    if rs.schema_id in self.schema_id_index[subject]:
+                        del self.schema_id_index[subject][rs.schema_id]
+                    if rs.schema in self.schema_index[subject]:
+                        del self.schema_index[subject][rs.schema]
+
+    def clear(self):
+        """
+        Clear the cache.
+        """
+
+        with self.lock:
+            self.schema_id_index.clear()
+            self.schema_index.clear()
+            self.rs_id_index.clear()
+            self.rs_version_index.clear()
+            self.rs_schema_index.clear()
 
 
 class SchemaRegistryClient(object):
@@ -364,6 +518,32 @@ class SchemaRegistryClient(object):
     |                              |      | By default userinfo is extracted from           |
     |                              |      | the URL if present.                             |
     +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``proxy``                    | str  | Proxy such as http://localhost:8030.            |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``timeout``                  | int  | Request timeout.                                |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``cache.capacity``           | int  | Cache capacity.  Defaults to 1000.              |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``cache.latest.ttl.sec``     | int  | TTL in seconds for caching the latest schema.   |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      |                                                 |
+    | ``max.retries``              | int  | Maximum retries for a request.  Defaults to 2.  |
+    |                              |      |                                                 |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Maximum time to wait for the first retry.       |
+    |                              |      | When jitter is applied, the actual wait may     |
+    | ``retries.wait.ms``          | int  | be less.                                        |
+    |                              |      |                                                 |
+    |                              |      | Defaults to 1000.                               |
+    +------------------------------+------+-------------------------------------------------+
 
     Args:
         conf (dict): Schema Registry client configuration.
@@ -372,26 +552,40 @@ class SchemaRegistryClient(object):
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
     """  # noqa: E501
 
-    def __init__(self, conf):
+    def __init__(self, conf: dict):
+        self._conf = conf
         self._rest_client = _RestClient(conf)
         self._cache = _SchemaCache()
-        self._metadata_cache = _RegisteredSchemaCache()
+        cache_capacity = self._rest_client.cache_capacity
+        cache_ttl = self._rest_client.cache_latest_ttl_sec
+        if cache_ttl is not None:
+            self._latest_version_cache = TTLCache(cache_capacity, cache_ttl)
+            self._latest_with_metadata_cache = TTLCache(cache_capacity, cache_ttl)
+        else:
+            self._latest_version_cache = LRUCache(cache_capacity)
+            self._latest_with_metadata_cache = LRUCache(cache_capacity)
 
     def __enter__(self):
         return self
 
     def __exit__(self, *args):
         if self._rest_client is not None:
-            self._rest_client._close()
+            self._rest_client.session.close()
 
-    def register_schema(self, subject_name, schema, normalize_schemas=False):
+    def config(self):
+        return self._conf
+
+    def register_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> int:
         """
         Registers a schema under ``subject_name``.
 
         Args:
             subject_name (str): subject to register a schema under
-
             schema (Schema): Schema instance to register
+            normalize_schemas (bool): Normalize schema before registering
 
         Returns:
             int: Schema id
@@ -404,30 +598,51 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        schema_id = self._cache.get_schema_id_by_subject(subject_name, schema)
-        if schema_id is not None:
-            return schema_id
+        registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        return registered_schema.schema_id
 
-        request = {'schema': schema.schema_str}
+    def register_schema_full_response(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False
+    ) -> 'RegisteredSchema':
+        """
+        Registers a schema under ``subject_name``.
 
-        # CP 5.5 adds new fields (for JSON and Protobuf).
-        if len(schema.references) > 0 or schema.schema_type != 'AVRO':
-            request['schemaType'] = schema.schema_type
-            request['references'] = [{'name': ref.name,
-                                      'subject': ref.subject,
-                                      'version': ref.version}
-                                     for ref in schema.references]
+        Args:
+            subject_name (str): subject to register a schema under
+            schema (Schema): Schema instance to register
+            normalize_schemas (bool): Normalize schema before registering
+
+        Returns:
+            int: Schema id
+
+        Raises:
+            SchemaRegistryError: if Schema violates this subject's
+                Compatibility policy or is otherwise invalid.
+
+        See Also:
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+        """  # noqa: E501
+
+        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
+        if registered_schema is not None:
+            return registered_schema
+
+        request = schema.to_dict()
 
         response = self._rest_client.post(
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        schema_id = response['id']
-        self._cache.set(schema_id, schema, subject_name)
+        registered_schema = RegisteredSchema.from_dict(response)
 
-        return schema_id
+        self._cache.set_registered_schema(registered_schema)
 
-    def get_schema(self, schema_id):
+        return registered_schema
+
+    def get_schema(
+        self, schema_id: int, subject_name: str = None, fmt: str = None
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -435,6 +650,8 @@ class SchemaRegistryClient(object):
 
         Args:
             schema_id (int): Schema id
+            subject_name (str): Subject name the schema is registered under
+            fmt (str): Format of the schema
 
         Returns:
             Schema: Schema instance identified by the ``schema_id``
@@ -446,31 +663,36 @@ class SchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        schema = self._cache.get_schema(schema_id)
+        schema = self._cache.get_schema_by_id(subject_name, schema_id)
         if schema is not None:
             return schema
 
-        response = self._rest_client.get('schemas/ids/{}'.format(schema_id))
-        schema = Schema(schema_str=response['schema'],
-                        schema_type=response.get('schemaType', 'AVRO'))
+        query = {'subject': subject_name} if subject_name is not None else None
+        if fmt is not None:
+            if query is not None:
+                query['format'] = fmt
+            else:
+                query = {'format': fmt}
+        response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
-        schema.references = [
-            SchemaReference(name=ref['name'], subject=ref['subject'], version=ref['version'])
-            for ref in response.get('references', [])
-        ]
+        schema = Schema.from_dict(response)
 
-        self._cache.set(schema_id, schema)
+        self._cache.set_schema(subject_name, schema_id, schema)
 
         return schema
 
-    def lookup_schema(self, subject_name, schema, normalize_schemas=False):
+    def lookup_schema(
+        self, subject_name: str, schema: 'Schema',
+        normalize_schemas: bool = False, deleted: bool = False
+    ) -> 'RegisteredSchema':
         """
         Returns ``schema`` registration information for ``subject``.
 
         Args:
             subject_name (str): Subject name the schema is registered under
-
             schema (Schema): Schema instance.
+            normalize_schemas (bool): Normalize schema before registering
+            deleted (bool): Whether to include deleted schemas.
 
         Returns:
             RegisteredSchema: Subject registration information for this schema.
@@ -482,43 +704,19 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = self._metadata_cache.get_registered_schema_by_schema(subject_name, schema)
+        registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
             return registered_schema
 
-        request = {'schema': schema.schema_str}
+        request = schema.to_dict()
 
-        # CP 5.5 adds new fields (for JSON and Protobuf).
-        if len(schema.references) > 0 or schema.schema_type != 'AVRO':
-            request['schemaType'] = schema.schema_type
-            request['references'] = [{'name': ref.name,
-                                      'subject': ref.subject,
-                                      'version': ref.version}
-                                     for ref in schema.references]
-
-        response = self._rest_client.post('subjects/{}?normalize={}'
-                                          .format(_urlencode(subject_name), normalize_schemas),
+        response = self._rest_client.post('subjects/{}?normalize={}&deleted={}'
+                                          .format(_urlencode(subject_name), normalize_schemas, deleted),
                                           body=request)
 
-        schema_type = response.get('schemaType', 'AVRO')
+        registered_schema = RegisteredSchema.from_dict(response)
 
-        registered_schema = RegisteredSchema(
-            schema_id=response['id'],
-            schema=Schema(
-                response['schema'],
-                schema_type,
-                [
-                    SchemaReference(
-                        name=ref['name'],
-                        subject=ref['subject'],
-                        version=ref['version']
-                    ) for ref in response.get('references', [])
-                ]
-            ),
-            subject=response['subject'],
-            version=response['version']
-        )
-        self._metadata_cache.set(subject_name, schema, None, registered_schema)
+        self._cache.set_registered_schema(registered_schema)
 
         return registered_schema
 
@@ -538,7 +736,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects')
 
-    def delete_subject(self, subject_name, permanent=False):
+    def delete_subject(self, subject_name: str, permanent: bool = False):
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
@@ -558,8 +756,8 @@ class SchemaRegistryClient(object):
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
-        list = self._rest_client.delete('subjects/{}'
-                                        .format(_urlencode(subject_name)))
+        versions = self._rest_client.delete('subjects/{}'
+                                            .format(_urlencode(subject_name)))
 
         if permanent:
             self._rest_client.delete('subjects/{}?permanent=true'
@@ -567,14 +765,17 @@ class SchemaRegistryClient(object):
 
         self._cache.remove_by_subject(subject_name)
 
-        return list
+        return versions
 
-    def get_latest_version(self, subject_name):
+    def get_latest_version(
+        self, subject_name: str, fmt: str = None
+    ) -> 'RegisteredSchema':
         """
         Retrieves latest registered version for subject
 
         Args:
             subject_name (str): Subject name.
+            fmt (str): Format of the schema
 
         Returns:
             RegisteredSchema: Registration information for this version.
@@ -586,31 +787,73 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
+        registered_schema = self._latest_version_cache.get(subject_name, None)
+        if registered_schema is not None:
+            return registered_schema
+
+        query = {'format': fmt} if fmt is not None else None
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
-                                                 'latest'))
+                                                 'latest'), query)
 
-        schema_type = response.get('schemaType', 'AVRO')
-        return RegisteredSchema(schema_id=response['id'],
-                                schema=Schema(response['schema'],
-                                              schema_type,
-                                              [
-                                                  SchemaReference(name=ref['name'],
-                                                                  subject=ref['subject'],
-                                                                  version=ref['version'])
-                                                  for ref in response.get('references', [])
-                                              ]),
-                                subject=response['subject'],
-                                version=response['version'])
+        registered_schema = RegisteredSchema.from_dict(response)
 
-    def get_version(self, subject_name, version):
+        self._latest_version_cache[subject_name] = registered_schema
+
+        return registered_schema
+
+    def get_latest_with_metadata(
+        self, subject_name: str, metadata: Dict[str, str],
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
+        """
+        Retrieves latest registered version for subject with the given metadata
+
+        Args:
+            subject_name (str): Subject name.
+            metadata (dict): The key-value pairs for the metadata.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema
+
+        Returns:
+            RegisteredSchema: Registration information for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+        """  # noqa: E501
+
+        cache_key = (subject_name, frozenset(metadata.items()), deleted)
+        registered_schema = self._latest_with_metadata_cache.get(cache_key, None)
+        if registered_schema is not None:
+            return registered_schema
+
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        keys = metadata.keys()
+        if keys:
+            query['key'] = [_urlencode(key) for key in keys]
+            query['value'] = [_urlencode(metadata[key]) for key in keys]
+
+        response = self._rest_client.get('subjects/{}/metadata'
+                                         .format(_urlencode(subject_name)), query)
+
+        registered_schema = RegisteredSchema.from_dict(response)
+
+        self._latest_with_metadata_cache[cache_key] = registered_schema
+
+        return registered_schema
+
+    def get_version(
+        self, subject_name: str, version: int,
+        deleted: bool = False, fmt: str = None
+    ) -> 'RegisteredSchema':
         """
         Retrieves a specific schema registered under ``subject_name``.
 
         Args:
             subject_name (str): Subject name.
-
             version (int): version number. Defaults to latest version.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema
 
         Returns:
             RegisteredSchema: Registration information for this version.
@@ -622,36 +865,22 @@ class SchemaRegistryClient(object):
             `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._metadata_cache.get_registered_schema_by_version(subject_name, version)
+        registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
         if registered_schema is not None:
             return registered_schema
 
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
         response = self._rest_client.get('subjects/{}/versions/{}'
                                          .format(_urlencode(subject_name),
-                                                 version))
+                                                 version), query)
 
-        schema_type = response.get('schemaType', 'AVRO')
-        registered_schema = RegisteredSchema(
-            schema_id=response['id'],
-            schema=Schema(
-                response['schema'],
-                schema_type,
-                [
-                    SchemaReference(
-                        name=ref['name'],
-                        subject=ref['subject'],
-                        version=ref['version']
-                    ) for ref in response.get('references', [])
-                ]
-            ),
-            subject=response['subject'],
-            version=response['version']
-        )
-        self._metadata_cache.set(subject_name, None, version, registered_schema)
+        registered_schema = RegisteredSchema.from_dict(response)
+
+        self._cache.set_registered_schema(registered_schema)
 
         return registered_schema
 
-    def get_versions(self, subject_name):
+    def get_versions(self, subject_name: str) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
@@ -670,7 +899,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
-    def delete_version(self, subject_name, version):
+    def delete_version(self, subject_name: str, version: int) -> int:
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -692,9 +921,12 @@ class SchemaRegistryClient(object):
         response = self._rest_client.delete('subjects/{}/versions/{}'.
                                             format(_urlencode(subject_name),
                                                    version))
+
+        self._cache.remove_by_subject_version(subject_name, version)
+
         return response
 
-    def set_compatibility(self, subject_name=None, level=None):
+    def set_compatibility(self, subject_name: Optional[str] = None, level: str = None) -> str:
         """
         Update global or subject level compatibility level.
 
@@ -702,7 +934,7 @@ class SchemaRegistryClient(object):
             level (str): Compatibility level. See API reference for a list of
                 valid values.
 
-            subject_name (str, optional): Subject to update. Sets compatibility
+            subject_name (str, optional): Subject to update. Sets global compatibility
                 level policy if not set.
 
         Returns:
@@ -726,7 +958,7 @@ class SchemaRegistryClient(object):
                                      .format(_urlencode(subject_name)),
                                      body={'compatibility': level.upper()})
 
-    def get_compatibility(self, subject_name=None):
+    def get_compatibility(self, subject_name: Optional[str] = None) -> str:
         """
         Get the current compatibility level.
 
@@ -752,14 +984,15 @@ class SchemaRegistryClient(object):
         result = self._rest_client.get(url)
         return result['compatibilityLevel']
 
-    def test_compatibility(self, subject_name, schema, version="latest"):
+    def test_compatibility(
+        self, subject_name: str, schema: 'Schema',
+        version: Union[int, str] = "latest"
+    ) -> bool:
         """Test the compatibility of a candidate schema for a given subject and version
 
         Args:
             subject_name (str): Subject name the schema is registered under
-
             schema (Schema): Schema instance.
-
             version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
 
         Returns:
@@ -772,94 +1005,743 @@ class SchemaRegistryClient(object):
             `POST Test Compatibility API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        request = {"schema": schema.schema_str}
-        if schema.schema_type != "AVRO":
-            request['schemaType'] = schema.schema_type
-
-        if schema.references:
-            request['references'] = [
-                {'name': ref.name, 'subject': ref.subject, 'version': ref.version}
-                for ref in schema.references
-            ]
+        request = schema.to_dict()
 
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions/{}'.format(subject_name, version), body=request
+            'compatibility/subjects/{}/versions/{}'.format(_urlencode(subject_name), version), body=request
         )
 
         return response['is_compatible']
 
+    def set_config(self, subject_name: Optional[str] = None, config: 'ServerConfig' = None) -> 'ServerConfig':
+        """
+        Update global or subject config.
 
-class Schema(object):
-    """
-    An unregistered Schema.
+        Args:
+            config (ServerConfig): Config. See API reference for a list of
+                valid values.
 
-    Args:
-        schema_str (str): String representation of the schema.
+            subject_name (str, optional): Subject to update. Sets global config
+                if not set.
 
-        schema_type (str): The schema type: AVRO, PROTOBUF or JSON.
+        Returns:
+            str: The newly configured config.
 
-        references ([SchemaReference]): SchemaReferences used in this schema.
-    """
-    __slots__ = ['schema_str', 'schema_type', 'references', '_hash']
+        Raises:
+            SchemaRegistryError: If the config is invalid.
 
-    def __init__(self, schema_str, schema_type, references=[]):
-        super(Schema, self).__init__()
+        See Also:
+            `PUT Subject Config API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--config-(string-%20subject)>`_
+        """  # noqa: E501
 
-        self.schema_str = schema_str
-        self.schema_type = schema_type
-        self.references = references
-        self._hash = hash(schema_str)
+        if config is None:
+            raise ValueError("config must be set")
 
-    def __eq__(self, other):
-        return all([self.schema_str == other.schema_str,
-                    self.schema_type == other.schema_type])
+        if subject_name is None:
+            return self._rest_client.put('config',
+                                         body=config.to_dict())
+
+        return self._rest_client.put('config/{}'
+                                     .format(_urlencode(subject_name)),
+                                     body=config.to_dict())
+
+    def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
+        """
+        Get the current config.
+
+        Args:
+            subject_name (str, optional): Subject name. Returns global config
+                if left unset.
+
+        Returns:
+            ServerConfig: Config for the subject if set, otherwise the global config.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `GET Subject Config API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--config-(string-%20subject)>`_
+        """  # noqa: E501
+
+        if subject_name is not None:
+            url = 'config/{}'.format(_urlencode(subject_name))
+        else:
+            url = 'config'
+
+        result = self._rest_client.get(url)
+        return ServerConfig.from_dict(result)
+
+    def clear_latest_caches(self):
+        self._latest_version_cache.clear()
+        self._latest_with_metadata_cache.clear()
+
+    def clear_caches(self):
+        self._latest_version_cache.clear()
+        self._latest_with_metadata_cache.clear()
+        self._cache.clear()
+
+    @staticmethod
+    def new_client(conf: dict) -> 'SchemaRegistryClient':
+        from .mock_schema_registry_client import MockSchemaRegistryClient
+        url = conf.get("url")
+        if url.startswith("mock://"):
+            return MockSchemaRegistryClient(conf)
+        return SchemaRegistryClient(conf)
+
+
+T = TypeVar("T")
+
+
+class RuleKind(str, Enum):
+    CONDITION = "CONDITION"
+    TRANSFORM = "TRANSFORM"
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+class RuleMode(str, Enum):
+    UPGRADE = "UPGRADE"
+    DOWNGRADE = "DOWNGRADE"
+    UPDOWN = "UPDOWN"
+    READ = "READ"
+    WRITE = "WRITE"
+    WRITEREAD = "WRITEREAD"
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@_attrs_define
+class RuleParams:
+    params: Dict[str, str] = _attrs_field(factory=dict, hash=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        field_dict.update(self.params)
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        rule_params = cls(params=d)
+
+        return rule_params
 
     def __hash__(self):
-        return self._hash
+        return hash(frozenset(self.params.items()))
 
 
-class RegisteredSchema(object):
+@_attrs_define(frozen=True)
+class Rule:
+    name: Optional[str]
+    doc: Optional[str]
+    kind: Optional[RuleKind]
+    mode: Optional[RuleMode]
+    type: Optional[str]
+    tags: Optional[List[str]] = _attrs_field(hash=False)
+    params: Optional[RuleParams]
+    expr: Optional[str]
+    on_success: Optional[str]
+    on_failure: Optional[str]
+    disabled: Optional[bool]
+
+    def to_dict(self) -> Dict[str, Any]:
+        name = self.name
+
+        doc = self.doc
+
+        kind_str: Optional[str] = None
+        if self.kind is not None:
+            kind_str = self.kind.value
+
+        mode_str: Optional[str] = None
+        if self.mode is not None:
+            mode_str = self.mode.value
+
+        rule_type = self.type
+
+        tags = self.tags
+
+        _params: Optional[Dict[str, Any]] = None
+        if self.params is not None:
+            _params = self.params.to_dict()
+
+        expr = self.expr
+
+        on_success = self.on_success
+
+        on_failure = self.on_failure
+
+        disabled = self.disabled
+
+        field_dict: Dict[str, Any] = {}
+        field_dict.update({})
+        if name is not None:
+            field_dict["name"] = name
+        if doc is not None:
+            field_dict["doc"] = doc
+        if kind_str is not None:
+            field_dict["kind"] = kind_str
+        if mode_str is not None:
+            field_dict["mode"] = mode_str
+        if type is not None:
+            field_dict["type"] = rule_type
+        if tags is not None:
+            field_dict["tags"] = tags
+        if _params is not None:
+            field_dict["params"] = _params
+        if expr is not None:
+            field_dict["expr"] = expr
+        if on_success is not None:
+            field_dict["onSuccess"] = on_success
+        if on_failure is not None:
+            field_dict["onFailure"] = on_failure
+        if disabled is not None:
+            field_dict["disabled"] = disabled
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        name = d.pop("name", None)
+
+        doc = d.pop("doc", None)
+
+        _kind = d.pop("kind", None)
+        kind: Optional[RuleKind] = None
+        if _kind is not None:
+            kind = RuleKind(_kind)
+
+        _mode = d.pop("mode", None)
+        mode: Optional[RuleMode] = None
+        if _mode is not None:
+            mode = RuleMode(_mode)
+
+        rule_type = d.pop("type", None)
+
+        tags = cast(List[str], d.pop("tags", None))
+
+        _params: Optional[Dict[str, Any]] = d.pop("params", None)
+        params: Optional[RuleParams] = None
+        if _params is not None:
+            params = RuleParams.from_dict(_params)
+
+        expr = d.pop("expr", None)
+
+        on_success = d.pop("onSuccess", None)
+
+        on_failure = d.pop("onFailure", None)
+
+        disabled = d.pop("disabled", None)
+
+        rule = cls(
+            name=name,
+            doc=doc,
+            kind=kind,
+            mode=mode,
+            type=rule_type,
+            tags=tags,
+            params=params,
+            expr=expr,
+            on_success=on_success,
+            on_failure=on_failure,
+            disabled=disabled,
+        )
+
+        return rule
+
+
+@_attrs_define
+class RuleSet:
+    migration_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
+    domain_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        _migration_rules: Optional[List[Dict[str, Any]]] = None
+        if self.migration_rules is not None:
+            _migration_rules = []
+            for migration_rules_item_data in self.migration_rules:
+                migration_rules_item = migration_rules_item_data.to_dict()
+                _migration_rules.append(migration_rules_item)
+
+        _domain_rules: Optional[List[Dict[str, Any]]] = None
+        if self.domain_rules is not None:
+            _domain_rules = []
+            for domain_rules_item_data in self.domain_rules:
+                domain_rules_item = domain_rules_item_data.to_dict()
+                _domain_rules.append(domain_rules_item)
+
+        field_dict: Dict[str, Any] = {}
+        field_dict.update({})
+        if _migration_rules is not None:
+            field_dict["migrationRules"] = _migration_rules
+        if _domain_rules is not None:
+            field_dict["domainRules"] = _domain_rules
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        migration_rules = []
+        _migration_rules = d.pop("migrationRules", None)
+        for migration_rules_item_data in _migration_rules or []:
+            migration_rules_item = Rule.from_dict(migration_rules_item_data)
+            migration_rules.append(migration_rules_item)
+
+        domain_rules = []
+        _domain_rules = d.pop("domainRules", None)
+        for domain_rules_item_data in _domain_rules or []:
+            domain_rules_item = Rule.from_dict(domain_rules_item_data)
+            domain_rules.append(domain_rules_item)
+
+        rule_set = cls(
+            migration_rules=migration_rules,
+            domain_rules=domain_rules,
+        )
+
+        return rule_set
+
+    def __hash__(self):
+        return hash(frozenset((self.migration_rules or []) + (self.domain_rules or [])))
+
+
+@_attrs_define
+class MetadataTags:
+    tags: Dict[str, List[str]] = _attrs_field(factory=dict, hash=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        for prop_name, prop in self.tags.items():
+            field_dict[prop_name] = prop
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        tags = {}
+        for prop_name, prop_dict in d.items():
+            tag = cast(List[str], prop_dict)
+
+            tags[prop_name] = tag
+
+        metadata_tags = cls(tags=tags)
+
+        return metadata_tags
+
+    def __hash__(self):
+        return hash(frozenset(self.tags.items()))
+
+
+@_attrs_define
+class MetadataProperties:
+    properties: Dict[str, str] = _attrs_field(factory=dict, hash=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        field_dict: Dict[str, Any] = {}
+        field_dict.update(self.properties)
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        metadata_properties = cls(properties=d)
+
+        return metadata_properties
+
+    def __hash__(self):
+        return hash(frozenset(self.properties.items()))
+
+
+@_attrs_define(frozen=True)
+class Metadata:
+    tags: Optional[MetadataTags]
+    properties: Optional[MetadataProperties]
+    sensitive: Optional[List[str]] = _attrs_field(hash=False)
+
+    def to_dict(self) -> Dict[str, Any]:
+        _tags: Optional[Dict[str, Any]] = None
+        if self.tags is not None:
+            _tags = self.tags.to_dict()
+
+        _properties: Optional[Dict[str, Any]] = None
+        if self.properties is not None:
+            _properties = self.properties.to_dict()
+
+        sensitive: Optional[List[str]] = None
+        if self.sensitive is not None:
+            sensitive = []
+            for sensitive_item in self.sensitive:
+                sensitive.append(sensitive_item)
+
+        field_dict: Dict[str, Any] = {}
+        if _tags is not None:
+            field_dict["tags"] = _tags
+        if _properties is not None:
+            field_dict["properties"] = _properties
+        if sensitive is not None:
+            field_dict["sensitive"] = sensitive
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        _tags: Optional[Dict[str, Any]] = d.pop("tags", None)
+        tags: Optional[MetadataTags] = None
+        if _tags is not None:
+            tags = MetadataTags.from_dict(_tags)
+
+        _properties: Optional[Dict[str, Any]] = d.pop("properties", None)
+        properties: Optional[MetadataProperties] = None
+        if _properties is not None:
+            properties = MetadataProperties.from_dict(_properties)
+
+        sensitive = []
+        _sensitive = d.pop("sensitive", None)
+        for sensitive_item in _sensitive or []:
+            sensitive.append(sensitive_item)
+
+        metadata = cls(
+            tags=tags,
+            properties=properties,
+            sensitive=sensitive,
+        )
+
+        return metadata
+
+
+@_attrs_define(frozen=True)
+class SchemaReference:
+    name: Optional[str]
+    subject: Optional[str]
+    version: Optional[int]
+
+    def to_dict(self) -> Dict[str, Any]:
+        name = self.name
+
+        subject = self.subject
+
+        version = self.version
+
+        field_dict: Dict[str, Any] = {}
+        if name is not None:
+            field_dict["name"] = name
+        if subject is not None:
+            field_dict["subject"] = subject
+        if version is not None:
+            field_dict["version"] = version
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        name = d.pop("name", None)
+
+        subject = d.pop("subject", None)
+
+        version = d.pop("version", None)
+
+        schema_reference = cls(
+            name=name,
+            subject=subject,
+            version=version,
+        )
+
+        return schema_reference
+
+
+class ConfigCompatibilityLevel(str, Enum):
+    BACKWARD = "BACKWARD"
+    BACKWARD_TRANSITIVE = "BACKWARD_TRANSITIVE"
+    FORWARD = "FORWARD"
+    FORWARD_TRANSITIVE = "FORWARD_TRANSITIVE"
+    FULL = "FULL"
+    FULL_TRANSITIVE = "FULL_TRANSITIVE"
+    NONE = "NONE"
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
+@_attrs_define
+class ServerConfig:
+    compatibility: Optional[ConfigCompatibilityLevel] = None
+    compatibility_level: Optional[ConfigCompatibilityLevel] = None
+    compatibility_group: Optional[str] = None
+    default_metadata: Optional[Metadata] = None
+    override_metadata: Optional[Metadata] = None
+    default_rule_set: Optional[RuleSet] = None
+    override_rule_set: Optional[RuleSet] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        _compatibility: Optional[str] = None
+        if self.compatibility is not None:
+            _compatibility = self.compatibility.value
+
+        _compatibility_level: Optional[str] = None
+        if self.compatibility_level is not None:
+            _compatibility_level = self.compatibility_level.value
+
+        compatibility_group = self.compatibility_group
+
+        _default_metadata: Optional[Dict[str, Any]]
+        if isinstance(self.default_metadata, Metadata):
+            _default_metadata = self.default_metadata.to_dict()
+        else:
+            _default_metadata = self.default_metadata
+
+        _override_metadata: Optional[Dict[str, Any]]
+        if isinstance(self.override_metadata, Metadata):
+            _override_metadata = self.override_metadata.to_dict()
+        else:
+            _override_metadata = self.override_metadata
+
+        _default_rule_set: Optional[Dict[str, Any]]
+        if isinstance(self.default_rule_set, RuleSet):
+            _default_rule_set = self.default_rule_set.to_dict()
+        else:
+            _default_rule_set = self.default_rule_set
+
+        _override_rule_set: Optional[Dict[str, Any]]
+        if isinstance(self.override_rule_set, RuleSet):
+            _override_rule_set = self.override_rule_set.to_dict()
+        else:
+            _override_rule_set = self.override_rule_set
+
+        field_dict: Dict[str, Any] = {}
+        if _compatibility is not None:
+            field_dict["compatibility"] = _compatibility
+        if _compatibility_level is not None:
+            field_dict["compatibilityLevel"] = _compatibility_level
+        if compatibility_group is not None:
+            field_dict["compatibilityGroup"] = compatibility_group
+        if _default_metadata is not None:
+            field_dict["defaultMetadata"] = _default_metadata
+        if _override_metadata is not None:
+            field_dict["overrideMetadata"] = _override_metadata
+        if _default_rule_set is not None:
+            field_dict["defaultRuleSet"] = _default_rule_set
+        if _override_rule_set is not None:
+            field_dict["overrideRuleSet"] = _override_rule_set
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        _compatibility = d.pop("compatibility", None)
+        compatibility: Optional[ConfigCompatibilityLevel]
+        if _compatibility is None:
+            compatibility = None
+        else:
+            compatibility = ConfigCompatibilityLevel(_compatibility)
+
+        _compatibility_level = d.pop("compatibilityLevel", None)
+        compatibility_level: Optional[ConfigCompatibilityLevel]
+        if _compatibility_level is None:
+            compatibility_level = None
+        else:
+            compatibility_level = ConfigCompatibilityLevel(_compatibility_level)
+
+        compatibility_group = d.pop("compatibilityGroup", None)
+
+        def _parse_default_metadata(data: object) -> Optional[Metadata]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return Metadata.from_dict(data)
+
+        default_metadata = _parse_default_metadata(d.pop("defaultMetadata", None))
+
+        def _parse_override_metadata(data: object) -> Optional[Metadata]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return Metadata.from_dict(data)
+
+        override_metadata = _parse_override_metadata(d.pop("overrideMetadata", None))
+
+        def _parse_default_rule_set(data: object) -> Optional[RuleSet]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return RuleSet.from_dict(data)
+
+        default_rule_set = _parse_default_rule_set(d.pop("defaultRuleSet", None))
+
+        def _parse_override_rule_set(data: object) -> Optional[RuleSet]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return RuleSet.from_dict(data)
+
+        override_rule_set = _parse_override_rule_set(d.pop("overrideRuleSet", None))
+
+        config = cls(
+            compatibility=compatibility,
+            compatibility_level=compatibility_level,
+            compatibility_group=compatibility_group,
+            default_metadata=default_metadata,
+            override_metadata=override_metadata,
+            default_rule_set=default_rule_set,
+            override_rule_set=override_rule_set,
+        )
+
+        return config
+
+
+@_attrs_define(frozen=True, cache_hash=True)
+class Schema:
     """
-    Schema registration information.
-
-    Represents a  Schema registered with a subject. Use this class when you need
-    a specific version of a subject such as forming a SchemaReference.
-
-    Args:
-        schema_id (int): Registered Schema id
-
-        schema (Schema): Registered Schema
-
-        subject (str): Subject this schema is registered under
-
-        version (int): Version of this subject this schema is registered to
+    An unregistered schema.
     """
 
-    def __init__(self, schema_id, schema, subject, version):
-        self.schema_id = schema_id
-        self.schema = schema
-        self.subject = subject
-        self.version = version
+    schema_str: Optional[str]
+    schema_type: Optional[str] = "AVRO"
+    references: Optional[List[SchemaReference]] = _attrs_field(factory=list, hash=False)
+    metadata: Optional[Metadata] = None
+    rule_set: Optional[RuleSet] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        schema = self.schema_str
+
+        schema_type = self.schema_type
+
+        _references: Optional[List[Dict[str, Any]]] = []
+        if self.references is not None:
+            for references_item_data in self.references:
+                references_item = references_item_data.to_dict()
+                _references.append(references_item)
+
+        _metadata: Optional[Dict[str, Any]] = None
+        if isinstance(self.metadata, Metadata):
+            _metadata = self.metadata.to_dict()
+
+        _rule_set: Optional[Dict[str, Any]] = None
+        if isinstance(self.rule_set, RuleSet):
+            _rule_set = self.rule_set.to_dict()
+
+        field_dict: Dict[str, Any] = {}
+        if schema is not None:
+            field_dict["schema"] = schema
+        if schema_type is not None:
+            field_dict["schemaType"] = schema_type
+        if _references is not None:
+            field_dict["references"] = _references
+        if _metadata is not None:
+            field_dict["metadata"] = _metadata
+        if _rule_set is not None:
+            field_dict["ruleSet"] = _rule_set
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        schema = d.pop("schema", None)
+
+        schema_type = d.pop("schemaType", "AVRO")
+
+        references = []
+        _references = d.pop("references", None)
+        for references_item_data in _references or []:
+            references_item = SchemaReference.from_dict(references_item_data)
+
+            references.append(references_item)
+
+        def _parse_metadata(data: object) -> Optional[Metadata]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return Metadata.from_dict(data)
+
+        metadata = _parse_metadata(d.pop("metadata", None))
+
+        def _parse_rule_set(data: object) -> Optional[RuleSet]:
+            if data is None:
+                return data
+            if not isinstance(data, dict):
+                raise TypeError()
+            return RuleSet.from_dict(data)
+
+        rule_set = _parse_rule_set(d.pop("ruleSet", None))
+
+        schema = cls(
+            schema_str=schema,
+            schema_type=schema_type,
+            references=references,
+            metadata=metadata,
+            rule_set=rule_set,
+        )
+
+        return schema
 
 
-class SchemaReference(object):
+@_attrs_define(frozen=True, cache_hash=True)
+class RegisteredSchema:
     """
-    Reference to a Schema registered with the Schema Registry.
-
-    As of Confluent Platform 5.5 Schema's may now hold references to other
-    registered schemas. As long as there is a references to a schema it may not
-    be deleted.
-
-    Args:
-        name (str): Schema name
-
-        subject (str): Subject this Schema is registered with
-
-        version (int): This Schema's version
+    An registered schema.
     """
 
-    def __init__(self, name, subject, version):
-        super(SchemaReference, self).__init__()
-        self.name = name
-        self.subject = subject
-        self.version = version
+    schema_id: Optional[int]
+    schema: Optional[Schema]
+    subject: Optional[str]
+    version: Optional[int]
+
+    def to_dict(self) -> Dict[str, Any]:
+        schema = self.schema
+
+        schema_id = self.schema_id
+
+        subject = self.subject
+
+        version = self.version
+
+        field_dict: Dict[str, Any] = {}
+        if schema is not None:
+            field_dict = schema.to_dict()
+        if schema_id is not None:
+            field_dict["id"] = schema_id
+        if subject is not None:
+            field_dict["subject"] = subject
+        if version is not None:
+            field_dict["version"] = version
+
+        return field_dict
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+
+        schema = Schema.from_dict(d)
+
+        schema_id = d.pop("id", None)
+
+        subject = d.pop("subject", None)
+
+        version = d.pop("version", None)
+
+        schema = cls(
+            schema_id=schema_id,
+            schema=schema,
+            subject=subject,
+            version=version,
+        )
+
+        return schema
