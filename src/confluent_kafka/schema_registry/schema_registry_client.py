@@ -140,7 +140,7 @@ class _BaseRestClient(object):
                 raise TypeError("cache.latest.ttl.sec must be a number, not " + str(type(cache_latest_ttl_sec)))
             self.cache_latest_ttl_sec = cache_latest_ttl_sec
 
-        self.max_retries = 2
+        self.max_retries = 3
         max_retries = conf_copy.pop('max.retries', None)
         if max_retries is not None:
             if not isinstance(timeout, (int, float)):
