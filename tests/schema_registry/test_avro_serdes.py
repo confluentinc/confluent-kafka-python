@@ -1688,3 +1688,161 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser = AvroDeserializer(client, conf=deser_conf)
     newobj = deser(obj_bytes, ser_ctx)
     assert obj3 == newobj
+
+
+def test_avro_reference():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+
+    awarded_user, schema = _register_avro_schemas_and_build_awarded_user_schema(client)
+
+    _references_test_common(client, awarded_user, schema, schema)
+
+
+def _register_avro_schemas_and_build_awarded_user_schema(client):
+    user = User('Bowie', 47, 'purple')
+    award_properties = AwardProperties(10, 2023)
+    award = Award("Best In Show", award_properties)
+    awarded_user = AwardedUser(award, user)
+
+    user_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.User", "user", 1)
+    award_properties_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.AwardProperties",
+                                                  "award_properties", 1)
+    award_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.Award", "award", 1)
+
+    client.register_schema("user", Schema(User.schema_str, 'AVRO'))
+    client.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
+    client.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
+
+    references = [user_schema_ref, award_schema_ref]
+    schema = Schema(AwardedUser.schema_str, 'AVRO', references)
+    return awarded_user, schema
+
+
+def _references_test_common(client, awarded_user, serializer_schema, deserializer_schema):
+    value_serializer = AvroSerializer(client, serializer_schema,
+                                      lambda user, ctx:
+                                      dict(award=dict(name=user.award.name,
+                                                      properties=dict(year=user.award.properties.year,
+                                                                      points=user.award.properties.points)),
+                                           user=dict(name=user.user.name,
+                                                     favorite_number=user.user.favorite_number,
+                                                     favorite_color=user.user.favorite_color)))
+
+    value_deserializer = \
+        AvroDeserializer(client, deserializer_schema,
+                         lambda user, ctx:
+                         AwardedUser(award=Award(name=user.get('award').get('name'),
+                                                 properties=AwardProperties(
+                                                     year=user.get('award').get('properties').get(
+                                                         'year'),
+                                                     points=user.get('award').get('properties').get(
+                                                         'points'))),
+                                     user=User(name=user.get('user').get('name'),
+                                               favorite_number=user.get('user').get('favorite_number'),
+                                               favorite_color=user.get('user').get('favorite_color'))))
+
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = value_serializer(awarded_user, ser_ctx)
+
+    awarded_user2 = value_deserializer(obj_bytes, ser_ctx)
+
+    assert awarded_user2 == awarded_user
+
+
+class User(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "User",
+            "type": "record",
+            "fields": [
+                {"name": "name", "type": "string"},
+                {"name": "favorite_number", "type": "int"},
+                {"name": "favorite_color", "type": "string"}
+            ]
+        }
+        """
+
+    def __init__(self, name, favorite_number, favorite_color):
+        self.name = name
+        self.favorite_number = favorite_number
+        self.favorite_color = favorite_color
+
+    def __eq__(self, other):
+        return all([
+            self.name == other.name,
+            self.favorite_number == other.favorite_number,
+            self.favorite_color == other.favorite_color])
+
+
+class AwardProperties(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "AwardProperties",
+            "type": "record",
+            "fields": [
+                {"name": "year", "type": "int"},
+                {"name": "points", "type": "int"}
+            ]
+        }
+    """
+
+    def __init__(self, points, year):
+        self.points = points
+        self.year = year
+
+    def __eq__(self, other):
+        return all([
+            self.points == other.points,
+            self.year == other.year
+        ])
+
+
+class Award(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "Award",
+            "type": "record",
+            "fields": [
+                {"name": "name", "type": "string"},
+                {"name": "properties", "type": "AwardProperties"}
+            ]
+        }
+    """
+
+    def __init__(self, name, properties):
+        self.name = name
+        self.properties = properties
+
+    def __eq__(self, other):
+        return all([
+            self.name == other.name,
+            self.properties == other.properties
+        ])
+
+
+class AwardedUser(object):
+    schema_str = """
+        {
+            "namespace": "confluent.io.examples.serialization.avro",
+            "name": "AwardedUser",
+            "type": "record",
+            "fields": [
+                {"name": "award", "type": "Award"},
+                {"name": "user", "type": "User"}
+            ]
+        }
+    """
+
+    def __init__(self, award, user):
+        self.award = award
+        self.user = user
+
+    def __eq__(self, other):
+        return all([
+            self.award == other.award,
+            self.user == other.user
+        ])

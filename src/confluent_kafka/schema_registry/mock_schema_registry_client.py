@@ -155,7 +155,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     ) -> 'RegisteredSchema':
         schema_id = self._store.get_schema_id_by_subject(subject_name, schema)
         if schema_id is not None:
-            return schema_id
+            registered_schema = RegisteredSchema(
+                schema_id=schema_id,
+                schema=schema,
+                subject=subject_name,
+                version=None
+            )
+            return registered_schema
 
         latest_schema = self._store.get_latest_version(subject_name)
         latest_version = 1 if latest_schema is None else latest_schema.version + 1

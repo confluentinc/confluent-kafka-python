@@ -91,23 +91,21 @@ def _schema_loads(schema_str: str) -> Schema:
 
 
 def _resolve_named_schema(
-    schema: Schema, schema_registry_client: SchemaRegistryClient,
-    named_schemas: Dict[str, AvroSchema] = None
+    schema: Schema, schema_registry_client: SchemaRegistryClient
 ) -> Dict[str, AvroSchema]:
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
     :param schema_registry_client: SchemaRegistryClient to use for retrieval.
-    :param named_schemas: Dict of named schemas resolved recursively.
     :return: named_schemas dict.
     """
-    if named_schemas is None:
-        named_schemas = {}
+    named_schemas = {}
     if schema.references is not None:
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
-            named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client, named_schemas)
-            parsed_schema = parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=named_schemas)
+            ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
+            parsed_schema = parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=ref_named_schemas)
+            named_schemas.update(ref_named_schemas)
             named_schemas[ref.name] = parsed_schema
     return named_schemas
 
