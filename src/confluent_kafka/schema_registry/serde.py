@@ -311,7 +311,7 @@ class BaseSerde(object):
 
         for index in range(len(rules)):
             rule = rules[index]
-            if rule.disabled:
+            if self._is_disabled():
                 continue
             if rule.mode == RuleMode.WRITEREAD:
                 if rule_mode != RuleMode.READ and rule_mode != RuleMode.WRITE:
