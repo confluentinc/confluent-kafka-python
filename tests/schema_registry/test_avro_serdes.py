@@ -632,7 +632,7 @@ def test_avro_cel_field_transform_disable():
     registry = RuleRegistry()
     registry.register_rule_executor(CelFieldExecutor())
     registry.register_override(RuleOverride("CEL_FIELD", None, None, True))
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_registry=registry)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
