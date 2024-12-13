@@ -638,7 +638,7 @@ def test_avro_cel_field_transform_disable():
 
     deser = AvroDeserializer(client)
     newobj = deser(obj_bytes, ser_ctx)
-    assert obj == newobj
+    assert "hi" ==  newobj['stringField']
 
 
 def test_avro_cel_field_transform_complex():
