@@ -54,7 +54,7 @@ def test_config_url_none():
 def test_config_url_trailing_slash():
     conf = {'url': 'http://SchemaRegistry:65534/'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.base_url == TEST_URL
+    assert test_client._rest_client.base_urls == [TEST_URL]
 
 
 def test_config_ssl_key_no_certificate():
