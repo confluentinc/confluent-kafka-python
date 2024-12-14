@@ -234,7 +234,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     def get_versions(self, subject_name: str) -> List[int]:
         return self._store.get_versions(subject_name)
 
-    def delete_version(self, subject_name: str, version: int) -> int:
+    def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             self._store.remove_by_schema(registered_schema)

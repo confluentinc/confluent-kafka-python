@@ -806,12 +806,12 @@ class SchemaRegistryClient(object):
             `DELETE Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
-        versions = self._rest_client.delete('subjects/{}'
-                                            .format(_urlencode(subject_name)))
-
         if permanent:
-            self._rest_client.delete('subjects/{}?permanent=true'
-                                     .format(_urlencode(subject_name)))
+            versions = self._rest_client.delete('subjects/{}?permanent=true'
+                                                .format(_urlencode(subject_name)))
+        else:
+            versions = self._rest_client.delete('subjects/{}'
+                                                .format(_urlencode(subject_name)))
 
         self._cache.remove_by_subject(subject_name)
 
@@ -949,7 +949,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
-    def delete_version(self, subject_name: str, version: int) -> int:
+    def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -957,6 +957,8 @@ class SchemaRegistryClient(object):
             subject_name (str) Subject name
 
             version (int): Version number
+
+            permanent (bool): True for a hard delete, False (default) for a soft delete
 
         Returns:
             int: Version number which was deleted
@@ -968,9 +970,14 @@ class SchemaRegistryClient(object):
             `Delete Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        response = self._rest_client.delete('subjects/{}/versions/{}'.
-                                            format(_urlencode(subject_name),
-                                                   version))
+        if permanent:
+            response = self._rest_client.delete('subjects/{}/versions/{}?permanent=true'
+                                                .format(_urlencode(subject_name),
+                                                        version))
+        else:
+            response = self._rest_client.delete('subjects/{}/versions/{}'
+                                                .format(_urlencode(subject_name),
+                                                        version))
 
         self._cache.remove_by_subject_version(subject_name, version)
 
