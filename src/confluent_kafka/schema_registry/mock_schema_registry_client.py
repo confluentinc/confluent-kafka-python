@@ -115,15 +115,18 @@ class _SchemaStore(object):
             if subject_name in self.subject_schemas:
                 self.subject_schemas[subject_name].remove(registered_schema)
 
-    def remove_by_subject(self, subject_name: str):
+    def remove_by_subject(self, subject_name: str) -> List[int]:
         with self.lock:
+            versions = []
             if subject_name in self.subject_schemas:
                 for rs in self.subject_schemas[subject_name]:
+                    versions.append(rs.version)
                     schema_id = self.schema_index.pop(rs.schema, None)
                     if schema_id is not None:
                         self.schema_id_index.pop(schema_id, None)
 
                 del self.subject_schemas[subject_name]
+            return versions
 
     def clear(self):
         with self.lock:
@@ -188,11 +191,11 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_subjects(self):
+    def get_subjects(self) -> List[str]:
         return self._store.get_subjects()
 
-    def delete_subject(self, subject_name: str, permanent: bool = False):
-        self._store.remove_by_subject(subject_name)
+    def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
+        return self._store.remove_by_subject(subject_name)
 
     def get_latest_version(self, subject_name: str, fmt: str = None) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_version(subject_name)

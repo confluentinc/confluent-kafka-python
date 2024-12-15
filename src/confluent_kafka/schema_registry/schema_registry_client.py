@@ -770,7 +770,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_subjects(self):
+    def get_subjects(self) -> List[str]:
         """
         List all subjects registered with the Schema Registry
 
@@ -786,7 +786,7 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('subjects')
 
-    def delete_subject(self, subject_name: str, permanent: bool = False):
+    def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
