@@ -809,11 +809,10 @@ class SchemaRegistryClient(object):
         if permanent:
             versions = self._rest_client.delete('subjects/{}?permanent=true'
                                                 .format(_urlencode(subject_name)))
+            self._cache.remove_by_subject(subject_name)
         else:
             versions = self._rest_client.delete('subjects/{}'
                                                 .format(_urlencode(subject_name)))
-
-        self._cache.remove_by_subject(subject_name)
 
         return versions
 
@@ -974,12 +973,11 @@ class SchemaRegistryClient(object):
             response = self._rest_client.delete('subjects/{}/versions/{}?permanent=true'
                                                 .format(_urlencode(subject_name),
                                                         version))
+            self._cache.remove_by_subject_version(subject_name, version)
         else:
             response = self._rest_client.delete('subjects/{}/versions/{}'
                                                 .format(_urlencode(subject_name),
                                                         version))
-
-        self._cache.remove_by_subject_version(subject_name, version)
 
         return response
 
