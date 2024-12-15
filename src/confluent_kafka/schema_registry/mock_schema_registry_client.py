@@ -53,13 +53,15 @@ class _SchemaStore(object):
             return rs.schema if rs else None
 
     def get_registered_schema_by_schema(
-        self, subject: str,
+        self,
+        subject_name: str,
         schema: Schema
     ) -> Optional[RegisteredSchema]:
         with self.lock:
-            for rs in self.subject_schemas[subject]:
-                if rs.schema == schema:
-                    return rs
+            if subject_name in self.subject_schemas:
+                for rs in self.subject_schemas[subject_name]:
+                    if rs.schema == schema:
+                        return rs
             return None
 
     def get_version(self, subject_name: str, version: int) -> Optional[RegisteredSchema]:
