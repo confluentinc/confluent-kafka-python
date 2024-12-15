@@ -52,12 +52,6 @@ class _SchemaStore(object):
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
 
-    def get_schema_id_by_subject(self, subject: str, schema: Schema) -> Optional[int]:
-        with self.lock:
-            if schema in self.subject_schemas[subject]:
-                return self.schema_index.get(schema, None)
-            return None
-
     def get_registered_schema_by_schema(
         self, subject: str,
         schema: Schema
@@ -153,14 +147,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> 'RegisteredSchema':
-        schema_id = self._store.get_schema_id_by_subject(subject_name, schema)
-        if schema_id is not None:
-            registered_schema = RegisteredSchema(
-                schema_id=schema_id,
-                schema=schema,
-                subject=subject_name,
-                version=None
-            )
+        registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
+        if registered_schema is not None:
             return registered_schema
 
         latest_schema = self._store.get_latest_version(subject_name)
