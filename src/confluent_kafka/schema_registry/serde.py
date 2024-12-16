@@ -291,15 +291,15 @@ class BaseSerde(object):
             return message
         rules: Optional[List[Rule]] = None
         if rule_mode == RuleMode.UPGRADE:
-            if target.rule_set is not None:
+            if target is not None and target.rule_set is not None:
                 rules = target.rule_set.migration_rules
         elif rule_mode == RuleMode.DOWNGRADE:
-            if source.rule_set is not None:
+            if source is not None and source.rule_set is not None:
                 rules = source.rule_set.migration_rules
                 rules = rules[:] if rules else []
                 rules.reverse()
         else:
-            if target.rule_set is not None:
+            if target is not None and target.rule_set is not None:
                 rules = target.rule_set.domain_rules
                 if rule_mode == RuleMode.READ:
                     # Execute read rules in reverse order for symmetry
