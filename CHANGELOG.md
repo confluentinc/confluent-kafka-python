@@ -1,5 +1,16 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.6.2
+
+v2.6.2 is a feature release with the following features, fixes and enhancements:
+
+- Support for Data Contracts with Schema Registry, including 
+  - Data Quality rules 
+  - Data Transformation rules
+  - Client-Side Field Level Encryption (CSFLE)
+  - Schema Migration rules (requires Python 3.9+)
+- Migrated the Schema Registry client from requests to httpx
+
 ## v2.6.1
 
 v2.6.1 is a maintenance release with the following fixes and enhancements:
