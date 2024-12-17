@@ -394,7 +394,7 @@ class AvroDeserializer(BaseDeserializer):
     | Property Name               | Type     | Description                                      |
     +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version for    |
-    | ``use.latest.version``      | bool     | deserialization.                                   |
+    | ``use.latest.version``      | bool     | deserialization.                                 |
     |                             |          |                                                  |
     |                             |          | Defaults to False.                               |
     +-----------------------------+----------+--------------------------------------------------+
