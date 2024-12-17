@@ -13,17 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
-import pytest
-
-from confluent_kafka import Consumer, ConsumerGroupState, ConsumerGroupType, TopicPartition
-from confluent_kafka.admin import AdminClient
+from confluent_kafka import ConsumerGroupState, ConsumerGroupType, TopicPartition
 import uuid
 
 from tests.common import TestUtils
 
 topic_prefix = "test-topic"
-# Generate random group IDs
+
 
 def create_consumers(kafka_cluster, topic, group_id, client_id, Protocol):
     conf = {'group.id': group_id,
@@ -38,6 +34,7 @@ def create_consumers(kafka_cluster, topic, group_id, client_id, Protocol):
     consumer.poll(10)
     return consumer
 
+
 def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
 
     group_id_new1 = f"test-group_new1-{uuid.uuid4()}"
@@ -51,7 +48,7 @@ def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
     client_id4 = "test-client4"
 
     consumers = []
-    
+
     # Create two groups with new group protocol
     consumers.append(create_consumers(kafka_cluster, topic, group_id_new1, client_id1, "consumer"))
     consumers.append(create_consumers(kafka_cluster, topic, group_id_new2, client_id2, "consumer"))
@@ -76,7 +73,7 @@ def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
         for member in result.members:
             assert member.client_id in [client_id1, client_id2]
             assert member.assignment.topic_partitions == partition
-    
+
     fs2 = admin_client.describe_consumer_groups(group_ids=[group_id_old1, group_id_old2])
     for group_id, f in fs2.items():
         result = f.result()
@@ -88,7 +85,7 @@ def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
         for member in result.members:
             assert member.client_id in [client_id3, client_id4]
             assert member.assignment.topic_partitions == partition
-    
+
     fs3 = admin_client.describe_consumer_groups(group_ids=[group_id_new1, group_id_new2, group_id_old1, group_id_old2])
     for group_id, f in fs3.items():
         result = f.result()
@@ -106,9 +103,10 @@ def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
             else:
                 assert member.client_id in [client_id3, client_id4]
             assert member.assignment.topic_partitions == partition
-    
+
     for consumer in consumers:
         consumer.close()
+
 
 def test_describe_consumer_groups_compatability(kafka_cluster):
 
@@ -124,7 +122,7 @@ def test_describe_consumer_groups_compatability(kafka_cluster):
                                                                },
                                                                validate_only=False
                                                                )
-    
+
     if TestUtils.use_group_protocol_consumer():
         verify_describe_consumer_groups(kafka_cluster, admin_client, our_topic)
 
