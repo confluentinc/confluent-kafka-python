@@ -23,6 +23,12 @@ _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 _TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
 
 
+def _update_conf_group_protocol(conf=None):
+    if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
+        if 'group.protocol' not in conf:
+            conf['group.protocol'] = 'consumer'
+
+
 def _trivup_cluster_type_kraft():
     return _TRIVUP_CLUSTER_TYPE_ENV in os.environ and os.environ[_TRIVUP_CLUSTER_TYPE_ENV] == 'kraft'
 
