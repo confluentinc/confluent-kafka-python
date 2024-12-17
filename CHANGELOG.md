@@ -1,5 +1,24 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.6.2
+
+v2.6.2 is a feature release with the following features, fixes and enhancements:
+
+- Support for Data Contracts with Schema Registry, including 
+  - Data Quality rules 
+  - Data Transformation rules
+  - Client-Side Field Level Encryption (CSFLE)
+  - Schema Migration rules (requires Python 3.9+)
+- Migrated the Schema Registry client from requests to httpx
+- Various fixes for Schema Registry client:
+  - Add support for multiple URLs (https://github.com/confluentinc/confluent-kafka-python/issues/409)
+  - Allow configuring timeout (https://github.com/confluentinc/confluent-kafka-python/issues/622)
+  - Fix deletion semantics (https://github.com/confluentinc/confluent-kafka-python/issues/1127)
+  - Python deserializer can take SR client (https://github.com/confluentinc/confluent-kafka-python/issues/1174)
+  - Fix handling of Avro unions (https://github.com/confluentinc/confluent-kafka-python/issues/1562)
+  - Remove deprecated RefResolver for JSON (https://github.com/confluentinc/confluent-kafka-python/issues/1840)
+  - Support delete of subject version (https://github.com/confluentinc/confluent-kafka-python/issues/1851)
+
 ## v2.6.1
 
 v2.6.1 is a maintenance release with the following fixes and enhancements:
