@@ -18,7 +18,6 @@ v2.6.2 is a feature release with the following features, fixes and enhancements:
  - Remove deprecated RefResolver for JSON (#1840)
  - Support delete of subject version (#1851)
 
-
 confluent-kafka-python is based on librdkafka v2.6.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
