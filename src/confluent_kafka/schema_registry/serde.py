@@ -335,10 +335,8 @@ class BaseSerde(object):
                 if rule.kind == RuleKind.CONDITION:
                     if not result:
                         raise RuleConditionError(rule)
-                    break
                 elif rule.kind == RuleKind.TRANSFORM:
                     message = result
-                    break
                 self._run_action(
                     ctx, rule_mode, rule,
                     self._get_on_failure(rule) if message is None else self._get_on_success(rule),
@@ -377,7 +375,7 @@ class BaseSerde(object):
         action_name = self._get_rule_action_name(rule, rule_mode, action)
         if action_name is None:
             action_name = default_action
-        rule_action = self._get_rule_action(self._rule_registry, action_name)
+        rule_action = self._get_rule_action(ctx, action_name)
         if rule_action is None:
             log.error("Could not find rule action of type %s", action_name)
             raise RuleError(f"Could not find rule action of type {action_name}")
