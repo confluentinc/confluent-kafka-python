@@ -25,7 +25,8 @@ from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 
-from tests.common import TestDeserializingConsumer, TestConsumer
+from tests.common import TestConsumer
+from tests.common.schema_registry import TestDeserializingConsumer
 
 
 class KafkaClusterFixture(object):
