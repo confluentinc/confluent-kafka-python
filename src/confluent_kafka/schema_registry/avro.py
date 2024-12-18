@@ -118,7 +118,7 @@ class AvroSerializer(BaseSerializer):
 
     +-----------------------------+----------+--------------------------------------------------+
     | Property Name               | Type     | Description                                      |
-    +===========================--+==========+==================================================+
+    +=============================+==========+==================================================+
     |                             |          | If True, automatically register the configured   |
     | ``auto.register.schemas``   | bool     | schema with Confluent Schema Registry if it has  |
     |                             |          | not previously been associated with the relevant |
