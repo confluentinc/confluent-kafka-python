@@ -58,6 +58,25 @@ class ConfigSource(Enum):
     DEFAULT_CONFIG = _cimpl.CONFIG_SOURCE_DEFAULT_CONFIG  #: Default
 
 
+class ConfigType(Enum):
+    """
+    Enumerates the different types of configuration properties.
+    Used by ConfigEntry to specify the
+    type of configuration properties returned by `describe_configs()`.
+    """
+    UNKNOWN = _cimpl.CONFIG_TYPE_UNKNOWN  #: Unknown
+    BOOLEAN = _cimpl.CONFIG_TYPE_BOOLEAN  #: Boolean
+    STRING = _cimpl.CONFIG_TYPE_STRING  #: String
+    INT = _cimpl.CONFIG_TYPE_INT  #: Integer
+    SHORT = _cimpl.CONFIG_TYPE_SHORT  #: Short
+    LONG = _cimpl.CONFIG_TYPE_LONG  #: Long
+    DOUBLE = _cimpl.CONFIG_TYPE_DOUBLE  #: Double
+    LIST = _cimpl.CONFIG_TYPE_LIST  #: List
+    CLASS = _cimpl.CONFIG_TYPE_CLASS  #: Class
+    PASSWORD = _cimpl.CONFIG_TYPE_PASSWORD  #: Password
+    CNT = _cimpl.CONFIG_TYPE_CNT  #: Count
+
+
 class ConfigEntry(object):
     """
     Represents a configuration property. Returned by describe_configs() for each configuration
@@ -72,6 +91,8 @@ class ConfigEntry(object):
                  is_default=False,
                  is_sensitive=False,
                  is_synonym=False,
+                 type=ConfigType.UNKNOWN,
+                 documentation=None,
                  synonyms=[],
                  incremental_operation=None):
         """
@@ -100,6 +121,10 @@ class ConfigEntry(object):
         """Indicates whether the configuration property is a synonym for the parent configuration entry."""
         self.synonyms = synonyms
         """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
+        self.type = type
+        """The type of the configuration property."""
+        self.documentation = documentation
+        """The documentation for the configuration property."""
         self.incremental_operation = incremental_operation
         """The incremental operation (AlterConfigOpType) to use in incremental_alter_configs."""
 
