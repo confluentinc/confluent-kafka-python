@@ -16,6 +16,7 @@ from enum import Enum
 import functools
 from .. import cimpl as _cimpl
 from ._resource import ResourceType
+from .._util import ConversionUtil
 
 
 class AlterConfigOpType(Enum):
@@ -121,7 +122,7 @@ class ConfigEntry(object):
         """Indicates whether the configuration property is a synonym for the parent configuration entry."""
         self.synonyms = synonyms
         """A list of synonyms (ConfigEntry) and alternate sources for this configuration property."""
-        self.type = type
+        self.type = ConversionUtil.convert_to_enum(type, ConfigType)
         """The type of the configuration property."""
         self.documentation = documentation
         """The documentation for the configuration property."""
