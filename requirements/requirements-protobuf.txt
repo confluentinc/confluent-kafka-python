@@ -1,1 +1,2 @@
+googleapis-common-protos
 protobuf
