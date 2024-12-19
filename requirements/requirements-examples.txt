@@ -17,6 +17,7 @@ avro>=1.11.1,<2
 pyrsistent
 jsonschema
 
+googleapis-common-protos
 protobuf
 
 azure-identity
