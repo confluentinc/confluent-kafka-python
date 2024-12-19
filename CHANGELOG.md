@@ -1,10 +1,34 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.6.2
+
+v2.6.2 is a feature release with the following features, fixes and enhancements:
+
+ - Support for Data Contracts with Schema Registry, including
+   - Data Quality rules
+   - Data Transformation rules
+   - Client-Side Field Level Encryption (CSFLE)
+   - Schema Migration rules (requires Python 3.9+)
+ - Migrated the Schema Registry client from requests to httpx
+ - Add support for multiple URLs (#409)
+ - Allow configuring timeout (#622)
+ - Fix deletion semantics (#1127)
+ - Python deserializer can take SR client (#1174)
+ - Fix handling of Avro unions (#1562)
+ - Remove deprecated RefResolver for JSON (#1840)
+ - Support delete of subject version (#1851)
+
+confluent-kafka-python is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.6.1
 
 v2.6.1 is a maintenance release with the following fixes and enhancements:
 
- - Migrated build system from `setup.py` to `pyproject.toml` in accordance with `PEP 517` and `PEP 518`, improving project configuration, build system requirements management, and compatibility with modern Python packaging tools like `pip` and `build`.
+ - Migrated build system from `setup.py` to `pyproject.toml` in accordance with `PEP 517` and `PEP 518`, improving project configuration, build system requirements management, and compatibility with modern Python packaging tools like `pip` and `build`. (#1592)
+ - Removed python 3.6 support. (#1592)
  - Added an example for OAUTH OIDC producer with support for confluent cloud (#1769, @sarwarbhuiyan)
 
 confluent-kafka-python is based on librdkafka v2.6.1, see the

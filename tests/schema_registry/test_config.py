@@ -16,6 +16,7 @@
 # limitations under the License.
 #
 import pytest
+from httpx import BasicAuth
 
 from confluent_kafka.schema_registry import SchemaRegistryClient
 
@@ -38,12 +39,12 @@ def test_config_url_invalid():
 
 def test_config_url_invalid_type():
     conf = {'url': dict()}
-    with pytest.raises(TypeError, match="url must be an instance of str,"
+    with pytest.raises(TypeError, match="url must be a str,"
                                         " not <(.*)>$"):
         SchemaRegistryClient(conf)
 
 
-def test_config_url_None():
+def test_config_url_none():
     conf = {}
     with pytest.raises(ValueError, match="Missing required configuration"
                                          " property url"):
@@ -53,23 +54,7 @@ def test_config_url_None():
 def test_config_url_trailing_slash():
     conf = {'url': 'http://SchemaRegistry:65534/'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.base_url == TEST_URL
-
-
-def test_config_ssl_certificate():
-    conf = {'url': TEST_URL,
-            'ssl.certificate.location': '/ssl/certificates/client',
-            'ssl.key.location': '/ssl/keys/client'}
-    test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.session.cert == ('/ssl/certificates/client',
-                                                     '/ssl/keys/client')
-
-
-def test_config_ssl_certificate_no_key():
-    conf = {'url': TEST_URL,
-            'ssl.certificate.location': '/ssl/certificates/client'}
-    test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.session.cert == '/ssl/certificates/client'
+    assert test_client._rest_client.base_urls == [TEST_URL]
 
 
 def test_config_ssl_key_no_certificate():
@@ -86,8 +71,8 @@ def test_config_auth_url():
                + TEST_USERNAME + ":"
                + TEST_USER_PASSWORD + '@SchemaRegistry:65534'}
     test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.session.auth == (TEST_USERNAME,
-                                                     TEST_USER_PASSWORD)
+    assert (test_client._rest_client.session.auth._auth_header ==
+            BasicAuth(TEST_USERNAME, TEST_USER_PASSWORD)._auth_header)
 
 
 def test_config_auth_url_and_userinfo():
@@ -111,8 +96,8 @@ def test_config_auth_userinfo():
             'basic.auth.user.info': TEST_USERNAME + ':' + TEST_USER_PASSWORD}
 
     test_client = SchemaRegistryClient(conf)
-    assert test_client._rest_client.session.auth == (TEST_USERNAME,
-                                                     TEST_USER_PASSWORD)
+    assert (test_client._rest_client.session.auth._auth_header ==
+            BasicAuth(TEST_USERNAME, TEST_USER_PASSWORD)._auth_header)
 
 
 def test_config_auth_userinfo_invalid():

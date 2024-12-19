@@ -1,5 +1,6 @@
 -r requirements.txt
 -r requirements-schemaregistry.txt
+-r requirements-rules.txt
 -r requirements-avro.txt
 -r requirements-protobuf.txt
 -r requirements-json.txt
