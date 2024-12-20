@@ -4,6 +4,36 @@
 
 v2.6.2 is a feature release with the following features, fixes and enhancements:
 
+Note: This release modifies the dependencies of the Schema Registry client. 
+If you are using the Schema Registry client, please ensure that you install the
+optional dependencies using the following syntax:
+
+```
+pip install confluent-kafka[schemaregistry]
+```
+
+or
+
+```
+pip install confluent-kafka[avro,schemaregistry]
+```
+
+Please see the [README.md](README.md) for more information.
+
+ - Support for Data Contracts with Schema Registry, including
+   - Data Quality rules
+   - Data Transformation rules
+   - Client-Side Field Level Encryption (CSFLE)
+   - Schema Migration rules (requires Python 3.9+)
+ - Migrated the Schema Registry client from requests to httpx
+ - Add support for multiple URLs (#409)
+ - Allow configuring timeout (#622)
+ - Fix deletion semantics (#1127)
+ - Python deserializer can take SR client (#1174)
+ - Fix handling of Avro unions (#1562)
+ - Remove deprecated RefResolver for JSON (#1840)
+ - Support delete of subject version (#1851)
+
  - Support for Data Contracts with Schema Registry, including
    - Data Quality rules
    - Data Transformation rules
