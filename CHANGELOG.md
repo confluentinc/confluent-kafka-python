@@ -1,6 +1,20 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.7.0
+
+v2.7.0 is a feature release with the features, fixes and enhancements present in v2.6.2 including the following fix:
+
+- Added missing dependency on googleapis-common-protos when using protobufs. (#1881, @tenzer)
+
+confluent-kafka-python v2.7.0 is based on librdkafka v2.6.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 ## v2.6.2
+
+> [!WARNING] IMPORTANT NOTICE
+Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
+We apologize for the inconvenience and appreciate the feedback from the community.
 
 v2.6.2 is a feature release with the following features, fixes and enhancements:
 
