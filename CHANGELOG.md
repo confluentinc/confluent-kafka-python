@@ -6,7 +6,7 @@ v2.6.2 is a feature release with the following features, fixes and enhancements:
 
 Note: This release modifies the dependencies of the Schema Registry client. 
 If you are using the Schema Registry client, please ensure that you install the
-optional dependencies using the following syntax:
+extra dependencies using the following syntax:
 
 ```
 pip install confluent-kafka[schemaregistry]
