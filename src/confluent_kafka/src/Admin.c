@@ -3435,6 +3435,7 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
                 PyObject *kwargs, *args;
                 const rd_kafka_ConfigEntry_t *ent = c_configs[ci];
                 const rd_kafka_ConfigEntry_t **c_synonyms;
+                const char *documentation;
                 PyObject *entry, *synonyms;
                 size_t synonym_cnt;
                 const char *val;
@@ -3471,6 +3472,13 @@ Admin_c_ConfigEntries_to_py (PyObject *ConfigEntry_type,
                 }
                 PyDict_SetItemString(kwargs, "synonyms", synonyms);
                 Py_DECREF(synonyms);
+
+                cfl_PyDict_SetInt(kwargs, "type", rd_kafka_ConfigEntry_type(ent));
+
+                documentation = rd_kafka_ConfigEntry_documentation(ent);
+
+                if (documentation)
+                        cfl_PyDict_SetString(kwargs, "documentation", documentation);
 
                 args = PyTuple_New(0);
                 entry = PyObject_Call(ConfigEntry_type, args, kwargs);

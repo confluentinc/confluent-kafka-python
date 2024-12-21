@@ -22,7 +22,7 @@ from confluent_kafka import (KafkaException, ConsumerGroupTopicPartitions,
                              TopicCollection, IsolationLevel,
                              ConsumerGroupType, ElectionType)
 from confluent_kafka.admin import (AdminClient, NewTopic, NewPartitions, ConfigResource,
-                                   ConfigEntry, ConfigSource, AclBinding,
+                                   ConfigEntry, ConfigSource, ConfigType, AclBinding,
                                    AclBindingFilter, ResourceType, ResourcePatternType,
                                    AclOperation, AclPermissionType, AlterConfigOpType,
                                    ScramMechanism, ScramCredentialInfo,
@@ -103,12 +103,13 @@ def example_create_partitions(a, topics):
 
 
 def print_config(config, depth):
-    print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s]' %
+    print('%40s = %-50s  [%s,is:read-only=%r,default=%r,sensitive=%r,synonym=%r,synonyms=%s,type=%s, documentation=%s]' %
           ((' ' * depth) + config.name, config.value, ConfigSource(config.source),
            config.is_read_only, config.is_default,
            config.is_sensitive, config.is_synonym,
            ["%s:%s" % (x.name, ConfigSource(x.source))
-            for x in iter(config.synonyms.values())]))
+            for x in iter(config.synonyms.values())],
+           ConfigType(config.type), config.documentation))
 
 
 def example_describe_configs(a, args):

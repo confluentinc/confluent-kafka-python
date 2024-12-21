@@ -516,6 +516,21 @@ static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
                                 RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG);
 }
 
+static void AdminTypes_AddObjectsConfigType(PyObject *m) {
+    /* rd_kafka_ConfigType_t */
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_UNKNOWN", RD_KAFKA_CONFIG_UNKNOWN);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_BOOLEAN", RD_KAFKA_CONFIG_BOOLEAN);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_STRING", RD_KAFKA_CONFIG_STRING);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_INT", RD_KAFKA_CONFIG_INT);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_SHORT", RD_KAFKA_CONFIG_SHORT);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_LONG", RD_KAFKA_CONFIG_LONG);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_DOUBLE", RD_KAFKA_CONFIG_DOUBLE);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_LIST", RD_KAFKA_CONFIG_LIST);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_CLASS", RD_KAFKA_CONFIG_CLASS);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_PASSWORD", RD_KAFKA_CONFIG_PASSWORD);
+    PyModule_AddIntConstant(m, "CONFIG_TYPE_CNT", RD_KAFKA_CONFIG__CNT);
+}
+
 
 static void AdminTypes_AddObjectsResourceType (PyObject *m) {
         /* rd_kafka_ResourceType_t */
@@ -622,6 +637,7 @@ void AdminTypes_AddObjects (PyObject *m) {
         PyModule_AddObject(m, "NewPartitions", (PyObject *)&NewPartitionsType);
 
         AdminTypes_AddObjectsConfigSource(m);
+        AdminTypes_AddObjectsConfigType(m);
         AdminTypes_AddObjectsResourceType(m);
         AdminTypes_AddObjectsResourcePatternType(m);
         AdminTypes_AddObjectsAclOperation(m);
