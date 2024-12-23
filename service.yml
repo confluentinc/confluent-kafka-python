@@ -6,6 +6,8 @@ git:
 github:
   enable: true
   repo_name: confluentinc/confluent-kafka-python
+sonarqube:
+  enable: true
 semaphore:
   enable: true
   pipeline_enable: false
