@@ -193,6 +193,8 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
+            - tail coverage.xml
+            - artifact push workflow coverage.xml
         - name: Build and Tests with 'consumer' group protocol
           commands:
             - sem-version python 3.9
@@ -285,3 +287,16 @@ blocks:
             - cd ..
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
+
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu20-04-amd64-1
+    jobs:
+      - name: SonarQube
+        commands:
+          - checkout
+          - artifact pull workflow coverage.xml
+          - tail coverage.xml
+          - emit-sonarqube-data --run_only_sonar_scan
