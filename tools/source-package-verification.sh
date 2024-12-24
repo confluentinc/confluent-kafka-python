@@ -23,7 +23,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         pip install -r requirements/requirements-docs.txt
         make docs
     fi
-    python -m pytest --timeout 1200 --ignore=dest --cov --cov-append --cov-report=xml
+    python -m pytest --timeout 1200 --ignore=dest --cov --cov-append --cov-report xml --cov-report term-missing
 else
     python -m pytest --timeout 1200 --ignore=dest --ignore=tests/integration
 fi
