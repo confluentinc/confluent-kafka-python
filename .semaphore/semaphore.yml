@@ -14,6 +14,22 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
+  - name: Test
+    dependencies: []
+    run:
+      # don't run the tests on non-functional changes...
+      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
+    task:
+      jobs:
+        - name: Test
+          commands:
+            - sem-version python 3.9
+            - pip install tox
+            - tox
+            - mkdir test-output
+            - cp test-report.xml test-output
+            - test-results publish test-output
+            - artifact push workflow coverage.xml
   - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
       when: "tag =~ '.*'"
@@ -193,7 +209,6 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
-            - artifact push workflow coverage.xml
         - name: Build and Tests with 'consumer' group protocol
           commands:
             - sem-version python 3.9
