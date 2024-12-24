@@ -6,3 +6,4 @@ pytest
 pytest-timeout
 requests-mock
 respx
+pytest_cov
