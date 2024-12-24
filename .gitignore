@@ -32,3 +32,4 @@ venv_examples
 *Zone.Identifier
 .coverage
 **/coverage.xml
+**/test-report.xml

@@ -18,14 +18,14 @@ blocks:
     dependencies: []
     run:
       # don't run the tests on non-functional changes...
-      when: "change_in('/', {exclude: ['/.deployed-versions/', '.github/']})"
+      when: "change_in('/', {exclude: ['.github/']})"
     task:
       jobs:
         - name: Test
           commands:
             - sem-version python 3.9
             - pip install tox
-            - tox
+            - tox -e cover
             - mkdir test-output
             - cp test-report.xml test-output
             - test-results publish test-output
