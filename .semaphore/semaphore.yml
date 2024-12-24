@@ -299,5 +299,5 @@ after_pipeline:
           - checkout
           - sem-version java 11
           - artifact pull workflow coverage.xml
-          - tail coverage.xml
+          - tail -n 100 coverage.xml
           - emit-sonarqube-data --run_only_sonar_scan
