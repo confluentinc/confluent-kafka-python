@@ -193,7 +193,6 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
-            - tail coverage.xml
             - artifact push workflow coverage.xml
         - name: Build and Tests with 'consumer' group protocol
           commands:
@@ -299,5 +298,5 @@ after_pipeline:
           - checkout
           - sem-version java 11
           - artifact pull workflow coverage.xml
-          - tail -n 100 coverage.xml
+          - tail -n 200 coverage.xml
           - emit-sonarqube-data --run_only_sonar_scan
