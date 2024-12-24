@@ -30,3 +30,5 @@ tmp-KafkaCluster
 venv_test
 venv_examples
 *Zone.Identifier
+.coverage
+**/coverage.xml
