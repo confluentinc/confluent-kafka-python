@@ -31,7 +31,8 @@ import re
 
 import confluent_kafka
 
-from tests.common import TestConsumer, TestAvroConsumer
+from tests.common import TestConsumer
+from tests.common.schema_registry import TestAvroConsumer
 
 try:
     # Memory tracker

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
-version = "2.6.0.post1.dev1"
+version = "2.7.0"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -31,6 +31,7 @@ include-package-data = false
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements/requirements.txt"]}
 optional-dependencies.schemaregistry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.protobuf = { file = ["requirements/requirements-protobuf.txt", "requirements/requirements-schemaregistry.txt"] }
@@ -39,18 +40,21 @@ optional-dependencies.dev = { file = [
     "requirements/requirements-examples.txt",
     "requirements/requirements-tests.txt",
     "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
     "requirements/requirements-protobuf.txt"] }
 optional-dependencies.docs = { file = [
     "requirements/requirements-docs.txt",
     "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
     "requirements/requirements-protobuf.txt"] }
 optional-dependencies.tests = { file = [
     "requirements/requirements-tests.txt",
     "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
     "requirements/requirements-protobuf.txt"] }
@@ -62,6 +66,7 @@ optional-dependencies.all = { file = [
     "requirements/requirements-examples.txt",
     "requirements/requirements-tests.txt",
     "requirements/requirements-schemaregistry.txt",
+    "requirements/requirements-rules.txt",
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
     "requirements/requirements-protobuf.txt"] }

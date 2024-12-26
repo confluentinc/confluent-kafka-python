@@ -17,16 +17,10 @@
 #
 
 import os
-from confluent_kafka import Consumer, DeserializingConsumer
-from confluent_kafka.avro import AvroConsumer
+from confluent_kafka import Consumer
 
 _GROUP_PROTOCOL_ENV = 'TEST_CONSUMER_GROUP_PROTOCOL'
 _TRIVUP_CLUSTER_TYPE_ENV = 'TEST_TRIVUP_CLUSTER_TYPE'
-
-
-def _update_conf_group_protocol(conf=None):
-    if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
-        conf['group.protocol'] = 'consumer'
 
 
 def _trivup_cluster_type_kraft():
@@ -42,20 +36,13 @@ class TestUtils:
     def use_group_protocol_consumer():
         return _GROUP_PROTOCOL_ENV in os.environ and os.environ[_GROUP_PROTOCOL_ENV] == 'consumer'
 
+    @staticmethod
+    def update_conf_group_protocol(conf=None):
+        if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
+            conf['group.protocol'] = 'consumer'
+
 
 class TestConsumer(Consumer):
     def __init__(self, conf=None, **kwargs):
-        _update_conf_group_protocol(conf)
+        TestUtils.update_conf_group_protocol(conf)
         super(TestConsumer, self).__init__(conf, **kwargs)
-
-
-class TestDeserializingConsumer(DeserializingConsumer):
-    def __init__(self, conf=None, **kwargs):
-        _update_conf_group_protocol(conf)
-        super(TestDeserializingConsumer, self).__init__(conf, **kwargs)
-
-
-class TestAvroConsumer(AvroConsumer):
-    def __init__(self, conf=None, **kwargs):
-        _update_conf_group_protocol(conf)
-        super(TestAvroConsumer, self).__init__(conf, **kwargs)
