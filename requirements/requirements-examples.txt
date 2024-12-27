@@ -6,8 +6,7 @@ six
 
 attrs
 cachetools
-# Temporary constraint due to https://github.com/lundberg/respx/issues/277
-httpx<0.28.0
+httpx
 
 fastavro < 1.8.0; python_version == "3.7"
 fastavro < 2; python_version > "3.7"
