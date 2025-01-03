@@ -632,7 +632,7 @@ class DekRegistryClient(object):
         if dek is not None:
             return dek
 
-        query = {'deleted': deleted}
+        query = {'algorithm': algorithm, 'deleted': deleted}
         response = self._rest_client.get('/dek-registry/v1/keks/{}/deks/{}/versions/{}'
                                          .format(urllib.parse.quote(kek_name),
                                                  urllib.parse.quote(subject, safe=''),
