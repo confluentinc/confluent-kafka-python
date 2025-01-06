@@ -6,6 +6,12 @@ git:
 github:
   enable: true
   repo_name: confluentinc/confluent-kafka-python
+sonarqube:
+  enable: true
+  coverage_exclusions:
+    - "**/*.pb.*"
+    - "**/mk-include/**/*"
+    - "examples/**"
 semaphore:
   enable: true
   pipeline_enable: false
