@@ -757,6 +757,81 @@ def test_avro_cel_field_transform_complex_with_none():
     assert obj2 == newobj
 
 
+def test_avro_cel_field_transform_complex_nested():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        'type': 'record',
+        'name': 'UnionTest',
+        'namespace': 'test',
+        'fields': [
+            {
+                'name': 'emails',
+                'type': [
+                    'null',
+                    {
+                        'type': 'array',
+                        'items': {
+                            'type': 'record',
+                            'name': 'Email',
+                            'fields': [
+                                {
+                                    'name': 'email',
+                                    'type': [
+                                        'null',
+                                        'string'
+                                    ],
+                                    'doc': 'Email address',
+                                    'confluent:tags': [
+                                        'PII'
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                'doc': 'Communication Email',
+            }
+        ]
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "typeName == 'STRING' ; value + '-suffix'",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'emails': [ {'email': 'john@acme.com'} ]
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    obj2 = {
+        'emails': [ {'email': 'john@acme.com-suffix'} ]
+    }
+    deser = AvroDeserializer(client)
+    newobj = deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
 def test_avro_cel_field_condition():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
