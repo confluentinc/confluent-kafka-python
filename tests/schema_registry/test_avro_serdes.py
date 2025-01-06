@@ -818,14 +818,14 @@ def test_avro_cel_field_transform_complex_nested():
     ))
 
     obj = {
-        'emails': [ {'email': 'john@acme.com'} ]
+        'emails': [{'email': 'john@acme.com'}]
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
     obj2 = {
-        'emails': [ {'email': 'john@acme.com-suffix'} ]
+        'emails': [{'email': 'john@acme.com-suffix'}]
     }
     deser = AvroDeserializer(client)
     newobj = deser(obj_bytes, ser_ctx)
