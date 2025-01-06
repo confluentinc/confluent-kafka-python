@@ -752,7 +752,11 @@ def _get_inline_tags_recursively(
         return
     else:
         schema_type = schema.get("type")
-        if schema_type == 'record':
+        if schema_type == 'array':
+            _get_inline_tags_recursively(ns, name, schema.get("items"), tags)
+        elif schema_type == 'map':
+            _get_inline_tags_recursively(ns, name, schema.get("values"), tags)
+        elif schema_type == 'record':
             record_ns = schema.get("namespace")
             record_name = schema.get("name")
             if record_ns is None:
