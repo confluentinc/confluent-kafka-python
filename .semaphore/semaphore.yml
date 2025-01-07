@@ -24,6 +24,8 @@ blocks:
         - name: Test
           commands:
             - sem-version python 3.9
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
             - pip install tox
             - tox -e cover
             - mkdir test-output
