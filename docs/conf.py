@@ -27,7 +27,7 @@ copyright = u'2016-2024, Confluent Inc.'
 # built documents.
 #
 # The short X.Y version.
-version = '2.8.0rc1'
+version = '2.8.0'
 # The full version, including alpha/beta/rc tags.
 release = version
 ######################################################################
