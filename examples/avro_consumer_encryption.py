@@ -98,10 +98,15 @@ def main(args):
 
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
+    rule_conf = None
+    # KMS credentials can be passed as follows
+    # rule_conf = {'secret.access.key': 'xxx', 'access.key.id': 'yyy'}
+    # Alternatively, the KMS credentials can be set via environment variables
 
     avro_deserializer = AvroDeserializer(schema_registry_client,
                                          schema_str,
-                                         dict_to_user)
+                                         dict_to_user,
+                                         rule_conf=rule_conf)
 
     consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
                      'group.id': args.group,
