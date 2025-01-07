@@ -4,14 +4,12 @@
 
 v2.8.0 is a feature release with the features, fixes and enhancements:
 
+* Ensure algorithm query param is passed for CSFLE (#1889)
+* DGS-19492 Handle records nested in arrays/maps when searching for tags (#1890)
+
 confluent-kafka-python v2.8.0 is based on librdkafka v2.8.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
-### Fixes
-
-* Ensure algorithm query param is passed for CSFLE (#1889)
-* DGS-19492 Handle records nested in arrays/maps when searching for tags (#1890)
 
 
 ## v2.7.0
