@@ -27,7 +27,7 @@ blocks:
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - pip install tox
-            - tox -e cover
+            - tox
             - mkdir test-output
             - cp test-report.xml test-output
             - test-results publish test-output
