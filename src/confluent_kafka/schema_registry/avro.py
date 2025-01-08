@@ -221,10 +221,10 @@ class AvroSerializer(BaseSerializer):
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        to_dict: Callable[[object, SerializationContext], dict] = None,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        to_dict: Callable[[object, SerializationContext], dict] | None = None,
+        conf: dict | None = None,
+        rule_conf: dict | None = None,
+        rule_registry: RuleRegistry | None = None
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -306,7 +306,7 @@ class AvroSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, obj: object, ctx: SerializationContext = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: SerializationContext | None = None) -> Optional[bytes]:
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -455,11 +455,11 @@ class AvroDeserializer(BaseDeserializer):
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        from_dict: Callable[[dict, SerializationContext], object] = None,
+        from_dict: Callable[[dict, SerializationContext], object] | None = None,
         return_record_name: bool = False,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: dict | None = None,
+        rule_conf: dict | None = None,
+        rule_registry: RuleRegistry | None = None
     ):
         super().__init__()
         schema = None
@@ -515,7 +515,7 @@ class AvroDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, data: bytes, ctx: SerializationContext = None) -> Union[dict, object, None]:
+    def __call__(self, data: bytes, ctx: SerializationContext | None = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.
