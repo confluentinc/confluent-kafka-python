@@ -69,12 +69,11 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
                     v = self.config.get(key)
                     if v is not None:
                         if v != value:
-                            raise RuleError(f"rule config key {key} already set")
+                            raise RuleError(f"rule config key already set: {key}")
                     else:
                         self.config[key] = value
             else:
                 self.config = rule_conf
-
 
     def type(self) -> str:
         return "ENCRYPT"

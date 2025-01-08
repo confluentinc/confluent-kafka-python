@@ -19,6 +19,9 @@ import pytest
 from httpx import BasicAuth
 
 from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
+    FieldEncryptionExecutor
+from confluent_kafka.schema_registry.serde import RuleError
 
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
@@ -119,3 +122,25 @@ def test_config_unknown_prop():
 
     with pytest.raises(ValueError, match=r"Unrecognized properties: (.*)"):
         SchemaRegistryClient(conf)
+
+
+def test_config_encrypt_executor():
+    executor = FieldEncryptionExecutor()
+    client_conf = {'url': 'mock://'}
+    rule_conf = {'key': 'value'}
+    executor.configure(client_conf, rule_conf)
+    # configure with same args is fine
+    executor.configure(client_conf, rule_conf)
+    rule_conf2 = {'key2': 'value2'}
+    # configure with additional rule_conf keys is fine
+    executor.configure(client_conf, rule_conf2)
+
+    client_conf2 = {'url': 'mock://',
+                    'ssl.key.location': '/ssl/keys/client',
+                    'ssl.certificate.location': '/ssl/certs/client'}
+    with pytest.raises(RuleError, match="executor already configured"):
+        executor.configure(client_conf2, rule_conf)
+
+    rule_conf3 = {'key': 'value3'}
+    with pytest.raises(RuleError, match="rule config key already set: key"):
+        executor.configure(client_conf, rule_conf3)
