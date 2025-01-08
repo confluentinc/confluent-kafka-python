@@ -20,14 +20,17 @@ blocks:
       # don't run the tests on non-functional changes...
       when: "change_in('/', {exclude: ['.github/']})"
     task:
+      env_vars:
+        - name: RUN_COVERAGE
+          value: "true"
       jobs:
         - name: Test
           commands:
             - sem-version python 3.9
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
-            - pip install tox
-            - tox
+            - chmod u+r+x tools/source-package-verification.sh
+            - tools/source-package-verification.sh
             - mkdir test-output
             - cp test-report.xml test-output
             - test-results publish test-output
