@@ -30,6 +30,7 @@ include-package-data = false
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements/requirements.txt"]}
 optional-dependencies.schemaregistry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.schema_registry = { file = ["requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }
