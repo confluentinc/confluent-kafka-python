@@ -4,7 +4,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 # only use poetry for dependency management
-package-mode = false
+#package-mode = false
+packages = [{include = "confluent_kafka", from = "src"}]
 
 [tool.poetry.dependencies]
 attrs = {version = ">=24", optional = true}
