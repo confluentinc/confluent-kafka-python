@@ -5,7 +5,9 @@
 #
 set -e
 
-pip install -r requirements/requirements-tests-install.txt
+pip install poetry
+poetry install --all-extras --no-root
+pip install tests/trivup/trivup-0.12.7.tar.gz
 pip install -U build
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
