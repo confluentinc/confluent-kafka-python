@@ -3,8 +3,6 @@ requires = [ "poetry-core>=2.0.0,<3.0.0", "wheel"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-# only use poetry for dependency management
-#package-mode = false
 packages = [{include = "confluent_kafka", from = "src"}]
 
 [tool.poetry.dependencies]

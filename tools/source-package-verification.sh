@@ -5,6 +5,9 @@
 #
 set -e
 
+pip install poetry
+poetry install --all-extras --no-root
+pip install tests/trivup/trivup-0.12.7.tar.gz
 pip install -U build
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
@@ -14,9 +17,7 @@ export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
 export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
-pip install poetry
-poetry install --all-extras 
-pip install tests/trivup/trivup-0.12.7.tar.gz
+python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
