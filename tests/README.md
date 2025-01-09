@@ -122,11 +122,3 @@ Tox can be used to test against various supported Python versions (py27, py36, p
 3. From top-level directory run:
 
     ```$ ./tests/run.sh tox```
-
-
-### Running with test coverage
-From top-level directory:
-```
-pip install tox
-./tests/run.sh tox -e cover
-```
