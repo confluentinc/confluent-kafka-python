@@ -16,6 +16,7 @@ export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
 export DYLD_LIBRARY_PATH="$DYLD_LIBRARY_PATH:$PWD/$lib_dir"
 
 if [[ $RUN_COVERAGE == true ]]; then
+  echo "Running tests with coverage"
   # Install source with editable flag (-e) so that SonarQube can parse the coverage report.
       # Otherwise, the report shows source files located in site-packages, which SonarQube cannot find.
       # Example: ".tox/cover/lib/python3.11/site-packages/confluent_kafka/__init__.py"

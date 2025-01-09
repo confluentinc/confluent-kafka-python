@@ -21,6 +21,10 @@ blocks:
       when: "change_in('/', {exclude: ['.github/']})"
     task:
       env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
         - name: RUN_COVERAGE
           value: "true"
       jobs:
