@@ -5,8 +5,9 @@
 #
 set -e
 
-pip install -r requirements/requirements-tests-install.txt
-pip install -U build
+pip install poetry
+poetry install --all-extras 
+poetry build
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
