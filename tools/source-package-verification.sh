@@ -7,7 +7,8 @@ set -e
 
 pip install poetry
 poetry install --all-extras 
-poetry build
+pip install tests/trivup/trivup-0.12.7.tar.gz
+pip install -U build
 
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
