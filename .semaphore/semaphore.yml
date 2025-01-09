@@ -14,22 +14,6 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  # - name: Test
-  #   dependencies: []
-  #   run:
-  #     # don't run the tests on non-functional changes...
-  #     when: "change_in('/', {exclude: ['.github/']})"
-  #   task:
-  #     jobs:
-  #       - name: Test
-  #         commands:
-  #           - sem-version python 3.9
-  #           - pip install tox
-  #           - tox -e cover
-  #           - mkdir test-output
-  #           - cp test-report.xml test-output
-  #           - test-results publish test-output
-  #           - artifact push workflow coverage.xml
   - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
       when: "tag =~ '.*'"
@@ -192,7 +176,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-amd64-2
+          type: s1-prod-ubuntu20-04-amd64-3
       env_vars:
         - name: OS_NAME
           value: linux
@@ -217,6 +201,18 @@ blocks:
             - chmod u+r+x tools/source-package-verification.sh
             - export TEST_CONSUMER_GROUP_PROTOCOL=consumer
             - tools/source-package-verification.sh
+        - name: Build, Test, and Report coverage
+          commands:
+            - sem-version python 3.9
+            # use a virtualenv
+            - python3 -m venv _venv && source _venv/bin/activate
+            - chmod u+r+x tools/source-package-verification.sh
+            - export RUN_COVERAGE=true
+            - tools/source-package-verification.sh
+            - mkdir test-output
+            - cp test-report.xml test-output
+            - test-results publish test-output
+            - artifact push workflow coverage.xml
   - name: "Source package verification with Python 3 (Linux arm64)"
     dependencies: []
     task:
@@ -302,15 +298,15 @@ blocks:
             - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
 
-# after_pipeline:
-#   task:
-#     agent:
-#       machine:
-#         type: s1-prod-ubuntu20-04-amd64-1
-#     jobs:
-#       - name: SonarQube
-#         commands:
-#           - checkout
-#           - sem-version java 11
-#           - artifact pull workflow coverage.xml
-#           - emit-sonarqube-data --run_only_sonar_scan
+after_pipeline:
+  task:
+    agent:
+      machine:
+        type: s1-prod-ubuntu20-04-amd64-1
+    jobs:
+      - name: SonarQube
+        commands:
+          - checkout
+          - sem-version java 11
+          - artifact pull workflow coverage.xml
+          - emit-sonarqube-data --run_only_sonar_scan
