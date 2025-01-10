@@ -5,9 +5,6 @@
 #
 set -e
 
-pip install -r requirements/requirements-tests-install.txt
-pip install -U build
-
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
 export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
@@ -27,7 +24,9 @@ if [[ $RUN_COVERAGE == true ]]; then
   exit 0
 fi
 
-python3 -m pip install .
+python3 -m pip install -U build poetry
+python3 -m poetry install --all-extras
+python3 -m pip install tests/trivup/trivup-0.12.7.tar.gz
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
