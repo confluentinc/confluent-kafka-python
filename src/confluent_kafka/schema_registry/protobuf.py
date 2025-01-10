@@ -1041,7 +1041,9 @@ def get_type(fd: FieldDescriptor) -> FieldType:
                    FieldDescriptor.TYPE_UINT64, FieldDescriptor.TYPE_FIXED64,
                    FieldDescriptor.TYPE_SFIXED64):
         return FieldType.LONG
-    if fd.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
+    if fd.type == FieldDescriptor.TYPE_FLOAT:
+        return FieldType.FLOAT
+    if fd.type == FieldDescriptor.TYPE_DOUBLE:
         return FieldType.DOUBLE
     if fd.type == FieldDescriptor.TYPE_BOOL:
         return FieldType.BOOLEAN
