@@ -1,6 +1,6 @@
 # core test requirements
-urllib3<2.0.0;python_version<="3.7"
-urllib3 >= 2.0.0,<3; python_version > "3.7"
+urllib3<2; python_version<="3.7"
+urllib3<3; python_version>"3.7"
 flake8
 pytest
 pytest-timeout
