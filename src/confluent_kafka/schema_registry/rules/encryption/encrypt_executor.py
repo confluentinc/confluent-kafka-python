@@ -56,8 +56,24 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
         self.clock = clock
 
     def configure(self, client_conf: dict, rule_conf: dict):
-        self.client = DekRegistryClient.new_client(client_conf)
-        self.config = rule_conf
+        if client_conf:
+            if self.client:
+                if self.client.config() != client_conf:
+                    raise RuleError("executor already configured")
+            else:
+                self.client = DekRegistryClient.new_client(client_conf)
+
+        if rule_conf:
+            if self.config:
+                for key, value in rule_conf.items():
+                    v = self.config.get(key)
+                    if v is not None:
+                        if v != value:
+                            raise RuleError(f"rule config key already set: {key}")
+                    else:
+                        self.config[key] = value
+            else:
+                self.config = rule_conf
 
     def type(self) -> str:
         return "ENCRYPT"
