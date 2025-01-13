@@ -454,6 +454,7 @@ class DekRegistryClient(object):
     """  # noqa: E501
 
     def __init__(self, conf: dict):
+        self._conf = conf
         self._rest_client = _RestClient(conf)
         self._kek_cache = _KekCache()
         self._dek_cache = _DekCache()
@@ -464,6 +465,9 @@ class DekRegistryClient(object):
     def __exit__(self, *args):
         if self._rest_client is not None:
             self._rest_client.session.close()
+
+    def config(self):
+        return self._conf
 
     def register_kek(
         self, name: str, kms_type: str, kms_key_id: str,
