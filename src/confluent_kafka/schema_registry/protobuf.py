@@ -187,7 +187,7 @@ def _resolve_named_schema(
     schema: Schema,
     schema_registry_client: SchemaRegistryClient,
     pool: DescriptorPool,
-    visited: Set[str] = None
+    visited: Optional[Set[str]] = None
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
@@ -373,9 +373,9 @@ class ProtobufSerializer(BaseSerializer):
         self,
         msg_type: Message,
         schema_registry_client: SchemaRegistryClient,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
 
@@ -528,7 +528,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: SerializationContext = None) -> Optional[bytes]:
+    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -675,10 +675,10 @@ class ProtobufDeserializer(BaseDeserializer):
     def __init__(
         self,
         message_type: Message,
-        conf: dict = None,
-        schema_registry_client: SchemaRegistryClient = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: Optional[dict] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
 
@@ -812,7 +812,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         return msg_index
 
-    def __call__(self, data: bytes, ctx: SerializationContext = None) -> Optional[Message]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[Message]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
