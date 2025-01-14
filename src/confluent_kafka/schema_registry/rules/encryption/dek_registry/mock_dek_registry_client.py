@@ -17,7 +17,7 @@
 #
 
 import time
-from typing import Dict
+from typing import Dict, Optional
 
 from confluent_kafka.schema_registry import SchemaRegistryError
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import \
@@ -39,7 +39,7 @@ class MockDekRegistryClient(DekRegistryClient):
 
     def register_kek(
         self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None
+        shared: bool = False, kms_props: Optional[Dict[str, str]] = None, doc: Optional[str] = None
     ) -> Kek:
         cache_key = KekId(name=name, deleted=False)
         kek = self._kek_cache.get_kek(cache_key)

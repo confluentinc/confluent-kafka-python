@@ -78,7 +78,7 @@ def _retrieve_via_httpx(uri: str):
 
 def _resolve_named_schema(
     schema: Schema, schema_registry_client: SchemaRegistryClient,
-    ref_registry: Registry = None
+    ref_registry: Optional[Registry] = None
 ) -> Registry:
     """
     Resolves named schemas referenced by the provided schema recursively.
@@ -222,10 +222,10 @@ class JSONSerializer(BaseSerializer):
         self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: SchemaRegistryClient,
-        to_dict: Callable[[object, SerializationContext], dict] = None,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -296,7 +296,7 @@ class JSONSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, obj: object, ctx: SerializationContext = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -452,11 +452,11 @@ class JSONDeserializer(BaseDeserializer):
     def __init__(
         self,
         schema_str: Union[str, Schema, None],
-        from_dict: Callable[[dict, SerializationContext], object] = None,
-        schema_registry_client: SchemaRegistryClient = None,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -520,7 +520,7 @@ class JSONDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, data: bytes, ctx: SerializationContext = None) -> Union[dict, object, None]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -703,7 +703,7 @@ def _transform_field(
 
 def _validate_subschemas(
     subschemas: List[JsonSchema],
-    message: str
+    message: JsonMessage
 ) -> Optional[JsonSchema]:
     for subschema in subschemas:
         try:

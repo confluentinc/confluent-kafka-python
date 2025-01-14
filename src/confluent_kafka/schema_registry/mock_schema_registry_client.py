@@ -171,8 +171,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         return registered_schema
 
     def get_schema(
-        self, schema_id: int, subject_name: str = None,
-        fmt: str = None
+        self, schema_id: int, subject_name: Optional[str] = None,
+        fmt: Optional[str] = None
     ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
         if schema is not None:
@@ -197,7 +197,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
     def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         return self._store.remove_by_subject(subject_name)
 
-    def get_latest_version(self, subject_name: str, fmt: str = None) -> 'RegisteredSchema':
+    def get_latest_version(self, subject_name: str, fmt: Optional[str] = None) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_version(subject_name)
         if registered_schema is not None:
             return registered_schema
@@ -206,7 +206,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_latest_with_metadata(
         self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: str = None
+        deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_latest_with_metadata(subject_name, metadata)
         if registered_schema is not None:
@@ -216,7 +216,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_version(
         self, subject_name: str, version: int,
-        deleted: bool = False, fmt: str = None
+        deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
