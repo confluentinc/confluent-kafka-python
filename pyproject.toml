@@ -24,6 +24,9 @@ email = "support@confluent.io"
 [project.urls]
 Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 
+[tool.mypy]
+ignore_missing_imports = true
+
 [tool.setuptools]
 include-package-data = false
 

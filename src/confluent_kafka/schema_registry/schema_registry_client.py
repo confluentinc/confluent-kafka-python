@@ -175,16 +175,16 @@ class _BaseRestClient(object):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-    def get(self, url: str, query: dict = None) -> Any:
+    def get(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
-    def post(self, url: str, body: dict, **kwargs) -> Any:
+    def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
     def delete(self, url: str) -> Any:
         raise NotImplementedError()
 
-    def put(self, url: str, body: dict = None) -> Any:
+    def put(self, url: str, body: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
 
@@ -209,21 +209,21 @@ class _RestClient(_BaseRestClient):
             timeout=self.timeout
         )
 
-    def get(self, url: str, query: dict = None) -> Any:
+    def get(self, url: str, query: Optional[dict] = None) -> Any:
         return self.send_request(url, method='GET', query=query)
 
-    def post(self, url: str, body: dict, **kwargs) -> Any:
+    def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         return self.send_request(url, method='POST', body=body)
 
     def delete(self, url: str) -> Any:
         return self.send_request(url, method='DELETE')
 
-    def put(self, url: str, body: dict = None) -> Any:
+    def put(self, url: str, body: Optional[dict] = None) -> Any:
         return self.send_request(url, method='PUT', body=body)
 
     def send_request(
-        self, url: str, method: str, body: dict = None,
-        query: dict = None
+        self, url: str, method: str, body: Optional[dict] = None,
+        query: Optional[dict] = None
     ) -> Any:
         """
         Sends HTTP request to the SchemaRegistry, trying each base URL in turn.
@@ -284,8 +284,8 @@ class _RestClient(_BaseRestClient):
                                       + str(response.content))
 
     def send_http_request(
-        self, base_url: str, url: str, method: str, headers: dict,
-        body: Optional[str] = None, query: dict = None
+        self, base_url: str, url: str, method: str, headers: Optional[dict],
+        body: Optional[str] = None, query: Optional[dict] = None
     ) -> Response:
         """
         Sends HTTP request to the SchemaRegistry.
@@ -312,6 +312,7 @@ class _RestClient(_BaseRestClient):
         Returns:
             Response: Schema Registry response content.
         """
+        response = None
         for i in range(self.max_retries + 1):
             response = self.session.request(
                 method, url="/".join([base_url, url]),
@@ -324,6 +325,7 @@ class _RestClient(_BaseRestClient):
                 return response
 
             time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+        return response
 
 
 def is_success(status_code: int) -> bool:
@@ -691,7 +693,7 @@ class SchemaRegistryClient(object):
         return registered_schema
 
     def get_schema(
-        self, schema_id: int, subject_name: str = None, fmt: str = None
+        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
     ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
@@ -817,7 +819,7 @@ class SchemaRegistryClient(object):
         return versions
 
     def get_latest_version(
-        self, subject_name: str, fmt: str = None
+        self, subject_name: str, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
         Retrieves latest registered version for subject
@@ -853,7 +855,7 @@ class SchemaRegistryClient(object):
 
     def get_latest_with_metadata(
         self, subject_name: str, metadata: Dict[str, str],
-        deleted: bool = False, fmt: str = None
+        deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
         Retrieves latest registered version for subject with the given metadata
@@ -893,7 +895,7 @@ class SchemaRegistryClient(object):
 
     def get_version(
         self, subject_name: str, version: int,
-        deleted: bool = False, fmt: str = None
+        deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
         Retrieves a specific schema registered under ``subject_name``.
@@ -981,7 +983,7 @@ class SchemaRegistryClient(object):
 
         return response
 
-    def set_compatibility(self, subject_name: Optional[str] = None, level: str = None) -> str:
+    def set_compatibility(self, subject_name: Optional[str] = None, level: Optional[str] = None) -> str:
         """
         Update global or subject level compatibility level.
 
@@ -1068,7 +1070,7 @@ class SchemaRegistryClient(object):
 
         return response['is_compatible']
 
-    def set_config(self, subject_name: Optional[str] = None, config: 'ServerConfig' = None) -> 'ServerConfig':
+    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
         """
         Update global or subject config.
 
