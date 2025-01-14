@@ -1070,7 +1070,10 @@ class SchemaRegistryClient(object):
 
         return response['is_compatible']
 
-    def set_config(self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None) -> 'ServerConfig':
+    def set_config(
+        self, subject_name: Optional[str] = None,
+        config: Optional['ServerConfig'] = None
+    ) -> 'ServerConfig':
         """
         Update global or subject config.
 
