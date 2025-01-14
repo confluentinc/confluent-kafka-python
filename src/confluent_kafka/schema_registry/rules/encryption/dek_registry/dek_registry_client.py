@@ -471,7 +471,7 @@ class DekRegistryClient(object):
 
     def register_kek(
         self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None
+        shared: bool = False, kms_props: Optional[Dict[str, str]] = None, doc: Optional[str] = None
     ) -> Kek:
         """
         Register a new Key Encryption Key (KEK) with the DEK Registry.
