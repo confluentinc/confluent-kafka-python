@@ -351,8 +351,6 @@ class _SchemaCache(object):
 
     def __init__(self):
         self.lock = Lock()
-        self.schemaid_index = {}
-        self.schema_index = {}
         self.schema_id_index = defaultdict(dict)
         self.schema_index = defaultdict(dict)
         self.rs_id_index = defaultdict(dict)
