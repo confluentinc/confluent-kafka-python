@@ -31,9 +31,17 @@ python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
+        # Run these actions and tests only in this case
         flake8 --exclude ./_venv,*_pb2.py
         pip install -r requirements/requirements-docs.txt
         make docs
+
+        python3 -m pip install --dry-run --report ./pip-install.json .[schema-registry,avro,json,protobuf]
+        if [ $(jq '.install[0].metadata.provides_extra' pip-install.json | egrep '"(schema-registry|schemaregistry|avro|json|protobuf|rules)"' | wc -l) != "6" ]; then
+            echo "Failing: package does not provide all extras necessary for backward compatibility"
+            exit 1
+        fi
+        rm -f ./pip-install.json
     fi
     python -m pytest --timeout 1200 --ignore=dest
 else
