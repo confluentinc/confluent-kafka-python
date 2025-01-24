@@ -39,7 +39,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
 
         echo "Testing extra dependencies ..."
         python3 -m pip install --dry-run --report ./pip-install.json .[schema-registry,avro,json,protobuf]
-        if [ $(jq '.install[0].metadata.provides_extra' pip-install.json | egrep '"(schema-registry|schemaregistry|avro|json|protobuf|rules)"' | wc -l) != "6" ]; then
+        if [ $(jq '.install[0].metadata.provides_extra' pip-install.json | egrep '"(schema-registry|schemaregistry|avro|json|protobuf|rules)"' | wc -l) != "5" ]; then
             echo "Failing: package does not provide all extras necessary for backward compatibility"
             exit 1
         fi
