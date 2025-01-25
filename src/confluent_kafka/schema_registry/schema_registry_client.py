@@ -1750,6 +1750,8 @@ class Schema:
 
         return schema
 
+    def __str__(self) -> str:
+        return self.schema.schema_str
 
 @_attrs_define(frozen=True, cache_hash=True)
 class RegisteredSchema:
