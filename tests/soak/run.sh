@@ -11,12 +11,20 @@ if [[ -z $librdkafka_version ]]; then
     exit 1
 fi
 
+if [[ -z $STY ]]; then
+    echo "This script should be run from inside a screen session"
+    exit 1
+fi
+
 set -u
 topic="pysoak-$TESTID-$librdkafka_version"
+logfile="${topic}.log.bz2"
+
 
 echo "Starting soak client using topic $topic"
 set +x
-time opentelemetry-instrument confluent-kafka-python/tests/soak/soakclient.py -i $TESTID -t $topic -r 80 -f  confluent-kafka-python/ccloud.config 2>&1
+time confluent-kafka-python/tests/soak/soakclient.py -t $topic -r 80 -f  confluent-kafka-python/ccloud.config 2>&1 \
+    | tee /dev/stderr | bzip2 > $logfile
 ret=$?
 echo "Python client exited with status $ret"
 exit $ret
