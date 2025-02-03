@@ -565,14 +565,13 @@ class JSONDeserializer(BaseDeserializer):
             if self._registry is not None:
                 writer_schema_raw = self._registry.get_schema(schema_id)
                 writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
+                if subject is None:
+                    subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                    if subject is not None:
+                        latest_schema = self._get_reader_schema(subject)
             else:
                 writer_schema_raw = None
                 writer_schema, writer_ref_registry = None, None
-
-            if subject is None:
-                subject = self._subject_name_func(ctx, writer_schema.get("title"))
-                if subject is not None and self._registry is not None:
-                    latest_schema = self._get_reader_schema(subject)
 
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)

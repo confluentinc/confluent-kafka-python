@@ -861,14 +861,13 @@ class ProtobufDeserializer(BaseDeserializer):
                 fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
                 writer_schema = pool.FindFileByName(fd_proto.name)
                 writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+                if subject is None:
+                    subject = self._subject_name_func(ctx, writer_desc.full_name)
+                    if subject is not None:
+                        latest_schema = self._get_reader_schema(subject, fmt='serialized')
             else:
                 writer_schema_raw = None
                 writer_schema = None
-
-            if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
-                if subject is not None and self._registry is not None:
-                    latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
