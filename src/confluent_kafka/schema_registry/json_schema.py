@@ -209,7 +209,7 @@ class JSONSerializer(BaseSerializer):
     """  # noqa: E501
     __slots__ = ['_known_subjects', '_parsed_schema', '_ref_registry',
                  '_schema', '_schema_id', '_schema_name', '_to_dict',
-                 '_parsed_schemas', '_validate']
+                 '_parsed_schemas', '_validate', '_json_encode']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
@@ -225,7 +225,8 @@ class JSONSerializer(BaseSerializer):
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
+        json_encode: Optional[Callable] = None,
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -235,8 +236,11 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
+        self._json_encode = json_encode or json.dumps
         self._registry = schema_registry_client
-        self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
+        self._rule_registry = (
+            rule_registry if rule_registry else RuleRegistry.get_global_instance()
+        )
         self._schema_id = None
         self._known_subjects = set()
         self._parsed_schemas = ParsedSchemaCache()
@@ -369,10 +373,13 @@ class JSONSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
+            fo.write(struct.pack(">bI", _MAGIC_BYTE, self._schema_id))
             # JSON dump always writes a str never bytes
             # https://docs.python.org/3/library/json.html
-            fo.write(json.dumps(value).encode('utf8'))
+            encoded_value = self._json_encode(value)
+            if isinstance(encoded_value, str):
+                encoded_value = encoded_value.encode("utf8")
+            fo.write(encoded_value)
 
             return fo.getvalue()
 
@@ -442,7 +449,7 @@ class JSONDeserializer(BaseDeserializer):
     """  # noqa: E501
 
     __slots__ = ['_reader_schema', '_ref_registry', '_from_dict', '_schema',
-                 '_parsed_schemas', '_validate']
+                 '_parsed_schemas', '_validate', '_json_decode']
 
     _default_conf = {'use.latest.version': False,
                      'use.latest.with.metadata': None,
@@ -456,7 +463,8 @@ class JSONDeserializer(BaseDeserializer):
         schema_registry_client: Optional[SchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
+        json_decode: Optional[Callable] = None,
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -479,6 +487,7 @@ class JSONDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._json_decode = json_decode or json.loads
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -560,7 +569,7 @@ class JSONDeserializer(BaseDeserializer):
                                          "Schema Registry serializer".format(magic))
 
             # JSON documents are self-describing; no need to query schema
-            obj_dict = json.loads(payload.read())
+            obj_dict = self._json_decode(payload.read())
 
             if self._registry is not None:
                 writer_schema_raw = self._registry.get_schema(schema_id)
