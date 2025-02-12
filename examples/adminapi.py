@@ -535,6 +535,7 @@ def example_describe_consumer_groups(a, args):
             print("Group Id: {}".format(g.group_id))
             print("  Is Simple          : {}".format(g.is_simple_consumer_group))
             print("  State              : {}".format(g.state))
+            print("  Type               : {}".format(g.type))
             print("  Partition Assignor : {}".format(g.partition_assignor))
             print(
                 f"  Coordinator        : {g.coordinator}")
@@ -547,6 +548,10 @@ def example_describe_consumer_groups(a, args):
                 if member.assignment:
                     print("    Assignments       :")
                     for toppar in member.assignment.topic_partitions:
+                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+                if member.target_assignment:
+                    print("    Target Assignments:")
+                    for toppar in member.target_assignment.topic_partitions:
                         print("      {} [{}]".format(toppar.topic, toppar.partition))
             if (include_auth_ops):
                 print("  Authorized operations: ")
