@@ -61,6 +61,7 @@ except NameError:
 log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
+
 class _OAuthClient:
     def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str,
                  max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
@@ -249,6 +250,7 @@ class _BaseRestClient(object):
 
                 self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
                                                 self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
+
             elif conf_copy['bearer.auth.credentials.source'] == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
