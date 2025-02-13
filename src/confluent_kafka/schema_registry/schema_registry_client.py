@@ -249,7 +249,7 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.issuer.endpoint.url must be a str, not " + str(type(self.token_endpoint)))
 
                 self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
-                                                self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
+                                                 self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
 
             elif conf_copy['bearer.auth.credentials.source'] == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
