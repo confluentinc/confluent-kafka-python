@@ -246,7 +246,8 @@ class _BaseRestClient(object):
 
                 self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
                 if not isinstance(self.token_endpoint, string_type):
-                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not " + str(type(self.token_endpoint)))
+                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
+                                    + str(type(self.token_endpoint)))
 
                 self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
                                                  self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
