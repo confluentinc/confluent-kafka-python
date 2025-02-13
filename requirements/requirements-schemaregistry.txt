@@ -1,3 +1,4 @@
 attrs
 cachetools
 httpx>=0.26
+authlib
