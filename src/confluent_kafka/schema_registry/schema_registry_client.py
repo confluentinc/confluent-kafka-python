@@ -217,11 +217,11 @@ class _BaseRestClient(object):
 
             self.logical_cluster = conf_copy.pop('logical.cluster')
             if not isinstance(self.logical_cluster, str):
-                raise ValueError("logical cluster must be a str, not " + str(type(self.logical_cluster)))
+                raise TypeError("logical cluster must be a str, not " + str(type(self.logical_cluster)))
 
             self.identity_pool_id = conf_copy.pop('identity.pool.id')
             if not isinstance(self.identity_pool_id, str):
-                raise ValueError("identity pool id must be a str, not " + str(self.identity_pool_id))
+                raise TypeError("identity pool id must be a str, not " + str(type(self.identity_pool_id)))
 
             if conf_copy['bearer.auth.credentials.source'] == 'OAUTHBEARER':
                 self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source')
@@ -246,7 +246,7 @@ class _BaseRestClient(object):
 
                 self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
                 if not isinstance(self.token_endpoint, string_type):
-                    raise TypeError("bearer.issuer.endpoint.url must be a str, not " + str(type(self.token_endpoint)))
+                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not " + str(type(self.token_endpoint)))
 
                 self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
                                                  self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
