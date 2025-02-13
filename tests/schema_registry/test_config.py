@@ -144,9 +144,9 @@ def test_oauth_bearer_config_invalid():
         SchemaRegistryClient(conf)
 
     conf = {'url': TEST_URL,
-             'bearer.auth.credentials.source': "OAUTHBEARER",
-             'logical.cluster': 1,
-             'identity.pool.id': TEST_POOL}
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'logical.cluster': 1,
+            'identity.pool.id': TEST_POOL}
 
     with pytest.raises(TypeError, match=r"logical cluster must be a str, not (.*)"):
         SchemaRegistryClient(conf)
