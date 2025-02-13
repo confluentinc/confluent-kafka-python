@@ -61,7 +61,7 @@ except NameError:
 log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
-class OAuthClient:
+class _OAuthClient:
     def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str,
                  max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self.token = None
@@ -204,11 +204,15 @@ class _BaseRestClient(object):
                                 + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = retries_max_wait_ms
 
+        self.oauth_client = None
+        self.bearer_auth_credentials_source = None
         if 'bearer.auth.credentials.source' in conf_copy:
+            self.auth = None
             headers = ['logical.cluster', 'identity.pool.id']
             missing_headers = [header for header in headers if header not in conf_copy]
             if missing_headers:
-                raise ValueError(f"Missing required configuration property {missing_headers}")
+                raise ValueError("Missing required bearer configuration properties: {}"
+                                 .format(", ".join(missing_headers)))
 
             self.logical_cluster = conf_copy.pop('logical.cluster')
             if not isinstance(self.logical_cluster, str):
@@ -224,7 +228,8 @@ class _BaseRestClient(object):
                                    'bearer.auth.issuer.endpoint.url']
                 missing_properties = [prop for prop in properties_list if prop not in conf_copy]
                 if missing_properties:
-                    raise ValueError(f"Missing required configuration property {", ".join(missing_properties)}")
+                    raise ValueError("Missing required OAuth configuration properties: {}".
+                                     format(", ".join(missing_properties)))
 
                 self.client_id = conf_copy.pop('bearer.auth.client.id')
                 if not isinstance(self.client_id, string_type):
@@ -242,10 +247,14 @@ class _BaseRestClient(object):
                 if not isinstance(self.token_endpoint, string_type):
                     raise TypeError("bearer.issuer.endpoint.url must be a str, not " + str(type(self.token_endpoint)))
 
-                self.oauth_client = OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
+                self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
                                                 self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
-
-                self.auth = None
+            elif conf_copy['bearer.auth.credentials.source'] == 'STATIC_TOKEN':
+                if 'bearer.auth.token' not in conf_copy:
+                    raise ValueError("Missing bearer.auth.token")
+                self.bearer_token = conf_copy.pop('bearer.auth.token')
+                if not isinstance(self.bearer_token, string_type):
+                    raise TypeError("bearer.auth.token must be a str, not " + str(type(self.bearer_token)))
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
@@ -287,7 +296,9 @@ class _RestClient(_BaseRestClient):
         )
 
     def handle_bearer_auth(self, headers: dict):
-        token = self.oauth_client.get_access_token()
+        token = self.bearer_token
+        if self.oauth_client:
+            token = self.oauth_client.get_access_token()
         headers["Authorization"] = "Bearer {}".format(token)
         headers['Confluent-Identity-Pool-Id'] = self.identity_pool_id
         headers['target-sr-cluster'] = self.logical_cluster
