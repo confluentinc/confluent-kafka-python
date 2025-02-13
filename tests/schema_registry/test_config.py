@@ -111,12 +111,14 @@ def test_config_auth_userinfo_invalid():
                                          " form of {username}:{password}$"):
         SchemaRegistryClient(conf)
 
+
 def test_bearer_config():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER"}
 
     with pytest.raises(ValueError, match=r"Missing required bearer configuration properties: (.*)"):
         SchemaRegistryClient(conf)
+
 
 def test_oauth_bearer_config():
     conf = {'url': TEST_URL,
@@ -127,6 +129,7 @@ def test_oauth_bearer_config():
     with pytest.raises(ValueError, match=r"Missing required OAuth configuration properties: (.*)"):
         SchemaRegistryClient(conf)
 
+
 def test_static_bearer_config():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': 'STATIC_TOKEN',
@@ -135,6 +138,7 @@ def test_static_bearer_config():
 
     with pytest.raises(ValueError, match='Missing bearer.auth.token'):
         SchemaRegistryClient(conf)
+
 
 def test_config_unknown_prop():
     conf = {'url': TEST_URL,
@@ -146,6 +150,7 @@ def test_config_unknown_prop():
 
     with pytest.raises(ValueError, match=r"Unrecognized properties: (.*)"):
         SchemaRegistryClient(conf)
+
 
 def test_config_encrypt_executor():
     executor = FieldEncryptionExecutor()
