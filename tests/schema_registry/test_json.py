@@ -28,6 +28,7 @@ from confluent_kafka.schema_registry import (
     SchemaRegistryClient,
 )
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
+from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.serialization import SerializationContext
 
 
@@ -72,7 +73,8 @@ def test_custom_json_encoder():
 
     # Use orjson.dumps as the custom encoder
     serializer = JSONSerializer(
-        schema_str, mock_schema_registry_client, json_encode=orjson.dumps
+        schema_str, mock_schema_registry_client, json_encode=orjson.dumps,
+        rule_registry=RuleRegistry()
     )
 
     result = serializer(test_data, ctx)
@@ -102,7 +104,8 @@ def test_custom_json_decoder():
         decoded = orjson.loads(data)
         return {k.upper(): v for k, v in decoded.items()}
 
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder)
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
+                                    rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     result = deserializer(test_data, ctx)
 
@@ -137,8 +140,10 @@ def test_custom_encoder_decoder_chain():
         schema_str,
         mock_schema_registry_client,
         json_encode=custom_encoder,
+        rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder)
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
+                                    rule_registry=RuleRegistry())
 
     # Serialize then deserialize
     encoded = serializer(test_data, ctx)
@@ -177,8 +182,10 @@ def test_custom_encoding_with_complex_data():
         schema_str,
         mock_schema_registry_client,
         json_encode=custom_encoder,
+        rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder)
+    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
+                                    rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     encoded = serializer(test_data, ctx)
     decoded = deserializer(encoded, ctx)
