@@ -105,7 +105,8 @@ def test_proto_basic_serialization():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -130,7 +131,8 @@ def test_proto_basic_deserialization_no_client():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -289,7 +291,8 @@ def test_proto_cel_condition():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -335,7 +338,8 @@ def test_proto_cel_condition_fail():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -361,7 +365,7 @@ def test_proto_cel_field_transform():
         "CEL_FIELD",
         None,
         None,
-        "name == 'name' ; value + '-suffix'",
+        "typeName == 'STRING' ; value + '-suffix'",
         None,
         None,
         False
@@ -377,7 +381,8 @@ def test_proto_cel_field_transform():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -387,7 +392,8 @@ def test_proto_cel_field_transform():
         name='Kafka-suffix',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle-suffix', 'TheTrial-suffix'],
+        oneof_string='oneof-suffix'
     )
     deser_conf = {
         'use.deprecated.format': False
@@ -429,7 +435,8 @@ def test_proto_cel_field_condition():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -475,7 +482,8 @@ def test_proto_cel_field_condition_fail():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
@@ -524,7 +532,8 @@ def test_proto_encryption():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
@@ -537,7 +546,8 @@ def test_proto_encryption():
         name='Kafka',
         id=123,
         picture=b'foobar',
-        works=['The Castle ', 'TheTrial']
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
     )
 
     deser_conf = {

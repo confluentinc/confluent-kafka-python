@@ -993,6 +993,8 @@ def _transform_field(
             get_type(fd),
             get_inline_tags(fd)
         )
+        if fd.containing_oneof is not None and not message.HasField(fd.name):
+            return
         value = getattr(message, fd.name)
         if is_map_field(fd):
             value = {key: value[key] for key in value}
@@ -1051,6 +1053,7 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 def is_map_field(fd: FieldDescriptor):
     return (fd.type == FieldDescriptor.TYPE_MESSAGE
+            and hasattr(fd.message_type, 'options')
             and fd.message_type.options.map_entry)
 
 
