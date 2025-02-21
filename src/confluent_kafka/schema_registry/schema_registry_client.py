@@ -71,9 +71,10 @@ class _OAuthClient:
         self.max_retries = max_retries
         self.retries_wait_ms = retries_wait_ms
         self.retries_max_wait_ms = retries_max_wait_ms
+        self.token_expiry_threshold = 0.8
 
     def token_expired(self):
-        expiry_window = self.token['expires_in'] * 0.7
+        expiry_window = self.token['expires_in'] * self.token_expiry_threshold
 
         return self.token['expires_at'] < time.time() + expiry_window
 
@@ -206,25 +207,24 @@ class _BaseRestClient(object):
             self.retries_max_wait_ms = retries_max_wait_ms
 
         self.oauth_client = None
-        self.bearer_auth_credentials_source = None
-        if 'bearer.auth.credentials.source' in conf_copy:
+        self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source', None)
+        if self.bearer_auth_credentials_source is not None:
             self.auth = None
-            headers = ['logical.cluster', 'identity.pool.id']
+            headers = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
             missing_headers = [header for header in headers if header not in conf_copy]
             if missing_headers:
                 raise ValueError("Missing required bearer configuration properties: {}"
                                  .format(", ".join(missing_headers)))
 
-            self.logical_cluster = conf_copy.pop('logical.cluster')
+            self.logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
             if not isinstance(self.logical_cluster, str):
                 raise TypeError("logical cluster must be a str, not " + str(type(self.logical_cluster)))
 
-            self.identity_pool_id = conf_copy.pop('identity.pool.id')
+            self.identity_pool_id = conf_copy.pop('bearer.auth.identity.pool.id')
             if not isinstance(self.identity_pool_id, str):
                 raise TypeError("identity pool id must be a str, not " + str(type(self.identity_pool_id)))
 
-            if conf_copy['bearer.auth.credentials.source'] == 'OAUTHBEARER':
-                self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source')
+            if self.bearer_auth_credentials_source == 'OAUTHBEARER':
                 properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.client.scope',
                                    'bearer.auth.issuer.endpoint.url']
                 missing_properties = [prop for prop in properties_list if prop not in conf_copy]
@@ -252,7 +252,7 @@ class _BaseRestClient(object):
                 self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
                                                  self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
 
-            elif conf_copy['bearer.auth.credentials.source'] == 'STATIC_TOKEN':
+            elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
                 self.bearer_token = conf_copy.pop('bearer.auth.token')

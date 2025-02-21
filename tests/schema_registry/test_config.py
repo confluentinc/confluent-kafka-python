@@ -127,8 +127,8 @@ def test_bearer_config():
 def test_oauth_bearer_config_missing():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL}
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL}
 
     with pytest.raises(ValueError, match=r"Missing required OAuth configuration properties: (.*)"):
         SchemaRegistryClient(conf)
@@ -137,24 +137,24 @@ def test_oauth_bearer_config_missing():
 def test_oauth_bearer_config_invalid():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': 1}
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': 1}
 
     with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
         SchemaRegistryClient(conf)
 
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': 1,
-            'identity.pool.id': TEST_POOL}
+            'bearer.auth.logical.cluster': 1,
+            'bearer.auth.identity.pool.id': TEST_POOL}
 
     with pytest.raises(TypeError, match=r"logical cluster must be a str, not (.*)"):
         SchemaRegistryClient(conf)
 
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': 1,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
             'bearer.auth.client.scope': TEST_SCOPE,
@@ -165,8 +165,8 @@ def test_oauth_bearer_config_invalid():
 
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': 1,
             'bearer.auth.client.scope': TEST_SCOPE,
@@ -177,8 +177,8 @@ def test_oauth_bearer_config_invalid():
 
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
             'bearer.auth.client.scope': 1,
@@ -189,8 +189,8 @@ def test_oauth_bearer_config_invalid():
 
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
             'bearer.auth.client.scope': TEST_SCOPE,
@@ -203,8 +203,8 @@ def test_oauth_bearer_config_invalid():
 def test_oauth_bearer_config_valid():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': "OAUTHBEARER",
-            'logical.cluster': TEST_CLUSTER,
-            'identity.pool.id': TEST_POOL,
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
             'bearer.auth.client.scope': TEST_SCOPE,
@@ -223,8 +223,8 @@ def test_oauth_bearer_config_valid():
 def test_static_bearer_config():
     conf = {'url': TEST_URL,
             'bearer.auth.credentials.source': 'STATIC_TOKEN',
-            'logical.cluster': 'lsrc',
-            'identity.pool.id': 'pool_id'}
+            'bearer.auth.logical.cluster': 'lsrc',
+            'bearer.auth.identity.pool.id': 'pool_id'}
 
     with pytest.raises(ValueError, match='Missing bearer.auth.token'):
         SchemaRegistryClient(conf)
