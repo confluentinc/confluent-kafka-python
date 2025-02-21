@@ -26,6 +26,10 @@ from confluent_kafka.schema_registry.serde import RuleError
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
+TEST_POOL = 'sr_pool'
+TEST_CLUSTER = 'lsrc-1234'
+TEST_SCOPE = 'sr_scope'
+TEST_ENDPOINT = 'http://oauth_endpoint'
 
 """
 Tests to ensure all configurations are handled correctly.
@@ -109,6 +113,120 @@ def test_config_auth_userinfo_invalid():
 
     with pytest.raises(ValueError, match="basic.auth.user.info must be in the"
                                          " form of {username}:{password}$"):
+        SchemaRegistryClient(conf)
+
+
+def test_bearer_config():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER"}
+
+    with pytest.raises(ValueError, match=r"Missing required bearer configuration properties: (.*)"):
+        SchemaRegistryClient(conf)
+
+
+def test_oauth_bearer_config_missing():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL}
+
+    with pytest.raises(ValueError, match=r"Missing required OAuth configuration properties: (.*)"):
+        SchemaRegistryClient(conf)
+
+
+def test_oauth_bearer_config_invalid():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': 1}
+
+    with pytest.raises(TypeError, match=r"identity pool id must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': 1,
+            'bearer.auth.identity.pool.id': TEST_POOL}
+
+    with pytest.raises(TypeError, match=r"logical cluster must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': 1,
+            'bearer.auth.client.secret': TEST_USER_PASSWORD,
+            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
+
+    with pytest.raises(TypeError, match=r"bearer.auth.client.id must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': TEST_USERNAME,
+            'bearer.auth.client.secret': 1,
+            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
+
+    with pytest.raises(TypeError, match=r"bearer.auth.client.secret must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': TEST_USERNAME,
+            'bearer.auth.client.secret': TEST_USER_PASSWORD,
+            'bearer.auth.client.scope': 1,
+            'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
+
+    with pytest.raises(TypeError, match=r"bearer.auth.client.scope must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': TEST_USERNAME,
+            'bearer.auth.client.secret': TEST_USER_PASSWORD,
+            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.issuer.endpoint.url': 1}
+
+    with pytest.raises(TypeError, match=r"bearer.auth.issuer.endpoint.url must be a str, not (.*)"):
+        SchemaRegistryClient(conf)
+
+
+def test_oauth_bearer_config_valid():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': "OAUTHBEARER",
+            'bearer.auth.logical.cluster': TEST_CLUSTER,
+            'bearer.auth.identity.pool.id': TEST_POOL,
+            'bearer.auth.client.id': TEST_USERNAME,
+            'bearer.auth.client.secret': TEST_USER_PASSWORD,
+            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
+
+    client = SchemaRegistryClient(conf)
+
+    assert client._rest_client.logical_cluster == TEST_CLUSTER
+    assert client._rest_client.identity_pool_id == TEST_POOL
+    assert client._rest_client.client_id == TEST_USERNAME
+    assert client._rest_client.client_secret == TEST_USER_PASSWORD
+    assert client._rest_client.scope == TEST_SCOPE
+    assert client._rest_client.token_endpoint == TEST_ENDPOINT
+
+
+def test_static_bearer_config():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': 'STATIC_TOKEN',
+            'bearer.auth.logical.cluster': 'lsrc',
+            'bearer.auth.identity.pool.id': 'pool_id'}
+
+    with pytest.raises(ValueError, match='Missing bearer.auth.token'):
         SchemaRegistryClient(conf)
 
 
