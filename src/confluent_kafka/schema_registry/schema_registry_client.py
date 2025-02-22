@@ -225,7 +225,7 @@ class _BaseRestClient(object):
                 raise TypeError("identity pool id must be a str, not " + str(type(self.identity_pool_id)))
 
             if self.bearer_auth_credentials_source == 'OAUTHBEARER':
-                properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.client.scope',
+                properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
                                    'bearer.auth.issuer.endpoint.url']
                 missing_properties = [prop for prop in properties_list if prop not in conf_copy]
                 if missing_properties:
@@ -240,9 +240,9 @@ class _BaseRestClient(object):
                 if not isinstance(self.client_secret, string_type):
                     raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
 
-                self.scope = conf_copy.pop('bearer.auth.client.scope')
+                self.scope = conf_copy.pop('bearer.auth.scope')
                 if not isinstance(self.scope, string_type):
-                    raise TypeError("bearer.auth.client.scope must be a str, not " + str(type(self.scope)))
+                    raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
 
                 self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
                 if not isinstance(self.token_endpoint, string_type):

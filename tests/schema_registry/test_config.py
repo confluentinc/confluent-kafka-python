@@ -157,7 +157,7 @@ def test_oauth_bearer_config_invalid():
             'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': 1,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
-            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.scope': TEST_SCOPE,
             'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
 
     with pytest.raises(TypeError, match=r"bearer.auth.client.id must be a str, not (.*)"):
@@ -169,7 +169,7 @@ def test_oauth_bearer_config_invalid():
             'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': 1,
-            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.scope': TEST_SCOPE,
             'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
 
     with pytest.raises(TypeError, match=r"bearer.auth.client.secret must be a str, not (.*)"):
@@ -181,10 +181,10 @@ def test_oauth_bearer_config_invalid():
             'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
-            'bearer.auth.client.scope': 1,
+            'bearer.auth.scope': 1,
             'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
 
-    with pytest.raises(TypeError, match=r"bearer.auth.client.scope must be a str, not (.*)"):
+    with pytest.raises(TypeError, match=r"bearer.auth.scope must be a str, not (.*)"):
         SchemaRegistryClient(conf)
 
     conf = {'url': TEST_URL,
@@ -193,7 +193,7 @@ def test_oauth_bearer_config_invalid():
             'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
-            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.scope': TEST_SCOPE,
             'bearer.auth.issuer.endpoint.url': 1}
 
     with pytest.raises(TypeError, match=r"bearer.auth.issuer.endpoint.url must be a str, not (.*)"):
@@ -207,7 +207,7 @@ def test_oauth_bearer_config_valid():
             'bearer.auth.identity.pool.id': TEST_POOL,
             'bearer.auth.client.id': TEST_USERNAME,
             'bearer.auth.client.secret': TEST_USER_PASSWORD,
-            'bearer.auth.client.scope': TEST_SCOPE,
+            'bearer.auth.scope': TEST_SCOPE,
             'bearer.auth.issuer.endpoint.url': TEST_ENDPOINT}
 
     client = SchemaRegistryClient(conf)
