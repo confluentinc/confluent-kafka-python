@@ -359,6 +359,103 @@ def test_avro_cel_condition():
     assert obj == obj2
 
 
+def test_avro_cel_condition_age_success():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            }
+        ],
+        "name": "sampleRecord",
+        "namespace": "com.mycorp.mynamespace",
+        "type": "record"
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        "message.age > 18",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'age': 19,
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_cel_condition_age_fail():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "fields": [
+            {
+                "name": "age",
+                "type": "int"
+            }
+        ],
+        "name": "sampleRecord",
+        "namespace": "com.mycorp.mynamespace",
+        "type": "record"
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.CONDITION,
+        RuleMode.WRITE,
+        "CEL",
+        None,
+        None,
+        "message.age > 18",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'age': 17,
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    try:
+        ser(obj, ser_ctx)
+    except Exception as e:
+        assert isinstance(e.__cause__, RuleConditionError)
+
+
 def test_avro_cel_condition_logical_type():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
