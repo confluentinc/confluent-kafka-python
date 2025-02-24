@@ -473,7 +473,7 @@ class _SchemaCache(object):
             self.schema_id_index[subject][schema_id] = schema
             self.schema_index[subject][schema] = schema_id
 
-    def set_registered_schema(self, registered_schema: 'RegisteredSchema'):
+    def set_registered_schema(self, schema: 'Schema', registered_schema: 'RegisteredSchema'):
         """
         Add a RegisteredSchema to the cache.
 
@@ -484,7 +484,6 @@ class _SchemaCache(object):
         subject = registered_schema.subject
         schema_id = registered_schema.schema_id
         version = registered_schema.version
-        schema = registered_schema.schema
         with self.lock:
             self.schema_id_index[subject][schema_id] = schema
             self.schema_index[subject][schema] = schema_id
@@ -786,7 +785,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, registered_schema.schema_id, registered_schema.schema)
+        self._cache.set_schema(subject_name, registered_schema.schema_id, schema)
 
         return registered_schema
 
@@ -866,7 +865,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema)
+        self._cache.set_registered_schema(schema, registered_schema)
 
         return registered_schema
 
@@ -1025,7 +1024,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema)
+        self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema
 
