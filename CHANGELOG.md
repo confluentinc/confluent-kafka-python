@@ -9,6 +9,8 @@ v2.8.1 is a maintenance release with the following fixes and enhancements:
 confluent-kafka-python v2.8.1 is based on librdkafka v2.8.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.8.0
 
 v2.8.0 is a feature release with the features, fixes and enhancements:
