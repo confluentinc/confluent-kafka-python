@@ -1,7 +1,5 @@
 #!/bin/bash
-#
 
-set -e
 source venv/bin/activate
 
 librdkafka_version=$(python3 -c 'from confluent_kafka import libversion; print(libversion()[0])')
@@ -11,22 +9,25 @@ if [[ -z $librdkafka_version ]]; then
     exit 1
 fi
 
-if [[ -z $STY ]]; then
-    echo "This script should be run from inside a screen session"
-    exit 1
-fi
-
 set -u
 topic="pysoak-$TESTID-$librdkafka_version"
-logfile="${topic}.log.bz2"
-
-
-echo "Starting soak client using topic $topic"
+logfile="${TESTID}.log.bz2"
+export HOSTNAME=$(hostname)
+echo "Starting soak client using topic $topic. Logging to $logfile."
 set +x
-time confluent-kafka-python/tests/soak/soakclient.py -t $topic -r 80 -f  confluent-kafka-python/ccloud.config 2>&1 \
-    | tee /dev/stderr | bzip2 > $logfile
+# Ignore SIGINT in children (inherited)
+trap "" SIGINT
+time opentelemetry-instrument confluent-kafka-python/tests/soak/soakclient.py -i $TESTID -t $topic -r 80 -f $1 |& tee /dev/tty | bzip2 > $logfile &
+PID=$!
+# On SIGINT kill only the first process of the pipe
+onsigint() {
+        # List children of $PID only
+        ps --ppid $PID -f | grep soakclient.py | grep -v grep | awk '{print $2}' | xargs kill
+}
+trap onsigint SIGINT
+# Await the result
+wait $PID
 ret=$?
 echo "Python client exited with status $ret"
+echo "Ending soak client using topic $topic. Logging to $logfile."
 exit $ret
-
-
