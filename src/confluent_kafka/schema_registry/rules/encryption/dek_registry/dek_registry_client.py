@@ -17,6 +17,7 @@
 #
 
 import base64
+import threading
 import urllib.parse
 from enum import Enum
 from threading import Lock
@@ -230,26 +231,32 @@ class Dek:
     key_material_bytes: Optional[bytes] = _attrs_field(init=False, eq=False, order=False, default=None)
     ts: Optional[int] = _attrs_field(default=None)
     deleted: Optional[bool] = _attrs_field(default=None)
+    _lock: threading.Lock = _attrs_field(factory=threading.Lock, init=False, eq=False, order=False)
 
     def get_encrypted_key_material_bytes(self) -> Optional[bytes]:
         if self.encrypted_key_material is None:
             return None
         if self.encrypted_key_material_bytes is None:
-            self.encrypted_key_material_bytes = base64.b64decode(self.encrypted_key_material)
+            with self._lock:
+                if self.encrypted_key_material_bytes is None:
+                    self.encrypted_key_material_bytes = base64.b64decode(self.encrypted_key_material)
         return self.encrypted_key_material_bytes
 
     def get_key_material_bytes(self) -> Optional[bytes]:
         if self.key_material is None:
             return None
         if self.key_material_bytes is None:
-            self.key_material_bytes = base64.b64decode(self.key_material)
+            with self._lock:
+                if self.key_material_bytes is None:
+                    self.key_material_bytes = base64.b64decode(self.key_material)
         return self.key_material_bytes
 
     def set_key_material(self, key_material_bytes: bytes):
-        if key_material_bytes is None:
-            self.key_material = None
-        else:
-            self.key_material = base64.b64encode(key_material_bytes).decode("utf-8")
+        with self._lock:
+            if key_material_bytes is None:
+                self.key_material = None
+            else:
+                self.key_material = base64.b64encode(key_material_bytes).decode("utf-8")
 
     def to_dict(self) -> Dict[str, Any]:
         kek_name = self.kek_name
