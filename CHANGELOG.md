@@ -2,7 +2,7 @@
 
 ## v2.8.2
 
-v2.8.1 is a maintenance release with the following fixes and enhancements:
+v2.8.2 is a maintenance release with the following fixes and enhancements:
 
  - Fixed caching to ensure cached schema matches input. (#1922)
  - Fix handling of named Avro schemas (#1928)
