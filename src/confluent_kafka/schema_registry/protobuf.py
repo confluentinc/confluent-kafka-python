@@ -187,7 +187,7 @@ def _resolve_named_schema(
     schema: Schema,
     schema_registry_client: SchemaRegistryClient,
     pool: DescriptorPool,
-    visited: Set[str] = None
+    visited: Optional[Set[str]] = None
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
@@ -373,9 +373,9 @@ class ProtobufSerializer(BaseSerializer):
         self,
         msg_type: Message,
         schema_registry_client: SchemaRegistryClient,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
 
@@ -528,7 +528,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: SerializationContext = None) -> Optional[bytes]:
+    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -675,10 +675,10 @@ class ProtobufDeserializer(BaseDeserializer):
     def __init__(
         self,
         message_type: Message,
-        conf: dict = None,
-        schema_registry_client: SchemaRegistryClient = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: Optional[dict] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
 
@@ -812,7 +812,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         return msg_index
 
-    def __call__(self, data: bytes, ctx: SerializationContext = None) -> Optional[Message]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[Message]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -861,14 +861,13 @@ class ProtobufDeserializer(BaseDeserializer):
                 fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
                 writer_schema = pool.FindFileByName(fd_proto.name)
                 writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+                if subject is None:
+                    subject = self._subject_name_func(ctx, writer_desc.full_name)
+                    if subject is not None:
+                        latest_schema = self._get_reader_schema(subject, fmt='serialized')
             else:
                 writer_schema_raw = None
                 writer_schema = None
-
-            if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
-                if subject is not None and self._registry is not None:
-                    latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
@@ -994,6 +993,8 @@ def _transform_field(
             get_type(fd),
             get_inline_tags(fd)
         )
+        if fd.containing_oneof is not None and not message.HasField(fd.name):
+            return
         value = getattr(message, fd.name)
         if is_map_field(fd):
             value = {key: value[key] for key in value}
@@ -1041,7 +1042,9 @@ def get_type(fd: FieldDescriptor) -> FieldType:
                    FieldDescriptor.TYPE_UINT64, FieldDescriptor.TYPE_FIXED64,
                    FieldDescriptor.TYPE_SFIXED64):
         return FieldType.LONG
-    if fd.type in (FieldDescriptor.TYPE_FLOAT, FieldDescriptor.TYPE_DOUBLE):
+    if fd.type == FieldDescriptor.TYPE_FLOAT:
+        return FieldType.FLOAT
+    if fd.type == FieldDescriptor.TYPE_DOUBLE:
         return FieldType.DOUBLE
     if fd.type == FieldDescriptor.TYPE_BOOL:
         return FieldType.BOOLEAN
@@ -1050,6 +1053,7 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 def is_map_field(fd: FieldDescriptor):
     return (fd.type == FieldDescriptor.TYPE_MESSAGE
+            and hasattr(fd.message_type, 'options')
             and fd.message_type.options.map_entry)
 
 

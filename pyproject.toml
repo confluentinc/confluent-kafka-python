@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
-version = "2.7.0"
+version = "2.8.2"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -14,7 +14,6 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules"]
 readme = "README.md"
-license = { file = "LICENSE" }
 requires-python = ">=3.7"
 dynamic = ["dependencies", "optional-dependencies"]
 
@@ -25,12 +24,16 @@ email = "support@confluent.io"
 [project.urls]
 Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 
+[tool.mypy]
+ignore_missing_imports = true
+
 [tool.setuptools]
 include-package-data = false
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements/requirements.txt"]}
 optional-dependencies.schemaregistry = { file = ["requirements/requirements-schemaregistry.txt"] }
+optional-dependencies.schema_registry = { file = ["requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.rules = { file = ["requirements/requirements-rules.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.avro = { file = ["requirements/requirements-avro.txt", "requirements/requirements-schemaregistry.txt"] }
 optional-dependencies.json = { file = ["requirements/requirements-json.txt", "requirements/requirements-schemaregistry.txt"] }

@@ -219,7 +219,7 @@ def test_json_serialize_references():
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
     obj = {
-        'refField': referenced
+        'otherField': referenced
     }
     ref_schema = {
         "type": "object",

@@ -1,5 +1,29 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.8.2
+
+v2.8.2 is a maintenance release with the following fixes and enhancements:
+
+ - Fixed caching to ensure cached schema matches input. (#1922)
+ - Fix handling of named Avro schemas (#1928)
+
+confluent-kafka-python v2.8.2 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+Note: Versioning is skipped due to breaking change in v2.8.1. 
+Do not run software with v2.8.1 installed.
+
+
+## v2.8.0
+
+v2.8.0 is a feature release with the features, fixes and enhancements:
+
+confluent-kafka-python v2.8.0 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.7.0
 
 v2.7.0 is a feature release with the features, fixes and enhancements present in v2.6.2 including the following fix:
@@ -9,6 +33,7 @@ v2.7.0 is a feature release with the features, fixes and enhancements present in
 confluent-kafka-python v2.7.0 is based on librdkafka v2.6.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.6.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.6.2
 

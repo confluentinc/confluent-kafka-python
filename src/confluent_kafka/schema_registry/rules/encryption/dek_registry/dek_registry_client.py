@@ -454,6 +454,7 @@ class DekRegistryClient(object):
     """  # noqa: E501
 
     def __init__(self, conf: dict):
+        self._conf = conf
         self._rest_client = _RestClient(conf)
         self._kek_cache = _KekCache()
         self._dek_cache = _DekCache()
@@ -465,9 +466,12 @@ class DekRegistryClient(object):
         if self._rest_client is not None:
             self._rest_client.session.close()
 
+    def config(self):
+        return self._conf
+
     def register_kek(
         self, name: str, kms_type: str, kms_key_id: str,
-        shared: bool = False, kms_props: Dict[str, str] = None, doc: str = None
+        shared: bool = False, kms_props: Optional[Dict[str, str]] = None, doc: Optional[str] = None
     ) -> Kek:
         """
         Register a new Key Encryption Key (KEK) with the DEK Registry.
@@ -632,7 +636,7 @@ class DekRegistryClient(object):
         if dek is not None:
             return dek
 
-        query = {'deleted': deleted}
+        query = {'algorithm': algorithm, 'deleted': deleted}
         response = self._rest_client.get('/dek-registry/v1/keks/{}/deks/{}/versions/{}'
                                          .format(urllib.parse.quote(kek_name),
                                                  urllib.parse.quote(subject, safe=''),

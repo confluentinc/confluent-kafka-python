@@ -1,4 +1,4 @@
 attrs
 cachetools
-# Temporary constraint due to https://github.com/lundberg/respx/issues/277
-httpx<0.28.0
+httpx>=0.26
+authlib

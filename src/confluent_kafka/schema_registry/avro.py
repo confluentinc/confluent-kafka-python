@@ -18,15 +18,17 @@
 import decimal
 import re
 from collections import defaultdict
+from copy import deepcopy
 from io import BytesIO
 from json import loads
 from struct import pack, unpack
 from typing import Dict, Union, Optional, Set, Callable
 
-from fastavro import (parse_schema,
-                      schemaless_reader,
+from fastavro import (schemaless_reader,
                       schemaless_writer,
+                      repository,
                       validate)
+from fastavro.schema import load_schema
 
 from . import (_MAGIC_BYTE,
                Schema,
@@ -104,7 +106,8 @@ def _resolve_named_schema(
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
-            parsed_schema = parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=ref_named_schemas)
+            parsed_schema = parse_schema_with_repo(
+                referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
             named_schemas[ref.name] = parsed_schema
     return named_schemas
@@ -221,10 +224,10 @@ class AvroSerializer(BaseSerializer):
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        to_dict: Callable[[object, SerializationContext], dict] = None,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -306,7 +309,7 @@ class AvroSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, obj: object, ctx: SerializationContext = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -378,8 +381,8 @@ class AvroSerializer(BaseSerializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         prepared_schema = _schema_loads(schema.schema_str)
-        parsed_schema = parse_schema(
-            loads(prepared_schema.schema_str), named_schemas=named_schemas, expand=True)
+        parsed_schema = parse_schema_with_repo(
+            prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
@@ -455,11 +458,11 @@ class AvroDeserializer(BaseDeserializer):
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
-        from_dict: Callable[[dict, SerializationContext], object] = None,
+        from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
         return_record_name: bool = False,
-        conf: dict = None,
-        rule_conf: dict = None,
-        rule_registry: RuleRegistry = None
+        conf: Optional[dict] = None,
+        rule_conf: Optional[dict] = None,
+        rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
         schema = None
@@ -515,7 +518,7 @@ class AvroDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, data: bytes, ctx: SerializationContext = None) -> Union[dict, object, None]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.
@@ -606,11 +609,26 @@ class AvroDeserializer(BaseDeserializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         prepared_schema = _schema_loads(schema.schema_str)
-        parsed_schema = parse_schema(
-            loads(prepared_schema.schema_str), named_schemas=named_schemas, expand=True)
+        parsed_schema = parse_schema_with_repo(
+            prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
+
+
+class LocalSchemaRepository(repository.AbstractSchemaRepository):
+    def __init__(self, schemas):
+        self.schemas = schemas
+
+    def load(self, subject):
+        return self.schemas.get(subject)
+
+
+def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]) -> AvroSchema:
+    copy = deepcopy(named_schemas)
+    copy["$root"] = loads(schema_str)
+    repo = LocalSchemaRepository(copy)
+    return load_schema("$root", repo=repo)
 
 
 def transform(
@@ -752,7 +770,11 @@ def _get_inline_tags_recursively(
         return
     else:
         schema_type = schema.get("type")
-        if schema_type == 'record':
+        if schema_type == 'array':
+            _get_inline_tags_recursively(ns, name, schema.get("items"), tags)
+        elif schema_type == 'map':
+            _get_inline_tags_recursively(ns, name, schema.get("values"), tags)
+        elif schema_type == 'record':
             record_ns = schema.get("namespace")
             record_name = schema.get("name")
             if record_ns is None:

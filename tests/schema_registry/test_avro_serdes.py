@@ -216,6 +216,37 @@ def test_avro_serialize_references():
     assert obj == obj2
 
 
+def test_avro_serialize_union():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+
+    obj = {
+        'First': {'stringField': 'hi'},
+        'Second': {'stringField': 'hi'},
+    }
+    schema = ['null', {
+        'type': 'record',
+        'name': 'A',
+        'namespace': 'test',
+        'fields': [
+            {'name': 'First', 'type': {'type': 'record', 'name': 'B', 'fields': [
+                {'name': 'stringField', 'type': 'string'},
+            ]}},
+            {'name': 'Second', 'type': 'B'}
+        ]
+    }]
+    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
+
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_avro_serialize_union_with_references():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
@@ -757,6 +788,81 @@ def test_avro_cel_field_transform_complex_with_none():
     assert obj2 == newobj
 
 
+def test_avro_cel_field_transform_complex_nested():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        'type': 'record',
+        'name': 'UnionTest',
+        'namespace': 'test',
+        'fields': [
+            {
+                'name': 'emails',
+                'type': [
+                    'null',
+                    {
+                        'type': 'array',
+                        'items': {
+                            'type': 'record',
+                            'name': 'Email',
+                            'fields': [
+                                {
+                                    'name': 'email',
+                                    'type': [
+                                        'null',
+                                        'string'
+                                    ],
+                                    'doc': 'Email address',
+                                    'confluent:tags': [
+                                        'PII'
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                ],
+                'doc': 'Communication Email',
+            }
+        ]
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "typeName == 'STRING' ; value + '-suffix'",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'emails': [{'email': 'john@acme.com'}]
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    obj2 = {
+        'emails': [{'email': 'john@acme.com-suffix'}]
+    }
+    deser = AvroDeserializer(client)
+    newobj = deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
 def test_avro_cel_field_condition():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
@@ -892,6 +998,74 @@ def test_avro_encryption():
             "encrypt.kek.name": "kek1",
             "encrypt.kms.type": "local-kms",
             "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # reset encrypted fields
+    assert obj['stringField'] != 'hi'
+    obj['stringField'] = 'hi'
+    obj['bytesField'] = b'foobar'
+
+    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    executor.client = dek_client
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_encryption_deterministic():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string', 'confluent:tags': ['PII']},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes', 'confluent:tags': ['PII']},
+        ]
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey",
+            "encrypt.dek.algorithm": "AES256_SIV"
         }),
         None,
         None,
