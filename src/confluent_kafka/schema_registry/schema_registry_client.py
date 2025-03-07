@@ -299,9 +299,11 @@ class _RestClient(_BaseRestClient):
         )
 
     def handle_bearer_auth(self, headers: dict):
-        token = self.bearer_token
         if self.oauth_client:
             token = self.oauth_client.get_access_token()
+        else:
+            token = self.bearer_token
+
         headers["Authorization"] = "Bearer {}".format(token)
         headers['Confluent-Identity-Pool-Id'] = self.identity_pool_id
         headers['target-sr-cluster'] = self.logical_cluster
