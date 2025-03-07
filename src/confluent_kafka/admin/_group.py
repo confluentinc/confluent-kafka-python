@@ -94,15 +94,18 @@ class MemberDescription:
         The host where the group member is running.
     assignment: MemberAssignment
         The assignment of the group member
+    target_assignment: MemberAssignment
+        The target assignment of the group member
     group_instance_id : str
         The instance id of the group member.
     """
 
-    def __init__(self, member_id, client_id, host, assignment, group_instance_id=None):
+    def __init__(self, member_id, client_id, host, assignment, target_assignment, group_instance_id=None):
         self.member_id = member_id
         self.client_id = client_id
         self.host = host
         self.assignment = assignment
+        self.target_assignment = target_assignment
         self.group_instance_id = group_instance_id
 
 
@@ -123,6 +126,8 @@ class ConsumerGroupDescription:
         Partition assignor.
     state : ConsumerGroupState
         Current state of the consumer group.
+    type  : ConsumerGroupType
+        Type of the consumer group.
     coordinator: Node
         Consumer group coordinator.
     authorized_operations: list(AclOperation)
@@ -130,7 +135,7 @@ class ConsumerGroupDescription:
     """
 
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 coordinator, authorized_operations=None):
+                 type, coordinator, authorized_operations=None):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
@@ -143,4 +148,6 @@ class ConsumerGroupDescription:
         self.partition_assignor = partition_assignor
         if state is not None:
             self.state = ConversionUtil.convert_to_enum(state, ConsumerGroupState)
+        if type is not None:
+            self.type = ConversionUtil.convert_to_enum(type, ConsumerGroupType)
         self.coordinator = coordinator
