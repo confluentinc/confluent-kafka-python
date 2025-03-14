@@ -212,8 +212,6 @@ def test_oauth_bearer_config_valid():
 
     client = SchemaRegistryClient(conf)
 
-    assert client._rest_client.logical_cluster == TEST_CLUSTER
-    assert client._rest_client.identity_pool_id == TEST_POOL
     assert client._rest_client.client_id == TEST_USERNAME
     assert client._rest_client.client_secret == TEST_USER_PASSWORD
     assert client._rest_client.scope == TEST_SCOPE
@@ -228,6 +226,31 @@ def test_static_bearer_config():
 
     with pytest.raises(ValueError, match='Missing bearer.auth.token'):
         SchemaRegistryClient(conf)
+
+
+def test_custom_bearer_config():
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': 'CUSTOM'}
+
+    with pytest.raises(ValueError, match='Missing required custom OAuth configuration properties:'):
+        SchemaRegistryClient(conf)
+
+
+def test_custom_bearer_config_valid():
+    def custom_function(config: dict):
+        return {}
+
+    custom_config = {}
+
+    conf = {'url': TEST_URL,
+            'bearer.auth.credentials.source': 'CUSTOM',
+            'bearer.auth.custom.provider.function': custom_function,
+            'bearer.auth.custom.provider.config': custom_config}
+
+    client = SchemaRegistryClient(conf)
+
+    assert client._rest_client.bearer_field_provider.custom_function == custom_function
+    assert client._rest_client.bearer_field_provider.custom_config == custom_config
 
 
 def test_config_unknown_prop():
