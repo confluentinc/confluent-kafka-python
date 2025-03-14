@@ -56,6 +56,7 @@ class ConfigSource(Enum):
     DYNAMIC_DEFAULT_BROKER_CONFIG = _cimpl.CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG  #: Dynamic Default Broker
     STATIC_BROKER_CONFIG = _cimpl.CONFIG_SOURCE_STATIC_BROKER_CONFIG  #: Static Broker
     DEFAULT_CONFIG = _cimpl.CONFIG_SOURCE_DEFAULT_CONFIG  #: Default
+    GROUP_CONFIG = _cimpl.CONFIG_SOURCE_GROUP_CONFIG  #: Group
 
 
 class ConfigEntry(object):
