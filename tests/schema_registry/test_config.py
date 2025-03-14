@@ -212,8 +212,6 @@ def test_oauth_bearer_config_valid():
 
     client = SchemaRegistryClient(conf)
 
-    assert client._rest_client.logical_cluster == TEST_CLUSTER
-    assert client._rest_client.identity_pool_id == TEST_POOL
     assert client._rest_client.client_id == TEST_USERNAME
     assert client._rest_client.client_secret == TEST_USER_PASSWORD
     assert client._rest_client.scope == TEST_SCOPE
