@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import abc
 import json
 import logging
 import random
@@ -30,7 +30,7 @@ from collections import defaultdict
 from enum import Enum
 from threading import Lock
 from typing import List, Dict, Type, TypeVar, \
-    cast, Optional, Union, Any, Tuple
+    cast, Optional, Union, Any, Tuple, Callable
 
 from cachetools import TTLCache, LRUCache
 from httpx import Response
@@ -62,10 +62,38 @@ log = logging.getLogger(__name__)
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
-class _OAuthClient:
-    def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str,
-                 max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
+class _BearerFieldProvider(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def get_bearer_fields(self) -> dict:
+        raise NotImplementedError
+
+
+class _StaticFieldProvider(_BearerFieldProvider):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
+
+
+class _CustomOAuthClient(_BearerFieldProvider):
+    def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
+        self.custom_function = custom_function
+        self.custom_config = custom_config
+
+    def get_bearer_fields(self) -> dict:
+        return self.custom_function(self.custom_config)
+
+
+class _OAuthClient(_BearerFieldProvider):
+    def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
+                 identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self.token = None
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
         self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint = token_endpoint
         self.max_retries = max_retries
@@ -73,7 +101,11 @@ class _OAuthClient:
         self.retries_max_wait_ms = retries_max_wait_ms
         self.token_expiry_threshold = 0.8
 
-    def token_expired(self):
+    def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.get_access_token(), 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
+
+    def token_expired(self) -> bool:
         expiry_window = self.token['expires_in'] * self.token_expiry_threshold
 
         return self.token['expires_at'] < time.time() + expiry_window
@@ -84,7 +116,7 @@ class _OAuthClient:
 
         return self.token['access_token']
 
-    def generate_access_token(self):
+    def generate_access_token(self) -> None:
         for i in range(self.max_retries + 1):
             try:
                 self.token = self.client.fetch_token(url=self.token_endpoint, grant_type='client_credentials')
@@ -206,23 +238,27 @@ class _BaseRestClient(object):
                                 + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = retries_max_wait_ms
 
-        self.oauth_client = None
+        self.bearer_field_provider = None
+        logical_cluster = None
+        identity_pool = None
         self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source', None)
         if self.bearer_auth_credentials_source is not None:
             self.auth = None
-            headers = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
-            missing_headers = [header for header in headers if header not in conf_copy]
-            if missing_headers:
-                raise ValueError("Missing required bearer configuration properties: {}"
-                                 .format(", ".join(missing_headers)))
 
-            self.logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
-            if not isinstance(self.logical_cluster, str):
-                raise TypeError("logical cluster must be a str, not " + str(type(self.logical_cluster)))
+            if self.bearer_auth_credentials_source in {'OAUTHBEARER', 'STATIC_TOKEN'}:
+                headers = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
+                missing_headers = [header for header in headers if header not in conf_copy]
+                if missing_headers:
+                    raise ValueError("Missing required bearer configuration properties: {}"
+                                     .format(", ".join(missing_headers)))
 
-            self.identity_pool_id = conf_copy.pop('bearer.auth.identity.pool.id')
-            if not isinstance(self.identity_pool_id, str):
-                raise TypeError("identity pool id must be a str, not " + str(type(self.identity_pool_id)))
+                logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
+                if not isinstance(logical_cluster, str):
+                    raise TypeError("logical cluster must be a str, not " + str(type(logical_cluster)))
+
+                identity_pool = conf_copy.pop('bearer.auth.identity.pool.id')
+                if not isinstance(identity_pool, str):
+                    raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
 
             if self.bearer_auth_credentials_source == 'OAUTHBEARER':
                 properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
@@ -249,15 +285,38 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
                                     + str(type(self.token_endpoint)))
 
-                self.oauth_client = _OAuthClient(self.client_id, self.client_secret, self.scope, self.token_endpoint,
-                                                 self.max_retries, self.retries_wait_ms, self.retries_max_wait_ms)
-
+                self.bearer_field_provider = _OAuthClient(self.client_id, self.client_secret, self.scope,
+                                                          self.token_endpoint, logical_cluster, identity_pool,
+                                                          self.max_retries, self.retries_wait_ms,
+                                                          self.retries_max_wait_ms)
             elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
-                self.bearer_token = conf_copy.pop('bearer.auth.token')
-                if not isinstance(self.bearer_token, string_type):
-                    raise TypeError("bearer.auth.token must be a str, not " + str(type(self.bearer_token)))
+                static_token = conf_copy.pop('bearer.auth.token')
+                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
+                if not isinstance(static_token, string_type):
+                    raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
+            elif self.bearer_auth_credentials_source == 'CUSTOM':
+                custom_bearer_properties = ['bearer.auth.custom.provider.function',
+                                            'bearer.auth.custom.provider.config']
+                missing_custom_properties = [prop for prop in custom_bearer_properties if prop not in conf_copy]
+                if missing_custom_properties:
+                    raise ValueError("Missing required custom OAuth configuration properties: {}".
+                                     format(", ".join(missing_custom_properties)))
+
+                custom_function = conf_copy.pop('bearer.auth.custom.provider.function')
+                if not callable(custom_function):
+                    raise TypeError("bearer.auth.custom.provider.function must be a callable, not "
+                                    + str(type(custom_function)))
+
+                custom_config = conf_copy.pop('bearer.auth.custom.provider.config')
+                if not isinstance(custom_config, dict):
+                    raise TypeError("bearer.auth.custom.provider.config must be a dict, not "
+                                    + str(type(custom_config)))
+
+                self.bearer_field_provider = _CustomOAuthClient(custom_function, custom_config)
+            else:
+                raise ValueError('Unrecognized bearer.auth.credentials.source')
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
@@ -298,13 +357,22 @@ class _RestClient(_BaseRestClient):
             timeout=self.timeout
         )
 
-    def handle_bearer_auth(self, headers: dict):
-        token = self.bearer_token
-        if self.oauth_client:
-            token = self.oauth_client.get_access_token()
-        headers["Authorization"] = "Bearer {}".format(token)
-        headers['Confluent-Identity-Pool-Id'] = self.identity_pool_id
-        headers['target-sr-cluster'] = self.logical_cluster
+    def handle_bearer_auth(self, headers: dict) -> None:
+        bearer_fields = self.bearer_field_provider.get_bearer_fields()
+        required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
+
+        missing_fields = []
+        for field in required_fields:
+            if field not in bearer_fields:
+                missing_fields.append(field)
+
+        if missing_fields:
+            raise ValueError("Missing required bearer auth fields, needs to be set in config or custom function: {}"
+                             .format(", ".join(missing_fields)))
+
+        headers["Authorization"] = "Bearer {}".format(bearer_fields['bearer.auth.token'])
+        headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
+        headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
 
     def get(self, url: str, query: Optional[dict] = None) -> Any:
         return self.send_request(url, method='GET', query=query)
