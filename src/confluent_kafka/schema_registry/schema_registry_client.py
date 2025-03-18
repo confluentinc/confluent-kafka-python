@@ -484,7 +484,7 @@ class _RestClient(_BaseRestClient):
         for i in range(self.max_retries + 1):
             response = self.session.request(
                 method, url="/".join([base_url, url]),
-                headers=headers, data=body, params=query)
+                headers=headers, content=body, params=query)
 
             if is_success(response.status_code):
                 return response
