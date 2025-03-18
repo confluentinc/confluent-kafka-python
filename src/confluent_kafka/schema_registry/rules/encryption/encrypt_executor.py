@@ -307,7 +307,7 @@ class FieldEncryptionExecutorTransform(object):
             # handle conflicts (409)
             dek = self._retrieve_dek_from_registry(dek_id)
         if dek is None:
-            raise RuleError(f"no dek found for {self._kek_name} during produce")
+            raise RuleError(f"no dek found for {dek_id.kek_name} during produce")
         return dek
 
     def _retrieve_dek_from_registry(self, key: DekId) -> Optional[Dek]:
