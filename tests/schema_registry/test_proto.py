@@ -16,13 +16,16 @@
 # limitations under the License.
 #
 import binascii
+from decimal import Decimal
 from io import BytesIO
 
 import pytest
 
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
                                                       ProtobufDeserializer,
-                                                      _create_index_array)
+                                                      _create_index_array,
+                                                      decimalToProtobuf,
+                                                      protobufToDecimal)
 from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb2,
                                                           metadata_proto_pb2)
 
@@ -83,3 +86,23 @@ def test_index_encoder(msg_idx, zigzag, expected_hex):
     buf.seek(0)
     decoded_msg_idx = ProtobufDeserializer._read_index_array(buf, zigzag=zigzag)
     assert decoded_msg_idx == msg_idx
+
+
+@pytest.mark.parametrize("decimal, scale", [
+    ("0", 0),
+    ("1.01", 2),
+    ("123456789123456789.56", 2),
+    ("1234", 0),
+    ("1234.5", 1),
+    ("-0", 0),
+    ("-1.01", 2),
+    ("-123456789123456789.56", 2),
+    ("-1234", 0),
+    ("-1234.5", 1),
+    ("-1234.56", 2)
+])
+def test_proto_decimal(decimal, scale):
+    input = Decimal(decimal)
+    converted = decimalToProtobuf(input, scale)
+    result = protobufToDecimal(converted)
+    assert result == input
