@@ -21,6 +21,7 @@ import base64
 import struct
 import warnings
 from collections import deque
+from decimal import Context, Decimal, MAX_PREC
 from typing import Set, List, Union, Optional, Any, Tuple
 
 from google.protobuf import descriptor_pb2, any_pb2, api_pb2, empty_pb2, \
@@ -1076,3 +1077,65 @@ def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or \
            name.startswith('google/protobuf/') or \
            name.startswith('google/type/')
+
+
+def decimalToProtobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
+    """
+    Converts a Decimal to a Protobuf value.
+
+    Args:
+        value (Decimal): The Decimal value to convert.
+
+    Returns:
+        The Protobuf value.
+    """
+    sign, digits, exp = value.as_tuple()
+
+    delta = exp + scale
+
+    if delta < 0:
+        raise ValueError(
+            "Scale provided does not match the decimal")
+
+    unscaled_datum = 0
+    for digit in digits:
+        unscaled_datum = (unscaled_datum * 10) + digit
+
+    unscaled_datum = 10**delta * unscaled_datum
+
+    bytes_req = (unscaled_datum.bit_length() + 8) // 8
+
+    if sign:
+        unscaled_datum = -unscaled_datum
+
+    bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
+
+    result = decimal_pb2.Decimal()
+    result.value = bytes
+    result.precision = 0
+    result.scale = scale
+    return result
+
+
+decimal_context = Context()
+
+
+def protobufToDecimal(value: decimal_pb2.Decimal) -> Decimal:
+    """
+    Converts a Protobuf value to Decimal.
+
+    Args:
+        value (decimal_pb2.Decimal): The Protobuf value to convert.
+
+    Returns:
+        The Decimal value.
+    """
+    unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
+
+    if value.precision > 0:
+        decimal_context.prec = value.precision
+    else:
+        decimal_context.prec = MAX_PREC
+    return decimal_context.create_decimal(unscaled_datum).scaleb(
+        -value.scale, decimal_context
+    )
