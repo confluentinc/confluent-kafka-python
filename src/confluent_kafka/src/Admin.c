@@ -3858,6 +3858,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
         PyObject *kwargs = NULL;
         PyObject *assignment = NULL;
         const rd_kafka_MemberAssignment_t *c_assignment;
+        const rd_kafka_MemberAssignment_t *c_target_assignment;
 
         MemberDescription_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                      "MemberDescription");
@@ -3891,6 +3892,15 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
         }
 
         PyDict_SetItemString(kwargs, "assignment", assignment);
+
+        c_target_assignment = rd_kafka_MemberDescription_target_assignment(c_member);
+        if(c_target_assignment) {
+                PyObject *target_assignment = Admin_c_MemberAssignment_to_py(c_target_assignment);
+                if (!target_assignment) {
+                        goto err;
+                }
+                PyDict_SetItemString(kwargs, "target_assignment", target_assignment);
+        }
 
         args = PyTuple_New(0);
 
@@ -4002,6 +4012,8 @@ static PyObject *Admin_c_ConsumerGroupDescription_to_py(
         }
 
         cfl_PyDict_SetInt(kwargs, "state", rd_kafka_ConsumerGroupDescription_state(c_consumer_group_description));
+
+        cfl_PyDict_SetInt(kwargs, "type", rd_kafka_ConsumerGroupDescription_type(c_consumer_group_description));
 
         args = PyTuple_New(0);
 
