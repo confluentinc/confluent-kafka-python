@@ -17,6 +17,8 @@ else:
     librdkafka_libname = 'rdkafka'
 
 module = Extension('confluent_kafka.cimpl',
+                   include_dirs=['/usr/local/include/'],
+                   library_dirs=['/usr/local/lib'],
                    libraries=[librdkafka_libname],
                    sources=[os.path.join(ext_dir, 'confluent_kafka.c'),
                             os.path.join(ext_dir, 'Producer.c'),
