@@ -514,6 +514,8 @@ static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
                                 RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_DEFAULT_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG);
+        PyModule_AddIntConstant(m, "CONFIG_SOURCE_GROUP_CONFIG",
+                                RD_KAFKA_CONFIG_SOURCE_GROUP_CONFIG);
 }
 
 
