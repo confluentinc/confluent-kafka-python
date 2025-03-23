@@ -853,6 +853,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
+        # The registered schema may not be fully populated
         self._cache.set_schema(subject_name, registered_schema.schema_id, schema)
 
         return registered_schema
@@ -931,7 +932,15 @@ class SchemaRegistryClient(object):
                                           .format(_urlencode(subject_name), normalize_schemas, deleted),
                                           body=request)
 
-        registered_schema = RegisteredSchema.from_dict(response)
+        result = RegisteredSchema.from_dict(response)
+
+        # Ensure the schema matches the input
+        registered_schema = RegisteredSchema(
+            schema_id=result.schema_id,
+            subject=result.subject,
+            version=result.version,
+            schema=schema,
+        )
 
         self._cache.set_registered_schema(schema, registered_schema)
 
