@@ -268,11 +268,14 @@ class Migration(object):
 
 
 class BaseSerde(object):
-    __slots__ = ['_use_latest_version', '_use_latest_with_metadata',
+    __slots__ = ['_use_schema_id', '_use_latest_version', '_use_latest_with_metadata',
                  '_registry', '_rule_registry', '_subject_name_func',
                  '_field_transformer']
 
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
+        if self._use_schema_id is not None:
+            schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
+            return self._registry.lookup_schema(subject, schema, False, True)
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, True, fmt)

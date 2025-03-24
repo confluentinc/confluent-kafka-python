@@ -128,6 +128,10 @@ class JSONSerializer(BaseSerializer):
     | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,     |
     |                             |          | including ordering properties and references.      |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Whether to use the given schema ID for           |
+    | ``use.schema.id``           | int      | serialization.                                   |
+    |                             |          |                                                  |
+    +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version for      |
     | ``use.latest.version``      | bool     | serialization.                                     |
     |                             |          |                                                    |
@@ -138,7 +142,7 @@ class JSONSerializer(BaseSerializer):
     |                             |          | Defaults to False.                                 |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                                |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
     |                             |          |                                                    |
     |                             |          | WARNING: There is no check that the latest         |
     |                             |          | schema is backwards compatible with the object     |
@@ -216,6 +220,7 @@ class JSONSerializer(BaseSerializer):
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
+                     'use.schema.id': None,
                      'use.latest.version': False,
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy,
@@ -266,6 +271,11 @@ class JSONSerializer(BaseSerializer):
         self._normalize_schemas = conf_copy.pop('normalize.schemas')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
+
+        self._use_schema_id = conf_copy.pop('use.schema.id')
+        if (self._use_schema_id is not None and
+                not isinstance(self._use_schema_id, int)):
+            raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -430,7 +440,7 @@ class JSONDeserializer(BaseDeserializer):
     |                             |          | Defaults to False.                                 |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                                |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
@@ -504,6 +514,7 @@ class JSONDeserializer(BaseDeserializer):
         self._parsed_schemas = ParsedSchemaCache()
         self._validators = LRUCache(1000)
         self._json_decode = json_decode or json.loads
+        self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
