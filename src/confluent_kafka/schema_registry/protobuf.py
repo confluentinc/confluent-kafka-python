@@ -268,6 +268,10 @@ class ProtobufSerializer(BaseSerializer):
     | ``normalize.schemas``               | bool     | transform schemas to have a consistent format,       |
     |                                     |          | including ordering properties and references.        |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to use the given schema ID for               |
+    | ``use.schema.id``                   | int      | serialization.                                       |
+    |                                     |          |                                                      |
+    +-----------------------------------------+----------+--------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
@@ -278,7 +282,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version with       |
-    | ``use.latest.with.metadata``        | bool     | the given metadata.                                  |
+    | ``use.latest.with.metadata``        | dict     | the given metadata.                                  |
     |                                     |          |                                                      |
     |                                     |          | WARNING: There is no check that the latest           |
     |                                     |          | schema is backwards compatible with the object       |
@@ -362,6 +366,7 @@ class ProtobufSerializer(BaseSerializer):
     _default_conf = {
         'auto.register.schemas': True,
         'normalize.schemas': False,
+        'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'skip.known.types': True,
@@ -398,6 +403,11 @@ class ProtobufSerializer(BaseSerializer):
         self._normalize_schemas = conf_copy.pop('normalize.schemas')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
+
+        self._use_schema_id = conf_copy.pop('use.schema.id')
+        if (self._use_schema_id is not None and
+                not isinstance(self._use_schema_id, int)):
+            raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -634,7 +644,7 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version with       |
-    | ``use.latest.with.metadata``        | bool     | the given metadata.                                  |
+    | ``use.latest.with.metadata``        | dict     | the given metadata.                                  |
     |                                     |          |                                                      |
     |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
@@ -686,6 +696,7 @@ class ProtobufDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._use_schema_id = None
 
         # Require use.deprecated.format to be explicitly configured
         # during a transitionary period since old/new format are
