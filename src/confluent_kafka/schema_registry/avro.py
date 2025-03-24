@@ -268,7 +268,7 @@ class AvroSerializer(BaseSerializer):
 
         self._use_schema_id = conf_copy.pop('use.schema.id')
         if (self._use_schema_id is not None and
-            not isinstance(self._use_schema_id, int)):
+                not isinstance(self._use_schema_id, int)):
             raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
