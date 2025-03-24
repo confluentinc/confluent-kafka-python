@@ -4,8 +4,9 @@ from confluent_kafka import Producer, Consumer
 from confluent_kafka.admin import AdminClient, NewTopic
 import random
 import signal
+import sys
 
-def wait_for_containers_to_be_healthy():
+def wait_for_containers_to_be_healthy(no_of_containers):
     # Run 'docker-compose up -d' in detached mode
     subprocess.run(["docker", "compose", "up", "-d"], check=True)
     while True:
@@ -17,7 +18,7 @@ def wait_for_containers_to_be_healthy():
         )
         all_container_names = result.stdout.splitlines()
         total_containers = len(all_container_names)
-        if 4 == total_containers:
+        if no_of_containers == total_containers:
             print("All containers are healthy and ready!")
             break
         print(f"Waiting for containers to be healthy... ({total_containers}/4)")
@@ -93,17 +94,16 @@ def start_all_kafka_containers(all_kafka_containers, stopped_container):
             stopped_container.remove(container)
 
 def start_stop_broker_consumer(all_kafka_containers, stopped_container):
-    factor = 10
-    control = random.randint(1, 100) * factor
-    if control == 100 * factor:
+    control = random.randint(1, 399)
+    if control == 100:
         stop_container(all_kafka_containers, stopped_container)
-    elif control == 50 * factor:
+    elif control == 0:
         start_stopped_kafka_container(stopped_container)
-    elif control == 25 * factor:
+    elif control == 200:
         stop_all_kafka_containers(all_kafka_containers, stopped_container)
-    elif control == 75 * factor:
+    elif control == 300:
         start_all_kafka_containers(all_kafka_containers, stopped_container)
-    return control % (25 * factor) == 0
+    return control % 100 == 0
 
 def create_topics(brokers, topics, partitions=3, rep=1):
     a = AdminClient({'bootstrap.servers': brokers})
@@ -118,13 +118,13 @@ def create_topics(brokers, topics, partitions=3, rep=1):
 
 
 def main():
-    brokers = "localhost:8097,localhost:8099,localhost:8098"
+    brokers = sys.argv[1]
     topic_name = f"chaos-test-topic-{random.randint(1, 10000)}"
     stopped_container = []
     print(f"Using topic: {topic_name}")
 
     # Docker initializations
-    wait_for_containers_to_be_healthy()
+    wait_for_containers_to_be_healthy(int(sys.argv[2]))
     all_kafka_containers = get_kafka_container()
 
     # Create a Kafka topic
@@ -162,17 +162,18 @@ def main():
 
         message_to_produce=f"value-{random.randint(1, 1000)}"
 
-        # Produce a message
-        producer.produce(topic_name, value=message_to_produce)
-        print(f"Produced message: {message_to_produce}")
+        if random.choice([True, False, False, False, False]):
+            # Produce a message
+            producer.produce(topic_name, value=message_to_produce)
+            print(f"Producing message: {message_to_produce}")
 
         # Consume a message
-        message = consumer.poll(timeout=0)
+        message = consumer.poll(timeout=0.001)
         if message is None:
             print("No message received")
         else:
             print(f"Received message: {message.value()}")
-        time.sleep(0.5)
+        time.sleep(0.2)
 
 if __name__ == "__main__":
     main()
