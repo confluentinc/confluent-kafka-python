@@ -57,7 +57,13 @@ install_pkgs=cibuildwheel==$cibuildwheel_version
 python -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH
+
+which pip3
+which python3
+pip3 --version
+python3 --version
+python3 -m site
 
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
