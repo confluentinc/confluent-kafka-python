@@ -4,6 +4,8 @@
 # Build wheels (on Linux or OSX) using cibuildwheel.
 #
 
+PYTHON=$(which python3)
+
 this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
@@ -54,16 +56,8 @@ $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
 
-python -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
+$PYTHON -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
-
-export PATH="$HOME/.local/bin:$PATH"
-
-which pip3
-which python3
-pip3 --version
-python3 --version
-python3 -m site
 
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
@@ -73,7 +67,7 @@ if [[ $os == "macos" ]]; then
     python3 $this_dir/install-macos-python-required-by-cibuildwheel.py $cibuildwheel_version
 fi
 
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir python3 -m cibuildwheel --output-dir $wheeldir $cibw_args
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir $PYTHON -m cibuildwheel --output-dir $wheeldir $cibw_args
 
 ls $wheeldir
 
