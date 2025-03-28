@@ -57,12 +57,13 @@ install_pkgs=cibuildwheel==$cibuildwheel_version
 python -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
+export PATH="$HOME/.local/bin:$PATH"
+
 if [[ -z $TRAVIS ]]; then
     cibw_args="--platform $os"
 fi
 
 if [[ $os == "macos" ]]; then
-    pip3 install tomli
     python3 $this_dir/install-macos-python-required-by-cibuildwheel.py $cibuildwheel_version
 fi
 
