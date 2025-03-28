@@ -31,7 +31,8 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
-            - export PATH="$(pyenv root)/versions/3.11.11/bin:$PATH"
+            - PYTHON_VERSION=$(pyenv versions --bare | grep '^3.11' | head -n1)
+            - export PATH="$(pyenv root)/versions/$PYTHON_VERSION/bin:$PATH"
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -56,7 +57,8 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
-            - export PATH="$(pyenv root)/versions/3.11.11/bin:$PATH"
+            - PYTHON_VERSION=$(pyenv versions --bare | grep '^3.11' | head -n1)
+            - export PATH="$(pyenv root)/versions/$PYTHON_VERSION/bin:$PATH"
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
@@ -79,7 +81,8 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
-            - export PATH="$(pyenv root)/versions/3.11.11/bin:$PATH"
+            - PYTHON_VERSION=$(pyenv versions --bare | grep '^3.11' | head -n1)
+            - export PATH="$(pyenv root)/versions/$PYTHON_VERSION/bin:$PATH"
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -106,7 +109,8 @@ blocks:
         - name: Build
           commands:
             - sem-version python 3.11
-            - export PATH="$(pyenv root)/versions/3.11.11/bin:$PATH"
+            - PYTHON_VERSION=$(pyenv versions --bare | grep '^3.11' | head -n1)
+            - export PATH="$(pyenv root)/versions/$PYTHON_VERSION/bin:$PATH"
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
