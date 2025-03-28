@@ -70,7 +70,7 @@ if [[ $os == "macos" ]]; then
     python3 $this_dir/install-macos-python-required-by-cibuildwheel.py $cibuildwheel_version
 fi
 
-LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir $PYTHON -m cibuildwheel --output-dir $wheeldir $cibw_args
+LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/$lib_dir python3 -m cibuildwheel --output-dir $wheeldir $cibw_args
 
 ls $wheeldir
 
