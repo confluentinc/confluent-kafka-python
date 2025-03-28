@@ -3,7 +3,6 @@
 #
 # Build wheels (on Linux or OSX) using cibuildwheel.
 #
-
 this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 
@@ -54,7 +53,7 @@ $this_dir/install-librdkafka.sh $librdkafka_version dest
 
 install_pkgs=cibuildwheel==$cibuildwheel_version
 
-python -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
+python3 -m pip install ${PIP_INSTALL_OPTS} $install_pkgs ||
     pip3 install ${PIP_INSTALL_OPTS} $install_pkgs
 
 if [[ -z $TRAVIS ]]; then

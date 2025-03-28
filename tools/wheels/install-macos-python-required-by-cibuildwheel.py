@@ -12,7 +12,7 @@
 import platform
 import sys
 import os
-import tomli
+import tomllib
 import urllib.request
 import re
 import shutil
@@ -26,7 +26,7 @@ print(f"Config URL is '{config_url}'")
 response = urllib.request.urlopen(config_url).read()
 
 content = response.decode('utf-8')
-d = tomli.loads(content)
+d = tomllib.loads(content)
 macos_config = d['macos']['python_configurations']
 
 machine_arc = platform.machine()
