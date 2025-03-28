@@ -62,7 +62,7 @@ if [[ -z $TRAVIS ]]; then
 fi
 
 if [[ $os == "macos" ]]; then
-    pip install tomli
+    python3 -m pip install tomli
     python3 $this_dir/install-macos-python-required-by-cibuildwheel.py $cibuildwheel_version
 fi
 
