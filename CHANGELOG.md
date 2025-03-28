@@ -1,5 +1,16 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.9.0
+
+v2.9.0 is a feature release with the following fixes and enhancements:
+
+ - Add Client Credentials OAuth support for Schema Registry (#1919)
+ - Add custom OAuth support for Schema Registry (#1925)
+
+confluent-kafka-python v2.9.0 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 ## v2.8.2
 
 v2.8.2 is a maintenance release with the following fixes and enhancements:
