@@ -2,7 +2,7 @@
 
 ## v2.9.0
 
-v2.9.0 is a featureg release with the following fixes and enhancements:
+v2.9.0 is a feature release with the following fixes and enhancements:
 
  - Add Client Credentials OAuth support for Schema Registry (#1919)
  - Add custom OAuth support for Schema Registry (#1925)
