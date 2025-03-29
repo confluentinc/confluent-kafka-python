@@ -6,6 +6,8 @@ v2.9.0 is a feature release with the following fixes and enhancements:
 
  - Add Client Credentials OAuth support for Schema Registry (#1919)
  - Add custom OAuth support for Schema Registry (#1925)
+ - Add utilities to convert decimals from/to Protobuf (#1946)
+ - Add support for passing schema ID during serialization (#1949)
 
 confluent-kafka-python v2.9.0 is based on librdkafka v2.8.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
