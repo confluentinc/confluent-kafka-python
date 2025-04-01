@@ -7,20 +7,24 @@ import signal
 import sys
 import threading
 
-consumer_stopped = False
 
+last_loop_time = time.time()
+show_logs = False
+logger = None
 class Logger:
     max_logs = 10000
+    after_close_buf_size = 100000
 
     def __init__(self):
+        self.log_messages = True
         self.pos = 0
         self.buffer = [None] * Logger.max_logs
-        self.do_log = False
 
-    def show(self):
-        if self.do_log:
-            return
+        self.close_pos = 0
+        self.close_initialized = False
+        self.after_close_buf = [None] * Logger.after_close_buf_size
 
+    def print_logs(self):
         i = self.pos
         while ((i + 1) % Logger.max_logs) != self.pos:
             if self.buffer[i] is not None:
@@ -29,16 +33,25 @@ class Logger:
             i = (i + 1) % Logger.max_logs
         if self.buffer[i] is not None:
             print(self.buffer[i])
-        self.do_log = True
-    
-    def hide(self):
-        self.do_log = False
+        i = 0
+        while self.after_close_buf[i] is not None:
+            print(self.after_close_buf[i])
+            self.after_close_buf[i] = None
+            i += 1
+        exit(0)
 
     def log(self, level, format, facet, name, *args):
-        self.buffer[self.pos] = f"{time.time()} {name} {facet}: {" ".join(args)}"
-        if self.do_log:
-            print(self.buffer[self.pos])
-        self.pos = (self.pos + 1) % Logger.max_logs
+        message = " ".join(args)
+        if "Closing consumer" in message:
+            print("Logging after closing the consumer!!")
+            self.close_initialized = True
+        if self.log_messages:
+            if self.close_initialized:
+                self.after_close_buf[self.close_pos] = f"{time.time()} {name} {facet}: {message}"
+                self.close_pos = self.close_pos + 1
+            else:
+                self.buffer[self.pos] = f"{time.time()} {name} {facet}: {message}"
+                self.pos = (self.pos + 1) % Logger.max_logs
 
 
 class bcolors:
@@ -114,21 +127,45 @@ def stop_all_kafka_containers(all_kafka_containers, stopped_container):
         if container not in stopped_container:
             stopped_container.append(container)
 
+# def reset_or_create_consumer(brokers, consumer, topic_name):
+#     time.sleep(0.005)
+#     stop_consumer = random.choice([True])
+#     if stop_consumer and consumer:
+#         print("Closing Kafka consumer")
+#         consumer.close()
+#         consumer = None
+#         consumer_stopped = True
+#     if not consumer:
+#         # Create a Kafka consumer
+#         consumer_stopped = False
+#         logger = Logger()
+#         consumer = Consumer({
+#             "bootstrap.servers": brokers,
+#             "group.id": topic_name,
+#             "auto.offset.reset": "earliest",
+#             "logger": logger,
+#         })
+#         # Subscribe to the topic
+#         consumer.subscribe([topic_name])
+#     return consumer
+
 def reset_or_create_consumer(brokers, consumer, topic_name):
     time.sleep(0.005)
     stop_consumer = random.choice([True])
     if stop_consumer and consumer:
-        consumer_stopped = True
         print("Closing Kafka consumer")
         consumer.close()
         consumer = None
+
     if not consumer:
         # Create a Kafka consumer
-        consumer_stopped = False
+        logger = Logger()
         consumer = Consumer({
             "bootstrap.servers": brokers,
             "group.id": topic_name,
             "auto.offset.reset": "earliest",
+            "debug": "all",
+            "logger": logger,
         })
         # Subscribe to the topic
         consumer.subscribe([topic_name])
@@ -173,9 +210,16 @@ def create_topics(brokers, topics, partitions=3, rep=1):
 #         print(bcolors.BOLD + "Message delivered to {} [{}]".format(msg.topic(), msg.partition()) + bcolors.ENDC)
 
 def main():
+    # global consumer_stopped
+    # consumer_stopped = False
+    global last_loop_time
+    global logger
+    looping = 0
+    print_no_message = 1
     brokers = sys.argv[1]
     topic_name = f"chaos-test-topic-{random.randint(1, 10000)}"
     stopped_container = []
+
     print(f"Using topic: {topic_name}")
 
     # Docker initializations
@@ -226,11 +270,23 @@ def main():
                 print("Failed to delete topic {}: {}".format(topic, e))
 
         exit(0)
-
     signal.signal(signal.SIGINT, signal_handler)
 
-    looping = 0
-    print_no_message = 1
+    def check_alive():
+        global logger
+        global last_loop_time
+        while True:
+            # print(f"Inside Daemon Thread ---> Last loop time: {last_loop_time}")
+            if time.time() - last_loop_time > 50:
+                logger.log_messages = False
+                logger.print_logs()
+                print(f"{bcolors.HEADER}Last loop time exceeded 50 seconds. Showing logs...{bcolors.ENDC}")
+            time.sleep(1)
+    
+    background_task = threading.Thread(target=check_alive)
+    background_task.daemon = True
+    background_task.start()
+
     while True:
         reset_consumer = start_stop_broker_consumer(all_kafka_containers, stopped_container)
         # if reset_consumer and not consumer_stopped:
@@ -241,18 +297,18 @@ def main():
         if reset_consumer:
             consumer = reset_or_create_consumer(brokers, consumer, topic_name)
 
-        if not consumer_stopped:
-            # Consume a message
-            message = consumer.poll(timeout=0.001)
-            if message is None:
-                if print_no_message % 10 == 0:
-                    print_no_message = 1
-                    print("No message received")
-                else:
-                    print_no_message += 1
-            else:
+        # if not consumer_stopped:
+        # Consume a message
+        message = consumer.poll(timeout=0.001)
+        if message is None:
+            if print_no_message % 10 == 0:
                 print_no_message = 1
-                print(f"Received message: {message.value()}")
+                print("No message received")
+            else:
+                print_no_message += 1
+        else:
+            print_no_message = 1
+            print(f"Received message: {message.value()}")
 
 
         message_to_produce=f"value-{random.randint(1, 1000)}"
@@ -265,7 +321,9 @@ def main():
         if looping % 100 == 0:
             print("loop going on")
         looping += 1
-
+            
+        last_loop_time = time.time()
+        # print(f"Inside loop ---> Last loop time: {last_loop_time}")
         time.sleep(0.2)
 
 if __name__ == "__main__":
