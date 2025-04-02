@@ -21,6 +21,7 @@ import base64
 import struct
 import warnings
 from collections import deque
+from decimal import Context, Decimal, MAX_PREC
 from typing import Set, List, Union, Optional, Any, Tuple
 
 from google.protobuf import descriptor_pb2, any_pb2, api_pb2, empty_pb2, \
@@ -267,6 +268,10 @@ class ProtobufSerializer(BaseSerializer):
     | ``normalize.schemas``               | bool     | transform schemas to have a consistent format,       |
     |                                     |          | including ordering properties and references.        |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Whether to use the given schema ID for               |
+    | ``use.schema.id``                   | int      | serialization.                                       |
+    |                                     |          |                                                      |
+    +-----------------------------------------+----------+--------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
@@ -277,7 +282,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version with       |
-    | ``use.latest.with.metadata``        | bool     | the given metadata.                                  |
+    | ``use.latest.with.metadata``        | dict     | the given metadata.                                  |
     |                                     |          |                                                      |
     |                                     |          | WARNING: There is no check that the latest           |
     |                                     |          | schema is backwards compatible with the object       |
@@ -361,6 +366,7 @@ class ProtobufSerializer(BaseSerializer):
     _default_conf = {
         'auto.register.schemas': True,
         'normalize.schemas': False,
+        'use.schema.id': None,
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'skip.known.types': True,
@@ -397,6 +403,11 @@ class ProtobufSerializer(BaseSerializer):
         self._normalize_schemas = conf_copy.pop('normalize.schemas')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
+
+        self._use_schema_id = conf_copy.pop('use.schema.id')
+        if (self._use_schema_id is not None and
+                not isinstance(self._use_schema_id, int)):
+            raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -633,7 +644,7 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          | Defaults to False.                                   |
     +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version with       |
-    | ``use.latest.with.metadata``        | bool     | the given metadata.                                  |
+    | ``use.latest.with.metadata``        | dict     | the given metadata.                                  |
     |                                     |          |                                                      |
     |                                     |          | Defaults to None.                                    |
     +-------------------------------------+----------+------------------------------------------------------+
@@ -685,6 +696,7 @@ class ProtobufDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._use_schema_id = None
 
         # Require use.deprecated.format to be explicitly configured
         # during a transitionary period since old/new format are
@@ -861,14 +873,13 @@ class ProtobufDeserializer(BaseDeserializer):
                 fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
                 writer_schema = pool.FindFileByName(fd_proto.name)
                 writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+                if subject is None:
+                    subject = self._subject_name_func(ctx, writer_desc.full_name)
+                    if subject is not None:
+                        latest_schema = self._get_reader_schema(subject, fmt='serialized')
             else:
                 writer_schema_raw = None
                 writer_schema = None
-
-            if subject is None:
-                subject = self._subject_name_func(ctx, writer_desc.full_name)
-                if subject is not None and self._registry is not None:
-                    latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
@@ -994,6 +1005,8 @@ def _transform_field(
             get_type(fd),
             get_inline_tags(fd)
         )
+        if fd.containing_oneof is not None and not message.HasField(fd.name):
+            return
         value = getattr(message, fd.name)
         if is_map_field(fd):
             value = {key: value[key] for key in value}
@@ -1052,6 +1065,7 @@ def get_type(fd: FieldDescriptor) -> FieldType:
 
 def is_map_field(fd: FieldDescriptor):
     return (fd.type == FieldDescriptor.TYPE_MESSAGE
+            and hasattr(fd.message_type, 'options')
             and fd.message_type.options.map_entry)
 
 
@@ -1074,3 +1088,65 @@ def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or \
            name.startswith('google/protobuf/') or \
            name.startswith('google/type/')
+
+
+def decimalToProtobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
+    """
+    Converts a Decimal to a Protobuf value.
+
+    Args:
+        value (Decimal): The Decimal value to convert.
+
+    Returns:
+        The Protobuf value.
+    """
+    sign, digits, exp = value.as_tuple()
+
+    delta = exp + scale
+
+    if delta < 0:
+        raise ValueError(
+            "Scale provided does not match the decimal")
+
+    unscaled_datum = 0
+    for digit in digits:
+        unscaled_datum = (unscaled_datum * 10) + digit
+
+    unscaled_datum = 10**delta * unscaled_datum
+
+    bytes_req = (unscaled_datum.bit_length() + 8) // 8
+
+    if sign:
+        unscaled_datum = -unscaled_datum
+
+    bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
+
+    result = decimal_pb2.Decimal()
+    result.value = bytes
+    result.precision = 0
+    result.scale = scale
+    return result
+
+
+decimal_context = Context()
+
+
+def protobufToDecimal(value: decimal_pb2.Decimal) -> Decimal:
+    """
+    Converts a Protobuf value to Decimal.
+
+    Args:
+        value (decimal_pb2.Decimal): The Protobuf value to convert.
+
+    Returns:
+        The Decimal value.
+    """
+    unscaled_datum = int.from_bytes(value.value, byteorder="big", signed=True)
+
+    if value.precision > 0:
+        decimal_context.prec = value.precision
+    else:
+        decimal_context.prec = MAX_PREC
+    return decimal_context.create_decimal(unscaled_datum).scaleb(
+        -value.scale, decimal_context
+    )

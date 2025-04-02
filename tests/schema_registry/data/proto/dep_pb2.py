@@ -11,7 +11,7 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
-from . import test_pb2 as test__pb2
+import test_pb2 as test__pb2
 
 
 DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\tdep.proto\x12\x04test\x1a\ntest.proto\"O\n\x11\x44\x65pendencyMessage\x12\x11\n\tis_active\x18\x01 \x01(\x08\x12\'\n\x0ctest_message\x18\x02 \x01(\x0b\x32\x11.test.TestMessageB\tZ\x07../testb\x06proto3')

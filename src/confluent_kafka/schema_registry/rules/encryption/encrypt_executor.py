@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import logging
 import time
 from typing import Optional, Tuple, Any
 
@@ -30,6 +31,10 @@ from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import
     get_kms_driver, KmsDriver
 from confluent_kafka.schema_registry.serde import RuleContext, \
     FieldRuleExecutor, FieldTransform, RuleError, FieldContext, FieldType
+
+
+log = logging.getLogger(__name__)
+
 
 aead.register()
 daead.register()
@@ -273,19 +278,13 @@ class FieldEncryptionExecutorTransform(object):
                 raw_dek = self._cryptor.generate_key()
                 encrypted_dek = primitive.encrypt(raw_dek, self._cryptor.EMPTY_AAD)
             new_version = dek.version + 1 if is_expired else 1
-            new_dek_id = DekId(
-                self._kek_name,
-                ctx.subject,
-                new_version,
-                self._cryptor.dek_format,
-                is_read
-            )
-            dek = self._store_dek_to_registry(new_dek_id, encrypted_dek)
-            if dek is None:
-                # handle conflicts (409)
-                dek = self._retrieve_dek_from_registry(dek_id)
-            if dek is None:
-                raise RuleError(f"no dek found for {self._kek_name} during produce")
+            try:
+                dek = self._create_dek(dek_id, new_version, encrypted_dek)
+            except RuleError as e:
+                if dek is None:
+                    raise e
+                log.warning("failed to create dek for %s, subject %s, version %d, using existing dek",
+                            kek.name, ctx.subject, new_version)
         key_bytes = dek.get_key_material_bytes()
         if key_bytes is None:
             if primitive is None:
@@ -293,6 +292,22 @@ class FieldEncryptionExecutorTransform(object):
             encrypted_dek = dek.get_encrypted_key_material_bytes()
             raw_dek = primitive.decrypt(encrypted_dek, self._cryptor.EMPTY_AAD)
             dek.set_key_material(raw_dek)
+        return dek
+
+    def _create_dek(self, dek_id: DekId, new_version: Optional[int], encrypted_dek: Optional[bytes]) -> Dek:
+        new_dek_id = DekId(
+            dek_id.kek_name,
+            dek_id.subject,
+            new_version,
+            dek_id.algorithm,
+            dek_id.deleted,
+        )
+        dek = self._store_dek_to_registry(new_dek_id, encrypted_dek)
+        if dek is None:
+            # handle conflicts (409)
+            dek = self._retrieve_dek_from_registry(dek_id)
+        if dek is None:
+            raise RuleError(f"no dek found for {dek_id.kek_name} during produce")
         return dek
 
     def _retrieve_dek_from_registry(self, key: DekId) -> Optional[Dek]:

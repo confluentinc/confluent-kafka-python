@@ -1,5 +1,33 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.9.0
+
+v2.9.0 is a feature release with the following fixes and enhancements:
+
+ - Add Client Credentials OAuth support for Schema Registry (#1919)
+ - Add custom OAuth support for Schema Registry (#1925)
+ - Add utilities to convert decimals from/to Protobuf (#1946)
+ - Add support for passing schema ID during serialization (#1949)
+
+confluent-kafka-python v2.9.0 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+## v2.8.2
+
+v2.8.2 is a maintenance release with the following fixes and enhancements:
+
+ - Fixed caching to ensure cached schema matches input. (#1922)
+ - Fix handling of named Avro schemas (#1928)
+
+confluent-kafka-python v2.8.2 is based on librdkafka v2.8.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+Note: Versioning is skipped due to breaking change in v2.8.1. 
+Do not run software with v2.8.1 installed.
+
+
 ## v2.8.0
 
 v2.8.0 is a feature release with the features, fixes and enhancements:

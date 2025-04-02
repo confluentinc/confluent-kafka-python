@@ -24,7 +24,10 @@ from typing import Union, Optional, List, Set, Tuple, Callable
 
 import httpx
 import referencing
+from cachetools import LRUCache
 from jsonschema import validate, ValidationError
+from jsonschema.protocols import Validator
+from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
@@ -125,6 +128,10 @@ class JSONSerializer(BaseSerializer):
     | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,     |
     |                             |          | including ordering properties and references.      |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Whether to use the given schema ID for           |
+    | ``use.schema.id``           | int      | serialization.                                   |
+    |                             |          |                                                  |
+    +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version for      |
     | ``use.latest.version``      | bool     | serialization.                                     |
     |                             |          |                                                    |
@@ -135,7 +142,7 @@ class JSONSerializer(BaseSerializer):
     |                             |          | Defaults to False.                                 |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                                |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
     |                             |          |                                                    |
     |                             |          | WARNING: There is no check that the latest         |
     |                             |          | schema is backwards compatible with the object     |
@@ -209,10 +216,11 @@ class JSONSerializer(BaseSerializer):
     """  # noqa: E501
     __slots__ = ['_known_subjects', '_parsed_schema', '_ref_registry',
                  '_schema', '_schema_id', '_schema_name', '_to_dict',
-                 '_parsed_schemas', '_validate']
+                 '_parsed_schemas', '_validators', '_validate', '_json_encode']
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
+                     'use.schema.id': None,
                      'use.latest.version': False,
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy,
@@ -225,7 +233,8 @@ class JSONSerializer(BaseSerializer):
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
+        json_encode: Optional[Callable] = None,
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -235,11 +244,15 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
+        self._json_encode = json_encode or json.dumps
         self._registry = schema_registry_client
-        self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
+        self._rule_registry = (
+            rule_registry if rule_registry else RuleRegistry.get_global_instance()
+        )
         self._schema_id = None
         self._known_subjects = set()
         self._parsed_schemas = ParsedSchemaCache()
+        self._validators = LRUCache(1000)
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
@@ -258,6 +271,11 @@ class JSONSerializer(BaseSerializer):
         self._normalize_schemas = conf_copy.pop('normalize.schemas')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
+
+        self._use_schema_id = conf_copy.pop('use.schema.id')
+        if (self._use_schema_id is not None and
+                not isinstance(self._use_schema_id, int)):
+            raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -345,34 +363,36 @@ class JSONSerializer(BaseSerializer):
             value = obj
 
         if latest_schema is not None:
+            schema = latest_schema.schema
             parsed_schema, ref_registry = self._get_parsed_schema(latest_schema.schema)
             root_resource = Resource.from_contents(
                 parsed_schema, default_specification=DEFAULT_SPEC)
             ref_resolver = ref_registry.resolver_with_root(root_resource)
             field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
-                transform(rule_ctx, parsed_schema, ref_resolver, "$", msg, field_transform))
+                transform(rule_ctx, parsed_schema, ref_registry, ref_resolver, "$", msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         latest_schema.schema, value, None,
                                         field_transformer)
         else:
+            schema = self._schema
             parsed_schema, ref_registry = self._parsed_schema, self._ref_registry
 
         if self._validate:
             try:
-                if ref_registry:
-                    validate(instance=value, schema=parsed_schema,
-                             registry=ref_registry)
-                else:
-                    validate(instance=value, schema=parsed_schema)
+                validator = self._get_validator(schema, parsed_schema, ref_registry)
+                validator.validate(value)
             except ValidationError as ve:
                 raise SerializationError(ve.message)
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
+            fo.write(struct.pack(">bI", _MAGIC_BYTE, self._schema_id))
             # JSON dump always writes a str never bytes
             # https://docs.python.org/3/library/json.html
-            fo.write(json.dumps(value).encode('utf8'))
+            encoded_value = self._json_encode(value)
+            if isinstance(encoded_value, str):
+                encoded_value = encoded_value.encode("utf8")
+            fo.write(encoded_value)
 
             return fo.getvalue()
 
@@ -389,6 +409,18 @@ class JSONSerializer(BaseSerializer):
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
+
+    def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
+        validator = self._validators.get(schema, None)
+        if validator is not None:
+            return validator
+
+        cls = validator_for(parsed_schema)
+        cls.check_schema(parsed_schema)
+        validator = cls(parsed_schema, registry=registry)
+
+        self._validators[schema] = validator
+        return validator
 
 
 class JSONDeserializer(BaseDeserializer):
@@ -408,7 +440,7 @@ class JSONDeserializer(BaseDeserializer):
     |                             |          | Defaults to False.                                 |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version with     |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                                |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                                |
     |                             |          |                                                    |
     |                             |          | Defaults to None.                                  |
     +-----------------------------+----------+----------------------------------------------------+
@@ -442,7 +474,7 @@ class JSONDeserializer(BaseDeserializer):
     """  # noqa: E501
 
     __slots__ = ['_reader_schema', '_ref_registry', '_from_dict', '_schema',
-                 '_parsed_schemas', '_validate']
+                 '_parsed_schemas', '_validators', '_validate', '_json_decode']
 
     _default_conf = {'use.latest.version': False,
                      'use.latest.with.metadata': None,
@@ -456,7 +488,8 @@ class JSONDeserializer(BaseDeserializer):
         schema_registry_client: Optional[SchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
-        rule_registry: Optional[RuleRegistry] = None
+        rule_registry: Optional[RuleRegistry] = None,
+        json_decode: Optional[Callable] = None,
     ):
         super().__init__()
         if isinstance(schema_str, str):
@@ -479,6 +512,9 @@ class JSONDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._validators = LRUCache(1000)
+        self._json_decode = json_decode or json.loads
+        self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -560,19 +596,18 @@ class JSONDeserializer(BaseDeserializer):
                                          "Schema Registry serializer".format(magic))
 
             # JSON documents are self-describing; no need to query schema
-            obj_dict = json.loads(payload.read())
+            obj_dict = self._json_decode(payload.read())
 
             if self._registry is not None:
                 writer_schema_raw = self._registry.get_schema(schema_id)
                 writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
+                if subject is None:
+                    subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                    if subject is not None:
+                        latest_schema = self._get_reader_schema(subject)
             else:
                 writer_schema_raw = None
                 writer_schema, writer_ref_registry = None, None
-
-            if subject is None:
-                subject = self._subject_name_func(ctx, writer_schema.get("title"))
-                if subject is not None and self._registry is not None:
-                    latest_schema = self._get_reader_schema(subject)
 
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
@@ -594,18 +629,16 @@ class JSONDeserializer(BaseDeserializer):
                 reader_schema, default_specification=DEFAULT_SPEC)
             reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
             field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
-                transform(rule_ctx, reader_schema, reader_ref_resolver, "$", message, field_transform))
+                transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
+                          "$", message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            reader_schema_raw, obj_dict, None,
                                            field_transformer)
 
             if self._validate:
                 try:
-                    if reader_ref_registry:
-                        validate(instance=obj_dict, schema=reader_schema,
-                                 registry=reader_ref_registry)
-                    else:
-                        validate(instance=obj_dict, schema=reader_schema)
+                    validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
+                    validator.validate(obj_dict)
                 except ValidationError as ve:
                     raise SerializationError(ve.message)
 
@@ -628,9 +661,21 @@ class JSONDeserializer(BaseDeserializer):
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
 
+    def _get_validator(self, schema: Schema, parsed_schema: JsonSchema, registry: Registry) -> Validator:
+        validator = self._validators.get(schema, None)
+        if validator is not None:
+            return validator
+
+        cls = validator_for(parsed_schema)
+        cls.check_schema(parsed_schema)
+        validator = cls(parsed_schema, registry=registry)
+
+        self._validators[schema] = validator
+        return validator
+
 
 def transform(
-    ctx: RuleContext, schema: JsonSchema, ref_resolver: Resolver,
+    ctx: RuleContext, schema: JsonSchema, ref_registry: Registry, ref_resolver: Resolver,
     path: str, message: JsonMessage, field_transform: FieldTransform
 ) -> Optional[JsonMessage]:
     if message is None or schema is None or isinstance(schema, bool):
@@ -640,34 +685,34 @@ def transform(
         field_ctx.field_type = get_type(schema)
     all_of = schema.get("allOf")
     if all_of is not None:
-        subschema = _validate_subschemas(all_of, message)
+        subschema = _validate_subschemas(all_of, message, ref_registry)
         if subschema is not None:
-            return transform(ctx, subschema, ref_resolver, path, message, field_transform)
+            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     any_of = schema.get("anyOf")
     if any_of is not None:
-        subschema = _validate_subschemas(any_of, message)
+        subschema = _validate_subschemas(any_of, message, ref_registry)
         if subschema is not None:
-            return transform(ctx, subschema, ref_resolver, path, message, field_transform)
+            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     one_of = schema.get("oneOf")
     if one_of is not None:
-        subschema = _validate_subschemas(one_of, message)
+        subschema = _validate_subschemas(one_of, message, ref_registry)
         if subschema is not None:
-            return transform(ctx, subschema, ref_resolver, path, message, field_transform)
+            return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
     items = schema.get("items")
     if items is not None:
         if isinstance(message, list):
-            return [transform(ctx, items, ref_resolver, path, item, field_transform) for item in message]
+            return [transform(ctx, items, ref_registry, ref_resolver, path, item, field_transform) for item in message]
     ref = schema.get("$ref")
     if ref is not None:
         ref_schema = ref_resolver.lookup(ref)
-        return transform(ctx, ref_schema.contents, ref_resolver, path, message, field_transform)
+        return transform(ctx, ref_schema.contents, ref_registry, ref_resolver, path, message, field_transform)
     schema_type = get_type(schema)
     if schema_type == FieldType.RECORD:
         props = schema.get("properties")
         if props is not None:
             for prop_name, prop_schema in props.items():
                 _transform_field(ctx, path, prop_name, message,
-                                 prop_schema, ref_resolver, field_transform)
+                                 prop_schema, ref_registry, ref_resolver, field_transform)
         return message
     if schema_type in (FieldType.ENUM, FieldType.STRING, FieldType.INT, FieldType.DOUBLE, FieldType.BOOLEAN):
         if field_ctx is not None:
@@ -679,7 +724,7 @@ def transform(
 
 def _transform_field(
     ctx: RuleContext, path: str, prop_name: str, message: JsonMessage,
-    prop_schema: JsonSchema, ref_resolver: Resolver, field_transform: FieldTransform
+    prop_schema: JsonSchema, ref_registry: Registry, ref_resolver: Resolver, field_transform: FieldTransform
 ):
     full_name = path + "." + prop_name
     try:
@@ -691,7 +736,7 @@ def _transform_field(
             get_inline_tags(prop_schema)
         )
         value = message[prop_name]
-        new_value = transform(ctx, prop_schema, ref_resolver, full_name, value, field_transform)
+        new_value = transform(ctx, prop_schema, ref_registry, ref_resolver, full_name, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
@@ -703,11 +748,12 @@ def _transform_field(
 
 def _validate_subschemas(
     subschemas: List[JsonSchema],
-    message: JsonMessage
+    message: JsonMessage,
+    registry: Registry
 ) -> Optional[JsonSchema]:
     for subschema in subschemas:
         try:
-            validate(instance=message, schema=subschema)
+            validate(instance=message, schema=subschema, registry=registry)
             return subschema
         except ValidationError:
             pass

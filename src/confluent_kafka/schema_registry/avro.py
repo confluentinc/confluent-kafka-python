@@ -18,15 +18,17 @@
 import decimal
 import re
 from collections import defaultdict
+from copy import deepcopy
 from io import BytesIO
 from json import loads
 from struct import pack, unpack
 from typing import Dict, Union, Optional, Set, Callable
 
-from fastavro import (parse_schema,
-                      schemaless_reader,
+from fastavro import (schemaless_reader,
                       schemaless_writer,
+                      repository,
                       validate)
+from fastavro.schema import load_schema
 
 from . import (_MAGIC_BYTE,
                Schema,
@@ -104,7 +106,8 @@ def _resolve_named_schema(
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
-            parsed_schema = parse_schema(loads(referenced_schema.schema.schema_str), named_schemas=ref_named_schemas)
+            parsed_schema = parse_schema_with_repo(
+                referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
             named_schemas[ref.name] = parsed_schema
     return named_schemas
@@ -130,6 +133,10 @@ class AvroSerializer(BaseSerializer):
     | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,   |
     |                             |          | including ordering properties and references.    |
     +-----------------------------+----------+--------------------------------------------------+
+    |                             |          | Whether to use the given schema ID for           |
+    | ``use.schema.id``           | int      | serialization.                                   |
+    |                             |          |                                                  |
+    +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version for    |
     | ``use.latest.version``      | bool     | serialization.                                   |
     |                             |          |                                                  |
@@ -140,7 +147,7 @@ class AvroSerializer(BaseSerializer):
     |                             |          | Defaults to False.                               |
     +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version with   |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                              |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                              |
     |                             |          |                                                  |
     |                             |          | WARNING: There is no check that the latest       |
     |                             |          | schema is backwards compatible with the object   |
@@ -213,6 +220,7 @@ class AvroSerializer(BaseSerializer):
 
     _default_conf = {'auto.register.schemas': True,
                      'normalize.schemas': False,
+                     'use.schema.id': None,
                      'use.latest.version': False,
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy}
@@ -257,6 +265,11 @@ class AvroSerializer(BaseSerializer):
         self._normalize_schemas = conf_copy.pop('normalize.schemas')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
+
+        self._use_schema_id = conf_copy.pop('use.schema.id')
+        if (self._use_schema_id is not None and
+                not isinstance(self._use_schema_id, int)):
+            raise ValueError("use.schema.id must be an int value")
 
         self._use_latest_version = conf_copy.pop('use.latest.version')
         if not isinstance(self._use_latest_version, bool):
@@ -378,8 +391,8 @@ class AvroSerializer(BaseSerializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         prepared_schema = _schema_loads(schema.schema_str)
-        parsed_schema = parse_schema(
-            loads(prepared_schema.schema_str), named_schemas=named_schemas, expand=True)
+        parsed_schema = parse_schema_with_repo(
+            prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
@@ -399,7 +412,7 @@ class AvroDeserializer(BaseDeserializer):
     |                             |          | Defaults to False.                               |
     +-----------------------------+----------+--------------------------------------------------+
     |                             |          | Whether to use the latest subject version with   |
-    | ``use.latest.with.metadata``| bool     | the given metadata.                              |
+    | ``use.latest.with.metadata``| dict     | the given metadata.                              |
     |                             |          |                                                  |
     |                             |          | Defaults to None.                                |
     +-----------------------------+----------+--------------------------------------------------+
@@ -475,6 +488,7 @@ class AvroDeserializer(BaseDeserializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
+        self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -606,11 +620,26 @@ class AvroDeserializer(BaseDeserializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         prepared_schema = _schema_loads(schema.schema_str)
-        parsed_schema = parse_schema(
-            loads(prepared_schema.schema_str), named_schemas=named_schemas, expand=True)
+        parsed_schema = parse_schema_with_repo(
+            prepared_schema.schema_str, named_schemas=named_schemas)
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
+
+
+class LocalSchemaRepository(repository.AbstractSchemaRepository):
+    def __init__(self, schemas):
+        self.schemas = schemas
+
+    def load(self, subject):
+        return self.schemas.get(subject)
+
+
+def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]) -> AvroSchema:
+    copy = deepcopy(named_schemas)
+    copy["$root"] = loads(schema_str)
+    repo = LocalSchemaRepository(copy)
+    return load_schema("$root", repo=repo)
 
 
 def transform(
