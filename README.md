@@ -140,19 +140,19 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 To use Schema Registry with the Avro serializer/deserializer:
 
-    $ pip install confluent-kafka[avro,schemaregistry]
+    $ pip install "confluent-kafka[avro,schemaregistry]"
 
 To use Schema Registry with the JSON serializer/deserializer:
 
-    $ pip install confluent-kafka[json,schemaregistry]
+    $ pip install "confluent-kafka[json,schemaregistry]"
 
 To use Schema Registry with the Protobuf serializer/deserializer:
 
-    $ pip install confluent-kafka[protobuf,schemaregistry]
+    $ pip install "confluent-kafka[protobuf,schemaregistry]"
 
 When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
 
-    $ pip install confluent-kafka[avro,schemaregistry,rules]
+    $ pip install "confluent-kafka[avro,schemaregistry,rules]"
 
 **Install from source**
 
