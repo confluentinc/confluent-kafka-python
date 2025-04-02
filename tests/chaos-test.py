@@ -11,12 +11,13 @@ import threading
 last_loop_time = time.time()
 show_logs = False
 logger = None
+log_messages = True
+stop_background_thread = False
 class Logger:
     max_logs = 10000
     after_close_buf_size = 100000
 
     def __init__(self):
-        self.log_messages = True
         self.pos = 0
         self.buffer = [None] * Logger.max_logs
 
@@ -38,19 +39,22 @@ class Logger:
             print(self.after_close_buf[i])
             self.after_close_buf[i] = None
             i += 1
-        exit(0)
+        # exit(0)
 
     def log(self, level, format, facet, name, *args):
+        global log_messages
         message = " ".join(args)
         if "Closing consumer" in message:
             print("Logging after closing the consumer!!")
             self.close_initialized = True
-        if self.log_messages:
+        if log_messages:
             if self.close_initialized:
                 self.after_close_buf[self.close_pos] = f"{time.time()} {name} {facet}: {message}"
+                # print(self.after_close_buf[self.close_pos])
                 self.close_pos = self.close_pos + 1
             else:
                 self.buffer[self.pos] = f"{time.time()} {name} {facet}: {message}"
+                # print(self.buffer[self.pos])
                 self.pos = (self.pos + 1) % Logger.max_logs
 
 
@@ -151,6 +155,7 @@ def stop_all_kafka_containers(all_kafka_containers, stopped_container):
 
 def reset_or_create_consumer(brokers, consumer, topic_name):
     time.sleep(0.005)
+    global logger
     stop_consumer = random.choice([True])
     if stop_consumer and consumer:
         print("Closing Kafka consumer")
@@ -245,6 +250,10 @@ def main():
     def signal_handler(sig, frame):
         print("You pressed Ctrl+C! Exiting gracefully...")
 
+        print("Stopping background thread")
+        global stop_background_thread
+        stop_background_thread = True
+
         time.sleep(5)
         print(f"Stopped containers: {stopped_container}")
         while len(stopped_container) > 0:
@@ -275,12 +284,15 @@ def main():
     def check_alive():
         global logger
         global last_loop_time
-        while True:
-            # print(f"Inside Daemon Thread ---> Last loop time: {last_loop_time}")
-            if time.time() - last_loop_time > 50:
-                logger.log_messages = False
-                logger.print_logs()
+        global log_messages
+        global stop_background_thread
+        while not stop_background_thread:
+            time_diff = time.time() - last_loop_time
+            print(f"Inside Daemon Thread ---> Time diff: {time_diff}")
+            if time_diff > 50:
+                log_messages = False
                 print(f"{bcolors.HEADER}Last loop time exceeded 50 seconds. Showing logs...{bcolors.ENDC}")
+                logger.print_logs()
             time.sleep(1)
     
     background_task = threading.Thread(target=check_alive)
@@ -312,7 +324,7 @@ def main():
 
 
         message_to_produce=f"value-{random.randint(1, 1000)}"
-        if random.choice([True, False, False, False, False]):
+        if random.choice([True]):
             # Produce a message
             producer.produce(topic_name, value=message_to_produce)
             print(f"Producing message: {message_to_produce}")
@@ -324,7 +336,7 @@ def main():
             
         last_loop_time = time.time()
         # print(f"Inside loop ---> Last loop time: {last_loop_time}")
-        time.sleep(0.2)
+        time.sleep(0.1)
 
 if __name__ == "__main__":
     main()
