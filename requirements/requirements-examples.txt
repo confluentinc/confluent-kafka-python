@@ -8,7 +8,7 @@ attrs
 cachetools
 httpx
 
-fastavro < 1.8.0; python_version == "3.7"
+fastavro <1.10.1; python_version == "3.7"
 fastavro < 2; python_version > "3.7"
 requests
 avro>=1.11.1,<2
