@@ -1,3 +1,4 @@
+import os
 import subprocess
 import time
 from confluent_kafka import Producer, Consumer
@@ -6,7 +7,6 @@ import random
 import signal
 import sys
 import threading
-
 
 last_loop_time = time.time()
 show_logs = False
@@ -39,7 +39,7 @@ class Logger:
             print(self.after_close_buf[i])
             self.after_close_buf[i] = None
             i += 1
-        # exit(0)
+        os._exit(0)
 
     def log(self, level, format, facet, name, *args):
         global log_messages
