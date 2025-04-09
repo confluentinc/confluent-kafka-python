@@ -266,7 +266,6 @@ def test_producer_dr_only_error():
     # since there is a on_delivery reference to it.
     not_called_state = None
     gc.collect()
-    global DrOnlyTestSuccess_gced
     assert DrOnlyTestSuccess_gced == 0
 
     print('only.error: Waiting for flush of %d messages' % len(p))
