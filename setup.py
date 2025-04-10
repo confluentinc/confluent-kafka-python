@@ -35,7 +35,7 @@ SUBS = [
     ('AsyncIterator', 'Iterator'),
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
-    ('async_([A-Za-z0-9_]*)', r'\2'),
+    ('async_schema_registry', 'schema_registry'),
     ('async def', 'def'),
     ('async with', 'with'),
     ('async for', 'for'),
