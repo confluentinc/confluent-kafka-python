@@ -24,6 +24,7 @@ from trivup.clusters.KafkaCluster import KafkaCluster
 from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 
 from tests.common import TestConsumer
 from tests.common.schema_registry import TestDeserializingConsumer
@@ -285,6 +286,15 @@ class TrivupFixture(KafkaClusterFixture):
         if conf is not None:
             sr_conf.update(conf)
         return SchemaRegistryClient(sr_conf)
+
+    def async_schema_registry(self, conf=None):
+        if not hasattr(self._cluster, 'sr'):
+            return None
+
+        sr_conf = {'url': self._cluster.sr.get('url')}
+        if conf is not None:
+            sr_conf.update(conf)
+        return AsyncSchemaRegistryClient(sr_conf)
 
     def client_conf(self, conf=None):
         """
