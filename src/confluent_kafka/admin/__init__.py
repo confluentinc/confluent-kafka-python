@@ -15,7 +15,6 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
-import asyncio
 import warnings
 import concurrent.futures
 
@@ -1030,12 +1029,6 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).describe_cluster(f, **kwargs)
 
         return f
-
-    async def async_describe_cluster(self, **kwargs):
-        return await asyncio.wrap_future(
-            self.describe_cluster(), 
-            loop=asyncio.get_event_loop()
-        )
 
     def delete_consumer_groups(self, group_ids, **kwargs):
         """
