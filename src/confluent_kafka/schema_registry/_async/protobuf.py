@@ -42,7 +42,7 @@ from google.protobuf.message_factory import GetMessageClass
 
 from . import (_MAGIC_BYTE,
                reference_subject_name_strategy,
-               topic_subject_name_strategy, SchemaRegistryClient)
+               topic_subject_name_strategy, AsyncSchemaRegistryClient)
 from confluent_kafka.schema_registry.confluent.types import decimal_pb2
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from .schema_registry_client import (Schema,
@@ -51,8 +51,8 @@ from .schema_registry_client import (Schema,
                                      RuleMode)
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
-from confluent_kafka.schema_registry.util import asyncinit
-from .serde import BaseSerializer, BaseDeserializer, RuleContext, \
+from confluent_kafka.schema_registry.async_util import asyncinit
+from .serde import AsyncBaseSerializer, AsyncBaseDeserializer, RuleContext, \
     FieldTransform, FieldType, RuleConditionError, ParsedSchemaCache
 
 # Convert an int to bytes (inverse of ord())
@@ -185,16 +185,16 @@ def _str_to_proto(name: str, schema_str: str) -> descriptor_pb2.FileDescriptorPr
     return file_descriptor_proto
 
 
-def _resolve_named_schema(
+async def _resolve_named_schema(
     schema: Schema,
-    schema_registry_client: SchemaRegistryClient,
+    schema_registry_client: AsyncSchemaRegistryClient,
     pool: DescriptorPool,
     visited: Optional[Set[str]] = None
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
-    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
+    :param schema_registry_client: AsyncSchemaRegistryClient to use for retrieval.
     :param pool: DescriptorPool to add resolved schemas to.
     :return: DescriptorPool
     """
@@ -205,8 +205,8 @@ def _resolve_named_schema(
             if _is_builtin(ref.name) or ref.name in visited:
                 continue
             visited.add(ref.name)
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
-            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
+            referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
+            await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
 
@@ -244,8 +244,8 @@ def _init_pool(pool: DescriptorPool):
     pool.AddSerializedFile(decimal_pb2.DESCRIPTOR.serialized_pb)
 
 
-
-class ProtobufSerializer(BaseSerializer):
+@asyncinit
+class AsyncProtobufSerializer(AsyncBaseSerializer):
     """
     Serializer for Protobuf Message derived classes. Serialization format is Protobuf,
     with Confluent Schema Registry framing.
@@ -377,10 +377,10 @@ class ProtobufSerializer(BaseSerializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(
+    async def __init__(
         self,
         msg_type: Message,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: AsyncSchemaRegistryClient,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None
@@ -504,12 +504,12 @@ class ProtobufSerializer(BaseSerializer):
             buf.write(_bytes(0x00))
             return
 
-        ProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
+        AsyncProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
 
         for value in ints:
-            ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
+            AsyncProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(
+    async def _resolve_dependencies(
         self, ctx: SerializationContext,
         file_desc: FileDescriptor
     ) -> List[SchemaReference]:
@@ -526,22 +526,22 @@ class ProtobufSerializer(BaseSerializer):
         for dep in file_desc.dependencies:
             if self._skip_known_types and _is_builtin(dep.name):
                 continue
-            dep_refs = self._resolve_dependencies(ctx, dep)
+            dep_refs = await self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
                             references=dep_refs,
                             schema_type='PROTOBUF')
             if self._auto_register:
-                self._registry.register_schema(subject, schema)
+                await self._registry.register_schema(subject, schema)
 
-            reference = self._registry.lookup_schema(subject, schema)
+            reference = await self._registry.lookup_schema(subject, schema)
             # schema_refs are per file descriptor
             schema_refs.append(SchemaReference(dep.name,
                                                subject,
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __await__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -569,11 +569,11 @@ class ProtobufSerializer(BaseSerializer):
 
         subject = self._subject_name_func(ctx,
                                           message.DESCRIPTOR.full_name)
-        latest_schema = self._get_reader_schema(subject, fmt='serialized')
+        latest_schema = await self._get_reader_schema(subject, fmt='serialized')
         if latest_schema is not None:
             self._schema_id = latest_schema.schema_id
         elif subject not in self._known_subjects:
-            references = self._resolve_dependencies(
+            references = await self._resolve_dependencies(
                 ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
                 self._schema.schema_str,
@@ -582,17 +582,17 @@ class ProtobufSerializer(BaseSerializer):
             )
 
             if self._auto_register:
-                self._schema_id = self._registry.register_schema(subject,
+                self._schema_id = await self._registry.register_schema(subject,
                                                                  self._schema,
                                                                  self._normalize_schemas)
             else:
-                self._schema_id = self._registry.lookup_schema(
+                self._schema_id = await self._registry.lookup_schema(
                     subject, self._schema, self._normalize_schemas).schema_id
 
             self._known_subjects.add(subject)
 
         if latest_schema is not None:
-            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
             field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
@@ -613,22 +613,22 @@ class ProtobufSerializer(BaseSerializer):
             fo.write(message.SerializeToString())
             return fo.getvalue()
 
-    def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
+    async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
         if result is not None:
             return result
 
         pool = DescriptorPool()
         _init_pool(pool)
-        _resolve_named_schema(schema, self._registry, pool)
+        await _resolve_named_schema(schema, self._registry, pool)
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
 
 
-
-class ProtobufDeserializer(BaseDeserializer):
+@asyncinit
+class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     """
     Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
 
@@ -686,11 +686,11 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(
+    async def __init__(
         self,
         message_type: Message,
         conf: Optional[dict] = None,
-        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None
     ):
@@ -768,7 +768,7 @@ class ProtobufDeserializer(BaseDeserializer):
         shift = 0
         try:
             while True:
-                i = ProtobufDeserializer._read_byte(buf)
+                i = AsyncProtobufDeserializer._read_byte(buf)
 
                 value |= (i & 0x7f) << shift
                 shift += 7
@@ -813,7 +813,7 @@ class ProtobufDeserializer(BaseDeserializer):
             list of int: The index array.
         """
 
-        size = ProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
+        size = AsyncProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
         if size < 0 or size > 100000:
             raise DecodeError("Invalid Protobuf msgidx array length")
 
@@ -822,12 +822,12 @@ class ProtobufDeserializer(BaseDeserializer):
 
         msg_index = []
         for _ in range(size):
-            msg_index.append(ProtobufDeserializer._decode_varint(buf,
+            msg_index.append(AsyncProtobufDeserializer._decode_varint(buf,
                                                                  zigzag=zigzag))
 
         return msg_index
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[Message]:
+    async def __await__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[Message]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -860,7 +860,7 @@ class ProtobufDeserializer(BaseDeserializer):
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
-            latest_schema = self._get_reader_schema(subject, fmt='serialized')
+            latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
         with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
@@ -872,14 +872,14 @@ class ProtobufDeserializer(BaseDeserializer):
             msg_index = self._read_index_array(payload, zigzag=not self._use_deprecated_format)
 
             if self._registry is not None:
-                writer_schema_raw = self._registry.get_schema(schema_id, fmt='serialized')
-                fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
+                writer_schema_raw = await self._registry.get_schema(schema_id, fmt='serialized')
+                fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)
                 writer_schema = pool.FindFileByName(fd_proto.name)
                 writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
                 if subject is None:
                     subject = self._subject_name_func(ctx, writer_desc.full_name)
                     if subject is not None:
-                        latest_schema = self._get_reader_schema(subject, fmt='serialized')
+                        latest_schema = await self._get_reader_schema(subject, fmt='serialized')
             else:
                 writer_schema_raw = None
                 writer_schema = None
@@ -887,7 +887,7 @@ class ProtobufDeserializer(BaseDeserializer):
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
                 reader_schema_raw = latest_schema.schema
-                fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+                fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
                 reader_schema = pool.FindFileByName(fd_proto.name)
             else:
                 migrations = None
@@ -927,14 +927,14 @@ class ProtobufDeserializer(BaseDeserializer):
 
             return msg
 
-    def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
+    async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
         if result is not None:
             return result
 
         pool = DescriptorPool()
         _init_pool(pool)
-        _resolve_named_schema(schema, self._registry, pool)
+        await _resolve_named_schema(schema, self._registry, pool)
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
