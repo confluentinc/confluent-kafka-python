@@ -2,7 +2,7 @@ version: v1.0
 name: Test on PR or create and upload wheels on tag.
 agent:
   machine:
-    type: s1-prod-ubuntu20-04-amd64-1
+    type: s1-prod-ubuntu24-04-amd64-1
 execution_time_limit:
   hours: 3
 global_job_config:
@@ -121,7 +121,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-arm64-1
+          type: s1-prod-ubuntu24-04-arm64-1
       env_vars:
         - name: OS_NAME
           value: linux
@@ -140,7 +140,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-3
       env_vars:
         - name: OS_NAME
           value: linux
@@ -188,7 +188,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-3
       env_vars:
         - name: OS_NAME
           value: linux
@@ -230,7 +230,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-arm64-1
+          type: s1-prod-ubuntu24-04-arm64-1
       env_vars:
         - name: OS_NAME
           value: linux
@@ -296,7 +296,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-ubuntu20-04-amd64-3
+          type: s1-prod-ubuntu24-04-amd64-3
       jobs:
         - name: "Packaging all artifacts"
           commands:
@@ -314,7 +314,7 @@ after_pipeline:
   task:
     agent:
       machine:
-        type: s1-prod-ubuntu20-04-amd64-1
+        type: s1-prod-ubuntu24-04-amd64-1
     jobs:
       - name: SonarQube
         commands:
