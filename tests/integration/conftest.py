@@ -35,7 +35,7 @@ def _broker_conf():
 
 
 def _broker_version():
-    return 'trunk@3a0efa2845e6a0d237772adfe6364579af50ce18' if TestUtils.use_group_protocol_consumer() else '3.8.0'
+    return '4.0.0'
 
 
 def create_trivup_cluster(conf={}):
