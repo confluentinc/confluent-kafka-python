@@ -86,7 +86,7 @@ def test_basic_api():
             KafkaError.LEADER_NOT_AVAILABLE,
             KafkaError._ALL_BROKERS_DOWN)
 
-    kc.unassign()
+    kc.unassign(partitions)
 
     kc.commit(asynchronous=True)
 
@@ -266,7 +266,7 @@ def test_any_method_after_close_throws_exception():
     assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:
-        c.unassign()
+        c.unassign([TopicPartition('test', 0)])
     assert ex.match('Consumer closed')
 
     with pytest.raises(RuntimeError) as ex:

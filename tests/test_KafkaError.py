@@ -18,8 +18,6 @@ def error_cb(err):
 def test_error_cb():
     """ Test the error callback. """
 
-    global seen_all_brokers_down
-
     # Configure an invalid broker and make sure the ALL_BROKERS_DOWN
     # error is seen in the error callback.
     p = Producer({'bootstrap.servers': '127.0.0.1:1', 'socket.timeout.ms': 10,
