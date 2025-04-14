@@ -13,6 +13,7 @@ global_job_config:
     commands:
       - checkout
       - mkdir artifacts
+      - sem-version java 17
 blocks:
   - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
