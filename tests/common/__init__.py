@@ -41,8 +41,34 @@ class TestUtils:
         if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
             conf['group.protocol'] = 'consumer'
 
+    @staticmethod
+    def remove_forbidden_conf_group_protocol_consumer(conf):
+        if conf is None:
+            return
+        if TestUtils.use_group_protocol_consumer():
+            forbidden_conf_properties = ["session.timeout.ms",
+                                         "partition.assignment.strategy",
+                                         "heartbeat.interval.ms",
+                                         "group.protocol.type"]
+            for prop in forbidden_conf_properties:
+                if prop in conf:
+                    del conf[prop]
+
 
 class TestConsumer(Consumer):
     def __init__(self, conf=None, **kwargs):
         TestUtils.update_conf_group_protocol(conf)
+        TestUtils.remove_forbidden_conf_group_protocol_consumer(conf)
         super(TestConsumer, self).__init__(conf, **kwargs)
+
+    def assign(self, partitions):
+        if TestUtils.use_group_protocol_consumer():
+            super(TestConsumer, self).incremental_assign(partitions)
+        else:
+            super(TestConsumer, self).assign(partitions)
+
+    def unassign(self, partitions):
+        if TestUtils.use_group_protocol_consumer():
+            super(TestConsumer, self).incremental_unassign(partitions)
+        else:
+            super(TestConsumer, self).unassign()
