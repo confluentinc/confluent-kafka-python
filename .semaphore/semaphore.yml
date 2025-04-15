@@ -8,11 +8,12 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.8.0
+      value: v2.10.0-RC2
   prologue:
     commands:
       - checkout
       - mkdir artifacts
+      - sem-version java 17
 blocks:
   - name: "Wheels: OSX x64 - Python 3.6-3.12"
     run:
