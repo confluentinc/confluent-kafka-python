@@ -29,8 +29,26 @@ def _trivup_cluster_type_kraft():
 
 class TestUtils:
     @staticmethod
+    def broker_version():
+        return '4.0.0'
+
+    @staticmethod
+    def broker_conf():
+        broker_conf = ['transaction.state.log.replication.factor=1',
+                       'transaction.state.log.min.isr=1']
+        if TestUtils.use_group_protocol_consumer():
+            broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
+        return broker_conf
+
+    @staticmethod
+    def _broker_major_version():
+        return int(TestUtils.broker_version().split('.')[0])
+
+    @staticmethod
     def use_kraft():
-        return TestUtils.use_group_protocol_consumer() or _trivup_cluster_type_kraft()
+        return (TestUtils._broker_major_version() >= 4 or
+                TestUtils.use_group_protocol_consumer() or
+                _trivup_cluster_type_kraft())
 
     @staticmethod
     def use_group_protocol_consumer():

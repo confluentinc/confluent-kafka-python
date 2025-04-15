@@ -72,7 +72,7 @@ def test_consume_error_commit(kafka_cluster):
     try:
         # Since the session timeout value is low, JoinGroupRequest will fail
         # and we get error in a message while polling.
-        m = consumer.poll(1)
+        m = consumer.poll(2)
         consumer.commit(m)
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._INVALID_ARG, \
@@ -106,7 +106,7 @@ def test_consume_error_store_offsets(kafka_cluster):
     try:
         # Since the session timeout value is low, JoinGroupRequest will fail
         # and we get error in a message while polling.
-        m = consumer.poll(1)
+        m = consumer.poll(2)
         consumer.store_offsets(m)
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._INVALID_ARG, \
