@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.8.0
+      value: v2.10.0-RC2
   prologue:
     commands:
       - checkout
@@ -201,6 +201,7 @@ blocks:
         - name: Build and Tests with 'classic' group protocol
           commands:
             - sem-version python 3.9
+            - sem-version java 17
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -208,6 +209,7 @@ blocks:
         - name: Build and Tests with 'consumer' group protocol
           commands:
             - sem-version python 3.9
+            - sem-version java 17
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
