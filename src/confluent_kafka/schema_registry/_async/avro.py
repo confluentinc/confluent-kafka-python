@@ -320,7 +320,12 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    async def __await__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        return self
+
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        return self.__serialize(obj, ctx)
+
+    async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -344,7 +349,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             return None
 
         subject = self._subject_name_func(ctx, self._schema_name)
-        latest_schema = self._get_reader_schema(subject)
+        latest_schema = await self._get_reader_schema(subject)
         if latest_schema is not None:
             self._schema_id = latest_schema.schema_id
         elif subject not in self._known_subjects:
@@ -353,10 +358,10 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 # The schema name will always be the same. We can't however register
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
-                self._schema_id = self._registry.register_schema(
+                self._schema_id = await self._registry.register_schema(
                     subject, self._schema, self._normalize_schemas)
             else:
-                registered_schema = self._registry.lookup_schema(
+                registered_schema = await self._registry.lookup_schema(
                     subject, self._schema, self._normalize_schemas)
                 self._schema_id = registered_schema.schema_id
 
@@ -531,7 +536,10 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    async def __await__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+        return self.__deserialize(data, ctx)
+
+    async def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.

@@ -22,6 +22,7 @@ from uuid import uuid1
 from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import Producer, SerializingProducer
+from confluent_kafka.serializing_producer import AsyncSerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
@@ -89,6 +90,32 @@ class KafkaClusterFixture(object):
             client_conf['value.serializer'] = value_serializer
 
         return SerializingProducer(client_conf)
+
+    def async_producer(self, conf=None, key_serializer=None, value_serializer=None):
+        """
+        Returns a producer bound to this cluster.
+
+        Args:
+            conf (dict): Producer configuration overrides
+
+            key_serializer (Serializer): serializer to apply to message key
+
+            value_serializer (Deserializer): serializer to apply to
+                message value
+
+        Returns:
+            Producer: A new SerializingProducer instance
+
+        """
+        client_conf = self.client_conf(conf)
+
+        if key_serializer is not None:
+            client_conf['key.serializer'] = key_serializer
+
+        if value_serializer is not None:
+            client_conf['value.serializer'] = value_serializer
+
+        return AsyncSerializingProducer(client_conf)
 
     def cimpl_consumer(self, conf=None):
         """

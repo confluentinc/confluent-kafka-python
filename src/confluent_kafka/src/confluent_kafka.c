@@ -2565,7 +2565,7 @@ outer_err:
 
 
 /**
- * @brief Initialiase a CallState and unlock the GIL prior to a
+ * @brief Initialise a CallState and unlock the GIL prior to a
  *        possibly blocking external call.
  */
 void CallState_begin (Handle *h, CallState *cs) {

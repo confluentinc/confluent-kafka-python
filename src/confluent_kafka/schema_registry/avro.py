@@ -320,7 +320,12 @@ class AvroSerializer(BaseSerializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
+        return self
+
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        return self.__serialize(obj, ctx)
+
+    def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to Avro binary format, prepending it with Confluent
         Schema Registry framing.
@@ -532,6 +537,9 @@ class AvroDeserializer(BaseDeserializer):
                            rule_conf if rule_conf else {})
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+        return self.__deserialize(data, ctx)
+
+    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.

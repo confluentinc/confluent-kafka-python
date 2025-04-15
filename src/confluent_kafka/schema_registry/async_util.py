@@ -12,10 +12,9 @@ def asyncinit(cls):
         await obj.__init__(*arg, **kwarg)
         return obj
 
-    def new(cls, *arg, **kwarg):
-        obj = __new__(cls, *arg, **kwarg)
+    def new(klass, *arg, **kwarg):
+        obj = __new__(klass)
         coro = init(obj, *arg, **kwarg)
-        #coro.__init__ = lambda *_1, **_2: None
         return coro
 
     cls.__new__ = new
