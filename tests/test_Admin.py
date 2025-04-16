@@ -835,8 +835,8 @@ def test_alter_consumer_group_offsets_api():
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
                                         same_name_request])
 
-    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
     with pytest.raises(KafkaException):
+        fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
         for f in fs.values():
             f.result(timeout=10)
 
