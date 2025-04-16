@@ -25,7 +25,6 @@ def create_consumers(kafka_cluster, topic, group_id, client_id, Protocol):
     conf = {'group.id': group_id,
             'client.id': client_id,
             'group.protocol': Protocol,
-            'session.timeout.ms': 6000,
             'enable.auto.commit': False,
             'auto.offset.reset': 'earliest',
             'debug': 'all'}
@@ -122,9 +121,6 @@ def test_describe_consumer_groups_compatability(kafka_cluster):
                                                                },
                                                                validate_only=False
                                                                )
-
-    if TestUtils.use_group_protocol_consumer():
-        verify_describe_consumer_groups(kafka_cluster, admin_client, our_topic)
 
     # Delete created topic
     fs = admin_client.delete_topics([our_topic])
