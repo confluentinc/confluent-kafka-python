@@ -30,12 +30,12 @@ module = Extension('confluent_kafka.cimpl',
                             os.path.join(ext_dir, 'Admin.c')])
 
 SUBS = [
-    ('from .._backends.auto import AutoBackend', 'from .._backends.sync import SyncBackend'),
+    ('from confluent_kafka.schema_registry.async_util import asyncinit', ''),
     ('import asyncio', ''),
     ('AsyncIterator', 'Iterator'),
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
-    ('async_schema_registry', 'schema_registry'),
+    ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
     ('async def', 'def'),
     ('async with', 'with'),
     ('async for', 'for'),
@@ -50,8 +50,6 @@ SUBS = [
     ('__aiter__', '__iter__'),
     ('asyncio.sleep', 'time.sleep'),
     ('@asyncinit', ''),
-    ('from confluent_kafka.schema_registry.async_util import asyncinit', ''),
-    ('__await__', '__call__'),
 ]
 COMPILED_SUBS = [
     (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)
@@ -107,12 +105,12 @@ def unasync_dir(in_dir, out_dir, check_only=False):
 def unasync():
     unasync_dir(
         "src/confluent_kafka/schema_registry/_async",
-        "src/confluent_kafka/schema_registry",
+        "src/confluent_kafka/schema_registry/_sync",
         check_only=False
     )
     unasync_dir(
         "tests/integration/schema_registry/_async",
-        "tests/integration/schema_registry",
+        "tests/integration/schema_registry/_sync",
         check_only=False
     )
 

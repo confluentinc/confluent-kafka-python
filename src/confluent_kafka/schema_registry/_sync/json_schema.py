@@ -35,11 +35,11 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
                                              topic_subject_name_strategy,
                                              RuleKind,
-                                             RuleMode, AsyncSchemaRegistryClient)
-from confluent_kafka.schema_registry.async_util import asyncinit
+                                             RuleMode, SchemaRegistryClient)
+
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from .serde import AsyncBaseSerializer, \
-    AsyncBaseDeserializer, RuleContext, FieldTransform, FieldType, \
+from .serde import BaseSerializer, \
+    BaseDeserializer, RuleContext, FieldTransform, FieldType, \
     RuleConditionError, ParsedSchemaCache
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
@@ -80,8 +80,8 @@ def _retrieve_via_httpx(uri: str):
         response.json(), default_specification=DEFAULT_SPEC)
 
 
-async def _resolve_named_schema(
-    schema: Schema, schema_registry_client: AsyncSchemaRegistryClient,
+def _resolve_named_schema(
+    schema: Schema, schema_registry_client: SchemaRegistryClient,
     ref_registry: Optional[Registry] = None
 ) -> Registry:
     """
@@ -96,8 +96,8 @@ async def _resolve_named_schema(
         ref_registry = Registry(retrieve=_retrieve_via_httpx)
     if schema.references is not None:
         for ref in schema.references:
-            referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True)
-            ref_registry = await _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
+            ref_registry = _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
             referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
@@ -105,8 +105,8 @@ async def _resolve_named_schema(
     return ref_registry
 
 
-@asyncinit
-class AsyncJSONSerializer(AsyncBaseSerializer):
+
+class JSONSerializer(BaseSerializer):
     """
     Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
 
@@ -228,10 +228,10 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'validate': True}
 
-    async def __init__(
+    def __init__(
         self,
         schema_str: Union[str, Schema, None],
-        schema_registry_client: AsyncSchemaRegistryClient,
+        schema_registry_client: SchemaRegistryClient,
         to_dict: Optional[Callable[[object, SerializationContext], dict]] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
@@ -302,7 +302,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema_dict, ref_registry = await self._get_parsed_schema(self._schema)
+        schema_dict, ref_registry = self._get_parsed_schema(self._schema)
         if schema_dict:
             schema_name = schema_dict.get('title', None)
         else:
@@ -319,7 +319,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
 
-    async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an object to JSON, prepending it with Confluent Schema Registry
         framing.
@@ -342,7 +342,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             return None
 
         subject = self._subject_name_func(ctx, self._schema_name)
-        latest_schema = await self._get_reader_schema(subject)
+        latest_schema = self._get_reader_schema(subject)
         if latest_schema is not None:
             self._schema_id = latest_schema.schema_id
         elif subject not in self._known_subjects:
@@ -351,11 +351,11 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
                 # The schema name will always be the same. We can't however register
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
-                self._schema_id = await self._registry.register_schema(subject,
+                self._schema_id = self._registry.register_schema(subject,
                                                                  self._schema,
                                                                  self._normalize_schemas)
             else:
-                registered_schema = await self._registry.lookup_schema(subject,
+                registered_schema = self._registry.lookup_schema(subject,
                                                                  self._schema,
                                                                  self._normalize_schemas)
                 self._schema_id = registered_schema.schema_id
@@ -369,7 +369,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         if latest_schema is not None:
             schema = latest_schema.schema
-            parsed_schema, ref_registry = await self._get_parsed_schema(latest_schema.schema)
+            parsed_schema, ref_registry = self._get_parsed_schema(latest_schema.schema)
             root_resource = Resource.from_contents(
                 parsed_schema, default_specification=DEFAULT_SPEC)
             ref_resolver = ref_registry.resolver_with_root(root_resource)
@@ -401,7 +401,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
             return fo.getvalue()
 
-    async def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
+    def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
             return None, None
 
@@ -409,7 +409,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         if result is not None:
             return result
 
-        ref_registry = await _resolve_named_schema(schema, self._registry)
+        ref_registry = _resolve_named_schema(schema, self._registry)
         parsed_schema = json.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
@@ -427,8 +427,8 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         self._validators[schema] = validator
         return validator
 
-@asyncinit
-class AsyncJSONDeserializer(AsyncBaseDeserializer):
+
+class JSONDeserializer(BaseDeserializer):
     """
     Deserializer for JSON encoded data with Confluent Schema Registry
     framing.
@@ -486,11 +486,11 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'validate': True}
 
-    async def __init__(
+    def __init__(
         self,
         schema_str: Union[str, Schema, None],
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
-        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
+        schema_registry_client: Optional[SchemaRegistryClient] = None,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None,
@@ -547,7 +547,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
                              .format(", ".join(conf_copy.keys())))
 
         if schema:
-            self._reader_schema, self._ref_registry = await self._get_parsed_schema(self._schema)
+            self._reader_schema, self._ref_registry = self._get_parsed_schema(self._schema)
         else:
             self._reader_schema, self._ref_registry = None, None
 
@@ -564,7 +564,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(data, ctx)
 
-    async def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -594,7 +594,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
-            latest_schema = await self._get_reader_schema(subject)
+            latest_schema = self._get_reader_schema(subject)
 
         with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
@@ -607,12 +607,12 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             obj_dict = self._json_decode(payload.read())
 
             if self._registry is not None:
-                writer_schema_raw = await self._registry.get_schema(schema_id)
-                writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
+                writer_schema_raw = self._registry.get_schema(schema_id)
+                writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
                 if subject is None:
                     subject = self._subject_name_func(ctx, writer_schema.get("title"))
                     if subject is not None:
-                        latest_schema = await self._get_reader_schema(subject)
+                        latest_schema = self._get_reader_schema(subject)
             else:
                 writer_schema_raw = None
                 writer_schema, writer_ref_registry = None, None
@@ -620,7 +620,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             if latest_schema is not None:
                 migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
                 reader_schema_raw = latest_schema.schema
-                reader_schema, reader_ref_registry = await self._get_parsed_schema(latest_schema.schema)
+                reader_schema, reader_ref_registry = self._get_parsed_schema(latest_schema.schema)
             elif self._schema is not None:
                 migrations = None
                 reader_schema_raw = self._schema
@@ -655,7 +655,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
             return obj_dict
 
-    async def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
+    def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
             return None, None
 
@@ -663,7 +663,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if result is not None:
             return result
 
-        ref_registry = await _resolve_named_schema(schema, self._registry)
+        ref_registry = _resolve_named_schema(schema, self._registry)
         parsed_schema = json.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))

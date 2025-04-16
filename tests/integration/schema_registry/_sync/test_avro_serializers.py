@@ -20,7 +20,7 @@ import pytest
 from confluent_kafka import TopicPartition
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
-from confluent_kafka.schema_registry._async.avro import (AvroSerializer,
+from confluent_kafka.schema_registry.avro import (AvroSerializer,
                                                   AvroDeserializer)
 from confluent_kafka.schema_registry import Schema, SchemaReference
 
@@ -176,14 +176,14 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
                                                favorite_number=user.get('user').get('favorite_number'),
                                                favorite_color=user.get('user').get('favorite_color'))))
 
-    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     producer.produce(topic, value=awarded_user, partition=0)
 
-    # TODO: Following func calls need to be made async.
     producer.flush()
 
     consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+
     consumer.assign([TopicPartition(topic, 0)])
 
     msg = consumer.poll()
@@ -217,7 +217,7 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
 
     value_deserializer = AvroDeserializer(sr)
 
-    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     producer.produce(topic, value=data, partition=0)
     producer.flush()
@@ -261,7 +261,7 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
 
     value_deserializer = AvroDeserializer(sr)
 
-    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     def assert_cb(err, msg):
         actual = value_deserializer(msg.value(),
@@ -314,7 +314,7 @@ def test_avro_record_serialization_custom(kafka_cluster):
                                           lambda user_dict, ctx:
                                           User(**user_dict))
 
-    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     producer.produce(topic, value=user, partition=0)
     producer.flush()

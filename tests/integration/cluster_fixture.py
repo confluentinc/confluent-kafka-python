@@ -28,7 +28,7 @@ from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistr
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 
 from tests.common import TestConsumer
-from tests.common.schema_registry import TestDeserializingConsumer
+from tests.common.schema_registry import TestDeserializingConsumer, TestAsyncDeserializingConsumer
 
 
 class KafkaClusterFixture(object):
@@ -170,6 +170,39 @@ class KafkaClusterFixture(object):
             consumer_conf['value.deserializer'] = value_deserializer
 
         return TestDeserializingConsumer(consumer_conf)
+
+    def async_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
+        """
+        Returns a consumer bound to this cluster.
+
+        Args:
+            conf (dict): Consumer config overrides
+
+            key_deserializer (Deserializer): deserializer to apply to
+                message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            Consumer: A new DeserializingConsumer instance
+
+        """
+        consumer_conf = self.client_conf({
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest'
+        })
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        if key_deserializer is not None:
+            consumer_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            consumer_conf['value.deserializer'] = value_deserializer
+
+        return TestAsyncDeserializingConsumer(consumer_conf)
 
     def admin(self, conf=None):
         if conf:

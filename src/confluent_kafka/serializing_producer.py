@@ -197,9 +197,6 @@ class AsyncSerializingProducer(AsyncProducer):
         self._key_serializer = conf_copy.pop('key.serializer', None)
         self._value_serializer = conf_copy.pop('value.serializer', None)
 
-        # TODO: Raise if the passed serializers are either not awaitable 
-        #       or not a coroutine function.
-
         super(AsyncSerializingProducer, self).__init__(conf_copy)
 
     async def produce(self, topic, key=None, value=None, partition=-1,
@@ -254,7 +251,6 @@ class AsyncSerializingProducer(AsyncProducer):
             KafkaException: For all other errors
         """
 
-        # TODO: asyncio.gather the following to concurrently serialize key and value
         ctx = SerializationContext(topic, MessageField.KEY, headers)
         if self._key_serializer is not None:
             try:
@@ -268,7 +264,7 @@ class AsyncSerializingProducer(AsyncProducer):
             except Exception as se:
                 raise ValueSerializationError(se)
 
-        return await super(AsyncSerializingProducer, self).produce(topic, value, key,
+        return await super().produce(topic, value, key,
                                                  headers=headers,
                                                  partition=partition,
                                                  timestamp=timestamp,
