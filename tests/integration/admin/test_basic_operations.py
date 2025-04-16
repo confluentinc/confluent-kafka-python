@@ -277,7 +277,8 @@ def test_basic_operations(kafka_cluster):
                     print('Read all the required messages: exiting')
                     break
             except ConsumeError as e:
-                if msg is not None and e.code == KafkaError._PARTITION_EOF:
+                if e.code == KafkaError._PARTITION_EOF:
+                    msg = e.kafka_message
                     print('Reached end of %s [%d] at offset %d' % (
                           msg.topic(), msg.partition(), msg.offset()))
                     eof_reached[(msg.topic(), msg.partition())] = True
