@@ -30,7 +30,7 @@ def _trivup_cluster_type_kraft():
 class TestUtils:
     @staticmethod
     def broker_version():
-        return '4.0.0'
+        return '4.0.0' if TestUtils.use_group_protocol_consumer() else '3.9.0'
 
     @staticmethod
     def broker_conf():
@@ -46,8 +46,7 @@ class TestUtils:
 
     @staticmethod
     def use_kraft():
-        return (TestUtils._broker_major_version() >= 4 or
-                TestUtils.use_group_protocol_consumer() or
+        return (TestUtils.use_group_protocol_consumer() or
                 _trivup_cluster_type_kraft())
 
     @staticmethod

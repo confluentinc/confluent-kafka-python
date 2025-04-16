@@ -27,8 +27,9 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': True,
+    trivup_fixture_conf = {'with_sr': False,
                            'debug': True,
+                           'cleanup': False,
                            'cp_version': '7.6.0',
                            'kraft': TestUtils.use_kraft(),
                            'version': TestUtils.broker_version(),
@@ -39,6 +40,7 @@ def create_trivup_cluster(conf={}):
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
+                           'cleanup': False,
                            'version': TestUtils.broker_version(),
                            'sasl_mechanism': "PLAIN",
                            'kraft': TestUtils.use_kraft(),
