@@ -8,7 +8,7 @@ execution_time_limit:
 global_job_config:
   env_vars:
     - name: LIBRDKAFKA_VERSION
-      value: v2.10.0-RC2
+      value: v2.10.0-RC3
   prologue:
     commands:
       - checkout
@@ -279,6 +279,8 @@ blocks:
           value: osx
         - name: ARCH
           value: arm64
+        - name: PYTHONFAULTHANDLER
+          value: "1"
       jobs:
         - name: Build
           commands:
