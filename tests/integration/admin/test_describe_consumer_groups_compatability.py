@@ -16,8 +16,6 @@
 from confluent_kafka import ConsumerGroupState, ConsumerGroupType, TopicPartition
 import uuid
 
-from tests.common import TestUtils
-
 topic_prefix = "test-topic"
 
 
@@ -114,13 +112,13 @@ def test_describe_consumer_groups_compatability(kafka_cluster):
     # Create Topic
     topic_config = {"compression.type": "gzip"}
     our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
-                                                               {
-                                                                   "num_partitions": 1,
-                                                                   "config": topic_config,
-                                                                   "replication_factor": 1,
-                                                               },
-                                                               validate_only=False
-                                                               )
+                                                                {
+                                                                    "num_partitions": 1,
+                                                                    "config": topic_config,
+                                                                    "replication_factor": 1,
+                                                                },
+                                                                validate_only=False
+                                                                )
 
     # Delete created topic
     fs = admin_client.delete_topics([our_topic])
