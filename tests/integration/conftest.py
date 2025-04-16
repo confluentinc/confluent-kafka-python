@@ -27,7 +27,7 @@ work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
 def create_trivup_cluster(conf={}):
-    trivup_fixture_conf = {'with_sr': False,
+    trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cleanup': False,
                            'cp_version': '7.6.0',
