@@ -26,38 +26,26 @@ from tests.integration.cluster_fixture import ByoFixture
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
-def _broker_conf():
-    broker_conf = ['transaction.state.log.replication.factor=1',
-                   'transaction.state.log.min.isr=1']
-    if TestUtils.use_group_protocol_consumer():
-        broker_conf.append('group.coordinator.rebalance.protocols=classic,consumer')
-    return broker_conf
-
-
-def _broker_version():
-    return 'trunk@3a0efa2845e6a0d237772adfe6364579af50ce18' if TestUtils.use_group_protocol_consumer() else '3.8.0'
-
-
 def create_trivup_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': True,
                            'debug': True,
                            'cp_version': '7.6.0',
                            'kraft': TestUtils.use_kraft(),
-                           'version': _broker_version(),
-                           'broker_conf': _broker_conf()}
+                           'version': TestUtils.broker_version(),
+                           'broker_conf': TestUtils.broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 
 
 def create_sasl_cluster(conf={}):
     trivup_fixture_conf = {'with_sr': False,
-                           'version': _broker_version(),
+                           'version': TestUtils.broker_version(),
                            'sasl_mechanism': "PLAIN",
                            'kraft': TestUtils.use_kraft(),
                            'sasl_users': 'sasl_user=sasl_user',
                            'debug': True,
                            'cp_version': 'latest',
-                           'broker_conf': _broker_conf()}
+                           'broker_conf': TestUtils.broker_conf()}
     trivup_fixture_conf.update(conf)
     return TrivupFixture(trivup_fixture_conf)
 

@@ -21,6 +21,7 @@ from confluent_kafka import TopicPartition, OFFSET_END, KafkaError, KafkaExcepti
 
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.serialization import StringSerializer
+from tests.common import TestUtils
 
 
 def test_consume_error(kafka_cluster):
@@ -46,6 +47,14 @@ def test_consume_error(kafka_cluster):
         "Expected _PARTITION_EOF, not {}".format(exc_info)
 
 
+# Skipping the test for consumer protocol for now. Update the test to use
+# IncrementalAlterConfigs Admin operation to update
+# group.session.timeout.ms and enable the test again.
+@pytest.mark.skipif(TestUtils.use_group_protocol_consumer(),
+                    reason="session.timeout.ms is not supported on client side for "
+                    "consumer protocol. Update this test to use IncrementalAlterConfigs "
+                    "Admin operation to update group.session.timeout.ms and enable "
+                    "the test again.")
 def test_consume_error_commit(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when commiting.
@@ -63,13 +72,21 @@ def test_consume_error_commit(kafka_cluster):
     try:
         # Since the session timeout value is low, JoinGroupRequest will fail
         # and we get error in a message while polling.
-        m = consumer.poll(1)
+        m = consumer.poll(2)
         consumer.commit(m)
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._INVALID_ARG, \
             "Expected INVALID_ARG, not {}".format(e)
 
 
+# Skipping the test for consumer protocol for now. Update the test to use
+# IncrementalAlterConfigs Admin operation to update
+# group.session.timeout.ms and enable the test again.
+@pytest.mark.skipif(TestUtils.use_group_protocol_consumer(),
+                    reason="session.timeout.ms is not supported on client side for "
+                    "consumer protocol. Update this test to use IncrementalAlterConfigs "
+                    "Admin operation to update group.session.timeout.ms and enable "
+                    "the test again.")
 def test_consume_error_store_offsets(kafka_cluster):
     """
     Tests to ensure that we handle messages with errors when storing offsets.
@@ -89,7 +106,7 @@ def test_consume_error_store_offsets(kafka_cluster):
     try:
         # Since the session timeout value is low, JoinGroupRequest will fail
         # and we get error in a message while polling.
-        m = consumer.poll(1)
+        m = consumer.poll(2)
         consumer.store_offsets(m)
     except KafkaException as e:
         assert e.args[0].code() == KafkaError._INVALID_ARG, \
