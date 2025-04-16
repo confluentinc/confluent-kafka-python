@@ -163,7 +163,7 @@ def test_incremental_alter_configs(kafka_cluster):
         )
 
         expected[res_group] = ['consumer.session.timeout.ms="50000"']
-        
+
         #
         # Incrementally alter some configuration values
         #
