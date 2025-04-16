@@ -258,6 +258,8 @@ blocks:
           value: osx
         - name: ARCH
           value: x64
+        - name: PYTHONFAULTHANDLER
+          value: "1"
       jobs:
         - name: Build
           commands:
