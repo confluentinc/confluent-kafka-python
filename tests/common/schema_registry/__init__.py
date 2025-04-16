@@ -24,10 +24,12 @@ from tests.common import TestUtils
 class TestDeserializingConsumer(DeserializingConsumer):
     def __init__(self, conf=None, **kwargs):
         TestUtils.update_conf_group_protocol(conf)
+        TestUtils.remove_forbidden_conf_group_protocol_consumer(conf)
         super(TestDeserializingConsumer, self).__init__(conf, **kwargs)
 
 
 class TestAvroConsumer(AvroConsumer):
     def __init__(self, conf=None, **kwargs):
         TestUtils.update_conf_group_protocol(conf)
+        TestUtils.remove_forbidden_conf_group_protocol_consumer(conf)
         super(TestAvroConsumer, self).__init__(conf, **kwargs)
