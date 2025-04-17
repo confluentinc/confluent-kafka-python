@@ -73,3 +73,6 @@ optional-dependencies.all = { file = [
     "requirements/requirements-avro.txt",
     "requirements/requirements-json.txt",
     "requirements/requirements-protobuf.txt"] }
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
