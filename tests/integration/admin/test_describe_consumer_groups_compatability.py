@@ -33,74 +33,70 @@ def create_consumers(kafka_cluster, topic, group_id, client_id, Protocol):
 
 
 def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
+    def create_consumer_groups():
+        """Create consumer groups with new and old protocols."""
+        group_ids = {
+            "new1": f"test-group_new1-{uuid.uuid4()}",
+            "new2": f"test-group_new2-{uuid.uuid4()}",
+            "old1": f"test-group_old1-{uuid.uuid4()}",
+            "old2": f"test-group_old2-{uuid.uuid4()}",
+        }
+        client_ids = {
+            "new": ["test-client1", "test-client2"],
+            "old": ["test-client3", "test-client4"],
+        }
 
-    group_id_new1 = f"test-group_new1-{uuid.uuid4()}"
-    group_id_new2 = f"test-group_new2-{uuid.uuid4()}"
-    group_id_old1 = f"test-group_old1-{uuid.uuid4()}"
-    group_id_old2 = f"test-group_old2-{uuid.uuid4()}"
+        consumers = [
+            create_consumers(kafka_cluster, topic, group_ids["new1"], client_ids["new"][0], "consumer"),
+            create_consumers(kafka_cluster, topic, group_ids["new2"], client_ids["new"][1], "consumer"),
+            create_consumers(kafka_cluster, topic, group_ids["old1"], client_ids["old"][0], "classic"),
+            create_consumers(kafka_cluster, topic, group_ids["old2"], client_ids["old"][1], "classic"),
+        ]
+        return group_ids, client_ids, consumers
 
-    client_id1 = "test-client1"
-    client_id2 = "test-client2"
-    client_id3 = "test-client3"
-    client_id4 = "test-client4"
+    def verify_consumer_group_results(fs, expected_group_ids, expected_type, expected_clients):
+        """Verify the results of consumer group descriptions."""
+        for group_id, f in fs.items():
+            result = f.result()
+            assert result.group_id in expected_group_ids
+            assert result.is_simple_consumer_group is False
+            assert result.state == ConsumerGroupState.STABLE
+            assert result.type == expected_type
+            assert len(result.members) == 1
+            for member in result.members:
+                assert member.client_id in expected_clients
+                assert member.assignment.topic_partitions == partition
 
-    consumers = []
-
-    # Create two groups with new group protocol
-    consumers.append(create_consumers(kafka_cluster, topic, group_id_new1, client_id1, "consumer"))
-    consumers.append(create_consumers(kafka_cluster, topic, group_id_new2, client_id2, "consumer"))
-
-    # Create two groups with old group protocol
-    consumers.append(create_consumers(kafka_cluster, topic, group_id_old1, client_id3, "classic"))
-    consumers.append(create_consumers(kafka_cluster, topic, group_id_old2, client_id4, "classic"))
-
+    # Create consumer groups
+    group_ids, client_ids, consumers = create_consumer_groups()
     partition = [TopicPartition(topic, 0)]
 
-    # We will pass 3 requests, one containing the two groups created with new
-    # group protocol and the other containing the two groups created with old
-    # group protocol and the third containing all the groups and verify the results.
-    fs1 = admin_client.describe_consumer_groups(group_ids=[group_id_new1, group_id_new2])
-    for group_id, f in fs1.items():
-        result = f.result()
-        assert result.group_id in [group_id_new1, group_id_new2]
-        assert result.is_simple_consumer_group is False
-        assert result.state == ConsumerGroupState.STABLE
-        assert result.type == ConsumerGroupType.CONSUMER
-        assert len(result.members) == 1
-        for member in result.members:
-            assert member.client_id in [client_id1, client_id2]
-            assert member.assignment.topic_partitions == partition
+    # Describe and verify new group protocol consumer groups
+    fs_new = admin_client.describe_consumer_groups([group_ids["new1"], group_ids["new2"]])
+    verify_consumer_group_results(fs_new, [group_ids["new1"], group_ids["new2"]],
+                                  ConsumerGroupType.CONSUMER, client_ids["new"])
 
-    fs2 = admin_client.describe_consumer_groups(group_ids=[group_id_old1, group_id_old2])
-    for group_id, f in fs2.items():
-        result = f.result()
-        assert result.group_id in [group_id_old1, group_id_old2]
-        assert result.is_simple_consumer_group is False
-        assert result.state == ConsumerGroupState.STABLE
-        assert result.type == ConsumerGroupType.CLASSIC
-        assert len(result.members) == 1
-        for member in result.members:
-            assert member.client_id in [client_id3, client_id4]
-            assert member.assignment.topic_partitions == partition
+    # Describe and verify old group protocol consumer groups
+    fs_old = admin_client.describe_consumer_groups([group_ids["old1"], group_ids["old2"]])
+    verify_consumer_group_results(fs_old, [group_ids["old1"], group_ids["old2"]],
+                                  ConsumerGroupType.CLASSIC, client_ids["old"])
 
-    fs3 = admin_client.describe_consumer_groups(group_ids=[group_id_new1, group_id_new2, group_id_old1, group_id_old2])
-    for group_id, f in fs3.items():
+    # Describe and verify all consumer groups
+    fs_all = admin_client.describe_consumer_groups(list(group_ids.values()))
+    for group_id, f in fs_all.items():
         result = f.result()
-        assert result.group_id in [group_id_new1, group_id_new2, group_id_old1, group_id_old2]
+        assert result.group_id in group_ids.values()
         assert result.is_simple_consumer_group is False
         assert result.state == ConsumerGroupState.STABLE
-        if result.group_id in [group_id_new1, group_id_new2]:
+        if result.group_id in [group_ids["new1"], group_ids["new2"]]:
             assert result.type == ConsumerGroupType.CONSUMER
+            assert result.members[0].client_id in client_ids["new"]
         else:
             assert result.type == ConsumerGroupType.CLASSIC
-        assert len(result.members) == 1
-        for member in result.members:
-            if result.group_id in [group_id_new1, group_id_new2]:
-                assert member.client_id in [client_id1, client_id2]
-            else:
-                assert member.client_id in [client_id3, client_id4]
-            assert member.assignment.topic_partitions == partition
+            assert result.members[0].client_id in client_ids["old"]
+        assert result.members[0].assignment.topic_partitions == partition
 
+    # Close all consumers
     for consumer in consumers:
         consumer.close()
 
