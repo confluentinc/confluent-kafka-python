@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from confluent_kafka import DeserializingConsumer, AsyncDeserializingConsumer
+from confluent_kafka import DeserializingConsumer
 from confluent_kafka.avro import AvroConsumer
 from tests.common import TestUtils
 
@@ -25,12 +25,6 @@ class TestDeserializingConsumer(DeserializingConsumer):
     def __init__(self, conf=None, **kwargs):
         TestUtils.update_conf_group_protocol(conf)
         super(TestDeserializingConsumer, self).__init__(conf, **kwargs)
-
-
-class TestAsyncDeserializingConsumer(AsyncDeserializingConsumer):
-    def __init__(self, conf=None, **kwargs):
-        TestUtils.update_conf_group_protocol(conf)
-        super().__init__(conf, **kwargs)
 
 
 class TestAvroConsumer(AvroConsumer):

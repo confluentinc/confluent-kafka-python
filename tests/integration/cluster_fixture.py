@@ -22,13 +22,14 @@ from uuid import uuid1
 from trivup.clusters.KafkaCluster import KafkaCluster
 
 from confluent_kafka import Producer, SerializingProducer
-from confluent_kafka.serializing_producer import AsyncSerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 
 from tests.common import TestConsumer
-from tests.common.schema_registry import TestDeserializingConsumer, TestAsyncDeserializingConsumer
+from tests.common.schema_registry import TestDeserializingConsumer
+from tests.common._async.consumer import TestAsyncDeserializingConsumer
+from tests.common._async.producer import TestAsyncSerializingProducer
 
 
 class KafkaClusterFixture(object):
@@ -115,7 +116,7 @@ class KafkaClusterFixture(object):
         if value_serializer is not None:
             client_conf['value.serializer'] = value_serializer
 
-        return AsyncSerializingProducer(client_conf)
+        return TestAsyncSerializingProducer(client_conf)
 
     def cimpl_consumer(self, conf=None):
         """
