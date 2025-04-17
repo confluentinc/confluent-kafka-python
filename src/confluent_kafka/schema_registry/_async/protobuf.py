@@ -51,7 +51,7 @@ from confluent_kafka.schema_registry import (Schema,
                                      RuleMode)
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
-from confluent_kafka.schema_registry.async_util import asyncinit
+from confluent_kafka.schema_registry.common import asyncinit
 from .serde import AsyncBaseSerializer, AsyncBaseDeserializer, RuleContext, \
     FieldTransform, FieldType, RuleConditionError, ParsedSchemaCache
 

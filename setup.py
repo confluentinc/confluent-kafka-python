@@ -30,26 +30,21 @@ module = Extension('confluent_kafka.cimpl',
                             os.path.join(ext_dir, 'Admin.c')])
 
 SUBS = [
-    ('from confluent_kafka.schema_registry.async_util import asyncinit', ''),
+    ('from confluent_kafka.schema_registry.common import asyncinit', ''),
+    ('@asyncinit', ''),
     ('import asyncio', ''),
-    ('AsyncIterator', 'Iterator'),
+    ('asyncio.sleep', 'time.sleep'),
+
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
     ('async_([a-z][A-Za-z0-9_]*)', r'\2'),
+
     ('async def', 'def'),
-    ('async with', 'with'),
-    ('async for', 'for'),
     ('await ', ''),
-    ('handle_async_request', 'handle_request'),
     ('aclose', 'close'),
-    ('aiter_stream', 'iter_stream'),
-    ('aread', 'read'),
-    ('asynccontextmanager', 'contextmanager'),
     ('__aenter__', '__enter__'),
     ('__aexit__', '__exit__'),
-    ('__aiter__', '__iter__'),
-    ('asyncio.sleep', 'time.sleep'),
-    ('@asyncinit', ''),
+    ('__aiter__', '__iter__'),    
 ]
 COMPILED_SUBS = [
     (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)

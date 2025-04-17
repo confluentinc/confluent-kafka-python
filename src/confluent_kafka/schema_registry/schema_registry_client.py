@@ -15,7 +15,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .schema_registry_client_util import *
+from .common import (
+  ConfigCompatibilityLevel,
+  Metadata,
+  MetadataProperties,
+  MetadataTags,
+  RegisteredSchema,
+  Rule,
+  RuleKind,
+  RuleMode,
+  RuleParams,
+  RuleSet,
+  Schema,
+  SchemaReference,
+  ServerConfig
+)
 
 from ._async.schema_registry_client import AsyncSchemaRegistryClient
 from ._sync.schema_registry_client import SchemaRegistryClient

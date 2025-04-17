@@ -36,7 +36,7 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              topic_subject_name_strategy,
                                              RuleKind,
                                              RuleMode, AsyncSchemaRegistryClient)
-from confluent_kafka.schema_registry.async_util import asyncinit
+from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from .serde import AsyncBaseSerializer, \
     AsyncBaseDeserializer, RuleContext, FieldTransform, FieldType, \

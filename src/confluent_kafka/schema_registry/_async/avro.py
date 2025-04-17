@@ -37,7 +37,7 @@ from . import (_MAGIC_BYTE,
                RuleKind, AsyncSchemaRegistryClient)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
-from confluent_kafka.schema_registry.async_util import asyncinit
+from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from .serde import AsyncBaseSerializer, AsyncBaseDeserializer, RuleContext, FieldType, \
     FieldTransform, RuleConditionError, ParsedSchemaCache

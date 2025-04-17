@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from .deserializing_consumer import DeserializingConsumer, AsyncDeserializingConsumer
+from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
 from ._model import (Node,  # noqa: F401

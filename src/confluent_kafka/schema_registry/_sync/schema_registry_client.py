@@ -31,7 +31,16 @@ from httpx import Response
 from authlib.integrations.httpx_client import OAuth2Client
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
-from confluent_kafka.schema_registry.schema_registry_client_util import RegisteredSchema, ServerConfig, is_success, is_retriable, _BearerFieldProvider, full_jitter, _SchemaCache, Schema
+from confluent_kafka.schema_registry.common import (
+    RegisteredSchema, 
+    ServerConfig, 
+    is_success, 
+    is_retriable, 
+    _BearerFieldProvider,
+    full_jitter,
+    _SchemaCache, 
+    Schema,
+)
 
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.

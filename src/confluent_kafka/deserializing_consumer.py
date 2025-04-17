@@ -17,7 +17,6 @@
 #
 
 from confluent_kafka.cimpl import Consumer as _ConsumerImpl
-from confluent_kafka.src._async.consumer import AsyncConsumer
 from .error import (ConsumeError,
                     KeyDeserializationError,
                     ValueDeserializationError)

@@ -17,7 +17,7 @@
 #
 from typing import Optional
 
-from ..schema_registry_client_util import (
+from ..common import (
   ConfigCompatibilityLevel,
   Metadata,
   MetadataProperties,
