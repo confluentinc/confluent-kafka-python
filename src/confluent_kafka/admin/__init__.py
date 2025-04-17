@@ -72,6 +72,7 @@ from ..cimpl import (KafkaException,  # noqa: F401
                      CONFIG_SOURCE_DYNAMIC_DEFAULT_BROKER_CONFIG,
                      CONFIG_SOURCE_STATIC_BROKER_CONFIG,
                      CONFIG_SOURCE_DEFAULT_CONFIG,
+                     CONFIG_SOURCE_GROUP_CONFIG,
                      RESOURCE_UNKNOWN,
                      RESOURCE_ANY,
                      RESOURCE_TOPIC,
