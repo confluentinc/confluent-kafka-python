@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from .common.schema_registry_client import *
+from ._async.schema_registry_client import *
 from ._sync.schema_registry_client import *
 
 from .error import SchemaRegistryError

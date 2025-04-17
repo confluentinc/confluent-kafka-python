@@ -30,7 +30,7 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                SchemaRegistryClient)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
-from confluent_kafka.schema_registry.common import _ContextStringIO
+from confluent_kafka.schema_registry.common import _ContextStringIO, asyncinit
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, ParsedSchemaCache
 

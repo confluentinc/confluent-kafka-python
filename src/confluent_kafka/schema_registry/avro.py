@@ -16,4 +16,5 @@
 # limitations under the License.
 
 from .common.avro import *
+from ._async.avro import *
 from ._sync.avro import *
