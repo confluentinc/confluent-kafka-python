@@ -835,6 +835,9 @@ def test_alter_consumer_group_offsets_api():
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
                                         same_name_request])
 
+    # TODO: This test is failing intermittently with Fatal Error for MacOS builds.
+    # Uncomment and fix this after the release v2.10.0.
+
     # with pytest.raises(KafkaException):
     #     fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
     #     for f in fs.values():
