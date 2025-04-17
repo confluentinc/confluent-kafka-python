@@ -30,12 +30,11 @@ from .schema_registry_client import (
   RuleSet,
   Schema,
   SchemaRegistryClient,
+  SchemaRegistryError,
   AsyncSchemaRegistryClient,
   SchemaReference,
   ServerConfig
 )
-
-from .error import SchemaRegistryError
 
 _MAGIC_BYTE = 0
 

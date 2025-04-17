@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 #
-# Copyright 2020 Confluent Inc.
+# Copyright 2020-2022 Confluent Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,5 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from ._async.protobuf import *
-from ._sync.protobuf import *
+from ._async.protobuf import AsyncProtobufSerializer, AsyncProtobufDeserializer
+from ._sync.protobuf import ProtobufSerializer, ProtobufDeserializer
