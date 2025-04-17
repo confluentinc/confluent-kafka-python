@@ -69,6 +69,7 @@ class TestUtils:
                                          "group.protocol.type"]
             for prop in forbidden_conf_properties:
                 if prop in conf:
+                    print("Skipping setting forbidden configuration {prop} for `CONSUMER` protocol")
                     del conf[prop]
 
 
