@@ -19,9 +19,9 @@ import pytest
 from confluent_kafka import TopicPartition
 
 from confluent_kafka.error import ConsumeError, ValueSerializationError
-from confluent_kafka.schema_registry import SchemaReference, Schema
-from confluent_kafka.schema_registry.json_schema import (JSONSerializer,
-                                                         JSONDeserializer)
+from confluent_kafka.schema_registry import SchemaReference, Schema, AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry.json_schema import (AsyncJSONSerializer,
+                                                         AsyncJSONDeserializer)
 
 
 class _TestProduct(object):
@@ -244,7 +244,7 @@ def _testOrder_from_dict(order_dict, ctx):
                       _testProduct_from_dict(order_dict['product'], ctx))
 
 
-def test_json_record_serialization(kafka_cluster, load_file):
+async def test_json_record_serialization(kafka_cluster, load_file):
     """
     Tests basic JsonSerializer and JsonDeserializer basic functionality.
 
@@ -258,13 +258,13 @@ def test_json_record_serialization(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
-    value_serializer = JSONSerializer(schema_str, sr)
-    value_deserializer = JSONDeserializer(schema_str)
+    value_serializer = await AsyncJSONSerializer(schema_str, sr)
+    value_deserializer = await AsyncJSONDeserializer(schema_str)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
     record = {"productId": 1,
               "productName": "An ice sculpture",
@@ -280,19 +280,19 @@ def test_json_record_serialization(kafka_cluster, load_file):
                   "longitude": 20.4
               }}
 
-    producer.produce(topic, value=record, partition=0)
+    await producer.produce(topic, value=record, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     assert all([actual[k] == v for k, v in record.items()])
 
 
-def test_json_record_serialization_incompatible(kafka_cluster, load_file):
+async def test_json_record_serialization_incompatible(kafka_cluster, load_file):
     """
     Tests Serializer validation functionality.
 
@@ -306,11 +306,11 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
-    value_serializer = JSONSerializer(schema_str, sr)
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    value_serializer = await AsyncJSONSerializer(schema_str, sr)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
     record = {"contractorId": 1,
               "contractorName": "David Davidson",
@@ -319,10 +319,10 @@ def test_json_record_serialization_incompatible(kafka_cluster, load_file):
 
     with pytest.raises(ValueSerializationError,
                        match=r"(.*) is a required property"):
-        producer.produce(topic, value=record, partition=0)
+        await producer.produce(topic, value=record, partition=0)
 
 
-def test_json_record_serialization_custom(kafka_cluster, load_file):
+async def test_json_record_serialization_custom(kafka_cluster, load_file):
     """
     Ensures to_dict and from_dict hooks are properly applied by the serializer.
 
@@ -333,15 +333,15 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
-    value_serializer = JSONSerializer(schema_str, sr,
+    value_serializer = await AsyncJSONSerializer(schema_str, sr,
                                       to_dict=_testProduct_to_dict)
-    value_deserializer = JSONDeserializer(schema_str,
+    value_deserializer = await AsyncJSONDeserializer(schema_str,
                                           from_dict=_testProduct_from_dict)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
     record = _TestProduct(product_id=1,
                           name="The ice sculpture",
@@ -353,20 +353,20 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
                           location={"latitude": -78.75,
                                     "longitude": 20.4})
 
-    producer.produce(topic, value=record, partition=0)
+    await producer.produce(topic, value=record, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     assert all([getattr(actual, attribute) == getattr(record, attribute)
                 for attribute in vars(record)])
 
 
-def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
+async def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
     """
     Ensures to_dict and from_dict hooks are properly applied by the serializer.
 
@@ -377,37 +377,37 @@ def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("contractor.json")
     schema_str2 = load_file("product.json")
 
-    value_serializer = JSONSerializer(schema_str, sr)
-    value_deserializer = JSONDeserializer(schema_str2)
+    value_serializer = await AsyncJSONSerializer(schema_str, sr)
+    value_deserializer = await AsyncJSONDeserializer(schema_str2)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
     record = {"contractorId": 2,
               "contractorName": "Magnus Edenhill",
               "contractRate": 30,
               "trades": ["pickling"]}
 
-    producer.produce(topic, value=record, partition=0)
+    await producer.produce(topic, value=record, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
     with pytest.raises(
             ConsumeError,
             match="'productId' is a required property"):
-        consumer.poll()
+        await consumer.poll()
 
 
-def _register_referenced_schemas(sr, load_file):
-    sr.register_schema("product", Schema(load_file("product.json"), 'JSON'))
-    sr.register_schema("customer", Schema(load_file("customer.json"), 'JSON'))
-    sr.register_schema("order_details", Schema(load_file("order_details.json"), 'JSON', [
+async def _register_referenced_schemas(sr: AsyncSchemaRegistryClient, load_file):
+    await sr.register_schema("product", Schema(load_file("product.json"), 'JSON'))
+    await sr.register_schema("customer", Schema(load_file("customer.json"), 'JSON'))
+    await sr.register_schema("order_details", Schema(load_file("order_details.json"), 'JSON', [
         SchemaReference("http://example.com/customer.schema.json", "customer", 1)]))
 
     order_schema = Schema(load_file("order.json"), 'JSON',
@@ -416,9 +416,9 @@ def _register_referenced_schemas(sr, load_file):
     return order_schema
 
 
-def test_json_reference(kafka_cluster, load_file):
+async def test_json_reference(kafka_cluster, load_file):
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     product = {"productId": 1,
                "productName": "An ice sculpture",
@@ -437,27 +437,27 @@ def test_json_reference(kafka_cluster, load_file):
     order_details = {"id": 1, "customer": customer}
     order = {"order_details": order_details, "product": product}
 
-    schema = _register_referenced_schemas(sr, load_file)
+    schema = await _register_referenced_schemas(sr, load_file)
 
-    value_serializer = JSONSerializer(schema, sr)
-    value_deserializer = JSONDeserializer(schema, schema_registry_client=sr)
+    value_serializer = await AsyncJSONSerializer(schema, sr)
+    value_deserializer = await AsyncJSONDeserializer(schema, schema_registry_client=sr)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
-    producer.produce(topic, value=order, partition=0)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    await producer.produce(topic, value=order, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     assert all([actual[k] == v for k, v in order.items()])
 
 
-def test_json_reference_custom(kafka_cluster, load_file):
+async def test_json_reference_custom(kafka_cluster, load_file):
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     product = _TestProduct(product_id=1,
                            name="The ice sculpture",
@@ -472,19 +472,19 @@ def test_json_reference_custom(kafka_cluster, load_file):
     order_details = _TestOrderDetails(id=1, customer=customer)
     order = _TestOrder(order_details=order_details, product=product)
 
-    schema = _register_referenced_schemas(sr, load_file)
+    schema = await _register_referenced_schemas(sr, load_file)
 
-    value_serializer = JSONSerializer(schema, sr, to_dict=_testOrder_to_dict)
-    value_deserializer = JSONDeserializer(schema, schema_registry_client=sr, from_dict=_testOrder_from_dict)
+    value_serializer = await AsyncJSONSerializer(schema, sr, to_dict=_testOrder_to_dict)
+    value_deserializer = await AsyncJSONDeserializer(schema, schema_registry_client=sr, from_dict=_testOrder_from_dict)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
-    producer.produce(topic, value=order, partition=0)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
+    await producer.produce(topic, value=order, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     assert actual == order
