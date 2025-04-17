@@ -1,5 +1,12 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.10.0
+
+v2.10.0 is a feature release with the following fixes and enhancements:
+
+- [KIP-848] Group Config is now supported in AlterConfigs, IncrementalAlterConfigs and DescribeConfigs. (#1856)
+- [KIP-848] `describe_consumer_groups()` now supports KIP-848 introduced `consumer` groups. Two new fields for consumer group type and target assignment have also been added. Type defines whether this group is a `classic` or `consumer` group. Target assignment is only valid for the `consumer` protocol and its defaults to NULL. (#4922).
+
 ## v2.9.0
 
 v2.9.0 is a feature release with the following fixes and enhancements:
