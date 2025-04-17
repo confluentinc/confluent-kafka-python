@@ -100,7 +100,7 @@ def verify_describe_consumer_groups(kafka_cluster, admin_client, topic):
         consumer.close()
 
 
-def test_describe_consumer_groups_compatability(kafka_cluster):
+def test_describe_consumer_groups_compatibility(kafka_cluster):
 
     admin_client = kafka_cluster.admin()
 
