@@ -4,4 +4,4 @@
 -r requirements-avro.txt
 -r requirements-protobuf.txt  
 -r requirements-json.txt
-tests/trivup/trivup-0.12.7.tar.gz
+tests/trivup/trivup-0.12.10.tar.gz
