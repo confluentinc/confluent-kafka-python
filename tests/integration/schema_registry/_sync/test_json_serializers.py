@@ -19,7 +19,7 @@ import pytest
 from confluent_kafka import TopicPartition
 
 from confluent_kafka.error import ConsumeError, ValueSerializationError
-from confluent_kafka.schema_registry import SchemaReference, Schema
+from confluent_kafka.schema_registry import SchemaReference, Schema, SchemaRegistryClient
 from confluent_kafka.schema_registry.json_schema import (JSONSerializer,
                                                          JSONDeserializer)
 
@@ -404,7 +404,7 @@ def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
         consumer.poll()
 
 
-def _register_referenced_schemas(sr, load_file):
+def _register_referenced_schemas(sr: SchemaRegistryClient, load_file):
     sr.register_schema("product", Schema(load_file("product.json"), 'JSON'))
     sr.register_schema("customer", Schema(load_file("customer.json"), 'JSON'))
     sr.register_schema("order_details", Schema(load_file("order_details.json"), 'JSON', [
