@@ -552,7 +552,7 @@ def example_describe_consumer_groups(a, args):
                 if member.target_assignment:
                     print("    Target Assignments:")
                     for toppar in member.target_assignment.topic_partitions:
-                        print("      {} [{}]".format(toppar.topic, toppar.partition))
+                        print(f"      {toppar.topic} [{toppar.partition}]")
             if (include_auth_ops):
                 print("  Authorized operations: ")
                 op_string = ""
