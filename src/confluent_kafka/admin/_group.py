@@ -100,7 +100,7 @@ class MemberDescription:
         The instance id of the group member.
     """
 
-    def __init__(self, member_id, client_id, host, assignment, target_assignment, group_instance_id=None):
+    def __init__(self, member_id, client_id, host, assignment, group_instance_id=None, target_assignment=None):
         self.member_id = member_id
         self.client_id = client_id
         self.host = host
@@ -135,7 +135,7 @@ class ConsumerGroupDescription:
     """
 
     def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 type, coordinator, authorized_operations=None):
+                 coordinator, authorized_operations=None, type=ConsumerGroupType.UNKNOWN):
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
