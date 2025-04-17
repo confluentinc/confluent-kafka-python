@@ -42,7 +42,7 @@
  *  0xMMmmRRPP
  *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x02100000
+#define CFL_VERSION     0x020a0000
 #define CFL_VERSION_STR "2.10.0rc3"
 
 /**
@@ -51,7 +51,7 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x021000ff
+#define MIN_RD_KAFKA_VERSION 0x020a00ff
 
 #ifdef __APPLE__
 #define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.10.0 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
