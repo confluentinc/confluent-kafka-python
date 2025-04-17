@@ -19,6 +19,8 @@ from confluent_kafka.admin import ConfigResource, \
     ConfigEntry, ResourceType, \
     AlterConfigOpType
 
+from tests.common import TestUtils
+
 
 def assert_expected_config_entries(fs, num_fs, expected):
     """
@@ -147,3 +149,36 @@ def test_incremental_alter_configs(kafka_cluster):
 
     # Assert expected config entries.
     assert_expected_config_entries(fs, 1, expected)
+
+    # TODO: enable this test for the classic run too, when
+    # Confluent Platform test cluster is upgraded to 8.0.0
+    if TestUtils.use_group_protocol_consumer():
+        group_id = "test-group"
+
+        res_group = ConfigResource(
+            ResourceType.GROUP,
+            group_id,
+            incremental_configs=[
+                ConfigEntry("consumer.session.timeout.ms", "50000",
+                            incremental_operation=AlterConfigOpType.SET)
+            ]
+        )
+
+        expected[res_group] = ['consumer.session.timeout.ms="50000"']
+
+        #
+        # Incrementally alter some configuration values
+        #
+        fs = admin_client.incremental_alter_configs([res_group])
+
+        assert_operation_succeeded(fs, 1)
+
+        time.sleep(1)
+
+        #
+        # Get current group config
+        #
+        fs = admin_client.describe_configs([res_group])
+
+        # Assert expected config entries.
+        assert_expected_config_entries(fs, 1, expected)
