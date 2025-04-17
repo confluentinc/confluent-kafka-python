@@ -58,6 +58,7 @@ __all__ = [
     "RuleSet",
     "Schema",
     "SchemaRegistryClient",
+    "AsyncSchemaRegistryClient",
     "SchemaRegistryError",
     "SchemaReference",
     "ServerConfig",
