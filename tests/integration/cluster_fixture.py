@@ -24,9 +24,12 @@ from trivup.clusters.KafkaCluster import KafkaCluster
 from confluent_kafka import Producer, SerializingProducer
 from confluent_kafka.admin import AdminClient, NewTopic
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry._async.schema_registry_client import AsyncSchemaRegistryClient
 
 from tests.common import TestConsumer
 from tests.common.schema_registry import TestDeserializingConsumer
+from tests.common._async.consumer import TestAsyncDeserializingConsumer
+from tests.common._async.producer import TestAsyncSerializingProducer
 
 
 class KafkaClusterFixture(object):
@@ -89,6 +92,32 @@ class KafkaClusterFixture(object):
 
         return SerializingProducer(client_conf)
 
+    def async_producer(self, conf=None, key_serializer=None, value_serializer=None):
+        """
+        Returns a producer bound to this cluster.
+
+        Args:
+            conf (dict): Producer configuration overrides
+
+            key_serializer (Serializer): serializer to apply to message key
+
+            value_serializer (Deserializer): serializer to apply to
+                message value
+
+        Returns:
+            Producer: A new SerializingProducer instance
+
+        """
+        client_conf = self.client_conf(conf)
+
+        if key_serializer is not None:
+            client_conf['key.serializer'] = key_serializer
+
+        if value_serializer is not None:
+            client_conf['value.serializer'] = value_serializer
+
+        return TestAsyncSerializingProducer(client_conf)
+
     def cimpl_consumer(self, conf=None):
         """
         Returns a consumer bound to this cluster.
@@ -142,6 +171,39 @@ class KafkaClusterFixture(object):
             consumer_conf['value.deserializer'] = value_deserializer
 
         return TestDeserializingConsumer(consumer_conf)
+
+    def async_consumer(self, conf=None, key_deserializer=None, value_deserializer=None):
+        """
+        Returns a consumer bound to this cluster.
+
+        Args:
+            conf (dict): Consumer config overrides
+
+            key_deserializer (Deserializer): deserializer to apply to
+                message key
+
+            value_deserializer (Deserializer): deserializer to apply to
+                message value
+
+        Returns:
+            Consumer: A new DeserializingConsumer instance
+
+        """
+        consumer_conf = self.client_conf({
+            'group.id': str(uuid1()),
+            'auto.offset.reset': 'earliest'
+        })
+
+        if conf is not None:
+            consumer_conf.update(conf)
+
+        if key_deserializer is not None:
+            consumer_conf['key.deserializer'] = key_deserializer
+
+        if value_deserializer is not None:
+            consumer_conf['value.deserializer'] = value_deserializer
+
+        return TestAsyncDeserializingConsumer(consumer_conf)
 
     def admin(self, conf=None):
         if conf:
@@ -285,6 +347,15 @@ class TrivupFixture(KafkaClusterFixture):
         if conf is not None:
             sr_conf.update(conf)
         return SchemaRegistryClient(sr_conf)
+
+    def async_schema_registry(self, conf=None):
+        if not hasattr(self._cluster, 'sr'):
+            return None
+
+        sr_conf = {'url': self._cluster.sr.get('url')}
+        if conf is not None:
+            sr_conf.update(conf)
+        return AsyncSchemaRegistryClient(sr_conf)
 
     def client_conf(self, conf=None):
         """

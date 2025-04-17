@@ -17,7 +17,7 @@
 #
 from typing import Optional
 
-from .schema_registry_client import (
+from ..common import (
   ConfigCompatibilityLevel,
   Metadata,
   MetadataProperties,
@@ -29,13 +29,13 @@ from .schema_registry_client import (
   RuleParams,
   RuleSet,
   Schema,
-  SchemaRegistryClient,
-  AsyncSchemaRegistryClient,
   SchemaReference,
   ServerConfig
 )
 
-from .error import SchemaRegistryError
+from ..error import SchemaRegistryError
+
+from .schema_registry_client import SchemaRegistryClient
 
 _MAGIC_BYTE = 0
 
@@ -52,7 +52,6 @@ __all__ = [
   "RuleSet",
   "Schema",
   "SchemaRegistryClient",
-  "AsyncSchemaRegistryClient"
   "SchemaRegistryError",
   "SchemaReference",
   "ServerConfig",
