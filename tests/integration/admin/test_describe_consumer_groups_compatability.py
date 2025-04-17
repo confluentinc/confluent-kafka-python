@@ -19,13 +19,12 @@ import uuid
 topic_prefix = "test-topic"
 
 
-def create_consumers(kafka_cluster, topic, group_id, client_id, Protocol):
+def create_consumers(kafka_cluster, topic, group_id, client_id, group_protocol):
     conf = {'group.id': group_id,
             'client.id': client_id,
-            'group.protocol': Protocol,
+            'group.protocol': group_protocol,
             'enable.auto.commit': False,
-            'auto.offset.reset': 'earliest',
-            'debug': 'all'}
+            'auto.offset.reset': 'earliest'}
     consumer = kafka_cluster.consumer(conf)
     consumer.subscribe([topic])
     consumer.poll(10)
