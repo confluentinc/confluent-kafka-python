@@ -150,6 +150,8 @@ def test_incremental_alter_configs(kafka_cluster):
     # Assert expected config entries.
     assert_expected_config_entries(fs, 1, expected)
 
+    # TODO: enable this test for the classic run too, when
+    # Confluent Platform test cluster is upgraded to 8.0.0
     if TestUtils.use_group_protocol_consumer():
         group_id = "test-group"
 
