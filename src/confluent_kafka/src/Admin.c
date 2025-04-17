@@ -3857,6 +3857,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
         PyObject *assignment = NULL;
+        PyObject *target_assignment = NULL;
         const rd_kafka_MemberAssignment_t *c_assignment;
         const rd_kafka_MemberAssignment_t *c_target_assignment;
 
@@ -3895,7 +3896,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
 
         c_target_assignment = rd_kafka_MemberDescription_target_assignment(c_member);
         if(c_target_assignment) {
-                PyObject *target_assignment = Admin_c_MemberAssignment_to_py(c_target_assignment);
+                target_assignment = Admin_c_MemberAssignment_to_py(c_target_assignment);
                 if (!target_assignment) {
                         goto err;
                 }
@@ -3910,6 +3911,7 @@ static PyObject *Admin_c_MemberDescription_to_py(const rd_kafka_MemberDescriptio
         Py_DECREF(kwargs);
         Py_DECREF(MemberDescription_type);
         Py_DECREF(assignment);
+        Py_XDECREF(target_assignment);
         return member;
 
 err:
@@ -3918,6 +3920,7 @@ err:
         Py_XDECREF(kwargs);
         Py_XDECREF(MemberDescription_type);
         Py_XDECREF(assignment);
+        Py_XDECREF(target_assignment);
         Py_XDECREF(member);
         return NULL;
 }
