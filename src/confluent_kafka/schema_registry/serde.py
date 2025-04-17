@@ -17,4 +17,5 @@
 #
 
 from .common.serde import * # noqa
+from ._async.serde import * # noqa
 from ._sync.serde import * # noqa

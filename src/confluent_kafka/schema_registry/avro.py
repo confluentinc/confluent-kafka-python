@@ -15,5 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .common.avro import * # noqa
-from ._sync.avro import * # noqa
+from .common.avro import *
+from ._async.avro import *
+from ._sync.avro import *
