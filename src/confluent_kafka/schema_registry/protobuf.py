@@ -565,14 +565,15 @@ class ProtobufSerializer(BaseSerializer):
             raise ValueError("message must be of type {} not {}"
                              .format(self._msg_class, type(message)))
 
-        subject = self._subject_name_func(ctx,
-                                          message.DESCRIPTOR.full_name)
-        latest_schema = self._get_reader_schema(subject, fmt='serialized')
+        subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
+        latest_schema = None
+        if subject is not None:
+            latest_schema = self._get_reader_schema(subject, fmt='serialized')
+
         if latest_schema is not None:
             self._schema_id = latest_schema.schema_id
-        elif subject not in self._known_subjects:
-            references = self._resolve_dependencies(
-                ctx, message.DESCRIPTOR.file)
+        elif subject not in self._known_subjects and ctx is not None:
+            references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
                 self._schema.schema_str,
                 self._schema.schema_type,
