@@ -179,9 +179,11 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 
     producer.produce(topic, value=awarded_user, partition=0)
+
     producer.flush()
 
     consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+
     consumer.assign([TopicPartition(topic, 0)])
 
     msg = consumer.poll()

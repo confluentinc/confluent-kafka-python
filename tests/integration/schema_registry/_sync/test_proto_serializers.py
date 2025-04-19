@@ -19,7 +19,7 @@ import pytest
 from confluent_kafka import TopicPartition, KafkaException, KafkaError
 from confluent_kafka.error import ConsumeError
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, ProtobufDeserializer
-from .data.proto import metadata_proto_pb2, NestedTestProto_pb2, TestProto_pb2, \
+from tests.integration.schema_registry.data.proto import metadata_proto_pb2, NestedTestProto_pb2, TestProto_pb2, \
     PublicTestProto_pb2
 from tests.integration.schema_registry.data.proto.DependencyTestProto_pb2 import DependencyMessage
 from tests.integration.schema_registry.data.proto.exampleProtoCriteo_pb2 import ClickCas
@@ -92,7 +92,7 @@ def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
     producer.produce(topic, key=pb2(), partition=0)
     producer.flush()
 
-    registered_refs = sr.get_schema(serializer._schema_id).references
+    registered_refs = (sr.get_schema(serializer._schema_id)).references
 
     assert expected_refs.sort() == [ref.name for ref in registered_refs].sort()
 
