@@ -1,5 +1,12 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.10.1
+
+v2.10.0 is a fix release with the following fixes
+
+- Handled `None` value for optional `ctx` parameter in  `ProtobufDeserializer` (#1939)
+- Handled `None` value for optional `ctx` parameter in  `AvroDeserializer` (#1973)
+
 ## v2.10.0
 
 v2.10.0 is a feature release with the following fixes and enhancements:
