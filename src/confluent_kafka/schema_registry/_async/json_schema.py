@@ -40,6 +40,11 @@ from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBase
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
 
+__all__ = [
+    '_resolve_named_schema',
+    'AsyncJSONSerializer',
+    'AsyncJSONDeserializer'
+]
 
 async def _resolve_named_schema(
     schema: Schema, schema_registry_client: AsyncSchemaRegistryClient,

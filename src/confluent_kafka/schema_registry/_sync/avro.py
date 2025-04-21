@@ -365,6 +365,7 @@ class AvroSerializer(BaseSerializer):
         return parsed_schema
 
 
+
 class AvroDeserializer(BaseDeserializer):
     """
     Deserializer for Avro binary encoded data with Confluent Schema Registry
