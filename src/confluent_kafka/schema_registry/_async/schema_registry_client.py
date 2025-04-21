@@ -38,9 +38,19 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     is_retriable, 
     _BearerFieldProvider,
     full_jitter,
-    _SchemaCache, 
+    _SchemaCache,
     Schema,
+    _StaticFieldProvider,
 )
+
+__all__ = [
+    '_urlencode',
+    '_AsyncCustomOAuthClient',
+    '_AsyncOAuthClient',
+    '_AsyncBaseRestClient',
+    '_AsyncRestClient',
+    'AsyncSchemaRegistryClient',
+]
 
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.
@@ -62,17 +72,6 @@ except NameError:
         return urllib.parse.quote(value, safe='')
 
 log = logging.getLogger(__name__)
-
-
-class _AsyncStaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    async def get_bearer_fields(self) -> dict:
-        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
-                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _AsyncCustomOAuthClient(_BearerFieldProvider):
@@ -292,7 +291,7 @@ class _AsyncBaseRestClient(object):
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
                 static_token = conf_copy.pop('bearer.auth.token')
-                self.bearer_field_provider = _AsyncStaticFieldProvider(static_token, logical_cluster, identity_pool)
+                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
                 if not isinstance(static_token, string_type):
                     raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
             elif self.bearer_auth_credentials_source == 'CUSTOM':
