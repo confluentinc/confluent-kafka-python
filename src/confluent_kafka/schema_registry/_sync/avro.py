@@ -34,6 +34,11 @@ from confluent_kafka.schema_registry.common import _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, ParsedSchemaCache
 
+__all__ = [
+    '_resolve_named_schema',
+    'AvroSerializer',
+    'AvroDeserializer',
+]
 
 def _resolve_named_schema(
     schema: Schema, schema_registry_client: SchemaRegistryClient
@@ -342,7 +347,6 @@ class AvroSerializer(BaseSerializer):
 
         self._parsed_schemas.set(schema, parsed_schema)
         return parsed_schema
-
 
 
 class AvroDeserializer(BaseDeserializer):

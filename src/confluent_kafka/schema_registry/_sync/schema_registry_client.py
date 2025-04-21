@@ -40,7 +40,17 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     full_jitter,
     _SchemaCache, 
     Schema,
+    _StaticFieldProvider,
 )
+
+__all__ = [
+    '_urlencode',
+    '_CustomOAuthClient',
+    '_OAuthClient',
+    '_BaseRestClient',
+    '_RestClient',
+    'SchemaRegistryClient',
+]
 
 # TODO: consider adding `six` dependency or employing a compat file
 # Python 2.7 is officially EOL so compatibility issue will be come more the norm.
@@ -62,17 +72,6 @@ except NameError:
         return urllib.parse.quote(value, safe='')
 
 log = logging.getLogger(__name__)
-
-
-class _StaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    def get_bearer_fields(self) -> dict:
-        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
-                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _CustomOAuthClient(_BearerFieldProvider):

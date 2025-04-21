@@ -40,6 +40,11 @@ from confluent_kafka.serialization import SerializationError, \
 
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, ParsedSchemaCache
 
+__all__ = [
+    '_resolve_named_schema',
+    'ProtobufSerializer',
+    'ProtobufDeserializer',
+]
 
 def _resolve_named_schema(
     schema: Schema,

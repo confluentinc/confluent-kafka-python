@@ -29,6 +29,24 @@ from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
 from confluent_kafka.serialization import SerializationContext, SerializationError
 
 
+__all__ = [
+    'FieldType',
+    'FieldContext',
+    'RuleContext',
+    'FieldTransform',
+    'FieldTransformer',
+    'RuleBase',
+    'RuleExecutor',
+    'FieldRuleExecutor',
+    'RuleAction',
+    'ErrorAction',
+    'NoneAction',
+    'RuleError',
+    'RuleConditionError',
+    'Migration',
+    'ParsedSchemaCache',
+]
+
 log = logging.getLogger(__name__)
 
 

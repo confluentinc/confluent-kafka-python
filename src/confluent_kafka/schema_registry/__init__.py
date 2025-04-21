@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-from typing import Optional
 
 from .schema_registry_client import (
   ConfigCompatibilityLevel,
@@ -44,6 +43,7 @@ from .common import (
 )
 
 __all__ = [
+  "_MAGIC_BYTE",
   "ConfigCompatibilityLevel",
   "Metadata",
   "MetadataProperties",
@@ -61,5 +61,6 @@ __all__ = [
   "ServerConfig",
   "topic_subject_name_strategy",
   "topic_record_subject_name_strategy",
-  "record_subject_name_strategy"
+  "record_subject_name_strategy",
+  "reference_subject_name_strategy",
 ]

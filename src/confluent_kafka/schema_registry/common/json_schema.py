@@ -14,6 +14,19 @@ from confluent_kafka.schema_registry import RuleKind
 from confluent_kafka.schema_registry.serde import RuleContext, FieldTransform, FieldType, \
     RuleConditionError
 
+__all__ = [
+    'JsonMessage',
+    'JsonSchema',
+    'DEFAULT_SPEC',
+    '_retrieve_via_httpx',
+    'transform',
+    '_transform_field',
+    '_validate_subschemas',
+    'get_type',
+    '_disjoint',
+    'get_inline_tags',
+]
+
 JsonMessage = Union[
     None,  # 'null' Avro type
     str,  # 'string' and 'enum'

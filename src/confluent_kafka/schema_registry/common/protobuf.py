@@ -25,6 +25,25 @@ from confluent_kafka.serialization import SerializationError
 from confluent_kafka.schema_registry.serde import RuleContext, FieldTransform, \
     FieldType, RuleConditionError
 
+__all__ = [
+    '_bytes',
+    '_create_index_array',
+    '_schema_to_str',
+    '_proto_to_str',
+    '_str_to_proto',
+    '_init_pool',
+    'transform',
+    '_transform_field',
+    '_set_field',
+    'get_type',
+    'is_map_field',
+    'get_inline_tags',
+    '_disjoint',
+    '_is_builtin',
+    'decimalToProtobuf',
+    'protobufToDecimal'
+]
+
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
 # Python2.chr() -> str(alias for bytes)

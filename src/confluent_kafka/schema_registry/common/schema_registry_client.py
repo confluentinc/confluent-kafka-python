@@ -25,6 +25,29 @@ from threading import Lock
 from typing import List, Dict, Type, TypeVar, \
     cast, Optional, Any
 
+__all__ = [
+    'VALID_AUTH_PROVIDERS',
+    '_BearerFieldProvider',
+    'is_success',
+    'is_retriable',
+    'full_jitter',
+    '_StaticFieldProvider',
+    '_SchemaCache',
+    'RuleKind',
+    'RuleMode',
+    'RuleParams',
+    'Rule',
+    'RuleSet',
+    'MetadataTags',
+    'MetadataProperties',
+    'Metadata',
+    'SchemaReference',
+    'ConfigCompatibilityLevel',
+    'ServerConfig',
+    'Schema',
+    'RegisteredSchema'
+]
+
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
@@ -44,6 +67,17 @@ def is_retriable(status_code: int) -> bool:
 def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
+
+
+class _StaticFieldProvider(_BearerFieldProvider):
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _SchemaCache(object):
