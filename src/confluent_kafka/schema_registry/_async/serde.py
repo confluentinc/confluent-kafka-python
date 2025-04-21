@@ -27,27 +27,27 @@ from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext, SerializationError
 
 __all__ = [
-    'BaseSerde',
-    'BaseSerializer',
-    'BaseDeserializer',
+    'AsyncBaseSerde',
+    'AsyncBaseSerializer',
+    'AsyncBaseDeserializer',
 ]
 
 log = logging.getLogger(__name__)
 
-class BaseSerde(object):
+class AsyncBaseSerde(object):
     __slots__ = ['_use_schema_id', '_use_latest_version', '_use_latest_with_metadata',
                  '_registry', '_rule_registry', '_subject_name_func',
                  '_field_transformer']
 
-    def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
+    async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
-            schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
-            return self._registry.lookup_schema(subject, schema, False, True)
+            schema = await self._registry.get_schema(self._use_schema_id, subject, fmt)
+            return await self._registry.lookup_schema(subject, schema, False, True)
         if self._use_latest_with_metadata is not None:
-            return self._registry.get_latest_with_metadata(
+            return await self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, True, fmt)
         if self._use_latest_version:
-            return self._registry.get_latest_version(subject, fmt)
+            return await self._registry.get_latest_version(subject, fmt)
         return None
 
     def _execute_rules(
@@ -177,11 +177,11 @@ class BaseSerde(object):
         return self._rule_registry.get_action(action_name)
 
 
-class BaseSerializer(BaseSerde, Serializer):
+class AsyncBaseSerializer(AsyncBaseSerde, Serializer):
     __slots__ = ['_auto_register', '_normalize_schemas']
 
 
-class BaseDeserializer(BaseSerde, Deserializer):
+class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
     __slots__ = []
 
     def _has_rules(self, rule_set: RuleSet, mode: RuleMode) -> bool:
@@ -199,7 +199,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
             return any(rule.mode == mode for rule in rule_set.migration_rules or [])
         return False
 
-    def _get_migrations(
+    async def _get_migrations(
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
@@ -216,7 +216,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
         else:
             return migrations
         previous: Optional[RegisteredSchema] = None
-        versions = self._get_schemas_between(subject, first, last, fmt)
+        versions = await self._get_schemas_between(subject, first, last, fmt)
         for i in range(len(versions)):
             version = versions[i]
             if i == 0:
@@ -233,7 +233,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
             migrations.reverse()
         return migrations
 
-    def _get_schemas_between(
+    async def _get_schemas_between(
         self, subject: str, first: RegisteredSchema,
         last: RegisteredSchema, fmt: Optional[str] = None
     ) -> List[RegisteredSchema]:
@@ -243,7 +243,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
         version2 = last.version
         result = [first]
         for i in range(version1 + 1, version2):
-            result.append(self._registry.get_version(subject, i, True, fmt))
+            result.append(await self._registry.get_version(subject, i, True, fmt))
         result.append(last)
         return result
 

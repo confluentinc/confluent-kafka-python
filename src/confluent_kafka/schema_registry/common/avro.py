@@ -12,6 +12,21 @@ from .schema_registry_client import Schema, RuleKind
 from confluent_kafka.schema_registry.serde import RuleContext, FieldType, \
     FieldTransform, RuleConditionError
 
+__all__ = [
+    'AvroMessage',
+    'AvroSchema',
+    '_schema_loads',
+    'LocalSchemaRepository',
+    'parse_schema_with_repo',
+    'transform',
+    '_transform_field',
+    'get_type',
+    '_disjoint',
+    '_resolve_union',
+    'get_inline_tags',
+    '_get_inline_tags_recursively',
+    '_implied_namespace',
+]
 
 AvroMessage = Union[
     None,  # 'null' Avro type

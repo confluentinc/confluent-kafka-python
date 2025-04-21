@@ -14,9 +14,4 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from .common.schema_registry_client import *
-from ._async.schema_registry_client import *
-from ._sync.schema_registry_client import *
-
-from .error import SchemaRegistryError
+#
