@@ -38,7 +38,7 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     is_retriable, 
     _BearerFieldProvider,
     full_jitter,
-    _SchemaCache, 
+    _SchemaCache,
     Schema,
     _StaticFieldProvider,
 )

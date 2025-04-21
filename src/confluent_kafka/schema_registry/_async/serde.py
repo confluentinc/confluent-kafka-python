@@ -26,6 +26,12 @@ from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
 from confluent_kafka.serialization import Serializer, Deserializer, \
     SerializationContext, SerializationError
 
+__all__ = [
+    'AsyncBaseSerde',
+    'AsyncBaseSerializer',
+    'AsyncBaseDeserializer',
+]
+
 log = logging.getLogger(__name__)
 
 class AsyncBaseSerde(object):
