@@ -557,7 +557,7 @@ class AvroDeserializer(BaseDeserializer):
                                      "message was not produced with a Confluent "
                                      "Schema Registry serializer".format(len(data)))
 
-        subject = self._subject_name_func(ctx, None)
+        subject = self._subject_name_func(ctx, None) if ctx else None
         latest_schema = None
         if subject is not None:
             latest_schema = self._get_reader_schema(subject)
@@ -573,7 +573,7 @@ class AvroDeserializer(BaseDeserializer):
             writer_schema = self._get_parsed_schema(writer_schema_raw)
 
             if subject is None:
-                subject = self._subject_name_func(ctx, writer_schema.get("name"))
+                subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject)
 
