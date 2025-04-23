@@ -27,15 +27,15 @@ from google.protobuf.message import DecodeError, Message
 from google.protobuf.message_factory import GetMessageClass
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-               reference_subject_name_strategy,
-               topic_subject_name_strategy)
+                                             reference_subject_name_strategy,
+                                             topic_subject_name_strategy)
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
 from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
     _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry import (Schema,
-                                     SchemaReference,
-                                     RuleMode)
+                                             SchemaReference,
+                                             RuleMode)
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
 
@@ -46,6 +46,7 @@ __all__ = [
     'ProtobufSerializer',
     'ProtobufDeserializer',
 ]
+
 
 def _resolve_named_schema(
     schema: Schema,
@@ -71,7 +72,6 @@ def _resolve_named_schema(
             _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
-
 
 
 class ProtobufSerializer(BaseSerializer):
@@ -428,7 +428,7 @@ class ProtobufSerializer(BaseSerializer):
             fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
-            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, desc, msg, field_transform))
             message = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                           latest_schema.schema, message, None,
@@ -458,7 +458,6 @@ class ProtobufSerializer(BaseSerializer):
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
-
 
 
 class ProtobufDeserializer(BaseDeserializer):
@@ -755,7 +754,7 @@ class ProtobufDeserializer(BaseDeserializer):
                 except DecodeError as e:
                     raise SerializationError(str(e))
 
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
                 transform(rule_ctx, reader_desc, message, field_transform))
             msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                       reader_schema_raw, msg, None,

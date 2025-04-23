@@ -25,10 +25,10 @@ from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_load
     get_inline_tags, parse_schema_with_repo, transform, _ContextStringIO
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-               Schema,
-               topic_subject_name_strategy,
-               RuleMode, 
-               SchemaRegistryClient)
+                                             Schema,
+                                             topic_subject_name_strategy,
+                                             RuleMode,
+                                             SchemaRegistryClient)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -39,6 +39,7 @@ __all__ = [
     'AvroSerializer',
     'AvroDeserializer',
 ]
+
 
 def _resolve_named_schema(
     schema: Schema, schema_registry_client: SchemaRegistryClient
@@ -319,7 +320,7 @@ class AvroSerializer(BaseSerializer):
 
         if latest_schema is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
-            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, parsed_schema, msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         latest_schema.schema, value, get_inline_tags(parsed_schema),
@@ -556,7 +557,7 @@ class AvroDeserializer(BaseDeserializer):
                                              reader_schema,
                                              self._return_record_name)
 
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
                 transform(rule_ctx, reader_schema, message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            reader_schema_raw, obj_dict, get_inline_tags(reader_schema),

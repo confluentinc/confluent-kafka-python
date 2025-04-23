@@ -45,6 +45,7 @@ __all__ = [
     'JSONDeserializer'
 ]
 
+
 def _resolve_named_schema(
     schema: Schema, schema_registry_client: SchemaRegistryClient,
     ref_registry: Optional[Registry] = None
@@ -68,7 +69,6 @@ def _resolve_named_schema(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
-
 
 
 class JSONSerializer(BaseSerializer):
@@ -338,7 +338,7 @@ class JSONSerializer(BaseSerializer):
             root_resource = Resource.from_contents(
                 parsed_schema, default_specification=DEFAULT_SPEC)
             ref_resolver = ref_registry.resolver_with_root(root_resource)
-            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, parsed_schema, ref_registry, ref_resolver, "$", msg, field_transform))
             value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         latest_schema.schema, value, None,
@@ -601,7 +601,8 @@ class JSONDeserializer(BaseDeserializer):
             reader_root_resource = Resource.from_contents(
                 reader_schema, default_specification=DEFAULT_SPEC)
             reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+
+            def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
                 transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
                           "$", message, field_transform))
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,

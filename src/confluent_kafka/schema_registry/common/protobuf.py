@@ -324,8 +324,8 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
 
 def _is_builtin(name: str) -> bool:
     return name.startswith('confluent/') or \
-           name.startswith('google/protobuf/') or \
-           name.startswith('google/type/')
+        name.startswith('google/protobuf/') or \
+        name.startswith('google/type/')
 
 
 def decimalToProtobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:

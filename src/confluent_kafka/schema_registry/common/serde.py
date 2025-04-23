@@ -269,7 +269,9 @@ class Migration(object):
         self.source = source
         self.target = target
 
+
 T = TypeVar("T")
+
 
 class ParsedSchemaCache(object):
     """

@@ -32,13 +32,13 @@ from authlib.integrations.httpx_client import OAuth2Client
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
-    RegisteredSchema, 
-    ServerConfig, 
-    is_success, 
-    is_retriable, 
+    RegisteredSchema,
+    ServerConfig,
+    is_success,
+    is_retriable,
     _BearerFieldProvider,
     full_jitter,
-    _SchemaCache, 
+    _SchemaCache,
     Schema,
     _StaticFieldProvider,
 )
@@ -98,7 +98,7 @@ class _OAuthClient(_BearerFieldProvider):
 
     def get_bearer_fields(self) -> dict:
         return {
-            'bearer.auth.token': self.get_access_token(), 
+            'bearer.auth.token': self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
             'bearer.auth.identity.pool.id': self.identity_pool
         }

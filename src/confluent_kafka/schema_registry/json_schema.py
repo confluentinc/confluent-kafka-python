@@ -15,5 +15,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .common.json_schema import *
-from ._sync.json_schema import *
+from .common.json_schema import * # noqa
+from ._sync.json_schema import * # noqa

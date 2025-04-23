@@ -50,6 +50,7 @@ __all__ = [
 
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
+
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_bearer_fields(self) -> dict:
@@ -272,6 +273,7 @@ class _SchemaCache(object):
             self.rs_id_index.clear()
             self.rs_version_index.clear()
             self.rs_schema_index.clear()
+
 
 T = TypeVar("T")
 

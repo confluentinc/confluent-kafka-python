@@ -16,5 +16,5 @@
 # limitations under the License.
 #
 
-from .common.serde import *
-from ._sync.serde import *
+from .common.serde import * # noqa
+from ._sync.serde import * # noqa
