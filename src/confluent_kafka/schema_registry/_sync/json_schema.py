@@ -31,9 +31,8 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              RuleMode, SchemaRegistryClient)
 
 from confluent_kafka.schema_registry.common.json_schema import (
-    DEFAULT_SPEC, JsonSchema, _retrieve_via_httpx, transform
+    DEFAULT_SPEC, JsonSchema, _retrieve_via_httpx, transform, _ContextStringIO
 )
-from confluent_kafka.schema_registry.common.json_schema import _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
     ParsedSchemaCache

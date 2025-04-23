@@ -21,7 +21,8 @@ from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
 
-from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_loads, get_inline_tags, parse_schema_with_repo, transform
+from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_loads, \
+    get_inline_tags, parse_schema_with_repo, transform, _ContextStringIO
 
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                Schema,
@@ -30,7 +31,6 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                SchemaRegistryClient)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
-from confluent_kafka.schema_registry.common.avro import _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, ParsedSchemaCache
 

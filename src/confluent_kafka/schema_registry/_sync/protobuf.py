@@ -29,9 +29,9 @@ from google.protobuf.message_factory import GetMessageClass
 from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                reference_subject_name_strategy,
                topic_subject_name_strategy)
-from confluent_kafka.schema_registry.common.protobuf import _ContextStringIO
 from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
-from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform
+from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
+    _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry import (Schema,
                                      SchemaReference,
