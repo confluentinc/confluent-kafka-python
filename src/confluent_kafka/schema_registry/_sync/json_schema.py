@@ -33,7 +33,7 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC, JsonSchema, _retrieve_via_httpx, transform
 )
-from confluent_kafka.schema_registry.common import _ContextStringIO
+from confluent_kafka.schema_registry.common.json_schema import _ContextStringIO
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
     ParsedSchemaCache

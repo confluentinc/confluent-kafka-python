@@ -2,6 +2,7 @@ import decimal
 import re
 from collections import defaultdict
 from copy import deepcopy
+from io import BytesIO
 from json import loads
 from typing import Dict, Union, Optional, Set
 
@@ -40,6 +41,19 @@ AvroMessage = Union[
     dict,  # 'map' and 'record'
 ]
 AvroSchema = Union[str, list, dict]
+
+
+class _ContextStringIO(BytesIO):
+    """
+    Wrapper to allow use of StringIO via 'with' constructs.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
 
 
 def _schema_loads(schema_str: str) -> Schema:

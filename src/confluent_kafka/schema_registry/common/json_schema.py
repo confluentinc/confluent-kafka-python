@@ -42,6 +42,20 @@ JsonSchema = Union[bool, dict]
 
 DEFAULT_SPEC = referencing.jsonschema.DRAFT7
 
+
+class _ContextStringIO(BytesIO):
+    """
+    Wrapper to allow use of StringIO via 'with' constructs.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
+
+
 def _retrieve_via_httpx(uri: str):
     response = httpx.get(uri)
     return Resource.from_contents(

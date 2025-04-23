@@ -67,6 +67,19 @@ else:
         return chr(v)
 
 
+class _ContextStringIO(io.BytesIO):
+    """
+    Wrapper to allow use of StringIO via 'with' constructs.
+    """
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+        return False
+
+
 def _create_index_array(msg_desc: Descriptor) -> List[int]:
     """
     Creates an index array specifying the location of msg_desc in
