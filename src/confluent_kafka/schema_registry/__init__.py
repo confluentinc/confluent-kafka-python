@@ -18,44 +18,44 @@
 from typing import Optional
 
 from .schema_registry_client import (
-  ConfigCompatibilityLevel,
-  Metadata,
-  MetadataProperties,
-  MetadataTags,
-  RegisteredSchema,
-  Rule,
-  RuleKind,
-  RuleMode,
-  RuleParams,
-  RuleSet,
-  Schema,
-  SchemaRegistryClient,
-  SchemaRegistryError,
-  SchemaReference,
-  ServerConfig
+    ConfigCompatibilityLevel,
+    Metadata,
+    MetadataProperties,
+    MetadataTags,
+    RegisteredSchema,
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    Schema,
+    SchemaRegistryClient,
+    SchemaRegistryError,
+    SchemaReference,
+    ServerConfig
 )
 
 _MAGIC_BYTE = 0
 
 __all__ = [
-  "ConfigCompatibilityLevel",
-  "Metadata",
-  "MetadataProperties",
-  "MetadataTags",
-  "RegisteredSchema",
-  "Rule",
-  "RuleKind",
-  "RuleMode",
-  "RuleParams",
-  "RuleSet",
-  "Schema",
-  "SchemaRegistryClient",
-  "SchemaRegistryError",
-  "SchemaReference",
-  "ServerConfig",
-  "topic_subject_name_strategy",
-  "topic_record_subject_name_strategy",
-  "record_subject_name_strategy"
+    "ConfigCompatibilityLevel",
+    "Metadata",
+    "MetadataProperties",
+    "MetadataTags",
+    "RegisteredSchema",
+    "Rule",
+    "RuleKind",
+    "RuleMode",
+    "RuleParams",
+    "RuleSet",
+    "Schema",
+    "SchemaRegistryClient",
+    "SchemaRegistryError",
+    "SchemaReference",
+    "ServerConfig",
+    "topic_subject_name_strategy",
+    "topic_record_subject_name_strategy",
+    "record_subject_name_strategy"
 ]
 
 
