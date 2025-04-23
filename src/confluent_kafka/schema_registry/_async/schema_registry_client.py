@@ -321,16 +321,16 @@ class _AsyncBaseRestClient(object):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-    def get(self, url: str, query: Optional[dict] = None) -> Any:
+    async def get(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
-    def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
+    async def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    def delete(self, url: str) -> Any:
+    async def delete(self, url: str) -> Any:
         raise NotImplementedError()
 
-    def put(self, url: str, body: Optional[dict] = None) -> Any:
+    async def put(self, url: str, body: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
 
@@ -560,9 +560,9 @@ class AsyncSchemaRegistryClient(object):
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
     """  # noqa: E501
 
-    def __init__(self, conf: dict):
+    def __init__(self, conf: dict, rest_client: _AsyncRestClient = None):
         self._conf = conf
-        self._rest_client = _AsyncRestClient(conf)
+        self._rest_client = rest_client or _AsyncRestClient(conf)
         self._cache = _SchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
