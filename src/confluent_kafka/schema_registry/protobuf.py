@@ -16,4 +16,5 @@
 # limitations under the License.
 
 from .common.protobuf import *
+from ._async.protobuf import *
 from ._sync.protobuf import *

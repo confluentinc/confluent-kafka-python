@@ -17,4 +17,5 @@
 #
 
 from .common.serde import *
+from ._async.serde import *
 from ._sync.serde import *
