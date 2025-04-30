@@ -30,7 +30,7 @@ from fastavro import (schemaless_reader,
                       validate)
 from fastavro.schema import load_schema
 
-from . import (_MAGIC_BYTE,
+from . import (_MAGIC_BYTE_V0,
                Schema,
                topic_subject_name_strategy,
                RuleMode,
@@ -378,7 +378,7 @@ class AvroSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
+            fo.write(pack('>bI', _MAGIC_BYTE_V0, self._schema_id))
             # write the record to the rest of the buffer
             schemaless_writer(fo, parsed_schema, value)
 
@@ -564,7 +564,7 @@ class AvroDeserializer(BaseDeserializer):
 
         with _ContextStringIO(data) as payload:
             magic, schema_id = unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
+            if magic != _MAGIC_BYTE_V0:
                 raise SerializationError("Unexpected magic byte {}. This message "
                                          "was not produced with a Confluent "
                                          "Schema Registry serializer".format(magic))

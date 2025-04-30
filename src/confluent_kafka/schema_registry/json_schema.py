@@ -31,7 +31,7 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
+from confluent_kafka.schema_registry import (_MAGIC_BYTE_V0,
                                              Schema,
                                              topic_subject_name_strategy,
                                              RuleKind,
@@ -386,7 +386,7 @@ class JSONSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(struct.pack(">bI", _MAGIC_BYTE, self._schema_id))
+            fo.write(struct.pack(">bI", _MAGIC_BYTE_V0, self._schema_id))
             # JSON dump always writes a str never bytes
             # https://docs.python.org/3/library/json.html
             encoded_value = self._json_encode(value)
@@ -590,7 +590,7 @@ class JSONDeserializer(BaseDeserializer):
 
         with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
+            if magic != _MAGIC_BYTE_V0:
                 raise SerializationError("Unexpected magic byte {}. This message "
                                          "was not produced with a Confluent "
                                          "Schema Registry serializer".format(magic))

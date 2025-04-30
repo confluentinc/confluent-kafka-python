@@ -40,7 +40,7 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor, \
 from google.protobuf.message import DecodeError, Message
 from google.protobuf.message_factory import GetMessageClass
 
-from . import (_MAGIC_BYTE,
+from . import (_MAGIC_BYTE_V0,
                reference_subject_name_strategy,
                topic_subject_name_strategy, SchemaRegistryClient)
 from .confluent.types import decimal_pb2
@@ -603,7 +603,7 @@ class ProtobufSerializer(BaseSerializer):
         with _ContextStringIO() as fo:
             # Write the magic byte and schema ID in network byte order
             # (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
+            fo.write(struct.pack('>bI', _MAGIC_BYTE_V0, self._schema_id))
             # write the index array that specifies the message descriptor
             # of the serialized data.
             self._encode_varints(fo, self._index_array,
@@ -862,7 +862,7 @@ class ProtobufDeserializer(BaseDeserializer):
 
         with _ContextStringIO(data) as payload:
             magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
+            if magic != _MAGIC_BYTE_V0:
                 raise SerializationError("Unknown magic byte. This message was "
                                          "not produced with a Confluent "
                                          "Schema Registry serializer")

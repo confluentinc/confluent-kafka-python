@@ -31,12 +31,17 @@ __all__ = ['BaseSerializer',
            'RuleExecutor']
 
 import abc
+import io
 import logging
+import struct
+import uuid
 from enum import Enum
 from threading import Lock
 from typing import Callable, List, Optional, Set, Dict, Any, TypeVar
 
-from confluent_kafka.schema_registry import RegisteredSchema
+from confluent_kafka.schema_registry import (RegisteredSchema,
+                                             _MAGIC_BYTE_V0,
+                                             _MAGIC_BYTE_V1)
 from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
     Rule, RuleKind, Schema, RuleSet
 from confluent_kafka.schema_registry.wildcard_matcher import wildcard_match
@@ -45,6 +50,177 @@ from confluent_kafka.serialization import Serializer, Deserializer, \
 
 
 log = logging.getLogger(__name__)
+
+
+class SchemaId(object):
+    __slots__ = ['schema_type', 'id', 'guid', 'message_indexes']
+
+    def __init__(self, schema_type: str):
+        self.schema_type = schema_type
+        self.id = None
+        self.guid = None
+        self.message_indexes = None
+
+    def from_bytes(self, payload: io.BytesIO) -> io.BytesIO:
+        magic = struct.unpack('>b', payload.read(1))[0]
+        if magic == _MAGIC_BYTE_V0:
+            self.id = struct.unpack('>I', payload.read(4))[0]
+        elif magic == _MAGIC_BYTE_V1:
+            self.guid = uuid.UUID(bytes=payload.read(16))
+        else:
+            raise SerializationError("Invalid magic byte")
+        if self.schema_type == "PROTOBUF":
+            self.message_indexes = self._read_index_array(payload, zigzag=True)
+        return payload
+
+    def id_to_bytes(self) -> bytes:
+        if self.id is None:
+            raise SerializationError("Schema ID is not set")
+        buf = io.BytesIO()
+        buf.write(struct.pack('>bI', _MAGIC_BYTE_V0, self.id))
+        if self.message_indexes is not None:
+            self._encode_varints(buf, self.message_indexes, zigzag=True)
+        return buf.getvalue()
+
+    def guid_to_bytes(self) -> bytes:
+        if self.guid is None:
+            raise SerializationError("Schema GUID is not set")
+        buf = io.BytesIO()
+        buf.write(struct.pack('>b', _MAGIC_BYTE_V1))
+        buf.write(self.guid.bytes)
+        if self.message_indexes is not None:
+            self._encode_varints(buf, self.message_indexes, zigzag=True)
+        return buf.getvalue()
+
+    @staticmethod
+    def _decode_varint(buf: io.BytesIO, zigzag: bool = True) -> int:
+        """
+        Decodes a single varint from a buffer.
+
+        Args:
+            buf (BytesIO): buffer to read from
+            zigzag (bool): decode as zigzag or uvarint
+
+        Returns:
+            int: decoded varint
+
+        Raises:
+            EOFError: if buffer is empty
+        """
+
+        value = 0
+        shift = 0
+        try:
+            while True:
+                i = SchemaId._read_byte(buf)
+
+                value |= (i & 0x7f) << shift
+                shift += 7
+                if not (i & 0x80):
+                    break
+
+            if zigzag:
+                value = (value >> 1) ^ -(value & 1)
+
+            return value
+
+        except EOFError:
+            raise EOFError("Unexpected EOF while reading index")
+
+    @staticmethod
+    def _read_byte(buf: io.BytesIO) -> int:
+        """
+        Read one byte from buf as an int.
+
+        Args:
+            buf (BytesIO): The buffer to read from.
+
+        .. _ord:
+            https://docs.python.org/2/library/functions.html#ord
+        """
+
+        i = buf.read(1)
+        if i == b'':
+            raise EOFError("Unexpected EOF encountered")
+        return ord(i)
+
+    @staticmethod
+    def _read_index_array(buf: io.BytesIO, zigzag: bool = True) -> List[int]:
+        """
+        Read an index array from buf that specifies the message
+        descriptor of interest in the file descriptor.
+
+        Args:
+            buf (BytesIO): The buffer to read from.
+
+        Returns:
+            list of int: The index array.
+        """
+
+        size = SchemaId._decode_varint(buf, zigzag=zigzag)
+        if size < 0 or size > 100000:
+            raise SerializationError("Invalid msgidx array length")
+
+        if size == 0:
+            return [0]
+
+        msg_index = []
+        for _ in range(size):
+            msg_index.append(SchemaId._decode_varint(buf,
+                                                                 zigzag=zigzag))
+
+        return msg_index
+
+    @staticmethod
+    def _write_varint(buf: io.BytesIO, val: int, zigzag: bool = True):
+        """
+        Writes val to buf, either using zigzag or uvarint encoding.
+
+        Args:
+            buf (BytesIO): buffer to write to.
+            val (int): integer to be encoded.
+            zigzag (bool): whether to encode in zigzag or uvarint encoding
+        """
+
+        if zigzag:
+            val = (val << 1) ^ (val >> 63)
+
+        while (val & ~0x7f) != 0:
+            buf.write(SchemaId._bytes((val & 0x7f) | 0x80))
+            val >>= 7
+        buf.write(SchemaId._bytes(val))
+
+    @staticmethod
+    def _encode_varints(buf: io.BytesIO, ints: List[int], zigzag: bool = True):
+        """
+        Encodes each int as a uvarint onto buf
+
+        Args:
+            buf (BytesIO): buffer to write to.
+            ints ([int]): ints to be encoded.
+            zigzag (bool): whether to encode in zigzag or uvarint encoding
+        """
+
+        assert len(ints) > 0
+        # The root element at the 0 position does not need a length prefix.
+        if ints == [0]:
+            buf.write(SchemaId._bytes(0x00))
+            return
+
+        SchemaId._write_varint(buf, len(ints), zigzag=zigzag)
+
+        for value in ints:
+            SchemaId._write_varint(buf, value, zigzag=zigzag)
+
+    @staticmethod
+    def _bytes(v: int) -> bytes:
+        """
+        Convert int to bytes
+
+        Args:
+            v (int): The int to convert to bytes.
+        """
+        return bytes((v,))
 
 
 class FieldType(str, Enum):

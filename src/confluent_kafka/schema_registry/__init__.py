@@ -36,6 +36,8 @@ from .schema_registry_client import (
 )
 
 _MAGIC_BYTE = 0
+_MAGIC_BYTE_V0 = _MAGIC_BYTE
+_MAGIC_BYTE_V1 = 1
 
 __all__ = [
   "ConfigCompatibilityLevel",
