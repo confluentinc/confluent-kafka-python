@@ -18,6 +18,7 @@
 import io
 from confluent_kafka.schema_registry.serde import SchemaId
 
+
 def test_schema_guid():
     schema_id = SchemaId("AVRO")
     input = bytes([
@@ -55,7 +56,3 @@ def test_schema_message_indexes():
     assert indexes == [1, 2, 3]
     output = schema_id.id_to_bytes()
     assert output == input
-
-
-
-
