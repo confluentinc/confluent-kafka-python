@@ -166,8 +166,7 @@ class SchemaId(object):
 
         msg_index = []
         for _ in range(size):
-            msg_index.append(SchemaId._decode_varint(buf,
-                                                                 zigzag=zigzag))
+            msg_index.append(SchemaId._decode_varint(buf, zigzag=zigzag))
 
         return msg_index
 
