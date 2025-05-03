@@ -22,7 +22,6 @@ from io import BytesIO
 import pytest
 
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
-                                                      ProtobufDeserializer,
                                                       _create_index_array,
                                                       decimal_to_protobuf,
                                                       protobuf_to_decimal)
