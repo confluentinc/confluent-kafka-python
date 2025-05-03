@@ -600,7 +600,7 @@ class BaseDeserializer(BaseSerde, Deserializer):
         if schema_id.id is not None:
             return self._registry.get_schema(schema_id.id, subject, fmt)
         elif schema_id.guid is not None:
-            return self._registry.get_schema_by_guid(schema_id.guid, fmt)
+            return self._registry.get_schema_by_guid(str(schema_id.guid), fmt)
         else:
             raise SerializationError("Schema ID or GUID is not set")
 
