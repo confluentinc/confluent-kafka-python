@@ -55,11 +55,13 @@ log = logging.getLogger(__name__)
 class SchemaId(object):
     __slots__ = ['schema_type', 'id', 'guid', 'message_indexes']
 
-    def __init__(self, schema_type: str):
+    def __init__(self, schema_type: str, id: Optional[int] = None,
+                 guid: Optional[str] = None,
+                 message_indexes: Optional[List[int]] = None):
         self.schema_type = schema_type
-        self.id = None
-        self.guid = None
-        self.message_indexes = None
+        self.id = id
+        self.guid = uuid.UUID(guid) if guid is not None else None
+        self.message_indexes = message_indexes
 
     def from_bytes(self, payload: io.BytesIO) -> io.BytesIO:
         magic = struct.unpack('>b', payload.read(1))[0]
@@ -586,11 +588,20 @@ class BaseSerde(object):
 
 
 class BaseSerializer(BaseSerde, Serializer):
-    __slots__ = ['_auto_register', '_normalize_schemas']
+    __slots__ = ['_auto_register', '_normalize_schemas', '_schema_id_serializer']
 
 
 class BaseDeserializer(BaseSerde, Deserializer):
-    __slots__ = []
+    __slots__ = ['_schema_id_deserializer']
+
+    def _get_schema(self, schema_id: SchemaId, subject: Optional[str] = None,
+                    fmt: Optional[str] = None) -> Schema:
+        if schema_id.id is not None:
+            return self._registry.get_schema(schema_id.id, subject, fmt)
+        elif schema_id.guid is not None:
+            return self._registry.get_schema_by_guid(schema_id.guid, fmt)
+        else:
+            raise SerializationError("Schema ID or GUID is not set")
 
     def _has_rules(self, rule_set: RuleSet, mode: RuleMode) -> bool:
         if rule_set is None:
