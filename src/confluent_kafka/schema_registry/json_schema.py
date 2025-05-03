@@ -19,7 +19,6 @@ import decimal
 from io import BytesIO
 
 import json
-import struct
 from typing import Union, Optional, List, Set, Tuple, Callable
 
 import httpx
@@ -31,8 +30,7 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE_V0,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleKind,
                                              RuleMode, SchemaRegistryClient,
