@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import uuid
 from collections import defaultdict
 from threading import Lock
 from typing import List, Dict, Optional
@@ -169,8 +169,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         latest_version = 1 if latest_schema is None else latest_schema.version + 1
 
         registered_schema = RegisteredSchema(
-            schema_id=0,
-            guid=None,
+            schema_id=1,
+            guid=str(uuid.uuid4()),
             schema=schema,
             subject=subject_name,
             version=latest_version

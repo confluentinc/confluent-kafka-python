@@ -526,7 +526,7 @@ class _SchemaCache(object):
         self.rs_version_index = defaultdict(dict)
         self.rs_schema_index = defaultdict(dict)
 
-    def set_schema(self, subject: Optional[str], schema_id: int, guid: Optional[str], schema: 'Schema'):
+    def set_schema(self, subject: Optional[str], schema_id: Optional[int], guid: Optional[str], schema: 'Schema'):
         """
         Add a Schema identified by schema_id to the cache.
 
@@ -541,8 +541,9 @@ class _SchemaCache(object):
         """
 
         with self.lock:
-            self.schema_id_index[subject][schema_id] = (guid, schema)
-            self.schema_index[subject][schema] = schema_id
+            if schema_id is not None:
+                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_index[subject][schema] = schema_id
             if guid is not None:
                 self.schema_guid_index[guid] = schema
 
