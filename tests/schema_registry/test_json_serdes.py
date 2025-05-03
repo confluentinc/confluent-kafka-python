@@ -21,7 +21,7 @@ import json
 import pytest
 
 from confluent_kafka.schema_registry import SchemaRegistryClient, \
-    Schema, Metadata, MetadataProperties
+    Schema, Metadata, MetadataProperties, header_schema_id_serializer
 from confluent_kafka.schema_registry.json_schema import JSONSerializer, \
     JSONDeserializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
@@ -114,6 +114,46 @@ def test_json_basic_serialization():
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = JSONDeserializer(None, schema_registry_client=client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_json_guid_in_header():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': True,
+        'schema.id.serializer': header_schema_id_serializer
+    }
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
     obj_bytes = ser(obj, ser_ctx)
 
     deser = JSONDeserializer(None, schema_registry_client=client)

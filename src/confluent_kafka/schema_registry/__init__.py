@@ -195,7 +195,7 @@ def dual_schema_id_deserializer(payload: bytes, ctx, schema_id) -> io.BytesIO:
         elif isinstance(headers, dict):
             header_value = headers.get(header_key, None)
         if header_value is not None:
-            schema_id.from_bytes(header_value)
+            schema_id.from_bytes(io.BytesIO(header_value))
             return io.BytesIO(payload)
     return schema_id.from_bytes(io.BytesIO(payload))
 
