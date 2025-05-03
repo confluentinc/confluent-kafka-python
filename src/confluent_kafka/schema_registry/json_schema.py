@@ -610,7 +610,7 @@ class JSONDeserializer(BaseDeserializer):
         obj_dict = self._json_decode(payload.read())
 
         if self._registry is not None:
-            writer_schema_raw = self._get_schema(schema_id, subject)
+            writer_schema_raw = self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
             if subject is None:
                 subject = self._subject_name_func(ctx, writer_schema.get("title"))
