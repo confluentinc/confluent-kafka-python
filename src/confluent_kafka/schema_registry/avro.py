@@ -580,7 +580,7 @@ class AvroDeserializer(BaseDeserializer):
         schema_id = SchemaId(AVRO_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
-        writer_schema_raw = self._get_schema(schema_id, subject)
+        writer_schema_raw = self._get_writer_schema(schema_id, subject)
         writer_schema = self._get_parsed_schema(writer_schema_raw)
 
         if subject is None:

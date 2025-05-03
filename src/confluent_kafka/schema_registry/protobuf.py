@@ -798,7 +798,7 @@ class ProtobufDeserializer(BaseDeserializer):
         msg_index = schema_id.message_indexes
 
         if self._registry is not None:
-            writer_schema_raw = self._get_schema(schema_id, subject, fmt='serialized')
+            writer_schema_raw = self._get_writer_schema(schema_id, subject, fmt='serialized')
             fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
