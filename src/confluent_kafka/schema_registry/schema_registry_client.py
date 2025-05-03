@@ -561,10 +561,12 @@ class _SchemaCache(object):
         guid = registered_schema.guid
         version = registered_schema.version
         with self.lock:
-            self.schema_id_index[subject][schema_id] = (guid, schema)
-            self.schema_guid_index[guid] = schema
-            self.schema_index[subject][schema] = schema_id
-            self.rs_id_index[subject][schema_id] = registered_schema
+            if schema_id is not None:
+                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_index[subject][schema] = schema_id
+                self.rs_id_index[subject][schema_id] = registered_schema
+            if guid is not None:
+                self.schema_guid_index[guid] = schema
             self.rs_version_index[subject][version] = registered_schema
             self.rs_schema_index[subject][schema] = registered_schema
 
