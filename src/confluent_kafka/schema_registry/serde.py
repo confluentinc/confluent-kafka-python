@@ -28,7 +28,8 @@ __all__ = ['BaseSerializer',
            'RuleContext',
            'RuleConditionError',
            'RuleError',
-           'RuleExecutor']
+           'RuleExecutor',
+           'SchemaId']
 
 import abc
 import io
@@ -55,11 +56,11 @@ log = logging.getLogger(__name__)
 class SchemaId(object):
     __slots__ = ['schema_type', 'id', 'guid', 'message_indexes']
 
-    def __init__(self, schema_type: str, id: Optional[int] = None,
+    def __init__(self, schema_type: str, schema_id: Optional[int] = None,
                  guid: Optional[str] = None,
                  message_indexes: Optional[List[int]] = None):
         self.schema_type = schema_type
-        self.id = id
+        self.id = schema_id
         self.guid = uuid.UUID(guid) if guid is not None else None
         self.message_indexes = message_indexes
 

@@ -520,7 +520,7 @@ class _SchemaCache(object):
     def __init__(self):
         self.lock = Lock()
         self.schema_id_index = defaultdict(dict)
-        self.schema_guid_index = defaultdict(dict)
+        self.schema_guid_index = {}
         self.schema_index = defaultdict(dict)
         self.rs_id_index = defaultdict(dict)
         self.rs_version_index = defaultdict(dict)
@@ -551,6 +551,7 @@ class _SchemaCache(object):
         Add a RegisteredSchema to the cache.
 
         Args:
+            schema (Schema): Schema instance
             registered_schema (RegisteredSchema): RegisteredSchema instance
         """
 
@@ -865,9 +866,9 @@ class SchemaRegistryClient(object):
 
         schema_id = self._cache.get_id_by_schema(subject_name, schema)
         if schema_id is not None:
-            tuple = self._cache.get_schema_by_id(subject_name, schema_id)
-            if tuple is not None:
-                return RegisteredSchema(schema_id, tuple[0], tuple[1], subject_name, None)
+            result = self._cache.get_schema_by_id(subject_name, schema_id)
+            if result is not None:
+                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
 
         request = schema.to_dict()
 
@@ -906,9 +907,9 @@ class SchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        tuple = self._cache.get_schema_by_id(subject_name, schema_id)
-        if tuple is not None:
-            return tuple[1]
+        result = self._cache.get_schema_by_id(subject_name, schema_id)
+        if result is not None:
+            return result[1]
 
         query = {'subject': subject_name} if subject_name is not None else None
         if fmt is not None:

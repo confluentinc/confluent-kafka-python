@@ -1025,6 +1025,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 
     Args:
         value (Decimal): The Decimal value to convert.
+        scale (int): The number of decimal points to convert.
 
     Returns:
         The Protobuf value.
