@@ -30,6 +30,7 @@ class _SchemaStore(object):
         self.lock = Lock()
         self.max_id = 0
         self.schema_id_index = {}
+        self.schema_guid_index = {}
         self.schema_index = {}
         self.subject_schemas = defaultdict(set)
 
@@ -38,11 +39,13 @@ class _SchemaStore(object):
             self.max_id += 1
             rs = RegisteredSchema(
                 schema_id=self.max_id,
+                guid=registered_schema.guid,
                 schema=registered_schema.schema,
                 subject=registered_schema.subject,
                 version=registered_schema.version
             )
             self.schema_id_index[rs.schema_id] = rs
+            self.schema_guid_index[rs.guid] = rs
             self.schema_index[rs.schema] = rs.schema_id
             self.subject_schemas[rs.subject].add(rs)
             return rs
@@ -50,6 +53,11 @@ class _SchemaStore(object):
     def get_schema(self, schema_id: int) -> Optional[Schema]:
         with self.lock:
             rs = self.schema_id_index.get(schema_id, None)
+            return rs.schema if rs else None
+
+    def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
+        with self.lock:
+            rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
 
     def get_registered_schema_by_schema(
@@ -131,6 +139,7 @@ class _SchemaStore(object):
     def clear(self):
         with self.lock:
             self.schema_id_index.clear()
+            self.schema_guid_index.clear()
             self.schema_index.clear()
             self.subject_schemas.clear()
 
@@ -161,6 +170,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         registered_schema = RegisteredSchema(
             schema_id=0,
+            guid=None,
             schema=schema,
             subject=subject_name,
             version=latest_version
@@ -175,6 +185,15 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         fmt: Optional[str] = None
     ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
+        if schema is not None:
+            return schema
+
+        raise SchemaRegistryError(404, 40400, "Schema Not Found")
+
+    def get_schema_by_guid(
+        self, guid: str, fmt: Optional[str] = None
+    ) -> 'Schema':
+        schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema
 
