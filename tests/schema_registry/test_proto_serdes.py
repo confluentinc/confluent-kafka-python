@@ -125,7 +125,6 @@ def test_proto_guid_in_header():
     client = SchemaRegistryClient.new_client(conf)
     ser_conf = {
         'auto.register.schemas': True,
-        'use.deprecated.format': False,
         'schema.id.serializer': header_schema_id_serializer
     }
     obj = example_pb2.Author(
@@ -140,7 +139,6 @@ def test_proto_guid_in_header():
     obj_bytes = ser(obj, ser_ctx)
 
     deser_conf = {
-        'use.deprecated.format': False
     }
     deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
     obj2 = deser(obj_bytes, ser_ctx)

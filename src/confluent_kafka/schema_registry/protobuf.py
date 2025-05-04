@@ -394,13 +394,6 @@ class ProtobufSerializer(BaseSerializer):
     ):
         super().__init__()
 
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufSerializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
-
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -713,16 +706,6 @@ class ProtobufDeserializer(BaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
-
-        # Require use.deprecated.format to be explicitly configured
-        # during a transitionary period since old/new format are
-        # incompatible.
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufDeserializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
