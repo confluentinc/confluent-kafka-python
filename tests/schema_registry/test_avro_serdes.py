@@ -25,7 +25,7 @@ from confluent_kafka.schema_registry.rule_registry import RuleRegistry, \
 from fastavro._logical_readers import UUID
 
 from confluent_kafka.schema_registry import SchemaRegistryClient, \
-    Schema, Metadata, MetadataProperties
+    Schema, Metadata, MetadataProperties, header_schema_id_serializer
 from confluent_kafka.schema_registry.avro import AvroSerializer, \
     AvroDeserializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
@@ -123,6 +123,40 @@ def test_avro_basic_serialization():
     }
     ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_guid_in_header():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': True,
+        'schema.id.serializer': header_schema_id_serializer
+    }
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string'},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes'},
+        ]
+    }
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
     obj_bytes = ser(obj, ser_ctx)
 
     deser = AvroDeserializer(client)
