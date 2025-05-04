@@ -883,7 +883,7 @@ class SchemaRegistryClient(object):
 
         # The registered schema may not be fully populated
         self._cache.set_schema(subject_name, registered_schema.schema_id,
-                               registered_schema.guid, registered_schema.schema)
+                               registered_schema.guid, schema)
 
         return registered_schema
 
