@@ -20,7 +20,7 @@ import time
 import pytest
 
 from confluent_kafka.schema_registry import SchemaRegistryClient, \
-    Schema, Metadata, MetadataProperties
+    Schema, Metadata, MetadataProperties, header_schema_id_serializer
 from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, \
     ProtobufDeserializer, _schema_to_str
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
@@ -110,6 +110,33 @@ def test_proto_basic_serialization():
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    deser_conf = {
+        'use.deprecated.format': False
+    }
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_proto_guid_in_header():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': True,
+        'use.deprecated.format': False,
+        'schema.id.serializer': header_schema_id_serializer
+    }
+    obj = example_pb2.Author(
+        name='Kafka',
+        id=123,
+        picture=b'foobar',
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
+    )
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
     obj_bytes = ser(obj, ser_ctx)
 
     deser_conf = {
