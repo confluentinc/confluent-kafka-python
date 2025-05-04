@@ -19,7 +19,6 @@ import decimal
 from io import BytesIO
 
 import json
-import struct
 from typing import Union, Optional, List, Set, Tuple, Callable
 
 import httpx
@@ -31,17 +30,21 @@ from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 from referencing._core import Resolver
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleKind,
-                                             RuleMode, SchemaRegistryClient)
+                                             RuleMode, SchemaRegistryClient,
+                                             prefix_schema_id_serializer,
+                                             dual_schema_id_deserializer)
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, \
     BaseDeserializer, RuleContext, FieldTransform, FieldType, \
-    RuleConditionError, ParsedSchemaCache
+    RuleConditionError, ParsedSchemaCache, SchemaId
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
+
+
+JSON_TYPE = "JSON"
 
 
 JsonMessage = Union[
@@ -128,10 +131,10 @@ class JSONSerializer(BaseSerializer):
     | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,     |
     |                             |          | including ordering properties and references.      |
     +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the given schema ID for           |
-    | ``use.schema.id``           | int      | serialization.                                   |
-    |                             |          |                                                  |
-    +-----------------------------+----------+--------------------------------------------------+
+    |                             |          | Whether to use the given schema ID for             |
+    | ``use.schema.id``           | int      | serialization.                                     |
+    |                             |          |                                                    |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version for      |
     | ``use.latest.version``      | bool     | serialization.                                     |
     |                             |          |                                                    |
@@ -158,6 +161,12 @@ class JSONSerializer(BaseSerializer):
     |                             |          | namespace.                                         |
     |                             |          |                                                    |
     |                             |          | Defaults to topic_subject_name_strategy.           |
+    +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Callable(bytes, SerializationContext, schema_id)   |
+    |                             |          |   -> bytes                                         |
+    |                             |          |                                                    |
+    | ``schema.id.serializer``    | callable | Defines how the schema id/guid is serialized.      |
+    |                             |          | Defaults to prefix_schema_id_serializer.           |
     +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
@@ -224,6 +233,7 @@ class JSONSerializer(BaseSerializer):
                      'use.latest.version': False,
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy,
+                     'schema.id.serializer': prefix_schema_id_serializer,
                      'validate': True}
 
     def __init__(
@@ -292,6 +302,10 @@ class JSONSerializer(BaseSerializer):
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
+        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        if not callable(self._schema_id_serializer):
+            raise ValueError("schema.id.serializer must be callable")
+
         self._validate = conf_copy.pop('validate')
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("validate must be a boolean value")
@@ -339,21 +353,20 @@ class JSONSerializer(BaseSerializer):
         subject = self._subject_name_func(ctx, self._schema_name)
         latest_schema = self._get_reader_schema(subject)
         if latest_schema is not None:
-            self._schema_id = latest_schema.schema_id
+            self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
         elif subject not in self._known_subjects:
             # Check to ensure this schema has been registered under subject_name.
             if self._auto_register:
                 # The schema name will always be the same. We can't however register
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
-                self._schema_id = self._registry.register_schema(subject,
-                                                                 self._schema,
-                                                                 self._normalize_schemas)
+                registered_schema = self._registry.register_schema_full_response(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
-                registered_schema = self._registry.lookup_schema(subject,
-                                                                 self._schema,
-                                                                 self._normalize_schemas)
-                self._schema_id = registered_schema.schema_id
+                registered_schema = self._registry.lookup_schema(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
@@ -385,16 +398,13 @@ class JSONSerializer(BaseSerializer):
                 raise SerializationError(ve.message)
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(struct.pack(">bI", _MAGIC_BYTE, self._schema_id))
             # JSON dump always writes a str never bytes
             # https://docs.python.org/3/library/json.html
             encoded_value = self._json_encode(value)
             if isinstance(encoded_value, str):
                 encoded_value = encoded_value.encode("utf8")
             fo.write(encoded_value)
-
-            return fo.getvalue()
+            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
@@ -453,6 +463,12 @@ class JSONDeserializer(BaseDeserializer):
     |                             |          |                                                    |
     |                             |          | Defaults to topic_subject_name_strategy.           |
     +-----------------------------+----------+----------------------------------------------------+
+    |                             |          | Callable(bytes, SerializationContext, schema_id)   |
+    |                             |          |   -> io.BytesIO                                    |
+    |                             |          |                                                    |
+    | ``schema.id.deserializer``  | callable | Defines how the schema id/guid is deserialized.    |
+    |                             |          | Defaults to dual_schema_id_deserializer.           |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to validate the payload against the        |
     | ``validate``                | bool     | the given schema.                                  |
     |                             |          |                                                    |
@@ -479,6 +495,7 @@ class JSONDeserializer(BaseDeserializer):
     _default_conf = {'use.latest.version': False,
                      'use.latest.with.metadata': None,
                      'subject.name.strategy': topic_subject_name_strategy,
+                     'schema.id.deserializer': dual_schema_id_deserializer,
                      'validate': True}
 
     def __init__(
@@ -533,6 +550,10 @@ class JSONDeserializer(BaseDeserializer):
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
+        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        if not callable(self._subject_name_func):
+            raise ValueError("schema.id.deserializer must be callable")
+
         self._validate = conf_copy.pop('validate')
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
@@ -577,75 +598,65 @@ class JSONDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        if len(data) <= 5:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
-
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject)
 
-        with _ContextStringIO(data) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unexpected magic byte {}. This message "
-                                         "was not produced with a Confluent "
-                                         "Schema Registry serializer".format(magic))
+        schema_id = SchemaId(JSON_TYPE)
+        payload = self._schema_id_deserializer(data, ctx, schema_id)
 
-            # JSON documents are self-describing; no need to query schema
-            obj_dict = self._json_decode(payload.read())
+        # JSON documents are self-describing; no need to query schema
+        obj_dict = self._json_decode(payload.read())
 
-            if self._registry is not None:
-                writer_schema_raw = self._registry.get_schema(schema_id)
-                writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
-                if subject is None:
-                    subject = self._subject_name_func(ctx, writer_schema.get("title"))
-                    if subject is not None:
-                        latest_schema = self._get_reader_schema(subject)
-            else:
-                writer_schema_raw = None
-                writer_schema, writer_ref_registry = None, None
+        if self._registry is not None:
+            writer_schema_raw = self._get_writer_schema(schema_id, subject)
+            writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
+            if subject is None:
+                subject = self._subject_name_func(ctx, writer_schema.get("title"))
+                if subject is not None:
+                    latest_schema = self._get_reader_schema(subject)
+        else:
+            writer_schema_raw = None
+            writer_schema, writer_ref_registry = None, None
 
-            if latest_schema is not None:
-                migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
-                reader_schema_raw = latest_schema.schema
-                reader_schema, reader_ref_registry = self._get_parsed_schema(latest_schema.schema)
-            elif self._schema is not None:
-                migrations = None
-                reader_schema_raw = self._schema
-                reader_schema, reader_ref_registry = self._reader_schema, self._ref_registry
-            else:
-                migrations = None
-                reader_schema_raw = writer_schema_raw
-                reader_schema, reader_ref_registry = writer_schema, writer_ref_registry
+        if latest_schema is not None:
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            reader_schema_raw = latest_schema.schema
+            reader_schema, reader_ref_registry = self._get_parsed_schema(latest_schema.schema)
+        elif self._schema is not None:
+            migrations = None
+            reader_schema_raw = self._schema
+            reader_schema, reader_ref_registry = self._reader_schema, self._ref_registry
+        else:
+            migrations = None
+            reader_schema_raw = writer_schema_raw
+            reader_schema, reader_ref_registry = writer_schema, writer_ref_registry
 
-            if migrations:
-                obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
+        if migrations:
+            obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
 
-            reader_root_resource = Resource.from_contents(
-                reader_schema, default_specification=DEFAULT_SPEC)
-            reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
-                transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
-                          "$", message, field_transform))
-            obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                           reader_schema_raw, obj_dict, None,
-                                           field_transformer)
+        reader_root_resource = Resource.from_contents(
+            reader_schema, default_specification=DEFAULT_SPEC)
+        reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
+        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+            transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
+                      "$", message, field_transform))
+        obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
+                                       reader_schema_raw, obj_dict, None,
+                                       field_transformer)
 
-            if self._validate:
-                try:
-                    validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
-                    validator.validate(obj_dict)
-                except ValidationError as ve:
-                    raise SerializationError(ve.message)
+        if self._validate:
+            try:
+                validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
+                validator.validate(obj_dict)
+            except ValidationError as ve:
+                raise SerializationError(ve.message)
 
-            if self._from_dict is not None:
-                return self._from_dict(obj_dict, ctx)
+        if self._from_dict is not None:
+            return self._from_dict(obj_dict, ctx)
 
-            return obj_dict
+        return obj_dict
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
