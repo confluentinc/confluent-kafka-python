@@ -79,6 +79,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
                         self.config[key] = value
             else:
                 self.config = rule_conf
+        elif self.config is None:
+            self.config = {}
 
     def type(self) -> str:
         return "ENCRYPT"
