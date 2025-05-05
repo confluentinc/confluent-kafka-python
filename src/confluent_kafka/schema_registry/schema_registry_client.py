@@ -882,8 +882,9 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         # The registered schema may not be fully populated
+        s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
         self._cache.set_schema(subject_name, registered_schema.schema_id,
-                               registered_schema.guid, schema)
+                               registered_schema.guid, s)
 
         return registered_schema
 
