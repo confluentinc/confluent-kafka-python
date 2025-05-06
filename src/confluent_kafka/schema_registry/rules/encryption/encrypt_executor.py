@@ -68,8 +68,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
             else:
                 self.client = DekRegistryClient.new_client(client_conf)
 
-        if rule_conf:
-            if self.config:
+        if self.config:
+            if rule_conf:
                 for key, value in rule_conf.items():
                     v = self.config.get(key)
                     if v is not None:
@@ -77,10 +77,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
                             raise RuleError(f"rule config key already set: {key}")
                     else:
                         self.config[key] = value
-            else:
-                self.config = rule_conf
-        elif self.config is None:
-            self.config = {}
+        else:
+            self.config = rule_conf if rule_conf else {}
 
     def type(self) -> str:
         return "ENCRYPT"
