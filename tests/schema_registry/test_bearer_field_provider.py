@@ -77,8 +77,8 @@ def test_get_token():
 def test_generate_token_retry_logic():
     oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 5, 1000, 20000)
 
-    with (patch("confluent_kafka.schema_registry.schema_registry_client.time.sleep") as mock_sleep,
-          patch("confluent_kafka.schema_registry.schema_registry_client.full_jitter") as mock_jitter):
+    with (patch("confluent_kafka.schema_registry._sync.schema_registry_client.time.sleep") as mock_sleep,
+          patch("confluent_kafka.schema_registry._sync.schema_registry_client.full_jitter") as mock_jitter):
 
         with pytest.raises(OAuthTokenError):
             oauth_client.generate_access_token()
