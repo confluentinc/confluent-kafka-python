@@ -22,10 +22,10 @@ from io import BytesIO
 import pytest
 
 from confluent_kafka.schema_registry.protobuf import (ProtobufSerializer,
-                                                      ProtobufDeserializer,
                                                       _create_index_array,
-                                                      decimalToProtobuf,
-                                                      protobufToDecimal)
+                                                      decimal_to_protobuf,
+                                                      protobuf_to_decimal)
+from confluent_kafka.schema_registry.serde import SchemaId
 from tests.integration.schema_registry.data.proto import (DependencyTestProto_pb2,
                                                           metadata_proto_pb2)
 
@@ -56,7 +56,7 @@ def test_index_serialization(pb2, zigzag):
 
     # reset buffer cursor
     buf.seek(0)
-    decoded_msg_idx = ProtobufDeserializer._read_index_array(buf, zigzag=zigzag)
+    decoded_msg_idx = SchemaId._read_index_array(buf, zigzag=zigzag)
     buf.close()
 
     assert decoded_msg_idx == msg_idx
@@ -84,7 +84,7 @@ def test_index_encoder(msg_idx, zigzag, expected_hex):
 
     # reset reader and test decoder
     buf.seek(0)
-    decoded_msg_idx = ProtobufDeserializer._read_index_array(buf, zigzag=zigzag)
+    decoded_msg_idx = SchemaId._read_index_array(buf, zigzag=zigzag)
     assert decoded_msg_idx == msg_idx
 
 
@@ -103,6 +103,6 @@ def test_index_encoder(msg_idx, zigzag, expected_hex):
 ])
 def test_proto_decimal(decimal, scale):
     input = Decimal(decimal)
-    converted = decimalToProtobuf(input, scale)
-    result = protobufToDecimal(converted)
+    converted = decimal_to_protobuf(input, scale)
+    result = protobuf_to_decimal(converted)
     assert result == input
