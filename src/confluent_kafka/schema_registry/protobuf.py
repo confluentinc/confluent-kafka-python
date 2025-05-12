@@ -18,7 +18,6 @@
 import io
 import sys
 import base64
-import struct
 import warnings
 from collections import deque
 from decimal import Context, Decimal, MAX_PREC
@@ -40,9 +39,9 @@ from google.protobuf.descriptor import Descriptor, FieldDescriptor, \
 from google.protobuf.message import DecodeError, Message
 from google.protobuf.message_factory import GetMessageClass
 
-from . import (_MAGIC_BYTE,
-               reference_subject_name_strategy,
-               topic_subject_name_strategy, SchemaRegistryClient)
+from . import (reference_subject_name_strategy,
+               topic_subject_name_strategy, SchemaRegistryClient,
+               prefix_schema_id_serializer, dual_schema_id_deserializer)
 from .confluent.types import decimal_pb2
 from .rule_registry import RuleRegistry
 from .schema_registry_client import (Schema,
@@ -52,7 +51,7 @@ from .schema_registry_client import (Schema,
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
 from .serde import BaseSerializer, BaseDeserializer, RuleContext, \
-    FieldTransform, FieldType, RuleConditionError, ParsedSchemaCache
+    FieldTransform, FieldType, RuleConditionError, ParsedSchemaCache, SchemaId
 
 # Convert an int to bytes (inverse of ord())
 # Python3.chr() -> Unicode
@@ -75,6 +74,9 @@ else:
             v (int): The int to convert to bytes.
         """
         return chr(v)
+
+
+PROTOBUF_TYPE = "PROTOBUF"
 
 
 class _ContextStringIO(io.BytesIO):
@@ -311,6 +313,12 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to reference_subject_name_strategy          |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
+    |                                     |          |   -> bytes                                           |
+    |                                     |          |                                                      |
+    | ``schema.id.serializer``            | callable | Defines how the schema id/guid is serialized.        |
+    |                                     |          | Defaults to prefix_schema_id_serializer.             |
+    +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
     |                                     |          | serialize message indexes without zig-zag encoding.  |
     |                                     |          | This option must be explicitly configured as older   |
@@ -372,6 +380,7 @@ class ProtobufSerializer(BaseSerializer):
         'skip.known.types': True,
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy,
+        'schema.id.serializer': prefix_schema_id_serializer,
         'use.deprecated.format': False,
     }
 
@@ -384,13 +393,6 @@ class ProtobufSerializer(BaseSerializer):
         rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
-
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufSerializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -445,6 +447,10 @@ class ProtobufSerializer(BaseSerializer):
             'reference.subject.name.strategy')
         if not callable(self._ref_reference_subject_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        if not callable(self._schema_id_serializer):
+            raise ValueError("schema.id.serializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -571,7 +577,7 @@ class ProtobufSerializer(BaseSerializer):
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
         if latest_schema is not None:
-            self._schema_id = latest_schema.schema_id
+            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
         elif subject not in self._known_subjects and ctx is not None:
             references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
@@ -581,12 +587,13 @@ class ProtobufSerializer(BaseSerializer):
             )
 
             if self._auto_register:
-                self._schema_id = self._registry.register_schema(subject,
-                                                                 self._schema,
-                                                                 self._normalize_schemas)
+                registered_schema = self._registry.register_schema_full_response(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
-                self._schema_id = self._registry.lookup_schema(
-                    subject, self._schema, self._normalize_schemas).schema_id
+                registered_schema = self._registry.lookup_schema(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
@@ -601,16 +608,10 @@ class ProtobufSerializer(BaseSerializer):
                                           field_transformer)
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order
-            # (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
-            # write the index array that specifies the message descriptor
-            # of the serialized data.
-            self._encode_varints(fo, self._index_array,
-                                 zigzag=not self._use_deprecated_format)
             # write the serialized data itself
             fo.write(message.SerializeToString())
-            return fo.getvalue()
+            self._schema_id.message_indexes = self._index_array
+            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -658,6 +659,12 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to topic_subject_name_strategy.             |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
+    |                                     |          |   -> io.BytesIO                                      |
+    |                                     |          |                                                      |
+    | ``schema.id.deserializer``          | callable | Defines how the schema id/guid is deserialized.      |
+    |                                     |          | Defaults to dual_schema_id_deserializer.             |
+    +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
     |                                     |          | deserialize message indexes without zig-zag encoding.|
     |                                     |          | This option must be explicitly configured as older   |
@@ -681,6 +688,7 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'subject.name.strategy': topic_subject_name_strategy,
+        'schema.id.deserializer': dual_schema_id_deserializer,
         'use.deprecated.format': False,
     }
 
@@ -699,16 +707,6 @@ class ProtobufDeserializer(BaseDeserializer):
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
 
-        # Require use.deprecated.format to be explicitly configured
-        # during a transitionary period since old/new format are
-        # incompatible.
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufDeserializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
-
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -725,6 +723,10 @@ class ProtobufDeserializer(BaseDeserializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        if not callable(self._schema_id_deserializer):
+            raise ValueError("schema.id.deserializer must be callable")
 
         self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
         if not isinstance(self._use_deprecated_format, bool):
@@ -745,85 +747,6 @@ class ProtobufDeserializer(BaseDeserializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
-
-    @staticmethod
-    def _decode_varint(buf: io.BytesIO, zigzag: bool = True) -> int:
-        """
-        Decodes a single varint from a buffer.
-
-        Args:
-            buf (BytesIO): buffer to read from
-            zigzag (bool): decode as zigzag or uvarint
-
-        Returns:
-            int: decoded varint
-
-        Raises:
-            EOFError: if buffer is empty
-        """
-
-        value = 0
-        shift = 0
-        try:
-            while True:
-                i = ProtobufDeserializer._read_byte(buf)
-
-                value |= (i & 0x7f) << shift
-                shift += 7
-                if not (i & 0x80):
-                    break
-
-            if zigzag:
-                value = (value >> 1) ^ -(value & 1)
-
-            return value
-
-        except EOFError:
-            raise EOFError("Unexpected EOF while reading index")
-
-    @staticmethod
-    def _read_byte(buf: io.BytesIO) -> int:
-        """
-        Read one byte from buf as an int.
-
-        Args:
-            buf (BytesIO): The buffer to read from.
-
-        .. _ord:
-            https://docs.python.org/2/library/functions.html#ord
-        """
-
-        i = buf.read(1)
-        if i == b'':
-            raise EOFError("Unexpected EOF encountered")
-        return ord(i)
-
-    @staticmethod
-    def _read_index_array(buf: io.BytesIO, zigzag: bool = True) -> List[int]:
-        """
-        Read an index array from buf that specifies the message
-        descriptor of interest in the file descriptor.
-
-        Args:
-            buf (BytesIO): The buffer to read from.
-
-        Returns:
-            list of int: The index array.
-        """
-
-        size = ProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
-        if size < 0 or size > 100000:
-            raise DecodeError("Invalid Protobuf msgidx array length")
-
-        if size == 0:
-            return [0]
-
-        msg_index = []
-        for _ in range(size):
-            msg_index.append(ProtobufDeserializer._decode_varint(buf,
-                                                                 zigzag=zigzag))
-
-        return msg_index
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[Message]:
         """
@@ -848,82 +771,70 @@ class ProtobufDeserializer(BaseDeserializer):
         if data is None:
             return None
 
-        # SR wire protocol + msg_index length
-        if len(data) < 6:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
-
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
-        with _ContextStringIO(data) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was "
-                                         "not produced with a Confluent "
-                                         "Schema Registry serializer")
+        schema_id = SchemaId(PROTOBUF_TYPE)
+        payload = self._schema_id_deserializer(data, ctx, schema_id)
+        msg_index = schema_id.message_indexes
 
-            msg_index = self._read_index_array(payload, zigzag=not self._use_deprecated_format)
+        if self._registry is not None:
+            writer_schema_raw = self._get_writer_schema(schema_id, subject, fmt='serialized')
+            fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
+            writer_schema = pool.FindFileByName(fd_proto.name)
+            writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+            if subject is None:
+                subject = self._subject_name_func(ctx, writer_desc.full_name)
+                if subject is not None:
+                    latest_schema = self._get_reader_schema(subject, fmt='serialized')
+        else:
+            writer_schema_raw = None
+            writer_schema = None
 
-            if self._registry is not None:
-                writer_schema_raw = self._registry.get_schema(schema_id, fmt='serialized')
-                fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
-                writer_schema = pool.FindFileByName(fd_proto.name)
-                writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
-                if subject is None:
-                    subject = self._subject_name_func(ctx, writer_desc.full_name)
-                    if subject is not None:
-                        latest_schema = self._get_reader_schema(subject, fmt='serialized')
-            else:
-                writer_schema_raw = None
-                writer_schema = None
+        if latest_schema is not None:
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            reader_schema_raw = latest_schema.schema
+            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            reader_schema = pool.FindFileByName(fd_proto.name)
+        else:
+            migrations = None
+            reader_schema_raw = writer_schema_raw
+            reader_schema = writer_schema
 
-            if latest_schema is not None:
-                migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
-                reader_schema_raw = latest_schema.schema
-                fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
-                reader_schema = pool.FindFileByName(fd_proto.name)
-            else:
-                migrations = None
-                reader_schema_raw = writer_schema_raw
-                reader_schema = writer_schema
+        if reader_schema is not None:
+            # Initialize reader desc to first message in file
+            reader_desc = self._get_message_desc(pool, reader_schema, [0])
+            # Attempt to find a reader desc with the same name as the writer
+            reader_desc = reader_schema.message_types_by_name.get(writer_desc.name, reader_desc)
 
-            if reader_schema is not None:
-                # Initialize reader desc to first message in file
-                reader_desc = self._get_message_desc(pool, reader_schema, [0])
-                # Attempt to find a reader desc with the same name as the writer
-                reader_desc = reader_schema.message_types_by_name.get(writer_desc.name, reader_desc)
+        if migrations:
+            msg = GetMessageClass(writer_desc)()
+            try:
+                msg.ParseFromString(payload.read())
+            except DecodeError as e:
+                raise SerializationError(str(e))
 
-            if migrations:
-                msg = GetMessageClass(writer_desc)()
-                try:
-                    msg.ParseFromString(payload.read())
-                except DecodeError as e:
-                    raise SerializationError(str(e))
+            obj_dict = json_format.MessageToDict(msg, True)
+            obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
+            msg = GetMessageClass(reader_desc)()
+            msg = json_format.ParseDict(obj_dict, msg)
+        else:
+            # Protobuf Messages are self-describing; no need to query schema
+            msg = self._msg_class()
+            try:
+                msg.ParseFromString(payload.read())
+            except DecodeError as e:
+                raise SerializationError(str(e))
 
-                obj_dict = json_format.MessageToDict(msg, True)
-                obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
-                msg = GetMessageClass(reader_desc)()
-                msg = json_format.ParseDict(obj_dict, msg)
-            else:
-                # Protobuf Messages are self-describing; no need to query schema
-                msg = self._msg_class()
-                try:
-                    msg.ParseFromString(payload.read())
-                except DecodeError as e:
-                    raise SerializationError(str(e))
+        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+            transform(rule_ctx, reader_desc, message, field_transform))
+        msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
+                                  reader_schema_raw, msg, None,
+                                  field_transformer)
 
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
-                transform(rule_ctx, reader_desc, message, field_transform))
-            msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                      reader_schema_raw, msg, None,
-                                      field_transformer)
-
-            return msg
+        return msg
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -1091,12 +1002,13 @@ def _is_builtin(name: str) -> bool:
            name.startswith('google/type/')
 
 
-def decimalToProtobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
+def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
     """
     Converts a Decimal to a Protobuf value.
 
     Args:
         value (Decimal): The Decimal value to convert.
+        scale (int): The number of decimal points to convert.
 
     Returns:
         The Protobuf value.
@@ -1132,7 +1044,7 @@ def decimalToProtobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 decimal_context = Context()
 
 
-def protobufToDecimal(value: decimal_pb2.Decimal) -> Decimal:
+def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:
     """
     Converts a Protobuf value to Decimal.
 

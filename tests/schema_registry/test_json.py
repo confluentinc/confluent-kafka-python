@@ -25,7 +25,7 @@ import pytest
 from confluent_kafka.schema_registry import (
     Schema,
     SchemaReference,
-    SchemaRegistryClient,
+    SchemaRegistryClient, RegisteredSchema,
 )
 from confluent_kafka.schema_registry.json_schema import JSONDeserializer, JSONSerializer
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -69,7 +69,12 @@ def test_custom_json_encoder():
 
     # Create mock SchemaRegistryClient
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
-    mock_schema_registry_client.register_schema.return_value = 1  # schema_id
+    mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
+        schema_id=1,
+        guid=None,
+        schema=Schema(schema_str),
+        subject="topic-name-value",
+        version=1)
 
     # Use orjson.dumps as the custom encoder
     serializer = JSONSerializer(
@@ -128,7 +133,12 @@ def test_custom_encoder_decoder_chain():
     ctx = SerializationContext("topic-name", "value")
 
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
-    mock_schema_registry_client.register_schema.return_value = 1
+    mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
+        schema_id=1,
+        guid=None,
+        schema=Schema(schema_str),
+        subject="topic-name-value",
+        version=1)
 
     def custom_encoder(obj):
         return orjson.dumps(obj, option=orjson.OPT_SORT_KEYS)
@@ -170,7 +180,12 @@ def test_custom_encoding_with_complex_data():
 
     test_data = {"nested": {"array": [1, 2, 3], "string": "test"}}
     mock_schema_registry_client = Mock(spec=SchemaRegistryClient)
-    mock_schema_registry_client.register_schema.return_value = 1
+    mock_schema_registry_client.register_schema_full_response.return_value = RegisteredSchema(
+        schema_id=1,
+        guid=None,
+        schema=Schema(schema_str),
+        subject="topic-name-value",
+        version=1)
 
     def custom_encoder(obj):
         return json.dumps(obj, indent=2)
