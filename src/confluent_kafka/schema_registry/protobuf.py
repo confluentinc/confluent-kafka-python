@@ -318,18 +318,6 @@ class ProtobufSerializer(BaseSerializer):
     | ``schema.id.serializer``            | callable | Defines how the schema id/guid is serialized.        |
     |                                     |          | Defaults to prefix_schema_id_serializer.             |
     +-------------------------------------+----------+------------------------------------------------------+
-    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
-    |                                     |          | serialize message indexes without zig-zag encoding.  |
-    |                                     |          | This option must be explicitly configured as older   |
-    |                                     |          | and newer Protobuf producers are incompatible.       |
-    |                                     |          | If the consumers of the topic being produced to are  |
-    |                                     |          | using confluent-kafka-python <1.8 then this property |
-    |                                     |          | must be set to True until all old consumers have     |
-    |                                     |          | have been upgraded.                                  |
-    |                                     |          |                                                      |
-    |                                     |          | Warning: This configuration property will be removed |
-    |                                     |          | in a future version of the client.                   |
-    +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -656,17 +644,6 @@ class ProtobufDeserializer(BaseDeserializer):
     |                                     |          |                                                      |
     | ``schema.id.deserializer``          | callable | Defines how the schema id/guid is deserialized.      |
     |                                     |          | Defaults to dual_schema_id_deserializer.             |
-    +-------------------------------------+----------+------------------------------------------------------+
-    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
-    |                                     |          | deserialize message indexes without zig-zag encoding.|
-    |                                     |          | This option must be explicitly configured as older   |
-    |                                     |          | and newer Protobuf producers are incompatible.       |
-    |                                     |          | If Protobuf messages in the topic to consume were    |
-    |                                     |          | produced with confluent-kafka-python <1.8 then this  |
-    |                                     |          | property must be set to True until all old messages  |
-    |                                     |          | have been processed and producers have been upgraded.|
-    |                                     |          | Warning: This configuration property will be removed |
-    |                                     |          | in a future version of the client.                   |
     +-------------------------------------+----------+------------------------------------------------------+
 
 
