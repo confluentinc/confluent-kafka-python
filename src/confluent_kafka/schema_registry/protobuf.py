@@ -430,14 +430,7 @@ class ProtobufSerializer(BaseSerializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            warnings.warn("ProtobufSerializer: the 'use.deprecated.format' "
-                          "configuration property, and the ability to use the "
-                          "old incorrect Protobuf serializer heading format "
-                          "introduced in confluent-kafka-python v1.4.0, "
-                          "will be removed in an upcoming release in 2021 Q2. "
-                          "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':False as "
-                          "soon as possible")
+            raise ValueError("use.deprecated.format is no longer supported")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -732,14 +725,7 @@ class ProtobufDeserializer(BaseDeserializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            warnings.warn("ProtobufDeserializer: the 'use.deprecated.format' "
-                          "configuration property, and the ability to use the "
-                          "old incorrect Protobuf serializer heading format "
-                          "introduced in confluent-kafka-python v1.4.0, "
-                          "will be removed in an upcoming release in 2022 Q2. "
-                          "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':False as "
-                          "soon as possible")
+            raise ValueError("use.deprecated.format is no longer supported")
 
         descriptor = message_type.DESCRIPTOR
         self._msg_class = GetMessageClass(descriptor)
