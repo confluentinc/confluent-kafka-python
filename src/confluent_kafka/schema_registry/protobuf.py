@@ -18,7 +18,6 @@
 import io
 import sys
 import base64
-import warnings
 from collections import deque
 from decimal import Context, Decimal, MAX_PREC
 from typing import Set, List, Union, Optional, Any, Tuple
