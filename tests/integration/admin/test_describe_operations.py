@@ -184,7 +184,7 @@ def verify_describe_groups(cluster, admin_client, topic):
     # Delete group
     perform_admin_operation_sync(admin_client.delete_consumer_groups, [group], request_timeout=10)
 
-    consumer_group = 'test-group-consumer' 
+    consumer_group = 'test-group-consumer'
 
     consume_messages(cluster, consumer_group, 'consumer', topic, 2)
 
