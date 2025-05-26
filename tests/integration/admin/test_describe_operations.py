@@ -21,8 +21,6 @@ from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
 from confluent_kafka.error import ConsumeError
 from confluent_kafka import ConsumerGroupState, TopicCollection, ConsumerGroupType
 
-from tests.common import TestUtils
-
 topic_prefix = "test-topic"
 
 
@@ -37,7 +35,7 @@ def consume_messages(sasl_cluster, group_id, group_protocol, topic, num_messages
             'on_commit': verify_commit_result,
             'auto.offset.reset': 'earliest'}
 
-    if group_protocol == 'classic' :
+    if group_protocol == 'classic':
         conf['session.timeout.ms'] = 6000
 
     consumer = sasl_cluster.consumer(conf)
@@ -186,7 +184,7 @@ def verify_describe_groups(cluster, admin_client, topic):
     # Delete group
     perform_admin_operation_sync(admin_client.delete_consumer_groups, [group], request_timeout=10)
 
-    consumer_group = 'test-group-consumer'   
+    consumer_group = 'test-group-consumer' 
 
     consume_messages(cluster, consumer_group, 'consumer', topic, 2)
 
@@ -204,6 +202,7 @@ def verify_describe_groups(cluster, admin_client, topic):
 
     # Delete group
     perform_admin_operation_sync(admin_client.delete_consumer_groups, [consumer_group], request_timeout=10)
+
 
 def verify_describe_cluster(admin_client):
     desc = verify_provided_describe_for_authorized_operations(admin_client,
