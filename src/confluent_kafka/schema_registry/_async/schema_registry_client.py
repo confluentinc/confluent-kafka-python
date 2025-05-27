@@ -32,10 +32,10 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
-    RegisteredSchema, 
-    ServerConfig, 
-    is_success, 
-    is_retriable, 
+    RegisteredSchema,
+    ServerConfig,
+    is_success,
+    is_retriable,
     _BearerFieldProvider,
     full_jitter,
     _SchemaCache,
@@ -98,7 +98,7 @@ class _AsyncOAuthClient(_BearerFieldProvider):
 
     async def get_bearer_fields(self) -> dict:
         return {
-            'bearer.auth.token': await self.get_access_token(), 
+            'bearer.auth.token': await self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
             'bearer.auth.identity.pool.id': self.identity_pool
         }
@@ -560,9 +560,9 @@ class AsyncSchemaRegistryClient(object):
         `Confluent Schema Registry documentation <http://confluent.io/docs/current/schema-registry/docs/intro.html>`_
     """  # noqa: E501
 
-    def __init__(self, conf: dict, rest_client: _AsyncRestClient = None):
+    def __init__(self, conf: dict):
         self._conf = conf
-        self._rest_client = rest_client or _AsyncRestClient(conf)
+        self._rest_client = _AsyncRestClient(conf)
         self._cache = _SchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
@@ -634,7 +634,9 @@ class AsyncSchemaRegistryClient(object):
 
         schema_id = self._cache.get_id_by_schema(subject_name, schema)
         if schema_id is not None:
-            return RegisteredSchema(schema_id, schema, subject_name, None)
+            result = self._cache.get_schema_by_id(subject_name, schema_id)
+            if result is not None:
+                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
 
         request = schema.to_dict()
 
@@ -645,7 +647,9 @@ class AsyncSchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         # The registered schema may not be fully populated
-        self._cache.set_schema(subject_name, registered_schema.schema_id, schema)
+        s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
+        self._cache.set_schema(subject_name, registered_schema.schema_id,
+                               registered_schema.guid, s)
 
         return registered_schema
 
@@ -672,9 +676,9 @@ class AsyncSchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        schema = self._cache.get_schema_by_id(subject_name, schema_id)
-        if schema is not None:
-            return schema
+        result = self._cache.get_schema_by_id(subject_name, schema_id)
+        if result is not None:
+            return result[1]
 
         query = {'subject': subject_name} if subject_name is not None else None
         if fmt is not None:
@@ -684,11 +688,49 @@ class AsyncSchemaRegistryClient(object):
                 query = {'format': fmt}
         response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
-        schema = Schema.from_dict(response)
+        registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, schema_id, schema)
+        self._cache.set_schema(subject_name, schema_id,
+                               registered_schema.guid, registered_schema.schema)
 
-        return schema
+        return registered_schema.schema
+
+    async def get_schema_by_guid(
+        self, guid: str, fmt: Optional[str] = None
+    ) -> 'Schema':
+        """
+        Fetches the schema associated with ``guid`` from the
+        Schema Registry. The result is cached so subsequent attempts will not
+        require an additional round-trip to the Schema Registry.
+
+        Args:
+            guid (str): Schema guid
+            fmt (str): Format of the schema
+
+        Returns:
+            Schema: Schema instance identified by the ``guid``
+
+        Raises:
+            SchemaRegistryError: If schema can't be found.
+
+        See Also:
+         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+        """  # noqa: E501
+
+        schema = self._cache.get_schema_by_guid(guid)
+        if schema is not None:
+            return schema
+
+        if fmt is not None:
+            query = {'format': fmt}
+        response = await self._rest_client.get('schemas/guids/{}'.format(guid), query)
+
+        registered_schema = RegisteredSchema.from_dict(response)
+
+        self._cache.set_schema(None, registered_schema.schema_id,
+                               registered_schema.guid, registered_schema.schema)
+
+        return registered_schema.schema
 
     async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
@@ -728,6 +770,7 @@ class AsyncSchemaRegistryClient(object):
         # Ensure the schema matches the input
         registered_schema = RegisteredSchema(
             schema_id=result.schema_id,
+            guid=result.guid,
             subject=result.subject,
             version=result.version,
             schema=schema,
