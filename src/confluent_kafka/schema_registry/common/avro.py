@@ -29,6 +29,8 @@ __all__ = [
     '_implied_namespace',
 ]
 
+AVRO_TYPE = "AVRO"
+
 AvroMessage = Union[
     None,  # 'null' Avro type
     str,  # 'string' and 'enum'

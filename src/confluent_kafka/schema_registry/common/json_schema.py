@@ -27,6 +27,8 @@ __all__ = [
     'get_inline_tags',
 ]
 
+JSON_TYPE = "JSON"
+
 JsonMessage = Union[
     None,  # 'null' Avro type
     str,  # 'string' and 'enum'

@@ -634,7 +634,9 @@ class SchemaRegistryClient(object):
 
         schema_id = self._cache.get_id_by_schema(subject_name, schema)
         if schema_id is not None:
-            return RegisteredSchema(schema_id, schema, subject_name, None)
+            result = self._cache.get_schema_by_id(subject_name, schema_id)
+            if result is not None:
+                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
 
         request = schema.to_dict()
 
@@ -645,7 +647,9 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         # The registered schema may not be fully populated
-        self._cache.set_schema(subject_name, registered_schema.schema_id, schema)
+        s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
+        self._cache.set_schema(subject_name, registered_schema.schema_id,
+                               registered_schema.guid, s)
 
         return registered_schema
 
@@ -672,9 +676,9 @@ class SchemaRegistryClient(object):
          `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        schema = self._cache.get_schema_by_id(subject_name, schema_id)
-        if schema is not None:
-            return schema
+        result = self._cache.get_schema_by_id(subject_name, schema_id)
+        if result is not None:
+            return result[1]
 
         query = {'subject': subject_name} if subject_name is not None else None
         if fmt is not None:
@@ -684,11 +688,49 @@ class SchemaRegistryClient(object):
                 query = {'format': fmt}
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
-        schema = Schema.from_dict(response)
+        registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_schema(subject_name, schema_id, schema)
+        self._cache.set_schema(subject_name, schema_id,
+                               registered_schema.guid, registered_schema.schema)
 
-        return schema
+        return registered_schema.schema
+
+    def get_schema_by_guid(
+        self, guid: str, fmt: Optional[str] = None
+    ) -> 'Schema':
+        """
+        Fetches the schema associated with ``guid`` from the
+        Schema Registry. The result is cached so subsequent attempts will not
+        require an additional round-trip to the Schema Registry.
+
+        Args:
+            guid (str): Schema guid
+            fmt (str): Format of the schema
+
+        Returns:
+            Schema: Schema instance identified by the ``guid``
+
+        Raises:
+            SchemaRegistryError: If schema can't be found.
+
+        See Also:
+         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+        """  # noqa: E501
+
+        schema = self._cache.get_schema_by_guid(guid)
+        if schema is not None:
+            return schema
+
+        if fmt is not None:
+            query = {'format': fmt}
+        response = self._rest_client.get('schemas/guids/{}'.format(guid), query)
+
+        registered_schema = RegisteredSchema.from_dict(response)
+
+        self._cache.set_schema(None, registered_schema.schema_id,
+                               registered_schema.guid, registered_schema.schema)
+
+        return registered_schema.schema
 
     def lookup_schema(
         self, subject_name: str, schema: 'Schema',
@@ -728,6 +770,7 @@ class SchemaRegistryClient(object):
         # Ensure the schema matches the input
         registered_schema = RegisteredSchema(
             schema_id=result.schema_id,
+            guid=result.guid,
             subject=result.subject,
             version=result.version,
             schema=schema,

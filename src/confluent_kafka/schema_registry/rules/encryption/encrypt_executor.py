@@ -23,7 +23,7 @@ from tink.core import Registry
 from tink.proto import tink_pb2, aes_siv_pb2
 
 from confluent_kafka.schema_registry import SchemaRegistryError, RuleMode, \
-    _MAGIC_BYTE
+    _MAGIC_BYTE_V0
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import \
     DekRegistryClient, Kek, KekId, DekId, Dek, DekAlgorithm
@@ -68,8 +68,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
             else:
                 self.client = DekRegistryClient.new_client(client_conf)
 
-        if rule_conf:
-            if self.config:
+        if self.config:
+            if rule_conf:
                 for key, value in rule_conf.items():
                     v = self.config.get(key)
                     if v is not None:
@@ -77,8 +77,8 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
                             raise RuleError(f"rule config key already set: {key}")
                     else:
                         self.config[key] = value
-            else:
-                self.config = rule_conf
+        else:
+            self.config = rule_conf if rule_conf else {}
 
     def type(self) -> str:
         return "ENCRYPT"
@@ -381,7 +381,7 @@ class FieldEncryptionExecutorTransform(object):
             raise RuleError(f"unsupported rule mode {ctx.rule_mode}")
 
     def _prefix_version(self, version: int, ciphertext: bytes) -> bytes:
-        return bytes([_MAGIC_BYTE]) + version.to_bytes(4, byteorder="big") + ciphertext
+        return bytes([_MAGIC_BYTE_V0]) + version.to_bytes(4, byteorder="big") + ciphertext
 
     def _extract_version(self, ciphertext: bytes) -> Tuple[Optional[int], bytes]:
         if len(ciphertext) < 5:

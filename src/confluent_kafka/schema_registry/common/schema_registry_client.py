@@ -92,46 +92,57 @@ class _SchemaCache(object):
     def __init__(self):
         self.lock = Lock()
         self.schema_id_index = defaultdict(dict)
+        self.schema_guid_index = {}
         self.schema_index = defaultdict(dict)
         self.rs_id_index = defaultdict(dict)
         self.rs_version_index = defaultdict(dict)
         self.rs_schema_index = defaultdict(dict)
 
-    def set_schema(self, subject: str, schema_id: int, schema: 'Schema'):
+    def set_schema(self, subject: Optional[str], schema_id: Optional[int], guid: Optional[str], schema: 'Schema'):
         """
         Add a Schema identified by schema_id to the cache.
 
         Args:
             subject (str): The subject this schema is associated with
 
-            schema_id (int): Schema's registration id
+            schema_id (int): Schema's id
+
+            guid (str): Schema's guid
 
             schema (Schema): Schema instance
         """
 
         with self.lock:
-            self.schema_id_index[subject][schema_id] = schema
-            self.schema_index[subject][schema] = schema_id
+            if schema_id is not None:
+                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_index[subject][schema] = schema_id
+            if guid is not None:
+                self.schema_guid_index[guid] = schema
 
     def set_registered_schema(self, schema: 'Schema', registered_schema: 'RegisteredSchema'):
         """
         Add a RegisteredSchema to the cache.
 
         Args:
+            schema (Schema): Schema instance
             registered_schema (RegisteredSchema): RegisteredSchema instance
         """
 
         subject = registered_schema.subject
         schema_id = registered_schema.schema_id
+        guid = registered_schema.guid
         version = registered_schema.version
         with self.lock:
-            self.schema_id_index[subject][schema_id] = schema
-            self.schema_index[subject][schema] = schema_id
-            self.rs_id_index[subject][schema_id] = registered_schema
+            if schema_id is not None:
+                self.schema_id_index[subject][schema_id] = (guid, schema)
+                self.schema_index[subject][schema] = schema_id
+                self.rs_id_index[subject][schema_id] = registered_schema
+            if guid is not None:
+                self.schema_guid_index[guid] = schema
             self.rs_version_index[subject][version] = registered_schema
             self.rs_schema_index[subject][schema] = registered_schema
 
-    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional['Schema']:
+    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional[Tuple[str, 'Schema']]:
         """
         Get the schema instance associated with schema id from the cache.
 
@@ -141,11 +152,25 @@ class _SchemaCache(object):
             schema_id (int): Id used to identify a schema
 
         Returns:
-            Schema: The schema if known; else None
+            Tuple[str, Schema]: The guid and schema if known; else None
         """
 
         with self.lock:
             return self.schema_id_index.get(subject, {}).get(schema_id, None)
+
+    def get_schema_by_guid(self, guid: str) -> Optional['Schema']:
+        """
+        Get the schema instance associated with guid from the cache.
+
+        Args:
+            guid (str): Guid used to identify a schema
+
+        Returns:
+            Schema: The schema if known; else None
+        """
+
+        with self.lock:
+            return self.schema_guid_index.get(guid, None)
 
     def get_id_by_schema(self, subject: str, schema: 'Schema') -> Optional[int]:
         """
@@ -269,6 +294,7 @@ class _SchemaCache(object):
 
         with self.lock:
             self.schema_id_index.clear()
+            self.schema_guid_index.clear()
             self.schema_index.clear()
             self.rs_id_index.clear()
             self.rs_version_index.clear()
@@ -886,6 +912,7 @@ class RegisteredSchema:
     """
 
     schema_id: Optional[int]
+    guid: Optional[str]
     schema: Optional[Schema]
     subject: Optional[str]
     version: Optional[int]
@@ -894,6 +921,8 @@ class RegisteredSchema:
         schema = self.schema
 
         schema_id = self.schema_id
+
+        guid = self.guid
 
         subject = self.subject
 
@@ -904,6 +933,8 @@ class RegisteredSchema:
             field_dict = schema.to_dict()
         if schema_id is not None:
             field_dict["id"] = schema_id
+        if guid is not None:
+            field_dict["guid"] = guid
         if subject is not None:
             field_dict["subject"] = subject
         if version is not None:
@@ -919,12 +950,15 @@ class RegisteredSchema:
 
         schema_id = d.pop("id", None)
 
+        guid = d.pop("guid", None)
+
         subject = d.pop("subject", None)
 
         version = d.pop("version", None)
 
         schema = cls(
             schema_id=schema_id,
+            guid=guid,
             schema=schema,
             subject=subject,
             version=version,
