@@ -19,21 +19,21 @@ import io
 from typing import Optional
 
 from .schema_registry_client import (
-  ConfigCompatibilityLevel,
-  Metadata,
-  MetadataProperties,
-  MetadataTags,
-  RegisteredSchema,
-  Rule,
-  RuleKind,
-  RuleMode,
-  RuleParams,
-  RuleSet,
-  Schema,
-  SchemaRegistryClient,
-  SchemaRegistryError,
-  SchemaReference,
-  ServerConfig
+    ConfigCompatibilityLevel,
+    Metadata,
+    MetadataProperties,
+    MetadataTags,
+    RegisteredSchema,
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    Schema,
+    SchemaRegistryClient,
+    SchemaRegistryError,
+    SchemaReference,
+    ServerConfig
 )
 from ..serialization import SerializationError, MessageField
 
