@@ -20,7 +20,9 @@ import logging
 from typing import List, Optional, Set, Dict, Any
 
 from confluent_kafka.schema_registry import RegisteredSchema
-from confluent_kafka.schema_registry.common.serde import ErrorAction, FieldTransformer, Migration, NoneAction, RuleAction, RuleConditionError, RuleContext, RuleError
+from confluent_kafka.schema_registry.common.serde import ErrorAction, \
+    FieldTransformer, Migration, NoneAction, RuleAction, \
+    RuleConditionError, RuleContext, RuleError
 from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
     Rule, RuleKind, Schema, RuleSet
 from confluent_kafka.serialization import Serializer, Deserializer, \
@@ -33,6 +35,7 @@ __all__ = [
 ]
 
 log = logging.getLogger(__name__)
+
 
 class AsyncBaseSerde(object):
     __slots__ = ['_use_schema_id', '_use_latest_version', '_use_latest_with_metadata',
