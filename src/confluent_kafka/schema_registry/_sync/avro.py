@@ -28,8 +28,8 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
                                              topic_subject_name_strategy,
                                              RuleMode,
-                                             SchemaRegistryClient, 
-                                             prefix_schema_id_serializer, 
+                                             SchemaRegistryClient,
+                                             prefix_schema_id_serializer,
                                              dual_schema_id_deserializer)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)

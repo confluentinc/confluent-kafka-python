@@ -26,25 +26,28 @@ from google.protobuf.descriptor import Descriptor, FileDescriptor
 from google.protobuf.message import DecodeError, Message
 from google.protobuf.message_factory import GetMessageClass
 
-from confluent_kafka.schema_registry.common import (_MAGIC_BYTE, _ContextStringIO,
-               reference_subject_name_strategy,
-               topic_subject_name_strategy)
-from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
-from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform
+from confluent_kafka.schema_registry import (_MAGIC_BYTE,
+                                             reference_subject_name_strategy,
+                                             topic_subject_name_strategy,
+                                             prefix_schema_id_serializer, dual_schema_id_deserializer)
+from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
+    _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO, PROTOBUF_TYPE
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry import (Schema,
-                                     SchemaReference,
-                                     RuleMode)
+                                             SchemaReference,
+                                             RuleMode)
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
 from confluent_kafka.schema_registry.common import asyncinit
-from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, ParsedSchemaCache
+from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, ParsedSchemaCache, SchemaId
 
 __all__ = [
     '_resolve_named_schema',
     'AsyncProtobufSerializer',
     'AsyncProtobufDeserializer',
 ]
+
 
 async def _resolve_named_schema(
     schema: Schema,
@@ -70,7 +73,6 @@ async def _resolve_named_schema(
             await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
-
 
 @asyncinit
 class AsyncProtobufSerializer(AsyncBaseSerializer):
@@ -141,6 +143,12 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to reference_subject_name_strategy          |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
+    |                                     |          |   -> bytes                                           |
+    |                                     |          |                                                      |
+    | ``schema.id.serializer``            | callable | Defines how the schema id/guid is serialized.        |
+    |                                     |          | Defaults to prefix_schema_id_serializer.             |
+    +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
     |                                     |          | serialize message indexes without zig-zag encoding.  |
     |                                     |          | This option must be explicitly configured as older   |
@@ -202,6 +210,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         'skip.known.types': True,
         'subject.name.strategy': topic_subject_name_strategy,
         'reference.subject.name.strategy': reference_subject_name_strategy,
+        'schema.id.serializer': prefix_schema_id_serializer,
         'use.deprecated.format': False,
     }
 
@@ -214,13 +223,6 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         rule_registry: Optional[RuleRegistry] = None
     ):
         super().__init__()
-
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufSerializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
 
         conf_copy = self._default_conf.copy()
         if conf is not None:
@@ -275,6 +277,10 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             'reference.subject.name.strategy')
         if not callable(self._ref_reference_subject_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        if not callable(self._schema_id_serializer):
+            raise ValueError("schema.id.serializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -398,14 +404,16 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             raise ValueError("message must be of type {} not {}"
                              .format(self._msg_class, type(message)))
 
-        subject = self._subject_name_func(ctx,
-                                          message.DESCRIPTOR.full_name)
-        latest_schema = await self._get_reader_schema(subject, fmt='serialized')
+        subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
+        latest_schema = None
+        if subject is not None:
+            latest_schema = await self._get_reader_schema(subject, fmt='serialized')
+
         if latest_schema is not None:
-            self._schema_id = latest_schema.schema_id
-        elif subject not in self._known_subjects:
-            references = await self._resolve_dependencies(
-                ctx, message.DESCRIPTOR.file)
+            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
+
+        elif subject not in self._known_subjects and ctx is not None:
+            references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
                 self._schema.schema_str,
                 self._schema.schema_type,
@@ -413,12 +421,13 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             )
 
             if self._auto_register:
-                self._schema_id = await self._registry.register_schema(subject,
-                                                                 self._schema,
-                                                                 self._normalize_schemas)
+                registered_schema = await self._registry.register_schema_full_response(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
-                self._schema_id = await self._registry.lookup_schema(
-                    subject, self._schema, self._normalize_schemas).schema_id
+                registered_schema = await self._registry.lookup_schema(
+                    subject, self._schema, self._normalize_schemas)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
@@ -426,23 +435,16 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
-            field_transformer = lambda rule_ctx, field_transform, msg: (  # noqa: E731
+            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, desc, msg, field_transform))
             message = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                           latest_schema.schema, message, None,
                                           field_transformer)
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order
-            # (big endian)
-            fo.write(struct.pack('>bI', _MAGIC_BYTE, self._schema_id))
-            # write the index array that specifies the message descriptor
-            # of the serialized data.
-            self._encode_varints(fo, self._index_array,
-                                 zigzag=not self._use_deprecated_format)
-            # write the serialized data itself
             fo.write(message.SerializeToString())
-            return fo.getvalue()
+            self._schema_id.message_indexes = self._index_array
+            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -456,7 +458,6 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
-
 
 @asyncinit
 class AsyncProtobufDeserializer(AsyncBaseDeserializer):
@@ -491,6 +492,12 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     |                                     |          |                                                      |
     |                                     |          | Defaults to topic_subject_name_strategy.             |
     +-------------------------------------+----------+------------------------------------------------------+
+    |                                     |          | Callable(bytes, SerializationContext, schema_id)     |
+    |                                     |          |   -> io.BytesIO                                      |
+    |                                     |          |                                                      |
+    | ``schema.id.deserializer``          | callable | Defines how the schema id/guid is deserialized.      |
+    |                                     |          | Defaults to dual_schema_id_deserializer.             |
+    +-------------------------------------+----------+------------------------------------------------------+
     | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
     |                                     |          | deserialize message indexes without zig-zag encoding.|
     |                                     |          | This option must be explicitly configured as older   |
@@ -514,6 +521,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         'use.latest.version': False,
         'use.latest.with.metadata': None,
         'subject.name.strategy': topic_subject_name_strategy,
+        'schema.id.deserializer': dual_schema_id_deserializer,
         'use.deprecated.format': False,
     }
 
@@ -532,16 +540,6 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         self._parsed_schemas = ParsedSchemaCache()
         self._use_schema_id = None
 
-        # Require use.deprecated.format to be explicitly configured
-        # during a transitionary period since old/new format are
-        # incompatible.
-        if conf is None or 'use.deprecated.format' not in conf:
-            raise RuntimeError(
-                "ProtobufDeserializer: the 'use.deprecated.format' configuration "
-                "property must be explicitly set due to backward incompatibility "
-                "with older confluent-kafka-python Protobuf producers and consumers. "
-                "See the release notes for more details")
-
         conf_copy = self._default_conf.copy()
         if conf is not None:
             conf_copy.update(conf)
@@ -558,6 +556,10 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
+
+        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        if not callable(self._schema_id_deserializer):
+            raise ValueError("schema.id.deserializer must be callable")
 
         self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
         if not isinstance(self._use_deprecated_format, bool):
@@ -578,85 +580,6 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
-
-    @staticmethod
-    def _decode_varint(buf: io.BytesIO, zigzag: bool = True) -> int:
-        """
-        Decodes a single varint from a buffer.
-
-        Args:
-            buf (BytesIO): buffer to read from
-            zigzag (bool): decode as zigzag or uvarint
-
-        Returns:
-            int: decoded varint
-
-        Raises:
-            EOFError: if buffer is empty
-        """
-
-        value = 0
-        shift = 0
-        try:
-            while True:
-                i = AsyncProtobufDeserializer._read_byte(buf)
-
-                value |= (i & 0x7f) << shift
-                shift += 7
-                if not (i & 0x80):
-                    break
-
-            if zigzag:
-                value = (value >> 1) ^ -(value & 1)
-
-            return value
-
-        except EOFError:
-            raise EOFError("Unexpected EOF while reading index")
-
-    @staticmethod
-    def _read_byte(buf: io.BytesIO) -> int:
-        """
-        Read one byte from buf as an int.
-
-        Args:
-            buf (BytesIO): The buffer to read from.
-
-        .. _ord:
-            https://docs.python.org/2/library/functions.html#ord
-        """
-
-        i = buf.read(1)
-        if i == b'':
-            raise EOFError("Unexpected EOF encountered")
-        return ord(i)
-
-    @staticmethod
-    def _read_index_array(buf: io.BytesIO, zigzag: bool = True) -> List[int]:
-        """
-        Read an index array from buf that specifies the message
-        descriptor of interest in the file descriptor.
-
-        Args:
-            buf (BytesIO): The buffer to read from.
-
-        Returns:
-            list of int: The index array.
-        """
-
-        size = AsyncProtobufDeserializer._decode_varint(buf, zigzag=zigzag)
-        if size < 0 or size > 100000:
-            raise DecodeError("Invalid Protobuf msgidx array length")
-
-        if size == 0:
-            return [0]
-
-        msg_index = []
-        for _ in range(size):
-            msg_index.append(AsyncProtobufDeserializer._decode_varint(buf,
-                                                                 zigzag=zigzag))
-
-        return msg_index
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(data, ctx)
@@ -684,82 +607,69 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         if data is None:
             return None
 
-        # SR wire protocol + msg_index length
-        if len(data) < 6:
-            raise SerializationError("Expecting data framing of length 6 bytes or "
-                                     "more but total data size is {} bytes. This "
-                                     "message was not produced with a Confluent "
-                                     "Schema Registry serializer".format(len(data)))
-
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
-        with _ContextStringIO(data) as payload:
-            magic, schema_id = struct.unpack('>bI', payload.read(5))
-            if magic != _MAGIC_BYTE:
-                raise SerializationError("Unknown magic byte. This message was "
-                                         "not produced with a Confluent "
-                                         "Schema Registry serializer")
+        schema_id = SchemaId(PROTOBUF_TYPE)
+        payload = self._schema_id_deserializer(data, ctx, schema_id)
+        msg_index = schema_id.message_indexes
 
-            msg_index = self._read_index_array(payload, zigzag=not self._use_deprecated_format)
+        if self._registry is not None:
+            writer_schema_raw = await self._get_writer_schema(schema_id, subject, fmt='serialized')
+            fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)
+            writer_schema = pool.FindFileByName(fd_proto.name)
+            writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+            if subject is None:
+                subject = self._subject_name_func(ctx, writer_desc.full_name)
+                if subject is not None:
+                    latest_schema = self._get_reader_schema(subject, fmt='serialized')
+        else:
+            writer_schema_raw = None
+            writer_schema = None
 
-            if self._registry is not None:
-                writer_schema_raw = await self._registry.get_schema(schema_id, fmt='serialized')
-                fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)
-                writer_schema = pool.FindFileByName(fd_proto.name)
-                writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
-                if subject is None:
-                    subject = self._subject_name_func(ctx, writer_desc.full_name)
-                    if subject is not None:
-                        latest_schema = await self._get_reader_schema(subject, fmt='serialized')
-            else:
-                writer_schema_raw = None
-                writer_schema = None
+        if latest_schema is not None:
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            reader_schema_raw = latest_schema.schema
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
+            reader_schema = pool.FindFileByName(fd_proto.name)
+        else:
+            migrations = None
+            reader_schema_raw = writer_schema_raw
+            reader_schema = writer_schema
 
-            if latest_schema is not None:
-                migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
-                reader_schema_raw = latest_schema.schema
-                fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
-                reader_schema = pool.FindFileByName(fd_proto.name)
-            else:
-                migrations = None
-                reader_schema_raw = writer_schema_raw
-                reader_schema = writer_schema
+        if reader_schema is not None:
+            # Initialize reader desc to first message in file
+            reader_desc = self._get_message_desc(pool, reader_schema, [0])
+            # Attempt to find a reader desc with the same name as the writer
+            reader_desc = reader_schema.message_types_by_name.get(writer_desc.name, reader_desc)
 
-            if reader_schema is not None:
-                # Initialize reader desc to first message in file
-                reader_desc = self._get_message_desc(pool, reader_schema, [0])
-                # Attempt to find a reader desc with the same name as the writer
-                reader_desc = reader_schema.message_types_by_name.get(writer_desc.name, reader_desc)
+        if migrations:
+            msg = GetMessageClass(writer_desc)()
+            try:
+                msg.ParseFromString(payload.read())
+            except DecodeError as e:
+                raise SerializationError(str(e))
 
-            if migrations:
-                msg = GetMessageClass(writer_desc)()
-                try:
-                    msg.ParseFromString(payload.read())
-                except DecodeError as e:
-                    raise SerializationError(str(e))
+            obj_dict = json_format.MessageToDict(msg, True)
+            obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
+            msg = GetMessageClass(reader_desc)()
+            msg = json_format.ParseDict(obj_dict, msg)
+        else:
+            # Protobuf Messages are self-describing; no need to query schema
+            msg = self._msg_class()
+            try:
+                msg.ParseFromString(payload.read())
+            except DecodeError as e:
+                raise SerializationError(str(e))
 
-                obj_dict = json_format.MessageToDict(msg, True)
-                obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
-                msg = GetMessageClass(reader_desc)()
-                msg = json_format.ParseDict(obj_dict, msg)
-            else:
-                # Protobuf Messages are self-describing; no need to query schema
-                msg = self._msg_class()
-                try:
-                    msg.ParseFromString(payload.read())
-                except DecodeError as e:
-                    raise SerializationError(str(e))
-
-            field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
-                transform(rule_ctx, reader_desc, message, field_transform))
-            msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                      reader_schema_raw, msg, None,
-                                      field_transformer)
-
-            return msg
+        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+            transform(rule_ctx, reader_desc, message, field_transform))
+        msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
+                                  reader_schema_raw, msg, None,
+                                  field_transformer)
+        return msg
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
