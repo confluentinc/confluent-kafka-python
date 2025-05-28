@@ -336,10 +336,11 @@ def test_json_record_serialization_custom(kafka_cluster, load_file):
     sr = kafka_cluster.schema_registry()
 
     schema_str = load_file("product.json")
-    value_serializer = JSONSerializer(schema_str, sr,
-                                      to_dict=_testProduct_to_dict)
-    value_deserializer = JSONDeserializer(schema_str,
-                                          from_dict=_testProduct_from_dict)
+    value_serializer = JSONSerializer(schema_str, sr, to_dict=_testProduct_to_dict)
+    value_deserializer = JSONDeserializer(
+        schema_str,
+        from_dict=_testProduct_from_dict
+    )
 
     producer = kafka_cluster.producer(value_serializer=value_serializer)
 

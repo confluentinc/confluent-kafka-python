@@ -32,7 +32,8 @@ from confluent_kafka.schema_registry import (Schema,
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
-from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, ParsedSchemaCache, SchemaId
+from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
+    ParsedSchemaCache, SchemaId
 
 
 __all__ = [
@@ -61,6 +62,7 @@ def _resolve_named_schema(
             named_schemas.update(ref_named_schemas)
             named_schemas[ref.name] = parsed_schema
     return named_schemas
+
 
 
 class AvroSerializer(BaseSerializer):
@@ -506,7 +508,8 @@ class AvroDeserializer(BaseDeserializer):
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
-    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+    def __deserialize(
+            self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.

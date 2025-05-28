@@ -71,6 +71,7 @@ def _resolve_named_schema(
     return ref_registry
 
 
+
 class JSONSerializer(BaseSerializer):
     """
     Serializer that outputs JSON encoded data with Confluent Schema Registry framing.
@@ -399,6 +400,7 @@ class JSONSerializer(BaseSerializer):
 
         self._validators[schema] = validator
         return validator
+
 
 
 class JSONDeserializer(BaseDeserializer):

@@ -138,10 +138,11 @@ async def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     def dr(err, msg):
         print("dr msg {} {}".format(msg.key(), msg.value()))
 
-    await producer.produce(topic, key=pb2_1(test_string='abc',
-                                      test_bool=True,
-                                      test_bytes=b'def'),
-                     partition=0)
+    await producer.produce(
+        topic,
+        key=pb2_1(test_string='abc', test_bool=True, test_bytes=b'def'),
+        partition=0
+    )
     producer.flush()
 
     with pytest.raises(ConsumeError) as e:

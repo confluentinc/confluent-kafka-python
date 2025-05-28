@@ -25,13 +25,14 @@ from confluent_kafka.serialization import MessageField, SerializationContext
 ASYNC_CONSUMER_POLL_INTERVAL_SECONDS: int = 0.2
 ASYNC_CONSUMER_POLL_INFINITE_TIMEOUT_SECONDS: int = -1
 
+
 class AsyncConsumer(Consumer):
     def __init__(
-            self,
-            conf: dict,
-            loop: asyncio.AbstractEventLoop = None,
-            poll_interval_seconds: int = ASYNC_CONSUMER_POLL_INTERVAL_SECONDS
-        ):
+        self,
+        conf: dict,
+        loop: asyncio.AbstractEventLoop = None,
+        poll_interval_seconds: int = ASYNC_CONSUMER_POLL_INTERVAL_SECONDS
+    ):
         super().__init__(conf)
 
         self._loop = loop or asyncio.get_event_loop()

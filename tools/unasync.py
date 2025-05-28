@@ -4,7 +4,6 @@ import os
 import re
 import sys
 import argparse
-from pprint import pprint
 import subprocess
 
 SUBS = [
@@ -22,7 +21,7 @@ SUBS = [
     ('aclose', 'close'),
     ('__aenter__', '__enter__'),
     ('__aexit__', '__exit__'),
-    ('__aiter__', '__iter__'),    
+    ('__aiter__', '__iter__'),
 ]
 
 COMPILED_SUBS = [
@@ -31,6 +30,7 @@ COMPILED_SUBS = [
 ]
 
 USED_SUBS = set()
+
 
 def unasync_line(line):
     for index, (regex, repl) in enumerate(COMPILED_SUBS):
@@ -76,17 +76,17 @@ def unasync_dir(in_dir, out_dir, check_only=False):
             else:
                 unasync_file(in_path, out_path)
 
+
 def check_diff(sync_dir):
     """Check if there are any differences in the sync directory.
     Returns a list of files that have differences."""
     try:
         # Get the list of files in the sync directory
-        result = subprocess.run(['git', 'ls-files', sync_dir], 
-                              capture_output=True, text=True)
+        result = subprocess.run(['git', 'ls-files', sync_dir], capture_output=True, text=True)
         if result.returncode != 0:
             print(f"Error listing files in {sync_dir}")
             return []
-            
+
         files = result.stdout.strip().split('\n')
         if not files or (len(files) == 1 and not files[0]):
             print(f"No files found in {sync_dir}")
@@ -97,14 +97,14 @@ def check_diff(sync_dir):
         for file in files:
             if not file:  # Skip empty lines
                 continue
-            diff_result = subprocess.run(['git', 'diff', '--quiet', file], 
-                                       capture_output=True, text=True)
+            diff_result = subprocess.run(['git', 'diff', '--quiet', file], capture_output=True, text=True)
             if diff_result.returncode != 0:
                 files_with_diff.append(file)
         return files_with_diff
     except subprocess.CalledProcessError as e:
         print(f"Error checking differences: {e}")
         return []
+
 
 def unasync(check=False):
     async_dirs = [
@@ -137,9 +137,12 @@ def unasync(check=False):
     else:
         print("\n✅ Conversion completed successfully!")
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Convert async code to sync code')
-    parser.add_argument('--check', action='store_true', 
-                      help='Exit with non-zero status if sync directory has any differences')
+    parser.add_argument(
+        '--check',
+        action='store_true',
+        help='Exit with non-zero status if sync directory has any differences')
     args = parser.parse_args()
     unasync(check=args.check)

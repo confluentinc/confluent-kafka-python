@@ -283,10 +283,11 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
                                     + str(type(self.token_endpoint)))
 
-                self.bearer_field_provider = _OAuthClient(self.client_id, self.client_secret, self.scope,
-                                                          self.token_endpoint, logical_cluster, identity_pool,
-                                                          self.max_retries, self.retries_wait_ms,
-                                                          self.retries_max_wait_ms)
+                self.bearer_field_provider = _OAuthClient(
+                    self.client_id, self.client_secret, self.scope,
+                    self.token_endpoint, logical_cluster, identity_pool,
+                    self.max_retries, self.retries_wait_ms,
+                    self.retries_max_wait_ms)
             elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
@@ -761,9 +762,11 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        response = self._rest_client.post('subjects/{}?normalize={}&deleted={}'
-                                          .format(_urlencode(subject_name), normalize_schemas, deleted),
-                                          body=request)
+        response = self._rest_client.post(
+            'subjects/{}?normalize={}&deleted={}'.format(
+                _urlencode(subject_name), normalize_schemas, deleted),
+            body=request
+        )
 
         result = RegisteredSchema.from_dict(response)
 
@@ -817,12 +820,14 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         if permanent:
-            versions = self._rest_client.delete('subjects/{}?permanent=true'
-                                                .format(_urlencode(subject_name)))
+            versions = self._rest_client.delete(
+                'subjects/{}?permanent=true'.format(_urlencode(subject_name))
+            )
             self._cache.remove_by_subject(subject_name)
         else:
-            versions = self._rest_client.delete('subjects/{}'
-                                                .format(_urlencode(subject_name)))
+            versions = self._rest_client.delete(
+                'subjects/{}'.format(_urlencode(subject_name))
+            )
 
         return versions
 
@@ -851,9 +856,9 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get('subjects/{}/versions/{}'
-                                         .format(_urlencode(subject_name),
-                                                 'latest'), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -892,8 +897,9 @@ class SchemaRegistryClient(object):
             query['key'] = [_urlencode(key) for key in keys]
             query['value'] = [_urlencode(metadata[key]) for key in keys]
 
-        response = self._rest_client.get('subjects/{}/metadata'
-                                         .format(_urlencode(subject_name)), query)
+        response = self._rest_client.get(
+            'subjects/{}/metadata'.format(_urlencode(subject_name)), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -929,9 +935,9 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get('subjects/{}/versions/{}'
-                                         .format(_urlencode(subject_name),
-                                                 version), query)
+        response = self._rest_client.get(
+            'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
+        )
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -980,14 +986,14 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         if permanent:
-            response = self._rest_client.delete('subjects/{}/versions/{}?permanent=true'
-                                                .format(_urlencode(subject_name),
-                                                        version))
+            response = self._rest_client.delete(
+                'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
+            )
             self._cache.remove_by_subject_version(subject_name, version)
         else:
-            response = self._rest_client.delete('subjects/{}/versions/{}'
-                                                .format(_urlencode(subject_name),
-                                                        version))
+            response = self._rest_client.delete(
+                'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
+            )
 
         return response
 
@@ -1016,12 +1022,13 @@ class SchemaRegistryClient(object):
             raise ValueError("level must be set")
 
         if subject_name is None:
-            return self._rest_client.put('config',
-                                         body={'compatibility': level.upper()})
+            return self._rest_client.put(
+                'config', body={'compatibility': level.upper()}
+            )
 
-        return self._rest_client.put('config/{}'
-                                     .format(_urlencode(subject_name)),
-                                     body={'compatibility': level.upper()})
+        return self._rest_client.put(
+            'config/{}'.format(_urlencode(subject_name)), body={'compatibility': level.upper()}
+        )
 
     def get_compatibility(self, subject_name: Optional[str] = None) -> str:
         """
@@ -1106,12 +1113,13 @@ class SchemaRegistryClient(object):
             raise ValueError("config must be set")
 
         if subject_name is None:
-            return self._rest_client.put('config',
-                                         body=config.to_dict())
+            return self._rest_client.put(
+                'config', body=config.to_dict()
+            )
 
-        return self._rest_client.put('config/{}'
-                                     .format(_urlencode(subject_name)),
-                                     body=config.to_dict())
+        return self._rest_client.put(
+            'config/{}'.format(_urlencode(subject_name)), body=config.to_dict()
+        )
 
     def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
         """

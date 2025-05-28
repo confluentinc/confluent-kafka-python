@@ -187,8 +187,9 @@ class BaseSerializer(BaseSerde, Serializer):
 class BaseDeserializer(BaseSerde, Deserializer):
     __slots__ = ['_schema_id_deserializer']
 
-    def _get_writer_schema(self, schema_id: SchemaId, subject: Optional[str] = None,
-                           fmt: Optional[str] = None) -> Schema:
+    def _get_writer_schema(
+            self, schema_id: SchemaId, subject: Optional[str] = None,
+            fmt: Optional[str] = None) -> Schema:
         if schema_id.id is not None:
             return self._registry.get_schema(schema_id.id, subject, fmt)
         elif schema_id.guid is not None:
