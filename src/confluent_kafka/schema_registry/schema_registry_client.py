@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-from .common.schema_registry_client import * # noqa
-from ._sync.schema_registry_client import * # noqa
+from .common.schema_registry_client import *  # noqa
+from ._sync.schema_registry_client import *  # noqa
 
-from .error import SchemaRegistryError # noqa
+from .error import SchemaRegistryError  # noqa

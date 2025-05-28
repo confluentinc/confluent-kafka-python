@@ -28,8 +28,8 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              Schema,
                                              topic_subject_name_strategy,
                                              RuleMode,
-                                             SchemaRegistryClient, 
-                                             prefix_schema_id_serializer, 
+                                             SchemaRegistryClient,
+                                             prefix_schema_id_serializer,
                                              dual_schema_id_deserializer)
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
@@ -244,10 +244,10 @@ class AvroSerializer(BaseSerializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
-        
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
-        if not callable(self._schema_id_deserializer):
-            raise ValueError("schema.id.deserializer must be callable")
+
+        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        if not callable(self._schema_id_serializer):
+            raise ValueError("schema.id.serializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -480,10 +480,9 @@ class AvroDeserializer(BaseDeserializer):
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
-        if not callable(self._schema_id_serializer):
-            raise ValueError("schema.id.serializer must be callable")
-
+        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        if not callable(self._schema_id_deserializer):
+            raise ValueError("schema.id.deserializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -579,11 +578,7 @@ class AvroDeserializer(BaseDeserializer):
                                          reader_schema,
                                          self._return_record_name)
 
-
-
-
-
-        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, message, field_transform))
         obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                        reader_schema_raw, obj_dict, get_inline_tags(reader_schema),

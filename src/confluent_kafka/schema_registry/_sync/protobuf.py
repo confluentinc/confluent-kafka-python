@@ -664,7 +664,7 @@ class ProtobufDeserializer(BaseDeserializer):
             except DecodeError as e:
                 raise SerializationError(str(e))
 
-        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_desc, message, field_transform))
         msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                   reader_schema_raw, msg, None,
