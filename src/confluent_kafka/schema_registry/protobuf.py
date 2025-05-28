@@ -16,4 +16,5 @@
 # limitations under the License.
 
 from .common.protobuf import *  # noqa
+from ._async.protobuf import *  # noqa
 from ._sync.protobuf import *  # noqa
