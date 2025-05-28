@@ -16,7 +16,6 @@
 # limitations under the License.
 
 import json
-import struct
 from typing import Union, Optional, Tuple, Callable
 
 from cachetools import LRUCache
@@ -25,8 +24,7 @@ from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleMode, AsyncSchemaRegistryClient,
                                              prefix_schema_id_serializer,
@@ -612,7 +610,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         reader_root_resource = Resource.from_contents(
             reader_schema, default_specification=DEFAULT_SPEC)
         reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
-        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+
+        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
                       "$", message, field_transform))
         obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,

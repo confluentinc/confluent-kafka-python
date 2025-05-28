@@ -22,7 +22,7 @@ from typing import List, Optional, Set, Dict, Any
 from confluent_kafka.schema_registry import RegisteredSchema
 from confluent_kafka.schema_registry.common.serde import ErrorAction, \
     FieldTransformer, Migration, NoneAction, RuleAction, \
-    RuleConditionError, RuleContext, RuleError
+    RuleConditionError, RuleContext, RuleError, SchemaId
 from confluent_kafka.schema_registry.schema_registry_client import RuleMode, \
     Rule, RuleKind, Schema, RuleSet
 from confluent_kafka.serialization import Serializer, Deserializer, \
@@ -180,12 +180,21 @@ class AsyncBaseSerde(object):
         return self._rule_registry.get_action(action_name)
 
 
-class AsyncBaseSerializer(AsyncBaseSerde, Serializer):
-    __slots__ = ['_auto_register', '_normalize_schemas']
+class BaseSerializer(AsyncBaseSerde, Serializer):
+    __slots__ = ['_auto_register', '_normalize_schemas', '_schema_id_serializer']
 
 
-class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
-    __slots__ = []
+class BaseDeserializer(AsyncBaseSerde, Deserializer):
+    __slots__ = ['_schema_id_deserializer']
+
+    async def _get_writer_schema(self, schema_id: SchemaId, subject: Optional[str] = None,
+                           fmt: Optional[str] = None) -> Schema:
+        if schema_id.id is not None:
+            return await self._registry.get_schema(schema_id.id, subject, fmt)
+        elif schema_id.guid is not None:
+            return await self._registry.get_schema_by_guid(str(schema_id.guid), fmt)
+        else:
+            raise SerializationError("Schema ID or GUID is not set")
 
     def _has_rules(self, rule_set: RuleSet, mode: RuleMode) -> bool:
         if rule_set is None:
