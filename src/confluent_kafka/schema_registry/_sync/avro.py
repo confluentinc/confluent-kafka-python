@@ -16,7 +16,6 @@
 # limitations under the License.
 
 from json import loads
-from struct import pack
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
@@ -24,8 +23,7 @@ from fastavro import schemaless_reader, schemaless_writer
 from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_loads, \
     get_inline_tags, parse_schema_with_repo, transform, _ContextStringIO, AVRO_TYPE
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleMode,
                                              SchemaRegistryClient,
