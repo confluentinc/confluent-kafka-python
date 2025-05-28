@@ -344,8 +344,6 @@ class AvroSerializer(BaseSerializer):
             parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
             schemaless_writer(fo, parsed_schema, value)
 
