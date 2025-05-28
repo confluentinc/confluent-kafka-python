@@ -40,8 +40,8 @@ __all__ = [
     'get_inline_tags',
     '_disjoint',
     '_is_builtin',
-    'decimalToProtobuf',
-    'protobufToDecimal'
+    'decimal_to_protobuf',
+    'protobuf_to_decimal'
 ]
 
 # Convert an int to bytes (inverse of ord())

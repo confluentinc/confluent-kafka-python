@@ -23,7 +23,7 @@ from collections import defaultdict
 from enum import Enum
 from threading import Lock
 from typing import List, Dict, Type, TypeVar, \
-    cast, Optional, Any
+    cast, Optional, Any, Tuple
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',

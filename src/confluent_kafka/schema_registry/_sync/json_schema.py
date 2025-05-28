@@ -16,7 +16,6 @@
 # limitations under the License.
 
 import json
-import struct
 from typing import Union, Optional, Tuple, Callable
 
 from cachetools import LRUCache
@@ -25,8 +24,7 @@ from jsonschema.protocols import Validator
 from jsonschema.validators import validator_for
 from referencing import Registry, Resource
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleMode, SchemaRegistryClient,
                                              prefix_schema_id_serializer,

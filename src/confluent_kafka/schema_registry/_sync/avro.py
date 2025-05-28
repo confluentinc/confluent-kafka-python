@@ -16,7 +16,7 @@
 # limitations under the License.
 
 from json import loads
-from struct import pack, unpack
+from struct import pack
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
