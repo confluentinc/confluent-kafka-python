@@ -180,11 +180,11 @@ class AsyncBaseSerde(object):
         return self._rule_registry.get_action(action_name)
 
 
-class BaseSerializer(AsyncBaseSerde, Serializer):
+class AsyncBaseSerializer(AsyncBaseSerde, Serializer):
     __slots__ = ['_auto_register', '_normalize_schemas', '_schema_id_serializer']
 
 
-class BaseDeserializer(AsyncBaseSerde, Deserializer):
+class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
     __slots__ = ['_schema_id_deserializer']
 
     async def _get_writer_schema(self, schema_id: SchemaId, subject: Optional[str] = None,
