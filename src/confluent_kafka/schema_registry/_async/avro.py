@@ -16,7 +16,6 @@
 # limitations under the License.
 
 from json import loads
-from struct import pack, unpack
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
@@ -24,8 +23,7 @@ from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.common.avro import AvroSchema, _schema_loads, \
     get_inline_tags, parse_schema_with_repo, transform, _ContextStringIO, AVRO_TYPE
 
-from confluent_kafka.schema_registry import (_MAGIC_BYTE,
-                                             Schema,
+from confluent_kafka.schema_registry import (Schema,
                                              topic_subject_name_strategy,
                                              RuleMode,
                                              AsyncSchemaRegistryClient,
@@ -244,10 +242,10 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
-        
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
-        if not callable(self._schema_id_deserializer):
-            raise ValueError("schema.id.deserializer must be callable")
+
+        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        if not callable(self._schema_id_serializer):
+            raise ValueError("schema.id.serializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -344,8 +342,6 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
             parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
-            # Write the magic byte and schema ID in network byte order (big endian)
-            fo.write(pack('>bI', _MAGIC_BYTE, self._schema_id))
             # write the record to the rest of the buffer
             schemaless_writer(fo, parsed_schema, value)
 
@@ -481,10 +477,9 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
-        if not callable(self._schema_id_serializer):
-            raise ValueError("schema.id.serializer must be callable")
-
+        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        if not callable(self._schema_id_deserializer):
+            raise ValueError("schema.id.deserializer must be callable")
 
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
@@ -547,7 +542,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         schema_id = SchemaId(AVRO_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
-        writer_schema_raw = self._get_writer_schema(schema_id, subject)
+        writer_schema_raw = await self._get_writer_schema(schema_id, subject)
         writer_schema = self._get_parsed_schema(writer_schema_raw)
 
         if subject is None:
@@ -580,11 +575,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
                                          reader_schema,
                                          self._return_record_name)
 
-
-
-
-
-        field_transformer = lambda rule_ctx, field_transform, message: (  # noqa: E731
+        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, message, field_transform))
         obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                        reader_schema_raw, obj_dict, get_inline_tags(reader_schema),
