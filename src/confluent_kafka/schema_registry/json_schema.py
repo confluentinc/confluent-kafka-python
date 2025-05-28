@@ -16,4 +16,5 @@
 # limitations under the License.
 
 from .common.json_schema import *  # noqa
+from ._async.json_schema import *  # noqa
 from ._sync.json_schema import *  # noqa
