@@ -30,7 +30,7 @@ from confluent_kafka.schema_registry import (_MAGIC_BYTE,
                                              reference_subject_name_strategy,
                                              topic_subject_name_strategy,
                                              prefix_schema_id_serializer, dual_schema_id_deserializer)
-from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
     _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO, PROTOBUF_TYPE
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
