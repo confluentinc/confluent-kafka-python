@@ -27,6 +27,9 @@ if [[ $RUN_COVERAGE == true ]]; then
   exit 0
 fi
 
+echo "Checking for uncommitted changes in generated _sync directories"
+python3 tools/unasync.py --check
+
 python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
