@@ -38,7 +38,8 @@ from confluent_kafka.schema_registry import (Schema,
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
 from confluent_kafka.schema_registry.common import asyncinit
-from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, ParsedSchemaCache, SchemaId
+from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, \
+    ParsedSchemaCache, SchemaId
 
 __all__ = [
     '_resolve_named_schema',
@@ -71,6 +72,7 @@ async def _resolve_named_schema(
             await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
+
 
 @asyncinit
 class AsyncProtobufSerializer(AsyncBaseSerializer):
@@ -456,6 +458,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
+
 
 @asyncinit
 class AsyncProtobufDeserializer(AsyncBaseDeserializer):

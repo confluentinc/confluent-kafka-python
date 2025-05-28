@@ -336,10 +336,11 @@ async def test_json_record_serialization_custom(kafka_cluster, load_file):
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
-    value_serializer = await AsyncJSONSerializer(schema_str, sr,
-                                      to_dict=_testProduct_to_dict)
-    value_deserializer = await AsyncJSONDeserializer(schema_str,
-                                          from_dict=_testProduct_from_dict)
+    value_serializer = await AsyncJSONSerializer(schema_str, sr, to_dict=_testProduct_to_dict)
+    value_deserializer = await AsyncJSONDeserializer(
+        schema_str,
+        from_dict=_testProduct_from_dict
+    )
 
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 

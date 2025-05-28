@@ -438,8 +438,10 @@ async def test_api_subject_config_update(kafka_cluster, load_file):
     subject = str(uuid1())
 
     await sr.register_schema(subject, schema)
-    await sr.set_compatibility(subject_name=subject,
-                         level="FULL_TRANSITIVE")
+    await sr.set_compatibility(
+        subject_name=subject,
+        level="FULL_TRANSITIVE"
+    )
 
     assert await sr.get_compatibility(subject_name=subject) == "FULL_TRANSITIVE"
 

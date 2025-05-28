@@ -70,6 +70,7 @@ async def _resolve_named_schema(
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
 
+
 @asyncinit
 class AsyncJSONSerializer(AsyncBaseSerializer):
     """
@@ -399,6 +400,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         self._validators[schema] = validator
         return validator
+
 
 @asyncinit
 class AsyncJSONDeserializer(AsyncBaseDeserializer):
