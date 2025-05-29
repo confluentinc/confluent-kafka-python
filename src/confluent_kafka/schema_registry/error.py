@@ -57,6 +57,7 @@ class SchemaRegistryError(Exception):
 
 class OAuthTokenError(Exception):
     """Raised when an OAuth token cannot be retrieved."""
+
     def __init__(self, message, status_code=None, response_text=None):
         self.message = message
         self.status_code = status_code
