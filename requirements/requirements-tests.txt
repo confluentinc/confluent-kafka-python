@@ -8,3 +8,4 @@ pytest-timeout
 requests-mock
 respx
 pytest_cov
+pluggy<1.6.0
