@@ -16,7 +16,7 @@ docs:
 
 style-check:
 	@(tools/style-format.sh \
-		$$(git ls-tree -r --name-only HEAD | egrep '\.(py)$$') )
+		$$(git ls-tree -r --name-only HEAD | egrep '\.(c|h|py)$$') )
 
 style-check-changed:
 	@(tools/style-format.sh \
