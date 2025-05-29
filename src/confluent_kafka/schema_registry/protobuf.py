@@ -18,7 +18,6 @@
 import io
 import sys
 import base64
-import warnings
 from collections import deque
 from decimal import Context, Decimal, MAX_PREC
 from typing import Set, List, Union, Optional, Any, Tuple
@@ -319,18 +318,6 @@ class ProtobufSerializer(BaseSerializer):
     | ``schema.id.serializer``            | callable | Defines how the schema id/guid is serialized.        |
     |                                     |          | Defaults to prefix_schema_id_serializer.             |
     +-------------------------------------+----------+------------------------------------------------------+
-    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
-    |                                     |          | serialize message indexes without zig-zag encoding.  |
-    |                                     |          | This option must be explicitly configured as older   |
-    |                                     |          | and newer Protobuf producers are incompatible.       |
-    |                                     |          | If the consumers of the topic being produced to are  |
-    |                                     |          | using confluent-kafka-python <1.8 then this property |
-    |                                     |          | must be set to True until all old consumers have     |
-    |                                     |          | have been upgraded.                                  |
-    |                                     |          |                                                      |
-    |                                     |          | Warning: This configuration property will be removed |
-    |                                     |          | in a future version of the client.                   |
-    +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -430,14 +417,7 @@ class ProtobufSerializer(BaseSerializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            warnings.warn("ProtobufSerializer: the 'use.deprecated.format' "
-                          "configuration property, and the ability to use the "
-                          "old incorrect Protobuf serializer heading format "
-                          "introduced in confluent-kafka-python v1.4.0, "
-                          "will be removed in an upcoming release in 2021 Q2. "
-                          "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':False as "
-                          "soon as possible")
+            raise ValueError("use.deprecated.format is no longer supported")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -665,17 +645,6 @@ class ProtobufDeserializer(BaseDeserializer):
     | ``schema.id.deserializer``          | callable | Defines how the schema id/guid is deserialized.      |
     |                                     |          | Defaults to dual_schema_id_deserializer.             |
     +-------------------------------------+----------+------------------------------------------------------+
-    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
-    |                                     |          | deserialize message indexes without zig-zag encoding.|
-    |                                     |          | This option must be explicitly configured as older   |
-    |                                     |          | and newer Protobuf producers are incompatible.       |
-    |                                     |          | If Protobuf messages in the topic to consume were    |
-    |                                     |          | produced with confluent-kafka-python <1.8 then this  |
-    |                                     |          | property must be set to True until all old messages  |
-    |                                     |          | have been processed and producers have been upgraded.|
-    |                                     |          | Warning: This configuration property will be removed |
-    |                                     |          | in a future version of the client.                   |
-    +-------------------------------------+----------+------------------------------------------------------+
 
 
     See Also:
@@ -732,14 +701,7 @@ class ProtobufDeserializer(BaseDeserializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            warnings.warn("ProtobufDeserializer: the 'use.deprecated.format' "
-                          "configuration property, and the ability to use the "
-                          "old incorrect Protobuf serializer heading format "
-                          "introduced in confluent-kafka-python v1.4.0, "
-                          "will be removed in an upcoming release in 2022 Q2. "
-                          "Please migrate your Python Protobuf producers and "
-                          "consumers to 'use.deprecated.format':False as "
-                          "soon as possible")
+            raise ValueError("use.deprecated.format is no longer supported")
 
         descriptor = message_type.DESCRIPTOR
         self._msg_class = GetMessageClass(descriptor)
