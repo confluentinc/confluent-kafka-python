@@ -279,13 +279,6 @@ static int KafkaError_init0 (PyObject *selfobj, PyObject *args,
         return 0;
 }
 
-// Taken from https://github.com/python/cpython/blob/f49a07b531543dd8a42d90f5b1c89c0312fbf806/Objects/exceptions.c#L605-L610
-static struct PyMemberDef KafkaError_members[] = {
-    {"__suppress_context__", Py_T_BOOL,
-     offsetof(PyBaseExceptionObject, suppress_context)},
-    {NULL}
-};
-
 static PyTypeObject KafkaErrorType = {
 	PyVarObject_HEAD_INIT(NULL, 0)
 	"cimpl.KafkaError",      /*tp_name*/
@@ -334,8 +327,8 @@ static PyTypeObject KafkaErrorType = {
 	0,		           /* tp_weaklistoffset */
 	0,		           /* tp_iter */
 	0,		           /* tp_iternext */
-	KafkaError_methods,        /* tp_methods */
-	KafkaError_members,        /* tp_members */
+	KafkaError_methods,    /* tp_methods */
+	0,                         /* tp_members */
 	0,                         /* tp_getset */
 	0,                         /* tp_base */
 	0,                         /* tp_dict */
