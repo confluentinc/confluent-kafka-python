@@ -34,8 +34,6 @@
 #define CFL_PRId32 PRId32
 #endif
 
-// Taken from https://github.com/python/cpython/blob/d96343679fd6137c9d87d1bb120228b162ea0f8c/Include/descrobject.h#L73
-#define Py_T_BOOL      14
 
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
