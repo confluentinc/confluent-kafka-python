@@ -15,8 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import sys
 import asyncio
+if sys.version_info >= (3, 11):
+    from asyncio import timeout
+else:
+    from async_timeout import timeout
 
 from confluent_kafka.cimpl import Consumer
 from confluent_kafka.error import ConsumeError, KeyDeserializationError, ValueDeserializationError

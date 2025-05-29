@@ -9,3 +9,4 @@ requests-mock
 respx
 pytest_cov
 pytest-asyncio
+async-timeout
