@@ -10,3 +10,4 @@ respx
 pytest_cov
 pluggy<1.6.0
 pytest-asyncio
+async-timeout

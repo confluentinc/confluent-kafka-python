@@ -28,6 +28,7 @@ import json
 import gc
 import struct
 import re
+import pytest
 
 import confluent_kafka
 
@@ -212,7 +213,7 @@ def verify_producer():
 # Global variable to track garbage collection of suppressed on_delivery callbacks
 DrOnlyTestSuccess_gced = 0
 
-
+@pytest.mark.skip(reason="This module must be run as a script")
 def test_producer_dr_only_error():
     """
     The C delivery.report.only.error configuration property
