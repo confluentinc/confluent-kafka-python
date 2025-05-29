@@ -95,7 +95,7 @@ def test_kafkaError_custom_msg():
     assert not err.txn_requires_abort()
 
 
-def test_kafkaError_unknonw_error():
+def test_kafkaError_unknown_error():
     with pytest.raises(KafkaException, match="Err-12345?") as e:
         raise KafkaError(12345)
     assert not e.value.args[0].fatal()
