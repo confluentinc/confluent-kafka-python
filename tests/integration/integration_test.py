@@ -213,6 +213,7 @@ def verify_producer():
 # Global variable to track garbage collection of suppressed on_delivery callbacks
 DrOnlyTestSuccess_gced = 0
 
+
 @pytest.mark.skip(reason="This test must be run as a standalone script")
 def test_producer_dr_only_error():
     """

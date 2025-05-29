@@ -20,7 +20,7 @@ import asyncio
 if sys.version_info >= (3, 11):
     from asyncio import timeout
 else:
-    from async_timeout import timeout
+    from async_timeout import timeout  # noqa: F401
 
 from confluent_kafka.cimpl import Consumer
 from confluent_kafka.error import ConsumeError, KeyDeserializationError, ValueDeserializationError
@@ -48,9 +48,9 @@ class AsyncConsumer(Consumer):
     async def __anext__(self):
         return await self.poll(None)
 
-    async def poll(self, timeout: int = -1):
-        timeout = None if timeout == -1 else timeout
-        async with asyncio.timeout(timeout):
+    async def poll(self, poll_timeout: int = -1):
+        poll_timeout = None if poll_timeout == -1 else poll_timeout
+        async with asyncio.timeout(poll_timeout):
             while True:
                 # Zero timeout here is what makes it non-blocking
                 msg = super().poll(0)
@@ -67,8 +67,8 @@ class TestAsyncDeserializingConsumer(AsyncConsumer):
         self._value_deserializer = conf_copy.pop('value.deserializer', None)
         super().__init__(conf_copy)
 
-    async def poll(self, timeout=-1):
-        msg = await super().poll(timeout)
+    async def poll(self, poll_timeout=-1):
+        msg = await super().poll(poll_timeout)
 
         if msg is None:
             return None
@@ -96,7 +96,7 @@ class TestAsyncDeserializingConsumer(AsyncConsumer):
         msg.set_value(value)
         return msg
 
-    def consume(self, num_messages=1, timeout=-1):
+    def consume(self, num_messages=1, consume_timeout=-1):
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead
