@@ -2,7 +2,7 @@
 
 import os
 from setuptools import setup
-from distutils.core import Extension
+from setuptools import Extension
 import platform
 
 work_dir = os.path.dirname(os.path.realpath(__file__))

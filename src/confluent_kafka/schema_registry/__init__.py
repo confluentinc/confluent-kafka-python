@@ -19,21 +19,21 @@ import io
 from typing import Optional
 
 from .schema_registry_client import (
-  ConfigCompatibilityLevel,
-  Metadata,
-  MetadataProperties,
-  MetadataTags,
-  RegisteredSchema,
-  Rule,
-  RuleKind,
-  RuleMode,
-  RuleParams,
-  RuleSet,
-  Schema,
-  SchemaRegistryClient,
-  SchemaRegistryError,
-  SchemaReference,
-  ServerConfig
+    ConfigCompatibilityLevel,
+    Metadata,
+    MetadataProperties,
+    MetadataTags,
+    RegisteredSchema,
+    Rule,
+    RuleKind,
+    RuleMode,
+    RuleParams,
+    RuleSet,
+    Schema,
+    SchemaRegistryClient,
+    SchemaRegistryError,
+    SchemaReference,
+    ServerConfig
 )
 from ..serialization import SerializationError, MessageField
 
@@ -45,28 +45,28 @@ _MAGIC_BYTE_V0 = _MAGIC_BYTE
 _MAGIC_BYTE_V1 = 1
 
 __all__ = [
-  "ConfigCompatibilityLevel",
-  "Metadata",
-  "MetadataProperties",
-  "MetadataTags",
-  "RegisteredSchema",
-  "Rule",
-  "RuleKind",
-  "RuleMode",
-  "RuleParams",
-  "RuleSet",
-  "Schema",
-  "SchemaRegistryClient",
-  "SchemaRegistryError",
-  "SchemaReference",
-  "ServerConfig",
-  "topic_subject_name_strategy",
-  "topic_record_subject_name_strategy",
-  "record_subject_name_strategy",
-  "header_schema_id_serializer",
-  "prefix_schema_id_serializer",
-  "dual_schema_id_deserializer",
-  "prefix_schema_id_deserializer"
+    "ConfigCompatibilityLevel",
+    "Metadata",
+    "MetadataProperties",
+    "MetadataTags",
+    "RegisteredSchema",
+    "Rule",
+    "RuleKind",
+    "RuleMode",
+    "RuleParams",
+    "RuleSet",
+    "Schema",
+    "SchemaRegistryClient",
+    "SchemaRegistryError",
+    "SchemaReference",
+    "ServerConfig",
+    "topic_subject_name_strategy",
+    "topic_record_subject_name_strategy",
+    "record_subject_name_strategy",
+    "header_schema_id_serializer",
+    "prefix_schema_id_serializer",
+    "dual_schema_id_deserializer",
+    "prefix_schema_id_deserializer"
 ]
 
 
