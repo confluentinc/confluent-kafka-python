@@ -6,6 +6,15 @@ import sys
 import argparse
 import subprocess
 
+# List of directories to convert from async to sync
+# Each tuple contains the async directory and its sync counterpart
+# If you add a new _async directory and want the _sync directory to be
+# generated, you must add it to this list.
+ASYNC_TO_SYNC = [
+    ("src/confluent_kafka/schema_registry/_async", "src/confluent_kafka/schema_registry/_sync"),
+    ("tests/integration/schema_registry/_async", "tests/integration/schema_registry/_sync")
+]
+
 SUBS = [
     ('from confluent_kafka.schema_registry.common import asyncinit', ''),
     ('@asyncinit', ''),
@@ -63,6 +72,23 @@ def unasync_file_check(in_path, out_path):
 
 
 def unasync_dir(in_dir, out_dir, check_only=False):
+    # Create the output directory if it doesn't exist
+    os.makedirs(out_dir, exist_ok=True)
+    
+    # Create README.md in the sync directory
+    readme_path = os.path.join(out_dir, "README.md")
+    readme_content = """# Auto-generated Directory
+
+This directory contains auto-generated code. Do not edit these files directly.
+
+To make changes:
+1. Edit the corresponding files in the sibling `_async` directory
+2. Run `python tools/unasync.py` to propagate the changes to this `_sync` directory
+"""
+    if not check_only:
+        with open(readme_path, "w") as f:
+            f.write(readme_content)
+    
     for dirpath, dirnames, filenames in os.walk(in_dir):
         for filename in filenames:
             if not filename.endswith('.py'):
@@ -70,6 +96,8 @@ def unasync_dir(in_dir, out_dir, check_only=False):
             rel_dir = os.path.relpath(dirpath, in_dir)
             in_path = os.path.normpath(os.path.join(in_dir, rel_dir, filename))
             out_path = os.path.normpath(os.path.join(out_dir, rel_dir, filename))
+            # Create the subdirectory if it doesn't exist
+            os.makedirs(os.path.dirname(out_path), exist_ok=True)
             print(in_path, '->', out_path)
             if check_only:
                 unasync_file_check(in_path, out_path)
@@ -107,22 +135,14 @@ def check_diff(sync_dir):
 
 
 def unasync(check=False):
-    async_dirs = [
-        "src/confluent_kafka/schema_registry/_async",
-        "tests/integration/schema_registry/_async"
-    ]
-    sync_dirs = [
-        "src/confluent_kafka/schema_registry/_sync",
-        "tests/integration/schema_registry/_sync"
-    ]
 
     print("Converting async code to sync code...")
-    for async_dir, sync_dir in zip(async_dirs, sync_dirs):
+    for async_dir, sync_dir in ASYNC_TO_SYNC:
         unasync_dir(async_dir, sync_dir, check_only=False)
 
     files_with_diff = []
     if check:
-        for sync_dir in sync_dirs:
+        for _, sync_dir in ASYNC_TO_SYNC:
             files_with_diff.extend(check_diff(sync_dir))
 
     if files_with_diff:
