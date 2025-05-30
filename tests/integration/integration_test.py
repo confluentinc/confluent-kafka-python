@@ -28,6 +28,7 @@ import json
 import gc
 import struct
 import re
+import pytest
 
 import confluent_kafka
 
@@ -213,6 +214,7 @@ def verify_producer():
 DrOnlyTestSuccess_gced = 0
 
 
+@pytest.mark.skip(reason="This test must be run as a standalone script")
 def test_producer_dr_only_error():
     """
     The C delivery.report.only.error configuration property

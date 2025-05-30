@@ -16,4 +16,5 @@
 # limitations under the License.
 
 from .common.avro import *  # noqa
+from ._async.avro import *  # noqa
 from ._sync.avro import *  # noqa
