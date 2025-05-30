@@ -27,13 +27,16 @@ if [[ $RUN_COVERAGE == true ]]; then
   exit 0
 fi
 
+echo "Checking for uncommitted changes in generated _sync directories"
+python3 tools/unasync.py --check
+
 python3 -m pip install .
 
 if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
     if [[ -z $TEST_CONSUMER_GROUP_PROTOCOL ]]; then
         # Run these actions and tests only in this case
         echo "Building documentation ..."
-        flake8 --exclude ./_venv,*_pb2.py
+        flake8 --exclude ./_venv,*_pb2.py,./build
         pip install -r requirements/requirements-docs.txt
         make docs
 

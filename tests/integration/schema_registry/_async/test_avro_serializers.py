@@ -20,8 +20,8 @@ import pytest
 from confluent_kafka import TopicPartition
 from confluent_kafka.serialization import (MessageField,
                                            SerializationContext)
-from confluent_kafka.schema_registry.avro import (AvroSerializer,
-                                                  AvroDeserializer)
+from confluent_kafka.schema_registry.avro import (AsyncAvroSerializer,
+                                                  AsyncAvroDeserializer)
 from confluent_kafka.schema_registry import Schema, SchemaReference
 
 
@@ -123,8 +123,8 @@ class AwardedUser(object):
         ])
 
 
-def _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster):
-    sr = kafka_cluster.schema_registry()
+async def _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster):
+    sr = kafka_cluster.async_schema_registry()
 
     user = User('Bowie', 47, 'purple')
     award_properties = AwardProperties(10, 2023)
@@ -136,25 +136,25 @@ def _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster):
                                                   "award_properties", 1)
     award_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.Award", "award", 1)
 
-    sr.register_schema("user", Schema(User.schema_str, 'AVRO'))
-    sr.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
-    sr.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
+    await sr.register_schema("user", Schema(User.schema_str, 'AVRO'))
+    await sr.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
+    await sr.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
 
     references = [user_schema_ref, award_schema_ref]
     schema = Schema(AwardedUser.schema_str, 'AVRO', references)
     return awarded_user, schema
 
 
-def _references_test_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
+async def _references_test_common(kafka_cluster, awarded_user, serializer_schema, deserializer_schema):
     """
     Common (both reader and writer) avro schema reference test.
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("reference-avro")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
-    value_serializer = AvroSerializer(
+    value_serializer = await AsyncAvroSerializer(
         sr,
         serializer_schema,
         lambda user, ctx: dict(
@@ -171,7 +171,7 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
     )
 
     value_deserializer = \
-        AvroDeserializer(
+        await AsyncAvroDeserializer(
             sr,
             deserializer_schema,
             lambda user, ctx: AwardedUser(
@@ -190,17 +190,17 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
             )
         )
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    producer.produce(topic, value=awarded_user, partition=0)
+    await producer.produce(topic, value=awarded_user, partition=0)
 
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
 
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     awarded_user2 = msg.value()
 
     assert awarded_user2 == awarded_user
@@ -212,7 +212,7 @@ def _references_test_common(kafka_cluster, awarded_user, serializer_schema, dese
                           ('primitive_bool.avsc', True, "bool"),
                           ('primitive_float.avsc', 32768.2342, "float"),
                           ('primitive_double.avsc', 68.032768, "float")])
-def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_type):
+async def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
@@ -224,22 +224,22 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file(avsc)
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = await AsyncAvroSerializer(sr, schema_str)
 
-    value_deserializer = AvroDeserializer(sr)
+    value_deserializer = await AsyncAvroDeserializer(sr)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    producer.produce(topic, value=data, partition=0)
+    await producer.produce(topic, value=data, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     if record_type == 'record':
@@ -256,7 +256,7 @@ def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, record_
                           ('primitive_bool.avsc', True, 'bool'),
                           ('primitive_float.avsc', 768.2340, 'float'),
                           ('primitive_double.avsc', 6.868, 'float')])
-def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, record_type):
+async def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, record_type):
     """
     Tests basic Avro serializer functionality
 
@@ -268,16 +268,16 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro-dr")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
     schema_str = load_file(avsc)
 
-    value_serializer = AvroSerializer(sr, schema_str)
+    value_serializer = await AsyncAvroSerializer(sr, schema_str)
 
-    value_deserializer = AvroDeserializer(sr)
+    value_deserializer = await AsyncAvroDeserializer(sr)
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    def assert_cb(err, msg):
+    async def assert_cb(err, msg):
         actual = value_deserializer(msg.value(),
                                     SerializationContext(topic, MessageField.VALUE, msg.headers()))
 
@@ -288,13 +288,13 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
         else:
             assert actual == data
 
-    producer.produce(topic, value=data, partition=0, on_delivery=assert_cb)
+    await producer.produce(topic, value=data, partition=0, on_delivery=assert_cb)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     actual = msg.value()
 
     # schema may include default which need not exist in the original
@@ -306,7 +306,7 @@ def test_delivery_report_serialization(kafka_cluster, load_file, avsc, data, rec
         assert actual == data
 
 
-def test_avro_record_serialization_custom(kafka_cluster):
+async def test_avro_record_serialization_custom(kafka_cluster):
     """
     Tests basic Avro serializer to_dict and from_dict object hook functionality.
 
@@ -315,10 +315,10 @@ def test_avro_record_serialization_custom(kafka_cluster):
 
     """
     topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro")
-    sr = kafka_cluster.schema_registry()
+    sr = kafka_cluster.async_schema_registry()
 
     user = User('Bowie', 47, 'purple')
-    value_serializer = AvroSerializer(
+    value_serializer = await AsyncAvroSerializer(
         sr,
         User.schema_str,
         lambda user, ctx:
@@ -329,43 +329,43 @@ def test_avro_record_serialization_custom(kafka_cluster):
             )
     )
 
-    value_deserializer = AvroDeserializer(
+    value_deserializer = await AsyncAvroDeserializer(
         sr,
         User.schema_str,
         lambda user_dict, ctx: User(**user_dict)
     )
 
-    producer = kafka_cluster.producer(value_serializer=value_serializer)
+    producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
-    producer.produce(topic, value=user, partition=0)
+    await producer.produce(topic, value=user, partition=0)
     producer.flush()
 
-    consumer = kafka_cluster.consumer(value_deserializer=value_deserializer)
+    consumer = kafka_cluster.async_consumer(value_deserializer=value_deserializer)
     consumer.assign([TopicPartition(topic, 0)])
 
-    msg = consumer.poll()
+    msg = await consumer.poll()
     user2 = msg.value()
 
     assert user2 == user
 
 
-def test_avro_reference(kafka_cluster):
+async def test_avro_reference(kafka_cluster):
     """
     Tests Avro schema reference with both serializer and deserializer schemas provided.
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
-    awarded_user, schema = _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
+    awarded_user, schema = await _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
 
-    _references_test_common(kafka_cluster, awarded_user, schema, schema)
+    await _references_test_common(kafka_cluster, awarded_user, schema, schema)
 
 
-def test_avro_reference_deserializer_none(kafka_cluster):
+async def test_avro_reference_deserializer_none(kafka_cluster):
     """
     Tests Avro schema reference with serializer schema provided and deserializer schema set to None.
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
-    awarded_user, schema = _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
+    awarded_user, schema = await _register_avro_schemas_and_build_awarded_user_schema(kafka_cluster)
 
-    _references_test_common(kafka_cluster, awarded_user, schema, None)
+    await _references_test_common(kafka_cluster, awarded_user, schema, None)

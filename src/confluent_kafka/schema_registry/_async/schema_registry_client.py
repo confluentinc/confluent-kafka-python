@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-
+import asyncio
 import json
 import logging
 import time
@@ -28,7 +28,7 @@ from typing import List, Dict, Optional, Union, Any, Tuple, Callable
 from cachetools import TTLCache, LRUCache
 from httpx import Response
 
-from authlib.integrations.httpx_client import OAuth2Client
+from authlib.integrations.httpx_client import AsyncOAuth2Client
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
@@ -45,11 +45,11 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
 
 __all__ = [
     '_urlencode',
-    '_CustomOAuthClient',
-    '_OAuthClient',
-    '_BaseRestClient',
-    '_RestClient',
-    'SchemaRegistryClient',
+    '_AsyncCustomOAuthClient',
+    '_AsyncOAuthClient',
+    '_AsyncBaseRestClient',
+    '_AsyncRestClient',
+    'AsyncSchemaRegistryClient',
 ]
 
 # TODO: consider adding `six` dependency or employing a compat file
@@ -74,31 +74,31 @@ except NameError:
 log = logging.getLogger(__name__)
 
 
-class _CustomOAuthClient(_BearerFieldProvider):
+class _AsyncCustomOAuthClient(_BearerFieldProvider):
     def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
-    def get_bearer_fields(self) -> dict:
-        return self.custom_function(self.custom_config)
+    async def get_bearer_fields(self) -> dict:
+        return await self.custom_function(self.custom_config)
 
 
-class _OAuthClient(_BearerFieldProvider):
+class _AsyncOAuthClient(_BearerFieldProvider):
     def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
                  identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self.token = None
         self.logical_cluster = logical_cluster
         self.identity_pool = identity_pool
-        self.client = OAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
+        self.client = AsyncOAuth2Client(client_id=client_id, client_secret=client_secret, scope=scope)
         self.token_endpoint = token_endpoint
         self.max_retries = max_retries
         self.retries_wait_ms = retries_wait_ms
         self.retries_max_wait_ms = retries_max_wait_ms
         self.token_expiry_threshold = 0.8
 
-    def get_bearer_fields(self) -> dict:
+    async def get_bearer_fields(self) -> dict:
         return {
-            'bearer.auth.token': self.get_access_token(),
+            'bearer.auth.token': await self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
             'bearer.auth.identity.pool.id': self.identity_pool
         }
@@ -108,25 +108,25 @@ class _OAuthClient(_BearerFieldProvider):
 
         return self.token['expires_at'] < time.time() + expiry_window
 
-    def get_access_token(self) -> str:
+    async def get_access_token(self) -> str:
         if not self.token or self.token_expired():
-            self.generate_access_token()
+            await self.generate_access_token()
 
         return self.token['access_token']
 
-    def generate_access_token(self) -> None:
+    async def generate_access_token(self) -> None:
         for i in range(self.max_retries + 1):
             try:
-                self.token = self.client.fetch_token(url=self.token_endpoint, grant_type='client_credentials')
+                self.token = await self.client.fetch_token(url=self.token_endpoint, grant_type='client_credentials')
                 return
             except Exception as e:
                 if i >= self.max_retries:
                     raise OAuthTokenError(f"Failed to retrieve token after {self.max_retries} "
                                           f"attempts due to error: {str(e)}")
-                time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+                await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
 
 
-class _BaseRestClient(object):
+class _AsyncBaseRestClient(object):
 
     def __init__(self, conf: dict):
         # copy dict to avoid mutating the original
@@ -283,7 +283,7 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
                                     + str(type(self.token_endpoint)))
 
-                self.bearer_field_provider = _OAuthClient(
+                self.bearer_field_provider = _AsyncOAuthClient(
                     self.client_id, self.client_secret, self.scope,
                     self.token_endpoint, logical_cluster, identity_pool,
                     self.max_retries, self.retries_wait_ms,
@@ -313,7 +313,7 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.auth.custom.provider.config must be a dict, not "
                                     + str(type(custom_config)))
 
-                self.bearer_field_provider = _CustomOAuthClient(custom_function, custom_config)
+                self.bearer_field_provider = _AsyncCustomOAuthClient(custom_function, custom_config)
             else:
                 raise ValueError('Unrecognized bearer.auth.credentials.source')
 
@@ -322,20 +322,20 @@ class _BaseRestClient(object):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-    def get(self, url: str, query: Optional[dict] = None) -> Any:
+    async def get(self, url: str, query: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
-    def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
+    async def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
         raise NotImplementedError()
 
-    def delete(self, url: str) -> Any:
+    async def delete(self, url: str) -> Any:
         raise NotImplementedError()
 
-    def put(self, url: str, body: Optional[dict] = None) -> Any:
+    async def put(self, url: str, body: Optional[dict] = None) -> Any:
         raise NotImplementedError()
 
 
-class _RestClient(_BaseRestClient):
+class _AsyncRestClient(_AsyncBaseRestClient):
     """
     HTTP client for Confluent Schema Registry.
 
@@ -348,7 +348,7 @@ class _RestClient(_BaseRestClient):
     def __init__(self, conf: dict):
         super().__init__(conf)
 
-        self.session = httpx.Client(
+        self.session = httpx.AsyncClient(
             verify=self.verify,
             cert=self.cert,
             auth=self.auth,
@@ -356,8 +356,8 @@ class _RestClient(_BaseRestClient):
             timeout=self.timeout
         )
 
-    def handle_bearer_auth(self, headers: dict) -> None:
-        bearer_fields = self.bearer_field_provider.get_bearer_fields()
+    async def handle_bearer_auth(self, headers: dict) -> None:
+        bearer_fields = await self.bearer_field_provider.get_bearer_fields()
         required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
 
         missing_fields = []
@@ -373,19 +373,19 @@ class _RestClient(_BaseRestClient):
         headers['Confluent-Identity-Pool-Id'] = bearer_fields['bearer.auth.identity.pool.id']
         headers['target-sr-cluster'] = bearer_fields['bearer.auth.logical.cluster']
 
-    def get(self, url: str, query: Optional[dict] = None) -> Any:
-        return self.send_request(url, method='GET', query=query)
+    async def get(self, url: str, query: Optional[dict] = None) -> Any:
+        return await self.send_request(url, method='GET', query=query)
 
-    def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
-        return self.send_request(url, method='POST', body=body)
+    async def post(self, url: str, body: Optional[dict], **kwargs) -> Any:
+        return await self.send_request(url, method='POST', body=body)
 
-    def delete(self, url: str) -> Any:
-        return self.send_request(url, method='DELETE')
+    async def delete(self, url: str) -> Any:
+        return await self.send_request(url, method='DELETE')
 
-    def put(self, url: str, body: Optional[dict] = None) -> Any:
-        return self.send_request(url, method='PUT', body=body)
+    async def put(self, url: str, body: Optional[dict] = None) -> Any:
+        return await self.send_request(url, method='PUT', body=body)
 
-    def send_request(
+    async def send_request(
         self, url: str, method: str, body: Optional[dict] = None,
         query: Optional[dict] = None
     ) -> Any:
@@ -421,12 +421,12 @@ class _RestClient(_BaseRestClient):
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
         if self.bearer_auth_credentials_source:
-            self.handle_bearer_auth(headers)
+            await self.handle_bearer_auth(headers)
 
         response = None
         for i, base_url in enumerate(self.base_urls):
             try:
-                response = self.send_http_request(
+                response = await self.send_http_request(
                     base_url, url, method, headers, body, query)
 
                 if is_success(response.status_code):
@@ -450,7 +450,7 @@ class _RestClient(_BaseRestClient):
                                       "Unknown Schema Registry Error: "
                                       + str(response.content))
 
-    def send_http_request(
+    async def send_http_request(
         self, base_url: str, url: str, method: str, headers: Optional[dict],
         body: Optional[str] = None, query: Optional[dict] = None
     ) -> Response:
@@ -481,7 +481,7 @@ class _RestClient(_BaseRestClient):
         """
         response = None
         for i in range(self.max_retries + 1):
-            response = self.session.request(
+            response = await self.session.request(
                 method, url="/".join([base_url, url]),
                 headers=headers, content=body, params=query)
 
@@ -491,11 +491,11 @@ class _RestClient(_BaseRestClient):
             if not is_retriable(response.status_code) or i >= self.max_retries:
                 return response
 
-            time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
+            await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
         return response
 
 
-class SchemaRegistryClient(object):
+class AsyncSchemaRegistryClient(object):
     """
     A Confluent Schema Registry client.
 
@@ -563,7 +563,7 @@ class SchemaRegistryClient(object):
 
     def __init__(self, conf: dict):
         self._conf = conf
-        self._rest_client = _RestClient(conf)
+        self._rest_client = _AsyncRestClient(conf)
         self._cache = _SchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
@@ -574,17 +574,17 @@ class SchemaRegistryClient(object):
             self._latest_version_cache = LRUCache(cache_capacity)
             self._latest_with_metadata_cache = LRUCache(cache_capacity)
 
-    def __enter__(self):
+    async def __aenter__(self):
         return self
 
-    def __exit__(self, *args):
+    async def __aexit__(self, *args):
         if self._rest_client is not None:
-            self._rest_client.session.close()
+            await self._rest_client.session.aclose()
 
     def config(self):
         return self._conf
 
-    def register_schema(
+    async def register_schema(
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> int:
@@ -607,10 +607,10 @@ class SchemaRegistryClient(object):
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        registered_schema = await self.register_schema_full_response(subject_name, schema, normalize_schemas)
         return registered_schema.schema_id
 
-    def register_schema_full_response(
+    async def register_schema_full_response(
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> 'RegisteredSchema':
@@ -641,7 +641,7 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        response = self._rest_client.post(
+        response = await self._rest_client.post(
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
@@ -654,7 +654,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_schema(
+    async def get_schema(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
     ) -> 'Schema':
         """
@@ -687,7 +687,7 @@ class SchemaRegistryClient(object):
                 query['format'] = fmt
             else:
                 query = {'format': fmt}
-        response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
+        response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -696,7 +696,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema.schema
 
-    def get_schema_by_guid(
+    async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
     ) -> 'Schema':
         """
@@ -724,7 +724,7 @@ class SchemaRegistryClient(object):
 
         if fmt is not None:
             query = {'format': fmt}
-        response = self._rest_client.get('schemas/guids/{}'.format(guid), query)
+        response = await self._rest_client.get('schemas/guids/{}'.format(guid), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
 
@@ -733,7 +733,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema.schema
 
-    def lookup_schema(
+    async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False, deleted: bool = False
     ) -> 'RegisteredSchema':
@@ -762,7 +762,7 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        response = self._rest_client.post(
+        response = await self._rest_client.post(
             'subjects/{}?normalize={}&deleted={}'.format(
                 _urlencode(subject_name), normalize_schemas, deleted),
             body=request
@@ -783,7 +783,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_subjects(self) -> List[str]:
+    async def get_subjects(self) -> List[str]:
         """
         List all subjects registered with the Schema Registry
 
@@ -797,9 +797,9 @@ class SchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects')
+        return await self._rest_client.get('subjects')
 
-    def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
+    async def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         """
         Deletes the specified subject and its associated compatibility level if
         registered. It is recommended to use this API only when a topic needs
@@ -820,18 +820,18 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         if permanent:
-            versions = self._rest_client.delete(
+            versions = await self._rest_client.delete(
                 'subjects/{}?permanent=true'.format(_urlencode(subject_name))
             )
             self._cache.remove_by_subject(subject_name)
         else:
-            versions = self._rest_client.delete(
+            versions = await self._rest_client.delete(
                 'subjects/{}'.format(_urlencode(subject_name))
             )
 
         return versions
 
-    def get_latest_version(
+    async def get_latest_version(
         self, subject_name: str, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
@@ -856,7 +856,7 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'format': fmt} if fmt is not None else None
-        response = self._rest_client.get(
+        response = await self._rest_client.get(
             'subjects/{}/versions/{}'.format(_urlencode(subject_name), 'latest'), query
         )
 
@@ -866,7 +866,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_latest_with_metadata(
+    async def get_latest_with_metadata(
         self, subject_name: str, metadata: Dict[str, str],
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
@@ -897,7 +897,7 @@ class SchemaRegistryClient(object):
             query['key'] = [_urlencode(key) for key in keys]
             query['value'] = [_urlencode(metadata[key]) for key in keys]
 
-        response = self._rest_client.get(
+        response = await self._rest_client.get(
             'subjects/{}/metadata'.format(_urlencode(subject_name)), query
         )
 
@@ -907,7 +907,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_version(
+    async def get_version(
         self, subject_name: str, version: int,
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
@@ -935,7 +935,7 @@ class SchemaRegistryClient(object):
             return registered_schema
 
         query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        response = self._rest_client.get(
+        response = await self._rest_client.get(
             'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
         )
 
@@ -945,7 +945,7 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_versions(self, subject_name: str) -> List[int]:
+    async def get_versions(self, subject_name: str) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
@@ -962,9 +962,9 @@ class SchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
+        return await self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
 
-    def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
+    async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         """
         Deletes a specific version registered to ``subject_name``.
 
@@ -986,18 +986,18 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         if permanent:
-            response = self._rest_client.delete(
+            response = await self._rest_client.delete(
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
             self._cache.remove_by_subject_version(subject_name, version)
         else:
-            response = self._rest_client.delete(
+            response = await self._rest_client.delete(
                 'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
             )
 
         return response
 
-    def set_compatibility(self, subject_name: Optional[str] = None, level: Optional[str] = None) -> str:
+    async def set_compatibility(self, subject_name: Optional[str] = None, level: Optional[str] = None) -> str:
         """
         Update global or subject level compatibility level.
 
@@ -1022,15 +1022,15 @@ class SchemaRegistryClient(object):
             raise ValueError("level must be set")
 
         if subject_name is None:
-            return self._rest_client.put(
+            return await self._rest_client.put(
                 'config', body={'compatibility': level.upper()}
             )
 
-        return self._rest_client.put(
+        return await self._rest_client.put(
             'config/{}'.format(_urlencode(subject_name)), body={'compatibility': level.upper()}
         )
 
-    def get_compatibility(self, subject_name: Optional[str] = None) -> str:
+    async def get_compatibility(self, subject_name: Optional[str] = None) -> str:
         """
         Get the current compatibility level.
 
@@ -1053,10 +1053,10 @@ class SchemaRegistryClient(object):
         else:
             url = 'config'
 
-        result = self._rest_client.get(url)
+        result = await self._rest_client.get(url)
         return result['compatibilityLevel']
 
-    def test_compatibility(
+    async def test_compatibility(
         self, subject_name: str, schema: 'Schema',
         version: Union[int, str] = "latest"
     ) -> bool:
@@ -1079,13 +1079,13 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        response = self._rest_client.post(
+        response = await self._rest_client.post(
             'compatibility/subjects/{}/versions/{}'.format(_urlencode(subject_name), version), body=request
         )
 
         return response['is_compatible']
 
-    def set_config(
+    async def set_config(
         self, subject_name: Optional[str] = None,
         config: Optional['ServerConfig'] = None
     ) -> 'ServerConfig':
@@ -1113,15 +1113,15 @@ class SchemaRegistryClient(object):
             raise ValueError("config must be set")
 
         if subject_name is None:
-            return self._rest_client.put(
+            return await self._rest_client.put(
                 'config', body=config.to_dict()
             )
 
-        return self._rest_client.put(
+        return await self._rest_client.put(
             'config/{}'.format(_urlencode(subject_name)), body=config.to_dict()
         )
 
-    def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
+    async def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
         """
         Get the current config.
 
@@ -1144,7 +1144,7 @@ class SchemaRegistryClient(object):
         else:
             url = 'config'
 
-        result = self._rest_client.get(url)
+        result = await self._rest_client.get(url)
         return ServerConfig.from_dict(result)
 
     def clear_latest_caches(self):
@@ -1157,9 +1157,9 @@ class SchemaRegistryClient(object):
         self._cache.clear()
 
     @staticmethod
-    def new_client(conf: dict) -> 'SchemaRegistryClient':
+    def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
         from confluent_kafka.schema_registry.mock_schema_registry_client import MockSchemaRegistryClient
         url = conf.get("url")
         if url.startswith("mock://"):
             return MockSchemaRegistryClient(conf)
-        return SchemaRegistryClient(conf)
+        return AsyncSchemaRegistryClient(conf)

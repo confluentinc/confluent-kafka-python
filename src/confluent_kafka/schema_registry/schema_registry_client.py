@@ -17,6 +17,7 @@
 
 
 from .common.schema_registry_client import *  # noqa
+from ._async.schema_registry_client import *  # noqa
 from ._sync.schema_registry_client import *  # noqa
 
 from .error import SchemaRegistryError  # noqa
