@@ -50,7 +50,7 @@ class AsyncConsumer(Consumer):
 
     async def poll(self, poll_timeout: int = -1):
         poll_timeout = None if poll_timeout == -1 else poll_timeout
-        async with asyncio.timeout(poll_timeout):
+        async with timeout(poll_timeout):
             while True:
                 # Zero timeout here is what makes it non-blocking
                 msg = super().poll(0)
