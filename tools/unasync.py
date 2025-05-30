@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import argparse
-import subprocess
+import difflib
 
 # List of directories to convert from async to sync
 # Each tuple contains the async directory and its sync counterpart
@@ -59,22 +59,70 @@ def unasync_file(in_path, out_path):
 
 
 def unasync_file_check(in_path, out_path):
-    with open(in_path, "r") as in_file:
+    """Check if the sync file matches the expected generated content.
+
+    Args:
+        in_path: Path to the async file
+        out_path: Path to the sync file
+
+    Returns:
+        bool: True if files match, False if they don't
+
+    Raises:
+        ValueError: If there's an error reading the files
+    """
+    try:
+        with open(in_path, "r") as in_file:
+            async_content = in_file.read()
+            expected_content = "".join(unasync_line(line) for line in async_content.splitlines(keepends=True))
+
         with open(out_path, "r") as out_file:
-            for in_line, out_line in zip(in_file.readlines(), out_file.readlines()):
-                expected = unasync_line(in_line)
-                if out_line != expected:
-                    print(f'unasync mismatch between {in_path!r} and {out_path!r}')
-                    print(f'Async code:         {in_line!r}')
-                    print(f'Expected sync code: {expected!r}')
-                    print(f'Actual sync code:   {out_line!r}')
-                    sys.exit(1)
+            actual_content = out_file.read()
+
+        if actual_content != expected_content:
+            diff = difflib.unified_diff(
+                expected_content.splitlines(keepends=True),
+                actual_content.splitlines(keepends=True),
+                fromfile=in_path,
+                tofile=out_path,
+                n=3  # Show 3 lines of context
+            )
+            print(''.join(diff))
+            return False
+        return True
+    except Exception as e:
+        print(f"Error comparing {in_path} and {out_path}: {e}")
+        raise ValueError(f"Error comparing {in_path} and {out_path}: {e}")
 
 
-def unasync_dir(in_dir, out_dir, check_only=False):
+def check_sync_files(dir_pairs):
+    """Check if all sync files match their expected generated content.
+    Returns a list of files that have differences."""
+    files_with_diff = []
+
+    for async_dir, sync_dir in dir_pairs:
+        for dirpath, _, filenames in os.walk(async_dir):
+            for filename in filenames:
+                if not filename.endswith('.py'):
+                    continue
+                rel_dir = os.path.relpath(dirpath, async_dir)
+                async_path = os.path.normpath(os.path.join(async_dir, rel_dir, filename))
+                sync_path = os.path.normpath(os.path.join(sync_dir, rel_dir, filename))
+
+                if not os.path.exists(sync_path):
+                    files_with_diff.append(sync_path)
+                    continue
+
+                if not unasync_file_check(async_path, sync_path):
+                    files_with_diff.append(sync_path)
+
+    return files_with_diff
+
+
+def unasync_dir(in_dir, out_dir):
     # Create the output directory if it doesn't exist
     os.makedirs(out_dir, exist_ok=True)
-    
+
     # Create README.md in the sync directory
     readme_path = os.path.join(out_dir, "README.md")
     readme_content = """# Auto-generated Directory
@@ -85,11 +133,10 @@ To make changes:
 1. Edit the corresponding files in the sibling `_async` directory
 2. Run `python tools/unasync.py` to propagate the changes to this `_sync` directory
 """
-    if not check_only:
-        with open(readme_path, "w") as f:
-            f.write(readme_content)
-    
-    for dirpath, dirnames, filenames in os.walk(in_dir):
+    with open(readme_path, "w") as f:
+        f.write(readme_content)
+
+    for dirpath, _, filenames in os.walk(in_dir):
         for filename in filenames:
             if not filename.endswith('.py'):
                 continue
@@ -99,63 +146,38 @@ To make changes:
             # Create the subdirectory if it doesn't exist
             os.makedirs(os.path.dirname(out_path), exist_ok=True)
             print(in_path, '->', out_path)
-            if check_only:
-                unasync_file_check(in_path, out_path)
-            else:
-                unasync_file(in_path, out_path)
+            unasync_file(in_path, out_path)
 
 
-def check_diff(sync_dir):
-    """Check if there are any differences in the sync directory.
-    Returns a list of files that have differences."""
-    try:
-        # Get the list of files in the sync directory
-        result = subprocess.run(['git', 'ls-files', sync_dir], capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"Error listing files in {sync_dir}")
-            return []
+def unasync(dir_pairs=None, check=False):
+    """Convert async code to sync code.
 
-        files = result.stdout.strip().split('\n')
-        if not files or (len(files) == 1 and not files[0]):
-            print(f"No files found in {sync_dir}")
-            return []
-
-        # Check if any of these files have differences
-        files_with_diff = []
-        for file in files:
-            if not file:  # Skip empty lines
-                continue
-            diff_result = subprocess.run(['git', 'diff', '--quiet', file], capture_output=True, text=True)
-            if diff_result.returncode != 0:
-                files_with_diff.append(file)
-        return files_with_diff
-    except subprocess.CalledProcessError as e:
-        print(f"Error checking differences: {e}")
-        return []
-
-
-def unasync(check=False):
-
-    print("Converting async code to sync code...")
-    for async_dir, sync_dir in ASYNC_TO_SYNC:
-        unasync_dir(async_dir, sync_dir, check_only=False)
+    Args:
+        dir_pairs: List of (async_dir, sync_dir) tuples to process. If None, uses ASYNC_TO_SYNC.
+        check: If True, only check if sync files are up to date without modifying them.
+    """
+    if dir_pairs is None:
+        dir_pairs = ASYNC_TO_SYNC
 
     files_with_diff = []
     if check:
-        for _, sync_dir in ASYNC_TO_SYNC:
-            files_with_diff.extend(check_diff(sync_dir))
+        files_with_diff = check_sync_files(dir_pairs)
 
     if files_with_diff:
-        print("\n⚠️  Detected changes to a _sync directory that are uncommitted.")
-        print("\nFiles with differences:")
+        print("\n⚠️  Detected differences between async and sync files.")
+        print("\nFiles that need to be regenerated:")
         for file in files_with_diff:
             print(f"  - {file}")
-        print("\nPlease either:")
-        print("1. Commit the changes in the generated _sync files, or")
-        print("2. Revert the changes in the original _async files")
+        print("\nPlease run this script again (without the --check flag) to regenerate the sync files.")
         sys.exit(1)
     else:
-        print("\n✅ Conversion completed successfully!")
+        print("\n✅ All _sync directories are up to date!")
+    if not check:
+        print("Converting async code to sync code...")
+        for async_dir, sync_dir in dir_pairs:
+            unasync_dir(async_dir, sync_dir)
+
+        print("\n✅ Generated sync code from async code.")
 
 
 if __name__ == '__main__':
