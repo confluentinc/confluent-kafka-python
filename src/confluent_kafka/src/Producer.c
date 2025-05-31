@@ -393,6 +393,85 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         return cfl_PyInt_FromInt(qlen);
 }
 
+static PyObject *Producer_topic_new (Handle *self, PyObject *args,
+                                 PyObject *kwargs) {
+        rd_kafka_topic_conf_t *topic_conf = NULL;
+        rd_kafka_topic_t *topic_obj = NULL;
+        const char *topic = NULL;
+        PyObject *conf = NULL;
+        Py_ssize_t pos = 0;
+        PyObject *ko = NULL, *vo = NULL;
+
+        static char *kws[] = { "topic", "conf", NULL };
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "s|O", kws, &topic, &conf))
+            return NULL;
+
+        if (!PyDict_Check(conf)) {
+            PyErr_SetString(PyExc_TypeError, "conf must be a dictionary or options");
+            return NULL;
+        }
+
+        topic_conf = rd_kafka_topic_conf_new();
+        while (PyDict_Next(conf, &pos, &ko, &vo)) {
+            PyObject *ks, *ks8 = NULL;
+            PyObject *vs = NULL, *vs8 = NULL;
+            const char *k = NULL, *v = NULL;
+            char errstr[256];
+
+            if (!(ks = cfl_PyObject_Unistr(ko))) {
+                PyErr_SetString(PyExc_TypeError,
+                                "expected configuration property name "
+                                "as type unicode string");
+                goto inner_err;
+            }
+
+            k = cfl_PyUnistr_AsUTF8(ks, &ks8);
+            /*
+             * Pass configuration property through to librdkafka.
+             */
+            if (vo == Py_None) {
+                    v = NULL;
+            } else {
+                    if (!(vs = cfl_PyObject_Unistr(vo))) {
+                            PyErr_SetString(PyExc_TypeError,
+                                            "expected configuration "
+                                            "property value as type "
+                                            "unicode string");
+                            goto inner_err;
+                    }
+                    v = cfl_PyUnistr_AsUTF8(vs, &vs8);
+            }
+            if (rd_kafka_topic_conf_set(topic_conf, k, v, errstr, sizeof(errstr)) !=
+                RD_KAFKA_CONF_OK) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "%s", errstr);
+                goto inner_err;
+            }
+            Py_XDECREF(vs8);
+            Py_XDECREF(vs);
+            Py_XDECREF(ks8);
+            Py_DECREF(ks);
+            continue;
+
+inner_err:
+            Py_XDECREF(vs8);
+            Py_XDECREF(vs);
+            Py_XDECREF(ks8);
+            Py_XDECREF(ks);
+            goto outer_err;
+        }
+        // simply discard and destroy the topic object for now to avoid leaks
+        topic_obj = rd_kafka_topic_new(self->rk, topic, topic_conf);
+        rd_kafka_topic_destroy(topic_obj);
+        Py_RETURN_NONE;
+
+outer_err:
+        rd_kafka_topic_conf_destroy(topic_conf);
+
+        return NULL;
+}
+
+
 static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
@@ -813,6 +892,13 @@ static PyMethodDef Producer_methods[] = {
         },
         { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
            set_sasl_credentials_doc
+        },
+        { "topic_new", (PyCFunction)Producer_topic_new, METH_VARARGS|METH_KEYWORDS,
+          "Creates a new topic handle for topic named topic, allows setting a per-topic configuration\n"
+          "\n"
+          "  :param str topic: Topic to create\n"
+          "  :param dict conf: Configuration properties\n"
+          "\n"
         },
         { NULL }
 };
