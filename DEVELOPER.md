@@ -31,6 +31,15 @@ or:
 
 Documentation will be generated in  `build/sphinx/html`.
 
+## Unasync -- maintaining sync versions of async code
+
+    $ python tools/unasync.py
+
+    # Run the script with the --check flag to ensure the sync code is up to date
+    $ python tools/unasync.py --check
+
+If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counter parts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the --check flag and fail the build.
+
 
 ## Tests
 

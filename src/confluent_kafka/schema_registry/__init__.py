@@ -31,6 +31,7 @@ from .schema_registry_client import (
   RuleSet,
   Schema,
   SchemaRegistryClient,
+  AsyncSchemaRegistryClient,
   SchemaRegistryError,
   SchemaReference,
   ServerConfig
@@ -57,6 +58,7 @@ __all__ = [
   "RuleSet",
   "Schema",
   "SchemaRegistryClient",
+  "AsyncSchemaRegistryClient",
   "SchemaRegistryError",
   "SchemaReference",
   "ServerConfig",

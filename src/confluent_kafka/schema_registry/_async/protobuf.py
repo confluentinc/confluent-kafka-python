@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import io
+import warnings
 from typing import Set, List, Union, Optional, Tuple
 
 from google.protobuf import json_format, descriptor_pb2
@@ -27,7 +28,7 @@ from google.protobuf.message_factory import GetMessageClass
 from confluent_kafka.schema_registry import (reference_subject_name_strategy,
                                              topic_subject_name_strategy,
                                              prefix_schema_id_serializer, dual_schema_id_deserializer)
-from confluent_kafka.schema_registry.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
     _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO, PROTOBUF_TYPE
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -36,27 +37,27 @@ from confluent_kafka.schema_registry import (Schema,
                                              RuleMode)
 from confluent_kafka.serialization import SerializationError, \
     SerializationContext
-
-from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
+from confluent_kafka.schema_registry.common import asyncinit
+from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, \
     ParsedSchemaCache, SchemaId
 
 __all__ = [
     '_resolve_named_schema',
-    'ProtobufSerializer',
-    'ProtobufDeserializer',
+    'AsyncProtobufSerializer',
+    'AsyncProtobufDeserializer',
 ]
 
 
-def _resolve_named_schema(
+async def _resolve_named_schema(
     schema: Schema,
-    schema_registry_client: SchemaRegistryClient,
+    schema_registry_client: AsyncSchemaRegistryClient,
     pool: DescriptorPool,
     visited: Optional[Set[str]] = None
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
     :param schema: Schema to resolve named schemas for.
-    :param schema_registry_client: SchemaRegistryClient to use for retrieval.
+    :param schema_registry_client: AsyncSchemaRegistryClient to use for retrieval.
     :param pool: DescriptorPool to add resolved schemas to.
     :return: DescriptorPool
     """
@@ -67,14 +68,14 @@ def _resolve_named_schema(
             if _is_builtin(ref.name) or ref.name in visited:
                 continue
             visited.add(ref.name)
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
-            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
+            referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
+            await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
             file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
 
 
-
-class ProtobufSerializer(BaseSerializer):
+@asyncinit
+class AsyncProtobufSerializer(AsyncBaseSerializer):
     """
     Serializer for Protobuf Message derived classes. Serialization format is Protobuf,
     with Confluent Schema Registry framing.
@@ -148,6 +149,18 @@ class ProtobufSerializer(BaseSerializer):
     | ``schema.id.serializer``            | callable | Defines how the schema id/guid is serialized.        |
     |                                     |          | Defaults to prefix_schema_id_serializer.             |
     +-------------------------------------+----------+------------------------------------------------------+
+    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf serializer should     |
+    |                                     |          | serialize message indexes without zig-zag encoding.  |
+    |                                     |          | This option must be explicitly configured as older   |
+    |                                     |          | and newer Protobuf producers are incompatible.       |
+    |                                     |          | If the consumers of the topic being produced to are  |
+    |                                     |          | using confluent-kafka-python <1.8 then this property |
+    |                                     |          | must be set to True until all old consumers have     |
+    |                                     |          | have been upgraded.                                  |
+    |                                     |          |                                                      |
+    |                                     |          | Warning: This configuration property will be removed |
+    |                                     |          | in a future version of the client.                   |
+    +-------------------------------------+----------+------------------------------------------------------+
 
     Schemas are registered against subject names in Confluent Schema Registry that
     define a scope in which the schemas can be evolved. By default, the subject name
@@ -201,10 +214,10 @@ class ProtobufSerializer(BaseSerializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(
+    async def __init__(
         self,
         msg_type: Message,
-        schema_registry_client: SchemaRegistryClient,
+        schema_registry_client: AsyncSchemaRegistryClient,
         conf: Optional[dict] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None
@@ -247,7 +260,14 @@ class ProtobufSerializer(BaseSerializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            raise ValueError("use.deprecated.format is no longer supported")
+            warnings.warn("ProtobufSerializer: the 'use.deprecated.format' "
+                          "configuration property, and the ability to use the "
+                          "old incorrect Protobuf serializer heading format "
+                          "introduced in confluent-kafka-python v1.4.0, "
+                          "will be removed in an upcoming release in 2021 Q2. "
+                          "Please migrate your Python Protobuf producers and "
+                          "consumers to 'use.deprecated.format':False as "
+                          "soon as possible")
 
         self._subject_name_func = conf_copy.pop('subject.name.strategy')
         if not callable(self._subject_name_func):
@@ -318,12 +338,12 @@ class ProtobufSerializer(BaseSerializer):
             buf.write(_bytes(0x00))
             return
 
-        ProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
+        AsyncProtobufSerializer._write_varint(buf, len(ints), zigzag=zigzag)
 
         for value in ints:
-            ProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
+            AsyncProtobufSerializer._write_varint(buf, value, zigzag=zigzag)
 
-    def _resolve_dependencies(
+    async def _resolve_dependencies(
         self, ctx: SerializationContext,
         file_desc: FileDescriptor
     ) -> List[SchemaReference]:
@@ -340,15 +360,15 @@ class ProtobufSerializer(BaseSerializer):
         for dep in file_desc.dependencies:
             if self._skip_known_types and _is_builtin(dep.name):
                 continue
-            dep_refs = self._resolve_dependencies(ctx, dep)
+            dep_refs = await self._resolve_dependencies(ctx, dep)
             subject = self._ref_reference_subject_func(ctx, dep)
             schema = Schema(_schema_to_str(dep),
                             references=dep_refs,
                             schema_type='PROTOBUF')
             if self._auto_register:
-                self._registry.register_schema(subject, schema)
+                await self._registry.register_schema(subject, schema)
 
-            reference = self._registry.lookup_schema(subject, schema)
+            reference = await self._registry.lookup_schema(subject, schema)
             # schema_refs are per file descriptor
             schema_refs.append(SchemaReference(dep.name,
                                                subject,
@@ -358,7 +378,7 @@ class ProtobufSerializer(BaseSerializer):
     def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(message, ctx)
 
-    def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes an instance of a class derived from Protobuf Message, and prepends
         it with Confluent Schema Registry framing.
@@ -387,13 +407,13 @@ class ProtobufSerializer(BaseSerializer):
         subject = self._subject_name_func(ctx, message.DESCRIPTOR.full_name) if ctx else None
         latest_schema = None
         if subject is not None:
-            latest_schema = self._get_reader_schema(subject, fmt='serialized')
+            latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
         if latest_schema is not None:
             self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
 
         elif subject not in self._known_subjects and ctx is not None:
-            references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
+            references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
                 self._schema.schema_str,
                 self._schema.schema_type,
@@ -401,18 +421,18 @@ class ProtobufSerializer(BaseSerializer):
             )
 
             if self._auto_register:
-                registered_schema = self._registry.register_schema_full_response(
+                registered_schema = await self._registry.register_schema_full_response(
                     subject, self._schema, self._normalize_schemas)
                 self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
-                registered_schema = self._registry.lookup_schema(
+                registered_schema = await self._registry.lookup_schema(
                     subject, self._schema, self._normalize_schemas)
                 self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
         if latest_schema is not None:
-            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
             def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
@@ -426,22 +446,22 @@ class ProtobufSerializer(BaseSerializer):
             self._schema_id.message_indexes = self._index_array
             return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
 
-    def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
+    async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
         if result is not None:
             return result
 
         pool = DescriptorPool()
         _init_pool(pool)
-        _resolve_named_schema(schema, self._registry, pool)
+        await _resolve_named_schema(schema, self._registry, pool)
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
         return fd_proto, pool
 
 
-
-class ProtobufDeserializer(BaseDeserializer):
+@asyncinit
+class AsyncProtobufDeserializer(AsyncBaseDeserializer):
     """
     Deserializer for Protobuf serialized data with Confluent Schema Registry framing.
 
@@ -479,6 +499,17 @@ class ProtobufDeserializer(BaseDeserializer):
     | ``schema.id.deserializer``          | callable | Defines how the schema id/guid is deserialized.      |
     |                                     |          | Defaults to dual_schema_id_deserializer.             |
     +-------------------------------------+----------+------------------------------------------------------+
+    | ``use.deprecated.format``           | bool     | Specifies whether the Protobuf deserializer should   |
+    |                                     |          | deserialize message indexes without zig-zag encoding.|
+    |                                     |          | This option must be explicitly configured as older   |
+    |                                     |          | and newer Protobuf producers are incompatible.       |
+    |                                     |          | If Protobuf messages in the topic to consume were    |
+    |                                     |          | produced with confluent-kafka-python <1.8 then this  |
+    |                                     |          | property must be set to True until all old messages  |
+    |                                     |          | have been processed and producers have been upgraded.|
+    |                                     |          | Warning: This configuration property will be removed |
+    |                                     |          | in a future version of the client.                   |
+    +-------------------------------------+----------+------------------------------------------------------+
 
 
     See Also:
@@ -495,11 +526,11 @@ class ProtobufDeserializer(BaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    def __init__(
+    async def __init__(
         self,
         message_type: Message,
         conf: Optional[dict] = None,
-        schema_registry_client: Optional[SchemaRegistryClient] = None,
+        schema_registry_client: Optional[AsyncSchemaRegistryClient] = None,
         rule_conf: Optional[dict] = None,
         rule_registry: Optional[RuleRegistry] = None
     ):
@@ -535,7 +566,14 @@ class ProtobufDeserializer(BaseDeserializer):
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
-            raise ValueError("use.deprecated.format is no longer supported")
+            warnings.warn("ProtobufDeserializer: the 'use.deprecated.format' "
+                          "configuration property, and the ability to use the "
+                          "old incorrect Protobuf serializer heading format "
+                          "introduced in confluent-kafka-python v1.4.0, "
+                          "will be removed in an upcoming release in 2022 Q2. "
+                          "Please migrate your Python Protobuf producers and "
+                          "consumers to 'use.deprecated.format':False as "
+                          "soon as possible")
 
         descriptor = message_type.DESCRIPTOR
         self._msg_class = GetMessageClass(descriptor)
@@ -547,7 +585,7 @@ class ProtobufDeserializer(BaseDeserializer):
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(data, ctx)
 
-    def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -573,15 +611,15 @@ class ProtobufDeserializer(BaseDeserializer):
         subject = self._subject_name_func(ctx, None)
         latest_schema = None
         if subject is not None and self._registry is not None:
-            latest_schema = self._get_reader_schema(subject, fmt='serialized')
+            latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
         schema_id = SchemaId(PROTOBUF_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
         msg_index = schema_id.message_indexes
 
         if self._registry is not None:
-            writer_schema_raw = self._get_writer_schema(schema_id, subject, fmt='serialized')
-            fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
+            writer_schema_raw = await self._get_writer_schema(schema_id, subject, fmt='serialized')
+            fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
             if subject is None:
@@ -595,7 +633,7 @@ class ProtobufDeserializer(BaseDeserializer):
         if latest_schema is not None:
             migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
-            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             reader_schema = pool.FindFileByName(fd_proto.name)
         else:
             migrations = None
@@ -634,14 +672,14 @@ class ProtobufDeserializer(BaseDeserializer):
                                   field_transformer)
         return msg
 
-    def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
+    async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
         if result is not None:
             return result
 
         pool = DescriptorPool()
         _init_pool(pool)
-        _resolve_named_schema(schema, self._registry, pool)
+        await _resolve_named_schema(schema, self._registry, pool)
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
