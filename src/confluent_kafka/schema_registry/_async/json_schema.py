@@ -201,7 +201,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
                      'schema.id.serializer': prefix_schema_id_serializer,
                      'validate': True}
 
-    async def __init__(
+    async def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: AsyncSchemaRegistryClient,
@@ -292,6 +292,8 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
@@ -468,7 +470,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
                      'schema.id.deserializer': dual_schema_id_deserializer,
                      'validate': True}
 
-    async def __init__(
+    async def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
@@ -546,6 +548,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(data, ctx)
