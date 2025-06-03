@@ -184,7 +184,7 @@ class AvroSerializer(BaseSerializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'schema.id.serializer': prefix_schema_id_serializer}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
@@ -281,6 +281,8 @@ class AvroSerializer(BaseSerializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
@@ -436,7 +438,7 @@ class AvroDeserializer(BaseDeserializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'schema.id.deserializer': dual_schema_id_deserializer}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
@@ -504,6 +506,8 @@ class AvroDeserializer(BaseDeserializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
