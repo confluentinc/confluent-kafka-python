@@ -18,12 +18,6 @@
 import sys
 import os
 import time
-
-# Add proto directory to sys.path to resolve protobuf import dependencies
-proto_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'proto')
-if proto_path not in sys.path:
-    sys.path.insert(0, proto_path)
-
 import pytest
 
 from confluent_kafka.schema_registry._sync.schema_registry_client import SchemaRegistryClient
@@ -53,8 +47,14 @@ from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
 from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
+
+# Add proto directory to sys.path to resolve protobuf import dependencies
+proto_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'proto')
+if proto_path not in sys.path:
+    sys.path.insert(0, proto_path)
+
 from tests.schema_registry.data.proto import example_pb2, nested_pb2, test_pb2, dep_pb2, cycle_pb2, \
-    widget_pb2, newwidget_pb2, newerwidget_pb2
+    widget_pb2, newwidget_pb2, newerwidget_pb2  # noqa: E402
 
 
 class FakeClock(Clock):

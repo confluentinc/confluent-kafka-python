@@ -62,7 +62,6 @@ class FakeClock(Clock):
         return self.fixed_now
 
 
-
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
@@ -2080,27 +2079,35 @@ async def _register_avro_schemas_and_build_awarded_user_schema(client):
 
 
 async def _references_test_common(client, awarded_user, serializer_schema, deserializer_schema):
-    value_serializer = await AsyncAvroSerializer(client, serializer_schema,
-                                      lambda user, ctx:
-                                      dict(award=dict(name=user.award.name,
-                                                      properties=dict(year=user.award.properties.year,
-                                                                      points=user.award.properties.points)),
-                                           user=dict(name=user.user.name,
-                                                     favorite_number=user.user.favorite_number,
-                                                     favorite_color=user.user.favorite_color)))
+    value_serializer = await AsyncAvroSerializer(
+        client, serializer_schema,
+        lambda user, ctx:
+        dict(
+            award=dict(
+                name=user.award.name,
+                properties=dict(year=user.award.properties.year,
+                                points=user.award.properties.points)),
+            user=dict(
+                name=user.user.name,
+                favorite_number=user.user.favorite_number,
+                favorite_color=user.user.favorite_color)))
 
     value_deserializer = \
-        await AsyncAvroDeserializer(client, deserializer_schema,
-                         lambda user, ctx:
-                         AwardedUser(award=Award(name=user.get('award').get('name'),
-                                                 properties=AwardProperties(
-                                                     year=user.get('award').get('properties').get(
-                                                         'year'),
-                                                     points=user.get('award').get('properties').get(
-                                                         'points'))),
-                                     user=User(name=user.get('user').get('name'),
-                                               favorite_number=user.get('user').get('favorite_number'),
-                                               favorite_color=user.get('user').get('favorite_color'))))
+        await AsyncAvroDeserializer(
+            client, deserializer_schema,
+            lambda user, ctx:
+            AwardedUser(
+                award=Award(
+                    name=user.get('award').get('name'),
+                    properties=AwardProperties(
+                        year=user.get('award').get('properties').get(
+                            'year'),
+                        points=user.get('award').get('properties').get(
+                            'points'))),
+                user=User(
+                    name=user.get('user').get('name'),
+                    favorite_number=user.get('user').get('favorite_number'),
+                    favorite_color=user.get('user').get('favorite_color'))))
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await value_serializer(awarded_user, ser_ctx)

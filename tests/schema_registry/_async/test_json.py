@@ -109,8 +109,9 @@ async def test_custom_json_decoder():
         decoded = orjson.loads(data)
         return {k.upper(): v for k, v in decoded.items()}
 
-    deserializer = await AsyncJSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = await AsyncJSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     result = await deserializer(test_data, ctx)
 
@@ -152,8 +153,9 @@ async def test_custom_encoder_decoder_chain():
         json_encode=custom_encoder,
         rule_registry=RuleRegistry()
     )
-    deserializer = await AsyncJSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = await AsyncJSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
 
     # Serialize then deserialize
     encoded = await serializer(test_data, ctx)
@@ -199,8 +201,9 @@ async def test_custom_encoding_with_complex_data():
         json_encode=custom_encoder,
         rule_registry=RuleRegistry()
     )
-    deserializer = await AsyncJSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = await AsyncJSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     encoded = await serializer(test_data, ctx)
     decoded = await deserializer(encoded, ctx)
