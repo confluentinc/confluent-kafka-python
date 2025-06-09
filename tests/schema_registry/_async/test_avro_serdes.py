@@ -24,10 +24,10 @@ from confluent_kafka.schema_registry.rule_registry import RuleRegistry, \
     RuleOverride
 from fastavro._logical_readers import UUID
 
-from confluent_kafka.schema_registry import SchemaRegistryClient, \
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, \
     Schema, Metadata, MetadataProperties, header_schema_id_serializer
-from confluent_kafka.schema_registry.avro import AvroSerializer, \
-    AvroDeserializer
+from confluent_kafka.schema_registry.avro import AsyncAvroSerializer, \
+    AsyncAvroDeserializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import \
     CelFieldExecutor
@@ -50,7 +50,7 @@ from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
 from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, SchemaReference, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
 
 
 class FakeClock(Clock):
@@ -62,15 +62,6 @@ class FakeClock(Clock):
         return self.fixed_now
 
 
-CelExecutor.register()
-CelFieldExecutor.register()
-AwsKmsDriver.register()
-AzureKmsDriver.register()
-GcpKmsDriver.register()
-HcVaultKmsDriver.register()
-JsonataExecutor.register()
-LocalKmsDriver.register()
-
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
@@ -78,30 +69,39 @@ _SUBJECT = _TOPIC + "-value"
 
 
 @pytest.fixture(autouse=True)
-def run_before_and_after_tests(tmpdir):
+async def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
+
+    CelExecutor.register()
+    CelFieldExecutor.register()
+    AwsKmsDriver.register()
+    AzureKmsDriver.register()
+    GcpKmsDriver.register()
+    HcVaultKmsDriver.register()
+    JsonataExecutor.register()
+    LocalKmsDriver.register()
 
     yield  # this is where the testing happens
 
     # Teardown : fill with any logic you want
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     try:
-        client.delete_subject(_SUBJECT, True)
+        await client.delete_subject(_SUBJECT, True)
     except Exception:
         pass
-    subjects = client.get_subjects()
+    subjects = await client.get_subjects()
     for subject in subjects:
         try:
-            client.delete_subject(subject, True)
+            await client.delete_subject(subject, True)
         except Exception:
             pass
 
 
-def test_avro_basic_serialization():
+async def test_avro_basic_serialization():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': True}
     obj = {
         'intField': 123,
@@ -121,18 +121,18 @@ def test_avro_basic_serialization():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_guid_in_header():
+async def test_avro_guid_in_header():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {
         'auto.register.schemas': True,
         'schema.id.serializer': header_schema_id_serializer
@@ -155,18 +155,18 @@ def test_avro_guid_in_header():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_use_schema_id():
+async def test_avro_serialize_use_schema_id():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.schema.id': 1}
 
     obj = {
@@ -187,20 +187,20 @@ def test_avro_serialize_use_schema_id():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_nested():
+async def test_avro_serialize_nested():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': True}
     nested = {
         'intField': 123,
@@ -229,18 +229,18 @@ def test_avro_serialize_nested():
             }},
         ]
     }
-    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_references():
+async def test_avro_serialize_references():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     referenced = {
@@ -264,7 +264,7 @@ def test_avro_serialize_references():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    client.register_schema('ref', Schema(json.dumps(ref_schema)))
+    await client.register_schema('ref', Schema(json.dumps(ref_schema)))
     schema = {
         'type': 'record',
         'name': 'test',
@@ -273,20 +273,20 @@ def test_avro_serialize_references():
         ]
     }
     refs = [SchemaReference('ref', 'ref', 1)]
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_union():
+async def test_avro_serialize_union():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     obj = {
@@ -304,20 +304,20 @@ def test_avro_serialize_union():
             {'name': 'Second', 'type': 'B'}
         ]
     }]
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO'))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_union_with_record_references():
+async def test_avro_serialize_union_with_record_references():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     obj = {
@@ -332,7 +332,7 @@ def test_avro_serialize_union_with_record_references():
             {'name': 'stringField', 'type': 'string'},
         ]
     }
-    client.register_schema('ref', Schema(json.dumps(ref_schema)))
+    await client.register_schema('ref', Schema(json.dumps(ref_schema)))
     schema = ['null', {
         'type': 'record',
         'name': 'A',
@@ -343,20 +343,20 @@ def test_avro_serialize_union_with_record_references():
         ]
     }]
     refs = [SchemaReference('test.B', 'ref', 1)]
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_serialize_union_with_references():
+async def test_avro_serialize_union_with_references():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     obj = {
@@ -377,7 +377,7 @@ def test_avro_serialize_union_with_references():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    client.register_schema('ref', Schema(json.dumps(ref_schema)))
+    await client.register_schema('ref', Schema(json.dumps(ref_schema)))
     ref2_schema = {
         'type': 'record',
         'name': 'ref2',
@@ -385,23 +385,23 @@ def test_avro_serialize_union_with_references():
             {'name': 'otherField', 'type': 'string'}
         ]
     }
-    client.register_schema('ref2', Schema(json.dumps(ref2_schema)))
+    await client.register_schema('ref2', Schema(json.dumps(ref2_schema)))
     schema = ['ref', 'ref2']
     refs = [SchemaReference('ref', 'ref', 1), SchemaReference('ref2', 'ref2', 1)]
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'AVRO', refs))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_schema_evolution():
+async def test_avro_schema_evolution():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     evolution1 = {
@@ -429,24 +429,24 @@ def test_avro_schema_evolution():
         'fieldToDelete': 'bye',
     }
 
-    client.register_schema(_SUBJECT, Schema(json.dumps(evolution1)))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(evolution1)))
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
-    obj_bytes = ser(obj, ser_ctx)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    client.register_schema(_SUBJECT, Schema(json.dumps(evolution2)))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(evolution2)))
 
     client.clear_latest_caches()
-    deser = AvroDeserializer(client, conf={'use.latest.version': True})
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client, conf={'use.latest.version': True})
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj2.get('fieldToDelete') is None
     assert obj2.get('newOptionalField') == 'optional'
 
 
-def test_avro_cel_condition():
+async def test_avro_cel_condition():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -473,7 +473,7 @@ def test_avro_cel_condition():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -488,18 +488,18 @@ def test_avro_cel_condition():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_cel_condition_logical_type():
+async def test_avro_cel_condition_logical_type():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -533,7 +533,7 @@ def test_avro_cel_condition_logical_type():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -548,18 +548,18 @@ def test_avro_cel_condition_logical_type():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_cel_condition_fail():
+async def test_avro_cel_condition_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -586,7 +586,7 @@ def test_avro_cel_condition_fail():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -601,17 +601,16 @@ def test_avro_cel_condition_fail():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
-        ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
-def test_avro_cel_condition_ignore_fail():
+async def test_avro_cel_condition_ignore_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -638,7 +637,7 @@ def test_avro_cel_condition_ignore_fail():
         "NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -653,18 +652,18 @@ def test_avro_cel_condition_ignore_fail():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_cel_field_transform():
+async def test_avro_cel_field_transform():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -691,7 +690,7 @@ def test_avro_cel_field_transform():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -706,9 +705,9 @@ def test_avro_cel_field_transform():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'intField': 123,
@@ -717,14 +716,14 @@ def test_avro_cel_field_transform():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    deser = AvroDeserializer(client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_avro_cel_field_transform_disable():
+async def test_avro_cel_field_transform_disable():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -751,7 +750,7 @@ def test_avro_cel_field_transform_disable():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -770,18 +769,18 @@ def test_avro_cel_field_transform_disable():
     registry = RuleRegistry()
     registry.register_rule_executor(CelFieldExecutor())
     registry.register_override(RuleOverride("CEL_FIELD", None, None, True))
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_registry=registry)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_registry=registry)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert "hi" == newobj['stringField']
 
 
-def test_avro_cel_field_transform_complex():
+async def test_avro_cel_field_transform_complex():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -810,7 +809,7 @@ def test_avro_cel_field_transform_complex():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -823,23 +822,23 @@ def test_avro_cel_field_transform_complex():
         'mapField': {'key': 'world'},
         'unionField': 'bye',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['hello-suffix'],
         'mapField': {'key': 'world-suffix'},
         'unionField': 'bye-suffix',
     }
-    deser = AvroDeserializer(client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_avro_cel_field_transform_complex_with_none():
+async def test_avro_cel_field_transform_complex_with_none():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -868,7 +867,7 @@ def test_avro_cel_field_transform_complex_with_none():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -881,23 +880,23 @@ def test_avro_cel_field_transform_complex_with_none():
         'mapField': {'key': 'world'},
         'unionField': None,
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['hello-suffix'],
         'mapField': {'key': 'world-suffix'},
         'unionField': None,
     }
-    deser = AvroDeserializer(client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_avro_cel_field_transform_complex_nested():
+async def test_avro_cel_field_transform_complex_nested():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -947,7 +946,7 @@ def test_avro_cel_field_transform_complex_nested():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -958,21 +957,21 @@ def test_avro_cel_field_transform_complex_nested():
     obj = {
         'emails': [{'email': 'john@acme.com'}]
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'emails': [{'email': 'john@acme.com-suffix'}]
     }
-    deser = AvroDeserializer(client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_avro_cel_field_condition():
+async def test_avro_cel_field_condition():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -999,7 +998,7 @@ def test_avro_cel_field_condition():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1014,18 +1013,18 @@ def test_avro_cel_field_condition():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = AvroDeserializer(client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_cel_field_condition_fail():
+async def test_avro_cel_field_condition_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         'type': 'record',
@@ -1052,7 +1051,7 @@ def test_avro_cel_field_condition_fail():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1067,19 +1066,18 @@ def test_avro_cel_field_condition_fail():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
-        ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
-def test_avro_encryption():
+async def test_avro_encryption():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1111,7 +1109,7 @@ def test_avro_encryption():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1126,27 +1124,27 @@ def test_avro_encryption():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_deterministic():
+async def test_avro_encryption_deterministic():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1179,7 +1177,7 @@ def test_avro_encryption_deterministic():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1194,27 +1192,27 @@ def test_avro_encryption_deterministic():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_cel():
+async def test_avro_encryption_cel():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1259,7 +1257,7 @@ def test_avro_encryption_cel():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1274,27 +1272,27 @@ def test_avro_encryption_cel():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi-suffix'
     obj['stringField'] = 'hi-suffix'
     obj['bytesField'] = b'foobar'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_dek_rotation():
+async def test_avro_encryption_dek_rotation():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1327,7 +1325,7 @@ def test_avro_encryption_dek_rotation():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1342,18 +1340,18 @@ def test_avro_encryption_dek_rotation():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client: DekRegistryClient = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
     dek_client = executor.client
@@ -1364,13 +1362,13 @@ def test_avro_encryption_dek_rotation():
     now = datetime.now() + timedelta(days=2)
     executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
     dek = dek_client.get_dek("kek1-rot", _SUBJECT, version=-1)
@@ -1380,24 +1378,24 @@ def test_avro_encryption_dek_rotation():
     now = datetime.now() + timedelta(days=2)
     executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
 
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
     dek = dek_client.get_dek("kek1-rot", _SUBJECT, version=-1)
     assert dek.version == 3
 
 
-def test_avro_encryption_f1_preserialized():
+async def test_avro_encryption_f1_preserialized():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     rule_conf = {'secret': 'mysecret'}
     schema = {
         'type': 'record',
@@ -1424,7 +1422,7 @@ def test_avro_encryption_f1_preserialized():
         "ERROR,ERROR",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1437,7 +1435,7 @@ def test_avro_encryption_f1_preserialized():
     }
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
     dek_client: DekRegistryClient = executor.client
     dek_client.register_kek("kek1-f1", "local-kms", "mykey")
@@ -1451,15 +1449,15 @@ def test_avro_encryption_f1_preserialized():
                        111, 116, 87, 56, 99, 65, 47, 74, 97, 108, 55, 117, 107,
                        114, 43, 77, 47, 121, 122])
 
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_deterministic_f1_preserialized():
+async def test_avro_encryption_deterministic_f1_preserialized():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     rule_conf = {'secret': 'mysecret'}
     schema = {
         'type': 'record',
@@ -1487,7 +1485,7 @@ def test_avro_encryption_deterministic_f1_preserialized():
         "ERROR,ERROR",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1500,7 +1498,7 @@ def test_avro_encryption_deterministic_f1_preserialized():
     }
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
     dek_client: DekRegistryClient = executor.client
     dek_client.register_kek("kek1-det-f1", "local-kms", "mykey")
@@ -1513,15 +1511,15 @@ def test_avro_encryption_deterministic_f1_preserialized():
                        110, 107, 84, 87, 87, 57, 78, 54, 86, 98, 107, 51, 73,
                        73, 110, 106, 87, 72, 56, 49, 120, 109, 89, 104, 51, 107, 52, 100])
 
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_dek_rotation_f1_preserialized():
+async def test_avro_encryption_dek_rotation_f1_preserialized():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     rule_conf = {'secret': 'mysecret'}
     schema = {
         'type': 'record',
@@ -1549,7 +1547,7 @@ def test_avro_encryption_dek_rotation_f1_preserialized():
         "ERROR,ERROR",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1562,7 +1560,7 @@ def test_avro_encryption_dek_rotation_f1_preserialized():
     }
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
     dek_client: DekRegistryClient = executor.client
     dek_client.register_kek("kek1-rot-f1", "local-kms", "mykey")
@@ -1576,15 +1574,15 @@ def test_avro_encryption_dek_rotation_f1_preserialized():
                        67, 100, 43, 73, 101, 76, 101, 70, 86, 65, 101, 78, 112,
                        83, 83, 51, 102, 120, 80, 110, 74, 51, 50, 65, 61])
 
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_references():
+async def test_avro_encryption_references():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
 
@@ -1609,7 +1607,7 @@ def test_avro_encryption_references():
             {'name': 'bytesField', 'type': 'bytes'},
         ]
     }
-    client.register_schema('ref', Schema(json.dumps(ref_schema)))
+    await client.register_schema('ref', Schema(json.dumps(ref_schema)))
     schema = {
         'type': 'record',
         'name': 'test',
@@ -1635,7 +1633,7 @@ def test_avro_encryption_references():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         refs,
@@ -1643,27 +1641,27 @@ def test_avro_encryption_references():
         RuleSet(None, [rule])
     ))
 
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['refField']['stringField'] != 'hi'
     obj['refField']['stringField'] = 'hi'
     obj['refField']['bytesField'] = b'foobar'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_encryption_with_union():
+async def test_avro_encryption_with_union():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1695,7 +1693,7 @@ def test_avro_encryption_with_union():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1710,29 +1708,29 @@ def test_avro_encryption_with_union():
         'booleanField': True,
         'bytesField': b'foobar',
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
     dek_client = executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
 
-    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_avro_jsonata_with_cel():
+async def test_avro_jsonata_with_cel():
     rule1_to_2 = "$merge([$sift($, function($v, $k) {$k != 'size'}), {'height': $.'size'}])"
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
 
-    client.set_config(_SUBJECT, ServerConfig(
+    await client.set_config(_SUBJECT, ServerConfig(
         compatibility_group='application.version'
     ))
 
@@ -1745,7 +1743,7 @@ def test_avro_jsonata_with_cel():
             {'name': 'version', 'type': 'int'},
         ]
     }
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1793,7 +1791,7 @@ def test_avro_jsonata_with_cel():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1817,9 +1815,9 @@ def test_avro_jsonata_with_cel():
             'application.version': 'v1'
         }
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'name': 'alice-suffix',
@@ -1831,21 +1829,21 @@ def test_avro_jsonata_with_cel():
             'application.version': 'v2'
         }
     }
-    deser = AvroDeserializer(client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_avro_jsonata_fully_compatible():
+async def test_avro_jsonata_fully_compatible():
     rule1_to_2 = "$merge([$sift($, function($v, $k) {$k != 'size'}), {'height': $.'size'}])"
     rule2_to_1 = "$merge([$sift($, function($v, $k) {$k != 'height'}), {'size': $.'height'}])"
     rule2_to_3 = "$merge([$sift($, function($v, $k) {$k != 'height'}), {'length': $.'height'}])"
     rule3_to_2 = "$merge([$sift($, function($v, $k) {$k != 'length'}), {'height': $.'length'}])"
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
 
-    client.set_config(_SUBJECT, ServerConfig(
+    await client.set_config(_SUBJECT, ServerConfig(
         compatibility_group='application.version'
     ))
 
@@ -1858,7 +1856,7 @@ def test_avro_jsonata_fully_compatible():
             {'name': 'version', 'type': 'int'},
         ]
     }
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1906,7 +1904,7 @@ def test_avro_jsonata_fully_compatible():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1954,7 +1952,7 @@ def test_avro_jsonata_fully_compatible():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "AVRO",
         [],
@@ -1989,11 +1987,11 @@ def test_avro_jsonata_fully_compatible():
             'application.version': 'v1'
         }
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
     ser_conf = {
         'auto.register.schemas': False,
@@ -2002,11 +2000,11 @@ def test_avro_jsonata_fully_compatible():
             'application.version': 'v2'
         }
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj2, ser_ctx)
+    obj_bytes = await ser(obj2, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
     ser_conf = {
         'auto.register.schemas': False,
@@ -2015,21 +2013,21 @@ def test_avro_jsonata_fully_compatible():
             'application.version': 'v3'
         }
     }
-    ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj3, ser_ctx)
+    obj_bytes = await ser(obj3, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
 
-def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
+async def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser_conf = {
         'use.latest.with.metadata': {
             'application.version': 'v1'
         }
     }
-    deser = AvroDeserializer(client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj == newobj
 
     deser_conf = {
@@ -2037,8 +2035,8 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
             'application.version': 'v2'
         }
     }
-    deser = AvroDeserializer(client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
     deser_conf = {
@@ -2046,21 +2044,21 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
             'application.version': 'v3'
         }
     }
-    deser = AvroDeserializer(client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncAvroDeserializer(client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj3 == newobj
 
 
-def test_avro_reference():
+async def test_avro_reference():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
 
-    awarded_user, schema = _register_avro_schemas_and_build_awarded_user_schema(client)
+    awarded_user, schema = await _register_avro_schemas_and_build_awarded_user_schema(client)
 
-    _references_test_common(client, awarded_user, schema, schema)
+    await _references_test_common(client, awarded_user, schema, schema)
 
 
-def _register_avro_schemas_and_build_awarded_user_schema(client):
+async def _register_avro_schemas_and_build_awarded_user_schema(client):
     user = User('Bowie', 47, 'purple')
     award_properties = AwardProperties(10, 2023)
     award = Award("Best In Show", award_properties)
@@ -2071,42 +2069,50 @@ def _register_avro_schemas_and_build_awarded_user_schema(client):
                                                   "award_properties", 1)
     award_schema_ref = SchemaReference("confluent.io.examples.serialization.avro.Award", "award", 1)
 
-    client.register_schema("user", Schema(User.schema_str, 'AVRO'))
-    client.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
-    client.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
+    await client.register_schema("user", Schema(User.schema_str, 'AVRO'))
+    await client.register_schema("award_properties", Schema(AwardProperties.schema_str, 'AVRO'))
+    await client.register_schema("award", Schema(Award.schema_str, 'AVRO', [award_properties_schema_ref]))
 
     references = [user_schema_ref, award_schema_ref]
     schema = Schema(AwardedUser.schema_str, 'AVRO', references)
     return awarded_user, schema
 
 
-def _references_test_common(client, awarded_user, serializer_schema, deserializer_schema):
-    value_serializer = AvroSerializer(client, serializer_schema,
-                                      lambda user, ctx:
-                                      dict(award=dict(name=user.award.name,
-                                                      properties=dict(year=user.award.properties.year,
-                                                                      points=user.award.properties.points)),
-                                           user=dict(name=user.user.name,
-                                                     favorite_number=user.user.favorite_number,
-                                                     favorite_color=user.user.favorite_color)))
+async def _references_test_common(client, awarded_user, serializer_schema, deserializer_schema):
+    value_serializer = await AsyncAvroSerializer(
+        client, serializer_schema,
+        lambda user, ctx:
+        dict(
+            award=dict(
+                name=user.award.name,
+                properties=dict(year=user.award.properties.year,
+                                points=user.award.properties.points)),
+            user=dict(
+                name=user.user.name,
+                favorite_number=user.user.favorite_number,
+                favorite_color=user.user.favorite_color)))
 
     value_deserializer = \
-        AvroDeserializer(client, deserializer_schema,
-                         lambda user, ctx:
-                         AwardedUser(award=Award(name=user.get('award').get('name'),
-                                                 properties=AwardProperties(
-                                                     year=user.get('award').get('properties').get(
-                                                         'year'),
-                                                     points=user.get('award').get('properties').get(
-                                                         'points'))),
-                                     user=User(name=user.get('user').get('name'),
-                                               favorite_number=user.get('user').get('favorite_number'),
-                                               favorite_color=user.get('user').get('favorite_color'))))
+        await AsyncAvroDeserializer(
+            client, deserializer_schema,
+            lambda user, ctx:
+            AwardedUser(
+                award=Award(
+                    name=user.get('award').get('name'),
+                    properties=AwardProperties(
+                        year=user.get('award').get('properties').get(
+                            'year'),
+                        points=user.get('award').get('properties').get(
+                            'points'))),
+                user=User(
+                    name=user.get('user').get('name'),
+                    favorite_number=user.get('user').get('favorite_number'),
+                    favorite_color=user.get('user').get('favorite_color'))))
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = value_serializer(awarded_user, ser_ctx)
+    obj_bytes = await value_serializer(awarded_user, ser_ctx)
 
-    awarded_user2 = value_deserializer(obj_bytes, ser_ctx)
+    awarded_user2 = await value_deserializer(obj_bytes, ser_ctx)
 
     assert awarded_user2 == awarded_user
 

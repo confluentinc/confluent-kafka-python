@@ -558,7 +558,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
                 latest_schema = await self._get_reader_schema(subject)
 
         if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             reader_schema = await self._get_parsed_schema(latest_schema.schema)
         elif self._schema is not None:
