@@ -20,8 +20,9 @@ from collections import defaultdict
 from threading import Lock
 from typing import List, Dict, Optional
 
-from . import SchemaRegistryClient, RegisteredSchema, Schema
-from .error import SchemaRegistryError
+from .schema_registry_client import SchemaRegistryClient
+from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
+from ..error import SchemaRegistryError
 
 
 class _SchemaStore(object):

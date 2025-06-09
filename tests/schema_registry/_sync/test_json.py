@@ -109,8 +109,9 @@ def test_custom_json_decoder():
         decoded = orjson.loads(data)
         return {k.upper(): v for k, v in decoded.items()}
 
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     result = deserializer(test_data, ctx)
 
@@ -152,8 +153,9 @@ def test_custom_encoder_decoder_chain():
         json_encode=custom_encoder,
         rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
 
     # Serialize then deserialize
     encoded = serializer(test_data, ctx)
@@ -199,8 +201,9 @@ def test_custom_encoding_with_complex_data():
         json_encode=custom_encoder,
         rule_registry=RuleRegistry()
     )
-    deserializer = JSONDeserializer(schema_str, json_decode=custom_decoder,
-                                    rule_registry=RuleRegistry())
+    deserializer = JSONDeserializer(
+        schema_str, json_decode=custom_decoder,
+        rule_registry=RuleRegistry())
     ctx = SerializationContext("topic-name", "value")
     encoded = serializer(test_data, ctx)
     decoded = deserializer(encoded, ctx)

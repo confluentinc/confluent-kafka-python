@@ -1158,7 +1158,7 @@ class SchemaRegistryClient(object):
 
     @staticmethod
     def new_client(conf: dict) -> 'SchemaRegistryClient':
-        from confluent_kafka.schema_registry.mock_schema_registry_client import MockSchemaRegistryClient
+        from .mock_schema_registry_client import MockSchemaRegistryClient
         url = conf.get("url")
         if url.startswith("mock://"):
             return MockSchemaRegistryClient(conf)

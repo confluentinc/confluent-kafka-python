@@ -597,7 +597,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             writer_schema = None
 
         if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             reader_schema = pool.FindFileByName(fd_proto.name)
