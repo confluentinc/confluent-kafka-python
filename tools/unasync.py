@@ -12,7 +12,8 @@ import difflib
 # generated, you must add it to this list.
 ASYNC_TO_SYNC = [
     ("src/confluent_kafka/schema_registry/_async", "src/confluent_kafka/schema_registry/_sync"),
-    ("tests/integration/schema_registry/_async", "tests/integration/schema_registry/_sync")
+    ("tests/integration/schema_registry/_async", "tests/integration/schema_registry/_sync"),
+    ("tests/schema_registry/_async", "tests/schema_registry/_sync"),
 ]
 
 SUBS = [
@@ -20,6 +21,7 @@ SUBS = [
     ('@asyncinit', ''),
     ('import asyncio', ''),
     ('asyncio.sleep', 'time.sleep'),
+    ('._async.', '._sync.'),
 
     ('Async([A-Z][A-Za-z0-9_]*)', r'\2'),
     ('_Async([A-Z][A-Za-z0-9_]*)', r'_\2'),
@@ -31,6 +33,7 @@ SUBS = [
     ('__aenter__', '__enter__'),
     ('__aexit__', '__exit__'),
     ('__aiter__', '__iter__'),
+    (r'asyncio.run\((.*)\)', r'\2'),
 ]
 
 COMPILED_SUBS = [

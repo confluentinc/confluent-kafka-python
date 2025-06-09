@@ -50,7 +50,7 @@ from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
 from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, SchemaReference, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
 
 
 class FakeClock(Clock):
@@ -62,14 +62,6 @@ class FakeClock(Clock):
         return self.fixed_now
 
 
-CelExecutor.register()
-CelFieldExecutor.register()
-AwsKmsDriver.register()
-AzureKmsDriver.register()
-GcpKmsDriver.register()
-HcVaultKmsDriver.register()
-JsonataExecutor.register()
-LocalKmsDriver.register()
 
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
@@ -81,6 +73,15 @@ _SUBJECT = _TOPIC + "-value"
 def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
+
+    CelExecutor.register()
+    CelFieldExecutor.register()
+    AwsKmsDriver.register()
+    AzureKmsDriver.register()
+    GcpKmsDriver.register()
+    HcVaultKmsDriver.register()
+    JsonataExecutor.register()
+    LocalKmsDriver.register()
 
     yield  # this is where the testing happens
 
@@ -603,10 +604,9 @@ def test_avro_cel_condition_fail():
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_avro_cel_condition_ignore_fail():
@@ -1069,10 +1069,9 @@ def test_avro_cel_field_condition_fail():
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_avro_encryption():

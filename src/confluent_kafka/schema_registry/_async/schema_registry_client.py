@@ -1158,8 +1158,8 @@ class AsyncSchemaRegistryClient(object):
 
     @staticmethod
     def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
-        from confluent_kafka.schema_registry.mock_schema_registry_client import MockSchemaRegistryClient
+        from .mock_schema_registry_client import AsyncMockSchemaRegistryClient
         url = conf.get("url")
         if url.startswith("mock://"):
-            return MockSchemaRegistryClient(conf)
+            return AsyncMockSchemaRegistryClient(conf)
         return AsyncSchemaRegistryClient(conf)
