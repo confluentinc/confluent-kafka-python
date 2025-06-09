@@ -598,7 +598,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             writer_schema, writer_ref_registry = None, None
 
         if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             reader_schema, reader_ref_registry = await self._get_parsed_schema(latest_schema.schema)
         elif self._schema is not None:

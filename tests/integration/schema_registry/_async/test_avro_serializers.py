@@ -278,8 +278,8 @@ async def test_delivery_report_serialization(kafka_cluster, load_file, avsc, dat
     producer = kafka_cluster.async_producer(value_serializer=value_serializer)
 
     async def assert_cb(err, msg):
-        actual = value_deserializer(msg.value(),
-                                    SerializationContext(topic, MessageField.VALUE, msg.headers()))
+        actual = await value_deserializer(
+            msg.value(), SerializationContext(topic, MessageField.VALUE, msg.headers()))
 
         if record_type == "record":
             assert [v == actual[k] for k, v in data.items()]

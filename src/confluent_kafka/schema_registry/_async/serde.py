@@ -216,7 +216,7 @@ class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = self._registry.lookup_schema(subject, source_info, False, True)
+        source = await self._registry.lookup_schema(subject, source_info, False, True)
         migrations = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE
