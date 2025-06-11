@@ -2,10 +2,15 @@
 
 ## v2.10.1
 
-v2.10.0 is a fix release with the following fixes
+v2.10.1 is a maintenance release with the following fixes
 
 - Handled `None` value for optional `ctx` parameter in  `ProtobufDeserializer` (#1939)
 - Handled `None` value for optional `ctx` parameter in  `AvroDeserializer` (#1973)
+
+confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.10.0
 
