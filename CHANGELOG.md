@@ -11,7 +11,6 @@ confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-
 ## v2.10.0
 
 v2.10.0 is a feature release with the following fixes and enhancements:
