@@ -167,7 +167,7 @@ def verify_describe_groups(cluster, admin_client, topic):
 
     # Consume some messages for the group
     group = 'test-group'
-    group_type = ConsumerGroupType.CLASSIC if TestUtils.use_group_protocol_consumer() else ConsumerGroupType.CONSUMER
+    group_type = ConsumerGroupType.CONSUMER if TestUtils.use_group_protocol_consumer() else ConsumerGroupType.CLASSIC
     group_type_str = 'classic' if group_type == ConsumerGroupType.CLASSIC else 'consumer'
     consume_messages(cluster, group, group_type_str, topic, 2)
 
