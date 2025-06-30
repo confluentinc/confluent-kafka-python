@@ -56,8 +56,7 @@ class TestUtils:
     @staticmethod
     def update_conf_group_protocol(conf=None):
         if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
-            if 'group.protocol' not in conf:
-                conf['group.protocol'] = 'consumer'
+            conf['group.protocol'] = 'consumer'
 
     @staticmethod
     def remove_forbidden_conf_group_protocol_consumer(conf):

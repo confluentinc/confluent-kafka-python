@@ -20,6 +20,7 @@ from confluent_kafka.admin import (AclBinding, AclBindingFilter, ResourceType,
                                    ResourcePatternType, AclOperation, AclPermissionType)
 from confluent_kafka.error import ConsumeError
 from confluent_kafka import ConsumerGroupState, TopicCollection, ConsumerGroupType
+from tests.common import TestUtils
 
 topic_prefix = "test-topic"
 
@@ -166,7 +167,9 @@ def verify_describe_groups(cluster, admin_client, topic):
 
     # Consume some messages for the group
     group = 'test-group'
-    consume_messages(cluster, group, 'classic', topic, 2)
+    group_type = ConsumerGroupType.CLASSIC if TestUtils.use_group_protocol_consumer() else ConsumerGroupType.CONSUMER
+    group_type_str = 'classic' if group_type == ConsumerGroupType.CLASSIC else 'consumer'
+    consume_messages(cluster, group, group_type_str, topic, 2)
 
     # Verify Describe Consumer Groups
     desc = verify_provided_describe_for_authorized_operations(admin_client,
@@ -179,29 +182,10 @@ def verify_describe_groups(cluster, admin_client, topic):
     assert group == desc.group_id
     assert desc.is_simple_consumer_group is False
     assert desc.state == ConsumerGroupState.EMPTY
-    assert desc.type == ConsumerGroupType.CLASSIC
+    assert desc.type == group_type
 
     # Delete group
     perform_admin_operation_sync(admin_client.delete_consumer_groups, [group], request_timeout=10)
-
-    consumer_group = 'test-group-consumer'
-
-    consume_messages(cluster, consumer_group, 'consumer', topic, 2)
-
-    desc = verify_provided_describe_for_authorized_operations(admin_client,
-                                                              admin_client.describe_consumer_groups,
-                                                              AclOperation.READ,
-                                                              AclOperation.DELETE,
-                                                              ResourceType.GROUP,
-                                                              consumer_group,
-                                                              [consumer_group])
-    assert consumer_group == desc.group_id
-    assert desc.is_simple_consumer_group is False
-    assert desc.state == ConsumerGroupState.EMPTY
-    assert desc.type == ConsumerGroupType.CONSUMER
-
-    # Delete group
-    perform_admin_operation_sync(admin_client.delete_consumer_groups, [consumer_group], request_timeout=10)
 
 
 def verify_describe_cluster(admin_client):
