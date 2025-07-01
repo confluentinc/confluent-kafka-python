@@ -87,7 +87,7 @@ async def run_before_and_after_tests(tmpdir):
 async def test_json_basic_serialization():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
-    ser_conf = {'auto.register.schemas': True}
+    ser_conf = {'auto.register.schemas': True, 'validate': True}
     obj = {
         'intField': 123,
         'doubleField': 45.67,
@@ -119,6 +119,40 @@ async def test_json_basic_serialization():
     deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
+
+
+async def test_json_basic_failing_validation():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True}
+    obj = {
+        'intField': '123',
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError):
+        await ser(obj, ser_ctx)
 
 
 async def test_json_guid_in_header():
