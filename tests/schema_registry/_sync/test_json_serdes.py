@@ -151,7 +151,7 @@ def test_json_basic_failing_validation():
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    with pytest.raises(SerializationError) as e:
+    with pytest.raises(SerializationError):
         ser(obj, ser_ctx)
 
 

@@ -151,7 +151,7 @@ async def test_json_basic_failing_validation():
     }
     ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    with pytest.raises(SerializationError) as e:
+    with pytest.raises(SerializationError):
         await ser(obj, ser_ctx)
 
 
