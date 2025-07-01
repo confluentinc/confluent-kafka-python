@@ -272,7 +272,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             raise ValueError("schema.id.serializer must be callable")
 
         self._validate = conf_copy.pop('validate')
-        if not isinstance(self._normalize_schemas, bool):
+        if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
 
         if len(conf_copy) > 0:
