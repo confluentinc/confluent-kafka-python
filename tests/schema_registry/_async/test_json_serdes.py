@@ -123,7 +123,7 @@ async def test_json_basic_serialization():
 
 async def test_json_basic_failing_validation():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': True, 'validate': True}
     obj = {
         'intField': '123',
@@ -149,10 +149,10 @@ async def test_json_basic_failing_validation():
             }
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     with pytest.raises(SerializationError) as e:
-        ser(obj, ser_ctx)
+        await ser(obj, ser_ctx)
 
 
 async def test_json_guid_in_header():
