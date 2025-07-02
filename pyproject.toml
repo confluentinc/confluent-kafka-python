@@ -4,6 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
+license = {file = "LICENSE"}
 version = "2.10.1"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
@@ -29,6 +30,7 @@ ignore_missing_imports = true
 
 [tool.setuptools]
 include-package-data = false
+license-files = ["LICENSE"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements/requirements.txt"]}
