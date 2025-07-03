@@ -312,6 +312,15 @@ class RuleKind(str, Enum):
         return str(self.value)
 
 
+class RulePhase(str, Enum):
+    MIGRATION = "MIGRATION"
+    DOMAIN = "DOMAIN"
+    ENCODING = "ENCODING"
+
+    def __str__(self) -> str:
+        return str(self.value)
+
+
 class RuleMode(str, Enum):
     UPGRADE = "UPGRADE"
     DOWNGRADE = "DOWNGRADE"
@@ -471,6 +480,7 @@ class Rule:
 class RuleSet:
     migration_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
     domain_rules: Optional[List["Rule"]] = _attrs_field(hash=False)
+    encoding_rules: Optional[List["Rule"]] = _attrs_field(hash=False, default=None)
 
     def to_dict(self) -> Dict[str, Any]:
         _migration_rules: Optional[List[Dict[str, Any]]] = None
@@ -487,12 +497,21 @@ class RuleSet:
                 domain_rules_item = domain_rules_item_data.to_dict()
                 _domain_rules.append(domain_rules_item)
 
+        _encoding_rules: Optional[List[Dict[str, Any]]] = None
+        if self.encoding_rules is not None:
+            _encoding_rules = []
+            for encoding_rules_item_data in self.encoding_rules:
+                encoding_rules_item = encoding_rules_item_data.to_dict()
+                _encoding_rules.append(encoding_rules_item)
+
         field_dict: Dict[str, Any] = {}
         field_dict.update({})
         if _migration_rules is not None:
             field_dict["migrationRules"] = _migration_rules
         if _domain_rules is not None:
             field_dict["domainRules"] = _domain_rules
+        if _encoding_rules is not None:
+            field_dict["encodingRules"] = _encoding_rules
 
         return field_dict
 
@@ -511,15 +530,24 @@ class RuleSet:
             domain_rules_item = Rule.from_dict(domain_rules_item_data)
             domain_rules.append(domain_rules_item)
 
+        encoding_rules = []
+        _encoding_rules = d.pop("encodingRules", None)
+        for encoding_rules_item_data in _encoding_rules or []:
+            encoding_rules_item = Rule.from_dict(encoding_rules_item_data)
+            encoding_rules.append(encoding_rules_item)
+
         rule_set = cls(
             migration_rules=migration_rules,
             domain_rules=domain_rules,
+            encoding_rules=encoding_rules,
         )
 
         return rule_set
 
     def __hash__(self):
-        return hash(frozenset((self.migration_rules or []) + (self.domain_rules or [])))
+        return hash(frozenset((self.migration_rules or []) +
+                              (self.domain_rules or []) +
+                              (self.encoding_rules or [])))
 
 
 @_attrs_define

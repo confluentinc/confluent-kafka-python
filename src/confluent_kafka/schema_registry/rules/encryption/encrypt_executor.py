@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import io
 import logging
 import time
 from typing import Optional, Tuple, Any
@@ -397,6 +398,8 @@ class EncryptionExecutorTransform(object):
         if field_type == FieldType.STRING:
             return value.encode("utf-8")
         elif field_type == FieldType.BYTES:
+            if isinstance(value, io.BytesIO):
+                return value.read()
             return value
         return None
 
