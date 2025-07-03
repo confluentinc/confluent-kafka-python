@@ -14,7 +14,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
+import io
 import json
 from typing import Union, Optional, Tuple, Callable
 
@@ -33,6 +33,8 @@ from confluent_kafka.schema_registry.common import asyncinit
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC, JsonSchema, _retrieve_via_httpx, transform, _ContextStringIO, JSON_TYPE
 )
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import AsyncBaseSerializer, AsyncBaseDeserializer, \
     ParsedSchemaCache, SchemaId
@@ -374,8 +376,14 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
             if isinstance(encoded_value, str):
                 encoded_value = encoded_value.encode("utf8")
             fo.write(encoded_value)
+            buffer = fo.getvalue()
 
-            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
+            if latest_schema is not None:
+                buffer = self._execute_rules_with_phase(
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
+                    None, latest_schema.schema, buffer, None, None)
+
+            return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
@@ -552,9 +560,9 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
     __init__ = __init_impl
 
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
-        return self.__serialize(data, ctx)
+        return self.__deserialize(data, ctx)
 
-    async def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -583,9 +591,6 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         schema_id = SchemaId(JSON_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
-        # JSON documents are self-describing; no need to query schema
-        obj_dict = self._json_decode(payload.read())
-
         if self._registry is not None:
             writer_schema_raw = await self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
@@ -596,6 +601,15 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         else:
             writer_schema_raw = None
             writer_schema, writer_ref_registry = None, None
+
+        payload = self._execute_rules_with_phase(
+            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+            None, writer_schema_raw, payload, None, None)
+        if isinstance(payload, bytes):
+            payload = io.BytesIO(payload)
+
+        # JSON documents are self-describing; no need to query schema
+        obj_dict = self._json_decode(payload.read())
 
         if latest_schema is not None:
             migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)

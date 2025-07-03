@@ -32,7 +32,7 @@ from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
     AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor
+    FieldEncryptionExecutor, EncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
     GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
@@ -980,7 +980,7 @@ def test_json_encryption():
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -988,6 +988,74 @@ def test_json_encryption():
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
+
+    deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_json_payloadencryption():
+    executor = EncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT_PAYLOAD",
+        None,
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "JSON",
+        [],
+        None,
+        RuleSet(None, None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
     executor.client = dek_client
@@ -1060,7 +1128,7 @@ def test_json_encryption_with_union():
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1070,7 +1138,7 @@ def test_json_encryption_with_union():
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1151,7 +1219,7 @@ def test_json_encryption_with_references():
         'otherField': nested
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1161,7 +1229,7 @@ def test_json_encryption_with_references():
     obj['otherField']['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
