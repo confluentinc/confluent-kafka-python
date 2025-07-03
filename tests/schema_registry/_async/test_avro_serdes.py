@@ -1125,7 +1125,7 @@ async def test_avro_encryption():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1135,7 +1135,7 @@ async def test_avro_encryption():
     obj['bytesField'] = b'foobar'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1193,7 +1193,7 @@ async def test_avro_encryption_deterministic():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1203,7 +1203,7 @@ async def test_avro_encryption_deterministic():
     obj['bytesField'] = b'foobar'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1273,7 +1273,7 @@ async def test_avro_encryption_cel():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1283,7 +1283,7 @@ async def test_avro_encryption_cel():
     obj['bytesField'] = b'foobar'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1341,7 +1341,7 @@ async def test_avro_encryption_dek_rotation():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1350,17 +1350,17 @@ async def test_avro_encryption_dek_rotation():
     obj['stringField'] = 'hi'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
-    dek_client = executor.client
+    dek_client = executor.executor.client
     dek = dek_client.get_dek("kek1-rot", _SUBJECT, version=-1)
     assert dek.version == 1
 
     # advance 2 days
     now = datetime.now() + timedelta(days=2)
-    executor.clock.fixed_now = int(round(now.timestamp() * 1000))
+    executor.executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1376,7 +1376,7 @@ async def test_avro_encryption_dek_rotation():
 
     # advance 2 days
     now = datetime.now() + timedelta(days=2)
-    executor.clock.fixed_now = int(round(now.timestamp() * 1000))
+    executor.executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1437,7 +1437,7 @@ async def test_avro_encryption_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-f1", "local-kms", "mykey")
 
     encrypted_dek = "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
@@ -1500,7 +1500,7 @@ async def test_avro_encryption_deterministic_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-det-f1", "local-kms", "mykey")
 
     encrypted_dek = ("YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9oz"
@@ -1562,7 +1562,7 @@ async def test_avro_encryption_dek_rotation_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-rot-f1", "local-kms", "mykey")
 
     encrypted_dek = "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
@@ -1642,7 +1642,7 @@ async def test_avro_encryption_references():
     ))
 
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1652,7 +1652,7 @@ async def test_avro_encryption_references():
     obj['refField']['bytesField'] = b'foobar'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1709,7 +1709,7 @@ async def test_avro_encryption_with_union():
         'bytesField': b'foobar',
     }
     ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -1719,7 +1719,7 @@ async def test_avro_encryption_with_union():
     obj['bytesField'] = b'foobar'
 
     deser = await AsyncAvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 

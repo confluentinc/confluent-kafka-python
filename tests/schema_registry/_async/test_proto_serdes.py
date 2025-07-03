@@ -568,7 +568,7 @@ async def test_proto_encryption():
         oneof_string='oneof'
     )
     ser = await AsyncProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -586,7 +586,7 @@ async def test_proto_encryption():
         'use.deprecated.format': False
     }
     deser = await AsyncProtobufDeserializer(example_pb2.Author, deser_conf, client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 

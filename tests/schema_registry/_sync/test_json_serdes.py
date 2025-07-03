@@ -980,7 +980,7 @@ def test_json_encryption():
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -990,7 +990,7 @@ def test_json_encryption():
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1060,7 +1060,7 @@ def test_json_encryption_with_union():
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1070,7 +1070,7 @@ def test_json_encryption_with_union():
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1151,7 +1151,7 @@ def test_json_encryption_with_references():
         'otherField': nested
     }
     ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1161,7 +1161,7 @@ def test_json_encryption_with_references():
     obj['otherField']['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
     deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
