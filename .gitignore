@@ -2,6 +2,7 @@ build
 _build
 build-openssl
 dist
+dest
 *~
 \#*
 MANIFEST
