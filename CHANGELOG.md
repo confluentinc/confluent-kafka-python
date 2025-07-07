@@ -1,3 +1,4 @@
+small change
 # Confluent's Python client for Apache Kafka
 
 ## v2.11.0
