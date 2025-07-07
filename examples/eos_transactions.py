@@ -109,7 +109,7 @@ def main(args):
 
     producer = Producer({
         'bootstrap.servers': brokers,
-        'transactional.id': 'eos-transactions.py'
+        'transactional.id': 'eos_transactions.py'
     })
 
     # Initialize producer transaction.
