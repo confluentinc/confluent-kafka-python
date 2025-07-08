@@ -14,7 +14,9 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64 - Python 3.6-3.12 -- TEST"
+  - name: "Wheels: OSX x64 - Python 3.6-3.12"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -31,7 +33,10 @@ blocks:
             - sem-version python 3.11
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-  - name: "Wheels: OSX x64 - Python 3.13 -- TEST"
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: OSX x64 - Python 3.13"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -52,7 +57,10 @@ blocks:
             - sem-version python 3.11
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
-  - name: "Wheels: OSX arm64 - Python 3.8-3.12 -- TEST"
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.8-3.12"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -71,7 +79,10 @@ blocks:
             - sem-version python 3.11
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
-  - name: "Wheels: OSX arm64 - Python 3.13 -- TEST"
+            - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
+  - name: "Wheels: OSX arm64 - Python 3.13"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -94,6 +105,7 @@ blocks:
             - sem-version python 3.11
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
