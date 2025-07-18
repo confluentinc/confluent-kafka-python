@@ -34,7 +34,7 @@ from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
     AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor, Clock
+    FieldEncryptionExecutor, Clock, EncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
     GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
@@ -568,7 +568,7 @@ async def test_proto_encryption():
         oneof_string='oneof'
     )
     ser = await AsyncProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = await ser(obj, ser_ctx)
 
@@ -581,6 +581,62 @@ async def test_proto_encryption():
         works=['The Castle', 'TheTrial'],
         oneof_string='oneof'
     )
+
+    deser_conf = {
+        'use.deprecated.format': False
+    }
+    deser = await AsyncProtobufDeserializer(example_pb2.Author, deser_conf, client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_proto_payload_encryption():
+    executor = EncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': False,
+        'use.latest.version': True,
+        'use.deprecated.format': False
+    }
+    rule_conf = {'secret': 'mysecret'}
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT_PAYLOAD",
+        None,
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    await client.register_schema(_SUBJECT, Schema(
+        _schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+        "PROTOBUF",
+        [],
+        None,
+        RuleSet(None, None, [rule])
+    ))
+    obj = example_pb2.Author(
+        name='Kafka',
+        id=123,
+        picture=b'foobar',
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
+    )
+    ser = await AsyncProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
 
     deser_conf = {
         'use.deprecated.format': False

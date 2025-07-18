@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import io
 import logging
 import time
 from typing import Optional, Tuple, Any
@@ -30,8 +31,8 @@ from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_
 from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import \
     get_kms_driver, KmsDriver
 from confluent_kafka.schema_registry.serde import RuleContext, \
-    FieldRuleExecutor, FieldTransform, RuleError, FieldContext, FieldType
-
+    RuleError, RuleExecutor, FieldType, FieldRuleExecutor, FieldTransform, \
+    FieldContext
 
 log = logging.getLogger(__name__)
 
@@ -53,7 +54,7 @@ class Clock(object):
         return int(round(time.time() * 1000))
 
 
-class FieldEncryptionExecutor(FieldRuleExecutor):
+class EncryptionExecutor(RuleExecutor):
 
     def __init__(self, clock: Clock = Clock()):
         self.client = None
@@ -81,15 +82,19 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
             self.config = rule_conf if rule_conf else {}
 
     def type(self) -> str:
-        return "ENCRYPT"
+        return "ENCRYPT_PAYLOAD"
 
-    def new_transform(self, ctx: RuleContext) -> FieldTransform:
+    def transform(self, ctx: RuleContext, message: Any) -> Any:
+        executor = self.new_transform(ctx)
+        return executor.transform(ctx, FieldType.BYTES, message)
+
+    def new_transform(self, ctx: RuleContext) -> 'EncryptionExecutorTransform':
         cryptor = self._get_cryptor(ctx)
         kek_name = self._get_kek_name(ctx)
         dek_expiry_days = self._get_dek_expiry_days(ctx)
-        transform = FieldEncryptionExecutorTransform(
+        transform = EncryptionExecutorTransform(
             self, cryptor, kek_name, dek_expiry_days)
-        return transform.transform
+        return transform
 
     def close(self):
         if self.client is not None:
@@ -125,11 +130,11 @@ class FieldEncryptionExecutor(FieldRuleExecutor):
 
     @classmethod
     def register(cls):
-        RuleRegistry.register_rule_executor(FieldEncryptionExecutor())
+        RuleRegistry.register_rule_executor(EncryptionExecutor())
 
     @classmethod
-    def register_with_clock(cls, clock: Clock) -> 'FieldEncryptionExecutor':
-        executor = FieldEncryptionExecutor(clock)
+    def register_with_clock(cls, clock: Clock) -> 'EncryptionExecutor':
+        executor = EncryptionExecutor(clock)
         RuleRegistry.register_rule_executor(executor)
         return executor
 
@@ -191,9 +196,9 @@ class Cryptor:
             return primitive.decrypt(ciphertext, associated_data)
 
 
-class FieldEncryptionExecutorTransform(object):
+class EncryptionExecutorTransform(object):
 
-    def __init__(self, executor: FieldEncryptionExecutor, cryptor: Cryptor, kek_name: str, dek_expiry_days: int):
+    def __init__(self, executor: EncryptionExecutor, cryptor: Cryptor, kek_name: str, dek_expiry_days: int):
         self._executor = executor
         self._cryptor = cryptor
         self._kek_name = kek_name
@@ -341,13 +346,13 @@ class FieldEncryptionExecutorTransform(object):
                 and dek is not None
                 and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days)
 
-    def transform(self, ctx: RuleContext, field_ctx: FieldContext, field_value: Any) -> Any:
+    def transform(self, ctx: RuleContext, field_type: FieldType, field_value: Any) -> Any:
         if field_value is None:
             return None
         if ctx.rule_mode == RuleMode.WRITE:
-            plaintext = self._to_bytes(field_ctx.field_type, field_value)
+            plaintext = self._to_bytes(field_type, field_value)
             if plaintext is None:
-                raise RuleError(f"type {field_ctx.field_type} not supported for encryption")
+                raise RuleError(f"type {field_type} not supported for encryption")
             version = None
             if self._is_dek_rotated():
                 version = -1
@@ -356,15 +361,15 @@ class FieldEncryptionExecutorTransform(object):
             ciphertext = self._cryptor.encrypt(key_material_bytes, plaintext, Cryptor.EMPTY_AAD)
             if self._is_dek_rotated():
                 ciphertext = self._prefix_version(dek.version, ciphertext)
-            if field_ctx.field_type == FieldType.STRING:
+            if field_type == FieldType.STRING:
                 return base64.b64encode(ciphertext).decode("utf-8")
             else:
-                return self._to_object(field_ctx.field_type, ciphertext)
+                return self._to_object(field_type, ciphertext)
         elif ctx.rule_mode == RuleMode.READ:
-            if field_ctx.field_type == FieldType.STRING:
+            if field_type == FieldType.STRING:
                 ciphertext = base64.b64decode(field_value)
             else:
-                ciphertext = self._to_bytes(field_ctx.field_type, field_value)
+                ciphertext = self._to_bytes(field_type, field_value)
             if ciphertext is None:
                 return field_value
 
@@ -376,7 +381,7 @@ class FieldEncryptionExecutorTransform(object):
             dek = self._get_or_create_dek(ctx, version)
             key_material_bytes = dek.get_key_material_bytes()
             plaintext = self._cryptor.decrypt(key_material_bytes, ciphertext, Cryptor.EMPTY_AAD)
-            return self._to_object(field_ctx.field_type, plaintext)
+            return self._to_object(field_type, plaintext)
         else:
             raise RuleError(f"unsupported rule mode {ctx.rule_mode}")
 
@@ -393,6 +398,8 @@ class FieldEncryptionExecutorTransform(object):
         if field_type == FieldType.STRING:
             return value.encode("utf-8")
         elif field_type == FieldType.BYTES:
+            if isinstance(value, io.BytesIO):
+                return value.read()
             return value
         return None
 
@@ -420,3 +427,43 @@ class FieldEncryptionExecutorTransform(object):
         kms_client = kms_driver.new_kms_client(config, kek_url)
         register_kms_client(kms_client)
         return kms_client
+
+
+class FieldEncryptionExecutor(FieldRuleExecutor):
+
+    def __init__(self, clock: Clock = Clock()):
+        self.executor = EncryptionExecutor(clock)
+
+    def configure(self, client_conf: dict, rule_conf: dict):
+        self.executor.configure(client_conf, rule_conf)
+
+    def type(self) -> str:
+        return "ENCRYPT"
+
+    def new_transform(self, ctx: RuleContext) -> FieldTransform:
+        executor_transform = self.executor.new_transform(ctx)
+        transform = FieldEncryptionExecutorTransform(executor_transform)
+        return transform.transform
+
+    def close(self):
+        if self.client is not None:
+            self.client.__exit__()
+
+    @classmethod
+    def register(cls):
+        RuleRegistry.register_rule_executor(FieldEncryptionExecutor())
+
+    @classmethod
+    def register_with_clock(cls, clock: Clock) -> 'FieldEncryptionExecutor':
+        executor = FieldEncryptionExecutor(clock)
+        RuleRegistry.register_rule_executor(executor)
+        return executor
+
+
+class FieldEncryptionExecutorTransform(object):
+
+    def __init__(self, executor_transform: 'EncryptionExecutorTransform'):
+        self.executor_transform = executor_transform
+
+    def transform(self, ctx: RuleContext, field_ctx: FieldContext, field_value: Any) -> Any:
+        return self.executor_transform.transform(ctx, field_ctx.field_type, field_value)
