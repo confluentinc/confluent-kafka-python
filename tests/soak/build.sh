@@ -14,6 +14,9 @@ set -eu
 
 
 echo "Building and installing librdkafka $librdkafka_version"
+if [[ ! -d librdkafka ]]; then
+    git clone https://github.com/confluentinc/librdkafka.git
+fi
 pushd librdkafka
 sudo make uninstall
 git fetch --tags
