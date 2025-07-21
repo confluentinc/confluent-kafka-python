@@ -2,7 +2,7 @@
 #
 #
 
-# Bootstrap EC2 instance (Ubuntu 18.04) for soak client use
+# Bootstrap EC2 instance (Ubuntu) for soak client use
 #
 # Usage:
 #  $0 <python-branch/tag> <librdkafka-branch/tag>
@@ -10,12 +10,12 @@
 set -e
 
 if [[ $# != 2 ]]; then
-    echo "Usage: $0 <python-client-branch/tag> <librdkafka-branch/tag>"
+    echo "Usage: $0 <librdkafka-branch/tag> <python-client-branch/tag>"
     exit 1
 fi
 
-python_branch=$1
-librdkafka_branch=$2
+librdkafka_branch=$1
+python_branch=$2
 otel_collector_version=0.130.0
 otel_collector_package_url="https://github.com/open-telemetry/"\
 "opentelemetry-collector-releases/releases/download/"\
