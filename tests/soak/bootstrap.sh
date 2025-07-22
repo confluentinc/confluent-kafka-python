@@ -31,36 +31,31 @@ rm otel_collector_package.deb
 sudo cp otel-config.yaml /etc/otelcol-contrib/config.yaml
 sudo systemctl restart otelcol-contrib
 
+testdir=$PWD
+export LIBRARY_PATH=$testdir/librdkafka-installation/lib
+export LD_LIBRARY_PATH=$testdir/librdkafka-installation/lib
+export CPLUS_INCLUDE_PATH=$testdir/librdkafka-installation/include
+export C_INCLUDE_PATH=$testdir/librdkafka-installation/include
+mkdir -p $testdir/librdkafka-installation
+
 if [[ ! -d confluent-kafka-python ]]; then
     git clone https://github.com/confluentinc/confluent-kafka-python
 fi
-
-pushd confluent-kafka-python
-
-git checkout $python_branch
-
-echo "Installing librdkafka $librdkafka_branch"
-tools/bootstrap-librdkafka.sh --require-ssl $librdkafka_branch /usr
-rm -rf tmp-build
-
-# echo "Installing interceptors"
-# tools/install-interceptors.sh
 
 echo "Setting up virtualenv in $venv"
 if [[ ! -d $venv ]]; then
     python3 -m venv $venv
 fi
 source $venv/bin/activate
-
 pip install -U pip
+pip install -r $testdir/../../requirements/requirements-soaktest.txt
+deactivate
 
-pip install -v .[soaktest]
+./build.sh $librdkafka_branch $python_branch
 
-popd # ..python
-
+source $venv/bin/activate
 echo "Verifying python client installation"
 python -c "import confluent_kafka; print(confluent_kafka.version(), confluent_kafka.libversion())"
-
 deactivate
 
 echo "All done, activate the virtualenv in $venv before running the client:"

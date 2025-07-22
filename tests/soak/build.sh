@@ -12,7 +12,7 @@ fi
 set -eu
 
 
-
+testdir=$PWD
 echo "Building and installing librdkafka $librdkafka_version"
 if [[ ! -d librdkafka ]]; then
     git clone https://github.com/confluentinc/librdkafka.git
@@ -21,18 +21,24 @@ pushd librdkafka
 sudo make uninstall
 git fetch --tags
 git checkout $librdkafka_version
-./configure --reconfigure
+./configure --reconfigure --prefix=$testdir/librdkafka-installation
 make clean
 make -j
-sudo make install
+make install
 popd
 
+export LIBRARY_PATH=$testdir/librdkafka-installation/lib
+export LD_LIBRARY_PATH=$testdir/librdkafka-installation/lib
+export CPLUS_INCLUDE_PATH=$testdir/librdkafka-installation/include
+export C_INCLUDE_PATH=$testdir/librdkafka-installation/include
 
 echo "Building confluent-kafka-python $cflpy_version"
 set +u
 source venv/bin/activate
+python3 -m pip uninstall -y confluent-kafka
 set -u
 pushd confluent-kafka-python
+rm -rf ./build
 git fetch --tags
 git checkout $cflpy_version
 python3 -m pip install .
