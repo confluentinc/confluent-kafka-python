@@ -2,6 +2,8 @@
 
 source venv/bin/activate
 
+testdir=$PWD
+export LD_LIBRARY_PATH=$testdir/librdkafka-installation/lib
 librdkafka_version=$(python3 -c 'from confluent_kafka import libversion; print(libversion()[0])')
 
 if [[ -z $librdkafka_version ]]; then
@@ -17,7 +19,7 @@ echo "Starting soak client using topic $topic. Logging to $logfile."
 set +x
 # Ignore SIGINT in children (inherited)
 trap "" SIGINT
-time opentelemetry-instrument confluent-kafka-python/tests/soak/soakclient.py -i $TESTID -t $topic -r 80 -f $1 |& tee /dev/tty | bzip2 > $logfile &
+time opentelemetry-instrument $testdir/soakclient.py -i $TESTID -t $topic -r 80 -f $1 |& tee /dev/tty | bzip2 > $logfile &
 PID=$!
 # On SIGINT kill only the first process of the pipe
 onsigint() {
