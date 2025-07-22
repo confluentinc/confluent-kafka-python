@@ -20,7 +20,7 @@ otel_collector_version=0.130.0
 otel_collector_package_url="https://github.com/open-telemetry/"\
 "opentelemetry-collector-releases/releases/download/"\
 "v${otel_collector_version}/otelcol-contrib_${otel_collector_version}_linux_amd64.deb"
-venv=$PWD/venv
+
 
 sudo apt update
 sudo apt install -y git curl wget make gcc g++ zlib1g-dev libssl-dev \
@@ -31,36 +31,12 @@ rm otel_collector_package.deb
 sudo cp otel-config.yaml /etc/otelcol-contrib/config.yaml
 sudo systemctl restart otelcol-contrib
 
-if [[ ! -d confluent-kafka-python ]]; then
-    git clone https://github.com/confluentinc/confluent-kafka-python
-fi
+./build.sh $librdkafka_branch $python_branch
 
-pushd confluent-kafka-python
-
-git checkout $python_branch
-
-echo "Installing librdkafka $librdkafka_branch"
-tools/bootstrap-librdkafka.sh --require-ssl $librdkafka_branch /usr
-rm -rf tmp-build
-
-# echo "Installing interceptors"
-# tools/install-interceptors.sh
-
-echo "Setting up virtualenv in $venv"
-if [[ ! -d $venv ]]; then
-    python3 -m venv $venv
-fi
+venv=$PWD/venv
 source $venv/bin/activate
-
-pip install -U pip
-
-pip install -v .[soaktest]
-
-popd # ..python
-
 echo "Verifying python client installation"
 python -c "import confluent_kafka; print(confluent_kafka.version(), confluent_kafka.libversion())"
-
 deactivate
 
 echo "All done, activate the virtualenv in $venv before running the client:"
