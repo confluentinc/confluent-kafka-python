@@ -12,8 +12,6 @@ OpenTelemetry reporting supported through OTLP.
 
 1. Edit `ccloud.config`
 
-2. Edit `otel-config.yaml`
-
 3. the first time:
 ```bash
 ./bootstrap.sh <python-branch/tag> <librdkafka-branch/tag>
