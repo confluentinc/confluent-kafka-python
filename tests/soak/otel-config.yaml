@@ -32,7 +32,3 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [prometheusremotewrite]
-    logs:
-      receivers: [otlp]
-      processors: [batch]
-      exporters: [prometheusremotewrite]
