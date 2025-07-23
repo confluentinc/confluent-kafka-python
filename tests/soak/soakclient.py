@@ -448,6 +448,11 @@ class SoakClient (object):
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
         self.consumer = Consumer(cconf)
 
+        # Initialize some counters to zero to make them appear in the metrics
+        self.incr_counter("consumer.error", 0)
+        self.incr_counter("consumer.msgdup", 0)
+        self.incr_counter("producer.errorcb", 0)
+
         # Create and start producer thread
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
         self.producer_thread.start()
