@@ -34,11 +34,6 @@ sudo systemctl restart otelcol-contrib
 ./build.sh $librdkafka_branch $python_branch
 
 venv=$PWD/venv
-source $venv/bin/activate
-echo "Verifying python client installation"
-python -c "import confluent_kafka; print(confluent_kafka.version(), confluent_kafka.libversion())"
-deactivate
-
 echo "All done, activate the virtualenv in $venv before running the client:"
 echo "source $venv/bin/activate"
 
