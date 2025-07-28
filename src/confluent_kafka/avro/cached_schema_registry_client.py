@@ -400,6 +400,7 @@ class CachedSchemaRegistryClient(object):
             log.error("Invalid version:" + str(code))
             return (None, None, None)
         elif not (code >= 200 and code <= 299):
+            log.error("Unable to get schema for the specific version:" + str(code))
             return (None, None, None)
         schema_id = result['id']
         version = result['version']
