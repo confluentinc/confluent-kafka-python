@@ -310,7 +310,7 @@ static PyTypeObject KafkaErrorType = {
 	"  - Exceptions\n"
         "\n"
         "Args:\n"
-        "  error_code (KafkaError): Error code indicating the type of error.\n"
+        "  error (KafkaError): Error code indicating the type of error.\n"
         "\n"
         "  reason (str): Alternative message to describe the error.\n"
         "\n"
@@ -339,7 +339,6 @@ static PyTypeObject KafkaErrorType = {
 	0,                         /* tp_alloc */
         KafkaError_new             /* tp_new */
 };
-
 
 /**
  * @brief Internal factory to create KafkaError object.
@@ -408,9 +407,6 @@ static void cfl_PyErr_Fatal (rd_kafka_resp_err_t err, const char *reason) {
         ((KafkaError *)eo)->fatal = 1;
         PyErr_SetObject(KafkaException, eo);
 }
-
-
-
 
 
 /****************************************************************************
@@ -810,6 +806,158 @@ PyObject *Message_new0 (const Handle *handle, const rd_kafka_message_t *rkm) {
 
 
 
+/****************************************************************************
+ *
+ *
+ * Uuid
+ *
+ *
+ *
+ *
+ ****************************************************************************/
+static PyObject *Uuid_most_significant_bits (Uuid *self, PyObject *ignore) {
+        if(self->cUuid) {
+                return cfl_PyLong_FromLong(rd_kafka_Uuid_most_significant_bits(self->cUuid));
+        }
+        Py_RETURN_NONE;
+}
+
+static PyObject *Uuid_least_significant_bits (Uuid *self, PyObject *ignore) {
+        if(self->cUuid) {
+                return cfl_PyLong_FromLong(rd_kafka_Uuid_least_significant_bits(self->cUuid));
+        }
+        Py_RETURN_NONE;
+}
+
+static PyMethodDef Uuid_methods[] = {
+	{ "get_most_significant_bits", (PyCFunction)Uuid_most_significant_bits, METH_NOARGS,
+	  "  :returns: Most significant 64 bits of the 128 bits Uuid\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ "get_least_significant_bits", (PyCFunction)Uuid_least_significant_bits, METH_NOARGS,
+	  "  :returns: Least significant 64 bits of the 128 bits Uuid\n"
+	  "  :rtype: int\n"
+	  "\n"
+	},
+	{ NULL }
+};
+
+
+static PyObject *Uuid_str0 (Uuid *self) {
+        if(self->cUuid) {
+                const char *base64str = rd_kafka_Uuid_base64str(self->cUuid);
+                if(base64str)
+                        return cfl_PyUnistr(_FromString(base64str));
+        }
+        Py_RETURN_NONE;
+}
+
+static long Uuid_hash (Uuid *self) {
+        
+        return rd_kafka_Uuid_most_significant_bits(self->cUuid) ^ rd_kafka_Uuid_least_significant_bits(self->cUuid);
+}
+
+
+static PyObject *Uuid_new (PyTypeObject *type, PyObject *args,
+                               PyObject *kwargs) {
+        PyObject *self = type->tp_alloc(type, 1);
+        return self;
+}
+
+
+static int Uuid_init (PyObject *self0, PyObject *args,
+                          PyObject *kwargs) {
+        Uuid *self = (Uuid *)self0;
+        static char *kws[] = { "most_significant_bits",
+                               "least_significant_bits",
+                               NULL };
+        int64_t most_significant_bits;
+        int64_t least_significant_bits;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LL", kws,
+                                         &most_significant_bits, 
+                                         &least_significant_bits))
+                return -1;
+
+        self->cUuid = rd_kafka_Uuid_new(most_significant_bits, least_significant_bits);
+
+        return 0;
+}
+
+static int Uuid_clear (Uuid *self) {
+	if (self->cUuid) {
+		rd_kafka_Uuid_destroy(self->cUuid);
+		self->cUuid = NULL;
+	}
+	return 0;
+}
+
+static int Uuid_traverse (Uuid *self,
+                        visitproc visit, void *arg) {
+        return 0;
+}
+
+static void Uuid_dealloc (Uuid *self) {
+        PyObject_GC_UnTrack(self);
+        Uuid_clear(self);
+
+        Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+PyTypeObject UuidType = {
+        PyVarObject_HEAD_INIT(NULL, 0)
+        "cimpl.Uuid",                           /* tp_name */
+        sizeof(Uuid),                           /* tp_basicsize */
+        0,                                      /* tp_itemsize */
+        (destructor)Uuid_dealloc,               /* tp_dealloc */
+        0,                                      /* tp_print */
+        0,                                      /* tp_getattr */
+        0,                                      /* tp_setattr */
+        0,                                      /* tp_compare */
+        (reprfunc)Uuid_str0,                    /* tp_repr */
+        0,                                      /* tp_as_number */
+        0,                                      /* tp_as_sequence */
+        0,                                      /* tp_as_mapping */
+        (hashfunc)Uuid_hash,                    /* tp_hash */
+        0,                                      /* tp_call */
+        0,                                      /* tp_str */
+        PyObject_GenericGetAttr,                /* tp_getattro */
+        0,                                      /* tp_setattro */
+        0,                                      /* tp_as_buffer */
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | 
+	Py_TPFLAGS_HAVE_GC,                     /* tp_flags */
+        "Generic Uuid. Being used in various identifiers including topic_id.\n"
+        "\n"
+        ".. py:function:: Uuid(most_significant_bits, least_significant_bits)\n"
+        "\n"
+        "  Instantiate a Uuid object.\n"
+        "\n"
+        "  :param long most_significant_bits: Most significant 64 bits of the 128 bits Uuid.\n"
+        "  :param long least_significant_bits: Least significant 64 bits of the 128 bits Uuid.\n"
+        "  :rtype: Uuid\n"
+        "\n"
+"\n",                                           /* tp_doc */
+        (traverseproc)Uuid_traverse,            /* tp_traverse */
+        (inquiry)Uuid_clear,                    /* tp_clear */
+        0,                                      /* tp_richcompare */
+        0,                                      /* tp_weaklistoffset */
+        0,                                      /* tp_iter */
+        0,                                      /* tp_iternext */
+        Uuid_methods,                           /* tp_methods */
+        0,                                      /* tp_members */
+        0,                                      /* tp_getset */
+        0,                                      /* tp_base */
+        0,                                      /* tp_dict */
+        0,                                      /* tp_descr_get */
+        0,                                      /* tp_descr_set */
+        0,                                      /* tp_dictoffset */
+        Uuid_init,                              /* tp_init */
+        0,                                      /* tp_alloc */
+        Uuid_new                                /* tp_new */
+};
+
+
 
 /****************************************************************************
  *
@@ -1128,6 +1276,13 @@ static PyObject *TopicPartition_new0 (const char *topic, int partition,
 
 
 
+PyObject *c_part_to_py(const rd_kafka_topic_partition_t *rktpar) {
+        return TopicPartition_new0(rktpar->topic, rktpar->partition,
+			           rktpar->offset,
+                                   rd_kafka_topic_partition_get_leader_epoch(rktpar),
+				   rktpar->metadata,
+				   rktpar->err);
+}
 
 /**
  * @brief Convert C rd_kafka_topic_partition_list_t to Python list(TopicPartition).
@@ -1142,13 +1297,7 @@ PyObject *c_parts_to_py (const rd_kafka_topic_partition_list_t *c_parts) {
 
 	for (i = 0 ; i < (size_t)c_parts->cnt ; i++) {
 		const rd_kafka_topic_partition_t *rktpar = &c_parts->elems[i];
-		PyList_SET_ITEM(parts, i,
-				TopicPartition_new0(
-					rktpar->topic, rktpar->partition,
-					rktpar->offset,
-                                        rd_kafka_topic_partition_get_leader_epoch(rktpar),
-					rktpar->metadata,
-					rktpar->err));
+		PyList_SET_ITEM(parts, i, c_part_to_py(rktpar));
 	}
 
 	return parts;
@@ -1202,6 +1351,42 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 	}
 
 	return c_parts;
+}
+
+/**
+ * @brief Convert C rd_kafka_topic_partition_result_t to Python dict(TopicPartition, KafkaException).
+ * 
+ * @returns The new Python dict object.
+ */
+PyObject *c_topic_partition_result_to_py_dict(
+    const rd_kafka_topic_partition_result_t **partition_results,
+    size_t cnt) {
+        PyObject *result = NULL;
+        size_t i;
+
+        result = PyDict_New();
+
+        for (i = 0; i < cnt; i++) {
+                PyObject *key;
+                PyObject *value;
+                const rd_kafka_topic_partition_t *c_topic_partition;
+                const rd_kafka_error_t *c_error;
+
+                c_topic_partition =
+                    rd_kafka_topic_partition_result_partition(partition_results[i]);
+                c_error = rd_kafka_topic_partition_result_error(partition_results[i]);
+
+                value = KafkaError_new_or_None(rd_kafka_error_code(c_error),
+                                               rd_kafka_error_string(c_error));
+                key = c_part_to_py(c_topic_partition);
+               
+                PyDict_SetItem(result, key, value);
+
+                Py_DECREF(key);
+                Py_DECREF(value);
+        }
+
+        return result;
 }
 
 #ifdef RD_KAFKA_V_HEADERS
@@ -1452,6 +1637,10 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
         PyObject *Node_type = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
+        const char *rack = NULL;
+
+        if(!c_node)
+                Py_RETURN_NONE;
 
         Node_type = cfl_PyObject_lookup("confluent_kafka",
                                         "Node");
@@ -1463,7 +1652,12 @@ PyObject *c_Node_to_py(const rd_kafka_Node_t *c_node) {
 
         cfl_PyDict_SetInt(kwargs, "id", rd_kafka_Node_id(c_node));
         cfl_PyDict_SetInt(kwargs, "port", rd_kafka_Node_port(c_node));
-        cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+        if (rd_kafka_Node_host(c_node))
+                cfl_PyDict_SetString(kwargs, "host", rd_kafka_Node_host(c_node));
+        else
+                PyDict_SetItemString(kwargs, "host", Py_None);
+        if((rack = rd_kafka_Node_rack(c_node)))
+                cfl_PyDict_SetString(kwargs, "rack", rack);
 
         args = PyTuple_New(0);
 
@@ -1478,7 +1672,49 @@ err:
         Py_XDECREF(Node_type);
         Py_XDECREF(args);
         Py_XDECREF(kwargs);
+        Py_XDECREF(node);
         return NULL;
+}
+
+PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
+        PyObject *uuid = NULL;
+        PyObject *Uuid_type = NULL;
+        PyObject *args = NULL;
+        PyObject *kwargs = NULL;
+        
+        if(!c_uuid)
+                Py_RETURN_NONE;
+
+        Uuid_type = cfl_PyObject_lookup("confluent_kafka",
+                                        "Uuid");
+        if (!Uuid_type) {
+                goto err;
+        }
+
+        
+        kwargs = PyDict_New();
+
+        cfl_PyDict_SetLong(kwargs, "most_significant_bits", rd_kafka_Uuid_most_significant_bits(c_uuid));
+        cfl_PyDict_SetLong(kwargs, "least_significant_bits", rd_kafka_Uuid_least_significant_bits(c_uuid));
+
+        args = PyTuple_New(0);
+
+        uuid = PyObject_Call(Uuid_type, args, kwargs);
+
+        Py_DECREF(Uuid_type);
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+
+        return uuid;
+
+err:
+        Py_XDECREF(Uuid_type);
+        Py_XDECREF(args);
+        Py_XDECREF(kwargs);
+        Py_XDECREF(uuid);
+
+        return NULL;
+
 }
 
 
@@ -1689,10 +1925,10 @@ static int py_extensions_to_c (char **extensions, Py_ssize_t idx,
                 return 0;
         }
 
-        extensions[idx] = (char*)malloc(ksize);
-        strcpy(extensions[idx], k);
-        extensions[idx + 1] = (char*)malloc(vsize);
-        strcpy(extensions[idx + 1], v);
+        extensions[idx] = (char*)malloc(ksize + 1);
+        snprintf(extensions[idx], ksize + 1, "%s", k);
+        extensions[idx + 1] = (char*)malloc(vsize + 1);
+        snprintf(extensions[idx + 1], vsize + 1, "%s", v);
 
         Py_DECREF(ks);
         Py_XDECREF(ks8);
@@ -2827,6 +3063,8 @@ static PyObject *_init_cimpl (void) {
 		return NULL;
 	if (PyType_Ready(&MessageType) < 0)
 		return NULL;
+	if (PyType_Ready(&UuidType) < 0)
+		return NULL;
 	if (PyType_Ready(&TopicPartitionType) < 0)
 		return NULL;
 	if (PyType_Ready(&ProducerType) < 0)
@@ -2855,6 +3093,9 @@ static PyObject *_init_cimpl (void) {
 
 	Py_INCREF(&MessageType);
 	PyModule_AddObject(m, "Message", (PyObject *)&MessageType);
+
+        Py_INCREF(&UuidType);
+        PyModule_AddObject(m, "Uuid", (PyObject *)&UuidType);
 
 	Py_INCREF(&TopicPartitionType);
 	PyModule_AddObject(m, "TopicPartition",

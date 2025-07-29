@@ -12,20 +12,21 @@
 import platform
 import sys
 import os
-import tomli
+import tomllib
 import urllib.request
 import re
 import shutil
 
 
 cibuildwheel_version = sys.argv[1]
-config_url = f"https://raw.githubusercontent.com/pypa/cibuildwheel/v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
+config_url = "https://raw.githubusercontent.com/pypa/cibuildwheel/" + \
+    f"v{cibuildwheel_version}/cibuildwheel/resources/build-platforms.toml"
 print(f"Config URL is '{config_url}'")
 
 response = urllib.request.urlopen(config_url).read()
 
 content = response.decode('utf-8')
-d = tomli.loads(content)
+d = tomllib.loads(content)
 macos_config = d['macos']['python_configurations']
 
 machine_arc = platform.machine()

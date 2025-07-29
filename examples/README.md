@@ -4,7 +4,7 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 * [asyncio_example.py](asyncio_example.py): AsyncIO webserver with Kafka producer.
 * [consumer.py](consumer.py): Read messages from a Kafka topic.
 * [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
-* [eos-transactions.py](eos-transactions.py): Transactional producer with exactly once semantics (EOS).
+* [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).
 * [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
 * [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
 * [json_producer.py](json_producer.py): Produce JSON serialized data using JSONSerializer.
@@ -12,7 +12,7 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 * [protobuf_producer.py](protobuf_producer.py): Produce Protobuf serialized data using ProtobufSerializer.
 * [protobuf_consumer.py](protobuf_consumer.py): Read Protobuf serialized data using ProtobufDeserializer.
 * [sasl_producer.py](sasl_producer.py):  Demonstrates SASL Authentication.
-* [list_offsets.py](list_offsets.py): List committed offsets and consumer lag for group and topics.
+* [get_watermark_offsets.py](get_watermark_offsets.py): Consumer method for listing committed offsets and consumer lag for group and topics.
 * [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
@@ -30,8 +30,8 @@ To setup a venv with the latest release version of confluent-kafka and dependenc
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ cd examples
-$ pip install -r requirements.txt
+$ pip install confluent_kafka
+$ pip install -r requirements/requirements-examples.txt
 ```
 
 To setup a venv that uses the current source tree version of confluent_kafka, you
@@ -42,9 +42,7 @@ need to have a C compiler and librdkafka installed
 ```
 $ python3 -m venv venv_examples
 $ source venv_examples/bin/activate
-$ python setup.py develop
-$ cd examples
-$ pip install -r requirements.txt
+$ pip install .[examples]
 ```
 
 When you're finished with the venv:

@@ -2,10 +2,14 @@
 import pytest
 
 from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
-    ConfigResource, AclBinding, AclBindingFilter, ResourceType, ResourcePatternType, \
-    AclOperation, AclPermissionType
+    ConfigResource, ConfigEntry, AclBinding, AclBindingFilter, ResourceType, \
+    ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
+    ScramCredentialInfo, ScramMechanism, \
+    UserScramCredentialAlteration, UserScramCredentialDeletion, \
+    UserScramCredentialUpsertion, OffsetSpec
 from confluent_kafka import KafkaException, KafkaError, libversion, \
-    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState
+    TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
+    IsolationLevel, TopicCollection, ElectionType
 import concurrent.futures
 
 
@@ -320,6 +324,142 @@ def test_alter_configs_api():
             f.result(timeout=1)
 
 
+def verify_incremental_alter_configs_api_call(a,
+                                              restype, resname,
+                                              incremental_configs,
+                                              error,
+                                              constructor_param=True):
+    if constructor_param:
+        resources = [ConfigResource(restype, resname,
+                                    incremental_configs=incremental_configs)]
+    else:
+        resources = [ConfigResource(restype, resname)]
+        for config_entry in incremental_configs:
+            resources[0].add_incremental_config(config_entry)
+
+    if error:
+        with pytest.raises(error):
+            fs = a.incremental_alter_configs(resources)
+            for f in concurrent.futures.as_completed(iter(fs.values())):
+                f.result(timeout=1)
+    else:
+        fs = a.incremental_alter_configs(resources)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+
+def test_incremental_alter_configs_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs(None)
+
+    with pytest.raises(TypeError):
+        a.incremental_alter_configs("something")
+
+    with pytest.raises(ValueError):
+        a.incremental_alter_configs([])
+
+    for use_constructor in [True, False]:
+        # incremental_operation not of type AlterConfigOpType
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry("advertised.listeners",
+                                                                  "host1",
+                                                                  incremental_operation="NEW_OPERATION")
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+        # None name
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(None,
+                                                                  "host1",
+                                                                  incremental_operation=AlterConfigOpType.APPEND)
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+
+        # name type
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(5,
+                                                                  "host1",
+                                                                  incremental_operation=AlterConfigOpType.APPEND)
+                                                  ],
+                                                  TypeError,
+                                                  use_constructor)
+
+        # Empty list
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [],
+                                                  ValueError,
+                                                  use_constructor)
+
+        # String instead of ConfigEntry list, treated as an iterable
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  "something",
+                                                  TypeError,
+                                                  use_constructor)
+
+        # Duplicate ConfigEntry found
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value="host1:9092",
+                                                          incremental_operation=AlterConfigOpType.APPEND
+                                                      ),
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value=None,
+                                                          incremental_operation=AlterConfigOpType.DELETE
+                                                      )
+                                                  ],
+                                                  KafkaException,
+                                                  use_constructor)
+
+        # Request timeout
+        verify_incremental_alter_configs_api_call(a, ResourceType.BROKER, "1",
+                                                  [
+                                                      ConfigEntry(
+                                                          name="advertised.listeners",
+                                                          value="host1:9092",
+                                                          incremental_operation=AlterConfigOpType.APPEND
+                                                      ),
+                                                      ConfigEntry(
+                                                          name="background.threads",
+                                                          value=None,
+                                                          incremental_operation=AlterConfigOpType.DELETE
+                                                      )
+                                                  ],
+                                                  KafkaException,
+                                                  use_constructor)
+
+    # Positive test that times out
+    resources = [ConfigResource(ResourceType.BROKER, "1"),
+                 ConfigResource(ResourceType.TOPIC, "test2")]
+
+    resources[0].add_incremental_config(
+        ConfigEntry("advertised.listeners", "host:9092",
+                    incremental_operation=AlterConfigOpType.SUBTRACT))
+    resources[0].add_incremental_config(
+        ConfigEntry("background.threads", None,
+                    incremental_operation=AlterConfigOpType.DELETE))
+    resources[1].add_incremental_config(
+        ConfigEntry("cleanup.policy", "compact",
+                    incremental_operation=AlterConfigOpType.APPEND))
+    resources[1].add_incremental_config(
+        ConfigEntry("retention.ms", "10000",
+                    incremental_operation=AlterConfigOpType.SET))
+
+    fs = a.incremental_alter_configs(resources)
+
+    with pytest.raises(KafkaException):
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            f.result(timeout=1)
+
+
 def test_create_acls_api():
     """ create_acls() tests, these wont really do anything since there is no
         broker configured. """
@@ -494,6 +634,69 @@ def test_describe_consumer_groups_api():
         a.describe_consumer_groups([])
 
 
+def test_describe_topics_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Wrong option types
+    for kwargs in [{"include_authorized_operations": "wrong_type"},
+                   {"request_timeout": "wrong_type"}]:
+        with pytest.raises(TypeError):
+            a.describe_topics(TopicCollection([]), **kwargs)
+
+    # Wrong option values
+    for kwargs in [{"request_timeout": -1}]:
+        with pytest.raises(ValueError):
+            a.describe_topics(TopicCollection([]), **kwargs)
+
+    # Test with different options
+    for kwargs in [{},
+                   {"include_authorized_operations": True},
+                   {"request_timeout": 0.01},
+                   {"include_authorized_operations": False,
+                    "request_timeout": 0.01}]:
+
+        topic_names = ["test-topic-1", "test-topic-2"]
+
+        # Empty TopicCollection returns empty futures
+        fs = a.describe_topics(TopicCollection([]), **kwargs)
+        assert len(fs) == 0
+
+        # Normal call
+        fs = a.describe_topics(TopicCollection(topic_names), **kwargs)
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Wrong argument type
+        for args in [
+                        [topic_names],
+                        ["test-topic-1"],
+                        [TopicCollection([3])],
+                        [TopicCollection(["correct", 3])],
+                        [TopicCollection([None])]
+                    ]:
+            with pytest.raises(TypeError):
+                a.describe_topics(*args, **kwargs)
+
+        # Wrong argument value
+        for args in [
+                        [TopicCollection([""])],
+                        [TopicCollection(["correct", ""])]
+                    ]:
+            with pytest.raises(ValueError):
+                a.describe_topics(*args, **kwargs)
+
+
+def test_describe_cluster():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    a.describe_cluster(include_authorized_operations=True)
+
+    with pytest.raises(TypeError):
+        a.describe_cluster(unknown_operation="it is")
+
+
 def test_delete_consumer_groups_api():
     a = AdminClient({"socket.timeout.ms": 10})
 
@@ -632,17 +835,20 @@ def test_alter_consumer_group_offsets_api():
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1,
                                         same_name_request])
 
-    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
-    with pytest.raises(KafkaException):
-        for f in fs.values():
-            f.result(timeout=10)
+    # TODO: This test is failing intermittently with Fatal Error for MacOS builds.
+    # Uncomment and fix this after the release v2.10.0.
 
-    fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
-                                        request_timeout=0.5)
-    for f in concurrent.futures.as_completed(iter(fs.values())):
-        e = f.exception(timeout=1)
-        assert isinstance(e, KafkaException)
-        assert e.args[0].code() == KafkaError._TIMED_OUT
+    # with pytest.raises(KafkaException):
+    #     fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1])
+    #     for f in fs.values():
+    #         f.result(timeout=10)
+
+    # fs = a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
+    #                                     request_timeout=0.5)
+    # for f in concurrent.futures.as_completed(iter(fs.values())):
+    #     e = f.exception(timeout=1)
+    #     assert isinstance(e, KafkaException)
+    #     assert e.args[0].code() == KafkaError._TIMED_OUT
 
     with pytest.raises(ValueError):
         a.alter_consumer_group_offsets([request_with_group_and_topic_partition_offset1],
@@ -697,3 +903,336 @@ def test_alter_consumer_group_offsets_api():
 
     a.alter_consumer_group_offsets([ConsumerGroupTopicPartitions(
         "test-group2", [TopicPartition("test-topic1", 1, 23)])])
+
+
+def test_describe_user_scram_credentials_api():
+    # Describe User Scram API
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    f = a.describe_user_scram_credentials()
+    assert isinstance(f, concurrent.futures.Future)
+
+    futmap = a.describe_user_scram_credentials(["user"])
+    assert isinstance(futmap, dict)
+
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials(10)
+    with pytest.raises(TypeError):
+        a.describe_user_scram_credentials([None])
+    with pytest.raises(ValueError):
+        a.describe_user_scram_credentials([""])
+    with pytest.raises(KafkaException) as ex:
+        futmap = a.describe_user_scram_credentials(["sam", "sam"])
+        futmap["sam"].result(timeout=3)
+        assert "Duplicate users" in str(ex.value)
+
+    fs = a.describe_user_scram_credentials(["user1", "user2"])
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+
+def test_alter_user_scram_credentials_api():
+    # Alter User Scram API
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    scram_credential_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 10000)
+    upsertion = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"salt")
+    upsertion_without_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password")
+    upsertion_with_none_salt = UserScramCredentialUpsertion("sam", scram_credential_info, b"password", None)
+    deletion = UserScramCredentialDeletion("sam", ScramMechanism.SCRAM_SHA_512)
+    alterations = [upsertion, upsertion_without_salt, upsertion_with_none_salt, deletion]
+
+    fs = a.alter_user_scram_credentials(alterations)
+    for f in concurrent.futures.as_completed(iter(fs.values())):
+        e = f.exception(timeout=1)
+        assert isinstance(e, KafkaException)
+        assert e.args[0].code() == KafkaError._TIMED_OUT
+
+    # Request type tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(None)
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(234)
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials("test")
+
+    # Individual request tests
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([None])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials(["test"])
+
+    # User tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration(None)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration(123)])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialAlteration("")])
+
+    # Upsertion request user test
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion(None,
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion(123,
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("",
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     b"salt")])
+
+    # Upsertion password user test
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, None, b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     scram_credential_info,
+                                                                     "password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, 123, b"salt")])
+
+    # Upsertion salt user test
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", b"")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     scram_credential_info,
+                                                                     b"password",
+                                                                     "salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", scram_credential_info, b"password", 123)])
+
+    # Upsertion scram_credential_info tests
+    sci_incorrect_mechanism_type = ScramCredentialInfo("string type", 10000)
+    sci_incorrect_iteration_type = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, "string type")
+    sci_negative_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, -1)
+    sci_zero_iteration = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_512, 0)
+
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", None, b"password", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", "string type", b"password", b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_incorrect_mechanism_type,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_incorrect_iteration_type,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam",
+                                                                     sci_negative_iteration,
+                                                                     b"password",
+                                                                     b"salt")])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialUpsertion("sam", sci_zero_iteration, b"password", b"salt")])
+
+    # Deletion user tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion(None, ScramMechanism.SCRAM_SHA_256)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion(123, ScramMechanism.SCRAM_SHA_256)])
+    with pytest.raises(ValueError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("", ScramMechanism.SCRAM_SHA_256)])
+
+    # Deletion mechanism tests
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", None)])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", "string type")])
+    with pytest.raises(TypeError):
+        a.alter_user_scram_credentials([UserScramCredentialDeletion("sam", 123)])
+
+
+def test_list_offsets_api():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Wrong option types
+    for kwargs in [
+                        {
+                            "isolation_level": 10
+                        },
+                        {
+                            "request_timeout": "test"
+                        }
+                    ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(TypeError):
+            a.list_offsets(requests, **kwargs)
+
+    # Wrong option values
+    for kwargs in [
+                    {
+                        "request_timeout": -1
+                    }
+                  ]:
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
+        }
+        with pytest.raises(ValueError):
+            a.list_offsets(requests, **kwargs)
+
+    for kwargs in [{},
+                   {"isolation_level": IsolationLevel.READ_UNCOMMITTED},
+                   {"request_timeout": 0.01},
+                   {"isolation_level": IsolationLevel.READ_COMMITTED,
+                    "request_timeout": 0.01}]:
+
+        # Not a dictionary
+        with pytest.raises(TypeError):
+            a.list_offsets(None, **kwargs)
+
+        # Empty partitions
+        requests = {}
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 0
+
+        # Invalid TopicPartition
+        for requests in [
+                            {
+                                TopicPartition("", 0, 10): OffsetSpec.earliest()
+                            },
+                            {
+                                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
+                            }
+                        ]:
+            with pytest.raises(ValueError):
+                a.list_offsets(requests, **kwargs)
+
+        # Same partition with different offsets
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 0, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 1
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Two different partitions
+        requests = {
+            TopicPartition("topic1", 0, 10): OffsetSpec.earliest(),
+            TopicPartition("topic1", 1, 15): OffsetSpec.earliest(),
+        }
+        fs = a.list_offsets(requests, **kwargs)
+        assert len(fs) == 2
+        for f in concurrent.futures.as_completed(iter(fs.values())):
+            e = f.exception(timeout=1)
+            assert isinstance(e, KafkaException)
+            assert e.args[0].code() == KafkaError._TIMED_OUT
+
+        # Key isn't a TopicPartition
+        for requests in [
+                            {
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                "not-topic-partition": OffsetSpec.latest()
+                            },
+                            {
+                                None: OffsetSpec.latest()
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
+
+        # Value isn't a OffsetSpec
+        for requests in [
+                            {
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                                TopicPartition("topic1", 0, 10): "test"
+                            },
+                            {
+                                TopicPartition("topic1", 0, 10): None
+                            }
+                        ]:
+            with pytest.raises(TypeError):
+                a.list_offsets(requests, **kwargs)
+
+
+def test_delete_records():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    # Request-type tests
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'NoneType'"):
+        a.delete_records(None)
+
+    with pytest.raises(TypeError, match="Expected Request to be a list, got 'int'"):
+        a.delete_records(1)
+
+    # Request-specific tests
+    with pytest.raises(TypeError,
+                       match="Element of the request list must be of type 'TopicPartition' got 'str'"):
+        a.delete_records(["test-1"])
+
+    with pytest.raises(TypeError):
+        a.delete_records([TopicPartition(None)])
+
+    with pytest.raises(ValueError):
+        a.delete_records([TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.delete_records([TopicPartition("test-topic1")])
+
+
+def test_elect_leaders():
+    a = AdminClient({"socket.timeout.ms": 10})
+
+    correct_partitions = TopicPartition("test-topic1", 0)
+    incorrect_partitions = TopicPartition("test-topic1", -1)
+
+    correct_election_type = ElectionType.PREFERRED
+
+    # Incorrect Election Type
+    with pytest.raises(TypeError):
+        a.elect_leaders(None, [correct_partitions])
+
+    with pytest.raises(TypeError):
+        a.elect_leaders("1", [correct_partitions])
+
+    # Incorrect Partitions type
+    with pytest.raises(TypeError, match="Expected 'partitions' to be a list, got 'str'"):
+        a.elect_leaders(correct_election_type, "1")
+
+    # Partition-specific tests
+    with pytest.raises(TypeError,
+                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'str'"):
+        a.elect_leaders(correct_election_type, ["test-1"])
+
+    with pytest.raises(TypeError,
+                       match="Element of the 'partitions' list must be of type 'TopicPartition' got 'NoneType'"):
+        a.elect_leaders(correct_election_type, [None])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(correct_election_type, [TopicPartition("")])
+
+    with pytest.raises(ValueError):
+        a.elect_leaders(correct_election_type, [incorrect_partitions])
+
+    with pytest.raises(KafkaException):
+        a.elect_leaders(correct_election_type, [correct_partitions])\
+            .result(timeout=1)

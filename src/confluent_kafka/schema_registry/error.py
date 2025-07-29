@@ -20,7 +20,7 @@ try:
 except ImportError:
     pass
 
-__all__ = ['SchemaRegistryError', 'SchemaParseException', 'UnknownType']
+__all__ = ['SchemaRegistryError', 'OAuthTokenError', 'SchemaParseException', 'UnknownType']
 
 
 class SchemaRegistryError(Exception):
@@ -41,7 +41,7 @@ class SchemaRegistryError(Exception):
     """  # noqa: E501
     UNKNOWN = -1
 
-    def __init__(self, http_status_code, error_code, error_message):
+    def __init__(self, http_status_code: int, error_code: int, error_message: str):
         self.http_status_code = http_status_code
         self.error_code = error_code
         self.error_message = error_message
@@ -53,3 +53,13 @@ class SchemaRegistryError(Exception):
         return "{} (HTTP status code {}, SR code {})".format(self.error_message,
                                                              self.http_status_code,
                                                              self.error_code)
+
+
+class OAuthTokenError(Exception):
+    """Raised when an OAuth token cannot be retrieved."""
+
+    def __init__(self, message, status_code=None, response_text=None):
+        self.message = message
+        self.status_code = status_code
+        self.response_text = response_text
+        super().__init__(f"{message} (HTTP {status_code}): {response_text}")

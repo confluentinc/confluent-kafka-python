@@ -1,0 +1,3 @@
+psutil
+opentelemetry-distro
+opentelemetry-exporter-otlp

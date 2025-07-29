@@ -1,0 +1,4 @@
+docker/secrets/*
+!docker/secrets/broker_jaas.conf
+!docker/secrets/zookeeper_jaas.conf
+!docker/secrets/generate_certificates.sh

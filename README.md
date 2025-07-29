@@ -1,3 +1,7 @@
+> [!WARNING]
+> Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
+We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
+
 Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
@@ -133,6 +137,22 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
           its dependencies using the repositories below and then build
           confluent-kafka using the instructions in the
           "Install from source" section below.
+
+To use Schema Registry with the Avro serializer/deserializer:
+
+    $ pip install "confluent-kafka[avro,schemaregistry]"
+
+To use Schema Registry with the JSON serializer/deserializer:
+
+    $ pip install "confluent-kafka[json,schemaregistry]"
+
+To use Schema Registry with the Protobuf serializer/deserializer:
+
+    $ pip install "confluent-kafka[protobuf,schemaregistry]"
+
+When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
+
+    $ pip install "confluent-kafka[avro,schemaregistry,rules]"
 
 **Install from source**
 

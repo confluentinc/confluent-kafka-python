@@ -455,7 +455,7 @@ PyTypeObject NewPartitionsType = {
         "  Instantiate a NewPartitions object.\n"
         "\n"
         "  :param string topic: Topic name\n"
-        "  :param int new_total_cnt: Increase the topic's partition count to this value.\n"
+        "  :param int new_total_count: Increase the topic's partition count to this value.\n"
         "  :param list replica_assignment: List of lists with the replication assignment for each new partition.\n"
         "  :rtype: NewPartitions\n"
         "\n"
@@ -514,6 +514,8 @@ static void AdminTypes_AddObjectsConfigSource (PyObject *m) {
                                 RD_KAFKA_CONFIG_SOURCE_STATIC_BROKER_CONFIG);
         PyModule_AddIntConstant(m, "CONFIG_SOURCE_DEFAULT_CONFIG",
                                 RD_KAFKA_CONFIG_SOURCE_DEFAULT_CONFIG);
+        PyModule_AddIntConstant(m, "CONFIG_SOURCE_GROUP_CONFIG",
+                                RD_KAFKA_CONFIG_SOURCE_GROUP_CONFIG);
 }
 
 
@@ -524,6 +526,7 @@ static void AdminTypes_AddObjectsResourceType (PyObject *m) {
         PyModule_AddIntConstant(m, "RESOURCE_TOPIC", RD_KAFKA_RESOURCE_TOPIC);
         PyModule_AddIntConstant(m, "RESOURCE_GROUP", RD_KAFKA_RESOURCE_GROUP);
         PyModule_AddIntConstant(m, "RESOURCE_BROKER", RD_KAFKA_RESOURCE_BROKER);
+        PyModule_AddIntConstant(m, "RESOURCE_TRANSACTIONAL_ID", RD_KAFKA_RESOURCE_TRANSACTIONAL_ID);
 }
 
 static void AdminTypes_AddObjectsResourcePatternType (PyObject *m) {
@@ -570,6 +573,47 @@ static void AdminTypes_AddObjectsConsumerGroupStates (PyObject *m) {
         PyModule_AddIntConstant(m, "CONSUMER_GROUP_STATE_EMPTY", RD_KAFKA_CONSUMER_GROUP_STATE_EMPTY);
 }
 
+static void AdminTypes_AddObjectsConsumerGroupTypes (PyObject *m) {
+        /* rd_kafka_consumer_group_type_t */
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_UNKNOWN", RD_KAFKA_CONSUMER_GROUP_TYPE_UNKNOWN);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CONSUMER", RD_KAFKA_CONSUMER_GROUP_TYPE_CONSUMER);
+        PyModule_AddIntConstant(m, "CONSUMER_GROUP_TYPE_CLASSIC", RD_KAFKA_CONSUMER_GROUP_TYPE_CLASSIC);
+}
+
+static void AdminTypes_AddObjectsAlterConfigOpType (PyObject *m) {
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SET", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SET);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_DELETE", RD_KAFKA_ALTER_CONFIG_OP_TYPE_DELETE);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_APPEND", RD_KAFKA_ALTER_CONFIG_OP_TYPE_APPEND);
+        PyModule_AddIntConstant(m, "ALTER_CONFIG_OP_TYPE_SUBTRACT", RD_KAFKA_ALTER_CONFIG_OP_TYPE_SUBTRACT);
+}
+
+static void AdminTypes_AddObjectsScramMechanismType (PyObject *m) {
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_UNKNOWN", RD_KAFKA_SCRAM_MECHANISM_UNKNOWN);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_256", RD_KAFKA_SCRAM_MECHANISM_SHA_256);
+        PyModule_AddIntConstant(m, "SCRAM_MECHANISM_SHA_512", RD_KAFKA_SCRAM_MECHANISM_SHA_512);
+}
+
+static void AdminTypes_AddObjectsIsolationLevel (PyObject *m) {
+        /* rd_kafka_IsolationLevel_t */
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_COMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_COMMITTED);
+        PyModule_AddIntConstant(m,"ISOLATION_LEVEL_READ_UNCOMMITTED", RD_KAFKA_ISOLATION_LEVEL_READ_UNCOMMITTED);
+}
+
+static void AdminTypes_AddObjectsOffsetSpec (PyObject *m) {
+        /* rd_kafka_OffsetSpec_t */
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_MAX_TIMESTAMP", RD_KAFKA_OFFSET_SPEC_MAX_TIMESTAMP);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_EARLIEST", RD_KAFKA_OFFSET_SPEC_EARLIEST);
+        PyModule_AddIntConstant(m,"OFFSET_SPEC_LATEST", RD_KAFKA_OFFSET_SPEC_LATEST);
+}
+
+static void AdminTypes_AddObjectsElectionType(PyObject *m) {
+        /* rd_kafka_ElectionType_t */
+        PyModule_AddIntConstant(m, "ELECTION_TYPE_PREFERRED",
+                                RD_KAFKA_ELECTION_TYPE_PREFERRED);
+        PyModule_AddIntConstant(m, "ELECTION_TYPE_UNCLEAN",
+                                RD_KAFKA_ELECTION_TYPE_UNCLEAN);
+}
+
 /**
  * @brief Add Admin types to module
  */
@@ -585,4 +629,10 @@ void AdminTypes_AddObjects (PyObject *m) {
         AdminTypes_AddObjectsAclOperation(m);
         AdminTypes_AddObjectsAclPermissionType(m);
         AdminTypes_AddObjectsConsumerGroupStates(m);
+        AdminTypes_AddObjectsConsumerGroupTypes(m);
+        AdminTypes_AddObjectsAlterConfigOpType(m);
+        AdminTypes_AddObjectsScramMechanismType(m);
+        AdminTypes_AddObjectsIsolationLevel(m);
+        AdminTypes_AddObjectsOffsetSpec(m);
+        AdminTypes_AddObjectsElectionType(m);
 }
