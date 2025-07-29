@@ -753,7 +753,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: If schema or subject can't be found
 
         See Also:
-            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
