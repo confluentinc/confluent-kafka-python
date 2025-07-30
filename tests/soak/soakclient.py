@@ -26,12 +26,11 @@
 #
 
 from confluent_kafka import KafkaError, KafkaException, version
-from confluent_kafka import Producer
+from confluent_kafka import Producer, Consumer
 from confluent_kafka.admin import AdminClient, NewTopic
 from collections import defaultdict
 from builtins import int
 from opentelemetry import metrics
-from common import TestConsumer
 import argparse
 import threading
 import time
@@ -447,7 +446,12 @@ class SoakClient (object):
         cconf['error_cb'] = self.consumer_error_cb
         cconf['on_commit'] = self.consumer_commit_cb
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
-        self.consumer = TestConsumer(cconf)
+        self.consumer = Consumer(cconf)
+
+        # Initialize some counters to zero to make them appear in the metrics
+        self.incr_counter("consumer.error", 0)
+        self.incr_counter("consumer.msgdup", 0)
+        self.incr_counter("producer.errorcb", 0)
 
         # Create and start producer thread
         self.producer_thread = threading.Thread(target=self.producer_thread_main)
