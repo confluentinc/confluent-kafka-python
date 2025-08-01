@@ -785,7 +785,7 @@ class SchemaRegistryClient(object):
 
     def get_subjects(self) -> List[str]:
         """
-        List all subjects registered with the Schema Registry
+        Lists all subjects registered with the Schema Registry
 
         Returns:
             list(str): Registered subject names
