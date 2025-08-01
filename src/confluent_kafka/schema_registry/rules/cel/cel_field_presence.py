@@ -41,6 +41,6 @@ class InterpretedRunner(celpy.InterpretedRunner):
                 _has_state.in_has = False
                 return result
 
-        e = Evaluator(ast=self.ast, activation=self.new_activation(context), functions=self.functions)
-        value = e.evaluate()
+        e = Evaluator(ast=self.ast, activation=self.new_activation(), functions=self.functions)
+        value = e.evaluate(context)
         return value
