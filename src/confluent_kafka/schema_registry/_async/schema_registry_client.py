@@ -753,7 +753,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: If schema or subject can't be found
 
         See Also:
-            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
@@ -785,7 +785,7 @@ class AsyncSchemaRegistryClient(object):
 
     async def get_subjects(self) -> List[str]:
         """
-        List all subjects registered with the Schema Registry
+        Lists all subjects registered with the Schema Registry
 
         Returns:
             list(str): Registered subject names
@@ -794,7 +794,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if subjects can't be found
 
         See Also:
-            `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
+            `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
         return await self._rest_client.get('subjects')
@@ -908,7 +908,7 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_version(
-        self, subject_name: str, version: int,
+        self, subject_name: str, version: Union[int, str] = "latest",,
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
@@ -927,7 +927,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
 
         See Also:
-            `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
