@@ -908,7 +908,7 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_version(
-        self, subject_name: str, version: Union[int, str] = "latest",,
+        self, subject_name: str, version: Union[int, str] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
