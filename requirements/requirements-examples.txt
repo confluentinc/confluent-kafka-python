@@ -23,7 +23,7 @@ protobuf
 azure-identity
 azure-keyvault-keys
 boto3
-cel-python>=0.1.5
+cel-python>=0.4.0
 google-auth
 google-api-core
 google-cloud-kms

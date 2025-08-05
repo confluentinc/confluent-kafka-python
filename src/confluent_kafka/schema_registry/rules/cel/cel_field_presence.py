@@ -35,12 +35,12 @@ def in_has() -> bool:
 class InterpretedRunner(celpy.InterpretedRunner):
     def evaluate(self, context):
         class Evaluator(celpy.Evaluator):
-            def macro_has_eval(self, exprlist):
+            def macro_has_eval(self, exprlist) -> celpy.celtypes.BoolType:
                 _has_state.in_has = True
                 result = super().macro_has_eval(exprlist)
                 _has_state.in_has = False
                 return result
 
-        e = Evaluator(ast=self.ast, activation=self.new_activation(context), functions=self.functions)
-        value = e.evaluate()
+        e = Evaluator(ast=self.ast, activation=self.new_activation())
+        value = e.evaluate(context)
         return value
