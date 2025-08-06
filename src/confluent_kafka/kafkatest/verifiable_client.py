@@ -14,7 +14,7 @@
 
 
 import datetime
-import json
+import orjson
 import os
 import re
 import signal
@@ -61,8 +61,8 @@ class VerifiableClient(object):
     def send(self, d):
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
-        self.dbg('SEND: %s' % json.dumps(d))
-        sys.stdout.write('%s\n' % json.dumps(d))
+        self.dbg('SEND: %s' % orjson.dumps(d))
+        sys.stdout.write('%s\n' % orjson.dumps(d))
         sys.stdout.flush()
 
     @staticmethod

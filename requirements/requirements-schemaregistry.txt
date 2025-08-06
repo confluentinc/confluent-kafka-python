@@ -2,3 +2,4 @@ attrs>=21.2.0
 cachetools>=5.5.0
 httpx>=0.26
 authlib>=1.0.0
+orjson >= 3.10,<4
