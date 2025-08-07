@@ -428,6 +428,7 @@ class SoakClient (object):
 
         # Create topic (might already exist)
         aconf = filter_config(conf, ["consumer.", "producer."], "admin.")
+        aconf['client.id'] = self.testid
         self.create_topic(self.topic, aconf)
 
         #
@@ -439,6 +440,7 @@ class SoakClient (object):
         # Producer
         pconf = filter_config(conf, ["consumer.", "admin."], "producer.")
         pconf['error_cb'] = self.producer_error_cb
+        pconf['client.id'] = self.testid
         self.producer = Producer(pconf)
 
         # Consumer
@@ -446,6 +448,7 @@ class SoakClient (object):
         cconf['error_cb'] = self.consumer_error_cb
         cconf['on_commit'] = self.consumer_commit_cb
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
+        cconf['client.id'] = self.testid
         self.consumer = Consumer(cconf)
 
         # Initialize some counters to zero to make them appear in the metrics
