@@ -416,7 +416,7 @@ class _RestClient(_BaseRestClient):
                              " application/json"}
 
         if body is not None:
-            body = orjson.dumps(x).decode('utf-8')
+            body = orjson.dumps(body).decode('utf-8')
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
