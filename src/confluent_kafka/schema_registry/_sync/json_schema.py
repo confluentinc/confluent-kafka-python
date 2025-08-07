@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
-import json
+import orjson
 from typing import Union, Optional, Tuple, Callable
 
 from cachetools import LRUCache
@@ -66,7 +66,7 @@ def _resolve_named_schema(
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_registry = _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
-            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
+            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
             ref_registry = ref_registry.with_resource(ref.name, resource)
@@ -221,7 +221,7 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
-        self._json_encode = json_encode or json.dumps
+        self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
         self._registry = schema_registry_client
         self._rule_registry = (
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
@@ -394,7 +394,7 @@ class JSONSerializer(BaseSerializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
-        parsed_schema = json.loads(schema.schema_str)
+        parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
@@ -510,7 +510,7 @@ class JSONDeserializer(BaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators = LRUCache(1000)
-        self._json_decode = json_decode or json.loads
+        self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
@@ -659,7 +659,7 @@ class JSONDeserializer(BaseDeserializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
-        parsed_schema = json.loads(schema.schema_str)
+        parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
