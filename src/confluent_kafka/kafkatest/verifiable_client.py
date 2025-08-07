@@ -61,8 +61,8 @@ class VerifiableClient(object):
     def send(self, d):
         """ Send dict as JSON to stdout for consumtion by kafkatest handler """
         d['_time'] = str(datetime.datetime.now())
-        self.dbg('SEND: %s' % orjson.dumps(d))
-        sys.stdout.write('%s\n' % orjson.dumps(d))
+        self.dbg('SEND: %s' % orjson.dumps(d).decode("utf-8"))
+        sys.stdout.write('%s\n' % orjson.dumps(d).decode("utf-8"))
         sys.stdout.flush()
 
     @staticmethod

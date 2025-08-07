@@ -221,7 +221,7 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
-        self._json_encode = json_encode or orjson.dumps
+        self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
         self._registry = schema_registry_client
         self._rule_registry = (
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
