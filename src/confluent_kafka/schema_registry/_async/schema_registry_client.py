@@ -33,6 +33,7 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
+    SchemaVersion,
     ServerConfig,
     is_success,
     is_retriable,
@@ -733,6 +734,42 @@ class AsyncSchemaRegistryClient(object):
 
         return registered_schema.schema
 
+    async def get_schema_types(self) -> List[str]:
+        """
+        Lists all supported schema types in the Schema Registry.
+
+        Returns:
+            list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
+
+        Raises:
+            SchemaRegistryError: if schema types can't be retrieved
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
+        """ # noqa: E501
+        return await self._rest_client.get('schemas/types')
+
+    async def get_schema_versions(self, schema_id: int) -> List[SchemaVersion]:
+        """
+        Gets all subject-version pairs of a schema by its ID.
+
+        Args:
+            schema_id (int): Schema ID
+
+        Returns:
+            list(dict): List of schema versions with their metadata. Each dict contains:
+                - subject (str): Subject name
+                - version (int): Version number
+
+        Raises:
+            SchemaRegistryError: if schema versions can't be found
+
+        See Also:
+            `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+        """ # noqa: E501
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
+        return [SchemaVersion.from_dict(item) for item in response]
+
     async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False, deleted: bool = False
@@ -912,13 +949,13 @@ class AsyncSchemaRegistryClient(object):
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
-        Retrieves a specific schema registered under ``subject_name``.
+        Retrieves a specific schema registered under `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name.
             version (int): version number. Defaults to latest version.
             deleted (bool): Whether to include deleted schemas.
-            fmt (str): Format of the schema
+            fmt (str): Format of the schema.
 
         Returns:
             RegisteredSchema: Registration information for this version.
@@ -927,7 +964,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
 
         See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
@@ -944,6 +981,59 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema
+
+    async def get_version_schema(
+        self, subject_name: str, version: Union[int, str] = "latest",
+        deleted: bool = False, fmt: Optional[str] = None
+    ) -> str: # TODO: revisit the function naming
+        """
+        Retrieves a specific schema registered under `subject_name` and `version`.
+        Only the unescaped schema string is returned.
+
+        Args:
+            subject_name (str): Subject name.
+            version (int): version number. Defaults to latest version.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)-schema>`_
+        """  # noqa: E501
+
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        return self._rest_client.get(
+            'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
+        )
+
+    async def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[Dict[str, Any]]:
+        """
+        Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
+
+        Args:
+            subject_name (str): Subject name
+            version (int or str): Version number or "latest"
+
+        Returns:
+            list(dict): List of IDs of schemas that reference the specified schema. Each dict contains:
+                - subject (str): Subject name of the referencing schema
+                - version (int): Version number of the referencing schema
+                - id (int): Schema ID of the referencing schema
+                - schema (str): Schema string of the referencing schema
+
+        Raises:
+            SchemaRegistryError: if the schema version can't be found or referenced schemas can't be retrieved
+
+        See Also:
+            `GET Referenced By API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+        return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version))
 
     async def get_versions(self, subject_name: str) -> List[int]:
         """
