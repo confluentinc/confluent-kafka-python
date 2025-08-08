@@ -1060,7 +1060,8 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_referenced_by(
-            self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
+        self, subject_name: str, version: Union[int, str] = "latest",
+        offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
         Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
@@ -1086,7 +1087,8 @@ class AsyncSchemaRegistryClient(object):
             _urlencode(subject_name), version), query)
 
     async def get_versions(
-        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
+        offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
         Get a list of all versions registered with this subject.

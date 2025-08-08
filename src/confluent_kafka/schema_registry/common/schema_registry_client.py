@@ -658,6 +658,17 @@ class Metadata:
 
         return metadata
 
+@_attrs_define(frozen=True)
+class SchemaVersion:
+    subject: Optional[str]
+    version: Optional[int]
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        d = src_dict.copy()
+        subject = d.pop("subject", None)
+        version = d.pop("version", None)
+        return cls(subject=subject, version=version)
 
 @_attrs_define(frozen=True)
 class SchemaVersion:

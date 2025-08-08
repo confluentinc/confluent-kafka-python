@@ -751,6 +751,7 @@ class SchemaRegistryClient(object):
         Lists all supported schema types in the Schema Registry.
 
         Returns:
+<<<<<<< HEAD
             list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
 
         Raises:
@@ -793,11 +794,25 @@ class SchemaRegistryClient(object):
         self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
         offset: int = 0, limit: int = -1
     ) -> List[SchemaVersion]:
+=======
+            list(str): Schema types currently available on Schema Registry.
+
+        Raises:
+            SchemaRegistryError: if schema types can't be retrieved.
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
+        """ # noqa: E501
+        return self._rest_client.get('schemas/types')
+
+    def get_schema_versions(self, schema_id: int) -> List[SchemaVersion]:
+>>>>>>> b0410dd (updaet)
         """
         Gets all subject-version pairs of a schema by its ID.
 
         Args:
             schema_id (int): Schema ID.
+<<<<<<< HEAD
             subject_name (str): Subject name that results can be filtered by.
             deleted (bool): Whether to include subject versions where the schema was deleted.
             offset (int): Pagination offset for results.
@@ -805,6 +820,11 @@ class SchemaRegistryClient(object):
 
         Returns:
             list(SchemaVersion): List of subject-version pairs. Each pair contains:
+=======
+
+        Returns:
+            list(dict): List of schema versions with their metadata. Each dict contains:
+>>>>>>> b0410dd (updaet)
                 - subject (str): Subject name.
                 - version (int): Version number.
 
@@ -814,6 +834,7 @@ class SchemaRegistryClient(object):
         See Also:
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
         """  # noqa: E501
+<<<<<<< HEAD
 
         query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
@@ -821,6 +842,9 @@ class SchemaRegistryClient(object):
         if deleted:
             query['deleted'] = deleted
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
+=======
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
+>>>>>>> b0410dd (updaet)
         return [SchemaVersion.from_dict(item) for item in response]
 
     def lookup_schema(
@@ -1024,7 +1048,7 @@ class SchemaRegistryClient(object):
     def get_version(
         self, subject_name: str, version: Union[int, str] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+    ) -> 'RegisteredSchema': # TODO: revisit the function naming
         """
         Retrieves a specific schema registered under `subject_name` and `version`.
 
@@ -1059,25 +1083,69 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
+<<<<<<< HEAD
     def get_referenced_by(
             self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
     ) -> List[int]:
+=======
+    def get_version_schema(
+        self, subject_name: str, version: Union[int, str] = "latest",
+        deleted: bool = False, fmt: Optional[str] = None
+    ) -> str: # TODO: revisit the function naming
+        """
+        Retrieves a specific schema registered under `subject_name` and `version`.
+        Only the unescaped schema string is returned.
+
+        Args:
+            subject_name (str): Subject name.
+            version (int): version number. Defaults to latest version.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)-schema>`_
+        """  # noqa: E501
+
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        return self._rest_client.get(
+            'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
+        )
+
+    def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[Dict[str, Any]]:
+>>>>>>> b0410dd (updaet)
         """
         Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name
             version (int or str): Version number or "latest"
+<<<<<<< HEAD
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(int): List of schema IDs that reference the specified schema.
+=======
+
+        Returns:
+            list(dict): List of IDs of schemas that reference the specified schema. Each dict contains:
+                - subject (str): Subject name of the referencing schema
+                - version (int): Version number of the referencing schema
+                - id (int): Schema ID of the referencing schema
+                - schema (str): Schema string of the referencing schema
+>>>>>>> b0410dd (updaet)
 
         Raises:
             SchemaRegistryError: if the schema version can't be found or referenced schemas can't be retrieved
 
         See Also:
+<<<<<<< HEAD
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
         """  # noqa: E501
 
@@ -1088,6 +1156,14 @@ class SchemaRegistryClient(object):
     def get_versions(
         self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
     ) -> List[int]:
+=======
+            `GET Referenced By API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+        return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version))
+
+    def get_versions(self, subject_name: str) -> List[int]:
+>>>>>>> b0410dd (updaet)
         """
         Get a list of all versions registered with this subject.
 
