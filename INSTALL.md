@@ -8,7 +8,7 @@ all dependencies included.
 To install, simply do:
 
 ```bash
-python3 -m pip install confluent-kafka
+python -m pip install confluent-kafka
 ```
 
 If you get a build error or require Kerberos/GSSAPI support please read the next section: *Install from source*
@@ -33,7 +33,7 @@ than from prebuilt binary wheels, such as when:
 
 # Install build tools and Kerberos support.
 
-yum install -y python3 python3-pip python3-devel gcc make cyrus-sasl-gssapi krb5-workstation
+yum install -y python python-pip python-devel gcc make cyrus-sasl-gssapi krb5-workstation
 
 # Install the latest version of librdkafka:
 
@@ -55,12 +55,12 @@ yum install -y librdkafka-devel
 # (e.g., exit the root shell first).
 #
 
-python3 -m pip install --no-binary confluent-kafka confluent-kafka
+python -m pip install --no-binary confluent-kafka confluent-kafka
 
 
 # Verify that confluent_kafka is installed:
 
-python3 -c 'import confluent_kafka; print(confluent_kafka.version())'
+python -c 'import confluent_kafka; print(confluent_kafka.version())'
 ```
 
 ### Install from source on Debian or Ubuntu
@@ -72,7 +72,7 @@ python3 -c 'import confluent_kafka; print(confluent_kafka.version())'
 
 # Install build tools and Kerberos support.
 
-apt install -y wget software-properties-common lsb-release gcc make python3 python3-pip python3-dev libsasl2-modules-gssapi-mit krb5-user
+apt install -y wget software-properties-common lsb-release gcc make python python-pip python-dev libsasl2-modules-gssapi-mit krb5-user
 
 
 # Install the latest version of librdkafka:
@@ -91,12 +91,12 @@ apt install -y librdkafka-dev
 # (e.g., exit the root shell first).
 #
 
-python3 -m pip install --no-binary confluent-kafka confluent-kafka
+python -m pip install --no-binary confluent-kafka confluent-kafka
 
 
 # Verify that confluent_kafka is installed:
 
-python3 -c 'import confluent_kafka; print(confluent_kafka.version())'
+python -c 'import confluent_kafka; print(confluent_kafka.version())'
 ```
 
 
@@ -111,11 +111,11 @@ brew install librdkafka
 
 # Build and install confluent-kafka-python
 
-python3 -m pip install --no-binary confluent-kafka confluent-kafka
+python -m pip install --no-binary confluent-kafka confluent-kafka
 
 
 # Verify that confluent_kafka is installed:
 
-python3 -c 'import confluent_kafka; print(confluent_kafka.version())'
+python -c 'import confluent_kafka; print(confluent_kafka.version())'
 
 ```
