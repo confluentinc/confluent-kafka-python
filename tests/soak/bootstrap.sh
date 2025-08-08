@@ -30,6 +30,8 @@ sudo dpkg -i otel_collector_package.deb
 rm otel_collector_package.deb
 sudo cp otel-config.yaml /etc/otelcol-contrib/config.yaml
 sudo systemctl restart otelcol-contrib
+cp setup_all_versions.py $HOME/setup_all_versions.py
+chmod +x $HOME/setup_all_versions.py
 
 ./build.sh $librdkafka_branch $python_branch
 
