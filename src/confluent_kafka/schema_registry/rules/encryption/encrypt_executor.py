@@ -451,7 +451,7 @@ class AeadWrapper(aead.Aead):
             alternate_kms_key_ids = self._config.get(ENCRYPT_ALTERNATE_KMS_KEY_IDS)
         if alternate_kms_key_ids is not None:
             # Split the comma-separated list of alternate KMS key IDs and append to kms_key_ids
-            kms_key_ids.extend([id.strip() for id in alternate_kms_key_ids.split(',')])
+            kms_key_ids.extend([id.strip() for id in alternate_kms_key_ids.split(',') if id.strip()])
         return kms_key_ids
 
     def _get_aead(self, config: dict, kms_type: str, kms_key_id: str) -> aead.Aead:
