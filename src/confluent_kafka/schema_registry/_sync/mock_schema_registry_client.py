@@ -21,7 +21,7 @@ from threading import Lock
 from typing import List, Dict, Optional
 
 from .schema_registry_client import SchemaRegistryClient
-from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
+from ..common.schema_registry_client import RegisteredSchema, Schema, SchemaVersion, ServerConfig
 from ..error import SchemaRegistryError
 
 
@@ -51,12 +51,15 @@ class _SchemaStore(object):
             self.subject_schemas[rs.subject].add(rs)
             return rs
 
-    def get_schema(self, schema_id: int) -> Optional[Schema]:
+    def get_schema(self, schema_id: int) -> Optional[RegisteredSchema]:
         with self.lock:
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
 
-    def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
+    def get_schema_string(self, schema_id: int) -> Optional[str]:
+        return None
+
+    def get_schema_by_guid(self, guid: str) -> Optional[RegisteredSchema]:
         with self.lock:
             rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
@@ -191,14 +194,26 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
+    def get_schema_string(
+        self, schema_id: int, subject_name: Optional[str] = None,
+        fmt: Optional[str] = None
+    ) -> str:
+        raise SchemaRegistryError(404, 40400, "Schema Not Found")
+
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'Schema':
+    ) -> 'RegisteredSchema':
         schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
+
+    def get_schema_types(self) -> List[str]:
+        return []
+
+    def get_schema_versions(self, subject_id: int) -> List[SchemaVersion]:
+        return []
 
     def lookup_schema(
         self, subject_name: str, schema: 'Schema',
@@ -243,6 +258,15 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             return registered_schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
+
+    def get_version_schema_string(
+        self, subject_name: str, version: int,
+        deleted: bool = False, fmt: Optional[str] = None
+    ) -> str:
+        return ""
+
+    def get_referenced_by(self, subject_name: str, version: int) -> List[int]:
+        return []
 
     def get_versions(self, subject_name: str) -> List[int]:
         return self._store.get_versions(subject_name)
