@@ -869,7 +869,6 @@ class Schema:
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema_str
-
         schema_type = self.schema_type
 
         _references: Optional[List[Dict[str, Any]]] = []
@@ -950,11 +949,11 @@ class RegisteredSchema:
     An registered schema.
     """
 
+    subject: Optional[str]
+    version: Optional[int]
     schema_id: Optional[int]
     guid: Optional[str]
     schema: Optional[Schema]
-    subject: Optional[str]
-    version: Optional[int]
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema
