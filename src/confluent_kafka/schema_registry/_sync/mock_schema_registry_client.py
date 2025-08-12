@@ -51,7 +51,7 @@ class _SchemaStore(object):
             self.subject_schemas[rs.subject].add(rs)
             return rs
 
-    def get_schema(self, schema_id: int) -> Optional[RegisteredSchema]:
+    def get_schema(self, schema_id: int) -> Optional[Schema]:
         with self.lock:
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
@@ -59,7 +59,7 @@ class _SchemaStore(object):
     def get_schema_string(self, schema_id: int) -> Optional[str]:
         return None
 
-    def get_schema_by_guid(self, guid: str) -> Optional[RegisteredSchema]:
+    def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
         with self.lock:
             rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
@@ -196,7 +196,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+    ) -> 'Schema':
         schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema
