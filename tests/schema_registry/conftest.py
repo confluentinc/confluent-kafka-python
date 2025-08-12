@@ -25,6 +25,8 @@ import pytest
 import respx
 from httpx import Response
 
+from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
+
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -204,7 +206,6 @@ def _load_avsc(name) -> str:
                            'data', name)) as fd:
         return fd.read()
 
-
 def get_compatibility_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
 
@@ -282,6 +283,25 @@ def get_schemas_callback(request, route):
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
 
+def get_schema_string_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    path_match = re.match(SCHEMAS_STRING_RE, request.url.path)
+    schema_id = path_match.group(1)
+    if int(schema_id) == 404:
+        return Response(404, json={'error_code': 40403,
+                                   'message': "Schema not found"})
+    return Response(200, json=json.loads(_load_avsc(SCHEMA)))
+
+def get_schema_types_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=['AVRO', 'JSON', 'PROTOBUF'])
+
+def get_schema_versions_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[
+        {'subject': 'subject1', 'version': 1},
+        {'subject': 'subject2', 'version': 2}
+    ])
 
 def get_schema_subjects_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
@@ -363,6 +383,13 @@ def post_subject_version_callback(request, route):
     else:
         return Response(200, json={'id': SCHEMA_ID})
 
+def get_subject_version_schema_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=json.loads(_load_avsc(SCHEMA)))
+
+def get_subject_version_referenced_by_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[1, 2])
 
 def get_subject_version_schema_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
