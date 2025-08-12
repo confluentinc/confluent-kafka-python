@@ -21,7 +21,7 @@ from threading import Lock
 from typing import List, Dict, Optional
 
 from .schema_registry_client import SchemaRegistryClient
-from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
+from ..common.schema_registry_client import RegisteredSchema, Schema, SchemaVersion, ServerConfig
 from ..error import SchemaRegistryError
 
 
@@ -55,6 +55,9 @@ class _SchemaStore(object):
         with self.lock:
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
+
+    def get_schema_string(self, schema_id: int) -> Optional[str]:
+        return None
 
     def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
         with self.lock:
