@@ -21,7 +21,7 @@ from threading import Lock
 from typing import List, Dict, Optional
 
 from .schema_registry_client import SchemaRegistryClient
-from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
+from ..common.schema_registry_client import RegisteredSchema, Schema, SchemaVersion, ServerConfig
 from ..error import SchemaRegistryError
 
 
@@ -51,12 +51,15 @@ class _SchemaStore(object):
             self.subject_schemas[rs.subject].add(rs)
             return rs
 
-    def get_schema(self, schema_id: int) -> Optional[Schema]:
+    def get_schema(self, schema_id: int) -> Optional[RegisteredSchema]:
         with self.lock:
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
 
-    def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
+    def get_schema_string(self, schema_id: int) -> Optional[str]:
+        return None
+
+    def get_schema_by_guid(self, guid: str) -> Optional[RegisteredSchema]:
         with self.lock:
             rs = self.schema_guid_index.get(guid, None)
             return rs.schema if rs else None
@@ -193,7 +196,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'Schema':
+    ) -> 'RegisteredSchema':
         schema = self._store.get_schema_by_guid(guid)
         if schema is not None:
             return schema

@@ -25,6 +25,8 @@ import pytest
 import respx
 from httpx import Response
 
+from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
+
 work_dir = os.path.dirname(os.path.realpath(__file__))
 
 
@@ -136,7 +138,12 @@ def mock_schema_registry():
         respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
+        respx_mock.get(SCHEMAS_STRING_RE).mock(side_effect=get_schema_string_callback)
+        respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
+        respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
 
+        respx_mock.get(SUBJECTS_VERSIONS_SCHEMA_RE).mock(side_effect=get_subject_version_schema_callback)
+        respx_mock.get(SUBJECTS_VERSIONS_REFERENCED_BY_RE).mock(side_effect=get_subject_version_referenced_by_callback)
         respx_mock.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
         respx_mock.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
         respx_mock.post(SUBJECTS_VERSIONS_RE).mock(side_effect=post_subject_version_callback)
@@ -149,9 +156,16 @@ def mock_schema_registry():
 
 
 # request paths
-SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)?(.*)$")
+SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
+SCHEMAS_STRING_RE = re.compile("/schemas/ids/([0-9]*)/schema$")
+SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
+SCHEMAS_VERSIONS_RE = re.compile("/schemas/ids/([0-9]*)/versions$")
+
 SUBJECTS_RE = re.compile("/subjects/?(.*)$")
 SUBJECTS_VERSIONS_RE = re.compile("/subjects/(.*)/versions/?(.*)$")
+SUBJECTS_VERSIONS_SCHEMA_RE = re.compile("/subjects/(.*)/versions/(.*)/schema/?(.*)$")
+SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile("/subjects/(.*)/versions/(.*)/referencedby$")
+
 COMPATIBILITY_RE = re.compile("/config/?(.*)$")
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
 
@@ -189,11 +203,10 @@ def _auth_matcher(request):
     return Response(401, json=unauthorized)
 
 
-def _load_avsc(name):
+def _load_avsc(name) -> str:
     with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
                            'data', name)) as fd:
         return fd.read()
-
 
 def get_compatibility_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
@@ -272,6 +285,25 @@ def get_schemas_callback(request, route):
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
 
+def get_schema_string_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    path_match = re.match(SCHEMAS_STRING_RE, request.url.path)
+    schema_id = path_match.group(1)
+    if int(schema_id) == 404:
+        return Response(404, json={'error_code': 40403,
+                                   'message': "Schema not found"})
+    return Response(200, json=json.loads(_load_avsc(SCHEMA)))
+
+def get_schema_types_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=['AVRO', 'JSON', 'PROTOBUF'])
+
+def get_schema_versions_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[
+        {'subject': 'subject1', 'version': 1},
+        {'subject': 'subject2', 'version': 2}
+    ])
 
 def get_subject_version_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
@@ -335,6 +367,13 @@ def post_subject_version_callback(request, route):
     else:
         return Response(200, json={'id': SCHEMA_ID})
 
+def get_subject_version_schema_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=json.loads(_load_avsc(SCHEMA)))
+
+def get_subject_version_referenced_by_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[1, 2])
 
 def post_compatibility_subjects_versions_callback(request, route):
     COUNTER['POST'][request.url.path] += 1
