@@ -727,7 +727,6 @@ class SchemaRegistryClient(object):
                 query = {'format': fmt}
         return self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
-
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
