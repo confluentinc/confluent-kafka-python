@@ -1575,6 +1575,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		if (result)
 			Py_DECREF(result);
 		else {
+			PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
 			CallState_crash(cs);
 			rd_kafka_yield(rk);
 		}
