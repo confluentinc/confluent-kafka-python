@@ -144,10 +144,10 @@ async def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
 
-    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
-    schema2 = await sr.get_schema(47)
+    expected = Schema(load_avsc(SCHEMA), schema_type='AVRO')
+    actual = await sr.get_schema(47)
 
-    assert cmp_schema(schema, schema2)
+    assert cmp_schema(expected, actual.schema)
 
 
 async def test_get_schema_not_found(mock_schema_registry):
@@ -185,6 +185,7 @@ async def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
+
 
 async def test_get_schema_string_success(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}

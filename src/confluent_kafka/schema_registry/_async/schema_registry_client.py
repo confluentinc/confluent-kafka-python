@@ -776,7 +776,8 @@ class AsyncSchemaRegistryClient(object):
 
         See Also:
             `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
-        """ # noqa: E501
+        """  # noqa: E501
+
         return await self._rest_client.get('schemas/types')
 
     async def get_schema_versions(self, schema_id: int) -> List[SchemaVersion]:
@@ -796,8 +797,9 @@ class AsyncSchemaRegistryClient(object):
 
         See Also:
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
-        """ # noqa: E501
-        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
+        """  # noqa: E501
+
+        response = await self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
         return [SchemaVersion.from_dict(item) for item in response]
 
     async def lookup_schema(
@@ -821,7 +823,7 @@ class AsyncSchemaRegistryClient(object):
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
-        """ # noqa: E501
+        """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
