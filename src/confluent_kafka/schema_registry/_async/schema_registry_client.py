@@ -33,6 +33,7 @@ from authlib.integrations.httpx_client import AsyncOAuth2Client
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
+    SchemaVersion,
     ServerConfig,
     is_success,
     is_retriable,
@@ -656,37 +657,36 @@ class AsyncSchemaRegistryClient(object):
 
     async def get_schema(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
-    ) -> 'Schema':
+    ) -> 'RegisteredSchema':
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
         require an additional round-trip to the Schema Registry.
 
         Args:
-            schema_id (int): Schema id
-            subject_name (str): Subject name the schema is registered under
-            fmt (str): Format of the schema
+            schema_id (int): Schema id.
+            subject_name (str): Subject name the schema is registered under.
+            fmt (str): Format of the schema.
 
         Returns:
-            Schema: Schema instance identified by the ``schema_id``
+            RegisteredSchema: Registration information for this schema.
 
         Raises:
             SchemaRegistryError: If schema can't be found.
 
         See Also:
-         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
         result = self._cache.get_schema_by_id(subject_name, schema_id)
         if result is not None:
             return result[1]
 
-        query = {'subject': subject_name} if subject_name is not None else None
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
         if fmt is not None:
-            if query is not None:
-                query['format'] = fmt
-            else:
-                query = {'format': fmt}
+            query['format'] = fmt
         response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -694,11 +694,40 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema.schema
+        return registered_schema
+
+    async def get_schema_string(
+        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
+    ) -> str:
+        """
+        Fetches the schema associated with ``schema_id`` from the
+        Schema Registry. Only the unescaped schema string is returned.
+
+        Args:
+            schema_id (int): Schema id.
+            subject_name (str): Subject name the schema is registered under.
+            fmt (str): Format of the schema.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
+        """  # noqa: E501
+
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if fmt is not None:
+            query['format'] = fmt
+        return await self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'Schema':
+    ) -> 'RegisteredSchema':
         """
         Fetches the schema associated with ``guid`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -709,7 +738,7 @@ class AsyncSchemaRegistryClient(object):
             fmt (str): Format of the schema
 
         Returns:
-            Schema: Schema instance identified by the ``guid``
+            RegisteredSchema: Registration information for this schema.
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -731,7 +760,52 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(None, registered_schema.schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema.schema
+        return registered_schema
+
+    async def get_schema_types(self) -> List[str]:
+        """
+        Lists all supported schema types in the Schema Registry.
+
+        Returns:
+            list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
+
+        Raises:
+            SchemaRegistryError: if schema types can't be retrieved
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
+        """  # noqa: E501
+
+        return await self._rest_client.get('schemas/types')
+
+    async def get_schema_versions(self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False) -> List[SchemaVersion]:
+        """
+        Gets all subject-version pairs of a schema by its ID.
+
+        Args:
+            schema_id (int): Schema ID.
+            subject_name (str): Subject name that results can be filtered by.
+            deleted (bool): Whether to include subject versions where the schema was deleted.
+
+        Returns:
+            list(SchemaVersion): List of subject-version pairs. Each pair contains:
+                - subject (str): Subject name.
+                - version (int): Version number.
+
+        Raises:
+            SchemaRegistryError: if schema versions can't be found.
+
+        See Also:
+            `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+        """  # noqa: E501
+
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if deleted:
+            query['deleted'] = deleted
+        response = await self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
+        return [SchemaVersion.from_dict(item) for item in response]
 
     async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
@@ -741,16 +815,16 @@ class AsyncSchemaRegistryClient(object):
         Returns ``schema`` registration information for ``subject``.
 
         Args:
-            subject_name (str): Subject name the schema is registered under
+            subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
-            normalize_schemas (bool): Normalize schema before registering
+            normalize_schemas (bool): Normalize schema before registering.
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
             RegisteredSchema: Subject registration information for this schema.
 
         Raises:
-            SchemaRegistryError: If schema or subject can't be found
+            SchemaRegistryError: If schema or subject can't be found.
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
@@ -783,9 +857,13 @@ class AsyncSchemaRegistryClient(object):
 
         return registered_schema
 
-    async def get_subjects(self) -> List[str]:
+    async def get_subjects(self, subject_prefix: Optional[str] = None, deleted: bool = False) -> List[str]:
         """
         Lists all subjects registered with the Schema Registry
+
+        Args:
+            subject_prefix (str): Subject name prefix that results can be filtered by.
+            deleted (bool): Whether to include deleted subjects.
 
         Returns:
             list(str): Registered subject names
@@ -797,7 +875,10 @@ class AsyncSchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
-        return await self._rest_client.get('subjects')
+        query = {'deleted': deleted }
+        if subject_prefix is not None:
+            query['subject'] = subject_prefix
+        return await self._rest_client.get('subjects', query)
 
     async def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         """
@@ -891,7 +972,9 @@ class AsyncSchemaRegistryClient(object):
         if registered_schema is not None:
             return registered_schema
 
-        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        query = {'deleted': deleted}
+        if fmt is not None:
+            query['format'] = fmt
         keys = metadata.keys()
         if keys:
             query['key'] = [_urlencode(key) for key in keys]
@@ -912,13 +995,13 @@ class AsyncSchemaRegistryClient(object):
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
-        Retrieves a specific schema registered under ``subject_name``.
+        Retrieves a specific schema registered under `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name.
-            version (int): version number. Defaults to latest version.
+            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
             deleted (bool): Whether to include deleted schemas.
-            fmt (str): Format of the schema
+            fmt (str): Format of the schema.
 
         Returns:
             RegisteredSchema: Registration information for this version.
@@ -927,7 +1010,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
 
         See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
@@ -945,12 +1028,62 @@ class AsyncSchemaRegistryClient(object):
 
         return registered_schema
 
-    async def get_versions(self, subject_name: str) -> List[int]:
+    async def get_version_schema_string(
+        self, subject_name: str, version: Union[int, str] = "latest",
+        deleted: bool = False, fmt: Optional[str] = None
+    ) -> str:
+        """
+        Retrieves a specific schema registered under ``subject_name`` and ``version``.
+        Only the unescaped schema string is returned.
+
+        Args:
+            subject_name (str): Subject name.
+            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)-schema>`_
+        """  # noqa: E501
+
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        return await self._rest_client.get(
+            'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
+        )
+
+    async def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[int]:
+        """
+        Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
+
+        Args:
+            subject_name (str): Subject name
+            version (int or str): Version number or "latest"
+
+        Returns:
+            list(int): List of schema IDs that reference the specified schema.
+
+        Raises:
+            SchemaRegistryError: if the schema version can't be found or referenced schemas can't be retrieved
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+        return await self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version))
+
+    async def get_versions(self, subject_name: str, deleted: bool = False) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
         Args:
             subject_name (str): Subject name.
+            deleted (bool): Whether to include deleted schemas.
 
         Returns:
             list(int): Registered versions
@@ -962,7 +1095,8 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return await self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
+        query = {'deleted': deleted}
+        return await self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         """
