@@ -806,6 +806,7 @@ class SchemaRegistryClient(object):
 <<<<<<< HEAD
         return self._rest_client.get('schemas/types')
 
+<<<<<<< HEAD
     def get_subjects_by_schema_id(
         self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
         offset: int = 0, limit: int = -1
@@ -859,6 +860,11 @@ class SchemaRegistryClient(object):
 =======
     def get_schema_versions(self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False) -> List[SchemaVersion]:
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+    def get_schema_versions(
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False
+    ) -> List[SchemaVersion]:
+>>>>>>> c465d04 (lint)
         """
         Gets all subject-version pairs of a schema by its ID.
 
@@ -1021,10 +1027,14 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
 =======
         query = {'deleted': deleted }
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+        query = {'deleted': deleted}
+>>>>>>> c465d04 (lint)
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return self._rest_client.get('subjects', query)
