@@ -174,6 +174,7 @@ static void dr_msg_cb (rd_kafka_t *rk, const rd_kafka_message_t *rkm,
 	if (result)
 		Py_DECREF(result);
 	else {
+		
 		PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
 		CallState_crash(cs);
 		rd_kafka_yield(rk);

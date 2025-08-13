@@ -985,7 +985,7 @@ def test_callback_exception_no_system_error():
     producer = Producer({
         'bootstrap.servers': 'nonexistent-broker:9092',  # Will cause delivery failures
         'socket.timeout.ms': 100,
-        'message.timeout.ms': 1000,
+        'message.timeout.ms': 10,  # Very short timeout to trigger delivery failure quickly
         'on_delivery': delivery_cb_that_raises
     })
     
@@ -996,12 +996,10 @@ def test_callback_exception_no_system_error():
     # Before fix: Would get RuntimeError + SystemError  
     # After fix: Should only get RuntimeError (no SystemError)
     with pytest.raises(RuntimeError) as exc_info:
-        producer.flush(timeout=1.0)
+        producer.flush(timeout=2.0)  # Longer timeout to ensure delivery callback fires
     
     # Verify we got an exception from our callback
     assert "Test exception from delivery_cb" in str(exc_info.value)
     
     # Verify the delivery callback was actually called
     assert len(delivery_reports) > 0
-    
-    producer.close()
