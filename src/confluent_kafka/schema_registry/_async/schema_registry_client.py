@@ -731,12 +731,11 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
         """  # noqa: E501
 
-        query = {'subject': subject_name} if subject_name is not None else None
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
         if fmt is not None:
-            if query is not None:
-                query['format'] = fmt
-            else:
-                query = {'format': fmt}
+            query['format'] = fmt
         return await self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
     async def get_schema_by_guid(
@@ -925,6 +924,10 @@ class AsyncSchemaRegistryClient(object):
             deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+
+        Args:
+            subject_prefix (str): Subject name prefix that results can be filtered by.
+            deleted (bool): Whether to include deleted subjects.
 
         Returns:
             list(str): Registered subject names

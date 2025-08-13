@@ -706,9 +706,12 @@ class SchemaRegistryClient(object):
             query['subject'] = subject_name
         if fmt is not None:
             query['format'] = fmt
+<<<<<<< HEAD
         if reference_format is not None:
             query['reference_format'] = reference_format
 
+=======
+>>>>>>> f1029a9 (missing params and address feedback)
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -740,12 +743,11 @@ class SchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
         """  # noqa: E501
 
-        query = {'subject': subject_name} if subject_name is not None else None
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
         if fmt is not None:
-            if query is not None:
-                query['format'] = fmt
-            else:
-                query = {'format': fmt}
+            query['format'] = fmt
         return self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
     def get_schema_by_guid(
@@ -851,18 +853,27 @@ class SchemaRegistryClient(object):
 >>>>>>> 30a97e5 (fix some unit tests broken from unasync)
         return self._rest_client.get('schemas/types')
 
+<<<<<<< HEAD
     def get_schema_versions(self, schema_id: int) -> List[SchemaVersion]:
 >>>>>>> b0410dd (updaet)
+=======
+    def get_schema_versions(self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False) -> List[SchemaVersion]:
+>>>>>>> f1029a9 (missing params and address feedback)
         """
         Gets all subject-version pairs of a schema by its ID.
 
         Args:
             schema_id (int): Schema ID.
 <<<<<<< HEAD
+<<<<<<< HEAD
             subject_name (str): Subject name that results can be filtered by.
             deleted (bool): Whether to include subject versions where the schema was deleted.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+=======
+            subject_name (str): Subject name that results can be filtered by.
+            deleted (bool): Whether to include subject versions where the schema was deleted.
+>>>>>>> f1029a9 (missing params and address feedback)
 
         Returns:
             list(SchemaVersion): List of subject-version pairs. Each pair contains:
@@ -901,9 +912,18 @@ class SchemaRegistryClient(object):
 =======
         """  # noqa: E501
 
+<<<<<<< HEAD
 >>>>>>> 30a97e5 (fix some unit tests broken from unasync)
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
 >>>>>>> b0410dd (updaet)
+=======
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if deleted:
+            query['deleted'] = deleted
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
+>>>>>>> f1029a9 (missing params and address feedback)
         return [SchemaVersion.from_dict(item) for item in response]
 
     def lookup_schema(
@@ -968,10 +988,14 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
+<<<<<<< HEAD
     def get_subjects(
         self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False,
         offset: int = 0, limit: int = -1
     ) -> List[str]:
+=======
+    def get_subjects(self, subject_prefix: Optional[str] = None, deleted: bool = False) -> List[str]:
+>>>>>>> f1029a9 (missing params and address feedback)
         """
         Lists all subjects registered with the Schema Registry.
 
@@ -981,6 +1005,10 @@ class SchemaRegistryClient(object):
             deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+
+        Args:
+            subject_prefix (str): Subject name prefix that results can be filtered by.
+            deleted (bool): Whether to include deleted subjects.
 
         Returns:
             list(str): Registered subject names
@@ -992,7 +1020,11 @@ class SchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
+<<<<<<< HEAD
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+=======
+        query = {'deleted': deleted }
+>>>>>>> f1029a9 (missing params and address feedback)
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return self._rest_client.get('subjects', query)
@@ -1164,7 +1196,7 @@ class SchemaRegistryClient(object):
 
         Args:
             subject_name (str): Subject name.
-            version (int): version number. Defaults to latest version.
+            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
             deleted (bool): Whether to include deleted schemas.
             fmt (str): Format of the schema.
 
@@ -1240,17 +1272,24 @@ class SchemaRegistryClient(object):
         return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
             _urlencode(subject_name), version))
 
+<<<<<<< HEAD
     def get_versions(self, subject_name: str) -> List[int]:
 >>>>>>> b0410dd (updaet)
+=======
+    def get_versions(self, subject_name: str, deleted: bool = False) -> List[int]:
+>>>>>>> f1029a9 (missing params and address feedback)
         """
         Get a list of all versions registered with this subject.
 
         Args:
             subject_name (str): Subject name.
             deleted (bool): Whether to include deleted schemas.
+<<<<<<< HEAD
             deleted_only (bool): Whether to return deleted versions only. If both deleted and deleted_only are True, deleted_only takes precedence.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+=======
+>>>>>>> f1029a9 (missing params and address feedback)
 
         Returns:
             list(int): Registered versions
@@ -1262,7 +1301,11 @@ class SchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
+<<<<<<< HEAD
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+=======
+        query = {'deleted': deleted}
+>>>>>>> f1029a9 (missing params and address feedback)
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:

@@ -666,10 +666,7 @@ class SchemaVersion:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        d = src_dict.copy()
-        subject = d.pop("subject", None)
-        version = d.pop("version", None)
-        return cls(subject=subject, version=version)
+        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))
 
 
 @_attrs_define(frozen=True)
