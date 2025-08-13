@@ -778,7 +778,9 @@ class SchemaRegistryClient(object):
 
         return self._rest_client.get('schemas/types')
 
-    def get_schema_versions(self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False) -> List[SchemaVersion]:
+    def get_schema_versions(
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False
+    ) -> List[SchemaVersion]:
         """
         Gets all subject-version pairs of a schema by its ID.
 
@@ -875,7 +877,7 @@ class SchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
-        query = {'deleted': deleted }
+        query = {'deleted': deleted}
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return self._rest_client.get('subjects', query)
