@@ -43,12 +43,7 @@ TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
 
-
-<<<<<<< HEAD
 def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
-=======
-def cmp_schema(schema1: Schema, schema2: Schema):
->>>>>>> 356f3ca (tests)
     """
     Compare to Schemas for equivalence
 
@@ -148,14 +143,10 @@ def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
 
-    expected = Schema(load_avsc(SCHEMA), schema_type='AVRO')
-    actual = sr.get_schema(47)
+    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
+    schema2 = sr.get_schema(47)
 
-<<<<<<< HEAD
-    assert cmp_schema(expected, actual)
-=======
-    assert cmp_schema(expected, actual.schema)
->>>>>>> 356f3ca (tests)
+    assert cmp_schema(schema, schema2)
 
 
 def test_get_schema_not_found(mock_schema_registry):
@@ -408,6 +399,7 @@ def test_delete_version_invalid(mock_schema_registry):
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
 
+
 def test_get_version_schema_string(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
@@ -416,11 +408,6 @@ def test_get_version_schema_string(mock_schema_registry, load_avsc):
     actual = sr.get_version_schema_string("get_version", 3)
     assert expected == actual
 
-def test_get_referenced_by(mock_schema_registry):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    assert sr.get_referenced_by("get_version", 3) == [1, 2]
 
 def test_get_referenced_by(mock_schema_registry):
     conf = {'url': TEST_URL}
@@ -428,7 +415,7 @@ def test_get_referenced_by(mock_schema_registry):
 
     assert sr.get_referenced_by("get_version", 3) == [1, 2]
 
-
+    
 def test_set_compatibility(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)

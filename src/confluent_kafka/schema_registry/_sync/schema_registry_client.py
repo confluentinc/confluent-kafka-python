@@ -791,6 +791,7 @@ class SchemaRegistryClient(object):
 
         Returns:
 <<<<<<< HEAD
+<<<<<<< HEAD
             list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
 
         Raises:
@@ -835,9 +836,12 @@ class SchemaRegistryClient(object):
     ) -> List[SchemaVersion]:
 =======
             list(str): Schema types currently available on Schema Registry.
+=======
+            list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
+>>>>>>> a30561b (regenerate sync code + fix it)
 
         Raises:
-            SchemaRegistryError: if schema types can't be retrieved.
+            SchemaRegistryError: if schema types can't be retrieved
 
         See Also:
             `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
@@ -876,6 +880,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+<<<<<<< HEAD
         """  # noqa: E501
 <<<<<<< HEAD
 
@@ -886,6 +891,9 @@ class SchemaRegistryClient(object):
             query['deleted'] = deleted
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
 =======
+=======
+        """ # noqa: E501
+>>>>>>> a30561b (regenerate sync code + fix it)
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
 >>>>>>> b0410dd (updaet)
         return [SchemaVersion.from_dict(item) for item in response]
@@ -901,7 +909,10 @@ class SchemaRegistryClient(object):
             subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
             normalize_schemas (bool): Normalize schema before registering.
+<<<<<<< HEAD
             fmt (str): Desired output format, dependent on schema type.
+=======
+>>>>>>> a30561b (regenerate sync code + fix it)
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
@@ -912,7 +923,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
-        """  # noqa: E501
+        """ # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
@@ -1093,7 +1104,7 @@ class SchemaRegistryClient(object):
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
-        Retrieves a specific schema registered under ``subject_name`` and ``version``.
+        Retrieves a specific schema registered under `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name.

@@ -56,9 +56,6 @@ class _SchemaStore(object):
             rs = self.schema_id_index.get(schema_id, None)
             return rs.schema if rs else None
 
-    def get_schema_string(self, schema_id: int) -> Optional[str]:
-        return None
-
     def get_schema_by_guid(self, guid: str) -> Optional[Schema]:
         with self.lock:
             rs = self.schema_guid_index.get(guid, None)

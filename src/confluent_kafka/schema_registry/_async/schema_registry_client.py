@@ -707,7 +707,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema.schema
+        return registered_schema
 
     async def get_schema_string(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
@@ -875,7 +875,7 @@ class AsyncSchemaRegistryClient(object):
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
-        """  # noqa: E501
+        """ # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
