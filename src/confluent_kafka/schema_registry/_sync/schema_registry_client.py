@@ -655,7 +655,6 @@ class SchemaRegistryClient(object):
             schema=result.schema,
         )
 
-
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
         self._cache.set_schema(subject_name, registered_schema.schema_id,
