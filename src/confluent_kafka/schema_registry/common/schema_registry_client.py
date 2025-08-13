@@ -658,6 +658,7 @@ class Metadata:
 
         return metadata
 
+
 @_attrs_define(frozen=True)
 class SchemaVersion:
     subject: Optional[str]
@@ -669,6 +670,7 @@ class SchemaVersion:
         subject = d.pop("subject", None)
         version = d.pop("version", None)
         return cls(subject=subject, version=version)
+
 
 @_attrs_define(frozen=True)
 class SchemaVersion:

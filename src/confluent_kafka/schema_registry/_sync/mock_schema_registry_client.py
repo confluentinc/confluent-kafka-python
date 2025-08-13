@@ -21,7 +21,7 @@ from threading import Lock
 from typing import List, Dict, Optional
 
 from .schema_registry_client import SchemaRegistryClient
-from ..common.schema_registry_client import RegisteredSchema, Schema, SchemaVersion, ServerConfig
+from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
 from ..error import SchemaRegistryError
 
 

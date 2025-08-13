@@ -186,6 +186,7 @@ async def test_get_schema_cache(mock_schema_registry):
 
     assert count_after - count_before == 1
 
+
 async def test_get_schema_string_success(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
