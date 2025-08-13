@@ -329,12 +329,12 @@ def test_consumer_without_groupid():
 def test_callback_exception_no_system_error():
 
     exception_raised = []
-    
+
     def error_cb_that_raises(error):
         """Error callback that raises an exception"""
         exception_raised.append(error)
         raise RuntimeError("Test exception from error_cb")
-    
+
     # Create consumer with error callback that raises exception
     consumer = TestConsumer({
         'group.id': 'test-callback-systemerror-fix',
@@ -343,19 +343,19 @@ def test_callback_exception_no_system_error():
         'session.timeout.ms': 1000,
         'error_cb': error_cb_that_raises
     })
-    
+
     consumer.subscribe(['test-topic'])
-    
+
     # This should trigger the error callback due to connection failure
     # Before fix: Would get RuntimeError + SystemError
     # After fix: Should only get RuntimeError (no SystemError)
     with pytest.raises(RuntimeError) as exc_info:
         consumer.consume(timeout=0.1)
-    
+
     # Verify we got the expected exception message
     assert "Test exception from error_cb" in str(exc_info.value)
-    
+
     # Verify the error callback was actually called
     assert len(exception_raised) > 0
-    
+
     consumer.close()
