@@ -675,7 +675,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: If schema can't be found.
 
         See Also:
-         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
         result = self._cache.get_schema_by_id(subject_name, schema_id)
@@ -695,7 +695,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema.schema
+        return registered_schema
 
     async def get_schema_string(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
@@ -784,15 +784,15 @@ class AsyncSchemaRegistryClient(object):
         Gets all subject-version pairs of a schema by its ID.
 
         Args:
-            schema_id (int): Schema ID
+            schema_id (int): Schema ID.
 
         Returns:
             list(SchemaVersion): List of subject-version pairs. Each pair contains:
-                - subject (str): Subject name
-                - version (int): Version number
+                - subject (str): Subject name.
+                - version (int): Version number.
 
         Raises:
-            SchemaRegistryError: if schema versions can't be found
+            SchemaRegistryError: if schema versions can't be found.
 
         See Also:
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
@@ -808,20 +808,20 @@ class AsyncSchemaRegistryClient(object):
         Returns ``schema`` registration information for ``subject``.
 
         Args:
-            subject_name (str): Subject name the schema is registered under
+            subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
-            normalize_schemas (bool): Normalize schema before registering
+            normalize_schemas (bool): Normalize schema before registering.
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
             RegisteredSchema: Subject registration information for this schema.
 
         Raises:
-            SchemaRegistryError: If schema or subject can't be found
+            SchemaRegistryError: If schema or subject can't be found.
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
-        """  # noqa: E501
+        """ # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:

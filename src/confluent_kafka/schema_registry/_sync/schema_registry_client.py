@@ -769,10 +769,10 @@ class SchemaRegistryClient(object):
         Lists all supported schema types in the Schema Registry.
 
         Returns:
-            list(str): Schema types currently available on Schema Registry.
+            list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
 
         Raises:
-            SchemaRegistryError: if schema types can't be retrieved.
+            SchemaRegistryError: if schema types can't be retrieved
 
         See Also:
             `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
@@ -796,7 +796,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
-        """  # noqa: E501
+        """ # noqa: E501
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
         return [SchemaVersion.from_dict(item) for item in response]
 
@@ -808,20 +808,20 @@ class SchemaRegistryClient(object):
         Returns ``schema`` registration information for ``subject``.
 
         Args:
-            subject_name (str): Subject name the schema is registered under
+            subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
-            normalize_schemas (bool): Normalize schema before registering
+            normalize_schemas (bool): Normalize schema before registering.
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
             RegisteredSchema: Subject registration information for this schema.
 
         Raises:
-            SchemaRegistryError: If schema or subject can't be found
+            SchemaRegistryError: If schema or subject can't be found.
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
-        """  # noqa: E501
+        """ # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
         if registered_schema is not None:
@@ -979,7 +979,7 @@ class SchemaRegistryClient(object):
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
-        Retrieves a specific schema registered under ``subject_name`` and ``version``.
+        Retrieves a specific schema registered under `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name.

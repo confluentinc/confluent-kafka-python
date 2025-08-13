@@ -44,7 +44,7 @@ TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
 
 
-def cmp_schema(schema1, schema2):
+def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
     """
     Compare to Schemas for equivalence
 
