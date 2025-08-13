@@ -645,7 +645,15 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        registered_schema = RegisteredSchema.from_dict(response)
+        result = RegisteredSchema.from_dict(response)
+
+        registered_schema = RegisteredSchema(
+            schema_id=result.schema_id,
+            guid=result.guid,
+            subject=result.subject or subject_name,
+            version=result.version,
+            schema=result.schema,
+        )
 
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
