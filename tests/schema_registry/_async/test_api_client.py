@@ -15,10 +15,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import pytest
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, wait
 
+from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema, \
     AsyncSchemaRegistryClient
@@ -42,7 +44,7 @@ TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
 
 
-def cmp_schema(schema1, schema2):
+def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
     """
     Compare to Schemas for equivalence
 
@@ -142,10 +144,10 @@ async def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
 
-    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
-    schema2 = await sr.get_schema(47)
+    expected = Schema(load_avsc(SCHEMA), schema_type='AVRO')
+    actual = await sr.get_schema(47)
 
-    assert cmp_schema(schema, schema2)
+    assert cmp_schema(expected, actual.schema)
 
 
 async def test_get_schema_not_found(mock_schema_registry):
@@ -183,6 +185,33 @@ async def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
+
+
+async def test_get_schema_string_success(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = json.loads(load_avsc(SCHEMA))
+    actual = await sr.get_schema_string(47)
+    assert expected == actual
+
+
+async def test_get_schema_types(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = ['AVRO', 'JSON', 'PROTOBUF']
+    actual = await sr.get_schema_types()
+    assert expected == actual
+
+
+async def test_get_schema_versions(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = [SchemaVersion(subject='subject1', version=1), SchemaVersion(subject='subject2', version=2)]
+    actual = await sr.get_schema_versions(47)
+    assert expected == actual
 
 
 async def test_get_registration(mock_schema_registry, load_avsc):
@@ -344,6 +373,22 @@ async def test_delete_version_invalid(mock_schema_registry):
         await sr.delete_version("invalid_version", 422)
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
+
+
+async def test_get_version_schema_string(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = json.loads(load_avsc(SCHEMA))
+    actual = await sr.get_version_schema_string("get_version", 3)
+    assert expected == actual
+
+
+async def test_get_referenced_by(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    assert await sr.get_referenced_by("get_version", 3) == [1, 2]
 
 
 async def test_set_compatibility(mock_schema_registry):
