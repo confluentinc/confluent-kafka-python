@@ -1122,12 +1122,8 @@ class AsyncSchemaRegistryClient(object):
             _urlencode(subject_name), version), query)
 
     async def get_versions(
-<<<<<<< HEAD
         self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
         offset: int = 0, limit: int = -1
-=======
-        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
->>>>>>> 3115286 (revert breaking chamges)
     ) -> List[int]:
         """
         Get a list of all versions registered with this subject.
