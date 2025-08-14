@@ -498,3 +498,28 @@ async def test_test_compatibility_with_error(
         await sr.test_compatibility(subject_name, schema, version)
     assert e.value.http_status_code == status_code
     assert e.value.error_code == error_code
+
+
+async def test_test_compatibility_all_versions(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+
+    is_compatible = await sr.test_compatibility_all_versions('subject-all-versions', schema)
+    assert is_compatible is True
+
+
+async def test_get_global_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    mode = await sr.get_global_mode()
+    assert mode == 'READWRITE'
+
+
+async def test_set_global_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.update_global_mode('READONLY')
+    assert result == 'READONLY'

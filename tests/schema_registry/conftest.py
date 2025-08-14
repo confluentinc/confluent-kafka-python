@@ -131,9 +131,17 @@ def mock_schema_registry():
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(
             side_effect=post_compatibility_subjects_versions_callback)
+        respx_mock.post(COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE).mock(
+            side_effect=post_compatibility_subjects_all_versions_callback)
 
         respx_mock.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
         respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
+
+        respx_mock.get(MODE_GLOBAL_RE).mock(side_effect=get_global_mode_callback)
+        respx_mock.put(MODE_GLOBAL_RE).mock(side_effect=put_global_mode_callback)
+        # respx_mock.get(MODE_RE).mock(side_effect=get_mode_callback)
+        # respx_mock.put(MODE_RE).mock(side_effect=put_mode_callback)
+        # respx_mock.delete(MODE_RE).mock(side_effect=delete_mode_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
         respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
@@ -165,6 +173,11 @@ SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile(r"/subjects/(.*)/versions/(.*)/r
 
 COMPATIBILITY_RE = re.compile("/config/?(.*)$")
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
+COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions")
+
+MODE_GLOBAL_RE = re.compile("/mode(\?.*)?$")
+MODE_RE = re.compile("/mode/(.*)$")
+
 # constants
 SCHEMA_ID = 47
 VERSION = 3
@@ -437,6 +450,23 @@ def post_compatibility_subjects_versions_callback(request, route):
                                    'message': 'Invalid Schema'})
 
     return Response(200, json={'is_compatible': True})
+
+
+def post_compatibility_subjects_all_versions_callback(request, route):
+    COUNTER['POST'][request.url.path] += 1
+    return Response(200, json={'is_compatible': True})
+
+
+def get_global_mode_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
+
+
+def put_global_mode_callback(request, route):
+    COUNTER['PUT'][request.url.path] += 1
+    body = json.loads(request.content.decode('utf-8'))
+    print(body)
+    return Response(200, json=body)
 
 
 @pytest.fixture(scope="package")
