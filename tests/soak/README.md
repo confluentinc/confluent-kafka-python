@@ -10,10 +10,24 @@ OpenTelemetry reporting supported through OTLP.
 
 # Installation
 
-TESTID=normal \
-LK_VERSION=v2.2.0 \
-CKPY_VERSION=v2.2.0 \
-CC_BOOSTRAP_SERVERS=_ \
-CC_USERNAME=_ \
-CC_PASSWORD=_ \
-DOCKER_REPOSITORY=_ ./install.sh
+1. Edit `ccloud.config`
+
+2. Edit `otel-config.yaml`
+
+3. the first time:
+```bash
+./bootstrap.sh <python-branch/tag> <librdkafka-branch/tag>
+```
+4. next times:
+```bash
+./build.sh <python-branch/tag> <librdkafka-branch/tag>
+```
+
+5. 
+```bash
+. venv/bin/activate
+
+5. Run some tests
+```bash
+TESTID=<testid> ./run.sh ccloud.config
+```
