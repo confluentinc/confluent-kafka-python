@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-import json
+import orjson
 import logging
 import time
 import urllib
@@ -417,7 +417,7 @@ class _RestClient(_BaseRestClient):
                              " application/json"}
 
         if body is not None:
-            body = json.dumps(body)
+            body = orjson.dumps(body).decode('utf-8')
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
@@ -646,7 +646,15 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        registered_schema = RegisteredSchema.from_dict(response)
+        result = RegisteredSchema.from_dict(response)
+
+        registered_schema = RegisteredSchema(
+            schema_id=result.schema_id,
+            guid=result.guid,
+            subject=result.subject or subject_name,
+            version=result.version,
+            schema=result.schema,
+        )
 
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
