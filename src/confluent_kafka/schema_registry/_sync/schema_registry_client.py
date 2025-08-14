@@ -1273,7 +1273,8 @@ class SchemaRegistryClient(object):
         self, subject_name: str, schema: 'Schema',
         version: Union[int, str] = "latest"
     ) -> bool:
-        """Test the compatibility of a candidate schema for a given subject and version
+        """
+        Test the compatibility of a candidate schema for a given subject and version
 
         Args:
             subject_name (str): Subject name the schema is registered under
@@ -1291,12 +1292,35 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         request = schema.to_dict()
-
         response = self._rest_client.post(
             'compatibility/subjects/{}/versions/{}'.format(_urlencode(subject_name), version), body=request
         )
-
         return response['is_compatible']
+
+    def test_compatibility_against_all(
+        self, subject_name: str, schema: 'Schema', normalize: bool = False, verbose: bool = False
+    ) -> bool:
+        """
+        Test the input schema against all of the subject's schemas for compatibility.
+
+        Args:
+            subject_name (str): Name of the schema against which compatibility is to be tested.
+            schema (Schema): Schema instance.
+            normalize (bool): Whether to normalize the input schema. # TODO: missing in cp + cc docs
+            verbose (bool): Wehther to return detailed error messages.
+
+        Returns:
+            bool: True if the schema is compatible with all of the subject's schemas.
+        See Also:
+            `POST Test Compatibility Against All API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions>`_
+        """
+        request = schema.to_dict()
+        response = self._rest_client.post(
+            'compatibility/subjects/{}/versions'.format(_urlencode(subject_name)),
+            query={'normalize': normalize, 'verbose': verbose},
+            body=request,
+        )
+        return response['is_compatible'] # TODO: should it return entire response
 
     def set_config(
         self, subject_name: Optional[str] = None,
