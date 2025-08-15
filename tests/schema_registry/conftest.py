@@ -283,6 +283,11 @@ def get_schemas_callback(request, route):
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
 
 
+def get_schema_subjects_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=SUBJECTS)
+
+
 def get_schema_string_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
     path_match = re.match(SCHEMAS_STRING_RE, request.url.path)

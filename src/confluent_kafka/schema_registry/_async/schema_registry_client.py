@@ -679,7 +679,7 @@ class AsyncSchemaRegistryClient(object):
             reference_format (str): Desired output format for references.
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``schema_id``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -699,7 +699,6 @@ class AsyncSchemaRegistryClient(object):
             query['format'] = fmt
         if reference_format is not None:
             query['reference_format'] = reference_format
-
         response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -707,7 +706,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     async def get_schema_string(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
@@ -719,7 +718,7 @@ class AsyncSchemaRegistryClient(object):
         Args:
             schema_id (int): Schema id.
             subject_name (str): Subject name the schema is registered under.
-            fmt (str): Format of the schema.
+            fmt (str): Desired output format, dependent on schema type.
 
         Returns:
             str: Schema string for this version.
@@ -740,7 +739,7 @@ class AsyncSchemaRegistryClient(object):
 
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``guid`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -751,7 +750,7 @@ class AsyncSchemaRegistryClient(object):
             fmt (str): Format of the schema
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``guid``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -773,7 +772,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(None, registered_schema.schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     async def get_schema_types(self) -> List[str]:
         """
@@ -928,6 +927,9 @@ class AsyncSchemaRegistryClient(object):
         Args:
             subject_prefix (str): Subject name prefix that results can be filtered by.
             deleted (bool): Whether to include deleted subjects.
+            deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(str): Registered subject names
@@ -1120,8 +1122,12 @@ class AsyncSchemaRegistryClient(object):
             _urlencode(subject_name), version), query)
 
     async def get_versions(
+<<<<<<< HEAD
         self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
         offset: int = 0, limit: int = -1
+=======
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+>>>>>>> 3115286 (revert breaking chamges)
     ) -> List[int]:
         """
         Get a list of all versions registered with this subject.

@@ -665,6 +665,7 @@ class SchemaRegistryClient(object):
 
     def get_schema(
 <<<<<<< HEAD
+<<<<<<< HEAD
         self, schema_id: int, subject_name: Optional[str] = None,
         fmt: Optional[str] = None, reference_format: Optional[str] = None,
     ) -> 'Schema':
@@ -672,6 +673,12 @@ class SchemaRegistryClient(object):
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
 >>>>>>> 3212e55 (update)
+=======
+        self, schema_id: int, subject_name: Optional[str] = None,
+        fmt: Optional[str] = None, reference_format: Optional[str] = None,
+        find_tags: Optional[List[str]] = None, fetch_max_id: bool = False
+    ) -> 'Schema':
+>>>>>>> 3115286 (revert breaking chamges)
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -681,14 +688,21 @@ class SchemaRegistryClient(object):
             schema_id (int): Schema id.
             subject_name (str): Subject name the schema is registered under.
 <<<<<<< HEAD
+<<<<<<< HEAD
             fmt (str): Desired output format, dependent on schema type.
             reference_format (str): Desired output format for references.
 =======
             fmt (str): Format of the schema.
 >>>>>>> 3212e55 (update)
+=======
+            fmt (str): Desired output format, dependent on schema type.
+            reference_format (str): Desired output format for references.
+            find_tags (list[str]): Find tagged entities for the given tags or * for all tags.
+            fetch_max_id (boolean): Whether to fetch the maximum schema identifier that exists
+>>>>>>> 3115286 (revert breaking chamges)
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``schema_id``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -707,11 +721,20 @@ class SchemaRegistryClient(object):
         if fmt is not None:
             query['format'] = fmt
 <<<<<<< HEAD
+<<<<<<< HEAD
         if reference_format is not None:
             query['reference_format'] = reference_format
 
 =======
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+        if reference_format is not None:
+            query['reference_format'] = reference_format
+        if find_tags is not None:
+            query['find_tags'] = find_tags
+        if fetch_max_id:
+            query['fetch_max_id'] = fetch_max_id
+>>>>>>> 3115286 (revert breaking chamges)
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -719,7 +742,7 @@ class SchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     def get_schema_string(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
@@ -731,7 +754,7 @@ class SchemaRegistryClient(object):
         Args:
             schema_id (int): Schema id.
             subject_name (str): Subject name the schema is registered under.
-            fmt (str): Format of the schema.
+            fmt (str): Desired output format, dependent on schema type.
 
         Returns:
             str: Schema string for this version.
@@ -752,7 +775,7 @@ class SchemaRegistryClient(object):
 
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``guid`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -763,7 +786,7 @@ class SchemaRegistryClient(object):
             fmt (str): Format of the schema
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``guid``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -785,7 +808,7 @@ class SchemaRegistryClient(object):
         self._cache.set_schema(None, registered_schema.schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     def get_schema_types(self) -> List[str]:
         """
@@ -807,6 +830,9 @@ class SchemaRegistryClient(object):
         return self._rest_client.get('schemas/types')
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3115286 (revert breaking chamges)
     def get_subjects_by_schema_id(
         self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
         offset: int = 0, limit: int = -1
@@ -817,15 +843,28 @@ class SchemaRegistryClient(object):
         Args:
             schema_id (int): Schema ID.
             subject_name (str): Subject name that results can be filtered by.
+<<<<<<< HEAD
             deleted (bool): Whether to include subjects where the schema was deleted.
+=======
+            deleted (bool): Whether to include subejcts where the schema was deleted.
+>>>>>>> 3115286 (revert breaking chamges)
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
+<<<<<<< HEAD
             list(str): List of subjects matching the specified parameters.
 
         Raises:
             SchemaRegistryError: if subjects can't be found
+=======
+            list(str): List of suubjects matching the specified parameters.
+
+        Raises:
+            SchemaRegistryError: if subjects can't be found
+
+        TODO: add API reference
+>>>>>>> 3115286 (revert breaking chamges)
         """
         query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
@@ -834,6 +873,7 @@ class SchemaRegistryClient(object):
             query['deleted'] = deleted
         return self._rest_client.get('schemas/ids/{}/subjects'.format(schema_id), query)
 
+<<<<<<< HEAD
     def get_schema_versions(
         self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
         offset: int = 0, limit: int = -1
@@ -861,8 +901,11 @@ class SchemaRegistryClient(object):
     def get_schema_versions(self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False) -> List[SchemaVersion]:
 >>>>>>> f1029a9 (missing params and address feedback)
 =======
+=======
+>>>>>>> 3115286 (revert breaking chamges)
     def get_schema_versions(
-        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
+        offset: int = 0, limit: int = -1
     ) -> List[SchemaVersion]:
 >>>>>>> c465d04 (lint)
         """
@@ -876,10 +919,13 @@ class SchemaRegistryClient(object):
             deleted (bool): Whether to include subject versions where the schema was deleted.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+<<<<<<< HEAD
 =======
             subject_name (str): Subject name that results can be filtered by.
             deleted (bool): Whether to include subject versions where the schema was deleted.
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+>>>>>>> 3115286 (revert breaking chamges)
 
         Returns:
             list(SchemaVersion): List of subject-version pairs. Each pair contains:
@@ -919,11 +965,15 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 >>>>>>> 30a97e5 (fix some unit tests broken from unasync)
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id))
 >>>>>>> b0410dd (updaet)
 =======
         query = {}
+=======
+        query = {'offset': offset, 'limit': limit}
+>>>>>>> 3115286 (revert breaking chamges)
         if subject_name is not None:
             query['subject'] = subject_name
         if deleted:
@@ -944,9 +994,13 @@ class SchemaRegistryClient(object):
             schema (Schema): Schema instance.
             normalize_schemas (bool): Normalize schema before registering.
 <<<<<<< HEAD
+<<<<<<< HEAD
             fmt (str): Desired output format, dependent on schema type.
 =======
 >>>>>>> a30561b (regenerate sync code + fix it)
+=======
+            fmt (str): Desired output format, dependent on schema type.
+>>>>>>> 3115286 (revert breaking chamges)
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
@@ -975,7 +1029,12 @@ class SchemaRegistryClient(object):
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
         response = self._rest_client.post(
+<<<<<<< HEAD
             'subjects/{}?{}'.format(_urlencode(subject_name), query_string),
+=======
+            'subjects/{}?normalize={}&format={}&deleted={}'.format(
+                _urlencode(subject_name), normalize_schemas, fmt, deleted),
+>>>>>>> 3115286 (revert breaking chamges)
             body=request
         )
 
@@ -995,6 +1054,7 @@ class SchemaRegistryClient(object):
         return registered_schema
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     def get_subjects(
         self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False,
         offset: int = 0, limit: int = -1
@@ -1011,10 +1071,20 @@ class SchemaRegistryClient(object):
             deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
+=======
+    def get_subjects(
+        self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[str]:
+        """
+        Lists all subjects registered with the Schema Registry.
+>>>>>>> 3115286 (revert breaking chamges)
 
         Args:
             subject_prefix (str): Subject name prefix that results can be filtered by.
             deleted (bool): Whether to include deleted subjects.
+            deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(str): Registered subject names
@@ -1028,6 +1098,7 @@ class SchemaRegistryClient(object):
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
 =======
         query = {'deleted': deleted }
@@ -1035,6 +1106,9 @@ class SchemaRegistryClient(object):
 =======
         query = {'deleted': deleted}
 >>>>>>> c465d04 (lint)
+=======
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+>>>>>>> 3115286 (revert breaking chamges)
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return self._rest_client.get('subjects', query)
@@ -1226,11 +1300,17 @@ class SchemaRegistryClient(object):
         )
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[Dict[str, Any]]:
 >>>>>>> b0410dd (updaet)
 =======
     def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[int]:
 >>>>>>> 3212e55 (update)
+=======
+    def get_referenced_by(
+            self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
+    ) -> List[int]:
+>>>>>>> 3115286 (revert breaking chamges)
         """
         Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
 
@@ -1238,6 +1318,9 @@ class SchemaRegistryClient(object):
             subject_name (str): Subject name
             version (int or str): Version number or "latest"
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 3115286 (revert breaking chamges)
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
@@ -1265,6 +1348,7 @@ class SchemaRegistryClient(object):
 <<<<<<< HEAD
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
         """  # noqa: E501
+<<<<<<< HEAD
 
         query = {'offset': offset, 'limit': limit}
         return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
@@ -1288,6 +1372,16 @@ class SchemaRegistryClient(object):
 =======
     def get_versions(self, subject_name: str, deleted: bool = False) -> List[int]:
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+
+        query = {'offset': offset, 'limit': limit}
+        return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version), query)
+
+    def get_versions(
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[int]:
+>>>>>>> 3115286 (revert breaking chamges)
         """
         Get a list of all versions registered with this subject.
 
@@ -1295,11 +1389,17 @@ class SchemaRegistryClient(object):
             subject_name (str): Subject name.
             deleted (bool): Whether to include deleted schemas.
 <<<<<<< HEAD
+<<<<<<< HEAD
             deleted_only (bool): Whether to return deleted versions only. If both deleted and deleted_only are True, deleted_only takes precedence.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 =======
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+            deleted_only (bool): Whether to return deleted versions only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+>>>>>>> 3115286 (revert breaking chamges)
 
         Returns:
             list(int): Registered versions
@@ -1312,10 +1412,14 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
 =======
         query = {'deleted': deleted}
 >>>>>>> f1029a9 (missing params and address feedback)
+=======
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+>>>>>>> 3115286 (revert breaking chamges)
         return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:

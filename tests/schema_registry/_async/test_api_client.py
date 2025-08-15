@@ -205,6 +205,15 @@ async def test_get_schema_types(mock_schema_registry):
     assert expected == actual
 
 
+async def test_get_subjects_by_schema_id(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = SUBJECTS
+    actual = await sr.get_subjects_by_schema_id(47)
+    assert expected == actual
+
+
 async def test_get_schema_versions(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
