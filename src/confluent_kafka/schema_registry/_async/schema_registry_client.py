@@ -664,8 +664,10 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_schema(
-        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+        self, schema_id: int, subject_name: Optional[str] = None,
+        fmt: Optional[str] = None, reference_format: Optional[str] = None,
+        find_tags: Optional[List[str]] = None, fetch_max_id: bool = False
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -674,10 +676,13 @@ class AsyncSchemaRegistryClient(object):
         Args:
             schema_id (int): Schema id.
             subject_name (str): Subject name the schema is registered under.
-            fmt (str): Format of the schema.
+            fmt (str): Desired output format, dependent on schema type.
+            reference_format (str): Desired output format for references.
+            find_tags (list[str]): Find tagged entities for the given tags or * for all tags.
+            fetch_max_id (boolean): Whether to fetch the maximum schema identifier that exists
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``schema_id``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -695,6 +700,12 @@ class AsyncSchemaRegistryClient(object):
             query['subject'] = subject_name
         if fmt is not None:
             query['format'] = fmt
+        if reference_format is not None:
+            query['reference_format'] = reference_format
+        if find_tags is not None:
+            query['find_tags'] = find_tags
+        if fetch_max_id:
+            query['fetch_max_id'] = fetch_max_id
         response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -702,7 +713,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(subject_name, schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     async def get_schema_string(
         self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
@@ -714,7 +725,7 @@ class AsyncSchemaRegistryClient(object):
         Args:
             schema_id (int): Schema id.
             subject_name (str): Subject name the schema is registered under.
-            fmt (str): Format of the schema.
+            fmt (str): Desired output format, dependent on schema type.
 
         Returns:
             str: Schema string for this version.
@@ -735,7 +746,7 @@ class AsyncSchemaRegistryClient(object):
 
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
-    ) -> 'RegisteredSchema':
+    ) -> 'Schema':
         """
         Fetches the schema associated with ``guid`` from the
         Schema Registry. The result is cached so subsequent attempts will not
@@ -746,7 +757,7 @@ class AsyncSchemaRegistryClient(object):
             fmt (str): Format of the schema
 
         Returns:
-            RegisteredSchema: Registration information for this schema.
+            Schema: Schema instance identified by the ``guid``
 
         Raises:
             SchemaRegistryError: If schema can't be found.
@@ -768,7 +779,7 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_schema(None, registered_schema.schema_id,
                                registered_schema.guid, registered_schema.schema)
 
-        return registered_schema
+        return registered_schema.schema
 
     async def get_schema_types(self) -> List[str]:
         """
@@ -786,8 +797,38 @@ class AsyncSchemaRegistryClient(object):
 
         return await self._rest_client.get('schemas/types')
 
+    async def get_subjects_by_schema_id(
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
+        offset: int = 0, limit: int = -1
+    ) -> List[str]:
+        """
+        Retrieves all the subjects associated with ``schema_id``.
+
+        Args:
+            schema_id (int): Schema ID.
+            subject_name (str): Subject name that results can be filtered by.
+            deleted (bool): Whether to include subejcts where the schema was deleted.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            list(str): List of suubjects matching the specified parameters.
+
+        Raises:
+            SchemaRegistryError: if subjects can't be found
+
+        TODO: add API reference
+        """
+        query = {'offset': offset, 'limit': limit}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if deleted:
+            query['deleted'] = deleted
+        return await self._rest_client.get('schemas/ids/{}/subjects'.format(schema_id), query)
+
     async def get_schema_versions(
-        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
+        offset: int = 0, limit: int = -1
     ) -> List[SchemaVersion]:
         """
         Gets all subject-version pairs of a schema by its ID.
@@ -796,6 +837,8 @@ class AsyncSchemaRegistryClient(object):
             schema_id (int): Schema ID.
             subject_name (str): Subject name that results can be filtered by.
             deleted (bool): Whether to include subject versions where the schema was deleted.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(SchemaVersion): List of subject-version pairs. Each pair contains:
@@ -809,7 +852,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
         """  # noqa: E501
 
-        query = {}
+        query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
             query['subject'] = subject_name
         if deleted:
@@ -819,7 +862,7 @@ class AsyncSchemaRegistryClient(object):
 
     async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False
+        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
     ) -> 'RegisteredSchema':
         """
         Returns ``schema`` registration information for ``subject``.
@@ -828,6 +871,7 @@ class AsyncSchemaRegistryClient(object):
             subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
             normalize_schemas (bool): Normalize schema before registering.
+            fmt (str): Desired output format, dependent on schema type.
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
@@ -847,8 +891,8 @@ class AsyncSchemaRegistryClient(object):
         request = schema.to_dict()
 
         response = await self._rest_client.post(
-            'subjects/{}?normalize={}&deleted={}'.format(
-                _urlencode(subject_name), normalize_schemas, deleted),
+            'subjects/{}?normalize={}&format={}&deleted={}'.format(
+                _urlencode(subject_name), normalize_schemas, fmt, deleted),
             body=request
         )
 
@@ -867,13 +911,18 @@ class AsyncSchemaRegistryClient(object):
 
         return registered_schema
 
-    async def get_subjects(self, subject_prefix: Optional[str] = None, deleted: bool = False) -> List[str]:
+    async def get_subjects(
+        self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[str]:
         """
-        Lists all subjects registered with the Schema Registry
+        Lists all subjects registered with the Schema Registry.
 
         Args:
             subject_prefix (str): Subject name prefix that results can be filtered by.
             deleted (bool): Whether to include deleted subjects.
+            deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(str): Registered subject names
@@ -885,7 +934,7 @@ class AsyncSchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
-        query = {'deleted': deleted}
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return await self._rest_client.get('subjects', query)
@@ -1067,13 +1116,17 @@ class AsyncSchemaRegistryClient(object):
             'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
         )
 
-    async def get_referenced_by(self, subject_name: str, version: Union[int, str] = "latest") -> List[int]:
+    async def get_referenced_by(
+            self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
+    ) -> List[int]:
         """
         Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name
             version (int or str): Version number or "latest"
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(int): List of schema IDs that reference the specified schema.
@@ -1084,16 +1137,23 @@ class AsyncSchemaRegistryClient(object):
         See Also:
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
         """  # noqa: E501
-        return await self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
-            _urlencode(subject_name), version))
 
-    async def get_versions(self, subject_name: str, deleted: bool = False) -> List[int]:
+        query = {'offset': offset, 'limit': limit}
+        return await self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version), query)
+
+    async def get_versions(
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
         Args:
             subject_name (str): Subject name.
             deleted (bool): Whether to include deleted schemas.
+            deleted_only (bool): Whether to return deleted versions only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(int): Registered versions
@@ -1105,7 +1165,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        query = {'deleted': deleted}
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         return await self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:

@@ -137,8 +137,9 @@ def mock_schema_registry():
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
         respx_mock.get(SCHEMAS_STRING_RE).mock(side_effect=get_schema_string_callback)
-        respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
         respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
+        respx_mock.get(SCHEMAS_SUBJECTS_RE).mock(side_effect=get_schema_subjects_callback)
+        respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
 
         respx_mock.get(SUBJECTS_VERSIONS_SCHEMA_RE).mock(side_effect=get_subject_version_schema_callback)
         respx_mock.get(SUBJECTS_VERSIONS_REFERENCED_BY_RE).mock(side_effect=get_subject_version_referenced_by_callback)
@@ -155,18 +156,18 @@ def mock_schema_registry():
 
 # request paths
 SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
-SCHEMAS_STRING_RE = re.compile("/schemas/ids/([0-9]*)/schema$")
+SCHEMAS_STRING_RE = re.compile("/schemas/ids/([0-9]*)/schema(\?.*)?$")
+SCHEMAS_VERSIONS_RE = re.compile("/schemas/ids/([0-9]*)/versions(\?.*)?$")
+SCHEMAS_SUBJECTS_RE = re.compile("/schemas/ids/([0-9]*)/subjects(\?.*)?$")
 SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
-SCHEMAS_VERSIONS_RE = re.compile("/schemas/ids/([0-9]*)/versions$")
 
 SUBJECTS_RE = re.compile("/subjects/?(.*)$")
 SUBJECTS_VERSIONS_RE = re.compile("/subjects/(.*)/versions/?(.*)$")
-SUBJECTS_VERSIONS_SCHEMA_RE = re.compile("/subjects/(.*)/versions/(.*)/schema/?(.*)$")
-SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile("/subjects/(.*)/versions/(.*)/referencedby$")
+SUBJECTS_VERSIONS_SCHEMA_RE = re.compile("/subjects/(.*)/versions/(.*)/schema(\?.*)?$")
+SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile("/subjects/(.*)/versions/(.*)/referencedby(\?.*)?$")
 
 COMPATIBILITY_RE = re.compile("/config/?(.*)$")
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
-
 # constants
 SCHEMA_ID = 47
 VERSION = 3
@@ -283,6 +284,11 @@ def get_schemas_callback(request, route):
                                    'message': "Schema not found"})
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
+
+
+def get_schema_subjects_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=SUBJECTS)
 
 
 def get_schema_string_callback(request, route):

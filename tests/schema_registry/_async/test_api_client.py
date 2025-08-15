@@ -147,7 +147,7 @@ async def test_get_schema(mock_schema_registry, load_avsc):
     expected = Schema(load_avsc(SCHEMA), schema_type='AVRO')
     actual = await sr.get_schema(47)
 
-    assert cmp_schema(expected, actual.schema)
+    assert cmp_schema(expected, actual)
 
 
 async def test_get_schema_not_found(mock_schema_registry):
@@ -202,6 +202,15 @@ async def test_get_schema_types(mock_schema_registry):
 
     expected = ['AVRO', 'JSON', 'PROTOBUF']
     actual = await sr.get_schema_types()
+    assert expected == actual
+
+
+async def test_get_subjects_by_schema_id(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = SUBJECTS
+    actual = await sr.get_subjects_by_schema_id(47)
     assert expected == actual
 
 
