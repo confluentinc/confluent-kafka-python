@@ -912,7 +912,8 @@ class SchemaRegistryClient(object):
         return registered_schema
 
     def get_subjects(
-        self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+        self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False,
+        offset: int = 0, limit: int = -1
     ) -> List[str]:
         """
         Lists all subjects registered with the Schema Registry.

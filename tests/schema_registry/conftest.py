@@ -156,15 +156,15 @@ def mock_schema_registry():
 
 # request paths
 SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
-SCHEMAS_STRING_RE = re.compile("/schemas/ids/([0-9]*)/schema(\?.*)?$")
-SCHEMAS_VERSIONS_RE = re.compile("/schemas/ids/([0-9]*)/versions(\?.*)?$")
-SCHEMAS_SUBJECTS_RE = re.compile("/schemas/ids/([0-9]*)/subjects(\?.*)?$")
+SCHEMAS_STRING_RE = re.compile(r"/schemas/ids/([0-9]*)/schema(\?.*)?$")
+SCHEMAS_VERSIONS_RE = re.compile(r"/schemas/ids/([0-9]*)/versions(\?.*)?$")
+SCHEMAS_SUBJECTS_RE = re.compile(r"/schemas/ids/([0-9]*)/subjects(\?.*)?$")
 SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
 
 SUBJECTS_RE = re.compile("/subjects/?(.*)$")
 SUBJECTS_VERSIONS_RE = re.compile("/subjects/(.*)/versions/?(.*)$")
-SUBJECTS_VERSIONS_SCHEMA_RE = re.compile("/subjects/(.*)/versions/(.*)/schema(\?.*)?$")
-SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile("/subjects/(.*)/versions/(.*)/referencedby(\?.*)?$")
+SUBJECTS_VERSIONS_SCHEMA_RE = re.compile(r"/subjects/(.*)/versions/(.*)/schema(\?.*)?$")
+SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile(r"/subjects/(.*)/versions/(.*)/referencedby(\?.*)?$")
 
 COMPATIBILITY_RE = re.compile("/config/?(.*)$")
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
