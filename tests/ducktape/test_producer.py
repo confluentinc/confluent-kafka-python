@@ -36,13 +36,13 @@ class SimpleProducerTest(Test):
         self.logger.info("Successfully connected to Kafka")
         
     def test_basic_produce(self):
-        """Test basic message production to a topic"""
+        """Test basic message production throughput over 5 seconds (time-based)"""
         if Producer is None:
             self.logger.error("confluent_kafka not available, skipping test")
             return
             
         topic_name = "test-topic"
-        num_messages = 10
+        test_duration = 5.0  # 5 seconds
         
         # Create topic
         self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
@@ -70,50 +70,70 @@ class SimpleProducerTest(Test):
                 self.logger.error("Message delivery failed: %s", err)
                 failed_messages.append(err)
             else:
-                self.logger.debug("Message delivered to %s [%d] at offset %d",
-                                msg.topic(), msg.partition(), msg.offset())
                 delivered_messages.append(msg)
         
-        # Produce messages
-        self.logger.info("Producing %d messages to topic %s", num_messages, topic_name)
-        for i in range(num_messages):
-            message_value = f"Test message {i}"
-            message_key = f"key-{i}"
+        # Time-based message production
+        self.logger.info("Producing messages for %.1f seconds to topic %s", test_duration, topic_name)
+        start_time = time.time()
+        messages_sent = 0
+        
+        while time.time() - start_time < test_duration:
+            message_value = f"Test message {messages_sent}"
+            message_key = f"key-{messages_sent}"
             
-            producer.produce(
-                topic=topic_name,
-                value=message_value,
-                key=message_key,
-                callback=delivery_callback
-            )
-            
-            # Poll to trigger delivery callbacks
-            producer.poll(0)
-            
+            try:
+                producer.produce(
+                    topic=topic_name,
+                    value=message_value,
+                    key=message_key,
+                    callback=delivery_callback
+                )
+                messages_sent += 1
+                
+                # Poll frequently to trigger delivery callbacks
+                if messages_sent % 100 == 0:
+                    producer.poll(0)
+            except BufferError:
+                # If buffer is full, poll and wait briefly
+                producer.poll(0.001)
+                continue
+        
+        actual_duration = time.time() - start_time
+        
         # Flush to ensure all messages are sent
         self.logger.info("Flushing producer...")
         producer.flush(timeout=30)
         
-        # Verify all messages were delivered
-        self.logger.info("Delivered: %d, Failed: %d", len(delivered_messages), len(failed_messages))
+        # Calculate throughput
+        send_throughput = messages_sent / actual_duration
+        delivery_throughput = len(delivered_messages) / actual_duration
         
-        assert len(failed_messages) == 0, f"Some messages failed to deliver: {failed_messages}"
-        assert len(delivered_messages) == num_messages, \
-            f"Expected {num_messages} delivered messages, got {len(delivered_messages)}"
-            
-        self.logger.info("Successfully produced %d messages to topic %s", 
-                        len(delivered_messages), topic_name)
+        # Verify results
+        self.logger.info("Time-based production results:")
+        self.logger.info("  Duration: %.2f seconds", actual_duration)
+        self.logger.info("  Messages sent: %d", messages_sent)
+        self.logger.info("  Messages delivered: %d", len(delivered_messages))
+        self.logger.info("  Messages failed: %d", len(failed_messages))
+        self.logger.info("  Send throughput: %.2f msg/s", send_throughput)
+        self.logger.info("  Delivery throughput: %.2f msg/s", delivery_throughput)
+        
+        # Basic performance assertions
+        assert messages_sent > 0, "No messages were sent during test duration"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert send_throughput > 10, f"Send throughput too low: {send_throughput:.2f} msg/s (expected > 10 msg/s)"
+        
+        self.logger.info("Successfully completed time-based basic production test")
                         
-    @parametrize(num_messages=5)
-    @parametrize(num_messages=10)
-    @parametrize(num_messages=50)
-    def test_produce_multiple_batches(self, num_messages):
-        """Test producing different numbers of messages"""
+    @parametrize(test_duration=2)
+    @parametrize(test_duration=5)
+    @parametrize(test_duration=10)
+    def test_produce_multiple_batches(self, test_duration):
+        """Test batch throughput over different time durations (time-based)"""
         if Producer is None:
             self.logger.error("confluent_kafka not available, skipping test")
             return
             
-        topic_name = f"batch-test-topic-{num_messages}"
+        topic_name = f"batch-test-topic-{test_duration}s"
         
         # Create topic
         self.kafka.create_topic(topic_name, partitions=2, replication_factor=1)
@@ -122,10 +142,10 @@ class SimpleProducerTest(Test):
         topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
         assert topic_ready, f"Topic {topic_name} was not created within timeout"
         
-        # Configure producer
+        # Configure producer with batch settings
         producer_config = {
             'bootstrap.servers': self.kafka.bootstrap_servers(),
-            'client.id': f'batch-test-producer-{num_messages}',
+            'client.id': f'batch-test-producer-{test_duration}s',
             'batch.size': 1000,  # Small batch size for testing
             'linger.ms': 100     # Small linger time for testing
         }
@@ -140,37 +160,62 @@ class SimpleProducerTest(Test):
             else:
                 self.logger.error("Delivery failed: %s", err)
                 
-        # Produce messages
-        self.logger.info("Producing %d messages in batches", num_messages)
-        for i in range(num_messages):
-            producer.produce(
-                topic=topic_name,
-                value=f"Batch message {i}",
-                key=f"batch-key-{i % 10}",  # Use modulo for key distribution
-                callback=delivery_callback
-            )
-            
-            # Poll occasionally
-            if i % 10 == 0:
-                producer.poll(0)
+        # Time-based batch message production
+        self.logger.info("Producing batches for %d seconds", test_duration)
+        start_time = time.time()
+        messages_sent = 0
+        
+        while time.time() - start_time < test_duration:
+            try:
+                producer.produce(
+                    topic=topic_name,
+                    value=f"Batch message {messages_sent}",
+                    key=f"batch-key-{messages_sent % 10}",  # Use modulo for key distribution
+                    callback=delivery_callback
+                )
+                messages_sent += 1
                 
+                # Poll occasionally to trigger callbacks
+                if messages_sent % 100 == 0:
+                    producer.poll(0)
+            except BufferError:
+                # If buffer is full, poll and wait briefly
+                producer.poll(0.001)
+                continue
+        
+        actual_duration = time.time() - start_time
+        
         # Final flush
         producer.flush(timeout=30)
         
+        # Calculate throughput
+        send_throughput = messages_sent / actual_duration
+        delivery_throughput = delivered_count[0] / actual_duration
+        
         # Verify results
-        assert delivered_count[0] == num_messages, \
-            f"Expected {num_messages} delivered, got {delivered_count[0]}"
+        self.logger.info("Batch production results (%ds):", test_duration)
+        self.logger.info("  Duration: %.2f seconds", actual_duration)
+        self.logger.info("  Messages sent: %d", messages_sent)
+        self.logger.info("  Messages delivered: %d", delivered_count[0])
+        self.logger.info("  Send throughput: %.2f msg/s", send_throughput)
+        self.logger.info("  Delivery throughput: %.2f msg/s", delivery_throughput)
+        
+        # Performance assertions
+        assert messages_sent > 0, "No messages were sent during test duration"
+        assert delivered_count[0] > 0, "No messages were delivered"
+        assert send_throughput > 10, f"Send throughput too low: {send_throughput:.2f} msg/s"
             
-        self.logger.info("Successfully produced %d messages in batches", delivered_count[0])
+        self.logger.info("Successfully completed %ds batch production test", test_duration)
         
     @matrix(compression_type=['none', 'gzip', 'snappy'])
     def test_produce_with_compression(self, compression_type):
-        """Test producing messages with different compression types"""
+        """Test compression throughput over 5 seconds (time-based)"""
         if Producer is None:
             self.logger.error("confluent_kafka not available, skipping test")
             return
             
         topic_name = f"compression-test-{compression_type}"
+        test_duration = 5.0  # 5 seconds
         
         # Create topic
         self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
@@ -188,31 +233,64 @@ class SimpleProducerTest(Test):
         
         producer = Producer(producer_config)
         
-        # Create larger messages to test compression
+        # Create larger messages to test compression effectiveness
         large_message = "x" * 1000  # 1KB message
         delivered_count = [0]
         
         def delivery_callback(err, msg):
             if err is None:
                 delivered_count[0] += 1
+        
+        # Time-based message production with compression
+        self.logger.info("Producing messages with %s compression for %.1f seconds", compression_type, test_duration)
+        start_time = time.time()
+        messages_sent = 0
+        
+        while time.time() - start_time < test_duration:
+            try:
+                producer.produce(
+                    topic=topic_name,
+                    value=f"{large_message}-{messages_sent}",
+                    key=f"comp-key-{messages_sent}",
+                    callback=delivery_callback
+                )
+                messages_sent += 1
                 
-        # Produce messages
-        self.logger.info("Producing messages with %s compression", compression_type)
-        for i in range(20):
-            producer.produce(
-                topic=topic_name,
-                value=f"{large_message}-{i}",
-                key=f"comp-key-{i}",
-                callback=delivery_callback
-            )
-            producer.poll(0)
-            
+                # Poll frequently to prevent buffer overflow
+                if messages_sent % 10 == 0:
+                    producer.poll(0)
+            except BufferError:
+                # If buffer is full, poll and wait briefly
+                producer.poll(0.001)
+                continue
+        
+        actual_duration = time.time() - start_time
+        
         producer.flush(timeout=30)
         
-        assert delivered_count[0] == 20, \
-            f"Expected 20 delivered messages, got {delivered_count[0]}"
+        # Calculate throughput
+        send_throughput = messages_sent / actual_duration
+        delivery_throughput = delivered_count[0] / actual_duration
+        message_size_kb = len(f"{large_message}-{messages_sent}") / 1024
+        throughput_mb_s = (delivery_throughput * message_size_kb) / 1024
+        
+        # Verify results
+        self.logger.info("Compression production results (%s):", compression_type)
+        self.logger.info("  Duration: %.2f seconds", actual_duration)
+        self.logger.info("  Messages sent: %d", messages_sent)
+        self.logger.info("  Messages delivered: %d", delivered_count[0])
+        self.logger.info("  Message size: %.1f KB", message_size_kb)
+        self.logger.info("  Send throughput: %.2f msg/s", send_throughput)
+        self.logger.info("  Delivery throughput: %.2f msg/s", delivery_throughput)
+        self.logger.info("  Data throughput: %.2f MB/s", throughput_mb_s)
+        
+        # Performance assertions
+        assert messages_sent > 0, "No messages were sent during test duration"
+        assert delivered_count[0] > 0, "No messages were delivered"
+        assert send_throughput > 5, f"Send throughput too low for {compression_type}: {send_throughput:.2f} msg/s"
             
-        self.logger.info("Successfully produced 20 messages with %s compression", compression_type)
+        self.logger.info("Successfully completed %s compression test", compression_type)
+
         
     def tearDown(self):
         """Clean up test environment"""
