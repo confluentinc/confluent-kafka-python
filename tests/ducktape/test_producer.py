@@ -47,12 +47,9 @@ class SimpleProducerTest(Test):
         # Create topic
         self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
         
-        # Wait for topic to be created
-        time.sleep(2)
-        
-        # Verify topic exists
-        topics = self.kafka.list_topics()
-        assert topic_name in topics, f"Topic {topic_name} was not created. Available topics: {topics}"
+        # Wait for topic to be available with retry logic
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, f"Topic {topic_name} was not created within timeout. Available topics: {self.kafka.list_topics()}"
         
         # Configure producer
         producer_config = {
@@ -120,7 +117,10 @@ class SimpleProducerTest(Test):
         
         # Create topic
         self.kafka.create_topic(topic_name, partitions=2, replication_factor=1)
-        time.sleep(2)
+        
+        # Wait for topic to be available with retry logic
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, f"Topic {topic_name} was not created within timeout"
         
         # Configure producer
         producer_config = {
@@ -174,7 +174,10 @@ class SimpleProducerTest(Test):
         
         # Create topic
         self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
-        time.sleep(2)
+        
+        # Wait for topic to be available with retry logic
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, f"Topic {topic_name} was not created within timeout"
         
         # Configure producer with compression
         producer_config = {

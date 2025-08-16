@@ -98,3 +98,29 @@ class KafkaClient(Service):
         except Exception as e:
             self.logger.error("Failed to list topics: %s", e)
             return []
+            
+    def wait_for_topic(self, topic_name, max_wait_time=30, initial_wait=0.1):
+        """
+        Wait for topic to be created with exponential backoff retry logic.
+        """
+        wait_time = initial_wait
+        total_wait = 0
+        
+        self.logger.info("Waiting for topic '%s' to be available...", topic_name)
+        
+        while total_wait < max_wait_time:
+            topics = self.list_topics()
+            if topic_name in topics:
+                self.logger.info("Topic '%s' is ready after %.2fs", topic_name, total_wait)
+                return True
+                
+            self.logger.debug("Topic '%s' not found, waiting %.2fs (total: %.2fs)", 
+                            topic_name, wait_time, total_wait)
+            time.sleep(wait_time)
+            total_wait += wait_time
+            
+            # Exponential backoff with max cap of 2 seconds
+            wait_time = min(wait_time * 2, 2.0)
+            
+        self.logger.error("Timeout waiting for topic '%s' after %ds", topic_name, max_wait_time)
+        return False
