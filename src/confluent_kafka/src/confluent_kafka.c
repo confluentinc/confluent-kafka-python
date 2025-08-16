@@ -1821,9 +1821,9 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                 /* throttle_cb executed successfully */
                 Py_DECREF(result);
                 goto done;
+        } else {
+                PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
         }
-
-        PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
 
         /**
         * Stop callback dispatcher, return err to application

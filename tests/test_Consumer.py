@@ -337,7 +337,7 @@ def test_callback_exception_no_system_error():
     consumer.subscribe(['test-topic'])
 
     # This should trigger the error callback due to connection failure
-    # Before fix: Would get RuntimeError + SystemError
+    # Before fix: Would get RuntimeError + SystemError (Issue #865)
     # After fix: Should only get RuntimeError (no SystemError)
     with pytest.raises(RuntimeError) as exc_info:
         consumer.consume(timeout=0.1)

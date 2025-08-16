@@ -993,7 +993,7 @@ def test_callback_exception_no_system_error():
     producer.produce('test-topic', value='test-message')
 
     # Flush to ensure delivery reports are processed
-    # Before fix: Would get RuntimeError + SystemError
+    # Before fix: Would get RuntimeError + SystemError (Issue #865)
     # After fix: Should only get RuntimeError (no SystemError)
     with pytest.raises(RuntimeError) as exc_info:
         producer.flush(timeout=2.0)  # Longer timeout to ensure delivery callback fires
