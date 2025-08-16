@@ -7,10 +7,7 @@ import os
 import subprocess
 import tempfile
 import json
-
-# Add the project root to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, project_root)
+import ducktape
 
 def create_cluster_config():
     """Create a simple cluster configuration for local testing"""
@@ -33,14 +30,7 @@ def main():
     print("Confluent Kafka Python - Ducktape Producer Test Runner")
     print("=" * 60)
     
-    # Check if ducktape is installed
-    try:
-        import ducktape
-        print(f"Using ducktape version: {ducktape.__version__}")
-    except ImportError:
-        print("ERROR: ducktape is not installed.")
-        print("Install it with: pip install ducktape")
-        return 1
+    print(f"Using ducktape version: {ducktape.__version__}")
         
     # Check if confluent_kafka is available
     try:
@@ -51,7 +41,7 @@ def main():
         print("Install it with: pip install confluent-kafka")
         return 1
     
-    # Get test directory and file
+    # Get test file path (ducktape expects file paths, not module paths)
     test_dir = os.path.dirname(os.path.abspath(__file__))
     test_file = os.path.join(test_dir, "test_producer.py")
     
@@ -67,9 +57,9 @@ def main():
     print(f"Results directory: {results_dir}")
     print()
     
-    # Build ducktape command
+    # Build ducktape command using improved subprocess approach
     cmd = [
-        "ducktape",
+        sys.executable, "-m", "ducktape",
         "--debug",  # Enable debug output
         "--results-root", results_dir,
         "--cluster", "ducktape.cluster.localhost.LocalhostCluster",
@@ -88,13 +78,9 @@ def main():
     print("Command:", " ".join(cmd))
     print()
     
-    # Set up environment with proper Python path
-    env = os.environ.copy()
-    env['PYTHONPATH'] = project_root
-    
     # Run the test
     try:
-        result = subprocess.run(cmd, cwd=project_root, env=env)
+        result = subprocess.run(cmd)
         return result.returncode
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
