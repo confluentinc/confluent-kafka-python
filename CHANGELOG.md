@@ -4,6 +4,9 @@
 
 v2.11.0 is a feature release with the following enhancements:
 
+### Fixes
+- Fix error propagation rule for Python's C API to prevent SystemError when callbacks raise exceptions (#865)
+
 confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
