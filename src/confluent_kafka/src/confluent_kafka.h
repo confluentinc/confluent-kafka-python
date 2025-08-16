@@ -275,7 +275,59 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
 typedef struct {
 	PyThreadState *thread_state;
 	int crashed;   /* Callback crashed */
+	PyObject *exception_type;    /* Stored exception type */
+	PyObject *exception_value;   /* Stored exception value */
+	PyObject *exception_traceback; /* Stored exception traceback */
 } CallState;
+
+/**
+ * @brief Compatibility layer for Python exception handling API changes.
+ * PyErr_Fetch was deprecated in Python 3.12 in favor of PyErr_GetRaisedException.
+ */
+#if PY_VERSION_HEX >= 0x030c0000
+/* Python 3.12+ - use new API */
+static inline void
+CallState_fetch_exception(CallState *cs) {
+    PyObject *exc = PyErr_GetRaisedException();
+    if (exc) {
+        cs->exception_type = (PyObject *)Py_TYPE(exc);
+        Py_INCREF(cs->exception_type);
+        cs->exception_value = exc;
+        cs->exception_traceback = PyException_GetTraceback(exc);
+    } else {
+        cs->exception_type = NULL;
+        cs->exception_value = NULL;
+        cs->exception_traceback = NULL;
+    }
+}
+
+static inline void
+CallState_restore_exception(CallState *cs) {
+    if (cs->exception_value) {
+        PyErr_SetRaisedException(cs->exception_value);
+        /* PyErr_SetRaisedException steals the reference, so clear our pointer */
+        cs->exception_value = NULL;
+        Py_XDECREF(cs->exception_type);
+        cs->exception_type = NULL;
+        Py_XDECREF(cs->exception_traceback);
+        cs->exception_traceback = NULL;
+    }
+}
+#else
+/* Python < 3.12 - use legacy API */
+static inline void
+CallState_fetch_exception(CallState *cs) {
+    PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+}
+
+static inline void
+CallState_restore_exception(CallState *cs) {
+    PyErr_Restore(cs->exception_type, cs->exception_value, cs->exception_traceback);
+    cs->exception_type = NULL;
+    cs->exception_value = NULL;
+    cs->exception_traceback = NULL;
+}
+#endif
 
 /**
  * @brief Initialiase a CallState and unlock the GIL prior to a

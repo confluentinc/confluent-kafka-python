@@ -283,3 +283,34 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+
+
+def test_callback_exception_no_system_error():
+    delivery_reports = []
+
+    def delivery_cb_that_raises(err, msg):
+        """Delivery report callback that raises an exception"""
+        delivery_reports.append((err, msg))
+        raise RuntimeError("Test exception from delivery_cb")
+
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',  # Will cause delivery failures
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,  # Very short timeout to trigger delivery failure quickly
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    # Produce a message - this will trigger delivery report callback when it fails
+    producer.produce('test-topic', value='test-message')
+
+    # Flush to ensure delivery reports are processed
+    # Before fix: Would get RuntimeError + SystemError (Issue #865)
+    # After fix: Should only get RuntimeError (no SystemError)
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.flush(timeout=2.0)  # Longer timeout to ensure delivery callback fires
+
+    # Verify we got an exception from our callback
+    assert "Test exception from delivery_cb" in str(exc_info.value)
+
+    # Verify the delivery callback was actually called
+    assert len(delivery_reports) > 0
