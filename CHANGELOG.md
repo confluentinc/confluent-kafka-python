@@ -1,5 +1,14 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.11.1
+
+v2.11.1 is a maintenance release with the following fixes:
+
+confluent-kafka-python v2.11.1 is based on librdkafka v2.11.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.11.0
 
 v2.11.0 is a feature release with the following enhancements:
