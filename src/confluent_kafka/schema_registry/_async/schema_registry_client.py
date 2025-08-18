@@ -807,12 +807,12 @@ class AsyncSchemaRegistryClient(object):
         Args:
             schema_id (int): Schema ID.
             subject_name (str): Subject name that results can be filtered by.
-            deleted (bool): Whether to include subejcts where the schema was deleted.
+            deleted (bool): Whether to include subjects where the schema was deleted.
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
-            list(str): List of suubjects matching the specified parameters.
+            list(str): List of subjects matching the specified parameters.
 
         Raises:
             SchemaRegistryError: if subjects can't be found
@@ -890,9 +890,17 @@ class AsyncSchemaRegistryClient(object):
 
         request = schema.to_dict()
 
+        query_params = {
+            'normalize': normalize_schemas,
+            'deleted': deleted
+        }
+        if fmt is not None:
+            query_params['format'] = fmt
+
+        query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
+
         response = await self._rest_client.post(
-            'subjects/{}?normalize={}&format={}&deleted={}'.format(
-                _urlencode(subject_name), normalize_schemas, fmt, deleted),
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string),
             body=request
         )
 
