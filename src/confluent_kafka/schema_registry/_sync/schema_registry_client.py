@@ -1528,8 +1528,8 @@ class SchemaRegistryClient(object):
         return result['compatibilityLevel']
 
     def test_compatibility(
-        self, subject_name: str, schema: 'Schema',
-        version: Union[int, str] = "latest"
+        self, subject_name: str, schema: 'Schema', version: Union[int, str] = "latest",
+        normalize: bool = False, verbose: bool = False
     ) -> bool:
         """
         Test the compatibility of a candidate schema for a given subject and version
@@ -1538,6 +1538,8 @@ class SchemaRegistryClient(object):
             subject_name (str): Subject name the schema is registered under
             schema (Schema): Schema instance.
             version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
+            normalize (bool): Whether to normalize the input schema.
+            verbose (bool): Wehther to return detailed error messages.
 
         Returns:
             bool: True if the schema is compatible with the specified version
@@ -1551,20 +1553,22 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions/{}'.format(_urlencode(subject_name), version), body=request
+            'compatibility/subjects/{}/versions/{}?normalize={}&verbose={}'.format(_urlencode(subject_name), version, normalize, verbose),
+            body=request
         )
         return response['is_compatible'] # TODO: should it return entire response (including error messages)?
 
     def test_compatibility_all_versions(
-        self, subject_name: str, schema: 'Schema', normalize: bool = False, verbose: bool = False
+        self, subject_name: str, schema: 'Schema',
+        normalize: bool = False, verbose: bool = False
     ) -> bool:
         """
-        Test the input schema against one of more versions in the subject (depending on the compatibility level set).
+        Test the input schema against all schema versions under the subject (depending on the compatibility level set).
 
         Args:
             subject_name (str): Subject of the schema versions against which compatibility is to be tested.
             schema (Schema): Schema instance.
-            normalize (bool): Whether to normalize the input schema. # TODO: missing in cp + cc docs
+            normalize (bool): Whether to normalize the input schema.
             verbose (bool): Wehther to return detailed error messages.
 
         Returns:
@@ -1572,10 +1576,10 @@ class SchemaRegistryClient(object):
         See Also:
             `POST Test Compatibility Against All API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions>`_
         """
+
         request = schema.to_dict()
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions'.format(_urlencode(subject_name)),
-            query={'normalize': normalize, 'verbose': verbose},
+            'compatibility/subjects/{}/versions?normalize={}&verbose={}'.format(_urlencode(subject_name), normalize, verbose),
             body=request,
         )
         return response['is_compatible'] # TODO: should it return entire response (including error messages)?
