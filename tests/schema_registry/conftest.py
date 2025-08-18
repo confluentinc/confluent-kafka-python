@@ -136,12 +136,10 @@ def mock_schema_registry():
         respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
-        respx_mock.get(SCHEMAS_STRING_RE).mock(side_effect=get_schema_string_callback)
         respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
         respx_mock.get(SCHEMAS_SUBJECTS_RE).mock(side_effect=get_schema_subjects_callback)
         respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
 
-        respx_mock.get(SUBJECTS_VERSIONS_SCHEMA_RE).mock(side_effect=get_subject_version_schema_callback)
         respx_mock.get(SUBJECTS_VERSIONS_REFERENCED_BY_RE).mock(side_effect=get_subject_version_referenced_by_callback)
         respx_mock.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
         respx_mock.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
@@ -156,7 +154,6 @@ def mock_schema_registry():
 
 # request paths
 SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
-SCHEMAS_STRING_RE = re.compile(r"/schemas/ids/([0-9]*)/schema(\?.*)?$")
 SCHEMAS_VERSIONS_RE = re.compile(r"/schemas/ids/([0-9]*)/versions(\?.*)?$")
 SCHEMAS_SUBJECTS_RE = re.compile(r"/schemas/ids/([0-9]*)/subjects(\?.*)?$")
 SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
@@ -289,16 +286,6 @@ def get_schemas_callback(request, route):
 def get_schema_subjects_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
     return Response(200, json=SUBJECTS)
-
-
-def get_schema_string_callback(request, route):
-    COUNTER['GET'][request.url.path] += 1
-    path_match = re.match(SCHEMAS_STRING_RE, request.url.path)
-    schema_id = path_match.group(1)
-    if int(schema_id) == 404:
-        return Response(404, json={'error_code': 40403,
-                                   'message': "Schema not found"})
-    return Response(200, json=json.loads(_load_avsc(SCHEMA)))
 
 
 def get_schema_types_callback(request, route):

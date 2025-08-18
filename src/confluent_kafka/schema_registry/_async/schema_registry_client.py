@@ -666,7 +666,6 @@ class AsyncSchemaRegistryClient(object):
     async def get_schema(
         self, schema_id: int, subject_name: Optional[str] = None,
         fmt: Optional[str] = None, reference_format: Optional[str] = None,
-        find_tags: Optional[List[str]] = None, fetch_max_id: bool = False
     ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
@@ -678,8 +677,6 @@ class AsyncSchemaRegistryClient(object):
             subject_name (str): Subject name the schema is registered under.
             fmt (str): Desired output format, dependent on schema type.
             reference_format (str): Desired output format for references.
-            find_tags (list[str]): Find tagged entities for the given tags or * for all tags.
-            fetch_max_id (boolean): Whether to fetch the maximum schema identifier that exists
 
         Returns:
             Schema: Schema instance identified by the ``schema_id``
@@ -702,10 +699,7 @@ class AsyncSchemaRegistryClient(object):
             query['format'] = fmt
         if reference_format is not None:
             query['reference_format'] = reference_format
-        if find_tags is not None:
-            query['find_tags'] = find_tags
-        if fetch_max_id:
-            query['fetch_max_id'] = fetch_max_id
+
         response = await self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -714,35 +708,6 @@ class AsyncSchemaRegistryClient(object):
                                registered_schema.guid, registered_schema.schema)
 
         return registered_schema.schema
-
-    async def get_schema_string(
-        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
-    ) -> str:
-        """
-        Fetches the schema associated with ``schema_id`` from the
-        Schema Registry. Only the unescaped schema string is returned.
-
-        Args:
-            schema_id (int): Schema id.
-            subject_name (str): Subject name the schema is registered under.
-            fmt (str): Desired output format, dependent on schema type.
-
-        Returns:
-            str: Schema string for this version.
-
-        Raises:
-            SchemaRegistryError: if the version can't be found or is invalid.
-
-        See Also:
-            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
-        """  # noqa: E501
-
-        query = {}
-        if subject_name is not None:
-            query['subject'] = subject_name
-        if fmt is not None:
-            query['format'] = fmt
-        return await self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
@@ -816,8 +781,6 @@ class AsyncSchemaRegistryClient(object):
 
         Raises:
             SchemaRegistryError: if subjects can't be found
-
-        TODO: add API reference
         """
         query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
@@ -1095,35 +1058,6 @@ class AsyncSchemaRegistryClient(object):
         self._cache.set_registered_schema(registered_schema.schema, registered_schema)
 
         return registered_schema
-
-    async def get_version_schema_string(
-        self, subject_name: str, version: Union[int, str] = "latest",
-        deleted: bool = False, fmt: Optional[str] = None
-    ) -> str:
-        """
-        Retrieves a specific schema registered under ``subject_name`` and ``version``.
-        Only the unescaped schema string is returned.
-
-        Args:
-            subject_name (str): Subject name.
-            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
-            deleted (bool): Whether to include deleted schemas.
-            fmt (str): Format of the schema.
-
-        Returns:
-            str: Schema string for this version.
-
-        Raises:
-            SchemaRegistryError: if the version can't be found or is invalid.
-
-        See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)-schema>`_
-        """  # noqa: E501
-
-        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
-        return await self._rest_client.get(
-            'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
-        )
 
     async def get_referenced_by(
             self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
