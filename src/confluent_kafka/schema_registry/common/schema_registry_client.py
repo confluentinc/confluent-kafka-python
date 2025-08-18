@@ -660,6 +660,16 @@ class Metadata:
 
 
 @_attrs_define(frozen=True)
+class SchemaVersion:
+    subject: Optional[str]
+    version: Optional[int]
+
+    @classmethod
+    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
+        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))
+
+
+@_attrs_define(frozen=True)
 class SchemaReference:
     name: Optional[str]
     subject: Optional[str]
@@ -684,20 +694,11 @@ class SchemaReference:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        d = src_dict.copy()
-        name = d.pop("name", None)
-
-        subject = d.pop("subject", None)
-
-        version = d.pop("version", None)
-
-        schema_reference = cls(
-            name=name,
-            subject=subject,
-            version=version,
+        return cls(
+            name=src_dict.get('name'),
+            subject=src_dict.get('subject'),
+            version=src_dict.get('version'),
         )
-
-        return schema_reference
 
 
 class ConfigCompatibilityLevel(str, Enum):
@@ -858,7 +859,6 @@ class Schema:
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema_str
-
         schema_type = self.schema_type
 
         _references: Optional[List[Dict[str, Any]]] = []
@@ -939,11 +939,11 @@ class RegisteredSchema:
     An registered schema.
     """
 
+    subject: Optional[str]
+    version: Optional[int]
     schema_id: Optional[int]
     guid: Optional[str]
     schema: Optional[Schema]
-    subject: Optional[str]
-    version: Optional[int]
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema
