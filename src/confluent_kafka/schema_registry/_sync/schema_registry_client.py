@@ -844,14 +844,19 @@ class SchemaRegistryClient(object):
             schema_id (int): Schema ID.
             subject_name (str): Subject name that results can be filtered by.
 <<<<<<< HEAD
+<<<<<<< HEAD
             deleted (bool): Whether to include subjects where the schema was deleted.
 =======
             deleted (bool): Whether to include subejcts where the schema was deleted.
 >>>>>>> 3115286 (revert breaking chamges)
+=======
+            deleted (bool): Whether to include subjects where the schema was deleted.
+>>>>>>> 00db3ae (update)
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
+<<<<<<< HEAD
 <<<<<<< HEAD
             list(str): List of subjects matching the specified parameters.
 
@@ -859,6 +864,9 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: if subjects can't be found
 =======
             list(str): List of suubjects matching the specified parameters.
+=======
+            list(str): List of subjects matching the specified parameters.
+>>>>>>> 00db3ae (update)
 
         Raises:
             SchemaRegistryError: if subjects can't be found
@@ -1030,11 +1038,15 @@ class SchemaRegistryClient(object):
 
         response = self._rest_client.post(
 <<<<<<< HEAD
+<<<<<<< HEAD
             'subjects/{}?{}'.format(_urlencode(subject_name), query_string),
 =======
             'subjects/{}?normalize={}&format={}&deleted={}'.format(
                 _urlencode(subject_name), normalize_schemas, fmt, deleted),
 >>>>>>> 3115286 (revert breaking chamges)
+=======
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string),
+>>>>>>> 00db3ae (update)
             body=request
         )
 
