@@ -109,6 +109,10 @@ Request paths to trigger exceptions:
 +--------+-------------------------------------------------+-------+------------------------------+
 | POST   | /compatibility/subjects/invalid/versions/bad    | 42202 | Invalid version              |
 +--------+-------------------------------------------------+-------+------------------------------+
+| PUT    | /mode/invalid_mode                              | 42204 | Invalid mode                 |
++--------+-------------------------------------------------+-------+------------------------------+
+| PUT    | /mode/operation_not_permitted                   | 42205 | Operation not permitted      |
++--------+-------------------------------------------------+-------+------------------------------+
 * POST /subjects/{}/versions does not follow the documented API error.
 ** PUT /config reacts to a trigger in the body: - {"compatibility": "FULL"}
 
@@ -131,9 +135,17 @@ def mock_schema_registry():
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(
             side_effect=post_compatibility_subjects_versions_callback)
+        respx_mock.post(COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE).mock(
+            side_effect=post_compatibility_subjects_all_versions_callback)
 
         respx_mock.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
         respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
+
+        respx_mock.get(MODE_GLOBAL_RE).mock(side_effect=get_global_mode_callback)
+        respx_mock.put(MODE_GLOBAL_RE).mock(side_effect=put_global_mode_callback)
+        respx_mock.get(MODE_RE).mock(side_effect=get_mode_callback)
+        respx_mock.put(MODE_RE).mock(side_effect=put_mode_callback)
+        respx_mock.delete(MODE_RE).mock(side_effect=delete_mode_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
         respx_mock.get(SCHEMAS_STRING_RE).mock(side_effect=get_schema_string_callback)
@@ -168,6 +180,11 @@ SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile(r"/subjects/(.*)/versions/(.*)/r
 
 COMPATIBILITY_RE = re.compile("/config/?(.*)$")
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
+COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions")
+
+MODE_GLOBAL_RE = re.compile(r"/mode(\?.*)?$")
+MODE_RE = re.compile("/mode/(.*)$")
+
 # constants
 SCHEMA_ID = 47
 VERSION = 3
@@ -414,6 +431,50 @@ def post_compatibility_subjects_versions_callback(request, route):
                                    'message': 'Invalid Schema'})
 
     return Response(200, json={'is_compatible': True})
+
+
+def post_compatibility_subjects_all_versions_callback(request, route):
+    COUNTER['POST'][request.url.path] += 1
+    return Response(200, json={'is_compatible': True})
+
+
+def get_global_mode_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
+
+
+def put_global_mode_callback(request, route):
+    COUNTER['PUT'][request.url.path] += 1
+    body = json.loads(request.content.decode('utf-8'))
+    print(body)
+    return Response(200, json=body)
+
+
+def get_mode_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
+
+
+def put_mode_callback(request, route):
+    COUNTER['PUT'][request.url.path] += 1
+
+    path_match = re.match(MODE_RE, request.url.path)
+    subject = path_match.group(1)
+    body = json.loads(request.content.decode('utf-8'))
+    mode = body.get('mode')
+
+    if subject == 'invalid_mode':
+        return Response(422, json={'error_code': 42204,
+                                   'message': "Invalid mode"})
+    if subject == 'operation_not_permitted':
+        return Response(422, json={'error_code': 42205,
+                                   'message': "Operation not permitted"})
+    return Response(200, json={'mode': mode})
+
+
+def delete_mode_callback(request, route):
+    COUNTER['DELETE'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
 
 
 @pytest.fixture(scope="package")
