@@ -33,6 +33,7 @@ from authlib.integrations.httpx_client import OAuth2Client
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
+    SchemaVersion,
     ServerConfig,
     is_success,
     is_retriable,
@@ -663,7 +664,9 @@ class SchemaRegistryClient(object):
         return registered_schema
 
     def get_schema(
-        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
+        self, schema_id: int, subject_name: Optional[str] = None,
+        fmt: Optional[str] = None, reference_format: Optional[str] = None,
+        find_tags: Optional[List[str]] = None, fetch_max_id: bool = False
     ) -> 'Schema':
         """
         Fetches the schema associated with ``schema_id`` from the
@@ -671,9 +674,12 @@ class SchemaRegistryClient(object):
         require an additional round-trip to the Schema Registry.
 
         Args:
-            schema_id (int): Schema id
-            subject_name (str): Subject name the schema is registered under
-            fmt (str): Format of the schema
+            schema_id (int): Schema id.
+            subject_name (str): Subject name the schema is registered under.
+            fmt (str): Desired output format, dependent on schema type.
+            reference_format (str): Desired output format for references.
+            find_tags (list[str]): Find tagged entities for the given tags or * for all tags.
+            fetch_max_id (boolean): Whether to fetch the maximum schema identifier that exists
 
         Returns:
             Schema: Schema instance identified by the ``schema_id``
@@ -682,19 +688,24 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: If schema can't be found.
 
         See Also:
-         `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
         result = self._cache.get_schema_by_id(subject_name, schema_id)
         if result is not None:
             return result[1]
 
-        query = {'subject': subject_name} if subject_name is not None else None
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
         if fmt is not None:
-            if query is not None:
-                query['format'] = fmt
-            else:
-                query = {'format': fmt}
+            query['format'] = fmt
+        if reference_format is not None:
+            query['reference_format'] = reference_format
+        if find_tags is not None:
+            query['find_tags'] = find_tags
+        if fetch_max_id:
+            query['fetch_max_id'] = fetch_max_id
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -703,6 +714,35 @@ class SchemaRegistryClient(object):
                                registered_schema.guid, registered_schema.schema)
 
         return registered_schema.schema
+
+    def get_schema_string(
+        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
+    ) -> str:
+        """
+        Fetches the schema associated with ``schema_id`` from the
+        Schema Registry. Only the unescaped schema string is returned.
+
+        Args:
+            schema_id (int): Schema id.
+            subject_name (str): Subject name the schema is registered under.
+            fmt (str): Desired output format, dependent on schema type.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
+        """  # noqa: E501
+
+        query = {}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if fmt is not None:
+            query['format'] = fmt
+        return self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
 
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
@@ -741,24 +781,104 @@ class SchemaRegistryClient(object):
 
         return registered_schema.schema
 
+    def get_schema_types(self) -> List[str]:
+        """
+        Lists all supported schema types in the Schema Registry.
+
+        Returns:
+            list(str): List of supported schema types (e.g., ['AVRO', 'JSON', 'PROTOBUF'])
+
+        Raises:
+            SchemaRegistryError: if schema types can't be retrieved
+
+        See Also:
+            `GET Schema Types API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-types>`_
+        """  # noqa: E501
+
+        return self._rest_client.get('schemas/types')
+
+    def get_subjects_by_schema_id(
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
+        offset: int = 0, limit: int = -1
+    ) -> List[str]:
+        """
+        Retrieves all the subjects associated with ``schema_id``.
+
+        Args:
+            schema_id (int): Schema ID.
+            subject_name (str): Subject name that results can be filtered by.
+            deleted (bool): Whether to include subjects where the schema was deleted.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            list(str): List of subjects matching the specified parameters.
+
+        Raises:
+            SchemaRegistryError: if subjects can't be found
+
+        TODO: add API reference
+        """
+        query = {'offset': offset, 'limit': limit}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if deleted:
+            query['deleted'] = deleted
+        return self._rest_client.get('schemas/ids/{}/subjects'.format(schema_id), query)
+
+    def get_schema_versions(
+        self, schema_id: int, subject_name: Optional[str] = None, deleted: bool = False,
+        offset: int = 0, limit: int = -1
+    ) -> List[SchemaVersion]:
+        """
+        Gets all subject-version pairs of a schema by its ID.
+
+        Args:
+            schema_id (int): Schema ID.
+            subject_name (str): Subject name that results can be filtered by.
+            deleted (bool): Whether to include subject versions where the schema was deleted.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            list(SchemaVersion): List of subject-version pairs. Each pair contains:
+                - subject (str): Subject name.
+                - version (int): Version number.
+
+        Raises:
+            SchemaRegistryError: if schema versions can't be found.
+
+        See Also:
+            `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
+        """  # noqa: E501
+
+        query = {'offset': offset, 'limit': limit}
+        if subject_name is not None:
+            query['subject'] = subject_name
+        if deleted:
+            query['deleted'] = deleted
+        response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
+        return [SchemaVersion.from_dict(item) for item in response]
+
     def lookup_schema(
         self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False
+        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
     ) -> 'RegisteredSchema':
         """
         Returns ``schema`` registration information for ``subject``.
 
         Args:
-            subject_name (str): Subject name the schema is registered under
+            subject_name (str): Subject name the schema is registered under.
             schema (Schema): Schema instance.
-            normalize_schemas (bool): Normalize schema before registering
+            normalize_schemas (bool): Normalize schema before registering.
+            fmt (str): Desired output format, dependent on schema type.
             deleted (bool): Whether to include deleted schemas.
 
         Returns:
             RegisteredSchema: Subject registration information for this schema.
 
         Raises:
-            SchemaRegistryError: If schema or subject can't be found
+            SchemaRegistryError: If schema or subject can't be found.
 
         See Also:
             `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
@@ -770,9 +890,17 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
+        query_params = {
+            'normalize': normalize_schemas,
+            'deleted': deleted
+        }
+        if fmt is not None:
+            query_params['format'] = fmt
+
+        query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
+
         response = self._rest_client.post(
-            'subjects/{}?normalize={}&deleted={}'.format(
-                _urlencode(subject_name), normalize_schemas, deleted),
+            'subjects/{}?{}'.format(_urlencode(subject_name), query_string),
             body=request
         )
 
@@ -791,9 +919,19 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_subjects(self) -> List[str]:
+    def get_subjects(
+        self, subject_prefix: Optional[str] = None, deleted: bool = False, deleted_only: bool = False,
+        offset: int = 0, limit: int = -1
+    ) -> List[str]:
         """
-        Lists all subjects registered with the Schema Registry
+        Lists all subjects registered with the Schema Registry.
+
+        Args:
+            subject_prefix (str): Subject name prefix that results can be filtered by.
+            deleted (bool): Whether to include deleted subjects.
+            deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(str): Registered subject names
@@ -805,7 +943,10 @@ class SchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects')
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+        if subject_prefix is not None:
+            query['subject'] = subject_prefix
+        return self._rest_client.get('subjects', query)
 
     def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         """
@@ -899,7 +1040,9 @@ class SchemaRegistryClient(object):
         if registered_schema is not None:
             return registered_schema
 
-        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        query = {'deleted': deleted}
+        if fmt is not None:
+            query['format'] = fmt
         keys = metadata.keys()
         if keys:
             query['key'] = [_urlencode(key) for key in keys]
@@ -920,13 +1063,13 @@ class SchemaRegistryClient(object):
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
-        Retrieves a specific schema registered under ``subject_name``.
+        Retrieves a specific schema registered under `subject_name` and `version`.
 
         Args:
             subject_name (str): Subject name.
-            version (int): version number. Defaults to latest version.
+            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
             deleted (bool): Whether to include deleted schemas.
-            fmt (str): Format of the schema
+            fmt (str): Format of the schema.
 
         Returns:
             RegisteredSchema: Registration information for this version.
@@ -935,7 +1078,7 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
 
         See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
@@ -953,12 +1096,73 @@ class SchemaRegistryClient(object):
 
         return registered_schema
 
-    def get_versions(self, subject_name: str) -> List[int]:
+    def get_version_schema_string(
+        self, subject_name: str, version: Union[int, str] = "latest",
+        deleted: bool = False, fmt: Optional[str] = None
+    ) -> str:
+        """
+        Retrieves a specific schema registered under ``subject_name`` and ``version``.
+        Only the unescaped schema string is returned.
+
+        Args:
+            subject_name (str): Subject name.
+            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
+            deleted (bool): Whether to include deleted schemas.
+            fmt (str): Format of the schema.
+
+        Returns:
+            str: Schema string for this version.
+
+        Raises:
+            SchemaRegistryError: if the version can't be found or is invalid.
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)-schema>`_
+        """  # noqa: E501
+
+        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        return self._rest_client.get(
+            'subjects/{}/versions/{}/schema'.format(_urlencode(subject_name), version), query
+        )
+
+    def get_referenced_by(
+            self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
+    ) -> List[int]:
+        """
+        Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
+
+        Args:
+            subject_name (str): Subject name
+            version (int or str): Version number or "latest"
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            list(int): List of schema IDs that reference the specified schema.
+
+        Raises:
+            SchemaRegistryError: if the schema version can't be found or referenced schemas can't be retrieved
+
+        See Also:
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+        """  # noqa: E501
+
+        query = {'offset': offset, 'limit': limit}
+        return self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
+            _urlencode(subject_name), version), query)
+
+    def get_versions(
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[int]:
         """
         Get a list of all versions registered with this subject.
 
         Args:
             subject_name (str): Subject name.
+            deleted (bool): Whether to include deleted schemas.
+            deleted_only (bool): Whether to return deleted versions only. If both deleted and deleted_only are True, deleted_only takes precedence.
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
 
         Returns:
             list(int): Registered versions
@@ -970,7 +1174,8 @@ class SchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)))
+        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+        return self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         """
