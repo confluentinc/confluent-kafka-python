@@ -1295,10 +1295,11 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions/{}?normalize={}&verbose={}'.format(_urlencode(subject_name), version, normalize, verbose),
+            'compatibility/subjects/{}/versions/{}?normalize={}&verbose={}'.format(
+                _urlencode(subject_name), version, normalize, verbose),
             body=request
         )
-        return response['is_compatible'] # TODO: should it return entire response (including error messages)?
+        return response['is_compatible']  # TODO: should it return entire response (including error messages)?
 
     def test_compatibility_all_versions(
         self, subject_name: str, schema: 'Schema',
@@ -1317,14 +1318,16 @@ class SchemaRegistryClient(object):
             bool: True if the schema is compatible with all of the subject's schemas versions.
         See Also:
             `POST Test Compatibility Against All API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions>`_
-        """
+        """  # noqa: E501
 
         request = schema.to_dict()
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions?normalize={}&verbose={}'.format(_urlencode(subject_name), normalize, verbose),
+            'compatibility/subjects/{}/versions?normalize={}&verbose={}'.format(
+                _urlencode(subject_name), normalize, verbose
+            ),
             body=request,
         )
-        return response['is_compatible'] # TODO: should it return entire response (including error messages)?
+        return response['is_compatible']  # TODO: should it return entire response (including error messages)?
 
     def set_config(
         self, subject_name: Optional[str] = None,
@@ -1403,7 +1406,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--mode-(string-%20subject)>`_
-        """
+        """  # noqa: E501
         result = self._rest_client.get('mode/{}'.format(_urlencode(subject_name)))
         return result['mode']
 
@@ -1424,7 +1427,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `PUT Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--mode-(string-%20subject)>`_
-        """
+        """  # noqa: E501
         result = self._rest_client.put(
             'mode/{}?force={}'.format(_urlencode(subject_name), force),
             body={'mode': mode},
@@ -1446,7 +1449,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `DELETE Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--mode-(string-%20subject)>`_
-        """
+        """  # noqa: E501
         result = self._rest_client.delete('mode/{}'.format(_urlencode(subject_name)))
         return result['mode']
 
@@ -1462,7 +1465,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `GET Global Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--mode>`_
-        """
+        """  # noqa: E501
         result = self._rest_client.get('mode')
         return result['mode']
 
@@ -1482,7 +1485,7 @@ class SchemaRegistryClient(object):
 
         See Also:
             `PUT Global Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--mode>`_
-        """
+        """  # noqa: E501
         result = self._rest_client.put('mode?force={}'.format(force), body={'mode': mode})
         return result['mode']
 
