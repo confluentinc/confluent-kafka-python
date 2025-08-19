@@ -1854,7 +1854,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	if (result)
 		Py_DECREF(result);
 	else {
-		                CallState_fetch_exception(cs);
+		CallState_fetch_exception(cs);
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}

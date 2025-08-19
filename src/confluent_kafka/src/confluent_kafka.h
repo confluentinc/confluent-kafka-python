@@ -281,7 +281,6 @@ typedef struct {
  * PyErr_GetRaisedException/PyErr_SetRaisedException.
  */
 
-/* General-purpose compatibility wrappers */
 static inline void
 cfl_exception_fetch(PyObject **exc_type, PyObject **exc_value, PyObject **exc_traceback) {
 #if PY_VERSION_HEX >= 0x030c0000
@@ -316,7 +315,6 @@ cfl_exception_restore(PyObject *exc_type, PyObject *exc_value, PyObject *exc_tra
 #endif
 }
 
-/* CallState-specific convenience wrappers */
 static inline void
 CallState_fetch_exception(CallState *cs) {
     cfl_exception_fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
