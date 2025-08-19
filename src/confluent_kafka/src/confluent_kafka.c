@@ -1756,7 +1756,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 		Py_DECREF(result);
 	else {
         
-        PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+        CallState_fetch_exception(cs);
         crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
@@ -1811,7 +1811,7 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                 Py_DECREF(result);
                 goto done;
         } else {
-                PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+                CallState_fetch_exception(cs);
         }
 
         /**
@@ -1843,7 +1843,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	if (result)
 		Py_DECREF(result);
 	else {
-		PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+		                CallState_fetch_exception(cs);
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1879,7 +1879,7 @@ static void log_cb (const rd_kafka_t *rk, int level,
         if (result)
                 Py_DECREF(result);
         else {
-                PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+                CallState_fetch_exception(cs);
                 CallState_crash(cs);
                 rd_kafka_yield(h->rk);
         }
@@ -2607,10 +2607,7 @@ int CallState_end (Handle *h, CallState *cs) {
 	if (cs->crashed) {
 		/* Restore the saved exception if we have one */
 		if (cs->exception_type) {
-			PyErr_Restore(cs->exception_type, cs->exception_value, cs->exception_traceback);
-			cs->exception_type = NULL;
-			cs->exception_value = NULL;
-			cs->exception_traceback = NULL;
+			CallState_restore_exception(cs);
 		}
 		return 0;
 	}

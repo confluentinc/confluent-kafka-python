@@ -282,52 +282,60 @@ typedef struct {
 
 /**
  * @brief Compatibility layer for Python exception handling API changes.
- * PyErr_Fetch was deprecated in Python 3.12 in favor of PyErr_GetRaisedException.
+ * PyErr_Fetch/PyErr_Restore were deprecated in Python 3.12 in favor of 
+ * PyErr_GetRaisedException/PyErr_SetRaisedException.
  */
-#if PY_VERSION_HEX >= 0x030c0000
-/* Python 3.12+ - use new API */
+
+/* General-purpose compatibility wrappers */
 static inline void
-CallState_fetch_exception(CallState *cs) {
+cfl_exception_fetch(PyObject **exc_type, PyObject **exc_value, PyObject **exc_traceback) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
     PyObject *exc = PyErr_GetRaisedException();
     if (exc) {
-        cs->exception_type = (PyObject *)Py_TYPE(exc);
-        Py_INCREF(cs->exception_type);
-        cs->exception_value = exc;
-        cs->exception_traceback = PyException_GetTraceback(exc);
+        *exc_type = (PyObject *)Py_TYPE(exc);
+        Py_INCREF(*exc_type);
+        *exc_value = exc;
+        *exc_traceback = PyException_GetTraceback(exc);
     } else {
-        cs->exception_type = NULL;
-        cs->exception_value = NULL;
-        cs->exception_traceback = NULL;
+        *exc_type = *exc_value = *exc_traceback = NULL;
     }
+#else
+    /* Python < 3.12 - use legacy API */
+    PyErr_Fetch(exc_type, exc_value, exc_traceback);
+#endif
 }
 
 static inline void
-CallState_restore_exception(CallState *cs) {
-    if (cs->exception_value) {
-        PyErr_SetRaisedException(cs->exception_value);
-        /* PyErr_SetRaisedException steals the reference, so clear our pointer */
-        cs->exception_value = NULL;
-        Py_XDECREF(cs->exception_type);
-        cs->exception_type = NULL;
-        Py_XDECREF(cs->exception_traceback);
-        cs->exception_traceback = NULL;
+cfl_exception_restore(PyObject *exc_type, PyObject *exc_value, PyObject *exc_traceback) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    if (exc_value) {
+        PyErr_SetRaisedException(exc_value);
+        Py_XDECREF(exc_type);
+        Py_XDECREF(exc_traceback);
     }
-}
 #else
-/* Python < 3.12 - use legacy API */
+    /* Python < 3.12 - use legacy API */
+    PyErr_Restore(exc_type, exc_value, exc_traceback);
+#endif
+}
+
+/* CallState-specific convenience wrappers */
 static inline void
 CallState_fetch_exception(CallState *cs) {
-    PyErr_Fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+    cfl_exception_fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
 }
 
 static inline void
 CallState_restore_exception(CallState *cs) {
-    PyErr_Restore(cs->exception_type, cs->exception_value, cs->exception_traceback);
-    cs->exception_type = NULL;
-    cs->exception_value = NULL;
-    cs->exception_traceback = NULL;
+    if (cs->exception_type) {
+        cfl_exception_restore(cs->exception_type, cs->exception_value, cs->exception_traceback);
+        cs->exception_type = NULL;
+        cs->exception_value = NULL;
+        cs->exception_traceback = NULL;
+    }
 }
-#endif
 
 /**
  * @brief Initialiase a CallState and unlock the GIL prior to a
