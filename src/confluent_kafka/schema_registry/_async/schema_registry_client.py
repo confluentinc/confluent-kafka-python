@@ -1281,7 +1281,7 @@ class AsyncSchemaRegistryClient(object):
             schema (Schema): Schema instance.
             version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
             normalize (bool): Whether to normalize the input schema.
-            verbose (bool): Wehther to return detailed error messages.
+            verbose (bool): Whether to return detailed error messages.
 
         Returns:
             bool: True if the schema is compatible with the specified version
