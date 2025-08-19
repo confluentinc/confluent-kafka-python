@@ -16,7 +16,7 @@ import base64
 import io
 import logging
 import time
-from typing import Optional, Tuple, Any
+from typing import Optional, Tuple, Any, List
 
 from tink import aead, daead, KmsClient, kms_client_from_uri, \
     register_kms_client, TinkError
@@ -45,6 +45,7 @@ ENCRYPT_KMS_KEY_ID = "encrypt.kms.key.id"
 ENCRYPT_KMS_TYPE = "encrypt.kms.type"
 ENCRYPT_DEK_ALGORITHM = "encrypt.dek.algorithm"
 ENCRYPT_DEK_EXPIRY_DAYS = "encrypt.dek.expiry.days"
+ENCRYPT_ALTERNATE_KMS_KEY_IDS = "encrypt.alternate.kms.key.ids"
 
 MILLIS_IN_DAY = 24 * 60 * 60 * 1000
 
@@ -279,7 +280,7 @@ class EncryptionExecutorTransform(object):
                 raise RuleError(f"no dek found for {dek_id.kek_name} during consume")
             encrypted_dek = None
             if not kek.shared:
-                primitive = self._get_aead(self._executor.config, self._kek)
+                primitive = AeadWrapper(self._executor.config, self._kek)
                 raw_dek = self._cryptor.generate_key()
                 encrypted_dek = primitive.encrypt(raw_dek, self._cryptor.EMPTY_AAD)
             new_version = dek.version + 1 if is_expired else 1
@@ -293,7 +294,7 @@ class EncryptionExecutorTransform(object):
         key_bytes = dek.get_key_material_bytes()
         if key_bytes is None:
             if primitive is None:
-                primitive = self._get_aead(self._executor.config, self._kek)
+                primitive = AeadWrapper(self._executor.config, self._kek)
             encrypted_dek = dek.get_encrypted_key_material_bytes()
             raw_dek = primitive.decrypt(encrypted_dek, self._cryptor.EMPTY_AAD)
             dek.set_key_material(raw_dek)
@@ -410,8 +411,51 @@ class EncryptionExecutorTransform(object):
             return value
         return None
 
-    def _get_aead(self, config: dict, kek: Kek) -> aead.Aead:
-        kek_url = kek.kms_type + "://" + kek.kms_key_id
+
+class AeadWrapper(aead.Aead):
+    def __init__(self, config: dict, kek: Kek):
+        self._config = config
+        self._kek = kek
+        self._kms_key_ids = self._get_kms_key_ids()
+
+    def encrypt(self, plaintext: bytes, associated_data: bytes) -> bytes:
+        for index, kms_key_id in enumerate(self._kms_key_ids):
+            try:
+                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
+                return aead.encrypt(plaintext, associated_data)
+            except Exception as e:
+                log.warning("failed to encrypt with kek %s and kms key id %s",
+                            self._kek.name, kms_key_id)
+                if index == len(self._kms_key_ids) - 1:
+                    raise RuleError(f"failed to encrypt with all KEKs for {self._kek.name}") from e
+        raise RuleError("No KEK found for encryption")
+
+    def decrypt(self, ciphertext: bytes, associated_data: bytes) -> bytes:
+        for index, kms_key_id in enumerate(self._kms_key_ids):
+            try:
+                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
+                return aead.decrypt(ciphertext, associated_data)
+            except Exception as e:
+                log.warning("failed to decrypt with kek %s and kms key id %s",
+                            self._kek.name, kms_key_id)
+                if index == len(self._kms_key_ids) - 1:
+                    raise RuleError(f"failed to decrypt with all KEKs for {self._kek.name}") from e
+        raise RuleError("No KEK found for decryption")
+
+    def _get_kms_key_ids(self) -> List[str]:
+        kms_key_ids = [self._kek.kms_key_id]
+        alternate_kms_key_ids = None
+        if self._kek.kms_props is not None:
+            alternate_kms_key_ids = self._kek.kms_props.properties.get(ENCRYPT_ALTERNATE_KMS_KEY_IDS)
+        if alternate_kms_key_ids is None:
+            alternate_kms_key_ids = self._config.get(ENCRYPT_ALTERNATE_KMS_KEY_IDS)
+        if alternate_kms_key_ids is not None:
+            # Split the comma-separated list of alternate KMS key IDs and append to kms_key_ids
+            kms_key_ids.extend([id.strip() for id in alternate_kms_key_ids.split(',') if id.strip()])
+        return kms_key_ids
+
+    def _get_aead(self, config: dict, kms_type: str, kms_key_id: str) -> aead.Aead:
+        kek_url = kms_type + "://" + kms_key_id
         kms_client = self._get_kms_client(config, kek_url)
         return kms_client.get_aead(kek_url)
 
