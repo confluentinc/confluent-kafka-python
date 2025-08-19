@@ -16,6 +16,7 @@ avro>=1.11.1,<2
 
 pyrsistent
 jsonschema
+orjson >= 3.10
 
 googleapis-common-protos
 protobuf
