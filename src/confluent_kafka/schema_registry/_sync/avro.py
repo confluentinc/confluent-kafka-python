@@ -15,7 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
-import orjson
+import json
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
@@ -270,7 +270,7 @@ class AvroSerializer(BaseSerializer):
                 # i.e. {"type": "string"} has a name of string.
                 # This function does not comply.
                 # https://github.com/fastavro/fastavro/issues/415
-                schema_dict = orjson.loads(schema.schema_str)
+                schema_dict = json.loads(schema.schema_str)
                 schema_name = parsed_schema.get("name", schema_dict.get("type"))
         else:
             schema_name = None
