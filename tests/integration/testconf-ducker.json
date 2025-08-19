@@ -1,0 +1,24 @@
+{
+    "topic": "test-topic",
+    "bootstrap.servers": "kafka1:9092,kafka2:9092,kafka3:9092",
+    "schema.registry.url": "http://schema-registry:8081",
+    "avro-https": {
+        "schema.registry.url": "https://schema-registry:8082",
+        "schema.registry.ssl.ca.location": "/opt/kafka-dev/tests/certs/ca-cert",
+        "schema.registry.ssl.certificate.location": "/opt/kafka-dev/tests/certs/client-cert",
+        "schema.registry.ssl.key.location": "/opt/kafka-dev/tests/certs/client-key"
+    },
+    "avro-basic-auth": {
+        "schema.registry.url": "http://schema-registry:8083",
+        "schema.registry.basic.auth.user.info": "ckp_tester:test_secret",
+        "sasl.username": "ckp_tester",
+        "sasl.password": "test_secret"
+    },
+    "avro-https-key-with-password": {
+        "schema.registry.url": "https://schema-registry:8082",
+        "schema.registry.ssl.ca.location": "/opt/kafka-dev/tests/certs/ca-cert",
+        "schema.registry.ssl.certificate.location": "/opt/kafka-dev/tests/certs/client-cert",
+        "schema.registry.ssl.key.location": "/opt/kafka-dev/tests/certs/client-key-with-password",
+        "schema.registry.ssl.key.password": "test_password"
+    }
+}
