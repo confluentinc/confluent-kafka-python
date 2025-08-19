@@ -38,7 +38,7 @@ from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver impo
 from confluent_kafka.schema_registry.rules.encryption.dek_registry.dek_registry_client import \
     DekRegistryClient, DekAlgorithm
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor, Clock
+    FieldEncryptionExecutor, Clock, EncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
     GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
@@ -50,7 +50,7 @@ from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
 from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, SchemaReference, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField
+from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
 
 
 class FakeClock(Clock):
@@ -62,15 +62,6 @@ class FakeClock(Clock):
         return self.fixed_now
 
 
-CelExecutor.register()
-CelFieldExecutor.register()
-AwsKmsDriver.register()
-AzureKmsDriver.register()
-GcpKmsDriver.register()
-HcVaultKmsDriver.register()
-JsonataExecutor.register()
-LocalKmsDriver.register()
-
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
 _TOPIC = "topic1"
@@ -81,6 +72,15 @@ _SUBJECT = _TOPIC + "-value"
 def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
+
+    CelExecutor.register()
+    CelFieldExecutor.register()
+    AwsKmsDriver.register()
+    AzureKmsDriver.register()
+    GcpKmsDriver.register()
+    HcVaultKmsDriver.register()
+    JsonataExecutor.register()
+    LocalKmsDriver.register()
 
     yield  # this is where the testing happens
 
@@ -603,10 +603,9 @@ def test_avro_cel_condition_fail():
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_avro_cel_condition_ignore_fail():
@@ -1069,10 +1068,9 @@ def test_avro_cel_field_condition_fail():
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_avro_encryption():
@@ -1127,7 +1125,7 @@ def test_avro_encryption():
         'bytesField': b'foobar',
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1135,6 +1133,68 @@ def test_avro_encryption():
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = b'foobar'
+
+    deser = AvroDeserializer(client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_avro_payload_encryption():
+    executor = EncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string', 'confluent:tags': ['PII']},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes', 'confluent:tags': ['PII']},
+        ]
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT_PAYLOAD",
+        None,
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+    ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
     executor.client = dek_client
@@ -1195,7 +1255,7 @@ def test_avro_encryption_deterministic():
         'bytesField': b'foobar',
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1205,7 +1265,7 @@ def test_avro_encryption_deterministic():
     obj['bytesField'] = b'foobar'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1275,7 +1335,7 @@ def test_avro_encryption_cel():
         'bytesField': b'foobar',
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1285,7 +1345,7 @@ def test_avro_encryption_cel():
     obj['bytesField'] = b'foobar'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1343,7 +1403,7 @@ def test_avro_encryption_dek_rotation():
         'bytesField': b'foobar',
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1352,17 +1412,17 @@ def test_avro_encryption_dek_rotation():
     obj['stringField'] = 'hi'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
-    dek_client = executor.client
+    dek_client = executor.executor.client
     dek = dek_client.get_dek("kek1-rot", _SUBJECT, version=-1)
     assert dek.version == 1
 
     # advance 2 days
     now = datetime.now() + timedelta(days=2)
-    executor.clock.fixed_now = int(round(now.timestamp() * 1000))
+    executor.executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1378,7 +1438,7 @@ def test_avro_encryption_dek_rotation():
 
     # advance 2 days
     now = datetime.now() + timedelta(days=2)
-    executor.clock.fixed_now = int(round(now.timestamp() * 1000))
+    executor.executor.clock.fixed_now = int(round(now.timestamp() * 1000))
 
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1439,7 +1499,7 @@ def test_avro_encryption_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = AvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-f1", "local-kms", "mykey")
 
     encrypted_dek = "07V2ndh02DA73p+dTybwZFm7DKQSZN1tEwQh+FoX1DZLk4Yj2LLu4omYjp/84tAg3BYlkfGSz+zZacJHIE4="
@@ -1502,7 +1562,7 @@ def test_avro_encryption_deterministic_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = AvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-det-f1", "local-kms", "mykey")
 
     encrypted_dek = ("YSx3DTlAHrmpoDChquJMifmPntBzxgRVdMzgYL82rgWBKn7aUSnG+WIu9oz"
@@ -1564,7 +1624,7 @@ def test_avro_encryption_dek_rotation_f1_preserialized():
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     deser = AvroDeserializer(client, rule_conf=rule_conf)
 
-    dek_client: DekRegistryClient = executor.client
+    dek_client: DekRegistryClient = executor.executor.client
     dek_client.register_kek("kek1-rot-f1", "local-kms", "mykey")
 
     encrypted_dek = "W/v6hOQYq1idVAcs1pPWz9UUONMVZW4IrglTnG88TsWjeCjxmtRQ4VaNe/I5dCfm2zyY9Cu0nqdvqImtUk4="
@@ -1644,7 +1704,7 @@ def test_avro_encryption_references():
     ))
 
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1654,7 +1714,7 @@ def test_avro_encryption_references():
     obj['refField']['bytesField'] = b'foobar'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -1711,7 +1771,7 @@ def test_avro_encryption_with_union():
         'bytesField': b'foobar',
     }
     ser = AvroSerializer(client, schema_str=None, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -1721,7 +1781,7 @@ def test_avro_encryption_with_union():
     obj['bytesField'] = b'foobar'
 
     deser = AvroDeserializer(client, rule_conf=rule_conf)
-    executor.client = dek_client
+    executor.executor.client = dek_client
     obj2 = deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
@@ -2081,27 +2141,35 @@ def _register_avro_schemas_and_build_awarded_user_schema(client):
 
 
 def _references_test_common(client, awarded_user, serializer_schema, deserializer_schema):
-    value_serializer = AvroSerializer(client, serializer_schema,
-                                      lambda user, ctx:
-                                      dict(award=dict(name=user.award.name,
-                                                      properties=dict(year=user.award.properties.year,
-                                                                      points=user.award.properties.points)),
-                                           user=dict(name=user.user.name,
-                                                     favorite_number=user.user.favorite_number,
-                                                     favorite_color=user.user.favorite_color)))
+    value_serializer = AvroSerializer(
+        client, serializer_schema,
+        lambda user, ctx:
+        dict(
+            award=dict(
+                name=user.award.name,
+                properties=dict(year=user.award.properties.year,
+                                points=user.award.properties.points)),
+            user=dict(
+                name=user.user.name,
+                favorite_number=user.user.favorite_number,
+                favorite_color=user.user.favorite_color)))
 
     value_deserializer = \
-        AvroDeserializer(client, deserializer_schema,
-                         lambda user, ctx:
-                         AwardedUser(award=Award(name=user.get('award').get('name'),
-                                                 properties=AwardProperties(
-                                                     year=user.get('award').get('properties').get(
-                                                         'year'),
-                                                     points=user.get('award').get('properties').get(
-                                                         'points'))),
-                                     user=User(name=user.get('user').get('name'),
-                                               favorite_number=user.get('user').get('favorite_number'),
-                                               favorite_color=user.get('user').get('favorite_color'))))
+        AvroDeserializer(
+            client, deserializer_schema,
+            lambda user, ctx:
+            AwardedUser(
+                award=Award(
+                    name=user.get('award').get('name'),
+                    properties=AwardProperties(
+                        year=user.get('award').get('properties').get(
+                            'year'),
+                        points=user.get('award').get('properties').get(
+                            'points'))),
+                user=User(
+                    name=user.get('user').get('name'),
+                    favorite_number=user.get('user').get('favorite_number'),
+                    favorite_color=user.get('user').get('favorite_color'))))
 
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = value_serializer(awarded_user, ser_ctx)

@@ -15,14 +15,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import sys
+import os
 import time
-
 import pytest
 
-from confluent_kafka.schema_registry import SchemaRegistryClient, \
+from confluent_kafka.schema_registry._sync.schema_registry_client import SchemaRegistryClient
+from confluent_kafka.schema_registry import \
     Schema, Metadata, MetadataProperties, header_schema_id_serializer
-from confluent_kafka.schema_registry.protobuf import ProtobufSerializer, \
-    ProtobufDeserializer, _schema_to_str
+from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer, \
+    ProtobufDeserializer
+from confluent_kafka.schema_registry.protobuf import _schema_to_str
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import \
     CelFieldExecutor
@@ -31,7 +34,7 @@ from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
     AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor, Clock
+    FieldEncryptionExecutor, Clock, EncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
     GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
@@ -43,9 +46,15 @@ from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
 from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField
-from .data.proto import example_pb2, nested_pb2, test_pb2, dep_pb2, cycle_pb2, \
-    widget_pb2, newwidget_pb2, newerwidget_pb2
+from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
+
+# Add proto directory to sys.path to resolve protobuf import dependencies
+proto_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'proto')
+if proto_path not in sys.path:
+    sys.path.insert(0, proto_path)
+
+from tests.schema_registry.data.proto import example_pb2, nested_pb2, test_pb2, dep_pb2, cycle_pb2, \
+    widget_pb2, newwidget_pb2, newerwidget_pb2  # noqa: E402
 
 
 class FakeClock(Clock):
@@ -368,10 +377,9 @@ def test_proto_cel_condition_fail():
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_proto_cel_field_transform():
@@ -512,10 +520,9 @@ def test_proto_cel_field_condition_fail():
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
+    with pytest.raises(SerializationError) as e:
         ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
 def test_proto_encryption():
@@ -561,7 +568,7 @@ def test_proto_encryption():
         oneof_string='oneof'
     )
     ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
     obj_bytes = ser(obj, ser_ctx)
 
@@ -574,6 +581,62 @@ def test_proto_encryption():
         works=['The Castle', 'TheTrial'],
         oneof_string='oneof'
     )
+
+    deser_conf = {
+        'use.deprecated.format': False
+    }
+    deser = ProtobufDeserializer(example_pb2.Author, deser_conf, client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+def test_proto_payload_encryption():
+    executor = EncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {
+        'auto.register.schemas': False,
+        'use.latest.version': True,
+        'use.deprecated.format': False
+    }
+    rule_conf = {'secret': 'mysecret'}
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT_PAYLOAD",
+        None,
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        _schema_to_str(example_pb2.Author.DESCRIPTOR.file),
+        "PROTOBUF",
+        [],
+        None,
+        RuleSet(None, None, [rule])
+    ))
+    obj = example_pb2.Author(
+        name='Kafka',
+        id=123,
+        picture=b'foobar',
+        works=['The Castle', 'TheTrial'],
+        oneof_string='oneof'
+    )
+    ser = ProtobufSerializer(example_pb2.Author, client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
 
     deser_conf = {
         'use.deprecated.format': False

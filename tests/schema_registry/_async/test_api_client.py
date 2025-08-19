@@ -16,26 +16,26 @@
 # limitations under the License.
 #
 import pytest
-
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, wait
 
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema, \
-    SchemaRegistryClient
+    AsyncSchemaRegistryClient
 from tests.schema_registry.conftest import USERINFO, \
     SCHEMA_ID, SCHEMA, SUBJECTS, COUNTER, VERSION, VERSIONS
 
 """
-    Basic SchemaRegistryClient API functionality tests.
+    Basic AsyncSchemaRegistryClient API functionality tests.
 
-    These tests cover the following criteria using the mock SchemaRegistryClient:
+    These tests cover the following criteria using the mock AsyncSchemaRegistryClient:
         - Proper request/response handling:
             The right data sent to the right place in the right format
         - Error handling: (SR error codes are converted to a
             SchemaRegistryError correctly)
         - Caching: Caching of schema_ids and schemas works as expected.
 
-    See ./conftest.py for details on mock SchemaRegistryClient usage.
+    See ./conftest.py for details on mock AsyncSchemaRegistryClient usage.
 """
 TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
@@ -58,61 +58,61 @@ def cmp_schema(schema1, schema2):
                 schema1.schema_type == schema2.schema_type])
 
 
-def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
+async def test_basic_auth_unauthorized(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL,
             'basic.auth.user.info': "user:secret"}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="401 Unauthorized"):
-        sr.get_subjects()
+        await sr.get_subjects()
 
 
-def test_basic_auth_authorized(mock_schema_registry, load_avsc):
+async def test_basic_auth_authorized(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL,
             'basic.auth.user.info': USERINFO}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
-    result = sr.get_subjects()
+    result = await sr.get_subjects()
 
     assert result == SUBJECTS
 
 
-def test_register_schema(mock_schema_registry, load_avsc):
+async def test_register_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
-    result = sr.register_schema('test-key', schema)
+    result = await sr.register_schema('test-key', schema)
     assert result == SCHEMA_ID
 
 
-def test_register_schema_incompatible(mock_schema_registry, load_avsc):
+async def test_register_schema_incompatible(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Incompatible Schema") as e:
-        sr.register_schema('conflict', schema)
+        await sr.register_schema('conflict', schema)
 
     assert e.value.http_status_code == 409
     assert e.value.error_code == -1
 
 
-def test_register_schema_invalid(mock_schema_registry, load_avsc):
+async def test_register_schema_invalid(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = Schema(load_avsc('invalid_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Invalid Schema") as e:
-        sr.register_schema('invalid', schema)
+        await sr.register_schema('invalid', schema)
 
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42201
 
 
-def test_register_schema_cache(mock_schema_registry, load_avsc):
+async def test_register_schema_cache(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = load_avsc('basic_schema.avsc')
 
     count_before = COUNTER['POST'].get(
@@ -121,13 +121,15 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
     # Caching only starts after the first response is handled.
     # A possible improvement would be to add request caching to the http client
     # to catch in-flight requests as well.
-    sr.register_schema('test-cache', Schema(schema, 'AVRO'))
+    await sr.register_schema('test-cache', Schema(schema, 'AVRO'))
+
+    def register():
+        return asyncio.run(sr.register_schema('test-cache', schema))
 
     fs = []
     with ThreadPoolExecutor(max_workers=10) as executor:
         for _ in range(0, 1000):
-            fs.append(executor.submit(sr.register_schema,
-                                      'test-cache', schema))
+            fs.append(executor.submit(register))
     wait(fs)
 
     count_after = COUNTER['POST'].get(
@@ -136,29 +138,29 @@ def test_register_schema_cache(mock_schema_registry, load_avsc):
     assert count_after - count_before == 1
 
 
-def test_get_schema(mock_schema_registry, load_avsc):
+async def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
-    schema2 = sr.get_schema(47)
+    schema2 = await sr.get_schema(47)
 
     assert cmp_schema(schema, schema2)
 
 
-def test_get_schema_not_found(mock_schema_registry):
+async def test_get_schema_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
-        sr.get_schema(404)
+        await sr.get_schema(404)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40403
 
 
-def test_get_schema_cache(mock_schema_registry):
+async def test_get_schema_cache(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     count_before = COUNTER['GET'].get(
         '/schemas/ids/47', 0)
@@ -166,12 +168,15 @@ def test_get_schema_cache(mock_schema_registry):
     # Caching only starts after the first response is handled.
     # A possible improvement would be to add request caching to the http client
     # to catch in-flight requests as well.
-    sr.get_schema(47)
+    await sr.get_schema(47)
+
+    def get():
+        return asyncio.run(sr.get_schema(47))
 
     fs = []
     with ThreadPoolExecutor(max_workers=10) as executor:
         for _ in range(0, 1000):
-            fs.append(executor.submit(sr.get_schema, 47))
+            fs.append(executor.submit(get))
     wait(fs)
 
     count_after = COUNTER['GET'].get(
@@ -180,14 +185,14 @@ def test_get_schema_cache(mock_schema_registry):
     assert count_after - count_before == 1
 
 
-def test_get_registration(mock_schema_registry, load_avsc):
+async def test_get_registration(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = 'get_registration'
     schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
-    response = sr.lookup_schema(subject, schema)
+    response = await sr.lookup_schema(subject, schema)
 
     assert response.subject == subject
     assert response.version == VERSION
@@ -195,180 +200,180 @@ def test_get_registration(mock_schema_registry, load_avsc):
     assert cmp_schema(response.schema, schema)
 
 
-def test_get_registration_subject_not_found(mock_schema_registry, load_avsc):
+async def test_get_registration_subject_not_found(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = 'notfound'
     schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
-        sr.lookup_schema(subject, schema)
+        await sr.lookup_schema(subject, schema)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
 
 
-def test_get_registration_schema_not_found(mock_schema_registry, load_avsc):
+async def test_get_registration_schema_not_found(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = 'schemanotfound'
     schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match="Schema not found") as e:
-        sr.lookup_schema(subject, schema)
+        await sr.lookup_schema(subject, schema)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40403
 
 
-def test_get_subjects(mock_schema_registry):
+async def test_get_subjects(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
-    result = sr.get_subjects()
+    result = await sr.get_subjects()
 
     assert result == SUBJECTS
 
 
-def test_delete(mock_schema_registry):
+async def test_delete(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
-    result = sr.delete_subject("delete_subject")
+    result = await sr.delete_subject("delete_subject")
     assert result == VERSIONS
 
 
-def test_delete_subject_not_found(mock_schema_registry):
+async def test_delete_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
-        sr.delete_subject("notfound")
+        await sr.delete_subject("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
 
 
-def test_get_version(mock_schema_registry, load_avsc):
+async def test_get_version(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 3
     schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
 
-    result = sr.get_version(subject, version)
+    result = await sr.get_version(subject, version)
     assert result.subject == subject
     assert result.version == version
     assert cmp_schema(result.schema, schema)
     assert result.schema_id == SCHEMA_ID
 
 
-def test_get_version_no_version(mock_schema_registry):
+async def test_get_version_no_version(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 404
 
     with pytest.raises(SchemaRegistryError, match="Version not found") as e:
-        sr.get_version(subject, version)
+        await sr.get_version(subject, version)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40402
 
 
-def test_get_version_invalid(mock_schema_registry):
+async def test_get_version_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = "get_version"
     version = 422
 
     with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
-        sr.get_version(subject, version)
+        await sr.get_version(subject, version)
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
 
 
-def test_get_version_subject_not_found(mock_schema_registry):
+async def test_get_version_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     subject = "notfound"
     version = 3
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
-        sr.get_version(subject, version)
+        await sr.get_version(subject, version)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
 
 
-def test_delete_version(mock_schema_registry):
+async def test_delete_version(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
-    result = sr.delete_version("delete_version", 3)
+    result = await sr.delete_version("delete_version", 3)
 
     assert result == 3
 
 
-def test_delete_version_not_found(mock_schema_registry):
+async def test_delete_version_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Version not found") as e:
-        sr.delete_version("delete_version", 404)
+        await sr.delete_version("delete_version", 404)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40402
 
 
-def test_delete_version_subject_not_found(mock_schema_registry):
+async def test_delete_version_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
-        sr.delete_version("notfound", 3)
+        await sr.delete_version("notfound", 3)
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
 
 
-def test_delete_version_invalid(mock_schema_registry):
+async def test_delete_version_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Invalid version") as e:
-        sr.delete_version("invalid_version", 422)
+        await sr.delete_version("invalid_version", 422)
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
 
 
-def test_set_compatibility(mock_schema_registry):
+async def test_set_compatibility(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
-    result = sr.set_compatibility(level="FULL")
+    result = await sr.set_compatibility(level="FULL")
     assert result == {'compatibility': 'FULL'}
 
 
-def test_set_compatibility_invalid(mock_schema_registry):
+async def test_set_compatibility_invalid(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     with pytest.raises(SchemaRegistryError, match="Invalid compatibility level") as e:
-        sr.set_compatibility(level="INVALID")
+        await sr.set_compatibility(level="INVALID")
     e.value.http_status_code = 422
     e.value.error_code = 42203
 
 
-def test_get_compatibility_subject_not_found(mock_schema_registry):
+async def test_get_compatibility_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
 
     with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
-        sr.get_compatibility("notfound")
+        await sr.get_compatibility("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
 
 
-def test_schema_equivilence(load_avsc):
+async def test_schema_equivilence(load_avsc):
     schema_str1 = load_avsc('basic_schema.avsc')
     schema_str2 = load_avsc('basic_schema.avsc')
 
@@ -390,14 +395,14 @@ def test_schema_equivilence(load_avsc):
         ('test-key', 1, True),
     ]
 )
-def test_test_compatibility_no_error(
+async def test_test_compatibility_no_error(
     mock_schema_registry, load_avsc, subject_name, version, expected_compatibility
 ):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
-    is_compatible = sr.test_compatibility(subject_name, schema)
+    is_compatible = await sr.test_compatibility(subject_name, schema)
     assert is_compatible is expected_compatibility
 
 
@@ -410,14 +415,14 @@ def test_test_compatibility_no_error(
         ('notfound', 404, 'Version not found', 404, 40402),
     ]
 )
-def test_test_compatibility_with_error(
+async def test_test_compatibility_with_error(
     mock_schema_registry, load_avsc, subject_name, version, match_str, status_code, error_code
 ):
     conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
+    sr = AsyncSchemaRegistryClient(conf)
     schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
 
     with pytest.raises(SchemaRegistryError, match=match_str) as e:
-        sr.test_compatibility(subject_name, schema, version)
+        await sr.test_compatibility(subject_name, schema, version)
     assert e.value.http_status_code == status_code
     assert e.value.error_code == error_code

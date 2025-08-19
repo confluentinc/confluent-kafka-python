@@ -27,6 +27,8 @@ from google.protobuf.message_factory import GetMessageClass
 from confluent_kafka.schema_registry import (reference_subject_name_strategy,
                                              topic_subject_name_strategy,
                                              prefix_schema_id_serializer, dual_schema_id_deserializer)
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry.common.protobuf import _bytes, _create_index_array, \
     _init_pool, _is_builtin, _schema_to_str, _str_to_proto, transform, _ContextStringIO, PROTOBUF_TYPE
@@ -201,7 +203,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         'use.deprecated.format': False,
     }
 
-    async def __init__(
+    async def __init_impl(
         self,
         msg_type: Message,
         schema_registry_client: AsyncSchemaRegistryClient,
@@ -281,6 +283,8 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     @staticmethod
     def _write_varint(buf: io.BytesIO, val: int, zigzag: bool = True):
@@ -424,7 +428,14 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
             self._schema_id.message_indexes = self._index_array
-            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
+            buffer = fo.getvalue()
+
+            if latest_schema is not None:
+                buffer = self._execute_rules_with_phase(
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
+                    None, latest_schema.schema, buffer, None, None)
+
+            return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)
@@ -495,7 +506,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         'use.deprecated.format': False,
     }
 
-    async def __init__(
+    async def __init_impl(
         self,
         message_type: Message,
         conf: Optional[dict] = None,
@@ -544,10 +555,12 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
-        return self.__serialize(data, ctx)
+    __init__ = __init_impl
 
-    async def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        return self.__deserialize(data, ctx)
+
+    async def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -592,8 +605,14 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
             writer_schema_raw = None
             writer_schema = None
 
+        payload = self._execute_rules_with_phase(
+            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+            None, writer_schema_raw, payload, None, None)
+        if isinstance(payload, bytes):
+            payload = io.BytesIO(payload)
+
         if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             reader_schema = pool.FindFileByName(fd_proto.name)

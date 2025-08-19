@@ -6,7 +6,8 @@ six
 
 attrs
 cachetools
-httpx
+httpx>=0.26
+authlib>=1.0.0
 
 fastavro < 1.8.0; python_version == "3.7"
 fastavro < 2; python_version > "3.7"
@@ -15,6 +16,7 @@ avro>=1.11.1,<2
 
 pyrsistent
 jsonschema
+orjson >= 3.10
 
 googleapis-common-protos
 protobuf
@@ -22,7 +24,7 @@ protobuf
 azure-identity
 azure-keyvault-keys
 boto3
-cel-python>=0.1.5
+cel-python>=0.4.0
 google-auth
 google-api-core
 google-cloud-kms

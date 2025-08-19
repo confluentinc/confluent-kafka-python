@@ -14,8 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import json
+import io
+import orjson
 from typing import Union, Optional, Tuple, Callable
 
 from cachetools import LRUCache
@@ -33,6 +33,8 @@ from confluent_kafka.schema_registry import (Schema,
 from confluent_kafka.schema_registry.common.json_schema import (
     DEFAULT_SPEC, JsonSchema, _retrieve_via_httpx, transform, _ContextStringIO, JSON_TYPE
 )
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
 from confluent_kafka.schema_registry.serde import BaseSerializer, BaseDeserializer, \
     ParsedSchemaCache, SchemaId
@@ -64,7 +66,7 @@ def _resolve_named_schema(
         for ref in schema.references:
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_registry = _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
-            referenced_schema_dict = json.loads(referenced_schema.schema.schema_str)
+            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
             ref_registry = ref_registry.with_resource(ref.name, resource)
@@ -201,7 +203,7 @@ class JSONSerializer(BaseSerializer):
                      'schema.id.serializer': prefix_schema_id_serializer,
                      'validate': True}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
         schema_registry_client: SchemaRegistryClient,
@@ -219,7 +221,7 @@ class JSONSerializer(BaseSerializer):
         else:
             self._schema = None
 
-        self._json_encode = json_encode or json.dumps
+        self._json_encode = json_encode or (lambda x: orjson.dumps(x).decode("utf-8"))
         self._registry = schema_registry_client
         self._rule_registry = (
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
@@ -272,7 +274,7 @@ class JSONSerializer(BaseSerializer):
             raise ValueError("schema.id.serializer must be callable")
 
         self._validate = conf_copy.pop('validate')
-        if not isinstance(self._normalize_schemas, bool):
+        if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
 
         if len(conf_copy) > 0:
@@ -292,6 +294,8 @@ class JSONSerializer(BaseSerializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
@@ -372,8 +376,14 @@ class JSONSerializer(BaseSerializer):
             if isinstance(encoded_value, str):
                 encoded_value = encoded_value.encode("utf8")
             fo.write(encoded_value)
+            buffer = fo.getvalue()
 
-            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
+            if latest_schema is not None:
+                buffer = self._execute_rules_with_phase(
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
+                    None, latest_schema.schema, buffer, None, None)
+
+            return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
@@ -384,7 +394,7 @@ class JSONSerializer(BaseSerializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
-        parsed_schema = json.loads(schema.schema_str)
+        parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry
@@ -468,7 +478,7 @@ class JSONDeserializer(BaseDeserializer):
                      'schema.id.deserializer': dual_schema_id_deserializer,
                      'validate': True}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_str: Union[str, Schema, None],
         from_dict: Optional[Callable[[dict, SerializationContext], object]] = None,
@@ -500,7 +510,7 @@ class JSONDeserializer(BaseDeserializer):
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators = LRUCache(1000)
-        self._json_decode = json_decode or json.loads
+        self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
         conf_copy = self._default_conf.copy()
@@ -547,10 +557,12 @@ class JSONDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
-        return self.__serialize(data, ctx)
+    __init__ = __init_impl
 
-    def __serialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+        return self.__deserialize(data, ctx)
+
+    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -579,9 +591,6 @@ class JSONDeserializer(BaseDeserializer):
         schema_id = SchemaId(JSON_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
-        # JSON documents are self-describing; no need to query schema
-        obj_dict = self._json_decode(payload.read())
-
         if self._registry is not None:
             writer_schema_raw = self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
@@ -592,6 +601,15 @@ class JSONDeserializer(BaseDeserializer):
         else:
             writer_schema_raw = None
             writer_schema, writer_ref_registry = None, None
+
+        payload = self._execute_rules_with_phase(
+            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+            None, writer_schema_raw, payload, None, None)
+        if isinstance(payload, bytes):
+            payload = io.BytesIO(payload)
+
+        # JSON documents are self-describing; no need to query schema
+        obj_dict = self._json_decode(payload.read())
 
         if latest_schema is not None:
             migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
@@ -641,7 +659,7 @@ class JSONDeserializer(BaseDeserializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
-        parsed_schema = json.loads(schema.schema_str)
+        parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
         return parsed_schema, ref_registry

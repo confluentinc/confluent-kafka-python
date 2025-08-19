@@ -20,10 +20,10 @@ import json
 
 import pytest
 
-from confluent_kafka.schema_registry import SchemaRegistryClient, \
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient, \
     Schema, Metadata, MetadataProperties, header_schema_id_serializer
-from confluent_kafka.schema_registry.json_schema import JSONSerializer, \
-    JSONDeserializer
+from confluent_kafka.schema_registry.json_schema import AsyncJSONSerializer, \
+    AsyncJSONDeserializer
 from confluent_kafka.schema_registry.rules.cel.cel_executor import CelExecutor
 from confluent_kafka.schema_registry.rules.cel.cel_field_executor import \
     CelFieldExecutor
@@ -32,7 +32,7 @@ from confluent_kafka.schema_registry.rules.encryption.awskms.aws_driver import \
 from confluent_kafka.schema_registry.rules.encryption.azurekms.azure_driver import \
     AzureKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.encrypt_executor import \
-    FieldEncryptionExecutor
+    FieldEncryptionExecutor, EncryptionExecutor
 from confluent_kafka.schema_registry.rules.encryption.gcpkms.gcp_driver import \
     GcpKmsDriver
 from confluent_kafka.schema_registry.rules.encryption.hcvault.hcvault_driver import \
@@ -44,17 +44,9 @@ from confluent_kafka.schema_registry.rules.jsonata.jsonata_executor import \
 from confluent_kafka.schema_registry.schema_registry_client import RuleSet, \
     Rule, RuleKind, RuleMode, SchemaReference, RuleParams, ServerConfig
 from confluent_kafka.schema_registry.serde import RuleConditionError
-from confluent_kafka.serialization import SerializationContext, MessageField
-from tests.schema_registry.test_avro_serdes import FakeClock
+from confluent_kafka.serialization import SerializationContext, MessageField, SerializationError
+from tests.schema_registry._async.test_avro_serdes import FakeClock
 
-CelExecutor.register()
-CelFieldExecutor.register()
-AwsKmsDriver.register()
-AzureKmsDriver.register()
-GcpKmsDriver.register()
-HcVaultKmsDriver.register()
-JsonataExecutor.register()
-LocalKmsDriver.register()
 
 _BASE_URL = "mock://"
 # _BASE_URL = "http://localhost:8081"
@@ -63,31 +55,39 @@ _SUBJECT = _TOPIC + "-value"
 
 
 @pytest.fixture(autouse=True)
-def run_before_and_after_tests(tmpdir):
+async def run_before_and_after_tests(tmpdir):
     """Fixture to execute asserts before and after a test is run"""
     # Setup: fill with any logic you want
+    CelExecutor.register()
+    CelFieldExecutor.register()
+    AwsKmsDriver.register()
+    AzureKmsDriver.register()
+    GcpKmsDriver.register()
+    HcVaultKmsDriver.register()
+    JsonataExecutor.register()
+    LocalKmsDriver.register()
 
     yield  # this is where the testing happens
 
     # Teardown : fill with any logic you want
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     try:
-        client.delete_subject(_SUBJECT, True)
+        await client.delete_subject(_SUBJECT, True)
     except Exception:
         pass
-    subjects = client.get_subjects()
+    subjects = await client.get_subjects()
     for subject in subjects:
         try:
-            client.delete_subject(subject, True)
+            await client.delete_subject(subject, True)
         except Exception:
             pass
 
 
-def test_json_basic_serialization():
+async def test_json_basic_serialization():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
-    ser_conf = {'auto.register.schemas': True}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True}
     obj = {
         'intField': 123,
         'doubleField': 45.67,
@@ -112,18 +112,52 @@ def test_json_basic_serialization():
             }
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_guid_in_header():
+async def test_json_basic_failing_validation():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True, 'validate': True}
+    obj = {
+        'intField': '123',
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    with pytest.raises(SerializationError):
+        await ser(obj, ser_ctx)
+
+
+async def test_json_guid_in_header():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {
         'auto.register.schemas': True,
         'schema.id.serializer': header_schema_id_serializer
@@ -152,18 +186,18 @@ def test_json_guid_in_header():
             }
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE, {})
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_basic_deserialization_no_client():
+async def test_json_basic_deserialization_no_client():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': True}
     obj = {
         'intField': 123,
@@ -189,18 +223,18 @@ def test_json_basic_deserialization_no_client():
             }
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(json.dumps(schema))
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(json.dumps(schema))
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_serialize_nested():
+async def test_json_serialize_nested():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': True}
     nested = {
         'intField': 123,
@@ -237,18 +271,18 @@ def test_json_serialize_nested():
             }
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_serialize_references():
+async def test_json_serialize_references():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
 
     referenced = {
@@ -278,7 +312,7 @@ def test_json_serialize_references():
             }
         }
     }
-    client.register_schema('ref', Schema(json.dumps(ref_schema), "JSON"))
+    await client.register_schema('ref', Schema(json.dumps(ref_schema), "JSON"))
     schema = {
         "type": "object",
         "properties": {
@@ -286,20 +320,20 @@ def test_json_serialize_references():
         }
     }
     refs = [SchemaReference('ref', 'ref', 1)]
-    client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'JSON', refs))
+    await client.register_schema(_SUBJECT, Schema(json.dumps(schema), 'JSON', refs))
 
-    ser = JSONSerializer(None, client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(None, client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_cel_condition():
+async def test_json_cel_condition():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -332,7 +366,7 @@ def test_json_cel_condition():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -347,18 +381,18 @@ def test_json_cel_condition():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_cel_condition_fail():
+async def test_json_cel_condition_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -391,7 +425,7 @@ def test_json_cel_condition_fail():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -406,17 +440,17 @@ def test_json_cel_condition_fail():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
-        ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
-def test_json_cel_condition_ignore_fail():
+async def test_json_cel_condition_ignore_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -449,7 +483,7 @@ def test_json_cel_condition_ignore_fail():
         "NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -464,18 +498,18 @@ def test_json_cel_condition_ignore_fail():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_cel_field_transform():
+async def test_json_cel_field_transform():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -508,7 +542,7 @@ def test_json_cel_field_transform():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -523,9 +557,9 @@ def test_json_cel_field_transform():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'intField': 123,
@@ -534,14 +568,14 @@ def test_json_cel_field_transform():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_json_cel_field_transform_with_def():
+async def test_json_cel_field_transform_with_def():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -587,7 +621,7 @@ def test_json_cel_field_transform_with_def():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -602,9 +636,9 @@ def test_json_cel_field_transform_with_def():
             'doorpin': '1234'
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'name': 'bob-suffix',
@@ -613,14 +647,14 @@ def test_json_cel_field_transform_with_def():
             'doorpin': '1234-suffix'
         }
     }
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_json_cel_field_transform_complex():
+async def test_json_cel_field_transform_complex():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -664,7 +698,7 @@ def test_json_cel_field_transform_complex():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -679,9 +713,9 @@ def test_json_cel_field_transform_complex():
         },
         'unionField': 'world'
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['a-suffix', 'b-suffix', 'c-suffix'],
@@ -690,14 +724,14 @@ def test_json_cel_field_transform_complex():
         },
         'unionField': 'world-suffix'
     }
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_json_cel_field_transform_complex_with_none():
+async def test_json_cel_field_transform_complex_with_none():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -741,7 +775,7 @@ def test_json_cel_field_transform_complex_with_none():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -756,9 +790,9 @@ def test_json_cel_field_transform_complex_with_none():
         },
         'unionField': None
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     obj2 = {
         'arrayField': ['a-suffix', 'b-suffix', 'c-suffix'],
@@ -767,14 +801,14 @@ def test_json_cel_field_transform_complex_with_none():
         },
         'unionField': None
     }
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
 
-def test_json_cel_field_condition():
+async def test_json_cel_field_condition():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -807,7 +841,7 @@ def test_json_cel_field_condition():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -822,18 +856,18 @@ def test_json_cel_field_condition():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deser = JSONDeserializer(None, schema_registry_client=client)
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client)
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_cel_field_condition_fail():
+async def test_json_cel_field_condition_fail():
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     schema = {
         "type": "object",
@@ -866,7 +900,7 @@ def test_json_cel_field_condition_fail():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -881,19 +915,18 @@ def test_json_cel_field_condition_fail():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    try:
-        ser(obj, ser_ctx)
-    except Exception as e:
-        assert isinstance(e.__cause__, RuleConditionError)
+    with pytest.raises(SerializationError) as e:
+        await ser(obj, ser_ctx)
+    assert isinstance(e.value.__cause__, RuleConditionError)
 
 
-def test_json_encryption():
+async def test_json_encryption():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -931,7 +964,7 @@ def test_json_encryption():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -946,27 +979,95 @@ def test_json_encryption():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
-    deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_encryption_with_union():
+async def test_json_payloadencryption():
+    executor = EncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": "string",
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT_PAYLOAD",
+        None,
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    await client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "JSON",
+        [],
+        None,
+        RuleSet(None, None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
+async def test_json_encryption_with_union():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1011,7 +1112,7 @@ def test_json_encryption_with_union():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -1026,27 +1127,27 @@ def test_json_encryption_with_union():
         'booleanField': True,
         'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['stringField'] != 'hi'
     obj['stringField'] = 'hi'
     obj['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
-    deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_encryption_with_references():
+async def test_json_encryption_with_references():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
     ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
     rule_conf = {'secret': 'mysecret'}
     schema = {
@@ -1073,7 +1174,7 @@ def test_json_encryption_with_references():
             }
         }
     }
-    client.register_schema('ref', Schema(json.dumps(schema), "JSON"))
+    await client.register_schema('ref', Schema(json.dumps(schema), "JSON"))
 
     schema = {
         "type": "object",
@@ -1099,7 +1200,7 @@ def test_json_encryption_with_references():
         "ERROR,NONE",
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         refs,
@@ -1117,32 +1218,32 @@ def test_json_encryption_with_references():
     obj = {
         'otherField': nested
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
-    dek_client = executor.client
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
     # reset encrypted fields
     assert obj['otherField']['stringField'] != 'hi'
     obj['otherField']['stringField'] = 'hi'
     obj['otherField']['bytesField'] = base64.b64encode(b'foobar').decode('utf-8')
 
-    deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
-    executor.client = dek_client
-    obj2 = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = await deser(obj_bytes, ser_ctx)
     assert obj == obj2
 
 
-def test_json_jsonata_fully_compatible():
+async def test_json_jsonata_fully_compatible():
     rule1_to_2 = "$merge([$sift($, function($v, $k) {$k != 'size'}), {'height': $.'size'}])"
     rule2_to_1 = "$merge([$sift($, function($v, $k) {$k != 'height'}), {'size': $.'height'}])"
     rule2_to_3 = "$merge([$sift($, function($v, $k) {$k != 'height'}), {'length': $.'height'}])"
     rule3_to_2 = "$merge([$sift($, function($v, $k) {$k != 'length'}), {'height': $.'length'}])"
 
     conf = {'url': _BASE_URL}
-    client = SchemaRegistryClient.new_client(conf)
+    client = AsyncSchemaRegistryClient.new_client(conf)
 
-    client.set_config(_SUBJECT, ServerConfig(
+    await client.set_config(_SUBJECT, ServerConfig(
         compatibility_group='application.version'
     ))
 
@@ -1157,7 +1258,7 @@ def test_json_jsonata_fully_compatible():
             "version": {"type": "integer"}
         }
     }
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -1207,7 +1308,7 @@ def test_json_jsonata_fully_compatible():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -1257,7 +1358,7 @@ def test_json_jsonata_fully_compatible():
         None,
         False
     )
-    client.register_schema(_SUBJECT, Schema(
+    await client.register_schema(_SUBJECT, Schema(
         json.dumps(schema),
         "JSON",
         [],
@@ -1292,11 +1393,11 @@ def test_json_jsonata_fully_compatible():
             'application.version': 'v1'
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj, ser_ctx)
+    obj_bytes = await ser(obj, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
     ser_conf = {
         'auto.register.schemas': False,
@@ -1305,11 +1406,11 @@ def test_json_jsonata_fully_compatible():
             'application.version': 'v2'
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj2, ser_ctx)
+    obj_bytes = await ser(obj2, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
     ser_conf = {
         'auto.register.schemas': False,
@@ -1318,21 +1419,21 @@ def test_json_jsonata_fully_compatible():
             'application.version': 'v3'
         }
     }
-    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser = await AsyncJSONSerializer(json.dumps(schema), client, conf=ser_conf)
     ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
-    obj_bytes = ser(obj3, ser_ctx)
+    obj_bytes = await ser(obj3, ser_ctx)
 
-    deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
+    await deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3)
 
 
-def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
+async def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
     deser_conf = {
         'use.latest.with.metadata': {
             'application.version': 'v1'
         }
     }
-    deser = JSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj == newobj
 
     deser_conf = {
@@ -1340,8 +1441,8 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
             'application.version': 'v2'
         }
     }
-    deser = JSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj2 == newobj
 
     deser_conf = {
@@ -1349,6 +1450,6 @@ def deserialize_with_all_versions(client, ser_ctx, obj_bytes, obj, obj2, obj3):
             'application.version': 'v3'
         }
     }
-    deser = JSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
-    newobj = deser(obj_bytes, ser_ctx)
+    deser = await AsyncJSONDeserializer(None, schema_registry_client=client, conf=deser_conf)
+    newobj = await deser(obj_bytes, ser_ctx)
     assert obj3 == newobj

@@ -20,6 +20,8 @@ import logging
 from typing import List, Optional, Set, Dict, Any
 
 from confluent_kafka.schema_registry import RegisteredSchema
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.schema_registry.common.serde import ErrorAction, \
     FieldTransformer, Migration, NoneAction, RuleAction, \
     RuleConditionError, RuleContext, RuleError, SchemaId
@@ -60,6 +62,17 @@ class AsyncBaseSerde(object):
         message: Any, inline_tags: Optional[Dict[str, Set[str]]],
         field_transformer: Optional[FieldTransformer]
     ) -> Any:
+        return self._execute_rules_with_phase(
+            ser_ctx, subject, RulePhase.DOMAIN, rule_mode,
+            source, target, message, inline_tags, field_transformer)
+
+    def _execute_rules_with_phase(
+        self, ser_ctx: SerializationContext, subject: str,
+        rule_phase: RulePhase, rule_mode: RuleMode,
+        source: Optional[Schema], target: Optional[Schema],
+        message: Any, inline_tags: Optional[Dict[str, Set[str]]],
+        field_transformer: Optional[FieldTransformer]
+    ) -> Any:
         if message is None or target is None:
             return message
         rules: Optional[List[Rule]] = None
@@ -73,7 +86,10 @@ class AsyncBaseSerde(object):
                 rules.reverse()
         else:
             if target is not None and target.rule_set is not None:
-                rules = target.rule_set.domain_rules
+                if rule_phase == RulePhase.ENCODING:
+                    rules = target.rule_set.encoding_rules
+                else:
+                    rules = target.rule_set.domain_rules
                 if rule_mode == RuleMode.READ:
                     # Execute read rules in reverse order for symmetry
                     rules = rules[:] if rules else []
@@ -197,26 +213,32 @@ class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
         else:
             raise SerializationError("Schema ID or GUID is not set")
 
-    def _has_rules(self, rule_set: RuleSet, mode: RuleMode) -> bool:
+    def _has_rules(self, rule_set: RuleSet, phase: RulePhase, mode: RuleMode) -> bool:
         if rule_set is None:
             return False
+        if phase == RulePhase.MIGRATION:
+            rules = rule_set.migration_rules
+        elif phase == RulePhase.DOMAIN:
+            rules = rule_set.domain_rules
+        elif phase == RulePhase.ENCODING:
+            rules = rule_set.encoding_rules
         if mode in (RuleMode.UPGRADE, RuleMode.DOWNGRADE):
             return any(rule.mode == mode or rule.mode == RuleMode.UPDOWN
-                       for rule in rule_set.migration_rules or [])
+                       for rule in rules or [])
         elif mode == RuleMode.UPDOWN:
-            return any(rule.mode == mode for rule in rule_set.migration_rules or [])
+            return any(rule.mode == mode for rule in rules or [])
         elif mode in (RuleMode.WRITE, RuleMode.READ):
             return any(rule.mode == mode or rule.mode == RuleMode.WRITEREAD
-                       for rule in rule_set.domain_rules or [])
+                       for rule in rules or [])
         elif mode == RuleMode.WRITEREAD:
-            return any(rule.mode == mode for rule in rule_set.migration_rules or [])
+            return any(rule.mode == mode for rule in rules or [])
         return False
 
     async def _get_migrations(
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = self._registry.lookup_schema(subject, source_info, False, True)
+        source = await self._registry.lookup_schema(subject, source_info, False, True)
         migrations = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE
@@ -235,7 +257,8 @@ class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
             if i == 0:
                 previous = version
                 continue
-            if version.schema.rule_set is not None and self._has_rules(version.schema.rule_set, migration_mode):
+            if version.schema.rule_set is not None and self._has_rules(
+                  version.schema.rule_set, RulePhase.MIGRATION, migration_mode):
                 if migration_mode == RuleMode.UPGRADE:
                     migration = Migration(migration_mode, previous, version)
                 else:
@@ -265,7 +288,8 @@ class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
         migrations: List[Migration], message: Any
     ) -> Any:
         for migration in migrations:
-            message = self._execute_rules(ser_ctx, subject, migration.rule_mode,
-                                          migration.source.schema, migration.target.schema,
-                                          message, None, None)
+            message = self._execute_rules_with_phase(
+                ser_ctx, subject, RulePhase.MIGRATION, migration.rule_mode,
+                migration.source.schema, migration.target.schema,
+                message, None, None)
         return message

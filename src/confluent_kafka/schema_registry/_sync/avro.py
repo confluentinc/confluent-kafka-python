@@ -14,8 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from json import loads
+import io
+import json
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
@@ -29,6 +29,8 @@ from confluent_kafka.schema_registry import (Schema,
                                              SchemaRegistryClient,
                                              prefix_schema_id_serializer,
                                              dual_schema_id_deserializer)
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -184,7 +186,7 @@ class AvroSerializer(BaseSerializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'schema.id.serializer': prefix_schema_id_serializer}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
@@ -268,7 +270,7 @@ class AvroSerializer(BaseSerializer):
                 # i.e. {"type": "string"} has a name of string.
                 # This function does not comply.
                 # https://github.com/fastavro/fastavro/issues/415
-                schema_dict = loads(schema.schema_str)
+                schema_dict = json.loads(schema.schema_str)
                 schema_name = parsed_schema.get("name", schema_dict.get("type"))
         else:
             schema_name = None
@@ -281,6 +283,8 @@ class AvroSerializer(BaseSerializer):
         for rule in self._rule_registry.get_executors():
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
+
+    __init__ = __init_impl
 
     def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
@@ -346,8 +350,14 @@ class AvroSerializer(BaseSerializer):
         with _ContextStringIO() as fo:
             # write the record to the rest of the buffer
             schemaless_writer(fo, parsed_schema, value)
+            buffer = fo.getvalue()
 
-            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
+            if latest_schema is not None:
+                buffer = self._execute_rules_with_phase(
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
+                    None, latest_schema.schema, buffer, None, None)
+
+            return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
@@ -436,7 +446,7 @@ class AvroDeserializer(BaseDeserializer):
                      'subject.name.strategy': topic_subject_name_strategy,
                      'schema.id.deserializer': dual_schema_id_deserializer}
 
-    def __init__(
+    def __init_impl(
         self,
         schema_registry_client: SchemaRegistryClient,
         schema_str: Union[str, Schema, None] = None,
@@ -505,6 +515,8 @@ class AvroDeserializer(BaseDeserializer):
             rule.configure(self._registry.config() if self._registry else {},
                            rule_conf if rule_conf else {})
 
+    __init__ = __init_impl
+
     def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
@@ -552,6 +564,12 @@ class AvroDeserializer(BaseDeserializer):
             subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None
             if subject is not None:
                 latest_schema = self._get_reader_schema(subject)
+
+        payload = self._execute_rules_with_phase(
+            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+            None, writer_schema_raw, payload, None, None)
+        if isinstance(payload, bytes):
+            payload = io.BytesIO(payload)
 
         if latest_schema is not None:
             migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
