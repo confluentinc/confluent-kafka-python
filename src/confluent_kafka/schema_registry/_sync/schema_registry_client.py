@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-import orjson
+import json
 import logging
 import time
 import urllib
@@ -416,7 +416,7 @@ class _RestClient(_BaseRestClient):
                              " application/json"}
 
         if body is not None:
-            body = orjson.dumps(body).decode('utf-8')
+            body = json.dumps(body)
             headers = {'Content-Length': str(len(body)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 

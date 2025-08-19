@@ -3,7 +3,7 @@ import re
 from collections import defaultdict
 from copy import deepcopy
 from io import BytesIO
-import orjson
+import json
 from typing import Dict, Union, Optional, Set
 
 from fastavro import repository, validate
@@ -91,7 +91,7 @@ class LocalSchemaRepository(repository.AbstractSchemaRepository):
 
 def parse_schema_with_repo(schema_str: str, named_schemas: Dict[str, AvroSchema]) -> AvroSchema:
     copy = deepcopy(named_schemas)
-    copy["$root"] = orjson.loads(schema_str)
+    copy["$root"] = json.loads(schema_str)
     repo = LocalSchemaRepository(copy)
     return load_schema("$root", repo=repo)
 
