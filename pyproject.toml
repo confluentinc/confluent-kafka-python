@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
-version = "2.11.1rc2"
+version = "2.11.1"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -76,3 +76,7 @@ optional-dependencies.all = { file = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Exclude ducktape tests from pytest collection to avoid import errors in CI
+# Ducktape requires boto3==1.33.13 and PyYAML==5.3.1, but project requires boto3>=1.35 and PyYAML>=6.0.0
+# TODO: Remove this exclusion when ducktape updates to support newer dependency versions
+norecursedirs = "tests/ducktape"
