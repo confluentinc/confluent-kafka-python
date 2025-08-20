@@ -707,36 +707,7 @@ class AsyncSchemaRegistryClient(object):
                                registered_schema.guid, registered_schema.schema)
 
         return registered_schema.schema
-
-    async def get_schema_string(
-        self, schema_id: int, subject_name: Optional[str] = None, fmt: Optional[str] = None
-    ) -> str:
-        """
-        Fetches the schema associated with ``schema_id`` from the
-        Schema Registry. Only the unescaped schema string is returned.
-
-        Args:
-            schema_id (int): Schema id.
-            subject_name (str): Subject name the schema is registered under.
-            fmt (str): Desired output format, dependent on schema type.
-
-        Returns:
-            str: Schema string for this version.
-
-        Raises:
-            SchemaRegistryError: if the version can't be found or is invalid.
-
-        See Also:
-            `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-schema>`_
-        """  # noqa: E501
-
-        query = {}
-        if subject_name is not None:
-            query['subject'] = subject_name
-        if fmt is not None:
-            query['format'] = fmt
-        return await self._rest_client.get('schemas/ids/{}/schema'.format(schema_id), query)
-
+    
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
     ) -> 'Schema':

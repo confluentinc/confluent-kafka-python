@@ -43,6 +43,7 @@ TEST_URL = 'http://SchemaRegistry:65534'
 TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
 
+
 def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
     """
     Compare to Schemas for equivalence
@@ -184,15 +185,6 @@ def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
-
-
-def test_get_schema_string_success(mock_schema_registry, load_avsc):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    expected = json.loads(load_avsc(SCHEMA))
-    actual = sr.get_schema_string(47)
-    assert expected == actual
 
 
 def test_get_schema_types(mock_schema_registry):
@@ -410,22 +402,13 @@ def test_delete_version_invalid(mock_schema_registry):
     assert e.value.error_code == 42202
 
 
-def test_get_version_schema_string(mock_schema_registry, load_avsc):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    expected = json.loads(load_avsc(SCHEMA))
-    actual = sr.get_version_schema_string("get_version", 3)
-    assert expected == actual
-
-
 def test_get_referenced_by(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
 
     assert sr.get_referenced_by("get_version", 3) == [1, 2]
 
-    
+
 def test_set_compatibility(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)

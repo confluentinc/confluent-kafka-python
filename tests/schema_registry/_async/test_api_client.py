@@ -187,15 +187,6 @@ async def test_get_schema_cache(mock_schema_registry):
     assert count_after - count_before == 1
 
 
-async def test_get_schema_string_success(mock_schema_registry, load_avsc):
-    conf = {'url': TEST_URL}
-    sr = AsyncSchemaRegistryClient(conf)
-
-    expected = json.loads(load_avsc(SCHEMA))
-    actual = await sr.get_schema_string(47)
-    assert expected == actual
-
-
 async def test_get_schema_types(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
