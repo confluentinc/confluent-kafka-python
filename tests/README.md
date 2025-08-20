@@ -17,10 +17,10 @@ Test summary:
 A python env suitable for running tests:
 
 ```bash
-python -m venv venv_test
+python3 -m venv venv_test
 source venv_test/bin/activate
-python -m pip install -r requirements/requirements-tests-install.txt
-python -m pip install .
+python3 -m pip install -r requirements/requirements-tests-install.txt
+python3 -m pip install .
 ```
 
 When you're finished with it:
@@ -75,11 +75,11 @@ which sets environment variables referenced by `./tests/integration/testconf.jso
 
 You can then run the tests as follows:
 
-    python ./tests/integration/integration_test.py ./tests/integration/testconf.json
+    python3 ./tests/integration/integration_test.py ./tests/integration/testconf.json
 
 Or selectively using via specifying one or more options ("modes"). You can see all of these via:
 
-    python ./tests/integration/integration_test.py --help
+    python3 ./tests/integration/integration_test.py --help
 
 
 ### The New Way
@@ -127,7 +127,7 @@ Tox can be used to test against various supported Python versions (py27, py36, p
 
 2. Uncomment the following line in [tox.ini](../tox.ini)
 
-    ```#python tests/integration/integration_test.py```
+    ```#python3 tests/integration/integration_test.py```
 
 3. From top-level directory run:
 

@@ -37,7 +37,6 @@ For complete development environment setup instructions, including prerequisites
 ### Python Code Style
 
 - **PEP 8**: Follow [PEP 8](https://pep8.org/) style guidelines as a default, with exceptions captured in the `tox.ini` flake8 rules for modern updates to the recommendations
-- **Type Hints**: Use type hints for new code where applicable
 - **Docstrings**: Use Google-style docstrings for all public functions and classes
 
 ### Code Formatting
@@ -46,14 +45,10 @@ We use automated tools to maintain consistent code style:
 
 ```bash
 # Install formatting tools
-pip install isort flake8 mypy
-
-# Format code
-isort src/ tests/
+pip install flake8
 
 # Check style
 flake8 src/ tests/
-mypy src/
 ```
 
 ### Naming Conventions
