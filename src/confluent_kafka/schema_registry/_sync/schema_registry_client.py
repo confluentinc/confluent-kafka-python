@@ -645,7 +645,15 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        registered_schema = RegisteredSchema.from_dict(response)
+        result = RegisteredSchema.from_dict(response)
+
+        registered_schema = RegisteredSchema(
+            schema_id=result.schema_id,
+            guid=result.guid,
+            subject=result.subject or subject_name,
+            version=result.version,
+            schema=result.schema,
+        )
 
         # The registered schema may not be fully populated
         s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
@@ -753,7 +761,7 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: If schema or subject can't be found
 
         See Also:
-            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_schema(subject_name, schema)
@@ -785,7 +793,7 @@ class SchemaRegistryClient(object):
 
     def get_subjects(self) -> List[str]:
         """
-        List all subjects registered with the Schema Registry
+        Lists all subjects registered with the Schema Registry
 
         Returns:
             list(str): Registered subject names
@@ -794,7 +802,7 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: if subjects can't be found
 
         See Also:
-            `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
+            `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
         return self._rest_client.get('subjects')
@@ -908,7 +916,7 @@ class SchemaRegistryClient(object):
         return registered_schema
 
     def get_version(
-        self, subject_name: str, version: int,
+        self, subject_name: str, version: Union[int, str] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
@@ -927,7 +935,7 @@ class SchemaRegistryClient(object):
             SchemaRegistryError: if the version can't be found or is invalid.
 
         See Also:
-            `GET Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
+            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
         registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)

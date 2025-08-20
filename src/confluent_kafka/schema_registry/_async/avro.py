@@ -14,8 +14,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-from json import loads
+import io
+import json
 from typing import Dict, Union, Optional, Callable
 
 from fastavro import schemaless_reader, schemaless_writer
@@ -29,6 +29,8 @@ from confluent_kafka.schema_registry import (Schema,
                                              AsyncSchemaRegistryClient,
                                              prefix_schema_id_serializer,
                                              dual_schema_id_deserializer)
+from confluent_kafka.schema_registry.common.schema_registry_client import \
+    RulePhase
 from confluent_kafka.serialization import (SerializationError,
                                            SerializationContext)
 from confluent_kafka.schema_registry.rule_registry import RuleRegistry
@@ -268,7 +270,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 # i.e. {"type": "string"} has a name of string.
                 # This function does not comply.
                 # https://github.com/fastavro/fastavro/issues/415
-                schema_dict = loads(schema.schema_str)
+                schema_dict = json.loads(schema.schema_str)
                 schema_name = parsed_schema.get("name", schema_dict.get("type"))
         else:
             schema_name = None
@@ -348,8 +350,14 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         with _ContextStringIO() as fo:
             # write the record to the rest of the buffer
             schemaless_writer(fo, parsed_schema, value)
+            buffer = fo.getvalue()
 
-            return self._schema_id_serializer(fo.getvalue(), ctx, self._schema_id)
+            if latest_schema is not None:
+                buffer = self._execute_rules_with_phase(
+                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
+                    None, latest_schema.schema, buffer, None, None)
+
+            return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
@@ -556,6 +564,12 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None
             if subject is not None:
                 latest_schema = await self._get_reader_schema(subject)
+
+        payload = self._execute_rules_with_phase(
+            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+            None, writer_schema_raw, payload, None, None)
+        if isinstance(payload, bytes):
+            payload = io.BytesIO(payload)
 
         if latest_schema is not None:
             migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
