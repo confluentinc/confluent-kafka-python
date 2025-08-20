@@ -14,7 +14,7 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64 - Python 3.6-3.12"
+  - name: "Wheels: OSX x64 - Python 3.7-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -279,7 +279,7 @@ blocks:
     run:
       when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64 - Python 3.6-3.12"
+      - "Wheels: OSX x64 - Python 3.7-3.12"
       - "Wheels: OSX x64 - Python 3.13"
       - "Wheels: OSX arm64 - Python 3.8-3.12"
       - "Wheels: OSX arm64 - Python 3.13"
