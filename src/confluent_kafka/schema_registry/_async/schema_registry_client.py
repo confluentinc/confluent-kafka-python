@@ -707,7 +707,7 @@ class AsyncSchemaRegistryClient(object):
                                registered_schema.guid, registered_schema.schema)
 
         return registered_schema.schema
-    
+
     async def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
     ) -> 'Schema':
