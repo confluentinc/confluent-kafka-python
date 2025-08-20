@@ -19,6 +19,7 @@ import pytest
 
 from concurrent.futures import ThreadPoolExecutor, wait
 
+from confluent_kafka.schema_registry.common.schema_registry_client import SchemaVersion
 from confluent_kafka.schema_registry.error import SchemaRegistryError
 from confluent_kafka.schema_registry.schema_registry_client import Schema, \
     SchemaRegistryClient
@@ -42,7 +43,7 @@ TEST_USERNAME = 'sr_user'
 TEST_USER_PASSWORD = 'sr_user_secret'
 
 
-def cmp_schema(schema1, schema2):
+def cmp_schema(schema1: Schema, schema2: Schema) -> bool:
     """
     Compare to Schemas for equivalence
 
@@ -142,10 +143,10 @@ def test_get_schema(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
 
-    schema = Schema(load_avsc(SCHEMA), schema_type='AVRO')
-    schema2 = sr.get_schema(47)
+    expected = Schema(load_avsc(SCHEMA), schema_type='AVRO')
+    actual = sr.get_schema(47)
 
-    assert cmp_schema(schema, schema2)
+    assert cmp_schema(expected, actual)
 
 
 def test_get_schema_not_found(mock_schema_registry):
@@ -183,6 +184,33 @@ def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
+
+
+def test_get_schema_types(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    expected = ['AVRO', 'JSON', 'PROTOBUF']
+    actual = sr.get_schema_types()
+    assert expected == actual
+
+
+def test_get_subjects_by_schema_id(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    expected = SUBJECTS
+    actual = sr.get_subjects_by_schema_id(47)
+    assert expected == actual
+
+
+def test_get_schema_versions(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    expected = [SchemaVersion(subject='subject1', version=1), SchemaVersion(subject='subject2', version=2)]
+    actual = sr.get_schema_versions(47)
+    assert expected == actual
 
 
 def test_get_registration(mock_schema_registry, load_avsc):
@@ -344,6 +372,13 @@ def test_delete_version_invalid(mock_schema_registry):
         sr.delete_version("invalid_version", 422)
     assert e.value.http_status_code == 422
     assert e.value.error_code == 42202
+
+
+def test_get_referenced_by(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    assert sr.get_referenced_by("get_version", 3) == [1, 2]
 
 
 def test_set_compatibility(mock_schema_registry):
