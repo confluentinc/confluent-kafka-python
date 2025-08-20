@@ -1,16 +1,38 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.11.1
+
+v2.11.1 is a maintenance release with the following fixes:
+
+confluent-kafka-python v2.11.1 is based on librdkafka v2.11.1, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.1)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
+## v2.11.0
+
+v2.11.0 is a feature release with the following enhancements:
+
+confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.11.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.10.1
 
-v2.10.1 is a maintenance release with the following fixes
+v2.10.1 is a maintenance release with the following fixes:
 
 - Handled `None` value for optional `ctx` parameter in  `ProtobufDeserializer` (#1939)
 - Handled `None` value for optional `ctx` parameter in  `AvroDeserializer` (#1973)
+- Handled ctx=None for AvroDeserializer and ProtobufDeserializer in __call__ (#1974)
+- Fix possible NPE in CSFLE executor (#1980)
+- Support for schema id in header (#1978)
+- Raise an error if Protobuf deprecated format is specified (#1986)
+- Implement Async Schema Registry client (#1965)
 
 confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
-
 
 ## v2.10.0
 

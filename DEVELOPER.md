@@ -49,7 +49,7 @@ If librdkafka is installed in a non-standard location provide the include and li
 C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 ```
 
-**Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB 
+**Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB
 
 ## Generate Documentation
 
@@ -91,4 +91,3 @@ If you make any changes to the async code (in `src/confluent_kafka/schema_regist
 
 
 See [tests/README.md](tests/README.md) for instructions on how to run tests.
-

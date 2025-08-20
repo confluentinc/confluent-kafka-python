@@ -4,7 +4,7 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 * [asyncio_example.py](asyncio_example.py): AsyncIO webserver with Kafka producer.
 * [consumer.py](consumer.py): Read messages from a Kafka topic.
 * [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
-* [eos-transactions.py](eos-transactions.py): Transactional producer with exactly once semantics (EOS).
+* [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).
 * [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
 * [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
 * [json_producer.py](json_producer.py): Produce JSON serialized data using JSONSerializer.
