@@ -1307,6 +1307,30 @@ class AsyncSchemaRegistryClient(object):
             'config/{}'.format(_urlencode(subject_name)), body=config.to_dict()
         )
 
+    async def delete_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
+        """
+        Delete the specified subject-level compatibility level config and revert to the global default.
+
+        Args:
+            subject_name (str, optional): Subject name. Deletes global config
+                if left unset.
+
+        Returns:
+            ServerConfig: The old deleted config
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `DELETE Subject Config API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--config-(string- subject)>`_
+        """
+        if subject_name is not None:
+            url = 'config/{}'.format(_urlencode(subject_name))
+        else:
+            url = 'config'
+        result = await self._rest_client.delete(url)
+        return ServerConfig.from_dict(result)
+
     async def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
         """
         Get the current config.
@@ -1430,6 +1454,23 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
         result = await self._rest_client.put('mode?force={}'.format(force), body={'mode': mode})
         return result['mode']
+    async def get_contexts(self, offset: int = 0, limit: int = -1) -> List[str]:
+        """
+        Retrieves a list of contexts.
+
+        Args:
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[str]: List of contexts.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """  # noqa: E501
+
+        result = await self._rest_client.get('contexts', query={'offset': offset, 'limit': limit})
+        return result
 
     def clear_latest_caches(self):
         self._latest_version_cache.clear()

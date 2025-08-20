@@ -426,6 +426,24 @@ def test_set_compatibility_invalid(mock_schema_registry):
     e.value.error_code = 42203
 
 
+def test_delete_config(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    result = sr.delete_config()
+    assert result.compatibility == 'FULL'
+
+
+def test_delete_config_subject_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        sr.delete_config("notfound")
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 def test_get_compatibility_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = SchemaRegistryClient(conf)
@@ -434,6 +452,14 @@ def test_get_compatibility_subject_not_found(mock_schema_registry):
         sr.get_compatibility("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
+
+
+def test_get_contexts(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = SchemaRegistryClient(conf)
+
+    result = sr.get_contexts()
+    assert result == ['context1', 'context2']
 
 
 def test_schema_equivilence(load_avsc):
