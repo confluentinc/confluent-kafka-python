@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+import json
 import pytest
 import asyncio
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -184,6 +185,33 @@ async def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
+
+
+async def test_get_schema_types(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = ['AVRO', 'JSON', 'PROTOBUF']
+    actual = await sr.get_schema_types()
+    assert expected == actual
+
+
+async def test_get_subjects_by_schema_id(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = SUBJECTS
+    actual = await sr.get_subjects_by_schema_id(47)
+    assert expected == actual
+
+
+async def test_get_schema_versions(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    expected = [SchemaVersion(subject='subject1', version=1), SchemaVersion(subject='subject2', version=2)]
+    actual = await sr.get_schema_versions(47)
+    assert expected == actual
 
 
 async def test_get_schema_types(mock_schema_registry):
@@ -398,6 +426,24 @@ async def test_set_compatibility_invalid(mock_schema_registry):
     e.value.error_code = 42203
 
 
+async def test_delete_config(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.delete_config()
+    assert result.compatibility == 'FULL'
+
+
+async def test_delete_config_subject_not_found(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    with pytest.raises(SchemaRegistryError, match="Subject not found") as e:
+        await sr.delete_config("notfound")
+    assert e.value.http_status_code == 404
+    assert e.value.error_code == 40401
+
+
 async def test_get_compatibility_subject_not_found(mock_schema_registry):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)
@@ -406,6 +452,14 @@ async def test_get_compatibility_subject_not_found(mock_schema_registry):
         await sr.get_compatibility("notfound")
     assert e.value.http_status_code == 404
     assert e.value.error_code == 40401
+
+
+async def test_get_contexts(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.get_contexts()
+    assert result == ['context1', 'context2']
 
 
 async def test_schema_equivilence(load_avsc):
@@ -461,3 +515,69 @@ async def test_test_compatibility_with_error(
         await sr.test_compatibility(subject_name, schema, version)
     assert e.value.http_status_code == status_code
     assert e.value.error_code == error_code
+
+
+async def test_test_compatibility_all_versions_no_error(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+
+    is_compatible = await sr.test_compatibility_all_versions('subject-all-versions', schema)
+    assert is_compatible is True
+
+
+async def test_get_global_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    mode = await sr.get_global_mode()
+    assert mode == 'READWRITE'
+
+
+async def test_set_global_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.update_global_mode('READONLY')
+    assert result == 'READONLY'
+
+
+async def test_get_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.get_mode('test-key')
+    assert result == 'READWRITE'
+
+
+@pytest.mark.parametrize(
+    'subject_name,match_str,status_code,error_code',
+    [
+        ('invalid_mode', 'Invalid mode', 422, 42204),
+        ('operation_not_permitted', 'Operation not permitted', 422, 42205),
+    ]
+)
+async def test_update_mode_with_error(mock_schema_registry, subject_name, match_str, status_code, error_code):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    with pytest.raises(SchemaRegistryError, match=match_str) as e:
+        await sr.update_mode(subject_name, 'READONLY')
+    assert e.value.http_status_code == status_code
+    assert e.value.error_code == error_code
+
+
+async def test_update_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.update_mode('test-key', 'READONLY')
+    assert result == 'READONLY'
+
+
+async def test_delete_mode(mock_schema_registry):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+
+    result = await sr.delete_mode('test-key')
+    assert result == 'READWRITE'
