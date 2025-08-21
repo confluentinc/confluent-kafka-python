@@ -2,14 +2,52 @@
 
 This document provides information useful to developers working on confluent-kafka-python.
 
+## Development Environment Setup
+
+### Prerequisites
+
+- Python 3.7 or higher
+- Git
+- librdkafka (for Kafka functionality)
+
+### Setup Steps
+
+1. **Fork and Clone**
+   ```bash
+   git clone https://github.com/your-username/confluent-kafka-python.git
+   cd confluent-kafka-python
+   ```
+
+2. **Create Virtual Environment**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install librdkafka** (if not already installed)
+   - See the main README.md for platform-specific installation instructions
+
+4. **Install Dependencies**
+   ```bash
+   pip install -e .[dev,tests,docs]
+   ```
+
+5. **Verify Setup**
+   ```bash
+   python -c "import confluent_kafka; print('Setup successful!')"
+   ```
 
 ## Build
 
-    $ python -m build
+```bash
+python -m build
+```
 
 If librdkafka is installed in a non-standard location provide the include and library directories with:
 
-    $ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
+```bash
+C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
+```
 
 **Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB
 
@@ -17,26 +55,34 @@ If librdkafka is installed in a non-standard location provide the include and li
 
 Install docs dependencies:
 
-    $ pip install .[docs]
+```bash
+pip install .[docs]
+```
 
 Build HTML docs:
 
-    $ make docs
+```bash
+make docs
+```
 
 Documentation will be generated in `docs/_build/`.
 
 or:
 
-    $ python setup.py build_sphinx
+```bash
+python setup.py build_sphinx
+```
 
 Documentation will be generated in  `build/sphinx/html`.
 
 ## Unasync -- maintaining sync versions of async code
 
-    $ python tools/unasync.py
+```bash
+python tools/unasync.py
 
-    # Run the script with the --check flag to ensure the sync code is up to date
-    $ python tools/unasync.py --check
+# Run the script with the --check flag to ensure the sync code is up to date
+python tools/unasync.py --check
+```
 
 If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counter parts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the --check flag and fail the build.
 
