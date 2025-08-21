@@ -32,9 +32,7 @@ class SimpleProducerTest(Test):
 
     def test_basic_produce(self):
         """Test basic message production with comprehensive metrics and bounds validation"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
+
 
         topic_name = "test-topic"
         test_duration = 5.0  # 5 seconds
@@ -71,7 +69,7 @@ class SimpleProducerTest(Test):
                                     partition=msg.partition() if msg else 0)
             else:
                 # Calculate actual latency if we have send time
-                msg_key = msg.key().decode('utf-8') if msg.key() else 'unknown'
+                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
                 if msg_key in send_times:
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]  # Clean up
@@ -155,9 +153,7 @@ class SimpleProducerTest(Test):
     @parametrize(test_duration=10)
     def test_produce_multiple_batches(self, test_duration):
         """Test batch throughput with comprehensive metrics and bounds validation"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
+
 
         topic_name = f"batch-test-topic-{test_duration}s"
 
@@ -191,7 +187,7 @@ class SimpleProducerTest(Test):
         def delivery_callback(err, msg):
             if err is None:
                 # Calculate latency
-                msg_key = msg.key().decode('utf-8') if msg.key() else 'unknown'
+                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
                 if msg_key in send_times:
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]
@@ -274,9 +270,7 @@ class SimpleProducerTest(Test):
     @matrix(compression_type=['none', 'gzip', 'snappy'])
     def test_produce_with_compression(self, compression_type):
         """Test compression throughput with comprehensive metrics and bounds validation"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
+
 
         topic_name = f"compression-test-{compression_type}"
         test_duration = 5.0  # 5 seconds
@@ -311,7 +305,7 @@ class SimpleProducerTest(Test):
         def delivery_callback(err, msg):
             if err is None:
                 # Calculate latency
-                msg_key = msg.key().decode('utf-8') if msg.key() else 'unknown'
+                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
                 if msg_key in send_times:
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]

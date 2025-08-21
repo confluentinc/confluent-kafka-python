@@ -46,6 +46,9 @@ class MetricsCollector:
         # Batch efficiency tracking
         self.poll_count = 0
         self.buffer_full_count = 0
+        
+        # Process object for efficient memory monitoring
+        self._process = None
     
     def start(self):
         """Start metrics collection"""
@@ -231,8 +234,18 @@ class MetricsCollector:
     
     def _get_memory_usage(self) -> Optional[float]:
         """Get current memory usage in MB"""
-        process = psutil.Process(os.getpid())
-        return process.memory_info().rss / (1024 * 1024)
+        try:
+            # Initialize process object once for efficiency
+            if self._process is None:
+                self._process = psutil.Process(os.getpid())
+            
+            return self._process.memory_info().rss / (1024 * 1024)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            # Handle edge cases where process might not exist or be accessible
+            return None
+        except Exception:
+            # Handle any other psutil-related errors
+            return None
 
 
 class MetricsBounds:
