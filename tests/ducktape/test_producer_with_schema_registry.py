@@ -33,7 +33,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
         self.logger.info("Verifying connection to external Kafka at localhost:9092")
 
         if not self.kafka.verify_connection():
-            raise Exception("Cannot connect to Kafka at localhost:9092. "
+            raise ConnectionError("Cannot connect to Kafka at localhost:9092. "
                             "Please ensure Kafka is running.")
 
         self.logger.info("Successfully connected to Kafka")
@@ -206,7 +206,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
         # Create serializers
         string_serializer = StringSerializer('utf8')
-        protobuf_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, self.schema_registry_client, {'use.deprecated.format': False})
+        protobuf_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, self.schema_registry_client)
 
         # Configure producer
         producer_config = {
@@ -224,7 +224,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
             protobuf_serializer,
             string_serializer,
             test_duration,
-            lambda messages_sent: PublicTestProto_pb2.TestMessage(
+            lambda _: PublicTestProto_pb2.TestMessage(
                 test_string=f"example string",
                 test_bool=True,
                 test_bytes=b'example bytes',
