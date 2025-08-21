@@ -670,16 +670,6 @@ class SchemaVersion:
 
 
 @_attrs_define(frozen=True)
-class SchemaVersion:
-    subject: Optional[str]
-    version: Optional[int]
-
-    @classmethod
-    def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))
-
-
-@_attrs_define(frozen=True)
 class SchemaReference:
     name: Optional[str]
     subject: Optional[str]

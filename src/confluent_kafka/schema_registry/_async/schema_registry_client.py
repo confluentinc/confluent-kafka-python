@@ -1323,7 +1323,7 @@ class AsyncSchemaRegistryClient(object):
 
         See Also:
             `DELETE Subject Config API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--config-(string- subject)>`_
-        """
+        """  # noqa: E501
         if subject_name is not None:
             url = 'config/{}'.format(_urlencode(subject_name))
         else:
@@ -1454,6 +1454,7 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
         result = await self._rest_client.put('mode?force={}'.format(force), body={'mode': mode})
         return result['mode']
+    
     async def get_contexts(self, offset: int = 0, limit: int = -1) -> List[str]:
         """
         Retrieves a list of contexts.

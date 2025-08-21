@@ -15,7 +15,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-import json
 import pytest
 
 from concurrent.futures import ThreadPoolExecutor, wait
@@ -185,33 +184,6 @@ def test_get_schema_cache(mock_schema_registry):
         '/schemas/ids/47')
 
     assert count_after - count_before == 1
-
-
-def test_get_schema_types(mock_schema_registry):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    expected = ['AVRO', 'JSON', 'PROTOBUF']
-    actual = sr.get_schema_types()
-    assert expected == actual
-
-
-def test_get_subjects_by_schema_id(mock_schema_registry):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    expected = SUBJECTS
-    actual = sr.get_subjects_by_schema_id(47)
-    assert expected == actual
-
-
-def test_get_schema_versions(mock_schema_registry):
-    conf = {'url': TEST_URL}
-    sr = SchemaRegistryClient(conf)
-
-    expected = [SchemaVersion(subject='subject1', version=1), SchemaVersion(subject='subject2', version=2)]
-    actual = sr.get_schema_versions(47)
-    assert expected == actual
 
 
 def test_get_schema_types(mock_schema_registry):
