@@ -24,13 +24,13 @@ This document provides information useful to developers working on confluent-kaf
    source venv/bin/activate  # On Windows: venv\Scripts\activate
    ```
 
-3. **Install Dependencies**
-   ```bash
-   pip install -e .[dev,test,docs]
-   ```
-
-4. **Install librdkafka** (if not already installed)
+3. **Install librdkafka** (if not already installed)
    - See the main README.md for platform-specific installation instructions
+
+4. **Install Dependencies**
+   ```bash
+   pip install -e .[dev,tests,docs]
+   ```
 
 5. **Verify Setup**
    ```bash

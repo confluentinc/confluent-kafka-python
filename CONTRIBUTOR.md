@@ -56,7 +56,7 @@ flake8 src/ tests/
 - **Functions and Variables**: `snake_case`
 - **Classes**: `PascalCase`
 - **Constants**: `UPPER_SNAKE_CASE`
-- **Private Methods**: Prefix with single underscore `_private_method`
+- **Private Methods/Objects**: Prefix with single underscore `_private_method`
 
 ### Documentation
 
@@ -107,18 +107,10 @@ def test_feature_should_behave_correctly_when_condition():
    - Write clean, well-documented code
    - Add appropriate tests
    - Update documentation if needed
+   - Add an entry to the CHANGELOG.md file for the proposed change
 
 3. **Test Your Changes**
-   ```bash
-   # Run tests
-   python -m pytest
-
-   # Check code style
-   flake8 src/ tests/
-
-   # Update sync code if you modified async code
-   python tools/unasync.py --check
-   ```
+   Refer to [tests/README.md](tests/README.md) 
 
 4. **Commit Your Changes**
    ```bash
@@ -160,12 +152,12 @@ def test_feature_should_behave_correctly_when_condition():
 
 ### Using Labels
 
-When creating issues or pull requests, please review the available labels and apply those that are relevant to your submission. This helps maintainers categorize and prioritize work effectively. Common label categories include:
+When creating issues or pull requests, please review the available labels and apply those that are relevant to your submission. This helps maintainers categorize and prioritize work effectively. Common label categories include (look at available labels / other issues for options):
 
 - **Type**: bug, enhancement, documentation, question
 - **Priority**: high, medium, low
-- **Component**: producer, consumer, admin, schema-registry
-- **Status**: needs-investigation, help-wanted, good-first-issue
+- **Component**: producer, consumer, admin, schema-registry, etc
+- **Status**: needs-investigation, help-wanted, good-first-issue, etc
 
 ### Bug Reports
 
@@ -178,6 +170,8 @@ When reporting bugs, please include:
 - **Actual Behavior**: What actually happened
 - **Code Sample**: Minimal code that demonstrates the issue
 - **Error Messages**: Full error messages and stack traces
+- **Client Configuration**: Specify how the client was configured and setup
+- **Logs**: Client logs when possible
 - **Labels**: Apply relevant labels such as "bug" and component-specific labels
 
 ### Feature Requests
@@ -215,7 +209,6 @@ Contributors are recognized in the following ways:
 
 - Contributors are listed in the project's contributor history
 - Significant contributions may be mentioned in release notes
-- Long-term contributors may be invited to become maintainers
 
 ## License
 
