@@ -412,11 +412,6 @@ def get_subject_version_referenced_by_callback(request, route):
     return Response(200, json=[1, 2])
 
 
-def get_subject_version_referenced_by_callback(request, route):
-    COUNTER['GET'][request.url.path] += 1
-    return Response(200, json=[1, 2])
-
-
 def post_compatibility_subjects_versions_callback(request, route):
     COUNTER['POST'][request.url.path] += 1
 
@@ -459,7 +454,6 @@ def get_global_mode_callback(request, route):
 def put_global_mode_callback(request, route):
     COUNTER['PUT'][request.url.path] += 1
     body = json.loads(request.content.decode('utf-8'))
-    print(body)
     return Response(200, json=body)
 
 

@@ -895,13 +895,6 @@ class AsyncSchemaRegistryClient(object):
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
-        Args:
-            subject_prefix (str): Subject name prefix that results can be filtered by.
-            deleted (bool): Whether to include deleted subjects.
-            deleted_only (bool): Whether to return deleted subjects only. If both deleted and deleted_only are True, deleted_only takes precedence.
-            offset (int): Pagination offset for results.
-            limit (int): Pagination size for results. Ignored if negative.
-
         Returns:
             list(str): Registered subject names
 
@@ -1241,7 +1234,7 @@ class AsyncSchemaRegistryClient(object):
                 _urlencode(subject_name), version, normalize, verbose),
             body=request
         )
-        return response['is_compatible']  # TODO: should it return entire response (including error messages)?
+        return response['is_compatible']
 
     async def test_compatibility_all_versions(
         self, subject_name: str, schema: 'Schema',
@@ -1254,7 +1247,7 @@ class AsyncSchemaRegistryClient(object):
             subject_name (str): Subject of the schema versions against which compatibility is to be tested.
             schema (Schema): Schema instance.
             normalize (bool): Whether to normalize the input schema.
-            verbose (bool): Wehther to return detailed error messages.
+            verbose (bool): Whether to return detailed error messages.
 
         Returns:
             bool: True if the schema is compatible with all of the subject's schemas versions.
@@ -1269,7 +1262,7 @@ class AsyncSchemaRegistryClient(object):
             ),
             body=request,
         )
-        return response['is_compatible']  # TODO: should it return entire response (including error messages)?
+        return response['is_compatible']
 
     async def set_config(
         self, subject_name: Optional[str] = None,
@@ -1421,7 +1414,7 @@ class AsyncSchemaRegistryClient(object):
 
     async def get_global_mode(self) -> str:
         """
-        Get the current mode for Schema Reigstry at a global level.
+        Get the current mode for Schema Registry at a global level.
 
         Returns:
             str: Schema Registry mode. Must be one of IMPORT, READONLY, READWRITE (default).
@@ -1454,7 +1447,7 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
         result = await self._rest_client.put('mode?force={}'.format(force), body={'mode': mode})
         return result['mode']
-    
+
     async def get_contexts(self, offset: int = 0, limit: int = -1) -> List[str]:
         """
         Retrieves a list of contexts.
