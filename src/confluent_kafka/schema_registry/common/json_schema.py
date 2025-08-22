@@ -73,6 +73,14 @@ def transform(
     field_ctx = ctx.current_field()
     if field_ctx is not None:
         field_ctx.field_type = get_type(schema)
+    original_type = schema.get("type")
+    if isinstance(original_type, list) and len(original_type) > 0:
+        subschema = _validate_subtypes(schema, message)
+        try:
+            if subschema is not None:
+                return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
+        finally:
+            schema["type"] = original_type  # restore original type
     all_of = schema.get("allOf")
     if all_of is not None:
         subschema = _validate_subschemas(all_of, message, ref_registry)
@@ -134,6 +142,22 @@ def _transform_field(
             message[prop_name] = new_value
     finally:
         ctx.exit_field()
+
+
+def _validate_subtypes(
+    schema: JsonSchema, message: JsonMessage
+) -> Optional[JsonSchema]:
+    schema_type = schema.get("type")
+    if not isinstance(schema_type, list) or len(schema_type) == 0:
+        return None
+    for typ in schema_type:
+        schema["type"] = typ
+        try:
+            validate(instance=message, schema=schema)
+            return schema
+        except ValidationError:
+            pass
+    return None
 
 
 def _validate_subschemas(
