@@ -573,6 +573,72 @@ def test_json_cel_field_transform():
     assert obj2 == newobj
 
 
+def test_json_cel_field_transform_with_nullable():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        "type": "object",
+        "properties": {
+            "intField": {"type": "integer"},
+            "doubleField": {"type": "number"},
+            "stringField": {
+                "type": ["string", "null"],
+                "confluent:tags": ["PII"]
+            },
+            "booleanField": {"type": "boolean"},
+            "bytesField": {
+                "type": "string",
+                "contentEncoding": "base64",
+                "confluent:tags": ["PII"]
+            }
+        }
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITE,
+        "CEL_FIELD",
+        None,
+        None,
+        "name == 'stringField' ; value + '-suffix'",
+        None,
+        None,
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "JSON",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    obj2 = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi-suffix',
+        'booleanField': True,
+        'bytesField': base64.b64encode(b'foobar').decode('utf-8'),
+    }
+    deser = JSONDeserializer(None, schema_registry_client=client)
+    newobj = deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
 def test_json_cel_field_transform_with_def():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)
