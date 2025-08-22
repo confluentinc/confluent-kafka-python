@@ -46,7 +46,7 @@ def main():
 
     # Get test file path (ducktape expects file paths, not module paths)
     test_dir = os.path.dirname(os.path.abspath(__file__))
-    test_file = os.path.join(test_dir, "test_producer.py")
+    test_file = os.path.join(test_dir, sys.argv[1])
 
     if not os.path.exists(test_file):
         print(f"ERROR: Test file not found: {test_file}")
@@ -71,8 +71,8 @@ def main():
     ]
 
     # Add specific test if provided as argument
-    if len(sys.argv) > 1:
-        test_method = sys.argv[1]
+    if len(sys.argv) > 2:
+        test_method = sys.argv[2]
         cmd[-1] = f"{test_file}::{test_method}"
         print(f"Running specific test: {test_method}")
     else:
