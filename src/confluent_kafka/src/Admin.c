@@ -5093,7 +5093,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         PyObject *trace = NULL;
 
                         /* Fetch (and clear) currently raised exception */
-                        cfl_exception_fetch(&exctype, &exc, &trace);
+                        cfl_exception_fetch(&exctype, &error, &trace);
                         Py_XDECREF(trace);
                 }
 
