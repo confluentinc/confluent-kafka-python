@@ -75,7 +75,7 @@ def transform(
         field_ctx.field_type = get_type(schema)
     original_type = schema.get("type")
     if isinstance(original_type, list) and len(original_type) > 0:
-        subschema = _validate_subtypes(schema, message)
+        subschema = _validate_subtypes(schema, message, ref_registry)
         try:
             if subschema is not None:
                 return transform(ctx, subschema, ref_registry, ref_resolver, path, message, field_transform)
@@ -145,7 +145,7 @@ def _transform_field(
 
 
 def _validate_subtypes(
-    schema: JsonSchema, message: JsonMessage
+    schema: JsonSchema, message: JsonMessage, registry: Registry
 ) -> Optional[JsonSchema]:
     schema_type = schema.get("type")
     if not isinstance(schema_type, list) or len(schema_type) == 0:
@@ -153,7 +153,7 @@ def _validate_subtypes(
     for typ in schema_type:
         schema["type"] = typ
         try:
-            validate(instance=message, schema=schema)
+            validate(instance=message, schema=schema, registry=registry)
             return schema
         except ValidationError:
             pass
