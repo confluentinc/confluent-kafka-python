@@ -1,1 +1,0 @@
-NJC Python soak tests installed!
