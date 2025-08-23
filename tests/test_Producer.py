@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import math
+
 import pytest
 from struct import pack
 
@@ -283,3 +285,29 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+
+
+def test_custom_topic_timeout_api():
+    general_timeout = 1
+    slower_timeout = 2
+
+    def callback_expected_in(seconds):
+        def on_delivery(err, msg):
+            # Since there is no broker, produced messages should time out.
+            assert err.code() == KafkaError._MSG_TIMED_OUT
+            assert math.isclose(msg.latency(), seconds, rel_tol=0.1)
+
+        return on_delivery
+
+    p = Producer({'error_cb': error_cb,
+                  'message.timeout.ms': str(general_timeout * 1000)})
+    p.topic_new('slowertopic', conf={'message.timeout.ms': str(slower_timeout*1000)})
+
+
+    p.produce('mytopic', value='somedata', key='123', callback=callback_expected_in(general_timeout))
+    p.produce('slowertopic', value='slow', key='123', callback=callback_expected_in(slower_timeout))
+
+    p.poll()
+    p.poll()
+
+    p.flush()
