@@ -275,7 +275,65 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
 typedef struct {
 	PyThreadState *thread_state;
 	int crashed;   /* Callback crashed */
+	PyObject *exception_type;    /* Stored exception type */
+	PyObject *exception_value;   /* Stored exception value */
+	PyObject *exception_traceback; /* Stored exception traceback */
 } CallState;
+
+/**
+ * @brief Compatibility layer for Python exception handling API changes.
+ * PyErr_Fetch/PyErr_Restore were deprecated in Python 3.12 in favor of 
+ * PyErr_GetRaisedException/PyErr_SetRaisedException.
+ */
+
+static inline void
+cfl_exception_fetch(PyObject **exc_type, PyObject **exc_value, PyObject **exc_traceback) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    PyObject *exc = PyErr_GetRaisedException();
+    if (exc) {
+        *exc_type = (PyObject *)Py_TYPE(exc);
+        Py_INCREF(*exc_type);
+        *exc_value = exc;
+        *exc_traceback = PyException_GetTraceback(exc);
+    } else {
+        *exc_type = *exc_value = *exc_traceback = NULL;
+    }
+#else
+    /* Python < 3.12 - use legacy API */
+    PyErr_Fetch(exc_type, exc_value, exc_traceback);
+#endif
+}
+
+static inline void
+cfl_exception_restore(PyObject *exc_type, PyObject *exc_value, PyObject *exc_traceback) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    if (exc_value) {
+        PyErr_SetRaisedException(exc_value);
+        Py_XDECREF(exc_type);
+        Py_XDECREF(exc_traceback);
+    }
+#else
+    /* Python < 3.12 - use legacy API */
+    PyErr_Restore(exc_type, exc_value, exc_traceback);
+#endif
+}
+
+static inline void
+CallState_fetch_exception(CallState *cs) {
+    cfl_exception_fetch(&cs->exception_type, &cs->exception_value, &cs->exception_traceback);
+}
+
+static inline void
+CallState_restore_exception(CallState *cs) {
+    if (cs->exception_type) {
+        cfl_exception_restore(cs->exception_type, cs->exception_value, cs->exception_traceback);
+        cs->exception_type = NULL;
+        cs->exception_value = NULL;
+        cs->exception_traceback = NULL;
+    }
+}
 
 /**
  * @brief Initialiase a CallState and unlock the GIL prior to a
