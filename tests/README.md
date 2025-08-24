@@ -14,16 +14,20 @@ Test summary:
 
 **Note:** Unless otherwise stated, all command, file and directory references are relative to the *repo's root* directory.
 
-A python3 env suitable for running tests:
+A python env suitable for running tests:
 
-    $ python3 -m venv venv_test
-    $ source venv_test/bin/activate
-    $ python3 -m pip install -r requirements/requirements-tests-install.txt
-    $ python3 -m pip install .
+```bash
+python3 -m venv venv_test
+source venv_test/bin/activate
+python3 -m pip install -r requirements/requirements-tests-install.txt
+python3 -m pip install .
+```
 
 When you're finished with it:
 
-    $ deactivate
+```bash
+deactivate
+```
 
 ## Unit tests
 
@@ -32,17 +36,23 @@ not require an active Kafka cluster.
 
 You can run them selectively like so:
 
-    $ pytest -s -v tests/test_Producer.py
+```bash
+pytest -s -v tests/test_Producer.py
+```
 
 Or run them all with:
 
-    $ pytest -s -v tests/test_*.py
+```bash
+pytest -s -v tests/test_*.py
+```
 
 Note that the -v flag enables verbose output and -s flag disables capture of stderr and stdout (so that you see it on the console).
 
 You can also use ./tests/run.sh to run the unit tests:
 
-    $ ./tests/run.sh unit
+```bash
+./tests/run.sh unit
+```
 
 
 ## Integration tests
@@ -65,11 +75,11 @@ which sets environment variables referenced by `./tests/integration/testconf.jso
 
 You can then run the tests as follows:
 
-    python ./tests/integration/integration_test.py ./tests/integration/testconf.json
+    python3 ./tests/integration/integration_test.py ./tests/integration/testconf.json
 
 Or selectively using via specifying one or more options ("modes"). You can see all of these via:
 
-    python ./tests/integration/integration_test.py --help
+    python3 ./tests/integration/integration_test.py --help
 
 
 ### The New Way
@@ -117,7 +127,7 @@ Tox can be used to test against various supported Python versions (py27, py36, p
 
 2. Uncomment the following line in [tox.ini](../tox.ini)
 
-    ```#python tests/integration/integration_test.py```
+    ```#python3 tests/integration/integration_test.py```
 
 3. From top-level directory run:
 
