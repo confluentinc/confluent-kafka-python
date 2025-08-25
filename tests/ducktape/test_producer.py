@@ -74,7 +74,7 @@ class SimpleProducerTest(Test):
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]  # Clean up
                 else:
-                    latency_ms = 5.0  # Default latency if timing info not available
+                    latency_ms = 0.0  # Default latency if timing info not available
                 
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
 
@@ -192,7 +192,7 @@ class SimpleProducerTest(Test):
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]
                 else:
-                    latency_ms = 8.0  # Default for batch processing
+                    latency_ms = 0.0  # Default for batch processing
                 
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
             else:
@@ -310,7 +310,7 @@ class SimpleProducerTest(Test):
                     latency_ms = (time.time() - send_times[msg_key]) * 1000
                     del send_times[msg_key]
                 else:
-                    latency_ms = 15.0  # Default for compression processing
+                    latency_ms = 0.0  # Default for compression processing
                 
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
             else:

@@ -243,9 +243,6 @@ class MetricsCollector:
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             # Handle edge cases where process might not exist or be accessible
             return None
-        except Exception:
-            # Handle any other psutil-related errors
-            return None
 
 
 class MetricsBounds:
