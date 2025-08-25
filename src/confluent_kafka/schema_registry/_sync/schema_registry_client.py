@@ -16,14 +16,17 @@
 # limitations under the License.
 #
 
+import certifi
 import json
 import logging
+import os
+import ssl
 import time
 import urllib
 from urllib.parse import unquote, urlparse
 
 import httpx
-from typing import List, Dict, Optional, Union, Any, Tuple, Callable
+from typing import List, Dict, Optional, Union, Any, Callable
 
 from cachetools import TTLCache, LRUCache
 from httpx import Response
@@ -148,24 +151,43 @@ class _BaseRestClient(object):
             raise ValueError("Missing required configuration property url")
         self.base_urls = base_urls
 
-        self.verify = True
-        ca = conf_copy.pop('ssl.ca.location', None)
-        if ca is not None:
-            self.verify = ca
-
+        ca: Union[str, bool, None] = conf_copy.pop('ssl.ca.location', None)
         key: Optional[str] = conf_copy.pop('ssl.key.location', None)
+        key_password: Optional[str] = conf_copy.pop('ssl.key.password', None)
         client_cert: Optional[str] = conf_copy.pop('ssl.certificate.location', None)
-        self.cert: Union[str, Tuple[str, str], None] = None
 
-        if client_cert is not None and key is not None:
-            self.cert = (client_cert, key)
+        # this mimicks legacy, deprecated behaviour of httpx
+        # self.verify is always set to an ssl.SSLContext in case we need to load_cert_chain
+        if ca is False:
+            self.verify = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            self.verify.check_hostname = False
+            self.verify.verify_mode = ssl.CERT_NONE
+        elif isinstance(ca, str):
+            if os.path.isdir(ca):
+                self.verify = ssl.create_default_context(capath=ca)
+            else:
+                self.verify = ssl.create_default_context(cafile=ca)
+        else:
+            if os.environ.get("SSL_CERT_FILE"):
+                self.verify = ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"])
+            elif os.environ.get("SSL_CERT_DIR"):
+                self.verify = ssl.create_default_context(capath=os.environ["SSL_CERT_DIR"])
+            else:
+                self.verify = ssl.create_default_context(cafile=certifi.where())
 
-        if client_cert is not None and key is None:
-            self.cert = client_cert
+        if client_cert is not None:
+            if key is not None and key_password is not None:
+                self.verify.load_cert_chain(certfile=client_cert, keyfile=key, password=key_password)
+            elif key is not None:
+                self.verify.load_cert_chain(certfile=client_cert, keyfile=key)
+            elif key_password is not None:
+                self.verify.load_cert_chain(certfile=client_cert, password=key_password)
+            else:
+                self.verify.load_cert_chain(certfile=client_cert)
 
-        if key is not None and client_cert is None:
+        if (key is not None or key_password is not None) and client_cert is None:
             raise ValueError("ssl.certificate.location required when"
-                             " configuring ssl.key.location")
+                             " configuring ssl.key.location or ssl.key.password")
 
         parsed = urlparse(self.base_urls[0])
         try:
@@ -351,7 +373,6 @@ class _RestClient(_BaseRestClient):
 
         self.session = httpx.Client(
             verify=self.verify,
-            cert=self.cert,
             auth=self.auth,
             proxy=self.proxy,
             timeout=self.timeout
@@ -516,10 +537,18 @@ class SchemaRegistryClient(object):
     | ``ssl.key.location``         | str  |                                                 |
     |                              |      | ``ssl.certificate.location`` must also be set.  |
     +------------------------------+------+-------------------------------------------------+
-    |                              |      | Path to client's public key (PEM) used for      |
+    |                              |      | Password to use to decrypt the client's private |
+    |                              |      | key.                                            |
+    |                              |      |                                                 |
+    | ``ssl.key.password``         | str  | The private key may be provided using           |
+    |                              |      | ``ssl.key.location``, or bundled with the       |
+    |                              |      | certificate in ``ssl.certificate.location``.    |
+    |                              |      | Password is optional (key may be unencrypted).  |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Path to client's certificate (PEM) used for     |
     |                              |      | authentication.                                 |
     | ``ssl.certificate.location`` | str  |                                                 |
-    |                              |      | May be set without ssl.key.location if the      |
+    |                              |      | May be set without ``ssl.key.location`` if the  |
     |                              |      | private key is stored within the PEM as well.   |
     +------------------------------+------+-------------------------------------------------+
     |                              |      | Client HTTP credentials in the form of          |
