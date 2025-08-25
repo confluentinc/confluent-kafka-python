@@ -33,7 +33,6 @@ class SimpleProducerTest(Test):
     def test_basic_produce(self):
         """Test basic message production with comprehensive metrics and bounds validation"""
 
-
         topic_name = "test-topic"
         test_duration = 5.0  # 5 seconds
 
@@ -48,7 +47,7 @@ class SimpleProducerTest(Test):
         # Initialize metrics collection and bounds
         metrics = MetricsCollector()
         bounds = MetricsBounds()
-        
+
         # Configure producer
         producer_config = {
             'bootstrap.servers': self.kafka.bootstrap_servers(),
@@ -60,13 +59,13 @@ class SimpleProducerTest(Test):
 
         # Enhanced delivery callback with metrics tracking
         send_times = {}  # Track send times for latency calculation
-        
+
         def delivery_callback(err, msg):
             """Delivery report callback with metrics tracking"""
             if err is not None:
                 self.logger.error("Message delivery failed: %s", err)
-                metrics.record_failed(topic=msg.topic() if msg else topic_name, 
-                                    partition=msg.partition() if msg else 0)
+                metrics.record_failed(topic=msg.topic() if msg else topic_name,
+                                      partition=msg.partition() if msg else 0)
             else:
                 # Calculate actual latency if we have send time
                 msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
@@ -75,12 +74,12 @@ class SimpleProducerTest(Test):
                     del send_times[msg_key]  # Clean up
                 else:
                     latency_ms = 0.0  # Default latency if timing info not available
-                
+
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
 
         # Start metrics collection
         metrics.start()
-        
+
         # Time-based message production with metrics
         self.logger.info("Producing messages with metrics for %.1f seconds to topic %s", test_duration, topic_name)
         start_time = time.time()
@@ -94,10 +93,10 @@ class SimpleProducerTest(Test):
                 # Record message being sent with metrics
                 message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                 metrics.record_sent(message_size, topic=topic_name, partition=0)
-                
+
                 # Track send time for latency calculation
                 send_times[message_key] = time.time()
-                
+
                 producer.produce(
                     topic=topic_name,
                     value=message_value,
@@ -110,19 +109,17 @@ class SimpleProducerTest(Test):
                 if messages_sent % 100 == 0:
                     producer.poll(0)
                     metrics.record_poll()
-                    
+
             except BufferError:
                 # Record buffer full events and poll
                 metrics.record_buffer_full()
                 producer.poll(0.001)
                 continue
 
-        actual_duration = time.time() - start_time
-
         # Flush to ensure all messages are sent
         self.logger.info("Flushing producer...")
         producer.flush(timeout=30)
-        
+
         # Finalize metrics collection
         metrics.finalize()
 
@@ -138,22 +135,20 @@ class SimpleProducerTest(Test):
         assert messages_sent > 0, "No messages were sent during test duration"
         assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
         assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
-            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s (expected > 10 msg/s)"
-        
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s " \
+            f"(expected > 10 msg/s)"
+
         # Validate against performance bounds
         if not is_valid:
             self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
-        
+
         self.logger.info("Successfully completed basic production test with comprehensive metrics")
-
-
 
     @parametrize(test_duration=2)
     @parametrize(test_duration=5)
     @parametrize(test_duration=10)
     def test_produce_multiple_batches(self, test_duration):
         """Test batch throughput with comprehensive metrics and bounds validation"""
-
 
         topic_name = f"batch-test-topic-{test_duration}s"
 
@@ -170,7 +165,7 @@ class SimpleProducerTest(Test):
         # Adjust bounds for different test durations
         if test_duration <= 2:
             bounds.min_throughput_msg_per_sec = 500.0  # Lower threshold for short tests
-        
+
         # Configure producer with batch settings
         producer_config = {
             'bootstrap.servers': self.kafka.bootstrap_servers(),
@@ -183,7 +178,7 @@ class SimpleProducerTest(Test):
 
         # Enhanced delivery callback with metrics
         send_times = {}
-        
+
         def delivery_callback(err, msg):
             if err is None:
                 # Calculate latency
@@ -193,16 +188,16 @@ class SimpleProducerTest(Test):
                     del send_times[msg_key]
                 else:
                     latency_ms = 0.0  # Default for batch processing
-                
+
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
             else:
                 self.logger.error("Delivery failed: %s", err)
-                metrics.record_failed(topic=msg.topic() if msg else topic_name, 
-                                    partition=msg.partition() if msg else 0)
+                metrics.record_failed(topic=msg.topic() if msg else topic_name,
+                                      partition=msg.partition() if msg else 0)
 
         # Start metrics collection
         metrics.start()
-        
+
         # Time-based batch message production with metrics
         self.logger.info("Producing batches with metrics for %d seconds", test_duration)
         start_time = time.time()
@@ -213,12 +208,12 @@ class SimpleProducerTest(Test):
                 message_value = f"Batch message {messages_sent}"
                 message_key = f"batch-key-{messages_sent % 10}"  # Use modulo for key distribution
                 partition = messages_sent % 2  # Distribute across partitions
-                
+
                 # Record metrics
                 message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                 metrics.record_sent(message_size, topic=topic_name, partition=partition)
                 send_times[message_key] = time.time()
-                
+
                 producer.produce(
                     topic=topic_name,
                     value=message_value,
@@ -231,18 +226,16 @@ class SimpleProducerTest(Test):
                 if messages_sent % 100 == 0:
                     producer.poll(0)
                     metrics.record_poll()
-                    
+
             except BufferError:
                 # Record buffer full events
                 metrics.record_buffer_full()
                 producer.poll(0.001)
                 continue
 
-        actual_duration = time.time() - start_time
-
         # Final flush
         producer.flush(timeout=30)
-        
+
         # Finalize metrics
         metrics.finalize()
 
@@ -262,15 +255,14 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning("Performance bounds validation failed for %ds test: %s", 
-                              test_duration, "; ".join(violations))
+            self.logger.warning("Performance bounds validation failed for %ds test: %s",
+                                test_duration, "; ".join(violations))
 
         self.logger.info("Successfully completed %ds batch production test with comprehensive metrics", test_duration)
 
     @matrix(compression_type=['none', 'gzip', 'snappy'])
     def test_produce_with_compression(self, compression_type):
         """Test compression throughput with comprehensive metrics and bounds validation"""
-
 
         topic_name = f"compression-test-{compression_type}"
         test_duration = 5.0  # 5 seconds
@@ -288,7 +280,7 @@ class SimpleProducerTest(Test):
         # Adjust bounds for compression tests (may be slower)
         bounds.min_throughput_msg_per_sec = 5.0  # Lower threshold for large messages
         bounds.max_p95_latency_ms = 5000.0  # Allow higher latency for compression
-        
+
         # Configure producer with compression
         producer_config = {
             'bootstrap.servers': self.kafka.bootstrap_servers(),
@@ -311,18 +303,18 @@ class SimpleProducerTest(Test):
                     del send_times[msg_key]
                 else:
                     latency_ms = 0.0  # Default for compression processing
-                
+
                 metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
             else:
-                metrics.record_failed(topic=msg.topic() if msg else topic_name, 
-                                    partition=msg.partition() if msg else 0)
+                metrics.record_failed(topic=msg.topic() if msg else topic_name,
+                                      partition=msg.partition() if msg else 0)
 
         # Start metrics collection
         metrics.start()
-        
+
         # Time-based message production with compression and metrics
-        self.logger.info("Producing messages with %s compression and metrics for %.1f seconds", 
-                        compression_type, test_duration)
+        self.logger.info("Producing messages with %s compression and metrics for %.1f seconds",
+                         compression_type, test_duration)
         start_time = time.time()
         messages_sent = 0
 
@@ -330,12 +322,12 @@ class SimpleProducerTest(Test):
             try:
                 message_value = f"{large_message}-{messages_sent}"
                 message_key = f"comp-key-{messages_sent}"
-                
+
                 # Record metrics
                 message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                 metrics.record_sent(message_size, topic=topic_name, partition=0)
                 send_times[message_key] = time.time()
-                
+
                 producer.produce(
                     topic=topic_name,
                     value=message_value,
@@ -348,17 +340,15 @@ class SimpleProducerTest(Test):
                 if messages_sent % 10 == 0:
                     producer.poll(0)
                     metrics.record_poll()
-                    
+
             except BufferError:
                 # Record buffer full events
                 metrics.record_buffer_full()
                 producer.poll(0.001)
                 continue
 
-        actual_duration = time.time() - start_time
-
         producer.flush(timeout=30)
-        
+
         # Finalize metrics
         metrics.finalize()
 
@@ -374,12 +364,13 @@ class SimpleProducerTest(Test):
         assert messages_sent > 0, "No messages were sent during test duration"
         assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
         assert metrics_summary['send_throughput_msg_per_sec'] > 5, \
-            f"Send throughput too low for {compression_type}: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
+            f"Send throughput too low for {compression_type}: " \
+            f"{metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning("Performance bounds validation failed for %s compression: %s", 
-                              compression_type, "; ".join(violations))
+            self.logger.warning("Performance bounds validation failed for %s compression: %s",
+                                compression_type, "; ".join(violations))
 
         self.logger.info("Successfully completed %s compression test with comprehensive metrics", compression_type)
 
