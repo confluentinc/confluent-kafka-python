@@ -33,4 +33,41 @@ Every test automatically includes:
 - **Batch Efficiency**: Messages per poll and buffer utilization analysis
 - **Throughput Validation**: Messages/sec and MB/sec with configurable bounds checking
 - **Comprehensive Reporting**: Detailed performance reports with pass/fail validation
-- **Automatic Bounds Validation**: Performance assertions against realistic thresholds
+- **Automatic Bounds Validation**: Performance assertions against configurable thresholds
+
+## Configuration
+
+Performance bounds are loaded from a JSON config file. By default, it loads `benchmark_bounds.json`, but you can override this with the `BENCHMARK_BOUNDS_CONFIG` environment variable:
+
+```json
+{
+  "min_throughput_msg_per_sec": 1500.0,
+  "max_p95_latency_ms": 1500.0,
+  "max_error_rate": 0.01,
+  "min_success_rate": 0.99,
+  "max_p99_latency_ms": 2500.0,
+  "max_memory_growth_mb": 600.0,
+  "max_buffer_full_rate": 0.03,
+  "min_messages_per_poll": 15.0
+}
+```
+
+Usage:
+```bash
+# Use default config file
+./run_ducktape_test.py
+
+# Use different configs for different environments
+BENCHMARK_BOUNDS_CONFIG=ci_bounds.json ./run_ducktape_test.py
+BENCHMARK_BOUNDS_CONFIG=production_bounds.json ./run_ducktape_test.py
+```
+
+```python
+from benchmark_metrics import MetricsBounds
+
+# Loads from BENCHMARK_BOUNDS_CONFIG env var, or benchmark_bounds.json if not set
+bounds = MetricsBounds()
+
+# Or load from a specific config file
+bounds = MetricsBounds.from_config_file("my_bounds.json")
+```

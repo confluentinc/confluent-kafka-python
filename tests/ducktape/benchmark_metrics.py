@@ -7,6 +7,7 @@ per-topic/partition breakdowns, memory monitoring, and batch efficiency analysis
 import time
 import statistics
 import os
+import json
 from typing import List, Dict, Any, Optional
 from collections import defaultdict
 import psutil
@@ -249,17 +250,38 @@ class MetricsBounds:
     """Performance bounds for metrics validation"""
     
     def __init__(self):
-        # Performance thresholds
-        self.min_throughput_msg_per_sec = 1000.0
-        self.max_p95_latency_ms = 2000.0
-        self.max_error_rate = 0.02
-        self.min_success_rate = 0.98
+        # Load bounds from config file
+        config_path = os.getenv("BENCHMARK_BOUNDS_CONFIG")
+        if config_path is None:
+            # Default to config file in same directory as this module
+            config_path = os.path.join(os.path.dirname(__file__), "benchmark_bounds.json")
+        self._load_from_config_file(config_path)
+    
+    def _load_from_config_file(self, config_path: str):
+        """Load bounds from a JSON configuration file."""
+        if not os.path.exists(config_path):
+            raise FileNotFoundError(f"Config file not found: {config_path}")
         
-        # Enhanced performance bounds
-        self.max_p99_latency_ms = 3000.0
-        self.max_memory_growth_mb = 700.0
-        self.max_buffer_full_rate = 0.05
-        self.min_messages_per_poll = 10.0
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+            
+            # Set values from config file
+            for key, value in config.items():
+                if not key.startswith('_'):  # Skip comment fields like "_comment"
+                    setattr(self, key, value)
+                    
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file {config_path}: {e}")
+        except IOError as e:
+            raise IOError(f"Failed to read config file {config_path}: {e}")
+    
+    @classmethod
+    def from_config_file(cls, config_path: str) -> 'MetricsBounds':
+        """Load bounds from a specific JSON configuration file."""
+        bounds = cls.__new__(cls)  # Create without calling __init__
+        bounds._load_from_config_file(config_path)
+        return bounds
 
 
 def validate_metrics(metrics: Dict[str, Any], bounds: MetricsBounds) -> tuple:
