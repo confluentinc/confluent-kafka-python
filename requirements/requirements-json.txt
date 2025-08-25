@@ -1,2 +1,3 @@
 pyrsistent
 jsonschema
+orjson >= 3.10
