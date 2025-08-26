@@ -247,3 +247,22 @@ def test_avro_deserializer_invalid_schema_type():
     test_client = SchemaRegistryClient(conf)
     with pytest.raises(TypeError, match="You must pass either schema string or schema object"):
         AvroDeserializer(test_client, 1)
+
+
+def test_avro_deserializer_handles_none_context():
+    """
+    Ensures deserializer handles None SerializationContext properly.
+    """
+    conf = {'url': TEST_URL}
+    test_client = SchemaRegistryClient(conf)
+
+    test_deserializer = AvroDeserializer(test_client)
+    test_data = b'\x00\x00\x00\x00\x01{"name": "test", "age": 25}'
+
+    try:
+        test_deserializer(test_data, ctx=None)
+    except AttributeError as e:
+        if "'NoneType' object has no attribute 'headers'" in str(e):
+            pytest.fail("Should not raise AttributeError for None context")
+    except Exception:
+        pass
