@@ -260,7 +260,7 @@ def test_avro_deserializer_handles_none_context():
     test_data = b'\x00\x00\x00\x00\x01{"name": "test", "age": 25}'
 
     try:
-        test_deserializer(test_data, ctx = None)
+        test_deserializer(test_data, ctx=None)
     except AttributeError as e:
         if "'NoneType' object has no attribute 'headers'" in str(e):
             pytest.fail("Should not raise AttributeError for None context")
