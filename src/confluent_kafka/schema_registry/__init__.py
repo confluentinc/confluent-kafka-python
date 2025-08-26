@@ -141,6 +141,9 @@ def header_schema_id_serializer(payload: bytes, ctx, schema_id) -> bytes:
     Returns:
         bytes: The payload
     """
+    if ctx is None:
+        raise SerializationError("SerializationContext is required for header_schema_id_serializer")
+
     headers = ctx.headers
     if headers is None:
         raise SerializationError("Missing headers")
@@ -184,6 +187,9 @@ def dual_schema_id_deserializer(payload: bytes, ctx, schema_id) -> io.BytesIO:
     Returns:
         bytes: The payload
     """
+    if ctx is None:
+        return schema_id.from_bytes(io.BytesIO(payload))
+
     headers = ctx.headers
     header_key = _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
     if headers is not None:
