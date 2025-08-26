@@ -16,14 +16,17 @@
 # limitations under the License.
 #
 
+import certifi
 import json
 import logging
+import os
+import ssl
 import time
 import urllib
 from urllib.parse import unquote, urlparse
 
 import httpx
-from typing import List, Dict, Optional, Union, Any, Tuple, Callable
+from typing import List, Dict, Optional, Union, Any, Callable
 
 from cachetools import TTLCache, LRUCache
 from httpx import Response
@@ -148,24 +151,43 @@ class _BaseRestClient(object):
             raise ValueError("Missing required configuration property url")
         self.base_urls = base_urls
 
-        self.verify = True
-        ca = conf_copy.pop('ssl.ca.location', None)
-        if ca is not None:
-            self.verify = ca
-
+        ca: Union[str, bool, None] = conf_copy.pop('ssl.ca.location', None)
         key: Optional[str] = conf_copy.pop('ssl.key.location', None)
+        key_password: Optional[str] = conf_copy.pop('ssl.key.password', None)
         client_cert: Optional[str] = conf_copy.pop('ssl.certificate.location', None)
-        self.cert: Union[str, Tuple[str, str], None] = None
 
-        if client_cert is not None and key is not None:
-            self.cert = (client_cert, key)
+        # this mimicks legacy, deprecated behaviour of httpx
+        # self.verify is always set to an ssl.SSLContext in case we need to load_cert_chain
+        if ca is False:
+            self.verify = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            self.verify.check_hostname = False
+            self.verify.verify_mode = ssl.CERT_NONE
+        elif isinstance(ca, str):
+            if os.path.isdir(ca):
+                self.verify = ssl.create_default_context(capath=ca)
+            else:
+                self.verify = ssl.create_default_context(cafile=ca)
+        else:
+            if os.environ.get("SSL_CERT_FILE"):
+                self.verify = ssl.create_default_context(cafile=os.environ["SSL_CERT_FILE"])
+            elif os.environ.get("SSL_CERT_DIR"):
+                self.verify = ssl.create_default_context(capath=os.environ["SSL_CERT_DIR"])
+            else:
+                self.verify = ssl.create_default_context(cafile=certifi.where())
 
-        if client_cert is not None and key is None:
-            self.cert = client_cert
+        if client_cert is not None:
+            if key is not None and key_password is not None:
+                self.verify.load_cert_chain(certfile=client_cert, keyfile=key, password=key_password)
+            elif key is not None:
+                self.verify.load_cert_chain(certfile=client_cert, keyfile=key)
+            elif key_password is not None:
+                self.verify.load_cert_chain(certfile=client_cert, password=key_password)
+            else:
+                self.verify.load_cert_chain(certfile=client_cert)
 
-        if key is not None and client_cert is None:
+        if (key is not None or key_password is not None) and client_cert is None:
             raise ValueError("ssl.certificate.location required when"
-                             " configuring ssl.key.location")
+                             " configuring ssl.key.location or ssl.key.password")
 
         parsed = urlparse(self.base_urls[0])
         try:
@@ -351,7 +373,6 @@ class _RestClient(_BaseRestClient):
 
         self.session = httpx.Client(
             verify=self.verify,
-            cert=self.cert,
             auth=self.auth,
             proxy=self.proxy,
             timeout=self.timeout
@@ -516,10 +537,18 @@ class SchemaRegistryClient(object):
     | ``ssl.key.location``         | str  |                                                 |
     |                              |      | ``ssl.certificate.location`` must also be set.  |
     +------------------------------+------+-------------------------------------------------+
-    |                              |      | Path to client's public key (PEM) used for      |
+    |                              |      | Password to use to decrypt the client's private |
+    |                              |      | key.                                            |
+    |                              |      |                                                 |
+    | ``ssl.key.password``         | str  | The private key may be provided using           |
+    |                              |      | ``ssl.key.location``, or bundled with the       |
+    |                              |      | certificate in ``ssl.certificate.location``.    |
+    |                              |      | Password is optional (key may be unencrypted).  |
+    +------------------------------+------+-------------------------------------------------+
+    |                              |      | Path to client's certificate (PEM) used for     |
     |                              |      | authentication.                                 |
     | ``ssl.certificate.location`` | str  |                                                 |
-    |                              |      | May be set without ssl.key.location if the      |
+    |                              |      | May be set without ``ssl.key.location`` if the  |
     |                              |      | private key is stored within the PEM as well.   |
     +------------------------------+------+-------------------------------------------------+
     |                              |      | Client HTTP credentials in the form of          |
@@ -699,7 +728,6 @@ class SchemaRegistryClient(object):
             query['format'] = fmt
         if reference_format is not None:
             query['reference_format'] = reference_format
-
         response = self._rest_client.get('schemas/ids/{}'.format(schema_id), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
@@ -1060,7 +1088,8 @@ class SchemaRegistryClient(object):
         return registered_schema
 
     def get_referenced_by(
-            self, subject_name: str, version: Union[int, str] = "latest", offset: int = 0, limit: int = -1
+        self, subject_name: str, version: Union[int, str] = "latest",
+        offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
         Get a list of IDs of schemas that reference the schema with the given `subject_name` and `version`.
@@ -1086,7 +1115,8 @@ class SchemaRegistryClient(object):
             _urlencode(subject_name), version), query)
 
     def get_versions(
-        self, subject_name: str, deleted: bool = False, deleted_only: bool = False, offset: int = 0, limit: int = -1
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
+        offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
         Get a list of all versions registered with this subject.
@@ -1204,15 +1234,18 @@ class SchemaRegistryClient(object):
         return result['compatibilityLevel']
 
     def test_compatibility(
-        self, subject_name: str, schema: 'Schema',
-        version: Union[int, str] = "latest"
+        self, subject_name: str, schema: 'Schema', version: Union[int, str] = "latest",
+        normalize: bool = False, verbose: bool = False
     ) -> bool:
-        """Test the compatibility of a candidate schema for a given subject and version
+        """
+        Test the compatibility of a candidate schema for a given subject and version
 
         Args:
             subject_name (str): Subject name the schema is registered under
             schema (Schema): Schema instance.
             version (int or str, optional): Version number, or the string "latest". Defaults to "latest".
+            normalize (bool): Whether to normalize the input schema.
+            verbose (bool): Whether to return detailed error messages.
 
         Returns:
             bool: True if the schema is compatible with the specified version
@@ -1225,11 +1258,39 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         request = schema.to_dict()
-
         response = self._rest_client.post(
-            'compatibility/subjects/{}/versions/{}'.format(_urlencode(subject_name), version), body=request
+            'compatibility/subjects/{}/versions/{}?normalize={}&verbose={}'.format(
+                _urlencode(subject_name), version, normalize, verbose),
+            body=request
         )
+        return response['is_compatible']
 
+    def test_compatibility_all_versions(
+        self, subject_name: str, schema: 'Schema',
+        normalize: bool = False, verbose: bool = False
+    ) -> bool:
+        """
+        Test the input schema against all schema versions under the subject (depending on the compatibility level set).
+
+        Args:
+            subject_name (str): Subject of the schema versions against which compatibility is to be tested.
+            schema (Schema): Schema instance.
+            normalize (bool): Whether to normalize the input schema.
+            verbose (bool): Whether to return detailed error messages.
+
+        Returns:
+            bool: True if the schema is compatible with all of the subject's schemas versions.
+        See Also:
+            `POST Test Compatibility Against All API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--compatibility-subjects-(string-%20subject)-versions>`_
+        """  # noqa: E501
+
+        request = schema.to_dict()
+        response = self._rest_client.post(
+            'compatibility/subjects/{}/versions?normalize={}&verbose={}'.format(
+                _urlencode(subject_name), normalize, verbose
+            ),
+            body=request,
+        )
         return response['is_compatible']
 
     def set_config(
@@ -1268,6 +1329,30 @@ class SchemaRegistryClient(object):
             'config/{}'.format(_urlencode(subject_name)), body=config.to_dict()
         )
 
+    def delete_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
+        """
+        Delete the specified subject-level compatibility level config and revert to the global default.
+
+        Args:
+            subject_name (str, optional): Subject name. Deletes global config
+                if left unset.
+
+        Returns:
+            ServerConfig: The old deleted config
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `DELETE Subject Config API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--config-(string- subject)>`_
+        """  # noqa: E501
+        if subject_name is not None:
+            url = 'config/{}'.format(_urlencode(subject_name))
+        else:
+            url = 'config'
+        result = self._rest_client.delete(url)
+        return ServerConfig.from_dict(result)
+
     def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':
         """
         Get the current config.
@@ -1293,6 +1378,122 @@ class SchemaRegistryClient(object):
 
         result = self._rest_client.get(url)
         return ServerConfig.from_dict(result)
+
+    def get_mode(self, subject_name: str) -> str:
+        """
+        Get the mode for a subject.
+
+        Args:
+            subject_name (str): Subject name.
+
+        Returns:
+            str: Mode for the subject. Returns one of IMPORT, READONLY, READWRITE (default).
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `GET Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--mode-(string-%20subject)>`_
+        """  # noqa: E501
+        result = self._rest_client.get('mode/{}'.format(_urlencode(subject_name)))
+        return result['mode']
+
+    def update_mode(self, subject_name: str, mode: str, force: bool = False) -> str:
+        """
+        Update the mode for a subject.
+
+        Args:
+            subject_name (str): Subject name.
+            mode (str): Mode to update.
+            force (bool): Whether to force a mode change even if the Schema Registry has existing schemas.
+
+        Returns:
+            str: New mode for the subject. Must be one of IMPORT, READONLY, READWRITE (default).
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `PUT Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--mode-(string-%20subject)>`_
+        """  # noqa: E501
+        result = self._rest_client.put(
+            'mode/{}?force={}'.format(_urlencode(subject_name), force),
+            body={'mode': mode},
+        )
+        return result['mode']
+
+    def delete_mode(self, subject_name: str) -> str:
+        """
+        Delete the mode for a subject and revert to the global default
+
+        Args:
+            subject_name (str): Subject name.
+
+        Returns:
+            str: New mode for the subject. Must be one of IMPORT, READONLY, READWRITE (default).
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `DELETE Subject Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#delete--mode-(string-%20subject)>`_
+        """  # noqa: E501
+        result = self._rest_client.delete('mode/{}'.format(_urlencode(subject_name)))
+        return result['mode']
+
+    def get_global_mode(self) -> str:
+        """
+        Get the current mode for Schema Registry at a global level.
+
+        Returns:
+            str: Schema Registry mode. Must be one of IMPORT, READONLY, READWRITE (default).
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `GET Global Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--mode>`_
+        """  # noqa: E501
+        result = self._rest_client.get('mode')
+        return result['mode']
+
+    def update_global_mode(self, mode: str, force: bool = False) -> str:
+        """
+        Update the mode for the Schema Registry at a global level.
+
+        Args:
+            mode (str): Mode to update.
+            force (bool): Whether to force a mode change even if the Schema Registry has existing schemas.
+
+        Returns:
+            str: New mode for the Schema Registry. Must be one of IMPORT, READONLY, READWRITE (default).
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+
+        See Also:
+            `PUT Global Mode API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#put--mode>`_
+        """  # noqa: E501
+        result = self._rest_client.put('mode?force={}'.format(force), body={'mode': mode})
+        return result['mode']
+
+    def get_contexts(self, offset: int = 0, limit: int = -1) -> List[str]:
+        """
+        Retrieves a list of contexts.
+
+        Args:
+            offset (int): Pagination offset for results.
+            limit (int): Pagination size for results. Ignored if negative.
+
+        Returns:
+            List[str]: List of contexts.
+
+        Raises:
+            SchemaRegistryError: if the request was unsuccessful.
+        """  # noqa: E501
+
+        result = self._rest_client.get('contexts', query={'offset': offset, 'limit': limit})
+        return result
 
     def clear_latest_caches(self):
         self._latest_version_cache.clear()
