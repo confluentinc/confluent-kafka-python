@@ -21,7 +21,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-13-5-amd64
+          type: s1-macos-15-amd64-6
       env_vars:
         - name: OS_NAME
           value: osx
@@ -41,7 +41,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-13-5-amd64
+          type: s1-macos-15-amd64-6
       env_vars:
         - name: OS_NAME
           value: osx
@@ -242,7 +242,7 @@ blocks:
     task:
       agent:
         machine:
-          type: s1-prod-macos-13-5-amd64
+          type: s1-macos-15-amd64-6
       env_vars:
         - name: OS_NAME
           value: osx
