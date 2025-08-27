@@ -36,7 +36,7 @@ from .schema_registry_client import (
   SchemaReference,
   ServerConfig
 )
-from ..serialization import SerializationError, MessageField
+from ..serialization import SerializationError, MessageField, SerializationContext
 
 _KEY_SCHEMA_ID = "__key_schema_id"
 _VALUE_SCHEMA_ID = "__value_schema_id"
@@ -128,7 +128,7 @@ def reference_subject_name_strategy(ctx, schema_ref: SchemaReference) -> Optiona
     return schema_ref.name if schema_ref is not None else None
 
 
-def header_schema_id_serializer(payload: bytes, ctx, schema_id) -> bytes:
+def header_schema_id_serializer(payload: bytes, ctx: Optional[SerializationContext], schema_id) -> bytes:
     """
     Serializes the schema guid into the header.
 
@@ -174,7 +174,7 @@ def prefix_schema_id_serializer(payload: bytes, ctx, schema_id) -> bytes:
     return schema_id.id_to_bytes() + payload
 
 
-def dual_schema_id_deserializer(payload: bytes, ctx, schema_id) -> io.BytesIO:
+def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationContext], schema_id) -> io.BytesIO:
     """
     Deserializes the schema id by first checking the header, then the payload prefix.
 
@@ -187,25 +187,28 @@ def dual_schema_id_deserializer(payload: bytes, ctx, schema_id) -> io.BytesIO:
     Returns:
         bytes: The payload
     """
-    if ctx is None:
-        return schema_id.from_bytes(io.BytesIO(payload))
+    # Look for schema ID in headers
+    header_value = None
 
-    headers = ctx.headers
-    header_key = _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
-    if headers is not None:
-        header_value = None
-        if isinstance(headers, list):
-            # look for header_key in headers
-            for header in headers:
-                if header[0] == header_key:
-                    header_value = header[1]
-                    break
-        elif isinstance(headers, dict):
-            header_value = headers.get(header_key, None)
-        if header_value is not None:
-            schema_id.from_bytes(io.BytesIO(header_value))
-            return io.BytesIO(payload)
-    return schema_id.from_bytes(io.BytesIO(payload))
+    if ctx is not None:
+        headers = ctx.headers
+        if headers is not None:
+            header_key = _KEY_SCHEMA_ID if ctx.field == MessageField.KEY else _VALUE_SCHEMA_ID
+            if isinstance(headers, list):
+                # look for header_key in headers
+                for header in headers:
+                    if header[0] == header_key:
+                        header_value = header[1]
+                        break
+            elif isinstance(headers, dict):
+                header_value = headers.get(header_key, None)
+
+    # Parse schema ID from determined source and return appropriate payload
+    if header_value is not None:
+        schema_id.from_bytes(io.BytesIO(header_value))
+        return io.BytesIO(payload)  # Return full payload when schema ID is in header
+    else:
+        return schema_id.from_bytes(io.BytesIO(payload))  # Parse from payload, return remainder
 
 
 def prefix_schema_id_deserializer(payload: bytes, ctx, schema_id) -> io.BytesIO:
