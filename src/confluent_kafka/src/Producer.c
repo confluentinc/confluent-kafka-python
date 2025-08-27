@@ -393,6 +393,35 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         return cfl_PyInt_FromInt(qlen);
 }
 
+
+static PyObject *Producer_close(Handle *self, PyObject *args,
+                                PyObject *kwargs) {
+        CallState cs;
+
+        if (!self->rk)
+            Py_RETURN_NONE;
+
+        CallState_begin(self, &cs);
+
+        /* Warn if there are pending messages */
+        int outq_len = rd_kafka_outq_len(self->rk);
+        if (outq_len > 0) {
+            rd_kafka_log(self->rk, LOG_WARNING, "CLOSE",
+                 "%d message(s) still in producer queue during close()",
+                 outq_len);
+        }
+
+        rd_kafka_destroy(self->rk);
+
+        self->rk = NULL;
+
+        if (!CallState_end(self, &cs))
+            return NULL;
+
+        Py_RETURN_NONE;
+}
+
+
 static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
@@ -609,7 +638,16 @@ static PyMethodDef Producer_methods[] = {
 	  "  :rtype: int\n"
 	  "\n"
 	},
-
+	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS
+          ".. py:function:: close()\n"
+          "\n"
+	  "   Close and destroy the producer instance.\n"
+	  "   This should be called to ensure proper cleanup of the producer. \n"
+	  "   Supports live credential rotation use cases and prevents memory leaks. \n"
+	  "\n"
+      "  :rtype: None\n"
+      "\n"
+	},
 	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: flush([timeout])\n"
           "\n"
