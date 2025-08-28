@@ -9,6 +9,7 @@ from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 from tests.ducktape.services.kafka import KafkaClient
+from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 
 try:
@@ -38,61 +39,107 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
         self.logger.info("Successfully connected to Kafka")
 
-    def calculate_and_verify_results(self, start_time, messages_sent, delivered_messages, failed_messages):
-        """Calculate throughput and verify results"""
-        actual_duration = time.time() - start_time
-        send_throughput = messages_sent / actual_duration
-        delivery_throughput = len(delivered_messages) / actual_duration
+    def calculate_and_verify_results(self, metrics_summary, bounds, serialization_type):
+        """Calculate throughput and verify results using comprehensive metrics"""
+        is_valid, violations = validate_metrics(metrics_summary, bounds)
 
-        # Log results
-        self.logger.info("Time-based production results:")
-        self.logger.info("  Duration: %.2f seconds", actual_duration)
-        self.logger.info("  Messages sent: %d", messages_sent)
-        self.logger.info("  Messages delivered: %d", len(delivered_messages))
-        self.logger.info("  Messages failed: %d", len(failed_messages))
-        self.logger.info("  Send throughput: %.2f msg/s", send_throughput)
-        self.logger.info("  Delivery throughput: %.2f msg/s", delivery_throughput)
+        # Print comprehensive metrics report
+        self.logger.info("%s serialization test with comprehensive metrics completed:", serialization_type)
+        print_metrics_report(metrics_summary, is_valid, violations)
 
-        # Verify results
-        assert messages_sent > 0, "No messages were sent during test duration"
-        assert len(delivered_messages) > 0, "No messages were delivered"
-        assert send_throughput > 10, f"Send throughput too low: {send_throughput:.2f} msg/s"
+        # Enhanced assertions using metrics
+        assert metrics_summary['messages_sent'] > 0, "No messages were sent during test duration"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
+        assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s " \
+            f"(expected > 10 msg/s)"
 
-    def produce_messages(self, producer, topic_name, serializer, string_serializer, test_duration, message_value_func):
-        """Produce messages using the given serializer"""
-        delivered_messages = []
-        failed_messages = []
+        # Validate against performance bounds
+        if not is_valid:
+            self.logger.warning("Performance bounds validation failed for %s: %s",
+                                serialization_type, "; ".join(violations))
+
+        self.logger.info("Successfully completed %s test with comprehensive metrics", serialization_type)
+
+    def produce_messages_with_serialization(self, producer, topic_name, serializer, string_serializer, test_duration, message_value_func, serialization_type):
+        """Produce messages using the given serializer with comprehensive metrics collection"""
+        # Initialize metrics collection and bounds
+        metrics = MetricsCollector()
+        bounds = MetricsBounds()
+
+        # Track send times for latency calculation
+        send_times = {}
 
         def delivery_callback(err, msg):
-            """Delivery report callback"""
+            """Enhanced delivery report callback with metrics tracking"""
             if err is not None:
                 self.logger.error("Message delivery failed: %s", err)
-                failed_messages.append(err)
+                metrics.record_failed(topic=msg.topic() if msg else topic_name,
+                                      partition=msg.partition() if msg else 0)
             else:
-                delivered_messages.append(msg)
+                # Calculate actual latency if we have send time
+                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
+                if msg_key in send_times:
+                    latency_ms = (time.time() - send_times[msg_key]) * 1000
+                    del send_times[msg_key]  # Clean up
+                else:
+                    latency_ms = 0.0  # Default latency if timing info not available
 
-        self.logger.info("Producing messages for %.1f seconds to topic %s", test_duration, topic_name)
+                metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+
+        # Start metrics collection
+        metrics.start()
+
+        self.logger.info("Producing messages with %s serialization and metrics for %.1f seconds to topic %s",
+                         serialization_type, test_duration, topic_name)
         start_time = time.time()
         messages_sent = 0
 
         while time.time() - start_time < test_duration:
             message_value = message_value_func(messages_sent)
+            message_key = str(uuid4())
+
             try:
+                # Calculate message size for metrics
+                serialized_key = string_serializer(message_key)
+                serialized_value = serializer(message_value, SerializationContext(topic_name, MessageField.VALUE))
+                message_size = len(serialized_key) + len(serialized_value)
+
+                # Record message being sent with metrics
+                metrics.record_sent(message_size, topic=topic_name, partition=0)
+
+                # Track send time for latency calculation
+                send_times[message_key] = time.time()
+
                 producer.produce(
                     topic=topic_name,
-                    key=string_serializer(str(uuid4())),
-                    value=serializer(message_value, SerializationContext(topic_name, MessageField.VALUE)),
+                    key=serialized_key,
+                    value=serialized_value,
                     callback=delivery_callback
                 )
                 messages_sent += 1
+
+                # Poll frequently to trigger delivery callbacks and record poll operations
                 if messages_sent % 100 == 0:
                     producer.poll(0)
+                    metrics.record_poll()
+
             except BufferError:
+                # Record buffer full events and poll
+                metrics.record_buffer_full()
                 producer.poll(0.001)
                 continue
 
+        # Flush to ensure all messages are sent
+        self.logger.info("Flushing producer...")
         producer.flush(timeout=30)
-        self.calculate_and_verify_results(start_time, messages_sent, delivered_messages, failed_messages)
+
+        # Finalize metrics collection
+        metrics.finalize()
+
+        # Get comprehensive metrics summary and validate
+        metrics_summary = metrics.get_summary()
+        self.calculate_and_verify_results(metrics_summary, bounds, serialization_type)
 
     def test_basic_produce_with_avro_serialization(self):
         """Test producing messages with Avro serialization using Schema Registry"""
@@ -133,13 +180,14 @@ class SimpleProducerTestWithSchemaRegistry(Test):
         producer = Producer(producer_config)
 
         # Produce messages
-        self.produce_messages(
+        self.produce_messages_with_serialization(
             producer,
             topic_name,
             avro_serializer,
             string_serializer,
             test_duration,
-            lambda messages_sent: {'name': f"User{messages_sent}", 'age': messages_sent}
+            lambda messages_sent: {'name': f"User{messages_sent}", 'age': messages_sent},
+            "Avro"
         )
 
     def test_basic_produce_with_json_serialization(self):
@@ -181,13 +229,14 @@ class SimpleProducerTestWithSchemaRegistry(Test):
         producer = Producer(producer_config)
 
         # Produce messages
-        self.produce_messages(
+        self.produce_messages_with_serialization(
             producer,
             topic_name,
             json_serializer,
             string_serializer,
             test_duration,
-            lambda messages_sent: {'name': f"User{messages_sent}", 'age': messages_sent}
+            lambda messages_sent: {'name': f"User{messages_sent}", 'age': messages_sent},
+            "JSON"
         )
 
     def test_basic_produce_with_protobuf_serialization(self):
@@ -218,7 +267,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
         producer = Producer(producer_config)
 
         # Produce messages
-        self.produce_messages(
+        self.produce_messages_with_serialization(
             producer,
             topic_name,
             protobuf_serializer,
@@ -232,5 +281,6 @@ class SimpleProducerTestWithSchemaRegistry(Test):
                 test_float=12.0,
                 test_fixed32=1,
                 test_fixed64=1,
-            )
+            ),
+            "Protobuf"
         )
