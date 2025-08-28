@@ -312,31 +312,29 @@ blocks:
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
             - python3 -m pip install -e .
             
-            # Start Kafka cluster with simplified setup for CI  
+            # Start Kafka cluster using dedicated ducktape compose file (KRaft mode)
             - cd tests/docker
-            - docker-compose up -d zookeeper kafka
+            - docker-compose -f docker-compose.ducktape.yml up -d kafka
             
             # Debug: Check container status and logs
             - echo "=== Container Status ==="
-            - docker-compose ps
+            - docker-compose -f docker-compose.ducktape.yml ps
             - echo "=== Kafka Logs ==="
-            - docker-compose logs kafka | tail -50
-            - echo "=== Zookeeper Logs ==="
-            - docker-compose logs zookeeper | tail -20
+            - docker-compose -f docker-compose.ducktape.yml logs kafka | tail -50
             
             # Wait for Kafka to be ready (extended timeout for CI)
             - |
               timeout 1800 bash -c '
                 counter=0
-                until docker-compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do 
+                until docker-compose -f docker-compose.ducktape.yml exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do 
                   echo "Waiting for Kafka... (attempt $((counter+1)))"
                   
                   # Show logs every 4th attempt (every 20 seconds)
                   if [ $((counter % 4)) -eq 0 ] && [ $counter -gt 0 ]; then
                     echo "=== Recent Kafka Logs ==="
-                    docker-compose logs --tail=10 kafka
+                    docker-compose -f docker-compose.ducktape.yml logs --tail=10 kafka
                     echo "=== Container Status ==="
-                    docker-compose ps kafka
+                    docker-compose -f docker-compose.ducktape.yml ps kafka
                   fi
                   
                   counter=$((counter+1))
@@ -351,7 +349,7 @@ blocks:
             - python run_ducktape_test.py
             
             # Cleanup
-            - cd ../../tests/docker && docker-compose down -v || true
+            - cd ../../tests/docker && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
     run:
       when: "tag =~ '.*'"
