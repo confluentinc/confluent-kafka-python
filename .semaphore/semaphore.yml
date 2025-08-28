@@ -312,8 +312,11 @@ blocks:
             - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
             - python3 -m pip install -e .
             
+            # Store project root for reliable navigation
+            - PROJECT_ROOT="${PWD}"
+            
             # Start Kafka cluster using dedicated ducktape compose file (KRaft mode)
-            - cd tests/docker
+            - cd "${PROJECT_ROOT}/tests/docker"
             - docker-compose -f docker-compose.ducktape.yml up -d kafka
             
             # Debug: Check container status and logs
@@ -344,10 +347,10 @@ blocks:
             - echo "Kafka cluster is ready!"
             
             # Run standard ducktape tests with CI bounds
-            - cd .. && cd tests/ducktape && python run_ducktape_test.py
+            - cd "${PROJECT_ROOT}/tests/ducktape" && python run_ducktape_test.py
             
             # Cleanup
-            - cd ../docker && docker-compose -f docker-compose.ducktape.yml down -v || true
+            - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
     run:
       when: "tag =~ '.*'"
