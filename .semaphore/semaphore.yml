@@ -275,6 +275,56 @@ blocks:
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
+  - name: "Ducktape Performance Tests (Linux x64)"
+    dependencies: []
+    task:
+      agent:
+        machine:
+          type: s1-prod-ubuntu24-04-amd64-3
+      env_vars:
+        - name: OS_NAME
+          value: linux
+        - name: ARCH
+          value: x64
+        - name: BENCHMARK_BOUNDS_CONFIG
+          value: tests/ducktape/ci_bounds.json
+      prologue:
+        commands:
+          - '[[ -z $DOCKERHUB_APIKEY ]] || docker login --username $DOCKERHUB_USER --password $DOCKERHUB_APIKEY'
+      jobs:
+        - name: Standard Ducktape Producer Tests
+          commands:
+            # Setup Python environment
+            - sem-version python 3.9
+            - python3 -m venv _venv && source _venv/bin/activate
+            
+            # Install ducktape framework and additional dependencies
+            - pip install ducktape psutil
+            
+            # Install existing test requirements
+            - pip install -r requirements/requirements-tests.txt
+            
+            # Build and install confluent-kafka from source
+            - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
+            - tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
+            - export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
+            - export LDFLAGS="$LDFLAGS -L${PWD}/${lib_dir}"
+            - export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$PWD/$lib_dir"
+            - python3 -m pip install -e .
+            
+            # Start Kafka cluster using existing Docker setup
+            - cd tests/docker && ./bin/cluster_up.sh
+            
+            # Wait for Kafka to be ready
+            - timeout 60 bash -c 'until docker-compose -f tests/docker/docker-compose.yaml exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do echo "Waiting for Kafka..."; sleep 5; done'
+            
+            # Run standard ducktape tests with CI bounds
+            - export BENCHMARK_BOUNDS_CONFIG=tests/ducktape/ci_bounds.json
+            - cd tests/ducktape
+            - python run_ducktape_test.py
+            
+            # Cleanup
+            - cd ../../tests/docker && docker-compose down -v
   - name: "Packaging"
     run:
       when: "tag =~ '.*'"
