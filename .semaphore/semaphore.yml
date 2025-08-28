@@ -344,11 +344,10 @@ blocks:
             - echo "Kafka cluster is ready!"
             
             # Run standard ducktape tests with CI bounds
-            - cd ${SEMAPHORE_GIT_DIR} && cd tests/ducktape
-            - python run_ducktape_test.py
+            - cd tests/ducktape && python run_ducktape_test.py
             
             # Cleanup
-            - cd ${SEMAPHORE_GIT_DIR} && cd tests/docker && docker-compose -f docker-compose.ducktape.yml down -v || true
+            - cd tests/docker && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
     run:
       when: "tag =~ '.*'"
