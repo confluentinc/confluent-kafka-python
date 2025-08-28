@@ -7,7 +7,13 @@ import os
 import subprocess
 import tempfile
 
-import ducktape
+try:
+    import ducktape
+except ImportError as e:
+    print("ERROR: ducktape is not installed or not importable.")
+    print(f"Import error: {e}")
+    print("Install it with: pip install ducktape")
+    sys.exit(1)
 
 
 def create_cluster_config():
@@ -33,7 +39,16 @@ def main():
     print("Confluent Kafka Python - Ducktape Producer Test Runner")
     print("=" * 60)
 
-    print(f"Using ducktape version: {ducktape.__version__}")
+    try:
+        print(f"Using ducktape version: {ducktape.__version__}")
+    except AttributeError:
+        # Some ducktape versions don't have __version__, try alternative methods
+        try:
+            import pkg_resources
+            version = pkg_resources.get_distribution('ducktape').version
+            print(f"Using ducktape version: {version}")
+        except:
+            print("Using ducktape version: unknown")
 
     # Check if confluent_kafka is available
     try:
