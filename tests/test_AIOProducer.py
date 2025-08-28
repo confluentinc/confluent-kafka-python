@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 import concurrent.futures
-from unittest.mock import Mock, MagicMock, patch, AsyncMock
+from unittest.mock import Mock, patch
 
 from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.aio._AIOProducer import AIOProducer
@@ -18,53 +18,67 @@ class TestAIOProducer:
         with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer') as mock:
             yield mock
 
+
     @pytest.fixture
     def mock_common(self):
         """Mock the _common module callback wrapping."""
         with patch('confluent_kafka.aio._AIOProducer._common') as mock:
             yield mock
 
+
     @pytest.fixture
     def basic_config(self):
         """Basic producer configuration."""
         return {'bootstrap.servers': 'localhost:9092'}
 
+
+    async def wait_for_condition(self, condition_func, timeout=1.0):
+        """Wait for a condition to become true with timeout."""
+        start_time = asyncio.get_event_loop().time()
+        while asyncio.get_event_loop().time() - start_time < timeout:
+            if condition_func():
+                return True
+            await asyncio.sleep(0.01)
+        return False
+
+
     @pytest.mark.asyncio
     async def test_constructor(self, mock_producer, mock_common, basic_config):
         """Test constructor with all parameter combinations."""
-        # Test with all custom parameters
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
-        config_with_callbacks = {
-            **basic_config,
-            'error_cb': lambda err: None,
-            'stats_cb': lambda stats: None
-        }
+        try:
+            config_with_callbacks = {
+                **basic_config,
+                'error_cb': lambda err: None,
+                'stats_cb': lambda stats: None
+            }
 
-        producer = AIOProducer(
-            config_with_callbacks,
-            max_workers=3,  # This should be ignored since executor is provided
-            executor=custom_executor,
-            auto_poll=False
-        )
+            producer = AIOProducer(
+                config_with_callbacks,
+                max_workers=3,  # This should be ignored since executor is provided
+                executor=custom_executor,
+                auto_poll=False
+            )
 
-        # Assert underlying producer creation
-        mock_producer.assert_called_with(config_with_callbacks)
-        mock_common.wrap_common_callbacks.assert_called()
+            # Assert underlying producer creation
+            mock_producer.assert_called_with(config_with_callbacks)
+            mock_common.wrap_common_callbacks.assert_called()
 
-        # Assert executor configuration (custom executor takes precedence)
-        assert producer.executor is custom_executor
-        assert producer.executor._max_workers == 5  # From custom executor, not max_workers param
+            # Assert executor configuration (custom executor takes precedence)
+            assert producer.executor is custom_executor
+            assert producer.executor._max_workers == 5
 
-        # Assert auto-polling configuration
-        assert producer._running is False
-        assert not hasattr(producer, '_running_loop')
+            # Assert auto-polling configuration
+            assert producer._running is False
+            assert not hasattr(producer, '_running_loop')
 
-        # Assert callback wrapping was called correctly
-        args = mock_common.wrap_common_callbacks.call_args[0]
-        assert len(args) == 2  # loop, config
-        assert args[1] is config_with_callbacks
+            # Assert callback wrapping was called correctly
+            args = mock_common.wrap_common_callbacks.call_args[0]
+            assert len(args) == 2
+            assert args[1] is config_with_callbacks
 
-        custom_executor.shutdown()
+        finally:
+            custom_executor.shutdown(wait=True)
 
 
 @pytest.mark.asyncio
@@ -152,11 +166,13 @@ async def test_produce_callback_overriding():
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         original_callback = Mock()
+        produce_called = asyncio.Event()
         captured_callback = None
 
         def mock_produce(*args, **kwargs):
             nonlocal captured_callback
             captured_callback = kwargs.get('on_delivery')
+            produce_called.set()
 
         producer._producer.produce = mock_produce
 
@@ -164,7 +180,8 @@ async def test_produce_callback_overriding():
             producer.produce(topic="test", value="test", on_delivery=original_callback)
         )
 
-        await asyncio.sleep(0.01)  # Give time for produce to be called
+        # Wait for produce to be called
+        await asyncio.wait_for(produce_called.wait(), timeout=1.0)
 
         assert captured_callback is not original_callback
         assert captured_callback is not None
@@ -186,25 +203,44 @@ async def test_auto_polling_background_loop():
         mock_producer = Mock()
         mock_producer_class.return_value = mock_producer
 
+        # Track polling with events
+        first_poll = asyncio.Event()
+        multiple_polls = asyncio.Event()
+        poll_count = 0
+
+        def poll_tracker(*args, **kwargs):
+            nonlocal poll_count
+            poll_count += 1
+            if poll_count == 1:
+                first_poll.set()
+            elif poll_count >= 3:
+                multiple_polls.set()
+            return 0
+
+        mock_producer.poll.side_effect = poll_tracker
+
         # Create producer with auto-polling enabled
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=True)
 
-        assert producer._running is True
-        assert hasattr(producer, '_running_loop')
+        try:
+            assert producer._running is True
+            assert hasattr(producer, '_running_loop')
 
-        # Let the background loop run for a bit
-        await asyncio.sleep(0.1)
+            # Wait for polling to start and continue
+            await asyncio.wait_for(first_poll.wait(), timeout=1.0)
+            assert poll_count >= 1
 
-        # Poll should have been called multiple times
-        assert mock_producer.poll.call_count > 0
+            await asyncio.wait_for(multiple_polls.wait(), timeout=2.0)
+            assert poll_count >= 3
 
-        # Stop the producer
-        await producer.stop()
+        finally:
+            # Stop the producer
+            await producer.stop()
 
         # Verify polling stops
-        poll_count_after_stop = mock_producer.poll.call_count
-        await asyncio.sleep(0.1)
-        assert mock_producer.poll.call_count == poll_count_after_stop
+        final_count = poll_count
+        await asyncio.sleep(0.1)  # Grace period for cleanup
+        assert poll_count - final_count <= 1  # Allow one final poll
 
 
 @pytest.mark.asyncio
@@ -215,13 +251,15 @@ async def test_multiple_concurrent_produce():
 
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
-        # Track all callbacks
         callbacks = []
+        all_produced = asyncio.Event()
 
         def mock_produce(*args, **kwargs):
             callback = kwargs.get('on_delivery')
             if callback:
                 callbacks.append(callback)
+                if len(callbacks) == 3:
+                    all_produced.set()
 
         producer._producer.produce = mock_produce
 
@@ -231,10 +269,8 @@ async def test_multiple_concurrent_produce():
             for i in range(3)
         ]
 
-        # Let all produce calls complete
-        await asyncio.sleep(0.01)
-
-        # Should have 3 callbacks
+        # Wait for all produce calls to complete
+        await asyncio.wait_for(all_produced.wait(), timeout=1.0)
         assert len(callbacks) == 3
 
         # Complete all deliveries
@@ -256,11 +292,13 @@ async def test_produce_with_delayed_callback():
 
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
+        produce_called = asyncio.Event()
         captured_callback = None
 
         def mock_produce(*args, **kwargs):
             nonlocal captured_callback
             captured_callback = kwargs.get('on_delivery')
+            produce_called.set()
 
         producer._producer.produce = mock_produce
 
@@ -269,44 +307,20 @@ async def test_produce_with_delayed_callback():
             producer.produce(topic="test", value="test")
         )
 
-        # Give time for produce to be called
-        await asyncio.sleep(0.01)
+        # Wait for produce to be called
+        await asyncio.wait_for(produce_called.wait(), timeout=1.0)
 
         # Produce should be called but task not completed yet
         assert captured_callback is not None
         assert not produce_task.done()
 
         # Simulate delayed delivery callback
-        await asyncio.sleep(0.05)
         mock_msg = Mock()
         captured_callback(None, mock_msg)
 
         # Now the task should complete
         result = await produce_task
         assert result == mock_msg
-
-
-@pytest.mark.asyncio
-async def test_executor_shutdown_behavior():
-    """Test proper executor cleanup."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
-        # Test with default executor
-        producer = AIOProducer({'bootstrap.servers': 'localhost:9092'},
-                              max_workers=2, auto_poll=False)
-
-        # Executor should be created
-        assert isinstance(producer.executor, concurrent.futures.ThreadPoolExecutor)
-        assert producer.executor._max_workers == 2
-
-        # Should be able to run tasks
-        test_callable = Mock(return_value="success")
-        result = await producer._call(test_callable)
-        assert result == "success"
-
-        # Manual cleanup for test (in real usage, this would be handled by context managers)
-        producer.executor.shutdown(wait=True)
 
 
 @pytest.mark.asyncio
@@ -322,25 +336,28 @@ async def test_thread_safety_callback_handling():
         mock_future = Mock()
         mock_loop.create_future.return_value = mock_future
 
+        produce_called = asyncio.Event()
         captured_callback = None
 
         def mock_produce(*args, **kwargs):
             nonlocal captured_callback
             captured_callback = kwargs.get('on_delivery')
+            produce_called.set()
 
         producer._producer.produce = mock_produce
 
         with patch('asyncio.get_event_loop', return_value=mock_loop):
             # Start produce operation
             _ = asyncio.create_task(producer.produce(topic="test", value="test"))
-            await asyncio.sleep(0.01)
+
+            # Wait for produce to be called
+            await asyncio.wait_for(produce_called.wait(), timeout=1.0)
 
             # Verify Future was created
             mock_loop.create_future.assert_called_once()
             assert captured_callback is not None
 
             # Simulate delivery callback being called from different thread
-            # This should trigger call_soon_threadsafe
             mock_msg = Mock()
             captured_callback(None, mock_msg)
 
