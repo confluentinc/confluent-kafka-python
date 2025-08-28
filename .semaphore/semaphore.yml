@@ -316,7 +316,8 @@ blocks:
             - cd tests/docker && ./bin/cluster_up.sh
             
             # Wait for Kafka to be ready
-            - timeout 60 bash -c 'until docker-compose -f tests/docker/docker-compose.yaml exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do echo "Waiting for Kafka..."; sleep 5; done'
+            - timeout 600 bash -c 'until docker-compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do echo "Waiting for Kafka..."; sleep 5; done'
+            - echo "Kafka cluster is ready!"
             
             # Run standard ducktape tests with CI bounds
             - export BENCHMARK_BOUNDS_CONFIG=tests/ducktape/ci_bounds.json
@@ -324,7 +325,7 @@ blocks:
             - python run_ducktape_test.py
             
             # Cleanup
-            - cd ../../tests/docker && docker-compose down -v
+            - cd ../../tests/docker && docker-compose down -v || true
   - name: "Packaging"
     run:
       when: "tag =~ '.*'"
