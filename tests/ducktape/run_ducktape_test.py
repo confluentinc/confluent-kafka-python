@@ -9,7 +9,13 @@ import tempfile
 import argparse
 from datetime import datetime
 
-import ducktape
+try:
+    import ducktape
+except ImportError as e:
+    print("ERROR: ducktape is not installed or not importable.")
+    print(f"Import error: {e}")
+    print("Install it with: pip install ducktape")
+    sys.exit(1)
 
 
 def get_test_info(test_type):
@@ -50,7 +56,16 @@ def main():
     print(f"Timestamp: {datetime.now().isoformat()}")
     print("=" * 70)
 
-    print(f"Using ducktape version: {ducktape.__version__}")
+    try:
+        print(f"Using ducktape version: {ducktape.__version__}")
+    except AttributeError:
+        # Some ducktape versions don't have __version__, try alternative methods
+        try:
+            import pkg_resources
+            version = pkg_resources.get_distribution('ducktape').version
+            print(f"Using ducktape version: {version}")
+        except:
+            print("Using ducktape version: unknown")
 
     # Check if confluent_kafka is available
     try:
