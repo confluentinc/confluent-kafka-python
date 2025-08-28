@@ -316,8 +316,8 @@ blocks:
             - cd tests/docker
             - docker-compose up -d zookeeper kafka
             
-            # Wait for Kafka to be ready (simplified check)
-            - timeout 90 bash -c 'until docker-compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do echo "Waiting for Kafka..."; sleep 3; done'
+            # Wait for Kafka to be ready (extended timeout for CI)
+            - timeout 1800 bash -c 'until docker-compose exec -T kafka kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1; do echo "Waiting for Kafka..."; sleep 5; done'
             - echo "Kafka cluster is ready!"
             
             # Run standard ducktape tests with CI bounds
