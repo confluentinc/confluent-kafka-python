@@ -27,11 +27,11 @@ conflicts between projects.
 
 To setup a venv with the latest release version of confluent-kafka and dependencies of all examples installed:
 
-```
-$ python3 -m venv venv_examples
-$ source venv_examples/bin/activate
-$ pip install confluent_kafka
-$ pip install -r requirements/requirements-examples.txt
+```bash
+python3 -m venv venv_examples
+source venv_examples/bin/activate
+python3 -m pip install confluent_kafka
+python3 -m pip  install -r requirements/requirements-examples.txt
 ```
 
 To setup a venv that uses the current source tree version of confluent_kafka, you
@@ -39,14 +39,14 @@ need to have a C compiler and librdkafka installed
 ([from a package](https://github.com/edenhill/librdkafka#installing-prebuilt-packages), or
 [from source](https://github.com/edenhill/librdkafka#build-from-source)). Then:
 
-```
-$ python3 -m venv venv_examples
-$ source venv_examples/bin/activate
-$ pip install .[examples]
+```bash
+python3 -m venv venv_examples
+source venv_examples/bin/activate
+python3 -m pip install .[examples]
 ```
 
 When you're finished with the venv:
 
-```
-$ deactivate
+```bash
+deactivate
 ```
