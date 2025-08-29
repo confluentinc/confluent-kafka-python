@@ -34,3 +34,4 @@ venv_examples
 .coverage
 **/coverage.xml
 **/test-report.xml
+*.ducktape
