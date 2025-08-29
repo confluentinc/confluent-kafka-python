@@ -27,9 +27,11 @@ def create_cluster_config():
 
 def create_test_config():
     """Create test configuration file"""
+    import time
+    timestamp = int(time.time())
     config = {
         "ducktape_dir": os.path.dirname(os.path.abspath(__file__)),
-        "results_dir": os.path.join(tempfile.gettempdir(), "ducktape_results")
+        "results_dir": os.path.join(tempfile.gettempdir(), f"ducktape_results_{timestamp}")
     }
     return config
 
