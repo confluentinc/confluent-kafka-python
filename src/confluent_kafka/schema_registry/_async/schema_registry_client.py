@@ -763,8 +763,9 @@ class AsyncSchemaRegistryClient(object):
         if schema is not None:
             return schema
 
+        query = {}
         if fmt is not None:
-            query = {'format': fmt}
+            query['format'] = fmt
         response = await self._rest_client.get('schemas/guids/{}'.format(guid), query)
 
         registered_schema = RegisteredSchema.from_dict(response)
