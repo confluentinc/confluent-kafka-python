@@ -638,7 +638,7 @@ static PyMethodDef Producer_methods[] = {
 	  "  :rtype: int\n"
 	  "\n"
 	},
-	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS
+	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: close()\n"
           "\n"
 	  "   Close and destroy the producer instance.\n"
