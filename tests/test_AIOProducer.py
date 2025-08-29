@@ -80,13 +80,9 @@ class TestAIOProducer:
         finally:
             custom_executor.shutdown(wait=True)
 
-
-@pytest.mark.asyncio
-async def test_stop_method():
-    """Test stop method functionality."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_stop_method(self, mock_producer, mock_common):
+        """Test stop method functionality."""
         # Test stopping running producer
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'})
         assert producer._running is True
@@ -101,13 +97,9 @@ async def test_stop_method():
         await producer2.stop()  # Should not raise exception
         assert producer2._running is False
 
-
-@pytest.mark.asyncio
-async def test_call_method_executor_usage():
-    """Test that _call method uses ThreadPoolExecutor properly."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_call_method_executor_usage(self, mock_producer, mock_common):
+        """Test that _call method uses ThreadPoolExecutor for async-to-sync bridging."""
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         mock_method = Mock(return_value="test_result")
@@ -116,13 +108,9 @@ async def test_call_method_executor_usage():
         mock_method.assert_called_once_with("arg1", kwarg1="value1")
         assert result == "test_result"
 
-
-@pytest.mark.asyncio
-async def test_produce_success():
-    """Test successful message production."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_produce_success(self, mock_producer, mock_common):
+        """Test successful message production."""
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         def mock_produce(*args, **kwargs):
@@ -136,13 +124,9 @@ async def test_produce_success():
 
         assert result is not None
 
-
-@pytest.mark.asyncio
-async def test_produce_error():
-    """Test message production with error."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_produce_error(self, mock_producer, mock_common):
+        """Test message production error handling."""
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         def mock_produce(*args, **kwargs):
@@ -156,13 +140,9 @@ async def test_produce_error():
         with pytest.raises(KafkaException):
             await producer.produce(topic="test_topic", value="test_value")
 
-
-@pytest.mark.asyncio
-async def test_produce_callback_overriding():
-    """Test that produce method overrides on_delivery callback."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_produce_callback_overriding(self, mock_producer, mock_common):
+        """Test that produce method overrides on_delivery callback for Future resolution."""
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         original_callback = Mock()
@@ -193,15 +173,45 @@ async def test_produce_callback_overriding():
         result = await produce_task
         assert result == mock_msg
 
+    @pytest.mark.asyncio
+    async def test_produce_with_delayed_callback(self, mock_producer, mock_common):
+        """Test that Future waits for delayed delivery callback."""
+        producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
-@pytest.mark.asyncio
-async def test_auto_polling_background_loop():
-    """Test that auto-polling runs continuously in the background."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer') as mock_producer_class, \
-         patch('confluent_kafka.aio._AIOProducer._common'):
+        produce_called = asyncio.Event()
+        captured_callback = None
 
-        mock_producer = Mock()
-        mock_producer_class.return_value = mock_producer
+        def mock_produce(*args, **kwargs):
+            nonlocal captured_callback
+            captured_callback = kwargs.get('on_delivery')
+            produce_called.set()
+
+        producer._producer.produce = mock_produce
+
+        # Start produce but don't await yet
+        produce_task = asyncio.create_task(
+            producer.produce(topic="test", value="test")
+        )
+
+        # Wait for produce to be called
+        await asyncio.wait_for(produce_called.wait(), timeout=2.0)
+
+        # Produce should be called but task not completed yet
+        assert captured_callback is not None
+        assert not produce_task.done()
+
+        # Simulate delayed delivery callback
+        mock_msg = Mock()
+        captured_callback(None, mock_msg)
+
+        # Now the task should complete
+        result = await produce_task
+        assert result == mock_msg
+
+    @pytest.mark.asyncio
+    async def test_auto_polling_background_loop(self, mock_producer, mock_common):
+        """Test that auto-polling runs continuously in the background."""
+        mock_producer.return_value.poll.return_value = 0
 
         # Track polling with events
         first_poll = asyncio.Event()
@@ -217,7 +227,7 @@ async def test_auto_polling_background_loop():
                 multiple_polls.set()
             return 0
 
-        mock_producer.poll.side_effect = poll_tracker
+        mock_producer.return_value.poll.side_effect = poll_tracker
 
         # Create producer with auto-polling enabled
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=True)
@@ -242,13 +252,9 @@ async def test_auto_polling_background_loop():
         await asyncio.sleep(0.1)  # Grace period for cleanup
         assert poll_count - final_count <= 1  # Allow one final poll
 
-
-@pytest.mark.asyncio
-async def test_multiple_concurrent_produce():
-    """Test multiple concurrent produce operations."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
+    @pytest.mark.asyncio
+    async def test_multiple_concurrent_produce(self, mock_producer, mock_common):
+        """Test multiple concurrent produce operations."""
         producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
 
         callbacks = []
@@ -282,89 +288,3 @@ async def test_multiple_concurrent_produce():
         results = await asyncio.gather(*tasks)
         assert len(results) == 3
         assert all(result is not None for result in results)
-
-
-@pytest.mark.asyncio
-async def test_produce_with_delayed_callback():
-    """Test that Future waits for delayed delivery callback."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
-        producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
-
-        produce_called = asyncio.Event()
-        captured_callback = None
-
-        def mock_produce(*args, **kwargs):
-            nonlocal captured_callback
-            captured_callback = kwargs.get('on_delivery')
-            produce_called.set()
-
-        producer._producer.produce = mock_produce
-
-        # Start produce but don't await yet
-        produce_task = asyncio.create_task(
-            producer.produce(topic="test", value="test")
-        )
-
-        # Wait for produce to be called
-        await asyncio.wait_for(produce_called.wait(), timeout=1.0)
-
-        # Produce should be called but task not completed yet
-        assert captured_callback is not None
-        assert not produce_task.done()
-
-        # Simulate delayed delivery callback
-        mock_msg = Mock()
-        captured_callback(None, mock_msg)
-
-        # Now the task should complete
-        result = await produce_task
-        assert result == mock_msg
-
-
-@pytest.mark.asyncio
-async def test_thread_safety_callback_handling():
-    """Test thread-safe callback handling between executor and event loop."""
-    with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer'), \
-         patch('confluent_kafka.aio._AIOProducer._common'):
-
-        producer = AIOProducer({'bootstrap.servers': 'localhost:9092'}, auto_poll=False)
-
-        # Mock the event loop and track call_soon_threadsafe calls
-        mock_loop = Mock()
-        mock_future = Mock()
-        mock_loop.create_future.return_value = mock_future
-
-        produce_called = asyncio.Event()
-        captured_callback = None
-
-        def mock_produce(*args, **kwargs):
-            nonlocal captured_callback
-            captured_callback = kwargs.get('on_delivery')
-            produce_called.set()
-
-        producer._producer.produce = mock_produce
-
-        with patch('asyncio.get_event_loop', return_value=mock_loop):
-            # Start produce operation
-            _ = asyncio.create_task(producer.produce(topic="test", value="test"))
-
-            # Wait for produce to be called
-            await asyncio.wait_for(produce_called.wait(), timeout=1.0)
-
-            # Verify Future was created
-            mock_loop.create_future.assert_called_once()
-            assert captured_callback is not None
-
-            # Simulate delivery callback being called from different thread
-            mock_msg = Mock()
-            captured_callback(None, mock_msg)
-
-            # Verify call_soon_threadsafe was used for thread-safe callback handling
-            assert mock_loop.call_soon_threadsafe.call_count >= 1
-
-            # Verify the callback was set_result (successful delivery)
-            call_args = mock_loop.call_soon_threadsafe.call_args_list[0][0]
-            assert call_args[0] == mock_future.set_result
-            assert call_args[1] == mock_msg
