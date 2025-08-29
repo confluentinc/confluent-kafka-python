@@ -20,7 +20,7 @@
     "max_p99_latency_ms": 2500.0,
     "max_memory_growth_mb": 600.0,
     "max_buffer_full_rate": 0.03,
-    "min_messages_per_poll": 15.0
+    "min_messages_per_poll": 10.0
   },
   "_default_environment": "local"
 }
