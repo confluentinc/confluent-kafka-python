@@ -130,7 +130,9 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 **Install self-contained binary wheels**
 
-    $ pip install confluent-kafka
+```bash
+pip install confluent-kafka
+```
 
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
@@ -140,19 +142,27 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 To use Schema Registry with the Avro serializer/deserializer:
 
-    $ pip install "confluent-kafka[avro,schemaregistry]"
+```bash
+pip install "confluent-kafka[avro,schemaregistry]"
+```
 
 To use Schema Registry with the JSON serializer/deserializer:
 
-    $ pip install "confluent-kafka[json,schemaregistry]"
+```bash
+pip install "confluent-kafka[json,schemaregistry]"
+```
 
 To use Schema Registry with the Protobuf serializer/deserializer:
 
-    $ pip install "confluent-kafka[protobuf,schemaregistry]"
+```bash
+pip install "confluent-kafka[protobuf,schemaregistry]"
+```
 
 When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
 
-    $ pip install "confluent-kafka[avro,schemaregistry,rules]"
+```bash
+pip install "confluent-kafka[avro,schemaregistry,rules]"
+```
 
 **Install from source**
 
