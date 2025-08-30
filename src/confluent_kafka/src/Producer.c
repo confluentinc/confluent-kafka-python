@@ -407,8 +407,9 @@ static PyObject *Producer_close(Handle *self, PyObject *args,
         int outq_len = rd_kafka_outq_len(self->rk);
         if (outq_len > 0) {
             fprintf(stderr,
-                 "Warning: %d message(s) still in producer queue during close()",
+                 "%% There are %d message(s) still in producer queue..\n",
                  outq_len);
+
         }
 
         rd_kafka_destroy(self->rk);
