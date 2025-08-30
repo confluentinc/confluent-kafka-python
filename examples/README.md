@@ -14,6 +14,7 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 * [sasl_producer.py](sasl_producer.py):  Demonstrates SASL Authentication.
 * [get_watermark_offsets.py](get_watermark_offsets.py): Consumer method for listing committed offsets and consumer lag for group and topics.
 * [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
+* [seek_specific_offset_partition.py](seek_specific_offset_partition.py): Demonstrates usage of seek method to fetch specfic offset messages from specific partition for consumer.  
 
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 
