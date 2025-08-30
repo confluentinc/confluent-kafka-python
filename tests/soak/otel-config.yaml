@@ -1,0 +1,34 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+
+processors:
+  batch:
+    send_batch_max_size: 100
+    send_batch_size: 10
+    timeout: 10s
+
+extensions:
+  sigv4auth:
+    region: us-west-2
+    service: aps
+    assume_role:
+      arn: FILL_IN_ROLE_ARN_HERE
+
+exporters:
+  prometheusremotewrite:
+    endpoint: FILL_IN_REMOTE_WRITE_ENDPOINT_HERE
+    auth:
+      authenticator: sigv4auth
+
+service:
+  extensions: [sigv4auth]
+  telemetry:
+    logs:
+      level: "debug"
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [prometheusremotewrite]
