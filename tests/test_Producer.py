@@ -47,6 +47,8 @@ def test_basic_api():
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
+    p.close()
+
 
 def test_produce_timestamp():
     """ Test produce() with timestamp arg """
