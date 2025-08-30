@@ -13,8 +13,11 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 # Run all tests with integrated performance metrics
 ./tests/ducktape/run_ducktape_test.py
 
-# Run specific test with metrics
-./tests/ducktape/run_ducktape_test.py SimpleProducerTest.test_basic_produce
+# Run all tests in a file
+./tests/ducktape/run_ducktape_test.py test_producer.py
+
+# Run a specific test with metrics
+./tests/ducktape/run_ducktape_test.py test_producer.py SimpleProducerTest.test_basic_produce
 ```
 
 ## Test Cases
