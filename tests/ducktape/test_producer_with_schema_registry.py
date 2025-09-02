@@ -29,8 +29,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
         self.logger.info("Verifying connection to external Kafka at localhost:9092")
 
         if not self.kafka.verify_connection():
-            raise ConnectionError("Cannot connect to Kafka at localhost:9092. "
-                            "Please ensure Kafka is running.")
+            raise ConnectionError("Cannot connect to Kafka at localhost:9092. Please ensure Kafka is running.")
 
         self.logger.info("Successfully connected to Kafka")
 
@@ -56,7 +55,8 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
         self.logger.info("Successfully completed %s test with comprehensive metrics", serialization_type)
 
-    def produce_messages_with_serialization(self, producer, topic_name, serializer, string_serializer, test_duration, message_value_func, serialization_type):
+    def produce_messages_with_serialization(self, producer, topic_name, serializer, string_serializer,
+                                            test_duration, message_value_func, serialization_type):
         """Produce messages using the given serializer with comprehensive metrics collection"""
         # Initialize metrics collection and bounds
         metrics = MetricsCollector()
@@ -97,7 +97,9 @@ class SimpleProducerTestWithSchemaRegistry(Test):
             try:
                 # Calculate message size for metrics
                 serialized_key = string_serializer(message_key)
-                serialized_value = serializer(message_value, SerializationContext(topic_name, MessageField.VALUE))
+                serialized_value = serializer(
+                    message_value, SerializationContext(topic_name, MessageField.VALUE)
+                )
                 message_size = len(serialized_key) + len(serialized_value)
 
                 # Record message being sent with metrics
@@ -159,7 +161,8 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
         # Create serializers
         string_serializer = StringSerializer('utf8')
-        avro_serializer = AvroSerializer(schema_registry_client=self.schema_registry_client, schema_str=avro_schema_str)
+        avro_serializer = AvroSerializer(schema_registry_client=self.schema_registry_client,
+                                         schema_str=avro_schema_str)
 
         # Configure producer
         producer_config = {
@@ -238,7 +241,9 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
         # Create serializers
         string_serializer = StringSerializer('utf8')
-        protobuf_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, self.schema_registry_client)
+        protobuf_serializer = ProtobufSerializer(
+            PublicTestProto_pb2.TestMessage, self.schema_registry_client
+        )
 
         # Configure producer
         producer_config = {
@@ -257,7 +262,7 @@ class SimpleProducerTestWithSchemaRegistry(Test):
             string_serializer,
             test_duration,
             lambda _: PublicTestProto_pb2.TestMessage(
-                test_string=f"example string",
+                test_string="example string",
                 test_bool=True,
                 test_bytes=b'example bytes',
                 test_double=1.0,
