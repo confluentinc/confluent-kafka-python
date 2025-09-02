@@ -1,16 +1,37 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import gc
+import json
 import pytest
-from struct import pack
-
 from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
+from struct import pack
+from time import sleep
 
 from tests.common import TestConsumer
 
 
 def error_cb(err):
     print('error_cb', err)
+
+
+class MockHandler:
+    def __init__(self, *args, **kwargs):
+        self.conf = {
+            'debug': 'all',
+            'socket.timeout.ms': 10,
+            'error_cb': error_cb,
+            'message.timeout.ms': 10
+        }
+        self.producer = Producer(self.conf)
+
+    def recreate_producer(self):
+        prior_producer = self.producer
+        prior_producer.flush(10)
+        # prior_producer.close()
+        # del prior_producer
+        # gc.collect()  # technically redundant, since garbage collection will happen after the method returns
+        self.producer = Producer(self.conf)
 
 
 def test_basic_api():
@@ -285,3 +306,15 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+
+
+def test_producer_recreation():
+
+    i = 0
+    while i < 20:
+        sleep(0.025)
+        handler = MockHandler()
+        msg = {"test": "test"}
+        handler.producer.produce(json.dumps(msg))
+        handler.recreate_producer()
+        i += 1

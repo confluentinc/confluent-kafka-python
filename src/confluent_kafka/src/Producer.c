@@ -101,6 +101,7 @@ static void Producer_dealloc (Handle *self) {
                 CallState_begin(self, &cs);
 
                 rd_kafka_destroy(self->rk);
+//                fprintf(stderr, "Destroyed producer");
 
                 CallState_end(self, &cs);
         }
@@ -406,13 +407,29 @@ static PyObject *Producer_close(Handle *self, PyObject *args,
         /* Warn if there are pending messages */
         int outq_len = rd_kafka_outq_len(self->rk);
         if (outq_len > 0) {
-            fprintf(stderr,
-                 "%% There are %d message(s) still in producer queue..\n",
-                 outq_len);
-
+            const char msg[150];
+            sprintf(msg, "There are %d message(s) still in producer queue! "
+                    "Use flush() or wait for delivery.", outq_len);
+            rd_kafka_log_print(
+                self->rk,
+                CK_LOG_WARNING,
+                "CLOSWARN",
+                msg
+            );
         }
 
-        rd_kafka_destroy(self->rk);
+        if (self->rk) {
+            rd_kafka_destroy(self->rk);
+
+             // Destroy with flags
+//            rd_kafka_destroy_flags(self->rk, 0x2); // destroy called
+// rd_kafka_destroy_flags(self->rk, 0x4); // immediate
+
+            rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Destroyed producer");
+        } else {
+             rd_kafka_log_print(self->rk, CK_LOG_WARNING, "CLOSEWARN",
+                "%% No underlying producer instance available to clean up.\n");
+        }
 
         self->rk = NULL;
 
@@ -422,6 +439,10 @@ static PyObject *Producer_close(Handle *self, PyObject *args,
         Py_RETURN_NONE;
 }
 
+
+static PyObject *Producer_id(Handle *self, PyObject *args,
+                                PyObject *kwargs) {
+}
 
 static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
