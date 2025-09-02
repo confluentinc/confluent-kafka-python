@@ -11,13 +11,8 @@ from confluent_kafka.serialization import MessageField, SerializationContext, St
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
+from confluent_kafka import Producer
 
-try:
-    from confluent_kafka import Producer
-except ImportError:
-    # Handle case where confluent_kafka is not installed
-    Producer = None
-    KafkaError = None
 
 class SimpleProducerTestWithSchemaRegistry(Test):
     """Test producer functionality with Schema Registry integration"""
@@ -143,10 +138,6 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
     def test_basic_produce_with_avro_serialization(self):
         """Test producing messages with Avro serialization using Schema Registry"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
-
         topic_name = "test-topic-schema-registry"
         test_duration = 5.0  # 5 seconds
 
@@ -192,10 +183,6 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
     def test_basic_produce_with_json_serialization(self):
         """Test producing messages with JSON serialization using Schema Registry"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
-
         topic_name = "test-topic-json-serialization"
         test_duration = 5.0  # 5 seconds
 
@@ -241,10 +228,6 @@ class SimpleProducerTestWithSchemaRegistry(Test):
 
     def test_basic_produce_with_protobuf_serialization(self):
         """Test producing messages with Protobuf serialization using Schema Registry"""
-        if Producer is None:
-            self.logger.error("confluent_kafka not available, skipping test")
-            return
-
         topic_name = "test-topic-protobuf-serialization"
         test_duration = 5.0  # 5 seconds
 
