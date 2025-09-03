@@ -101,7 +101,6 @@ static void Producer_dealloc (Handle *self) {
                 CallState_begin(self, &cs);
 
                 rd_kafka_destroy(self->rk);
-//                fprintf(stderr, "Destroyed producer");
 
                 CallState_end(self, &cs);
         }
@@ -395,12 +394,25 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 }
 
 
-static PyObject *Producer_close(Handle *self, PyObject *args,
-                                PyObject *kwargs) {
+static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
+
+        double tmout_seconds = 5.0;
+        static char *kws[] = { "timeout", NULL };
+
         CallState cs;
 
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout_seconds)) {
+            PyErr_SetString(PyExc_ValueError, "Unable to parse arguments");
+            return NULL;
+        }
+
+        if (tmout_seconds < 0) {
+            PyErr_SetString(PyExc_ValueError, "timeout must be >= 0");
+            return NULL;
+        }
+
         if (!self->rk)
-            Py_RETURN_NONE;
+            return NULL;
 
         CallState_begin(self, &cs);
 
@@ -417,18 +429,18 @@ static PyObject *Producer_close(Handle *self, PyObject *args,
                 msg
             );
         }
+        rd_kafka_destroy(self->rk);
+        rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Producer destroy requested");
 
-        if (self->rk) {
-            rd_kafka_destroy(self->rk);
+        int destroyed = rd_kafka_wait_destroyed(cfl_timeout_ms(tmout_seconds));
 
-             // Destroy with flags
-//            rd_kafka_destroy_flags(self->rk, 0x2); // destroy called
-// rd_kafka_destroy_flags(self->rk, 0x4); // immediate
-
-            rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Destroyed producer");
-        } else {
-             rd_kafka_log_print(self->rk, CK_LOG_WARNING, "CLOSEWARN",
-                "%% No underlying producer instance available to clean up.\n");
+        if (destroyed != 0) {
+            rd_kafka_log_print(
+                self->rk,
+                CK_LOG_WARNING,
+                "CLOSEERR",
+                "Could not verify destroy completed within the timeout."
+            );
         }
 
         self->rk = NULL;
@@ -436,7 +448,10 @@ static PyObject *Producer_close(Handle *self, PyObject *args,
         if (!CallState_end(self, &cs))
             return NULL;
 
-        Py_RETURN_NONE;
+        if (destroyed == 0)
+            Py_RETURN_TRUE;
+
+        Py_RETURN_FALSE;
 }
 
 
@@ -661,13 +676,14 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: close()\n"
+          ".. py:function:: close([timeout])\n"
           "\n"
-	  "   Close and destroy the producer instance.\n"
-	  "   This should be called to ensure proper cleanup of the producer. \n"
-	  "   Supports live credential rotation use cases and prevents memory leaks. \n"
+	  "   Close and destroy the producer resources on demand.\n"
+	  "   Prevents zombie producers from living on if not properly cleaned up via automatic garbage collection.\n"
+      "  :param float timeout: How long to wait for the underlying resources to be cleaned up [seconds]. Defaults to 5.\n"
 	  "\n"
-      "  :rtype: None\n"
+      "  :rtype: bool\n"
+      "  :returns: True if all producers are cleaned up within the provided timeout, False otherwise\n"
       "\n"
 	},
 	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
