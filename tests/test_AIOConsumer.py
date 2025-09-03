@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 import concurrent.futures
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import Mock, patch
 
 from confluent_kafka import TopicPartition
 from confluent_kafka.aio._AIOConsumer import AIOConsumer
@@ -34,20 +34,17 @@ class TestAIOConsumer:
         }
 
     @pytest.mark.asyncio
-    async def test_constructor_behavior(self, mock_consumer, mock_common, basic_config):
-        """Test constructor creates consumer with correct configuration."""
+    async def test_constructor_executor_handling(self, mock_consumer, mock_common, basic_config):
+        """Test constructor correctly handles custom executor vs max_workers parameter."""
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         try:
-            # Test with custom executor
-            consumer = AIOConsumer(basic_config, max_workers=2, executor=custom_executor)
+            # When using custom executor, max_workers of executor should be left unchanged
+            consumer1 = AIOConsumer(basic_config, max_workers=2, executor=custom_executor)
+            assert consumer1.executor is custom_executor
+            assert consumer1.executor._max_workers == 4
 
-            assert consumer.executor is custom_executor
-            assert consumer.executor._max_workers == 4
-            assert hasattr(consumer, '_consumer')
-
-            # Test with default executor
+            # When using default executor, max_workers of executor should be set to max_workers parameter
             consumer2 = AIOConsumer(basic_config, max_workers=3)
-            assert consumer2.executor is not custom_executor
             assert consumer2.executor._max_workers == 3
 
         finally:
