@@ -455,10 +455,6 @@ static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) 
 }
 
 
-static PyObject *Producer_id(Handle *self, PyObject *args,
-                                PyObject *kwargs) {
-}
-
 static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
