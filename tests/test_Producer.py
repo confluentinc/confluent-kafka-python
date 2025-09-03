@@ -67,7 +67,7 @@ def test_basic_api():
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
-    p.close()
+    assert p.close(), "Failed to validate that producer was closed."
 
 
 def test_produce_timestamp():
@@ -261,6 +261,8 @@ def test_transaction_api():
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_purge():
     """
@@ -296,6 +298,8 @@ def test_purge():
     p.flush(0.002)
     assert cb_detector["on_delivery_called"]
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_producer_bool_value():
     """
@@ -305,11 +309,12 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+    assert p.close(), "The producer was not fully closed"
 
 
 @pytest.mark.parametrize("timeout,destroyed_expected,exception_expected", [
+    (10.0, True, None),
     (5.0, True, None),
-    (5, True, None),
     (-100, None, ValueError),
     ("wrong", None, ValueError)
 ])
