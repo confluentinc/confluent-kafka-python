@@ -25,13 +25,12 @@ class MockHandler:
         }
         self.producer = Producer(self.conf)
 
-    def recreate_producer(self):
+    def recreate_producer(self, timeout: float) -> bool:
         prior_producer = self.producer
         prior_producer.flush(10)
-        # prior_producer.close()
-        # del prior_producer
-        # gc.collect()  # technically redundant, since garbage collection will happen after the method returns
+        destroyed = prior_producer.close(timeout=timeout)
         self.producer = Producer(self.conf)
+        return destroyed
 
 
 def test_basic_api():
@@ -308,13 +307,23 @@ def test_producer_bool_value():
     assert bool(p)
 
 
-def test_producer_recreation():
+@pytest.mark.parametrize("timeout,destroyed_expected,exception_expected", [
+    (5.0, True, None),
+    (5, True, None),
+    (-100, None, ValueError),
+    ("wrong", None, ValueError)
+])
+def test_producer_close(timeout, destroyed_expected, exception_expected):
+    """
+    Ensures the producer is fully cleaned up when closed before being recreated
+    """
 
-    i = 0
-    while i < 20:
-        sleep(0.025)
-        handler = MockHandler()
-        msg = {"test": "test"}
-        handler.producer.produce(json.dumps(msg))
-        handler.recreate_producer()
-        i += 1
+    handler = MockHandler()
+    msg = {"test": "test"}
+    handler.producer.produce(json.dumps(msg))
+    if exception_expected is not None:
+        with pytest.raises(exception_expected):
+            _ = handler.recreate_producer(timeout)
+    else:
+        destroyed_actual = handler.recreate_producer(timeout)
+        assert destroyed_actual == destroyed_expected
