@@ -43,6 +43,9 @@ from ._types import HeadersType
 if TYPE_CHECKING:
     from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
+# Type aliases for common patterns
+ConfigDict = Dict[str, Union[str, int, float, bool]]
+
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
 RebalanceCallback = Callable[['Consumer', List['TopicPartition']], None]
@@ -73,8 +76,9 @@ class KafkaError:
     def __ge__(self, other: Union['KafkaError', int]) -> bool: ...
 
 class KafkaException(Exception):
-    def __init__(self, *args: Any, **kwargs: Any) -> None: ...
-    args: Tuple[Any, ...]
+    def __init__(self, kafka_error: KafkaError) -> None: ...
+    @property
+    def args(self) -> Tuple[KafkaError, ...]: ...
 
 class Message:
     def topic(self) -> str: ...
@@ -88,8 +92,8 @@ class Message:
     def latency(self) -> Optional[float]: ...
     def leader_epoch(self) -> Optional[int]: ...
     def set_headers(self, headers: HeadersType) -> None: ...
-    def set_key(self, key: Any) -> None: ...
-    def set_value(self, value: Any) -> None: ...
+    def set_key(self, key: bytes) -> None: ...
+    def set_value(self, value: bytes) -> None: ...
     def __len__(self) -> int: ...
 
 class TopicPartition:
@@ -115,7 +119,7 @@ class Uuid:
     def __eq__(self, other: object) -> bool: ...
 
 class Producer:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
+    def __init__(self, config: ConfigDict) -> None: ...
     def produce(
         self,
         topic: str,
@@ -124,7 +128,7 @@ class Producer:
         partition: int = -1,
         callback: Optional[DeliveryCallback] = None,
         on_delivery: Optional[DeliveryCallback] = None,
-        timestamp: int = 0,
+        timestamp: Optional[int] = None,
         headers: Optional[HeadersType] = None
     ) -> None: ...
     def produce_batch(
@@ -142,7 +146,7 @@ class Producer:
         in_queue: bool = True,
         in_flight: bool = True,
         blocking: bool = True
-    ) -> None: ...
+    ) -> int: ...
     def abort_transaction(self, timeout: float = -1) -> None: ...
     def begin_transaction(self) -> None: ...
     def commit_transaction(self, timeout: float = -1) -> None: ...
@@ -159,7 +163,7 @@ class Producer:
     def __bool__(self) -> bool: ...
 
 class Consumer:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool, None]]) -> None: ...
+    def __init__(self, config: ConfigDict) -> None: ...
     def subscribe(
         self,
         topics: List[str],
@@ -187,6 +191,11 @@ class Consumer:
         offsets: Optional[List[TopicPartition]] = None,
         asynchronous: Literal[False] = False
     ) -> List[TopicPartition]: ...
+    def committed(
+        self,
+        partitions: List[TopicPartition],
+        timeout: float = -1
+    ) -> List[TopicPartition]: ...
     def get_watermark_offsets(
         self,
         partition: TopicPartition,
@@ -202,11 +211,6 @@ class Consumer:
         message: Optional['Message'] = None,
         offsets: Optional[List[TopicPartition]] = None
     ) -> None: ...
-    def committed(
-        self,
-        partitions: List[TopicPartition],
-        timeout: float = -1
-    ) -> List[TopicPartition]: ...
     def close(self) -> None: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def offsets_for_times(
@@ -222,7 +226,7 @@ class Consumer:
     def __bool__(self) -> bool: ...
 
 class _AdminClientImpl:
-    def __init__(self, config: Dict[str, Union[str, int, float, bool]]) -> None: ...
+    def __init__(self, config: ConfigDict) -> None: ...
     def create_topics(
         self,
         topics: List['NewTopic'],
@@ -248,8 +252,8 @@ class _AdminClientImpl:
     ) -> None: ...
     def describe_topics(
         self,
+        topics: List[str],
         future: Any,
-        topic_names: List[str],
         request_timeout: float = -1,
         include_authorized_operations: bool = False
     ) -> None: ...
@@ -271,7 +275,7 @@ class _AdminClientImpl:
     ) -> List[GroupMetadata]: ...
     def describe_consumer_groups(
         self,
-        group_ids: List[str],
+        groups: List[str],
         future: Any,
         request_timeout: float = -1,
         include_authorized_operations: bool = False
@@ -279,15 +283,13 @@ class _AdminClientImpl:
     def list_consumer_groups(
         self,
         future: Any,
-        states_int: Optional[List[int]] = None,
-        types_int: Optional[List[int]] = None,
-        request_timeout: float = -1
+        request_timeout: float = -1,
+        states: Optional[List[str]] = None
     ) -> None: ...
     def list_consumer_group_offsets(
         self,
         request: Any,  # ConsumerGroupTopicPartitions
         future: Any,
-        require_stable: bool = False,
         request_timeout: float = -1
     ) -> None: ...
     def alter_consumer_group_offsets(
@@ -298,7 +300,7 @@ class _AdminClientImpl:
     ) -> None: ...
     def delete_consumer_groups(
         self,
-        group_ids: List[str],
+        groups: List[str],
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
@@ -310,13 +312,13 @@ class _AdminClientImpl:
     ) -> None: ...
     def describe_acls(
         self,
-        acl_binding_filter: Any,  # AclBindingFilter
+        acl_filter: Any,  # AclBindingFilter
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
     def delete_acls(
         self,
-        acls: List[Any],  # List[AclBindingFilter]
+        acl_filters: List[Any],  # List[AclBindingFilter]
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
@@ -325,23 +327,22 @@ class _AdminClientImpl:
         resources: List[Any],  # List[ConfigResource]
         future: Any,
         request_timeout: float = -1,
-        broker: int = -1
+        include_synonyms: bool = False,
+        include_documentation: bool = False
     ) -> None: ...
     def alter_configs(
         self,
-        resources: List[Any],  # List[ConfigResource]
+        resources: Dict[Any, Dict[str, str]],  # Dict[ConfigResource, Dict[str, str]]
         future: Any,
-        validate_only: bool = False,
         request_timeout: float = -1,
-        broker: int = -1
+        validate_only: bool = False
     ) -> None: ...
     def incremental_alter_configs(
         self,
-        resources: List[Any],  # List[ConfigResource]
+        resources: Dict[Any, Dict[str, Any]],  # Dict[ConfigResource, Dict[str, ConfigEntry]]
         future: Any,
-        validate_only: bool = False,
         request_timeout: float = -1,
-        broker: int = -1
+        validate_only: bool = False
     ) -> None: ...
     def describe_user_scram_credentials(
         self,
@@ -359,25 +360,23 @@ class _AdminClientImpl:
         self,
         topic_partitions: List[TopicPartition],
         future: Any,
-        isolation_level_value: Optional[int] = None,
-        request_timeout: float = -1
+        request_timeout: float = -1,
+        isolation_level: Optional[int] = None
     ) -> None: ...
     def delete_records(
         self,
-        topic_partition_offsets: List[TopicPartition],
+        topic_partitions: List[TopicPartition],
         future: Any,
-        request_timeout: float = -1,
-        operation_timeout: float = -1
+        request_timeout: float = -1
     ) -> None: ...
     def elect_leaders(
         self,
-        election_type: int,
-        partitions: Optional[List[TopicPartition]],
+        topic_partitions: Optional[List[TopicPartition]],
         future: Any,
         request_timeout: float = -1,
-        operation_timeout: float = -1
+        election_type: int = 0
     ) -> None: ...
-    def poll(self, timeout: float = -1) -> int: ...
+    def poll(self, timeout: float = -1) -> Any: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
 
 class NewTopic:
