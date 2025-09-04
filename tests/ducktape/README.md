@@ -5,8 +5,8 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 ## Prerequisites
 
 - `pip install ducktape confluent-kafka psutil`
-- Kafka running on `localhost:9092` (PLAINTEXT listener)
-- Schema Registry running on `localhost:8081` (optional, for schema-related tests)
+- Kafka running on `localhost:9092` (PLAINTEXT listener - ducktape tests use the simple port)
+- Schema Registry running on `localhost:8081` (uses `host.docker.internal:29092` for Kafka connection)
 
 ## Running Tests
 
