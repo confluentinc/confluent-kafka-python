@@ -317,9 +317,9 @@ blocks:
             # Store project root for reliable navigation
             - PROJECT_ROOT="${PWD}"
             
-            # Start Kafka cluster using dedicated ducktape compose file (KRaft mode)
+            # Start Kafka cluster and Schema Registry using dedicated ducktape compose file (KRaft mode)
             - cd "${PROJECT_ROOT}/tests/docker"
-            - docker-compose -f docker-compose.ducktape.yml up -d kafka
+            - docker-compose -f docker-compose.ducktape.yml up -d kafka schema-registry
             
             # Debug: Check container status and logs
             - echo "=== Container Status ==="
@@ -327,7 +327,7 @@ blocks:
             - echo "=== Kafka Logs ==="
             - docker-compose -f docker-compose.ducktape.yml logs kafka | tail -50
             
-            # Wait for Kafka to be ready
+            # Wait for Kafka to be ready (using PLAINTEXT listener for external access)
             - |
               timeout 1800 bash -c '
                 counter=0
@@ -347,6 +347,28 @@ blocks:
                 done
               '
             - echo "Kafka cluster is ready!"
+            
+            # Wait for Schema Registry to be ready
+            - echo "=== Waiting for Schema Registry ==="
+            - |
+              timeout 300 bash -c '
+                counter=0
+                until curl -f http://localhost:8081/subjects >/dev/null 2>&1; do 
+                  echo "Waiting for Schema Registry... (attempt $((counter+1)))"
+                  
+                  # Show logs every 3rd attempt (every 15 seconds)
+                  if [ $((counter % 3)) -eq 0 ] && [ $counter -gt 0 ]; then
+                    echo "=== Recent Schema Registry Logs ==="
+                    docker-compose -f docker-compose.ducktape.yml logs --tail=10 schema-registry
+                    echo "=== Schema Registry Container Status ==="
+                    docker-compose -f docker-compose.ducktape.yml ps schema-registry
+                  fi
+                  
+                  counter=$((counter+1))
+                  sleep 5
+                done
+              '
+            - echo "Schema Registry is ready!"
             
             # Run standard ducktape tests with CI bounds
             - cd "${PROJECT_ROOT}" && PYTHONPATH="${PROJECT_ROOT}" python tests/ducktape/run_ducktape_test.py
