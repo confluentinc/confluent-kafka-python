@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional, Callable, List
 
 from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
 from .error import (ConsumeError,
@@ -24,6 +24,7 @@ from .error import (ConsumeError,
                     ValueDeserializationError)
 from .serialization import (SerializationContext,
                             MessageField)
+from ._types import ConfigDict, Deserializer
 
 
 class DeserializingConsumer(_ConsumerImpl):
@@ -72,14 +73,14 @@ class DeserializingConsumer(_ConsumerImpl):
         ValueError: if configuration validation fails
     """  # noqa: E501
 
-    def __init__(self, conf: Dict[str, Any]) -> None:
+    def __init__(self, conf: ConfigDict) -> None:
         conf_copy = conf.copy()
-        self._key_deserializer = conf_copy.pop('key.deserializer', None)
-        self._value_deserializer = conf_copy.pop('value.deserializer', None)
+        self._key_deserializer: Optional[Deserializer] = conf_copy.pop('key.deserializer', None)
+        self._value_deserializer: Optional[Deserializer] = conf_copy.pop('value.deserializer', None)
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout: float = -1) -> Optional[Message]:
+    def poll(self, timeout: float = -1) -> Optional['Message']:
         """
         Consume messages and calls callbacks.
 

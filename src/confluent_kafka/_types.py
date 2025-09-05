@@ -25,6 +25,8 @@ and ensure consistency across the package.
 
 from typing import Any, Optional, Dict, Union, Callable, List, Tuple
 
+# Configuration dictionary type
+ConfigDict = Dict[str, Union[str, int, float, bool]]
 # Headers can be either dict format or list of tuples format
 HeadersType = Union[
     Dict[str, Union[str, bytes, None]],

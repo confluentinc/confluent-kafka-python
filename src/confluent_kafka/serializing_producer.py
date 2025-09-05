@@ -16,14 +16,14 @@
 # limitations under the License.
 #
 
-from typing import Any, Dict, Optional
+from typing import Any, Optional, Callable
 
 from confluent_kafka.cimpl import Producer as _ProducerImpl
 from .serialization import (MessageField,
                             SerializationContext)
 from .error import (KeySerializationError,
                     ValueSerializationError)
-from ._types import HeadersType, DeliveryCallback
+from ._types import ConfigDict, HeadersType, DeliveryCallback, Serializer
 
 
 class SerializingProducer(_ProducerImpl):
@@ -69,19 +69,17 @@ class SerializingProducer(_ProducerImpl):
         conf (producer): SerializingProducer configuration.
     """  # noqa E501
 
-    def __init__(self, conf: Dict[str, Any]) -> None:
+    def __init__(self, conf: ConfigDict) -> None:
         conf_copy = conf.copy()
 
-        self._key_serializer = conf_copy.pop('key.serializer', None)
-        self._value_serializer = conf_copy.pop('value.serializer', None)
+        self._key_serializer: Optional[Serializer] = conf_copy.pop('key.serializer', None)
+        self._value_serializer: Optional[Serializer] = conf_copy.pop('value.serializer', None)
 
         super(SerializingProducer, self).__init__(conf_copy)
 
-    def produce(  # type: ignore[override]
-        self, topic: str, key: Any = None, value: Any = None, partition: int = -1,
-        on_delivery: Optional[DeliveryCallback] = None, timestamp: int = 0,
-        headers: Optional[HeadersType] = None
-    ) -> None:
+    def produce(self, topic: str, key: Any = None, value: Any = None, partition: int = -1,
+                on_delivery: Optional[DeliveryCallback] = None, timestamp: int = 0,
+                headers: Optional[HeadersType] = None) -> None:
         """
         Produce a message.
 
