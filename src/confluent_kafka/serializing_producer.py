@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import Any, Optional, Callable
+from typing import Any, Optional
 
 from confluent_kafka.cimpl import Producer as _ProducerImpl
 from .serialization import (MessageField,
