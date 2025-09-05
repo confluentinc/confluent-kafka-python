@@ -35,7 +35,8 @@ class _KafkaClientError(KafkaException):
         by the broker.
     """
 
-    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None) -> None:
+    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None,
+                 kafka_message: Optional[Message] = None) -> None:
         super(_KafkaClientError, self).__init__(kafka_error)
         self.exception = exception
         self.kafka_message = kafka_message
@@ -67,7 +68,8 @@ class ConsumeError(_KafkaClientError):
 
     """
 
-    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None, kafka_message: Optional[Message] = None) -> None:
+    def __init__(self, kafka_error: KafkaError, exception: Optional[Exception] = None,
+                 kafka_message: Optional[Message] = None) -> None:
         super(ConsumeError, self).__init__(kafka_error, exception, kafka_message)
 
 
