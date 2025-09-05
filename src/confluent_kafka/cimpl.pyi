@@ -78,6 +78,7 @@ class Producer:
         value: Optional[bytes] = None,
         key: Optional[bytes] = None,
         partition: int = -1,
+        callback: Optional[DeliveryCallback] = None,
         on_delivery: Optional[DeliveryCallback] = None,
         timestamp: Optional[int] = None,
         headers: Optional[HeadersType] = None
@@ -122,6 +123,7 @@ class Consumer:
     def assignment(self) -> List[TopicPartition]: ...
     def commit(
         self,
+        message: Optional['Message'] = None,
         offsets: Optional[List[TopicPartition]] = None,
         asynchronous: bool = True
     ) -> List[TopicPartition]: ...
@@ -140,7 +142,11 @@ class Consumer:
     def resume(self, partitions: List[TopicPartition]) -> None: ...
     def seek(self, partition: TopicPartition) -> None: ...
     def position(self, partitions: List[TopicPartition]) -> List[TopicPartition]: ...
-    def store_offsets(self, offsets: List[TopicPartition]) -> None: ...
+    def store_offsets(
+        self,
+        message: Optional['Message'] = None,
+        offsets: Optional[List[TopicPartition]] = None
+    ) -> None: ...
     def close(self) -> None: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def offsets_for_times(
@@ -182,8 +188,8 @@ class _AdminClientImpl:
     ) -> None: ...
     def describe_topics(
         self,
-        topics: List[str],
         future: Any,
+        topic_names: List[str],
         request_timeout: float = -1,
         include_authorized_operations: bool = False
     ) -> None: ...
@@ -195,43 +201,44 @@ class _AdminClientImpl:
     ) -> None: ...
     def list_topics(
         self,
-        future: Any,
-        request_timeout: float = -1
-    ) -> None: ...
+        topic: Optional[str] = None,
+        timeout: float = -1
+    ) -> Any: ...
     def list_groups(
         self,
-        future: Any,
-        request_timeout: float = -1,
-        states: Optional[List[str]] = None
-    ) -> None: ...
+        group: Optional[str] = None,
+        timeout: float = -1
+    ) -> Any: ...
     def describe_consumer_groups(
         self,
-        groups: List[str],
         future: Any,
+        group_ids: List[str],
         request_timeout: float = -1,
         include_authorized_operations: bool = False
     ) -> None: ...
     def list_consumer_groups(
         self,
         future: Any,
-        request_timeout: float = -1,
-        states: Optional[List[str]] = None
+        states_int: Optional[List[int]] = None,
+        types_int: Optional[List[int]] = None,
+        request_timeout: float = -1
     ) -> None: ...
     def list_consumer_group_offsets(
         self,
         request: Any,  # ConsumerGroupTopicPartitions
         future: Any,
+        require_stable: bool = False,
         request_timeout: float = -1
     ) -> None: ...
     def alter_consumer_group_offsets(
         self,
-        requests: Any,  # List[ConsumerGroupTopicPartitions]
+        requests: Any,  # List[ConsumerGroupTopicPartitions] - exactly 1 item required
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
     def delete_consumer_groups(
         self,
-        groups: List[str],
+        group_ids: List[str],
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
@@ -243,13 +250,13 @@ class _AdminClientImpl:
     ) -> None: ...
     def describe_acls(
         self,
-        acl_filter: Any,  # AclBindingFilter
+        acl_binding_filter: Any,  # AclBindingFilter
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
     def delete_acls(
         self,
-        acl_filters: List[Any],  # List[AclBindingFilter]
+        acls: List[Any],  # List[AclBindingFilter]
         future: Any,
         request_timeout: float = -1
     ) -> None: ...
@@ -258,22 +265,23 @@ class _AdminClientImpl:
         resources: List[Any],  # List[ConfigResource]
         future: Any,
         request_timeout: float = -1,
-        include_synonyms: bool = False,
-        include_documentation: bool = False
+        broker: int = -1
     ) -> None: ...
     def alter_configs(
         self,
         resources: Dict[Any, Dict[str, str]],  # Dict[ConfigResource, Dict[str, str]]
         future: Any,
+        validate_only: bool = False,
         request_timeout: float = -1,
-        validate_only: bool = False
+        broker: int = -1
     ) -> None: ...
     def incremental_alter_configs(
         self,
         resources: Dict[Any, Dict[str, Any]],  # Dict[ConfigResource, Dict[str, ConfigEntry]]
         future: Any,
+        validate_only: bool = False,
         request_timeout: float = -1,
-        validate_only: bool = False
+        broker: int = -1
     ) -> None: ...
     def describe_user_scram_credentials(
         self,
@@ -291,21 +299,23 @@ class _AdminClientImpl:
         self,
         topic_partitions: List[TopicPartition],
         future: Any,
-        request_timeout: float = -1,
-        isolation_level: Optional[int] = None
+        isolation_level_value: Optional[int] = None,
+        request_timeout: float = -1
     ) -> None: ...
     def delete_records(
         self,
-        topic_partitions: List[TopicPartition],
+        topic_partition_offsets: List[TopicPartition],
         future: Any,
-        request_timeout: float = -1
+        request_timeout: float = -1,
+        operation_timeout: float = -1
     ) -> None: ...
     def elect_leaders(
         self,
-        topic_partitions: Optional[List[TopicPartition]],
+        election_type: int,
+        partitions: Optional[List[TopicPartition]],
         future: Any,
         request_timeout: float = -1,
-        election_type: int = 0
+        operation_timeout: float = -1
     ) -> None: ...
     def poll(self, timeout: float = -1) -> Any: ...
     def set_sasl_credentials(self, username: str, password: str) -> None: ...
