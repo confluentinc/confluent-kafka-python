@@ -12,8 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import List, Optional, Any
 
 from .._util import ConversionUtil
+from .._model import TopicPartitionInfo
+from ..cimpl import Uuid
 from ._acl import AclOperation
 
 
@@ -36,12 +39,14 @@ class TopicDescription:
         AclOperations allowed for the topic.
     """
 
-    def __init__(self, name, topic_id, is_internal, partitions, authorized_operations=None):
+    def __init__(self, name: str, topic_id: Uuid, is_internal: bool,
+                 partitions: List[TopicPartitionInfo],
+                 authorized_operations: Optional[List[Any]] = None) -> None:
         self.name = name
         self.topic_id = topic_id
         self.is_internal = is_internal
         self.partitions = partitions
-        self.authorized_operations = None
+        self.authorized_operations: Optional[List[AclOperation]] = None
         if authorized_operations:
             self.authorized_operations = []
             for op in authorized_operations:
