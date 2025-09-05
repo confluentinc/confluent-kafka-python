@@ -28,8 +28,8 @@ class ResourceType(Enum):
     BROKER = _cimpl.RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
     TRANSACTIONAL_ID = _cimpl.RESOURCE_TRANSACTIONAL_ID  #: Transactional ID resource.
 
-    def __lt__(self, other: object) -> Any:
-        if not isinstance(other, ResourceType):
+    def __lt__(self, other: 'ResourceType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -44,7 +44,7 @@ class ResourcePatternType(Enum):
     LITERAL = _cimpl.RESOURCE_PATTERN_LITERAL  #: Literal: A literal resource name
     PREFIXED = _cimpl.RESOURCE_PATTERN_PREFIXED  #: Prefixed: A prefixed resource name
 
-    def __lt__(self, other: object) -> Any:
-        if not isinstance(other, ResourcePatternType):
+    def __lt__(self, other: 'ResourcePatternType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value

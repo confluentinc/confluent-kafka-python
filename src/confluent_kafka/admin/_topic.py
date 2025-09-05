@@ -46,7 +46,7 @@ class TopicDescription:
         self.topic_id = topic_id
         self.is_internal = is_internal
         self.partitions = partitions
-        self.authorized_operations = None
+        self.authorized_operations: Optional[List[AclOperation]] = None
         if authorized_operations:
             self.authorized_operations = []
             for op in authorized_operations:

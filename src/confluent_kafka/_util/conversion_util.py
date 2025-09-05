@@ -12,13 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Type
+from typing import Union, Type, TypeVar
 from enum import Enum
+
+# Generic type for enum conversion
+E = TypeVar('E', bound=Enum)
 
 
 class ConversionUtil:
     @staticmethod
-    def convert_to_enum(val: Union[str, int, Enum], enum_clazz: Type[Enum]) -> Enum:
+    def convert_to_enum(val: Union[str, int, E], enum_clazz: Type[E]) -> E:
         if type(enum_clazz) is not type(Enum):
             raise TypeError("'enum_clazz' must be of type Enum")
 

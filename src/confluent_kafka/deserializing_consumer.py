@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 
-from typing import Any, Optional, Callable, List
+from typing import Optional, List
 
 from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
 from .error import (ConsumeError,
@@ -80,7 +80,7 @@ class DeserializingConsumer(_ConsumerImpl):
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout: float = -1) -> Optional['Message']:
+    def poll(self, timeout: float = -1) -> Optional[Message]:
         """
         Consume messages and calls callbacks.
 

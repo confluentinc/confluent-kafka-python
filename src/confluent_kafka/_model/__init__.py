@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from enum import Enum
 from .. import cimpl
 from ..cimpl import TopicPartition
@@ -62,7 +62,7 @@ class ConsumerGroupTopicPartitions:
         List of topic partitions information.
     """
 
-    def __init__(self, group_id: str, topic_partitions: Optional[List[TopicPartition]] = None) -> None:
+    def __init__(self, group_id: str, topic_partitions: Optional[List['cimpl.TopicPartition']] = None) -> None:
         self.group_id = group_id
         self.topic_partitions = topic_partitions
 
@@ -91,8 +91,8 @@ class ConsumerGroupState(Enum):
     #: Consumer Group is empty.
     EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ConsumerGroupState):
+    def __lt__(self, other: 'ConsumerGroupState') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -111,8 +111,8 @@ class ConsumerGroupType(Enum):
     #: Classic Type
     CLASSIC = cimpl.CONSUMER_GROUP_TYPE_CLASSIC
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ConsumerGroupType):
+    def __lt__(self, other: 'ConsumerGroupType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -167,8 +167,8 @@ class IsolationLevel(Enum):
     READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED  #: Receive all the offsets.
     READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED  #: Skip offsets belonging to an aborted transaction.
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, IsolationLevel):
+    def __lt__(self, other: 'IsolationLevel') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -186,7 +186,7 @@ class ElectionType(Enum):
     #: Unclean election
     UNCLEAN = cimpl.ELECTION_TYPE_UNCLEAN
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ElectionType):
+    def __lt__(self, other: 'ElectionType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from enum import Enum
 
 from .. import cimpl
@@ -26,8 +26,8 @@ class ScramMechanism(Enum):
     SCRAM_SHA_256 = cimpl.SCRAM_MECHANISM_SHA_256  #: SCRAM-SHA-256 mechanism
     SCRAM_SHA_512 = cimpl.SCRAM_MECHANISM_SHA_512  #: SCRAM-SHA-512 mechanism
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, ScramMechanism):
+    def __lt__(self, other: 'ScramMechanism') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 

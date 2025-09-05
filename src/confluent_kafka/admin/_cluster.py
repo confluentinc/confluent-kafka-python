@@ -41,7 +41,7 @@ class DescribeClusterResult:
         self.cluster_id = cluster_id
         self.controller = controller
         self.nodes = nodes
-        self.authorized_operations = None
+        self.authorized_operations: Optional[List[AclOperation]] = None
         if authorized_operations:
             self.authorized_operations = []
             for op in authorized_operations:
