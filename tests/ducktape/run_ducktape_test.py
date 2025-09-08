@@ -9,13 +9,7 @@ import tempfile
 import argparse
 from datetime import datetime
 
-try:
-    import ducktape
-except ImportError as e:
-    print("ERROR: ducktape is not installed or not importable.")
-    print(f"Import error: {e}")
-    print("Install it with: pip install ducktape")
-    sys.exit(1)
+import ducktape
 
 
 def get_test_info(test_type):
