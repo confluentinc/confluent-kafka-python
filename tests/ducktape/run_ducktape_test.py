@@ -6,14 +6,9 @@ import sys
 import os
 import subprocess
 import tempfile
+import time
 
-try:
-    import ducktape
-except ImportError as e:
-    print("ERROR: ducktape is not installed or not importable.")
-    print(f"Import error: {e}")
-    print("Install it with: pip install ducktape")
-    sys.exit(1)
+import ducktape
 
 
 def create_cluster_config():
@@ -27,7 +22,6 @@ def create_cluster_config():
 
 def create_test_config():
     """Create test configuration file"""
-    import time
     timestamp = int(time.time())
     config = {
         "ducktape_dir": os.path.dirname(os.path.abspath(__file__)),
