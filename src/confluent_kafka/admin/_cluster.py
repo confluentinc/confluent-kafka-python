@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Any
+from typing import List, Optional, Union
 
 from .._util import ConversionUtil
 from .._model import Node
@@ -37,11 +37,11 @@ class DescribeClusterResult:
     """
 
     def __init__(self, controller: Node, nodes: List[Node], cluster_id: Optional[str] = None,
-                 authorized_operations: Optional[List[Any]] = None) -> None:
+                 authorized_operations: Optional[List[Union[str, int, AclOperation]]] = None) -> None:
         self.cluster_id = cluster_id
         self.controller = controller
         self.nodes = nodes
-        self.authorized_operations: Optional[List[AclOperation]] = None
+        self.authorized_operations = None
         if authorized_operations:
             self.authorized_operations = []
             for op in authorized_operations:
