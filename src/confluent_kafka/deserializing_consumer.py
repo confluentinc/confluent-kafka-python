@@ -75,8 +75,8 @@ class DeserializingConsumer(_ConsumerImpl):
 
     def __init__(self, conf: ConfigDict) -> None:
         conf_copy = conf.copy()
-        self._key_deserializer: Optional[Deserializer] = conf_copy.pop('key.deserializer', None)
-        self._value_deserializer: Optional[Deserializer] = conf_copy.pop('value.deserializer', None)
+        self._key_deserializer = conf_copy.pop('key.deserializer', None)
+        self._value_deserializer = conf_copy.pop('value.deserializer', None)
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
