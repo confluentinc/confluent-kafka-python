@@ -15,6 +15,7 @@
 from typing import List, Optional, Any
 from enum import Enum
 from .. import cimpl
+from ..cimpl import TopicPartition
 
 
 class Node:
@@ -61,7 +62,7 @@ class ConsumerGroupTopicPartitions:
         List of topic partitions information.
     """
 
-    def __init__(self, group_id: str, topic_partitions: Optional[List['cimpl.TopicPartition']] = None) -> None:
+    def __init__(self, group_id: str, topic_partitions: Optional[List[TopicPartition]] = None) -> None:
         self.group_id = group_id
         self.topic_partitions = topic_partitions
 

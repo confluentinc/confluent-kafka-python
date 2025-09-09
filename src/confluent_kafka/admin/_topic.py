@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Any
+from typing import List, Optional, Union
 
 from .._util import ConversionUtil
 from .._model import TopicPartitionInfo
@@ -41,7 +41,7 @@ class TopicDescription:
 
     def __init__(self, name: str, topic_id: Uuid, is_internal: bool,
                  partitions: List[TopicPartitionInfo],
-                 authorized_operations: Optional[List[Any]] = None) -> None:
+                 authorized_operations: Optional[List[Union[str, int, AclOperation]]] = None) -> None:
         self.name = name
         self.topic_id = topic_id
         self.is_internal = is_internal
