@@ -37,8 +37,7 @@ class SimpleProducerTest(Test):
         else:  # async
             return AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
 
-    @parametrize(producer_type="sync")
-    @parametrize(producer_type="async")
+    @matrix(producer_type=["sync", "async"])
     def test_basic_produce(self, producer_type):
         """Test basic message production with comprehensive metrics and bounds validation"""
 
@@ -108,11 +107,7 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully completed basic production test with comprehensive metrics")
 
-    @parametrize(producer_type="sync")
-    @parametrize(producer_type="async")
-    @parametrize(test_duration=2)
-    @parametrize(test_duration=5)
-    @parametrize(test_duration=10)
+    @matrix(producer_type=["sync", "async"], test_duration=[2, 5, 10])
     def test_produce_multiple_batches(self, producer_type, test_duration):
         """Test batch throughput with comprehensive metrics and bounds validation"""
 
@@ -193,9 +188,7 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully completed %ds batch production test with comprehensive metrics", test_duration)
 
-    @parametrize(producer_type="sync")
-    @parametrize(producer_type="async")
-    @matrix(compression_type=['none', 'gzip', 'snappy'])
+    @matrix(producer_type=["sync", "async"], compression_type=['none', 'gzip', 'snappy'])
     def test_produce_with_compression(self, producer_type, compression_type):
         """Test compression throughput with comprehensive metrics and bounds validation"""
 
