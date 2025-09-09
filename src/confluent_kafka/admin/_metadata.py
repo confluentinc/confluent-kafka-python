@@ -79,7 +79,7 @@ class TopicMetadata(object):
     # on other classes which raises a warning/error.
 
     def __init__(self) -> None:
-        self.topic: Optional[str] = None
+        self.topic = None
         """Topic name"""
         self.partitions: Dict[int, 'PartitionMetadata'] = {}
         """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
@@ -93,7 +93,7 @@ class TopicMetadata(object):
             return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
 
     def __str__(self) -> str:
-        return str(self.topic)
+        return self.topic
 
 
 class PartitionMetadata(object):
@@ -181,4 +181,4 @@ class GroupMetadata(object):
             return "GroupMetadata({})".format(self.id)
 
     def __str__(self) -> str:
-        return str(self.id)
+        return self.id

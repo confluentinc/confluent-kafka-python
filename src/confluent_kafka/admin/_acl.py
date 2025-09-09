@@ -44,8 +44,8 @@ class AclOperation(Enum):
     ALTER_CONFIGS = _cimpl.ACL_OPERATION_ALTER_CONFIGS  #: ALTER_CONFIGS operation
     IDEMPOTENT_WRITE = _cimpl.ACL_OPERATION_IDEMPOTENT_WRITE  #: IDEMPOTENT_WRITE operation
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclOperation):
+    def __lt__(self, other: 'AclOperation') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -59,8 +59,8 @@ class AclPermissionType(Enum):
     DENY = _cimpl.ACL_PERMISSION_TYPE_DENY  #: Disallows access
     ALLOW = _cimpl.ACL_PERMISSION_TYPE_ALLOW  #: Grants access
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclPermissionType):
+    def __lt__(self, other: 'AclPermissionType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -110,7 +110,7 @@ class AclBinding(object):
         self.permission_type_int = int(self.permission_type.value)  # type: ignore[union-attr]
 
     def _convert_enums(self) -> None:
-        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)  # type: ignore[assignment]
+        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)
         self.resource_pattern_type = ConversionUtil.convert_to_enum(
             self.resource_pattern_type, ResourcePatternType)  # type: ignore[assignment]
         self.operation = ConversionUtil.convert_to_enum(
@@ -154,20 +154,20 @@ class AclBinding(object):
         return "%s(%s,%s,%s,%s,%s,%s,%s)" % ((type_name,) + self._to_tuple())
 
     def _to_tuple(self) -> Tuple[ResourceType, str, ResourcePatternType, str, str, AclOperation, AclPermissionType]:
-        return (self.restype, self.name, self.resource_pattern_type,  # type: ignore[return-value]
+        return (self.restype, self.name, self.resource_pattern_type,
                 self.principal, self.host, self.operation,
                 self.permission_type)
 
     def __hash__(self) -> int:
         return hash(self._to_tuple())
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclBinding):
+    def __lt__(self, other: 'AclBinding') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self._to_tuple() < other._to_tuple()
 
-    def __eq__(self, other: object) -> Any:
-        if not isinstance(other, AclBinding):
+    def __eq__(self, other: 'AclBinding') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self._to_tuple() == other._to_tuple()
 
