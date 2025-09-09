@@ -72,8 +72,8 @@ class SerializingProducer(_ProducerImpl):
     def __init__(self, conf: ConfigDict) -> None:
         conf_copy = conf.copy()
 
-        self._key_serializer: Optional[Serializer] = conf_copy.pop('key.serializer', None)
-        self._value_serializer: Optional[Serializer] = conf_copy.pop('value.serializer', None)
+        self._key_serializer = conf_copy.pop('key.serializer', None)
+        self._value_serializer = conf_copy.pop('value.serializer', None)
 
         super(SerializingProducer, self).__init__(conf_copy)
 

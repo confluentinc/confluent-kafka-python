@@ -1,8 +1,37 @@
+# Copyright 2025 Confluent Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Type stubs for confluent_kafka.cimpl
 
 This combines automatic stubgen output (constants, functions) with
 manual class definitions based on runtime introspection and domain knowledge.
+
+⚠️ WARNING: MAINTENANCE REQUIRED ⚠️
+This stub file must be kept in sync with the C extension source code in src/:
+- src/Admin.c (AdminClientImpl methods)
+- src/Producer.c (Producer class)
+- src/Consumer.c (Consumer class)
+- src/AdminTypes.c (NewTopic, NewPartitions classes)
+- src/confluent_kafka.c (KafkaError, Message, TopicPartition, Uuid classes)
+
+When modifying C extension interfaces (method signatures, parameters, defaults),
+you MUST update the corresponding type definitions in this file.
+Failure to do so will result in incorrect type hints and mypy errors.
+
+TODO: Consider migrating to Cython in the future to eliminate this dual
+maintenance burden and get type hints directly from the implementation.
 """
 
 from typing import Any, Optional, Callable, List, Tuple, Dict, Union
