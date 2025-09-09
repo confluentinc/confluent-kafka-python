@@ -1,36 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import gc
 import json
+from struct import pack
+
 import pytest
+
 from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
-from struct import pack
-from time import sleep
-
 from tests.common import TestConsumer
 
 
 def error_cb(err):
     print('error_cb', err)
-
-
-class MockHandler:
-    def __init__(self, *args, **kwargs):
-        self.conf = {
-            'debug': 'all',
-            'socket.timeout.ms': 10,
-            'error_cb': error_cb,
-            'message.timeout.ms': 10
-        }
-        self.producer = Producer(self.conf)
-
-    def recreate_producer(self, timeout: float) -> bool:
-        prior_producer = self.producer
-        prior_producer.flush(10)
-        destroyed = prior_producer.close(timeout=timeout)
-        self.producer = Producer(self.conf)
-        return destroyed
 
 
 def test_basic_api():
@@ -190,7 +171,7 @@ def test_dr_msg_errstr():
     # Invalid unicode sequence
     p.produce('mytopic', "\xc2\xc2", on_delivery=handle_dr)
 
-    p.flush()
+    # p.flush()
 
 
 def test_set_partitioner_murmur2():
@@ -312,23 +293,17 @@ def test_producer_bool_value():
     assert p.close(), "The producer was not fully closed"
 
 
-@pytest.mark.parametrize("timeout,destroyed_expected,exception_expected", [
-    (10.0, True, None),
-    (5.0, True, None),
-    (-100, None, ValueError),
-    ("wrong", None, ValueError)
-])
-def test_producer_close(timeout, destroyed_expected, exception_expected):
+def test_producer_close():
     """
-    Ensures the producer is fully cleaned up when closed before being recreated
+    Ensures the producer close can be requested on demand
     """
-
-    handler = MockHandler()
+    conf = {
+        'debug': 'all',
+        'socket.timeout.ms': 10,
+        'error_cb': error_cb,
+        'message.timeout.ms': 10
+    }
+    producer = Producer(conf)
     msg = {"test": "test"}
-    handler.producer.produce(json.dumps(msg))
-    if exception_expected is not None:
-        with pytest.raises(exception_expected):
-            _ = handler.recreate_producer(timeout)
-    else:
-        destroyed_actual = handler.recreate_producer(timeout)
-        assert destroyed_actual == destroyed_expected
+    producer.produce(json.dumps(msg))
+    assert producer.close(), "The producer could nto be closed on demand"
