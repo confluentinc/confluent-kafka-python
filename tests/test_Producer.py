@@ -171,7 +171,7 @@ def test_dr_msg_errstr():
     # Invalid unicode sequence
     p.produce('mytopic', "\xc2\xc2", on_delivery=handle_dr)
 
-    # p.flush()
+    p.flush()
 
 
 def test_set_partitioner_murmur2():
