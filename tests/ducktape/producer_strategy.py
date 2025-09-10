@@ -105,7 +105,7 @@ class AsyncProducerStrategy(ProducerStrategy):
         import logging
         logging.basicConfig(level=logging.INFO)
         
-        self._producer_instance = AIOProducer({'bootstrap.servers': self.bootstrap_servers}, max_workers=1, auto_poll=True)
+        self._producer_instance = AIOProducer({'bootstrap.servers': self.bootstrap_servers}, max_workers=20, auto_poll=True)
         return self._producer_instance
     
     def get_final_metrics(self):
@@ -132,13 +132,13 @@ class AsyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
                         send_times[message_key] = time.time()  # Track send time for latency
                     
-                    # Get future from produce call
-                    future = producer.produce(
+
+                    delivery_future = await producer.produce(
                         topic=topic_name,
                         value=message_value,
                         key=message_key
                     )
-                    pending_futures.append((future, message_key))  # Store key with future
+                    pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1
                     
                 except Exception as e:
