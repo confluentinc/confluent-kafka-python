@@ -72,8 +72,9 @@ class AIOProducer:
                 loop.call_soon_threadsafe(result.set_result, msg)
 
         kwargs['on_delivery'] = on_delivery
+        # Wait for message to be queued, but don't wait for delivery
         await self._call(self._producer.produce, *args, **kwargs)
-        return await result
+        return result
 
     async def init_transactions(self, *args, **kwargs):
         return await self._call(self._producer.init_transactions,
