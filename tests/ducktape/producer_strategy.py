@@ -22,23 +22,21 @@ class ProducerStrategy:
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
         raise NotImplementedError()
 
-    def get_final_metrics(self):
-        return None
-
 
 class SyncProducerStrategy(ProducerStrategy):
     def create_producer(self):
         producer = Producer({'bootstrap.servers': self.bootstrap_servers})
         return producer
     
-    def get_final_metrics(self):
-        """Sync producer has no built-in metrics like AIOProducer"""
-        return None
-    
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
         producer = self.create_producer()
         messages_sent = 0
         send_times = {}  # Track send times for latency calculation
+        
+        # Temporary metrics for timing sections
+        produce_times = []
+        poll_times = []
+        flush_time = 0
         
         def delivery_callback(err, msg):
             if err:
@@ -69,17 +67,22 @@ class SyncProducerStrategy(ProducerStrategy):
                     message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                     self.metrics.record_sent(message_size, topic=topic_name, partition=0)
                 
+                # Produce message
+                produce_start = time.time()
                 producer.produce(
                     topic=topic_name,
                     value=message_value,
                     key=message_key,
                     on_delivery=delivery_callback
                 )
+                produce_times.append(time.time() - produce_start)
                 messages_sent += 1
                 
                 # Poll every 100 messages to prevent buffer overflow
                 if messages_sent % 100 == 0:
+                    poll_start = time.time()
                     producer.poll(0)
+                    poll_times.append(time.time() - poll_start)
                     if self.metrics:
                         self.metrics.record_poll()
                         
@@ -90,7 +93,24 @@ class SyncProducerStrategy(ProducerStrategy):
                     self.metrics.record_failed(topic=topic_name, partition=0)
                 self.logger.error(f"Failed to produce message {messages_sent}: {e}")
         
+        # Flush producer
+        flush_start = time.time()
         producer.flush(timeout=30)
+        flush_time = time.time() - flush_start
+        
+        # Print timing metrics
+        avg_produce_time = sum(produce_times) / len(produce_times) * 1000 if produce_times else 0
+        avg_poll_time = sum(poll_times) / len(poll_times) * 1000 if poll_times else 0
+        flush_time_ms = flush_time * 1000
+        
+        print(f"\n=== SYNC PRODUCER CODE PATH TIMING ===")
+        print(f"Time to call Producer.produce(): {avg_produce_time:.4f}ms")
+        print(f"Time to call Producer.poll(): {avg_poll_time:.4f}ms")
+        print(f"Time to call Producer.flush(): {flush_time_ms:.4f}ms")
+        print(f"Total produce() calls: {len(produce_times)}")
+        print(f"Total poll() calls: {len(poll_times)}")
+        print("=" * 45)
+        
         return messages_sent
 
 
@@ -105,14 +125,19 @@ class AsyncProducerStrategy(ProducerStrategy):
         import logging
         logging.basicConfig(level=logging.INFO)
         
-        self._producer_instance = AIOProducer({'bootstrap.servers': self.bootstrap_servers}, max_workers=20, auto_poll=True)
+        self._producer_instance = AIOProducer({'bootstrap.servers': self.bootstrap_servers}, max_workers=20)
+        
+        # Set up internal metrics callback if metrics are enabled
+        if self.metrics:
+            def metrics_callback(latency_ms, topic, partition, success):
+                if success:
+                    self.metrics.record_delivered(latency_ms, topic=topic, partition=partition)
+                else:
+                    self.metrics.record_failed(topic=topic, partition=partition)
+            self._producer_instance.set_metrics_callback(metrics_callback)
+        
         return self._producer_instance
     
-    def get_final_metrics(self):
-        """Get metrics from the AIOProducer instance"""
-        if self._producer_instance:
-            return self._producer_instance.get_metrics()
-        return None
     
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
         
@@ -120,26 +145,39 @@ class AsyncProducerStrategy(ProducerStrategy):
             producer = self.create_producer()
             messages_sent = 0
             pending_futures = []
-            send_times = {}  # Track send times for latency calculation
+            
+            # Temporary metrics for timing sections
+            produce_times = []
+            poll_times = []
+            flush_time = 0
             
             while time.time() - start_time < test_duration:
                 message_value, message_key = message_formatter(messages_sent)
                 
                 try:
-                    # Record sent message for metrics and track send time
+                    # Record sent message for metrics
                     if self.metrics:
                         message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
-                        send_times[message_key] = time.time()  # Track send time for latency
                     
-
+                    # Produce message
+                    produce_start = time.time()
                     delivery_future = await producer.produce(
                         topic=topic_name,
                         value=message_value,
                         key=message_key
                     )
+                    produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1
+
+                    # Poll every 100 messages to prevent buffer overflow
+                    if messages_sent % 100 == 0:
+                        poll_start = time.time()
+                        await producer.poll(0)
+                        poll_times.append(time.time() - poll_start)
+                        if self.metrics:
+                            self.metrics.record_poll()
                     
                 except Exception as e:
                     if failed_container is not None:
@@ -148,46 +186,35 @@ class AsyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to produce message {messages_sent}: {e}")
             
-            # Wait for all futures to complete using gather for better performance
-            try:
-                futures_only = [future for future, key in pending_futures]
-                results = await asyncio.gather(*futures_only, return_exceptions=True)
-                
-                for i, result in enumerate(results):
-                    future, message_key = pending_futures[i]
-                    
-                    if isinstance(result, Exception):
-                        # Handle failed message
-                        if failed_container is not None:
-                            failed_container.append(result)
-                        if self.metrics:
-                            self.metrics.record_failed(topic=topic_name, partition=0)
-                    else:
-                        # Handle successful message
-                        delivered_container.append(result)
-                        
-                        # Calculate real latency like sync producer
-                        if self.metrics:
-                            topic = result.topic() if hasattr(result, 'topic') else topic_name
-                            partition = result.partition() if hasattr(result, 'partition') else 0
-                            
-                            # Calculate latency from send time to now
-                            latency_ms = 0.0
-                            if message_key in send_times:
-                                latency_ms = (time.time() - send_times[message_key]) * 1000
-                                del send_times[message_key]  # Clean up
-                            
-                            self.metrics.record_delivered(latency_ms, topic=topic, partition=partition)
-                            
-            except Exception as e:
-                # Handle gather-level exception (shouldn't happen with return_exceptions=True)
-                if failed_container is not None:
-                    failed_container.append(e)
-                if self.metrics:
-                    self.metrics.record_failed(topic=topic_name, partition=0)
-            
+            # Flush producer
+            flush_start = time.time()
             await producer.flush(timeout=30)
-            await producer.stop()
+            flush_time = time.time() - flush_start
+
+
+            # Wait for all pending futures to complete (for delivery confirmation only)
+            for delivery_future, message_key in pending_futures:
+                try:
+                    msg = await delivery_future
+                    delivered_container.append(msg)
+                except Exception as e:
+                    if failed_container is not None:
+                        failed_container.append(e)
+                    self.logger.error(f"Failed to deliver message with key {message_key}: {e}")  
+            
+            # Print timing metrics
+            avg_produce_time = sum(produce_times) / len(produce_times) * 1000 if produce_times else 0
+            avg_poll_time = sum(poll_times) / len(poll_times) * 1000 if poll_times else 0
+            flush_time_ms = flush_time * 1000
+            
+            print(f"\n=== ASYNC PRODUCER CODE PATH TIMING ===")
+            print(f"Time to call AIOProducer.produce(): {avg_produce_time:.4f}ms")
+            print(f"Time to call AIOProducer.poll(): {avg_poll_time:.4f}ms")
+            print(f"Time to call AIOProducer.flush(): {flush_time_ms:.4f}ms")
+            print(f"Total produce() calls: {len(produce_times)}")
+            print(f"Total poll() calls: {len(poll_times)}")
+            print("=" * 46)
+            
             return messages_sent
         
         loop = asyncio.get_event_loop()
