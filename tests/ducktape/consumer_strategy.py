@@ -62,7 +62,8 @@ class SyncConsumerStrategy(ConsumerStrategy):
                 consume_times.append(consume_latency_ms)
 
                 if self.metrics:
-                    self.metrics.record_poll_attempt(consume_latency_ms)
+                    self.metrics.record_api_call(consume_latency_ms)
+                    self.metrics.record_batch_operation(len(messages) if messages else 0)
 
                 if not messages:
                     # Timeout or no messages available
@@ -87,19 +88,13 @@ class SyncConsumerStrategy(ConsumerStrategy):
 
                     if self.metrics:
                         message_size = len(msg.value()) + (len(msg.key()) if msg.key() else 0)
-                        self.metrics.record_consumed(
+                        self.metrics.record_processed_message(
                             message_size=message_size,
                             topic=msg.topic(),
                             partition=msg.partition(),
                             offset=msg.offset(),
-                            poll_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
+                            operation_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
                         )
-
-                # Log progress occasionally
-                if messages_consumed % 100 == 0:
-                    elapsed = time.time() - start_time
-                    rate = messages_consumed / elapsed if elapsed > 0 else 0
-                    self.logger.debug(f"Sync: Consumed {messages_consumed} messages at {rate:.1f} msg/s")
 
         finally:
             consumer.close()
@@ -124,7 +119,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
                 poll_times.append(poll_latency_ms)
 
                 if self.metrics:
-                    self.metrics.record_poll_attempt(poll_latency_ms)
+                    self.metrics.record_api_call(poll_latency_ms)
 
                 if msg is None:
                     # Timeout - no message received
@@ -144,18 +139,15 @@ class SyncConsumerStrategy(ConsumerStrategy):
                 messages_consumed += 1
 
                 if self.metrics:
-                    self.metrics.record_consumed(
+                    self.metrics.record_processed_message(
                         message_size=len(msg.value()) if msg.value() else 0,
                         topic=msg.topic(),
                         partition=msg.partition(),
                         offset=msg.offset(),
-                        poll_latency_ms=poll_latency_ms
+                        operation_latency_ms=poll_latency_ms
                     )
 
-                if messages_consumed % 1000 == 0:
-                    elapsed = time.time() - start_time
-                    rate = messages_consumed / elapsed if elapsed > 0 else 0
-                    self.logger.info(f"Polled {messages_consumed} messages at {rate:.1f} msg/s")
+                # Progress tracking (removed verbose logging)
 
         finally:
             consumer.close()
@@ -211,7 +203,8 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                     consume_times.append(consume_latency_ms)
 
                     if self.metrics:
-                        self.metrics.record_poll_attempt(consume_latency_ms)
+                        self.metrics.record_api_call(consume_latency_ms)
+                        self.metrics.record_batch_operation(len(messages) if messages else 0)
 
                     if not messages:
                         # Timeout or no messages available
@@ -236,19 +229,15 @@ class AsyncConsumerStrategy(ConsumerStrategy):
 
                         if self.metrics:
                             message_size = len(msg.value()) + (len(msg.key()) if msg.key() else 0)
-                            self.metrics.record_consumed(
+                            self.metrics.record_processed_message(
                                 message_size=message_size,
                                 topic=msg.topic(),
                                 partition=msg.partition(),
                                 offset=msg.offset(),
-                                poll_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
+                                operation_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
                             )
 
-                    # Log progress occasionally (per batch instead of per message)
-                    if messages_consumed % 1000 == 0:
-                        elapsed = time.time() - start_time
-                        rate = messages_consumed / elapsed if elapsed > 0 else 0
-                        self.logger.debug(f"Async: Consumed {messages_consumed} messages at {rate:.1f} msg/s")
+                    # Progress tracking (removed verbose logging)
 
             finally:
                 await consumer.close()
@@ -278,7 +267,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                     poll_times.append(poll_latency_ms)
 
                     if self.metrics:
-                        self.metrics.record_poll_attempt(poll_latency_ms)
+                        self.metrics.record_api_call(poll_latency_ms)
 
                     if msg is None:
                         # Timeout - no message received
@@ -298,18 +287,13 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                     messages_consumed += 1
 
                     if self.metrics:
-                        self.metrics.record_consumed(
+                        self.metrics.record_processed_message(
                             message_size=len(msg.value()) if msg.value() else 0,
                             topic=msg.topic(),
                             partition=msg.partition(),
                             offset=msg.offset(),
-                            poll_latency_ms=poll_latency_ms
+                            operation_latency_ms=poll_latency_ms
                         )
-
-                    if messages_consumed % 1000 == 0:
-                        elapsed = time.time() - start_time
-                        rate = messages_consumed / elapsed if elapsed > 0 else 0
-                        self.logger.info(f"Async: Polled {messages_consumed} messages at {rate:.1f} msg/s")
 
             finally:
                 await consumer.close()

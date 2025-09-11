@@ -10,7 +10,6 @@ from ducktape.mark import matrix, parametrize
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.consumer_benchmark_metrics import ConsumerMetricsCollector, ConsumerMetricsBounds, validate_consumer_metrics, print_consumer_metrics_report
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
-from tests.ducktape.producer_strategy import SyncProducerStrategy  # For producing test messages
 from confluent_kafka import Producer  # For pre-producing test messages
 
 
@@ -52,8 +51,7 @@ class SimpleConsumerTest(Test):
 
     def produce_test_messages(self, topic_name, num_messages=10000):
         """Produce messages to topic for consumer tests"""
-        producer_strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
-        producer = producer_strategy.create_producer()
+        producer = Producer({'bootstrap.servers': self.kafka.bootstrap_servers()})
 
         self.logger.info(f"Producing {num_messages} test messages to {topic_name}")
 
@@ -94,7 +92,7 @@ class SimpleConsumerTest(Test):
         self.produce_test_messages(topic_name, num_messages)
 
         # Initialize metrics collection and bounds
-        metrics = ConsumerMetricsCollector()
+        metrics = ConsumerMetricsCollector(operation_type="consume")
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
@@ -125,8 +123,7 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        self.logger.info(f"=== {consumer_type.upper()} CONSUMER METRICS REPORT ===")
-        print_consumer_metrics_report(metrics_summary, is_valid, violations)
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type)
 
         # Get AIOConsumer built-in metrics for comparison (async only)
         final_metrics = strategy.get_final_metrics()
@@ -165,28 +162,11 @@ class SimpleConsumerTest(Test):
         assert topic_ready, (f"Topic {topic_name} was not created within timeout. "
                              f"Available topics: {self.kafka.list_topics()}")
 
-        # Pre-produce messages for consumption
-        producer = Producer({'bootstrap.servers': self.kafka.bootstrap_servers()})
-        self.logger.info(f"Pre-producing {num_messages} messages...")
-
-        for i in range(num_messages):
-            producer.produce(
-                topic=topic_name,
-                value=f"Test message {i}",
-                key=f"key-{i}"
-            )
-
-            # Flush more frequently to prevent buffer overflow with large message count
-            if i % 50 == 0:
-                producer.poll(0)
-                if i % 1000 == 0:
-                    producer.flush(timeout=1)  # Periodic flush
-
-        producer.flush(timeout=60)  # Final flush with longer timeout
-        self.logger.info(f"Successfully produced {num_messages} messages")
+        # Produce test messages
+        self.produce_test_messages(topic_name, num_messages)
 
         # Initialize metrics collection and bounds
-        metrics = ConsumerMetricsCollector()
+        metrics = ConsumerMetricsCollector(operation_type="poll")
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
@@ -217,8 +197,7 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        self.logger.info(f"=== {consumer_type.upper()} CONSUMER POLL METRICS REPORT ===")
-        print_consumer_metrics_report(metrics_summary, is_valid, violations)
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type)
 
         # Enhanced assertions using metrics
         assert messages_consumed > 0, "No messages were consumed"
