@@ -1,5 +1,5 @@
 """
-Benchmark metrics collection and validation for Kafka performance testing.
+Producer benchmark metrics collection and validation for Kafka performance testing.
 
 Implements comprehensive metrics tracking including latency percentiles,
 per-topic/partition breakdowns, memory monitoring, and batch efficiency analysis.
@@ -25,8 +25,6 @@ class MetricsCollector:
         self.messages_sent = 0
         self.messages_delivered = 0
         self.messages_failed = 0
-
-        # Latency tracking
         self.delivery_latencies = []  # in milliseconds
 
         # Data tracking
