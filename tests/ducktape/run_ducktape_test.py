@@ -6,6 +6,7 @@ import sys
 import os
 import subprocess
 import tempfile
+import time
 
 import ducktape
 
@@ -21,9 +22,10 @@ def create_cluster_config():
 
 def create_test_config():
     """Create test configuration file"""
+    timestamp = int(time.time())
     config = {
         "ducktape_dir": os.path.dirname(os.path.abspath(__file__)),
-        "results_dir": os.path.join(tempfile.gettempdir(), "ducktape_results")
+        "results_dir": os.path.join(tempfile.gettempdir(), f"ducktape_results_{timestamp}")
     }
     return config
 
@@ -33,7 +35,16 @@ def main():
     print("Confluent Kafka Python - Ducktape Producer Test Runner")
     print("=" * 60)
 
-    print(f"Using ducktape version: {ducktape.__version__}")
+    try:
+        print(f"Using ducktape version: {ducktape.__version__}")
+    except AttributeError:
+        # Some ducktape versions don't have __version__, try alternative methods
+        try:
+            import pkg_resources
+            version = pkg_resources.get_distribution('ducktape').version
+            print(f"Using ducktape version: {version}")
+        except:
+            print("Using ducktape version: unknown")
 
     # Check if confluent_kafka is available
     try:
