@@ -1,37 +1,62 @@
 #!/usr/bin/env python3
 """
-Simple test runner for Ducktape Producer tests
+Unified test runner for Ducktape Producer and Consumer tests
 """
 import sys
 import os
 import subprocess
 import tempfile
+import argparse
+from datetime import datetime
 
 import ducktape
 
 
-def create_cluster_config():
-    """Create a simple cluster configuration for local testing"""
-    cluster_config = {
-        "cluster_type": "ducktape.cluster.localhost.LocalhostCluster",
-        "num_nodes": 3
-    }
-    return cluster_config
+def check_kafka_connection():
+    """Check if Kafka is running on localhost:9092"""
+    try:
+        import socket
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        result = sock.connect_ex(('localhost', 9092))
+        sock.close()
+        return result == 0
+    except:
+        return False
 
 
-def create_test_config():
-    """Create test configuration file"""
-    config = {
-        "ducktape_dir": os.path.dirname(os.path.abspath(__file__)),
-        "results_dir": os.path.join(tempfile.gettempdir(), "ducktape_results")
+def get_test_info(test_type):
+    """Get test file and description based on test type"""
+    test_info = {
+        'producer': {
+            'file': 'test_producer.py',
+            'description': 'Producer Benchmark Tests'
+        },
+        'consumer': {
+            'file': 'test_consumer.py',
+            'description': 'Consumer Benchmark Tests'
+        }
     }
-    return config
+    return test_info.get(test_type)
 
 
 def main():
-    """Run the ducktape producer test"""
-    print("Confluent Kafka Python - Ducktape Producer Test Runner")
-    print("=" * 60)
+    """Run the ducktape test based on specified type"""
+    parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
+    parser.add_argument('test_type', choices=['producer', 'consumer'],
+                       help='Type of test to run')
+    parser.add_argument('test_method', nargs='?',
+                       help='Specific test method to run (optional)')
+    parser.add_argument('--debug', action='store_true',
+                       help='Enable debug output')
+
+    args = parser.parse_args()
+
+    test_info = get_test_info(args.test_type)
+
+    # Header
+    print(f"Confluent Kafka Python - {test_info['description']}")
+    print(f"Timestamp: {datetime.now().isoformat()}")
+    print("=" * 70)
 
     print(f"Using ducktape version: {ducktape.__version__}")
 
@@ -44,47 +69,74 @@ def main():
         print("Install it with: pip install confluent-kafka")
         return 1
 
-    # Get test file path (ducktape expects file paths, not module paths)
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    test_file = os.path.join(test_dir, "test_producer.py")
+    # Check Kafka connection
+    print("\nChecking Kafka connection...")
+    if not check_kafka_connection():
+        print("ERROR: Cannot connect to Kafka on localhost:9092")
+        print("Please ensure Kafka is running before running tests.")
+        return 1
+    else:
+        print("Kafka connection successful")
+
+    # Get test file path
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    test_file = os.path.join(script_dir, test_info['file'])
+    project_root = os.path.dirname(os.path.dirname(script_dir))
 
     if not os.path.exists(test_file):
         print(f"ERROR: Test file not found: {test_file}")
         return 1
 
+    # Set working directory to project root (needed for imports)
+    os.chdir(project_root)
+
     # Create results directory
     results_dir = os.path.join(tempfile.gettempdir(), "ducktape_results")
     os.makedirs(results_dir, exist_ok=True)
 
+    print(f"\nWorking directory: {os.getcwd()}")
     print(f"Test file: {test_file}")
     print(f"Results directory: {results_dir}")
-    print()
 
-    # Build ducktape command using improved subprocess approach
+    # Build ducktape command
     cmd = [
         sys.executable, "-m", "ducktape",
-        "--debug",  # Enable debug output
         "--results-root", results_dir,
         "--cluster", "ducktape.cluster.localhost.LocalhostCluster",
-        "--default-num-nodes", "1",  # Reduced since we don't need nodes for services
-        test_file
+        "--default-num-nodes", "1"
     ]
 
-    # Add specific test if provided as argument
-    if len(sys.argv) > 1:
-        test_method = sys.argv[1]
-        cmd[-1] = f"{test_file}::{test_method}"
-        print(f"Running specific test: {test_method}")
-    else:
-        print("Running all producer tests")
+    if args.debug:
+        cmd.append("--debug")
 
-    print("Command:", " ".join(cmd))
-    print()
+    # Add test file
+    if args.test_method:
+        cmd.append(f"{test_file}::{args.test_method}")
+        print(f"\nRunning specific test: {args.test_method}")
+    else:
+        cmd.append(test_file)
+        print(f"\nRunning all {args.test_type} tests...")
+
+    # Set up environment with PYTHONPATH
+    env = os.environ.copy()
+    env["PYTHONPATH"] = os.getcwd()
+
+    print(f"Command: PYTHONPATH=. {' '.join(cmd[2:])}")  # Skip python -m ducktape for readability
+    print("-" * 50)
 
     # Run the test
     try:
-        result = subprocess.run(cmd)
+        result = subprocess.run(cmd, env=env)
+
+        # Summary
+        print("\n" + "=" * 50)
+        if result.returncode == 0:
+            print("All tests completed successfully!")
+        else:
+            print("Tests failed. Check the output above for details.")
+
         return result.returncode
+
     except KeyboardInterrupt:
         print("\nTest interrupted by user")
         return 1
