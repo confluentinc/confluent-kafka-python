@@ -30,7 +30,7 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully connected to Kafka")
 
-    def createProducer(self, producer_type, config_overrides=None):
+    def create_producer(self, producer_type, config_overrides=None):
         """Create appropriate producer strategy based on type"""
         if producer_type == "sync":
             strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
@@ -61,7 +61,7 @@ class SimpleProducerTest(Test):
         bounds = MetricsBounds()
 
         # Create appropriate producer strategy
-        strategy = self.createProducer(producer_type)
+        strategy = self.create_producer(producer_type)
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
@@ -132,7 +132,7 @@ class SimpleProducerTest(Test):
             bounds.min_throughput_msg_per_sec = 50.0  # Lower threshold for short tests
 
         # Create appropriate producer strategy
-        strategy = self.createProducer(producer_type)
+        strategy = self.create_producer(producer_type)
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
@@ -237,7 +237,7 @@ class SimpleProducerTest(Test):
             }
         poll_interval = polling_config.get(compression_type, 50 if producer_type == 'sync' else 100)
         
-        strategy = self.createProducer(producer_type, compression_config)
+        strategy = self.create_producer(producer_type, compression_config)
         strategy.poll_interval = poll_interval
 
         # Assign metrics collector to strategy

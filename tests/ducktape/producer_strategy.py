@@ -165,15 +165,6 @@ class AsyncProducerStrategy(ProducerStrategy):
             self.logger.info(f"{key}: {value}")
         self.logger.info("=" * 41)
         
-        # Set up internal metrics callback if metrics are enabled
-        if self.metrics:
-            def metrics_callback(latency_ms, topic, partition, success):
-                if success:
-                    self.metrics.record_delivered(latency_ms, topic=topic, partition=partition)
-                else:
-                    self.metrics.record_failed(topic=topic, partition=partition)
-            self._producer_instance.set_metrics_callback(metrics_callback)
-        
         return self._producer_instance
     
     
@@ -184,6 +175,7 @@ class AsyncProducerStrategy(ProducerStrategy):
             producer = self.create_producer(config_overrides)
             messages_sent = 0
             pending_futures = []
+            send_times = {}  # Track send times for latency calculation
             
             # Temporary metrics for timing sections
             produce_times = []
@@ -194,17 +186,31 @@ class AsyncProducerStrategy(ProducerStrategy):
                 message_value, message_key = message_formatter(messages_sent)
                 
                 try:
-                    # Record sent message for metrics
+                    # Record sent message for metrics and track send time
                     if self.metrics:
                         message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
+                        send_times[message_key] = time.time()  # Track send time for latency
                     
-                    # Produce message
+                    # Create metrics callback for this message
+                    def create_metrics_callback(msg_key):
+                        def metrics_callback(err, msg):
+                            if self.metrics and not err:
+                                # Calculate latency if we have send time
+                                latency_ms = 0.0
+                                if msg_key in send_times:
+                                    latency_ms = (time.time() - send_times[msg_key]) * 1000
+                                    del send_times[msg_key]
+                                self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+                        return metrics_callback
+                    
+                    # Produce message with metrics callback
                     produce_start = time.time()
                     delivery_future = await producer.produce(
                         topic=topic_name,
                         value=message_value,
-                        key=message_key
+                        key=message_key,
+                        on_delivery=create_metrics_callback(message_key) if self.metrics else None
                     )
                     produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future

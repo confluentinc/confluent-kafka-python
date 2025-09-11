@@ -32,14 +32,6 @@ class AIOProducer:
         wrap_common_callbacks(asyncio.get_running_loop(), producer_conf)
 
         self._producer = confluent_kafka.Producer(producer_conf)
-        
-        # Internal metrics tracking
-        self._metrics_callback = None
-        self._send_times = {}  # Track send times for latency calculation
-
-    def set_metrics_callback(self, callback):
-        """Set callback for delivery metrics: callback(latency_ms, topic, partition, success)"""
-        self._metrics_callback = callback
 
     # ========================================================================
     # HYBRID OPERATIONS - Blocking behavior depends on parameters
@@ -74,36 +66,26 @@ class AIOProducer:
         """
         # Get current running event loop
         result = asyncio.get_running_loop().create_future()
-        
-        # Track send time for latency calculation if metrics are enabled
-        send_time = None
-        message_id = None
-        if self._metrics_callback:
-            import time
-            send_time = time.time()
-            message_id = f"{topic}:{key}:{id(result)}"  # Unique message identifier
-            self._send_times[message_id] = send_time
 
+        # Store user's original callback if provided
+        user_callback = kwargs.get('on_delivery')
+        
         # Pre-bind variables to avoid closure overhead
         def on_delivery(err, msg):
             if err:
                 # Handle delivery failure
-                if self._metrics_callback and message_id:
-                    latency_ms = 0.0
-                    if message_id in self._send_times:
-                        latency_ms = (time.time() - self._send_times[message_id]) * 1000
-                        del self._send_times[message_id]
-                    self._metrics_callback(latency_ms, topic, 0, False)  # success=False
                 result.set_exception(_KafkaException(err))
             else:
                 # Handle delivery success
-                if self._metrics_callback and message_id:
-                    latency_ms = 0.0
-                    if message_id in self._send_times:
-                        latency_ms = (time.time() - self._send_times[message_id]) * 1000
-                        del self._send_times[message_id]
-                    self._metrics_callback(latency_ms, msg.topic(), msg.partition(), True)  # success=True
                 result.set_result(msg)
+                
+                # Call user's callback on successful delivery
+                if user_callback:
+                    try:
+                        user_callback(err, msg)  # err is None here
+                    except Exception:
+                        # Log but don't propagate user callback errors to avoid breaking delivery confirmation
+                        pass
         
         kwargs['on_delivery'] = on_delivery
         self._producer.produce(topic, value, key, *args, **kwargs)
