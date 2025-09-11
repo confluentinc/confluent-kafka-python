@@ -24,12 +24,28 @@ class ProducerStrategy:
 
 
 class SyncProducerStrategy(ProducerStrategy):
-    def create_producer(self):
-        producer = Producer({'bootstrap.servers': self.bootstrap_servers})
+    def create_producer(self, config_overrides=None):
+        config = {
+            'bootstrap.servers': self.bootstrap_servers
+        }
+        
+        # Apply any test-specific overrides
+        if config_overrides:
+            config.update(config_overrides)
+            
+        producer = Producer(config)
+        
+        # Log the configuration for validation
+        self.logger.info("=== SYNC PRODUCER CONFIGURATION ===")
+        for key, value in config.items():
+            self.logger.info(f"{key}: {value}")
+        self.logger.info("=" * 40)
+        
         return producer
     
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
-        producer = self.create_producer()
+        config_overrides = getattr(self, 'config_overrides', None)
+        producer = self.create_producer(config_overrides)
         messages_sent = 0
         send_times = {}  # Track send times for latency calculation
         
@@ -112,6 +128,12 @@ class SyncProducerStrategy(ProducerStrategy):
         print("=" * 45)
         
         return messages_sent
+        
+    def get_final_metrics(self):
+        """Return final metrics summary for the sync producer"""
+        if self.metrics:
+            return self.metrics
+        return None
 
 
 class AsyncProducerStrategy(ProducerStrategy):
@@ -119,13 +141,27 @@ class AsyncProducerStrategy(ProducerStrategy):
         super().__init__(*args, **kwargs)
         self._producer_instance = None
     
-    def create_producer(self):
+    def create_producer(self, config_overrides=None):
         from confluent_kafka.aio import AIOProducer
         # Enable logging for AIOProducer
         import logging
         logging.basicConfig(level=logging.INFO)
         
-        self._producer_instance = AIOProducer({'bootstrap.servers': self.bootstrap_servers}, max_workers=20)
+        config = {
+            'bootstrap.servers': self.bootstrap_servers
+        }
+        
+        # Apply any test-specific overrides
+        if config_overrides:
+            config.update(config_overrides)
+        
+        self._producer_instance = AIOProducer(config, max_workers=20)
+        
+        # Log the configuration for validation
+        self.logger.info("=== ASYNC PRODUCER CONFIGURATION ===")
+        for key, value in config.items():
+            self.logger.info(f"{key}: {value}")
+        self.logger.info("=" * 41)
         
         # Set up internal metrics callback if metrics are enabled
         if self.metrics:
@@ -142,7 +178,8 @@ class AsyncProducerStrategy(ProducerStrategy):
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
         
         async def async_produce():
-            producer = self.create_producer()
+            config_overrides = getattr(self, 'config_overrides', None)
+            producer = self.create_producer(config_overrides)
             messages_sent = 0
             pending_futures = []
             
@@ -219,3 +256,9 @@ class AsyncProducerStrategy(ProducerStrategy):
         
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(async_produce())
+        
+    def get_final_metrics(self):
+        """Return final metrics summary for the async producer"""
+        if self.metrics:
+            return self.metrics
+        return None

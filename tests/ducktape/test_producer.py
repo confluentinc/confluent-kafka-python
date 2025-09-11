@@ -30,12 +30,16 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully connected to Kafka")
 
-    def createProducer(self, producer_type):
+    def createProducer(self, producer_type, config_overrides=None):
         """Create appropriate producer strategy based on type"""
         if producer_type == "sync":
-            return SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+            strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
         else:  # async
-            return AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+            strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+        
+        # Store config overrides for later use in create_producer
+        strategy.config_overrides = config_overrides
+        return strategy
 
     @matrix(producer_type=["sync", "async"])
     def test_basic_produce(self, producer_type):
@@ -140,7 +144,7 @@ class SimpleProducerTest(Test):
 
         # Message formatter for batch test
         def message_formatter(msg_num):
-            return f"Batch message {msg_num}", f"batch-key-{msg_num % 10}"
+            return f"Batch message {msg_num}", f"batch-key-{msg_num}"
 
         # Containers for results
         delivered_messages = []
@@ -168,11 +172,14 @@ class SimpleProducerTest(Test):
         print_metrics_report(metrics_summary, is_valid, violations)
 
         if final_metrics:
-            self.logger.info(f"=== AIOProducer Built-in Metrics ===")
-            self.logger.info(f"Runtime: {final_metrics['runtime_seconds']:.2f}s")
-            self.logger.info(f"Success Rate: {final_metrics['success_rate_percent']:.1f}%")
-            self.logger.info(f"Throughput: {final_metrics['throughput_msg_per_sec']:.1f} msg/sec")
-            self.logger.info(f"Latency: Avg={final_metrics['latency_avg_ms']:.1f}ms")
+            # Get the actual metrics dictionary
+            producer_metrics_summary = final_metrics.get_summary()
+            if producer_metrics_summary:
+                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
@@ -253,11 +260,14 @@ class SimpleProducerTest(Test):
         print_metrics_report(metrics_summary, is_valid, violations)
 
         if final_metrics:
-            self.logger.info(f"=== AIOProducer Built-in Metrics ===")
-            self.logger.info(f"Runtime: {final_metrics['runtime_seconds']:.2f}s")
-            self.logger.info(f"Success Rate: {final_metrics['success_rate_percent']:.1f}%")
-            self.logger.info(f"Throughput: {final_metrics['throughput_msg_per_sec']:.1f} msg/sec")
-            self.logger.info(f"Latency: Avg={final_metrics['latency_avg_ms']:.1f}ms")
+            # Get the actual metrics dictionary
+            producer_metrics_summary = final_metrics.get_summary()
+            if producer_metrics_summary:
+                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
 
         # Enhanced assertions using metrics
         assert messages_sent > 0, "No messages were sent"
