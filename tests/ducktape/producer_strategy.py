@@ -94,8 +94,10 @@ class SyncProducerStrategy(ProducerStrategy):
                 produce_times.append(time.time() - produce_start)
                 messages_sent += 1
                 
-                # Poll every 100 messages to prevent buffer overflow
-                if messages_sent % 100 == 0:
+                # Use configured polling interval (default to 50 if not set)
+                poll_interval = getattr(self, 'poll_interval', 50)
+                
+                if messages_sent % poll_interval == 0:
                     poll_start = time.time()
                     producer.poll(0)
                     poll_times.append(time.time() - poll_start)
@@ -208,8 +210,9 @@ class AsyncProducerStrategy(ProducerStrategy):
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1
 
-                    # Poll every 100 messages to prevent buffer overflow
-                    if messages_sent % 100 == 0:
+                    # Use configured polling interval (default to 100 for async)
+                    poll_interval = getattr(self, 'poll_interval', 100)
+                    if messages_sent % poll_interval == 0:
                         poll_start = time.time()
                         await producer.poll(0)
                         poll_times.append(time.time() - poll_start)

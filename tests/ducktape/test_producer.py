@@ -216,13 +216,35 @@ class SimpleProducerTest(Test):
         bounds.min_throughput_msg_per_sec = 5.0  # Lower threshold for large messages
         bounds.max_p95_latency_ms = 5000.0  # Allow higher latency for compression
 
-        # Create appropriate producer strategy
-        strategy = self.createProducer(producer_type)
+        # Create appropriate producer strategy with compression config
+        compression_config = {}
+        if compression_type != 'none':
+            compression_config['compression.type'] = compression_type
+        
+        # Configure polling intervals based on compression type and producer type
+        if producer_type == 'async':
+            polling_config = {
+                'gzip': 10,     # Poll every 10 messages for gzip (frequent)
+                'snappy': 50,   # Poll every 50 messages for snappy (moderate)
+                'none': 100     # Poll every 100 messages for none (standard)
+            }
+        else:  # sync
+            # Sync producers need more frequent polling to prevent buffer overflow as throughput is very high
+            polling_config = {
+                'gzip': 5,      # Poll every 5 messages for gzip (most frequent)
+                'snappy': 25,   # Poll every 25 messages for snappy (moderate)
+                'none': 50      # Poll every 50 messages for none (standard)
+            }
+        poll_interval = polling_config.get(compression_type, 50 if producer_type == 'sync' else 100)
+        
+        strategy = self.createProducer(producer_type, compression_config)
+        strategy.poll_interval = poll_interval
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
         self.logger.info(f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
+        self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
         # Start metrics collection
         metrics.start()
