@@ -38,12 +38,21 @@ class AIOProducer:
     # ========================================================================
 
     async def poll(self, timeout=0, *args, **kwargs):
-        """Processes callbacks - blocking behavior depends on timeout
+        """Processes delivery callbacks from librdkafka - blocking behavior depends on timeout
+        
+        This method triggers any pending delivery callbacks (on_delivery) that have been
+        queued by librdkafka when messages are delivered or fail to deliver.
         
         Args:
-            timeout: 0 = non-blocking, >0 = block up to timeout seconds, -1 = block indefinitely
+            timeout: Timeout in seconds for waiting for callbacks:
+                    - 0 = non-blocking, return immediately after processing available callbacks
+                    - >0 = block up to timeout seconds waiting for new callbacks to arrive
+                    - -1 = block indefinitely until callbacks are available
+        
+        Returns:
+            Number of callbacks processed during this call
         """
-        if timeout > 0:
+        if timeout > 0 or timeout == -1:
             # Blocking call - use ThreadPool to avoid blocking event loop
             return await self._call(self._producer.poll, timeout, *args, **kwargs)
         else:
