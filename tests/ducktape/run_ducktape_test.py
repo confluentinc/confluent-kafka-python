@@ -12,18 +12,6 @@ from datetime import datetime
 import ducktape
 
 
-def check_kafka_connection():
-    """Check if Kafka is running on localhost:9092"""
-    try:
-        import socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        result = sock.connect_ex(('localhost', 9092))
-        sock.close()
-        return result == 0
-    except:
-        return False
-
-
 def get_test_info(test_type):
     """Get test file and description based on test type"""
     test_info = {
@@ -43,11 +31,11 @@ def main():
     """Run the ducktape test based on specified type"""
     parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
     parser.add_argument('test_type', choices=['producer', 'consumer'],
-                       help='Type of test to run')
+                        help='Type of test to run')
     parser.add_argument('test_method', nargs='?',
-                       help='Specific test method to run (optional)')
+                        help='Specific test method to run (optional)')
     parser.add_argument('--debug', action='store_true',
-                       help='Enable debug output')
+                        help='Enable debug output')
 
     args = parser.parse_args()
 
@@ -68,15 +56,6 @@ def main():
         print("ERROR: confluent_kafka is not installed.")
         print("Install it with: pip install confluent-kafka")
         return 1
-
-    # Check Kafka connection
-    print("\nChecking Kafka connection...")
-    if not check_kafka_connection():
-        print("ERROR: Cannot connect to Kafka on localhost:9092")
-        print("Please ensure Kafka is running before running tests.")
-        return 1
-    else:
-        print("Kafka connection successful")
 
     # Get test file path
     script_dir = os.path.dirname(os.path.abspath(__file__))

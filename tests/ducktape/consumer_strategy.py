@@ -7,14 +7,16 @@ implementations (sync vs async) with consistent interfaces for testing.
 import time
 import asyncio
 from confluent_kafka import Consumer
+from confluent_kafka.aio import AIOConsumer
 
 
 class ConsumerStrategy:
     """Base class for consumer strategies"""
-    def __init__(self, bootstrap_servers, group_id, logger):
+    def __init__(self, bootstrap_servers, group_id, logger, batch_size=10):
         self.bootstrap_servers = bootstrap_servers
         self.group_id = group_id
         self.logger = logger
+        self.batch_size = batch_size
         self.metrics = None
 
     def create_consumer(self):
@@ -48,14 +50,13 @@ class SyncConsumerStrategy(ConsumerStrategy):
         consumer = self.create_consumer()
         messages_consumed = 0
         consume_times = []  # Track consume batch latencies
-        batch_size = 100  # Process up to 100 messages per consume() call
 
         try:
             consumer.subscribe([topic_name])
 
             while time.time() - start_time < test_duration:
                 consume_start = time.time()
-                messages = consumer.consume(num_messages=batch_size, timeout=timeout)
+                messages = consumer.consume(num_messages=self.batch_size, timeout=timeout)
                 consume_end = time.time()
 
                 consume_latency_ms = (consume_end - consume_start) * 1000
@@ -93,7 +94,8 @@ class SyncConsumerStrategy(ConsumerStrategy):
                             topic=msg.topic(),
                             partition=msg.partition(),
                             offset=msg.offset(),
-                            operation_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
+                            # Amortize latency across batch
+                            operation_latency_ms=consume_latency_ms / max(len(messages), 1)
                         )
 
         finally:
@@ -161,11 +163,6 @@ class AsyncConsumerStrategy(ConsumerStrategy):
         self._consumer_instance = None
 
     def create_consumer(self):
-        from confluent_kafka.aio import AIOConsumer
-        # Enable logging for AIOConsumer
-        import logging
-        logging.basicConfig(level=logging.INFO)
-
         config = {
             'bootstrap.servers': self.bootstrap_servers,
             'group.id': self.group_id,
@@ -189,14 +186,13 @@ class AsyncConsumerStrategy(ConsumerStrategy):
             consumer = self.create_consumer()
             messages_consumed = 0
             consume_times = []  # Track consume batch latencies
-            batch_size = 100  # Process up to 100 messages per consume() call
 
             try:
                 await consumer.subscribe([topic_name])
 
                 while time.time() - start_time < test_duration:
                     consume_start = time.time()
-                    messages = await consumer.consume(num_messages=batch_size, timeout=timeout)
+                    messages = await consumer.consume(num_messages=self.batch_size, timeout=timeout)
                     consume_end = time.time()
 
                     consume_latency_ms = (consume_end - consume_start) * 1000
@@ -234,7 +230,8 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                                 topic=msg.topic(),
                                 partition=msg.partition(),
                                 offset=msg.offset(),
-                                operation_latency_ms=consume_latency_ms / max(len(messages), 1)  # Amortize latency across batch
+                                # Amortize latency across batch
+                                operation_latency_ms=consume_latency_ms / max(len(messages), 1)
                             )
 
                     # Progress tracking (removed verbose logging)

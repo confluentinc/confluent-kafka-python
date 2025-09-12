@@ -68,7 +68,7 @@ class ConsumerMetricsCollector:
         self.error_messages.append(error_msg)
 
     def record_processed_message(self, message_size: int, topic: str, partition: int,
-                               offset: int, operation_latency_ms: float):
+                                 offset: int, operation_latency_ms: float):
         """Record a successfully processed message"""
         self.messages_consumed += 1
         self.total_bytes += message_size
@@ -131,9 +131,11 @@ class ConsumerMetricsCollector:
         operation_rate = self.operation_attempts / duration if duration > 0 else 0
 
         # Operation metrics (generic for poll/consume)
-        timeout_rate = self.operation_timeouts / self.operation_attempts if self.operation_attempts > 0 else 0
-        operation_error_rate = self.operation_errors / self.operation_attempts if self.operation_attempts > 0 else 0
-        operation_success_rate = (self.operation_attempts - self.operation_timeouts - self.operation_errors) / self.operation_attempts if self.operation_attempts > 0 else 0
+        operation_error_rate = (self.operation_errors / self.operation_attempts
+                               if self.operation_attempts > 0 else 0)
+        operation_success_rate = ((self.operation_attempts - self.operation_timeouts -
+                                  self.operation_errors) / self.operation_attempts
+                                 if self.operation_attempts > 0 else 0)
 
         # Operation latency analysis
         if self.operation_latencies:
@@ -149,7 +151,8 @@ class ConsumerMetricsCollector:
                 p95_operation_latency = self._percentile(self.operation_latencies, 95)
                 p99_operation_latency = self._percentile(self.operation_latencies, 99)
         else:
-            avg_operation_latency = p50_operation_latency = p95_operation_latency = p99_operation_latency = max_operation_latency = 0
+            avg_operation_latency = p50_operation_latency = p95_operation_latency = (
+                p99_operation_latency) = max_operation_latency = 0
 
         # Message size analysis
         if self.message_sizes:
@@ -278,19 +281,21 @@ def validate_consumer_metrics(metrics: Dict[str, Any], bounds: ConsumerMetricsBo
     if 'messages_per_consume' in metrics:
         messages_per_consume = metrics.get('messages_per_consume', 0)
         if messages_per_consume < bounds.min_messages_per_consume:
-            violations.append(f"Messages per consume {messages_per_consume:.2f} below minimum {bounds.min_messages_per_consume}")
+            violations.append(f"Messages per consume {messages_per_consume:.2f} "
+                             f"below minimum {bounds.min_messages_per_consume}")
 
         empty_consume_rate = metrics.get('empty_consume_rate', 0)
         if empty_consume_rate > bounds.max_empty_consume_rate:
-            violations.append(f"Empty consume rate {empty_consume_rate:.3f} exceeds maximum {bounds.max_empty_consume_rate}")
-    # For poll operations, we skip batch efficiency validation since they're single-message operations
+            violations.append(f"Empty consume rate {empty_consume_rate:.3f} "
+                             f"exceeds maximum {bounds.max_empty_consume_rate}")
 
+    # For poll operations, we skip batch efficiency validation since they're single-message operations
     is_valid = len(violations) == 0
     return is_valid, violations
 
 
 def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, violations: List[str],
-                                  consumer_type: str = None):
+                                  consumer_type: str = None, batch_size: int = None):
     """Print simplified consumer metrics report"""
     # Detect operation type from metrics keys
     op_name = "consume"  # default
@@ -301,7 +306,10 @@ def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, viola
     header_parts = ["Consumer Performance Report"]
     if consumer_type:
         header_parts.append(f"{consumer_type.upper()}")
-    header_parts.append(f"{op_name.upper()}()")
+    if op_name == "consume" and batch_size is not None:
+        header_parts.append(f"{op_name.upper()}(batch_size={batch_size})")
+    else:
+        header_parts.append(f"{op_name.upper()}()")
 
     header = " - ".join(header_parts)
     print(f"\n=== {header} ===")
@@ -328,7 +336,8 @@ def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, viola
     print("\nMessage Size Analysis:")
     print(f"  Average: {metrics.get('avg_message_size_bytes', 0):.0f} bytes")
     print(f"  Median: {metrics.get('median_message_size_bytes', 0):.0f} bytes")
-    print(f"  Range: {metrics.get('min_message_size_bytes', 0):.0f} - {metrics.get('max_message_size_bytes', 0):.0f} bytes")
+    print(f"  Range: {metrics.get('min_message_size_bytes', 0):.0f} - "
+          f"{metrics.get('max_message_size_bytes', 0):.0f} bytes")
 
     # Memory usage (if available)
     if metrics.get('peak_memory_mb', 0) > 0:
@@ -348,7 +357,6 @@ def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, viola
         print(f"  Messages per {op_name}(): {metrics.get(f'messages_per_{op_name}', 0):.2f}")
         print(f"  Empty {op_name} rate: {metrics.get(f'empty_{op_name}_rate', 0):.3f}")
         print(f"  Total {op_name}() calls: {metrics.get(f'{op_name}_call_count', 0)}")
-
 
 
     # Validation

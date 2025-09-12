@@ -5,12 +5,13 @@ Assumes Kafka is already running on localhost:9092
 import time
 import uuid
 from ducktape.tests.test import Test
-from ducktape.mark import matrix, parametrize
+from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
-from tests.ducktape.consumer_benchmark_metrics import ConsumerMetricsCollector, ConsumerMetricsBounds, validate_consumer_metrics, print_consumer_metrics_report
+from tests.ducktape.consumer_benchmark_metrics import (ConsumerMetricsCollector, ConsumerMetricsBounds,
+                                                        validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
-from confluent_kafka import Producer  # For pre-producing test messages
+from confluent_kafka import Producer
 
 
 class SimpleConsumerTest(Test):
@@ -22,7 +23,7 @@ class SimpleConsumerTest(Test):
         # Set up Kafka client (assumes external Kafka running)
         self.kafka = KafkaClient(test_context, bootstrap_servers="localhost:9092")
 
-    def setUp(self):
+    def setup(self):
         """Set up test environment"""
         self.logger.info("Verifying connection to external Kafka at localhost:9092")
 
@@ -32,7 +33,7 @@ class SimpleConsumerTest(Test):
 
         self.logger.info("Successfully connected to Kafka")
 
-    def createConsumer(self, consumer_type):
+    def create_consumer(self, consumer_type, batch_size=10):
         """Create appropriate consumer strategy based on type"""
         group_id = f"test-group-{uuid.uuid4()}"  # Unique group ID for each test
 
@@ -40,16 +41,18 @@ class SimpleConsumerTest(Test):
             return SyncConsumerStrategy(
                 self.kafka.bootstrap_servers(),
                 group_id,
-                self.logger
+                self.logger,
+                batch_size
             )
         else:  # async
             return AsyncConsumerStrategy(
                 self.kafka.bootstrap_servers(),
                 group_id,
-                self.logger
+                self.logger,
+                batch_size
             )
 
-    def produce_test_messages(self, topic_name, num_messages=10000):
+    def produce_test_messages(self, topic_name, num_messages):
         """Produce messages to topic for consumer tests"""
         producer = Producer({'bootstrap.servers': self.kafka.bootstrap_servers()})
 
@@ -71,8 +74,8 @@ class SimpleConsumerTest(Test):
         producer.flush(timeout=60)  # Final flush with longer timeout
         self.logger.info(f"Successfully produced {num_messages} messages")
 
-    @matrix(consumer_type=["sync", "async"])
-    def test_basic_consume(self, consumer_type):
+    @matrix(consumer_type=["sync", "async"], batch_size=[1, 10, 100])
+    def test_basic_consume(self, consumer_type, batch_size):
         """Test basic message consumption with comprehensive metrics and bounds validation"""
 
         topic_name = f"test-{consumer_type}-consumer-topic"
@@ -96,7 +99,7 @@ class SimpleConsumerTest(Test):
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
-        strategy = self.createConsumer(consumer_type)
+        strategy = self.create_consumer(consumer_type, batch_size)
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
@@ -123,13 +126,13 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type)
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size)
 
         # Get AIOConsumer built-in metrics for comparison (async only)
         final_metrics = strategy.get_final_metrics()
 
         if final_metrics:
-            self.logger.info(f"=== AIOConsumer Built-in Metrics ===")
+            self.logger.info("=== AIOConsumer Built-in Metrics ===")
             for key, value in final_metrics.items():
                 self.logger.info(f"{key}: {value}")
 
@@ -170,7 +173,7 @@ class SimpleConsumerTest(Test):
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
-        strategy = self.createConsumer(consumer_type)
+        strategy = self.create_consumer(consumer_type)
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
@@ -197,7 +200,7 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type)
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, 1)
 
         # Enhanced assertions using metrics
         assert messages_consumed > 0, "No messages were consumed"
@@ -212,6 +215,6 @@ class SimpleConsumerTest(Test):
 
         self.logger.info("Successfully completed basic poll test with comprehensive metrics")
 
-    def tearDown(self):
+    def teardown(self):
         """Clean up test environment"""
         self.logger.info("Test completed - external Kafka service remains running")
