@@ -132,10 +132,10 @@ class ConsumerMetricsCollector:
 
         # Operation metrics (generic for poll/consume)
         operation_error_rate = (self.operation_errors / self.operation_attempts
-                               if self.operation_attempts > 0 else 0)
+                              if self.operation_attempts > 0 else 0)
         operation_success_rate = ((self.operation_attempts - self.operation_timeouts -
-                                  self.operation_errors) / self.operation_attempts
-                                 if self.operation_attempts > 0 else 0)
+                                 self.operation_errors) / self.operation_attempts
+                                if self.operation_attempts > 0 else 0)
 
         # Operation latency analysis
         if self.operation_latencies:
@@ -282,12 +282,12 @@ def validate_consumer_metrics(metrics: Dict[str, Any], bounds: ConsumerMetricsBo
         messages_per_consume = metrics.get('messages_per_consume', 0)
         if messages_per_consume < bounds.min_messages_per_consume:
             violations.append(f"Messages per consume {messages_per_consume:.2f} "
-                             f"below minimum {bounds.min_messages_per_consume}")
+                           f"below minimum {bounds.min_messages_per_consume}")
 
         empty_consume_rate = metrics.get('empty_consume_rate', 0)
         if empty_consume_rate > bounds.max_empty_consume_rate:
             violations.append(f"Empty consume rate {empty_consume_rate:.3f} "
-                             f"exceeds maximum {bounds.max_empty_consume_rate}")
+                           f"exceeds maximum {bounds.max_empty_consume_rate}")
 
     # For poll operations, we skip batch efficiency validation since they're single-message operations
     is_valid = len(violations) == 0
@@ -357,7 +357,6 @@ def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, viola
         print(f"  Messages per {op_name}(): {metrics.get(f'messages_per_{op_name}', 0):.2f}")
         print(f"  Empty {op_name} rate: {metrics.get(f'empty_{op_name}_rate', 0):.3f}")
         print(f"  Total {op_name}() calls: {metrics.get(f'{op_name}_call_count', 0)}")
-
 
     # Validation
     print("\nValidation:")

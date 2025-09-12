@@ -9,7 +9,7 @@ from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.consumer_benchmark_metrics import (ConsumerMetricsCollector, ConsumerMetricsBounds,
-                                                        validate_consumer_metrics, print_consumer_metrics_report)
+                                                     validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
 
@@ -74,7 +74,7 @@ class SimpleConsumerTest(Test):
         producer.flush(timeout=60)  # Final flush with longer timeout
         self.logger.info(f"Successfully produced {num_messages} messages")
 
-    @matrix(consumer_type=["sync", "async"], batch_size=[1, 10, 100])
+    @matrix(consumer_type=["sync", "async"], batch_size=[1, 5, 20])
     def test_basic_consume(self, consumer_type, batch_size):
         """Test basic message consumption with comprehensive metrics and bounds validation"""
 
