@@ -17,6 +17,7 @@ import concurrent.futures
 import confluent_kafka
 from confluent_kafka import KafkaException as _KafkaException
 import functools
+import time
 import confluent_kafka.aio._common as _common
 
 
@@ -32,6 +33,13 @@ class AIOProducer:
         wrap_common_callbacks(asyncio.get_running_loop(), producer_conf)
 
         self._producer = confluent_kafka.Producer(producer_conf)
+        
+        # Metrics for latency tracking
+        self._latency_metrics = []
+        self._total_calls = 0
+        self._total_latency = 0.0
+        self._min_latency = float('inf')
+        self._max_latency = 0.0
 
     # ========================================================================
     # HYBRID OPERATIONS - Blocking behavior depends on parameters
@@ -73,6 +81,9 @@ class AIOProducer:
             key: Message key (optional)
             *args, **kwargs: Additional parameters like partition, timestamp, headers
         """
+        # Start Time
+        start_time = time.perf_counter()
+        
         # Get current running event loop
         result = asyncio.get_running_loop().create_future()
 
@@ -88,7 +99,7 @@ class AIOProducer:
                 # Handle delivery success
                 result.set_result(msg)
                 
-                # Call user's callback on successful delivery
+                # Call user's callback on successful delivery // Use Different ThreadPool for this 
                 if user_callback:
                     try:
                         user_callback(err, msg)  # err is None here
@@ -97,7 +108,20 @@ class AIOProducer:
                         pass
         
         kwargs['on_delivery'] = on_delivery
-        self._producer.produce(topic, value, key, *args, **kwargs)
+        self._producer.produce(topic, value, key, *args, **kwargs) #  No TheadPool
+        # await self._call(self._producer.produce, topic, value, key, *args, **kwargs) # ThreadPool
+        
+        # END Time - Calculate and store latency
+        end_time = time.perf_counter()
+        latency = end_time - start_time
+        
+        # Update metrics
+        self._latency_metrics.append(latency)
+        self._total_calls += 1
+        self._total_latency += latency
+        self._min_latency = min(self._min_latency, latency)
+        self._max_latency = max(self._max_latency, latency)
+        
         return result
     
 
@@ -154,3 +178,84 @@ class AIOProducer:
         """Authentication operation that may involve network calls"""
         return await self._call(self._producer.set_sasl_credentials,
                                 *args, **kwargs)
+
+    def print_latency_metrics(self):
+        """Print aggregated latency metrics for produce method calls"""
+        if self._total_calls == 0:
+            print("No produce calls have been made yet.")
+            return
+        
+        # Calculate average latency
+        avg_latency = self._total_latency / self._total_calls
+        
+        # Calculate median latency
+        sorted_latencies = sorted(self._latency_metrics)
+        n = len(sorted_latencies)
+        if n % 2 == 0:
+            median_latency = (sorted_latencies[n//2 - 1] + sorted_latencies[n//2]) / 2
+        else:
+            median_latency = sorted_latencies[n//2]
+        
+        # Calculate 95th percentile
+        p95_index = int(0.95 * n)
+        p95_latency = sorted_latencies[min(p95_index, n-1)]
+        
+        # Calculate 99th percentile
+        p99_index = int(0.99 * n)
+        p99_latency = sorted_latencies[min(p99_index, n-1)]
+        
+        print("=" * 60)
+        print("AIOPRODUCER PRODUCE LATENCY METRICS")
+        print("=" * 60)
+        print(f"Total produce() calls:     {self._total_calls:,}")
+        print(f"Total latency:            {self._total_latency:.6f} seconds")
+        print(f"Average latency:          {avg_latency:.6f} seconds ({avg_latency*1000:.3f} ms)")
+        print(f"Median latency:           {median_latency:.6f} seconds ({median_latency*1000:.3f} ms)")
+        print(f"Min latency:              {self._min_latency:.6f} seconds ({self._min_latency*1000:.3f} ms)")
+        print(f"Max latency:              {self._max_latency:.6f} seconds ({self._max_latency*1000:.3f} ms)")
+        print(f"95th percentile latency:  {p95_latency:.6f} seconds ({p95_latency*1000:.3f} ms)")
+        print(f"99th percentile latency:  {p99_latency:.6f} seconds ({p99_latency*1000:.3f} ms)")
+        print("=" * 60)
+
+    def get_latency_stats(self):
+        """Return latency statistics as a dictionary"""
+        if self._total_calls == 0:
+            return {
+                'total_calls': 0,
+                'total_latency': 0.0,
+                'avg_latency': 0.0,
+                'median_latency': 0.0,
+                'min_latency': 0.0,
+                'max_latency': 0.0,
+                'p95_latency': 0.0,
+                'p99_latency': 0.0
+            }
+        
+        # Calculate average latency
+        avg_latency = self._total_latency / self._total_calls
+        
+        # Calculate median latency
+        sorted_latencies = sorted(self._latency_metrics)
+        n = len(sorted_latencies)
+        if n % 2 == 0:
+            median_latency = (sorted_latencies[n//2 - 1] + sorted_latencies[n//2]) / 2
+        else:
+            median_latency = sorted_latencies[n//2]
+        
+        # Calculate percentiles
+        p95_index = int(0.95 * n)
+        p95_latency = sorted_latencies[min(p95_index, n-1)]
+        
+        p99_index = int(0.99 * n)
+        p99_latency = sorted_latencies[min(p99_index, n-1)]
+        
+        return {
+            'total_calls': self._total_calls,
+            'total_latency': self._total_latency,
+            'avg_latency': avg_latency,
+            'median_latency': median_latency,
+            'min_latency': self._min_latency if self._min_latency != float('inf') else 0.0,
+            'max_latency': self._max_latency,
+            'p95_latency': p95_latency,
+            'p99_latency': p99_latency
+        }

@@ -231,12 +231,17 @@ class AsyncProducerStrategy(ProducerStrategy):
                     if self.metrics:
                         self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to produce message {messages_sent}: {e}")
-            
+
+            # Print producer latency metrics
+            producer.print_latency_metrics()
+
+            # Print producer latency stats
+            producer.get_latency_stats()
+
             # Flush producer
             flush_start = time.time()
             await producer.flush(timeout=30)
             flush_time = time.time() - flush_start
-
 
             # Wait for all pending futures to complete (for delivery confirmation only)
             for delivery_future, message_key in pending_futures:
