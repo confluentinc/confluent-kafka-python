@@ -22,6 +22,10 @@ def get_test_info(test_type):
         'consumer': {
             'file': 'test_consumer.py',
             'description': 'Consumer Benchmark Tests'
+        },
+        'producer_sr': {
+            'file': 'test_producer_with_schema_registry.py',
+            'description': 'Producer with Schema Registry Tests'
         }
     }
     return test_info.get(test_type)
@@ -30,7 +34,7 @@ def get_test_info(test_type):
 def main():
     """Run the ducktape test based on specified type"""
     parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
-    parser.add_argument('test_type', choices=['producer', 'consumer'],
+    parser.add_argument('test_type', choices=['producer', 'consumer', 'producer_sr'],
                         help='Type of test to run')
     parser.add_argument('test_method', nargs='?',
                         help='Specific test method to run (optional)')
