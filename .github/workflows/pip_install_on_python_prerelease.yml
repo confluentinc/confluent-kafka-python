@@ -11,6 +11,12 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
+    - run: sudo apt-get install --yes librdkafka-dev
+      if: runner.os == 'Linux'
+    - run: brew install librdkafka
+      if: runner.os == 'macOS'
+    - run: choco install Kafka
+      if: runner.os == 'Windows'
     - uses: actions/checkout@v5
     - uses: actions/setup-python@v6
       with:
