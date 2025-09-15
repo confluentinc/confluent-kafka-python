@@ -373,7 +373,8 @@ class SimpleProducerTest(Test):
         if not is_valid:
             self.logger.error("Performance bounds validation failed for %s compression: %s",
                               compression_type, "; ".join(violations))
-            assert False, f"Performance bounds validation failed for {compression_type} compression: {'; '.join(violations)}"
+            assert False, (f"Performance bounds validation failed for {compression_type} "
+                           f"compression: {'; '.join(violations)}")
 
         self.logger.info("Successfully completed %s compression test with comprehensive metrics", compression_type)
 
