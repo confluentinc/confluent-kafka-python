@@ -152,3 +152,12 @@ class AIOConsumer:
     async def set_sasl_credentials(self, *args, **kwargs):
         return await self._call(self._consumer.set_sasl_credentials,
                                 *args, **kwargs)
+
+    async def list_topics(self, *args, **kwargs):
+        return await self._call(self._consumer.list_topics, *args, **kwargs)
+
+    async def get_watermark_offsets(self, *args, **kwargs):
+        return await self._call(self._consumer.get_watermark_offsets, *args, **kwargs)
+
+    async def offsets_for_times(self, *args, **kwargs):
+        return await self._call(self._consumer.offsets_for_times, *args, **kwargs)
