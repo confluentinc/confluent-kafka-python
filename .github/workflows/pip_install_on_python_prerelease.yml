@@ -8,19 +8,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        python-version: [3.x, 3.14]
         os: [macos-latest, ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-    - run: sudo apt-get install --yes librdkafka-dev
-      if: runner.os == 'Linux'
-    - run: brew install librdkafka
-      if: runner.os == 'macOS'
-    - run: choco install Kafka
-      if: runner.os == 'Windows'
+    # librdkafka  seems to already be installed and up-to-date.
+    #- run: sudo apt-get install --yes librdkafka-dev
+    #  if: runner.os == 'Linux'
+    #- run: brew install librdkafka
+    #  if: runner.os == 'macOS'
+    #- run: choco install Kafka
+    #  if: runner.os == 'Windows'
     - uses: actions/checkout@v5
     - uses: actions/setup-python@v6
       with:
-        python-version: 3.14
+        python-version: ${{ matrix.python-version }}
         allow-prereleases: true
     - run: pip install --upgrade pip
     - run: pip install confluent-kafka
