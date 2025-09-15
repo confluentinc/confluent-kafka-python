@@ -43,7 +43,7 @@ def main():
             import pkg_resources
             version = pkg_resources.get_distribution('ducktape').version
             print(f"Using ducktape version: {version}")
-        except:
+        except Exception:
             print("Using ducktape version: unknown")
 
     # Check if confluent_kafka is available

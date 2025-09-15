@@ -268,16 +268,14 @@ class MetricsBounds:
                 config = json.load(f)
 
             # Always use environment-based format
-            environment = os.getenv('BENCHMARK_ENVIRONMENT', 
-                                   config.get('_default_environment', 'local'))
-            
+            environment = os.getenv('BENCHMARK_ENVIRONMENT',
+                                    config.get('_default_environment', 'local'))
             if environment not in config:
                 available_envs = [k for k in config.keys() if not k.startswith('_')]
                 raise ValueError(
                     f"Environment '{environment}' not found in config. "
                     f"Available environments: {available_envs}"
                 )
-            
             bounds_config = config[environment]
             print(f"Loading benchmark bounds for environment: {environment}")
 
