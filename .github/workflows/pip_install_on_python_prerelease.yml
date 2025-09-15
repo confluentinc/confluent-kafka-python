@@ -1,0 +1,20 @@
+name: pip_install_on_python_prerelease
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  pip_install_on_python_prerelease:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-python@v6
+      with:
+        python-version: 3.14
+        allow-prereleases: true
+    - run: pip install --upgrade pip
+    - run: pip install confluent-kafka
