@@ -23,7 +23,7 @@ import confluent_kafka.aio._common as _common
 
 class AIOProducer:
     
-    def __init__(self, producer_conf, max_workers=1, executor=None):
+    def __init__(self, producer_conf, max_workers=4, executor=None, batch_size=1000):
         if executor is not None:
             self.executor = executor
         else:
@@ -40,9 +40,17 @@ class AIOProducer:
         self._total_latency = 0.0
         self._min_latency = float('inf')
         self._max_latency = 0.0
+        
+        # Batching configuration and buffer
+        self._batch_size = batch_size
+        self._message_buffer = []
+        self._buffer_futures = []  # Track futures for each buffered message
+        self._buffer_lock = asyncio.Lock()  # Protect buffer access
+    
 
     # ========================================================================
-    # HYBRID OPERATIONS - Blocking behavior depends on parameters
+    # BLOCKING OPERATIONS - Use ThreadPool to avoid blocking event loop
+    # These operations may block waiting for network I/O or other resources
     # ========================================================================
 
     async def poll(self, timeout=0, *args, **kwargs):
@@ -63,17 +71,10 @@ class AIOProducer:
         if timeout > 0 or timeout == -1:
             # Blocking call - use ThreadPool to avoid blocking event loop
             return await self._call(self._producer.poll, timeout, *args, **kwargs)
-        else:
-            # Non-blocking call (timeout=0) - direct call is safe
-            return self._producer.poll(timeout, *args, **kwargs)
 
-    # ========================================================================
-    # NON-BLOCKING OPERATIONS - Direct calls (no ThreadPool overhead)
-    # These operations are already async-safe in librdkafka
-    # ========================================================================
 
     async def produce(self, topic, value=None, key=None, *args, **kwargs):
-        """Non-blocking: Queues message and returns immediately
+        """Batched produce: Accumulates messages in buffer and flushes when threshold reached
         
         Args:
             topic: Kafka topic name (required)
@@ -84,34 +85,40 @@ class AIOProducer:
         # Start Time
         start_time = time.perf_counter()
         
-        # Get current running event loop
         result = asyncio.get_running_loop().create_future()
-
-        # Store user's original callback if provided
         user_callback = kwargs.get('on_delivery')
         
-        # Pre-bind variables to avoid closure overhead
-        def on_delivery(err, msg):
-            if err:
-                # Handle delivery failure
-                result.set_exception(_KafkaException(err))
-            else:
-                # Handle delivery success
-                result.set_result(msg)
-                
-                # Call user's callback on successful delivery // Use Different ThreadPool for this 
-                if user_callback:
-                    try:
-                        user_callback(err, msg)  # err is None here
-                    except Exception:
-                        # Log but don't propagate user callback errors to avoid breaking delivery confirmation
-                        pass
+        await self._buffer_lock.acquire()
         
-        kwargs['on_delivery'] = on_delivery
-        self._producer.produce(topic, value, key, *args, **kwargs) #  No TheadPool
-        # await self._call(self._producer.produce, topic, value, key, *args, **kwargs) # ThreadPool
+        try:
+            msg_data = {
+                'topic': topic,
+                'value': value,
+                'key': key
+            }
+            
+            # Add optional parameters to message data
+            if 'partition' in kwargs:
+                msg_data['partition'] = kwargs['partition']
+            if 'timestamp' in kwargs:
+                msg_data['timestamp'] = kwargs['timestamp']
+            if 'headers' in kwargs:
+                msg_data['headers'] = kwargs['headers']
+            
+            # Store user callback in message data for later execution
+            if user_callback:
+                msg_data['user_callback'] = user_callback
+            
+            self._message_buffer.append(msg_data)
+            self._buffer_futures.append(result)
+            
+            should_flush = len(self._message_buffer) >= self._batch_size
+            
+        finally:
+            self._buffer_lock.release()
         
-        # END Time - Calculate and store latency
+        if should_flush:
+            await self._flush_buffer()
         end_time = time.perf_counter()
         latency = end_time - start_time
         
@@ -123,13 +130,7 @@ class AIOProducer:
         self._max_latency = max(self._max_latency, latency)
         
         return result
-    
-
-    # ========================================================================
-    # BLOCKING OPERATIONS - Use ThreadPool to avoid blocking event loop
-    # These operations may block waiting for network I/O or other resources
-    # ========================================================================
-
+ 
     async def _call(self, blocking_task, *args, **kwargs):
         """Helper method for blocking operations that need ThreadPool execution"""
         return (await asyncio.gather(
@@ -143,6 +144,13 @@ class AIOProducer:
 
     async def flush(self, *args, **kwargs):
         """Waits until all messages are delivered or timeout"""
+        # First, flush any remaining messages in the buffer for all topics
+        async with self._buffer_lock:
+            if self._message_buffer:
+                # Flush all topics - the _flush_buffer method now properly handles multiple topics
+                await self._flush_buffer()
+        
+        # Then flush the producer
         return await self._call(self._producer.flush, *args, **kwargs)
 
     async def purge(self, *args, **kwargs):
@@ -259,3 +267,129 @@ class AIOProducer:
             'p95_latency': p95_latency,
             'p99_latency': p99_latency
         }
+
+      
+    # ========================================================================
+    # BATCHING OPERATIONS - Buffer management and batch processing
+    # ========================================================================
+
+    def _produce_batch_and_poll(self, target_topic, batch_messages, batch_delivery_callback):
+        """Helper method to run produce_batch and poll in the same thread pool worker
+        
+        This optimization combines both operations in a single thread pool execution:
+        1. produce_batch() - queues messages in librdkafka
+        2. poll(0) - immediately processes delivery callbacks
+        
+        Benefits:
+        - Reduces thread pool overhead (1 call instead of 2)
+        - Eliminates context switching between operations
+        - Ensures immediate callback processing
+        - Lower latency for delivery confirmation
+        """
+        # Call produce_batch first
+        self._producer.produce_batch(target_topic, batch_messages, on_delivery=batch_delivery_callback)
+        
+        # Immediately poll to process delivery callbacks in the same worker
+        poll_result = self._producer.poll(0)
+        
+        return poll_result
+
+    async def _flush_buffer(self, target_topic=None):
+        """Flush the current message buffer using produce_batch via thread pool
+        
+        This method now properly handles messages for different topics by grouping
+        them and calling produce_batch separately for each topic.
+        """
+        if not self._message_buffer:
+            return
+        
+        # Group messages by topic
+        topic_groups = {}
+        for i, msg_data in enumerate(self._message_buffer):
+            topic = msg_data['topic']
+            if topic not in topic_groups:
+                topic_groups[topic] = {
+                    'messages': [],
+                    'futures': [],
+                    'callbacks': [],
+                    'indices': []
+                }
+            topic_groups[topic]['messages'].append(msg_data)
+            topic_groups[topic]['futures'].append(self._buffer_futures[i])
+            topic_groups[topic]['callbacks'].append(msg_data.get('user_callback'))
+            topic_groups[topic]['indices'].append(i)
+        
+        # Clear buffers immediately (reduce memory pressure)
+        self._message_buffer.clear()
+        self._buffer_futures.clear()
+        
+        # Process each topic group separately
+        for topic, group_data in topic_groups.items():
+            # Skip if target_topic is specified and doesn't match
+            if target_topic is not None and topic != target_topic:
+                # Re-add messages for other topics back to buffer
+                for j, msg_data in enumerate(group_data['messages']):
+                    self._message_buffer.append(msg_data)
+                    self._buffer_futures.append(group_data['futures'][j])
+                continue
+            
+            # Convert messages to batch format
+            batch_messages = []
+            for msg_data in group_data['messages']:
+                batch_msg = {
+                    'value': msg_data['value'],
+                    'key': msg_data['key']
+                }
+                
+                # Add optional fields if present
+                if 'partition' in msg_data:
+                    batch_msg['partition'] = msg_data['partition']
+                if 'timestamp' in msg_data:
+                    batch_msg['timestamp'] = msg_data['timestamp']
+                if 'headers' in msg_data:
+                    batch_msg['headers'] = msg_data['headers']
+                
+                batch_messages.append(batch_msg)
+            
+            # Setup callback with pre-allocated state
+            batch_futures = group_data['futures']
+            batch_user_callbacks = group_data['callbacks']
+            callback_state = {'index': 0, 'futures': batch_futures, 'callbacks': batch_user_callbacks}
+            
+            def batch_delivery_callback(err, msg):
+                idx = callback_state['index']
+                if idx < len(callback_state['futures']):
+                    future = callback_state['futures'][idx]
+                    user_callback = callback_state['callbacks'][idx]
+                    
+                    if err:
+                        future.set_exception(_KafkaException(err))
+                    else:
+                        future.set_result(msg)
+                        if user_callback:
+                            try:
+                                user_callback(err, msg)
+                            except Exception:
+                                pass
+                    
+                    callback_state['index'] += 1
+            
+            try:
+                # Call produce_batch and poll for this topic
+                await self._call(self._produce_batch_and_poll, topic, batch_messages, batch_delivery_callback)
+                        
+            except Exception as e:
+                # If batch fails, fail all remaining futures for this topic
+                start_idx = callback_state['index']
+                for i in range(start_idx, len(batch_futures)):
+                    if not batch_futures[i].done():
+                        batch_futures[i].set_exception(e)
+
+    async def flush_buffer(self):
+        """Manually flush the current message buffer for all topics"""
+        async with self._buffer_lock:
+            if self._message_buffer:
+                # Flush all topics (don't specify target_topic)
+                await self._flush_buffer()
+
+

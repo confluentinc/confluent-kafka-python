@@ -26,7 +26,19 @@ class ProducerStrategy:
 class SyncProducerStrategy(ProducerStrategy):
     def create_producer(self, config_overrides=None):
         config = {
-            'bootstrap.servers': self.bootstrap_servers
+            'bootstrap.servers': self.bootstrap_servers,
+            # Optimized configuration for low-latency, high-throughput (same as async)
+            'queue.buffering.max.messages': 1000000,  # 1M messages (sufficient)
+            'queue.buffering.max.kbytes': 1048576,    # 1GB (default)
+            'batch.size': 65536,                      # 64KB batches (increased for better efficiency)
+            'batch.num.messages': 50000,              # 50K messages per batch (up from 10K default)
+            'message.max.bytes': 2097152,             # 2MB max message size (up from ~1MB default)
+            'linger.ms': 1,                          # Wait 1ms for batching (low latency)
+            'compression.type': 'lz4',               # Fast compression
+            'acks': 1,                               # Wait for leader only (faster)
+            'retries': 3,                            # Retry failed sends
+            'delivery.timeout.ms': 30000,            # 30s delivery timeout
+            'max.in.flight.requests.per.connection': 5  # Pipeline requests
         }
         
         # Apply any test-specific overrides
@@ -75,7 +87,6 @@ class SyncProducerStrategy(ProducerStrategy):
         
         while time.time() - start_time < test_duration:
             message_value, message_key = message_formatter(messages_sent)
-            
             try:
                 # Track send time for latency calculation
                 if self.metrics:
@@ -150,19 +161,38 @@ class AsyncProducerStrategy(ProducerStrategy):
         logging.basicConfig(level=logging.INFO)
         
         config = {
-            'bootstrap.servers': self.bootstrap_servers
+            'bootstrap.servers': self.bootstrap_servers,
+            # Optimized configuration for low-latency, high-throughput
+            'queue.buffering.max.messages': 1000000,  # 1M messages (sufficient)
+            'queue.buffering.max.kbytes': 1048576,    # 1GB (default)
+            'batch.size': 65536,                      # 64KB batches (increased for better efficiency)
+            'batch.num.messages': 50000,              # 50K messages per batch (up from 10K default)
+            'message.max.bytes': 2097152,             # 2MB max message size (up from ~1MB default)
+            'linger.ms': 1,                          # Wait 1ms for batching (low latency)
+            'compression.type': 'lz4',               # Fast compression
+            'acks': 1,                               # Wait for leader only (faster)
+            'retries': 3,                            # Retry failed sends
+            'delivery.timeout.ms': 30000,            # 30s delivery timeout
+            'max.in.flight.requests.per.connection': 5  # Pipeline requests
         }
         
         # Apply any test-specific overrides
         if config_overrides:
             config.update(config_overrides)
         
-        self._producer_instance = AIOProducer(config, max_workers=20)
+        # Get producer configuration from strategy attributes
+        max_workers = getattr(self, 'max_workers', 4)
+        batch_size = getattr(self, 'batch_size', 1000)  # Optimal batch size for low latency
+        
+        # Use updated defaults with configurable parameters
+        self._producer_instance = AIOProducer(config, max_workers=max_workers, batch_size=batch_size)
         
         # Log the configuration for validation
         self.logger.info("=== ASYNC PRODUCER CONFIGURATION ===")
         for key, value in config.items():
             self.logger.info(f"{key}: {value}")
+        self.logger.info(f"max_workers: {max_workers}")
+        self.logger.info(f"batch_size: {batch_size}")
         self.logger.info("=" * 41)
         
         return self._producer_instance
@@ -182,9 +212,21 @@ class AsyncProducerStrategy(ProducerStrategy):
             poll_times = []
             flush_time = 0
             
+            # Pre-create shared metrics callback to avoid closure creation overhead
+            shared_metrics_callback = None
+            if self.metrics:
+                def shared_metrics_callback(err, msg):
+                    if not err:
+                        # Calculate latency if we have send time
+                        msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
+                        latency_ms = 0.0
+                        if msg_key in send_times:
+                            latency_ms = (time.time() - send_times[msg_key]) * 1000
+                            del send_times[msg_key]
+                        self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+            
             while time.time() - start_time < test_duration:
                 message_value, message_key = message_formatter(messages_sent)
-                
                 try:
                     # Record sent message for metrics and track send time
                     if self.metrics:
@@ -192,39 +234,18 @@ class AsyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
                         send_times[message_key] = time.time()  # Track send time for latency
                     
-                    # Create metrics callback for this message
-                    def create_metrics_callback(msg_key):
-                        def metrics_callback(err, msg):
-                            if self.metrics and not err:
-                                # Calculate latency if we have send time
-                                latency_ms = 0.0
-                                if msg_key in send_times:
-                                    latency_ms = (time.time() - send_times[msg_key]) * 1000
-                                    del send_times[msg_key]
-                                self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
-                        return metrics_callback
-                    
-                    # Produce message with metrics callback
+                    # Produce message
                     produce_start = time.time()
                     delivery_future = await producer.produce(
                         topic=topic_name,
                         value=message_value,
                         key=message_key,
-                        on_delivery=create_metrics_callback(message_key) if self.metrics else None
+                        on_delivery=shared_metrics_callback
                     )
                     produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1
 
-                    # Use configured polling interval (default to 100 for async)
-                    poll_interval = getattr(self, 'poll_interval', 100)
-                    if messages_sent % poll_interval == 0:
-                        poll_start = time.time()
-                        await producer.poll(0)
-                        poll_times.append(time.time() - poll_start)
-                        if self.metrics:
-                            self.metrics.record_poll()
-                    
                 except Exception as e:
                     if failed_container is not None:
                         failed_container.append(e)
