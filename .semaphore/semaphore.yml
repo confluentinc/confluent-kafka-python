@@ -1,5 +1,5 @@
 version: v1.0
-name: Test on PR or create and upload wheels on tag.
+name: build-test-release
 agent:
   machine:
     type: s1-prod-ubuntu24-04-amd64-1
