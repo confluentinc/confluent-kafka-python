@@ -12,6 +12,8 @@ from tests.ducktape.consumer_benchmark_metrics import (ConsumerMetricsCollector,
                                                      validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
+from confluent_kafka.aio import AIOConsumer
+import asyncio
 
 
 class SimpleConsumerTest(Test):
@@ -214,6 +216,81 @@ class SimpleConsumerTest(Test):
             self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
 
         self.logger.info("Successfully completed basic poll test with comprehensive metrics")
+
+    @matrix(consumer_type=["async"])
+    def test_consumer_enters_group_rebalance(self, consumer_type):
+        """Test basic rebalancing when a second consumer joins the group"""
+
+        async def async_rebalance_test():
+            topic_name = f"test-rebalance-enter-{uuid.uuid4()}"
+
+            # Setup: Create topic and produce messages
+            self.kafka.create_topic(topic_name, partitions=2, replication_factor=1)
+            topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+            assert topic_ready, f"Topic {topic_name} was not created"
+            self.produce_test_messages(topic_name, num_messages=10)
+
+            # Create consumers with shared group ID
+            group_id = f"rebalance-test-group-{uuid.uuid4()}"
+            consumer1 = AsyncConsumerStrategy(
+                self.kafka.bootstrap_servers(), group_id, self.logger, batch_size=10
+            ).create_consumer()
+            consumer2 = AsyncConsumerStrategy(
+                self.kafka.bootstrap_servers(), group_id, self.logger, batch_size=10
+            ).create_consumer()
+
+            # Track rebalance events
+            rebalance_events = []
+            async def track_rebalance(consumer, partitions):
+                rebalance_events.append(len(partitions))
+                await consumer.assign(partitions)
+
+            # Consumer 1 joins first - should get both partitions
+            await consumer1.subscribe([topic_name], on_assign=track_rebalance)
+            msg1 = await consumer1.poll(timeout=10.0)
+            assert msg1 is not None, "Consumer 1 should receive a message"
+            await asyncio.sleep(1)  # Let assignment complete
+
+            assignment1 = await consumer1.assignment()
+            assert len(assignment1) == 2, f"Consumer 1 should have 2 partitions, got {len(assignment1)}"
+            assert len(rebalance_events) == 1, f"Should have 1 rebalance event, got {len(rebalance_events)}"
+
+            # Consumer 2 joins - should trigger rebalance
+            await consumer2.subscribe([topic_name], on_assign=track_rebalance)
+
+            # Poll both consumers until rebalance completes
+            for attempt in range(15):  # Max 15 seconds
+                await consumer1.poll(timeout=1.0)
+                await consumer2.poll(timeout=1.0)
+
+                assignment1_current = await consumer1.assignment()
+                assignment2_current = await consumer2.assignment()
+
+                # Rebalance complete when both have partitions
+                if len(assignment1_current) > 0 and len(assignment2_current) > 0:
+                    break
+                await asyncio.sleep(1.0)
+
+            # Verify final state
+            assignment1_final = await consumer1.assignment()
+            assignment2_final = await consumer2.assignment()
+
+            assert len(assignment1_final) == 1, f"Consumer 1 should have 1 partition, got {len(assignment1_final)}"
+            assert len(assignment2_final) == 1, f"Consumer 2 should have 1 partition, got {len(assignment2_final)}"
+            assert len(rebalance_events) >= 2, f"Should have at least 2 rebalance events, got {len(rebalance_events)}"
+
+            # Verify consumers can still consume messages
+            msg1_after = await consumer1.poll(timeout=5.0)
+            msg2_after = await consumer2.poll(timeout=5.0)
+            messages_received = sum([1 for msg in [msg1_after, msg2_after] if msg is not None])
+            assert messages_received > 0, "At least one consumer should receive messages after rebalance"
+
+            # Clean up
+            await consumer1.close()
+            await consumer2.close()
+
+        # Run the async test
+        asyncio.run(async_rebalance_test())
 
     def teardown(self):
         """Clean up test environment"""
