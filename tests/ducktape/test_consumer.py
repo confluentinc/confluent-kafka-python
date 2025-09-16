@@ -9,7 +9,7 @@ from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.consumer_benchmark_metrics import (ConsumerMetricsCollector, ConsumerMetricsBounds,
-                                                     validate_consumer_metrics, print_consumer_metrics_report)
+                                                       validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
 
