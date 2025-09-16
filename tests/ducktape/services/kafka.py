@@ -42,7 +42,7 @@ class KafkaClient(Service):
                              list(metadata.topics.keys()))
             return True
         except Exception as e:
-            self.logger.error("Failed to connect to Kafka at %s: %s", self.bootstrap_servers_str, e)
+            self.logger.error("Failed to connect to Kafka: %s", e)
             return False
 
     def create_topic(self, topic, partitions=1, replication_factor=1):
@@ -124,3 +124,30 @@ class KafkaClient(Service):
 
         self.logger.error("Timeout waiting for topic '%s' after %ds", topic_name, max_wait_time)
         return False
+
+    def add_partitions(self, topic_name, new_partition_count):
+        """Add partitions to an existing topic"""
+        try:
+            from confluent_kafka.admin import AdminClient, NewPartitions
+
+            admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
+            metadata = admin_client.list_topics(timeout=10)
+
+            if topic_name not in metadata.topics:
+                raise ValueError(f"Topic {topic_name} does not exist")
+
+            current_partitions = len(metadata.topics[topic_name].partitions)
+            if new_partition_count <= current_partitions:
+                return  # No change needed
+
+            # Add partitions
+            new_partitions = NewPartitions(topic=topic_name, new_total_count=new_partition_count)
+            fs = admin_client.create_partitions([new_partitions])
+
+            # Wait for completion
+            for topic, f in fs.items():
+                f.result(timeout=30)
+
+        except Exception as e:
+            self.logger.error("Failed to add partitions to topic %s: %s", topic_name, e)
+            raise
