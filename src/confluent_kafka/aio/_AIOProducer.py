@@ -104,3 +104,6 @@ class AIOProducer:
     async def set_sasl_credentials(self, *args, **kwargs):
         return await self._call(self._producer.set_sasl_credentials,
                                 *args, **kwargs)
+
+    async def list_topics(self, *args, **kwargs):
+        return await self._call(self._producer.list_topics, *args, **kwargs)
