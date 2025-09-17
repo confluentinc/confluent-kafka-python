@@ -5,7 +5,7 @@ import asyncio
 import concurrent.futures
 from unittest.mock import Mock, patch
 
-from confluent_kafka import TopicPartition
+from confluent_kafka import TopicPartition, KafkaError, KafkaException
 from confluent_kafka.aio._AIOConsumer import AIOConsumer
 
 
@@ -128,8 +128,6 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_concurrent_operations_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test concurrent async operations handle errors gracefully."""
-        from confluent_kafka import KafkaError, KafkaException
-
         # Mock: 2 poll calls fail, assignment succeeds
         mock_consumer.return_value.poll.side_effect = [
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
@@ -157,8 +155,6 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_network_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test AIOConsumer handles network errors gracefully."""
-        from confluent_kafka import KafkaError, KafkaException
-
         mock_consumer.return_value.poll.side_effect = KafkaException(
             KafkaError(KafkaError._TRANSPORT, "Network timeout")
         )

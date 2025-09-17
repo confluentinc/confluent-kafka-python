@@ -298,22 +298,19 @@ class SimpleConsumerTest(Test):
             await consumer3.subscribe([topic_name], on_assign=track_rebalance)
 
             # Poll all consumers until they detect new partitions and rebalance
-            for _ in range(15):  # Max 15 seconds for partition discovery
-                await consumer1.poll(timeout=1.0)
-                await consumer2.poll(timeout=1.0)
-                await consumer3.poll(timeout=1.0)
+            consumers = [consumer1, consumer2, consumer3]
+            for _ in range(30):
+                # Poll all consumers concurrently
+                await asyncio.gather(*[c.poll(timeout=1.0) for c in consumers])
 
-                assignment1_current = await consumer1.assignment()
-                assignment2_current = await consumer2.assignment()
-                assignment3_current = await consumer3.assignment()
-                total_partitions_current = (
-                    len(assignment1_current) + len(assignment2_current) + len(assignment3_current)
-                )
+                # Check total partitions across all consumers
+                assignments = await asyncio.gather(*[c.assignment() for c in consumers])
+                total_partitions_current = sum(len(assignment) for assignment in assignments)
 
                 # Rebalance complete when total partitions = 4 (distributed among 3 consumers)
                 if total_partitions_current == 4:
                     break
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.5)
 
             # Verify final state: 4 partitions total distributed among 3 consumers
             assignment1_final = await consumer1.assignment()
@@ -350,9 +347,8 @@ class SimpleConsumerTest(Test):
 
         asyncio.run(async_topic_change_test())
 
-    # TODO: verify if the current behavior is correct/intended
     def test_async_callback_exception_behavior(self):
-        """Test current behavior: callback exceptions crash the consumer operation"""
+        """Test current behavior: callback exceptions propagate and fail the consumer"""
 
         async def async_callback_test():
             topic_name = f"test-callback-exception-{uuid.uuid4()}"
