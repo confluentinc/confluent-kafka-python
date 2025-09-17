@@ -332,32 +332,7 @@ class AvroSerializer(BaseSerializer):
 
             self._known_subjects.add(subject)
 
-        if self._to_dict is not None:
-            value = self._to_dict(obj, ctx)
-        else:
-            value = obj
-
-        if latest_schema is not None:
-            parsed_schema = self._get_parsed_schema(latest_schema.schema)
-            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
-                transform(rule_ctx, parsed_schema, msg, field_transform))
-            value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
-                                        latest_schema.schema, value, get_inline_tags(parsed_schema),
-                                        field_transformer)
-        else:
-            parsed_schema = self._parsed_schema
-
-        with _ContextStringIO() as fo:
-            # write the record to the rest of the buffer
-            schemaless_writer(fo, parsed_schema, value)
-            buffer = fo.getvalue()
-
-            if latest_schema is not None:
-                buffer = self._execute_rules_with_phase(
-                    ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
-                    None, latest_schema.schema, buffer, None, None)
-
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+        return self._schema_id_serializer(json.dumps(self._to_dict(obj, ctx)).encode("utf-8"), ctx, self._schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> AvroSchema:
         parsed_schema = self._parsed_schemas.get_parsed_schema(schema)
