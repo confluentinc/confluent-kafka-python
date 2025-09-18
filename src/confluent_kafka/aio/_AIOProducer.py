@@ -23,6 +23,7 @@ import confluent_kafka
 from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
+from confluent_kafka.aio._callback_pool import CallbackPool
 
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,11 @@ class AIOProducer:
         if buffer_timeout > 0:
         # Start the buffer timeout management task
             self._start_buffer_timeout_task()
+        
+        # Initialize callback pool for performance optimization
+        # Pool size should be larger than typical batch size to handle bursts
+        pool_size = max(1000, batch_size * 2)
+        self._callback_pool = CallbackPool(initial_size=pool_size)
 
     async def close(self):
         """Close the producer and cleanup resources
@@ -90,7 +96,9 @@ class AIOProducer:
         # Flush any remaining messages in the buffer
         if self._message_buffer:
             try:
-                await self.flush_buffer()
+                await self._flush_buffer()
+                # Update buffer activity since we just flushed
+                self._update_buffer_activity()
             except Exception:
                 logger.error("Error flushing buffer", exc_info=True)
                 # Don't let flush errors prevent cleanup
@@ -173,7 +181,9 @@ class AIOProducer:
                     
                     try:
                         # Flush the buffer due to timeout
-                        await producer.flush_buffer()
+                        await producer._flush_buffer()
+                        # Update buffer activity since we just flushed
+                        producer._update_buffer_activity()
                     except Exception:
                         logger.error("Error flushing buffer", exc_info=True)
                         # Don't let buffer flush errors crash the timeout task
@@ -260,24 +270,29 @@ class AIOProducer:
         self._message_buffer.append(msg_data)
         self._buffer_futures.append(result)
         
-        # Update buffer activity timestamp since we added a message
         self._update_buffer_activity()
         
-        should_flush = len(self._message_buffer) >= self._batch_size
-        
-        if should_flush:
+        # Check if we should flush the buffer
+        if len(self._message_buffer) >= self._batch_size:
             await self._flush_buffer()
         
         return result
 
+
     async def flush(self, *args, **kwargs):
-        """Waits until all messages are delivered or timeout"""
+        """Waits until all messages are delivered or timeout
+        
+        This method performs a complete flush:
+        1. Flushes any buffered messages from local buffer to librdkafka
+        2. Waits for librdkafka to deliver/acknowledge all messages
+        """
         # First, flush any remaining messages in the buffer for all topics
         if self._message_buffer:
-            # Flush all topics - the _flush_buffer method now properly handles multiple topics
             await self._flush_buffer()
+            # Update buffer activity since we just flushed
+            self._update_buffer_activity()
         
-        # Then flush the producer
+        # Then flush the underlying producer and wait for delivery confirmation
         return await self._call(self._producer.flush, *args, **kwargs)
 
     async def purge(self, *args, **kwargs):
@@ -291,17 +306,6 @@ class AIOProducer:
         
         return await self._call(self._producer.purge, *args, **kwargs)
 
-    async def flush_buffer(self):
-        """Manually flush the current message buffer for all topics
-        
-        This is the public API method for manual buffer flushing.
-        It always flushes all topics and updates buffer activity.
-        """
-        if self._message_buffer:
-            # Flush all topics (don't specify target_topic)
-            await self._flush_buffer()
-            # Update buffer activity since we just flushed
-            self._update_buffer_activity()
 
     # ========================================================================
     # TRANSACTION OPERATIONS - Kafka transaction support
@@ -345,27 +349,6 @@ class AIOProducer:
     # BATCH PROCESSING OPERATIONS - Internal batching implementation
     # ========================================================================
 
-    def _produce_batch_and_poll(self, target_topic, batch_messages, batch_delivery_callback):
-        """Helper method to run produce_batch and poll in the same thread pool worker
-        
-        This optimization combines both operations in a single thread pool execution:
-        1. produce_batch() - queues messages in librdkafka
-        2. poll(0) - immediately processes delivery callbacks
-        
-        Benefits:
-        - Reduces thread pool overhead (1 call instead of 2)
-        - Eliminates context switching between operations
-        - Ensures immediate callback processing
-        - Lower latency for delivery confirmation
-        """
-        # Call produce_batch first
-        self._producer.produce_batch(target_topic, batch_messages, on_delivery=batch_delivery_callback)
-        
-        # Immediately poll to process delivery callbacks in the same worker
-        poll_result = self._producer.poll(0)
-        
-        return poll_result
-
     async def _flush_buffer(self, target_topic=None):
         """Flush the current message buffer using produce_batch via thread pool
         
@@ -375,7 +358,6 @@ class AIOProducer:
         if not self._message_buffer:
             return
         
-        # Group messages by topic for batch processing
         topic_groups = self._group_messages_by_topic()
         
         # Determine which topics to process and which to keep in buffer
@@ -401,30 +383,32 @@ class AIOProducer:
         # Process each selected topic group
         for topic, group_data in topics_to_process:
             
-            # Prepare batch messages for librdkafka (remove fields not needed by produce_batch)
+            # Prepare batch messages
             batch_messages = []
-            for msg_data in group_data['messages']:
-                # Create a shallow copy and remove the user_callback and topic fields
+            for i, msg_data in enumerate(group_data['messages']):
+                # Create a shallow copy and remove fields not needed by produce_batch
                 batch_msg = copy.copy(msg_data)
-                batch_msg.pop('user_callback', None)  # Remove callback, keep everything else
+                batch_msg.pop('user_callback', None)  # Remove user callback, we'll handle it in our callback
                 batch_msg.pop('topic', None)  # Remove topic since it's passed separately
                 batch_messages.append(batch_msg)
             
-            # Create delivery callback that handles both futures and user callbacks
-            # Futures: Used for async/await pattern - each produce() call returns a future
-            # User callbacks: Optional user-provided functions called on delivery/error
-            batch_delivery_callback, callback_state = self._create_batch_callback(
-                group_data['futures'], 
-                group_data['callbacks']
-            )
+            # Create callbacks for each message using pool for performance
+            for i, batch_msg in enumerate(batch_messages):
+                # Get reusable callback from pool instead of creating new one
+                future = group_data['futures'][i]
+                user_callback = group_data['callbacks'][i]
+                message_callback = self._callback_pool.get_callback(future, user_callback, self)
+                
+                # Assign the pooled callback to this message
+                batch_msg['callback'] = message_callback
             
             try:
-                # Call produce_batch and poll for this topic
-                await self._call(self._produce_batch_and_poll, topic, batch_messages, batch_delivery_callback)
+                # Call produce_batch with individual callbacks (no batch callback needed)
+                await self._call(self._produce_batch_and_poll, topic, batch_messages)
                         
             except Exception as e:
-                # Handle batch failure by failing all remaining futures for this topic
-                self._handle_batch_failure(e, group_data['futures'], group_data['callbacks'], callback_state)
+                # Handle batch failure by failing all unresolved futures for this topic
+                self._handle_batch_failure_individual(e, group_data['futures'], group_data['callbacks'])
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
 
@@ -472,89 +456,59 @@ class AIOProducer:
             
         return topic_groups
 
-    def _create_batch_callback(self, batch_futures, batch_user_callbacks):
-        """Create a stateful delivery callback for batch processing
+    def _create_message_callback(self, future, user_callback):
+        """Create an individual callback for a specific message that knows its future
         
-        This function creates a closure that serves as the delivery callback for
-        librdkafka's produce_batch operation. The callback is called once for each
-        message in the batch when it's delivered (or fails to deliver).
-        
-        Why this function is needed:
-        1. **Stateful Processing**: librdkafka calls the callback sequentially for each
-           message, but doesn't provide message index. We need to track which message
-           is being processed using an internal counter.
-           
-        2. **Dual Callback Handling**: Each message has two callbacks to handle:
-           - asyncio.Future: For async/await pattern (always present) - allows callers to await delivery
-           - User callback: Optional user-provided function (sync or async) - custom delivery notification
-           
-        3. **Thread Safety**: The callback runs in librdkafka's C thread, so we need
-           to safely bridge to Python's asyncio event loop for async user callbacks.
-           
-        4. **Error Propagation**: Both success and failure need to be propagated to
-           both the future and user callback with appropriate error wrapping.
-        
-        Callback Execution Flow:
-        1. librdkafka delivers message 0 → callback called with (err, msg)
-        2. callback processes index 0, increments counter to 1
-        3. librdkafka delivers message 1 → callback called with (err, msg)  
-        4. callback processes index 1, increments counter to 2
-        5. ... continues for all messages in batch
+        Each message gets its own callback function that:
+        1. Knows exactly which future to resolve (via closure)
+        2. Knows which user callback to invoke (via closure) 
+        3. Can be called in any order without confusion
         
         Args:
-            batch_futures: List of asyncio.Future objects to resolve/reject
-            batch_user_callbacks: List of user callback functions (can be None)
+            future: The asyncio.Future for this specific message
+            user_callback: Optional user callback function for this message
             
         Returns:
-            tuple: (callback_function, callback_state) where:
-                - callback_function: Stateful delivery callback function
-                - callback_state: Dictionary with callback state for error handling
+            callable: Delivery callback function for this specific message
         """
-        callback_state = {'index': 0, 'futures': batch_futures, 'callbacks': batch_user_callbacks}
-        
-        def batch_delivery_callback(err, msg):
-            """librdkafka delivery callback - called once per message in batch"""
-            idx = callback_state['index']
-            if idx < len(callback_state['futures']):
-                future = callback_state['futures'][idx]
-                user_callback = callback_state['callbacks'][idx]
-                
+        def message_delivery_callback(err, msg):
+            """Individual message delivery callback - knows its exact future"""
+            try:
                 if err:
                     # Message delivery failed
-                    future.set_exception(_KafkaException(err))
+                    if not future.done():  # Prevent double-setting
+                        future.set_exception(_KafkaException(err))
                     if user_callback:
                         self._handle_user_callback(user_callback, err, msg)
                 else:
-                    # Message delivered successfully
-                    future.set_result(msg)
+                    # Message delivered successfully  
+                    if not future.done():  # Prevent double-setting
+                        future.set_result(msg)
                     if user_callback:
                         self._handle_user_callback(user_callback, err, msg)
-            
-            # Move to next message in batch
-            callback_state['index'] += 1
+                        
+            except Exception as e:
+                logger.error(f"Error in message delivery callback: {e}", exc_info=True)
+                # Ensure future gets resolved even if there's an error in callback processing
+                if not future.done():
+                    future.set_exception(e)
         
-        return batch_delivery_callback, callback_state
+        return message_delivery_callback
 
-    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks, callback_state):
-        """Handle batch operation failure by failing all remaining futures
+    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks):
+        """Handle batch operation failure for individual callback approach
         
-        When a batch operation fails, we need to:
-        1. Determine which futures haven't been processed yet
-        2. Fail those futures with the batch exception
-        3. Call user callbacks for failed messages
+        When a batch operation fails before any individual callbacks are invoked,
+        we need to fail all futures for this batch since none of the per-message
+        callbacks will be called by librdkafka.
         
         Args:
             exception: The exception that caused the batch to fail
             batch_futures: List of futures for this batch
-            batch_callbacks: List of user callbacks for this batch  
-            callback_state: Dictionary containing callback state with current index
+            batch_callbacks: List of user callbacks for this batch
         """
-        # Get the current index to determine which messages were already processed
-        start_idx = callback_state.get('index', 0)
-        
-        # Fail all futures that haven't been processed yet
-        for i in range(start_idx, len(batch_futures)):
-            future = batch_futures[i]
+        # Fail all futures since no individual callbacks will be invoked
+        for i, future in enumerate(batch_futures):
             user_callback = batch_callbacks[i] if i < len(batch_callbacks) else None
             
             # Only set exception if future isn't already done
@@ -564,6 +518,27 @@ class AIOProducer:
             # Call user callback to notify of failure
             if user_callback:
                 self._handle_user_callback(user_callback, exception, None)
+
+    def _produce_batch_and_poll(self, target_topic, batch_messages):
+        """Helper method to run produce_batch with individual callbacks and poll
+        
+        This method uses the per-message callback approach where each message has
+        its own callback that knows exactly which future to resolve. No batch-level
+        callback is needed since each message is self-contained.
+        
+        Benefits:
+        - Perfect message-to-future mapping regardless of callback order
+        - No ordering assumptions or dependencies
+        - Each callback knows its exact target future via closure
+        - Robust against out-of-order delivery reports
+        """
+        # Call produce_batch with individual callbacks (no batch callback)
+        self._producer.produce_batch(target_topic, batch_messages)
+        
+        # Immediately poll to process delivery callbacks in the same worker
+        poll_result = self._producer.poll(0)
+        
+        return poll_result
 
     # ========================================================================
     # UTILITY METHODS - Helper functions and internal utilities

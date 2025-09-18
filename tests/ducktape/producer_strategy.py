@@ -271,6 +271,9 @@ class AsyncProducerStrategy(ProducerStrategy):
             # Print timing metrics
             self._print_timing_metrics("ASYNC", produce_times, poll_times, flush_time)
             
+            # Close producer to ensure clean shutdown
+            await producer.close()
+            
             return messages_sent
         
         loop = asyncio.get_event_loop()
