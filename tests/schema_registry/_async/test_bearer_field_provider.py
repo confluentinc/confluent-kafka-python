@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, patch
 
 from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncOAuthClient, AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.schema_registry_client import _AsyncCustomOAuthClient
-from confluent_kafka.schema_registry.common.schema_registry_client import _StaticFieldProvider
+from confluent_kafka.schema_registry.common._oauthbearer import _StaticFieldProvider
 from confluent_kafka.schema_registry.error import OAuthTokenError
 
 """

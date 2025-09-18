@@ -222,10 +222,10 @@ def test_oauth_bearer_config_valid():
 
     client = AsyncSchemaRegistryClient(conf)
 
-    assert client._rest_client.client_id == TEST_USERNAME
-    assert client._rest_client.client_secret == TEST_USER_PASSWORD
-    assert client._rest_client.scope == TEST_SCOPE
-    assert client._rest_client.token_endpoint == TEST_ENDPOINT
+    assert client._rest_client.bearer_field_provider.client.client_id == TEST_USERNAME
+    assert client._rest_client.bearer_field_provider.client.client_secret == TEST_USER_PASSWORD
+    assert client._rest_client.bearer_field_provider.client.scope == TEST_SCOPE
+    assert client._rest_client.bearer_field_provider.token_endpoint == TEST_ENDPOINT
 
 
 def test_static_bearer_config():

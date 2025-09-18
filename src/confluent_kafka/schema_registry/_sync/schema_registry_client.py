@@ -33,6 +33,11 @@ from httpx import Response
 
 from authlib.integrations.httpx_client import OAuth2Client
 
+from confluent_kafka.schema_registry.common._oauthbearer import (
+    _BearerFieldProvider,
+    _AbstractOAuthBearerOIDCFieldProviderBuilder,
+    _StaticOAuthBearerFieldProviderBuilder,
+    _AbstractCustomOAuthBearerFieldProviderBuilder)
 from confluent_kafka.schema_registry.error import SchemaRegistryError, OAuthTokenError
 from confluent_kafka.schema_registry.common.schema_registry_client import (
     RegisteredSchema,
@@ -40,11 +45,9 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     ServerConfig,
     is_success,
     is_retriable,
-    _BearerFieldProvider,
     full_jitter,
     _SchemaCache,
-    Schema,
-    _StaticFieldProvider,
+    Schema
 )
 
 __all__ = [
@@ -56,24 +59,10 @@ __all__ = [
     'SchemaRegistryClient',
 ]
 
-# TODO: consider adding `six` dependency or employing a compat file
-# Python 2.7 is officially EOL so compatibility issue will be come more the norm.
-# We need a better way to handle these issues.
-# Six is one possibility but the compat file pattern used by requests
-# is also quite nice.
-#
-# six: https://pypi.org/project/six/
-# compat file : https://github.com/psf/requests/blob/master/requests/compat.py
-try:
-    string_type = basestring  # noqa
 
-    def _urlencode(value: str) -> str:
-        return urllib.quote(value, safe='')
-except NameError:
-    string_type = str
+def _urlencode(value: str) -> str:
+    return urllib.parse.quote(value, safe='')
 
-    def _urlencode(value: str) -> str:
-        return urllib.parse.quote(value, safe='')
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +119,55 @@ class _OAuthClient(_BearerFieldProvider):
                 time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
 
 
+class _OAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerOIDCFieldProviderBuilder):
+
+    def build(self, max_retries, retries_wait_ms, retries_max_wait_ms):
+        self._validate()
+        return _OAuthClient(
+            self.client_id, self.client_secret, self.scope,
+            self.token_endpoint,
+            self.logical_cluster,
+            self.identity_pool,
+            max_retries, retries_wait_ms,
+            retries_max_wait_ms)
+
+
+class _CustomOAuthBearerFieldProviderBuilder(_AbstractCustomOAuthBearerFieldProviderBuilder):
+
+    def build(self, max_retries, retries_wait_ms, retries_max_wait_ms):
+        self._validate()
+        return _CustomOAuthClient(
+            self.custom_function,
+            self.custom_config
+        )
+
+
+class _FieldProviderBuilder:
+
+    __builders = {
+        "OAUTHBEARER": _OAuthBearerOIDCFieldProviderBuilder,
+        "STATIC_TOKEN": _StaticOAuthBearerFieldProviderBuilder,
+        "CUSTOM": _CustomOAuthBearerFieldProviderBuilder
+    }
+
+    @staticmethod
+    def build(conf, max_retries, retries_wait_ms, retries_max_wait_ms):
+        bearer_auth_credentials_source = conf.pop('bearer.auth.credentials.source', None)
+        if bearer_auth_credentials_source is None:
+            return [None, None]
+
+        if bearer_auth_credentials_source not in _FieldProviderBuilder.__builders:
+            raise ValueError('Unrecognized bearer.auth.credentials.source')
+        bearer_field_provider_builder = _FieldProviderBuilder.__builders[bearer_auth_credentials_source](conf)
+        return (
+            bearer_auth_credentials_source,
+            bearer_field_provider_builder.build(
+                max_retries, retries_wait_ms,
+                retries_max_wait_ms
+            )
+        )
+
+
 class _BaseRestClient(object):
 
     def __init__(self, conf: dict):
@@ -139,7 +177,7 @@ class _BaseRestClient(object):
         base_url = conf_copy.pop('url', None)
         if base_url is None:
             raise ValueError("Missing required configuration property url")
-        if not isinstance(base_url, string_type):
+        if not isinstance(base_url, str):
             raise TypeError("url must be a str, not " + str(type(base_url)))
         base_urls = []
         for url in base_url.split(','):
@@ -259,86 +297,10 @@ class _BaseRestClient(object):
                                 + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = retries_max_wait_ms
 
-        self.bearer_field_provider = None
-        logical_cluster = None
-        identity_pool = None
-        self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source', None)
-        if self.bearer_auth_credentials_source is not None:
-            self.auth = None
-
-            if self.bearer_auth_credentials_source in {'OAUTHBEARER', 'STATIC_TOKEN'}:
-                headers = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
-                missing_headers = [header for header in headers if header not in conf_copy]
-                if missing_headers:
-                    raise ValueError("Missing required bearer configuration properties: {}"
-                                     .format(", ".join(missing_headers)))
-
-                logical_cluster = conf_copy.pop('bearer.auth.logical.cluster')
-                if not isinstance(logical_cluster, str):
-                    raise TypeError("logical cluster must be a str, not " + str(type(logical_cluster)))
-
-                identity_pool = conf_copy.pop('bearer.auth.identity.pool.id')
-                if not isinstance(identity_pool, str):
-                    raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
-
-            if self.bearer_auth_credentials_source == 'OAUTHBEARER':
-                properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
-                                   'bearer.auth.issuer.endpoint.url']
-                missing_properties = [prop for prop in properties_list if prop not in conf_copy]
-                if missing_properties:
-                    raise ValueError("Missing required OAuth configuration properties: {}".
-                                     format(", ".join(missing_properties)))
-
-                self.client_id = conf_copy.pop('bearer.auth.client.id')
-                if not isinstance(self.client_id, string_type):
-                    raise TypeError("bearer.auth.client.id must be a str, not " + str(type(self.client_id)))
-
-                self.client_secret = conf_copy.pop('bearer.auth.client.secret')
-                if not isinstance(self.client_secret, string_type):
-                    raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
-
-                self.scope = conf_copy.pop('bearer.auth.scope')
-                if not isinstance(self.scope, string_type):
-                    raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
-
-                self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
-                if not isinstance(self.token_endpoint, string_type):
-                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
-                                    + str(type(self.token_endpoint)))
-
-                self.bearer_field_provider = _OAuthClient(
-                    self.client_id, self.client_secret, self.scope,
-                    self.token_endpoint, logical_cluster, identity_pool,
-                    self.max_retries, self.retries_wait_ms,
-                    self.retries_max_wait_ms)
-            elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
-                if 'bearer.auth.token' not in conf_copy:
-                    raise ValueError("Missing bearer.auth.token")
-                static_token = conf_copy.pop('bearer.auth.token')
-                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
-                if not isinstance(static_token, string_type):
-                    raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
-            elif self.bearer_auth_credentials_source == 'CUSTOM':
-                custom_bearer_properties = ['bearer.auth.custom.provider.function',
-                                            'bearer.auth.custom.provider.config']
-                missing_custom_properties = [prop for prop in custom_bearer_properties if prop not in conf_copy]
-                if missing_custom_properties:
-                    raise ValueError("Missing required custom OAuth configuration properties: {}".
-                                     format(", ".join(missing_custom_properties)))
-
-                custom_function = conf_copy.pop('bearer.auth.custom.provider.function')
-                if not callable(custom_function):
-                    raise TypeError("bearer.auth.custom.provider.function must be a callable, not "
-                                    + str(type(custom_function)))
-
-                custom_config = conf_copy.pop('bearer.auth.custom.provider.config')
-                if not isinstance(custom_config, dict):
-                    raise TypeError("bearer.auth.custom.provider.config must be a dict, not "
-                                    + str(type(custom_config)))
-
-                self.bearer_field_provider = _CustomOAuthClient(custom_function, custom_config)
-            else:
-                raise ValueError('Unrecognized bearer.auth.credentials.source')
+        [self.bearer_auth_credentials_source, self.bearer_field_provider] = \
+            _FieldProviderBuilder.build(
+            conf_copy, self.max_retries, self.retries_wait_ms,
+            self.retries_max_wait_ms)
 
         # Any leftover keys are unknown to _RestClient
         if len(conf_copy) > 0:
