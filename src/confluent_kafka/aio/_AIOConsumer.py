@@ -41,14 +41,7 @@ class AIOConsumer:
         self._consumer = confluent_kafka.Consumer(consumer_conf)
 
     async def _call(self, blocking_task, *args, **kwargs):
-        return (await asyncio.gather(
-            asyncio.get_running_loop().run_in_executor(self.executor,
-                                                       functools.partial(
-                                                           blocking_task,
-                                                           *args,
-                                                           **kwargs))
-
-        ))[0]
+        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
 
     def _wrap_callback(self, loop, callback, edit_args=None, edit_kwargs=None):
         def ret(*args, **kwargs):

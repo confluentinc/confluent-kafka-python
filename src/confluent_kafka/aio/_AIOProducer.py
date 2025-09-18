@@ -25,6 +25,10 @@ import confluent_kafka.aio._common as _common
 
 class AIOProducer:
     
+    # ========================================================================
+    # INITIALIZATION AND LIFECYCLE MANAGEMENT
+    # ========================================================================
+    
     def __init__(self, producer_conf, max_workers=4, executor=None, batch_size=1000, buffer_timeout=5.0):
         if executor is not None:
             self.executor = executor
@@ -41,7 +45,7 @@ class AIOProducer:
         self._message_buffer = []
         self._buffer_futures = []  # Track futures for each buffered message
         self._buffer_lock = asyncio.Lock()  # Protect buffer access
-        
+    
         # Buffer timeout management
         self._buffer_timeout = buffer_timeout  # Timeout in seconds for buffer inactivity
         self._last_buffer_activity = time.time()  # Track last buffer activity
@@ -50,7 +54,46 @@ class AIOProducer:
         
         # Start the buffer timeout management task
         self._start_buffer_timeout_task()
-    
+
+    async def close(self):
+        """Close the producer and cleanup resources
+        
+        This method:
+        1. Sets the closed flag to stop the timeout task
+        2. Stops the buffer timeout monitoring task
+        3. Flushes any remaining messages in the buffer
+        4. Closes the underlying librdkafka producer
+        """
+        # Set closed flag to signal timeout task to stop
+        self._is_closed = True
+        
+        # Stop the buffer timeout monitoring task
+        self._stop_buffer_timeout_task()
+        
+        # Flush any remaining messages in the buffer
+        if self._message_buffer:
+            try:
+                await self.flush_buffer()
+            except Exception:
+                # Don't let flush errors prevent cleanup
+                pass
+        
+        # Close the underlying producer (this is not async in librdkafka)
+        # but we'll still run it in executor to be safe
+        await self._call(lambda: None)  # Just to ensure any pending operations complete
+
+    def __del__(self):
+        """Cleanup method called during garbage collection
+        
+        This ensures that the timeout task is properly cancelled even if
+        close() wasn't explicitly called.
+        """
+        if hasattr(self, '_is_closed'):
+            self._is_closed = True
+        if hasattr(self, '_buffer_timeout_task') and self._buffer_timeout_task:
+            if not self._buffer_timeout_task.done():
+                self._buffer_timeout_task.cancel()
+
     # ========================================================================
     # BUFFER TIMEOUT MANAGEMENT - Prevent messages from being held indefinitely
     # ========================================================================
@@ -115,8 +158,7 @@ class AIOProducer:
             self._buffer_timeout_task = None
 
     # ========================================================================
-    # BLOCKING OPERATIONS - Use ThreadPool to avoid blocking event loop
-    # These operations may block waiting for network I/O or other resources
+    # CORE PRODUCER OPERATIONS - Main public API
     # ========================================================================
 
     async def poll(self, timeout=0, *args, **kwargs):
@@ -185,10 +227,6 @@ class AIOProducer:
             await self._flush_buffer()
         
         return result
- 
-    async def _call(self, blocking_task, *args, **kwargs):
-        """Helper method for blocking operations that need ThreadPool execution"""
-        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
 
     async def flush(self, *args, **kwargs):
         """Waits until all messages are delivered or timeout"""
@@ -211,6 +249,19 @@ class AIOProducer:
         self._update_buffer_activity()
         
         return await self._call(self._producer.purge, *args, **kwargs)
+
+    async def flush_buffer(self):
+        """Manually flush the current message buffer for all topics"""
+        async with self._buffer_lock:
+            if self._message_buffer:
+                # Flush all topics (don't specify target_topic)
+                await self._flush_buffer()
+                # Update buffer activity since we just flushed
+                self._update_buffer_activity()
+
+    # ========================================================================
+    # TRANSACTION OPERATIONS - Kafka transaction support
+    # ========================================================================
 
     async def init_transactions(self, *args, **kwargs):
         """Network call to initialize transactions"""
@@ -237,54 +288,17 @@ class AIOProducer:
         return await self._call(self._producer.abort_transaction,
                                 *args, **kwargs)
 
+    # ========================================================================
+    # AUTHENTICATION AND SECURITY
+    # ========================================================================
+
     async def set_sasl_credentials(self, *args, **kwargs):
         """Authentication operation that may involve network calls"""
         return await self._call(self._producer.set_sasl_credentials,
                                 *args, **kwargs)
 
-    async def close(self):
-        """Close the producer and cleanup resources
-        
-        This method:
-        1. Sets the closed flag to stop the timeout task
-        2. Stops the buffer timeout monitoring task
-        3. Flushes any remaining messages in the buffer
-        4. Closes the underlying librdkafka producer
-        """
-        # Set closed flag to signal timeout task to stop
-        self._is_closed = True
-        
-        # Stop the buffer timeout monitoring task
-        self._stop_buffer_timeout_task()
-        
-        # Flush any remaining messages in the buffer
-        if self._message_buffer:
-            try:
-                await self.flush_buffer()
-            except Exception:
-                # Don't let flush errors prevent cleanup
-                pass
-        
-        # Close the underlying producer (this is not async in librdkafka)
-        # but we'll still run it in executor to be safe
-        await self._call(lambda: None)  # Just to ensure any pending operations complete
-
-    def __del__(self):
-        """Cleanup method called during garbage collection
-        
-        This ensures that the timeout task is properly cancelled even if
-        close() wasn't explicitly called.
-        """
-        if hasattr(self, '_is_closed'):
-            self._is_closed = True
-        if hasattr(self, '_buffer_timeout_task') and self._buffer_timeout_task:
-            if not self._buffer_timeout_task.done():
-                self._buffer_timeout_task.cancel()
-
-
-      
     # ========================================================================
-    # BATCHING OPERATIONS - Buffer management and batch processing
+    # BATCH PROCESSING OPERATIONS - Internal batching implementation
     # ========================================================================
 
     def _produce_batch_and_poll(self, target_topic, batch_messages, batch_delivery_callback):
@@ -470,9 +484,9 @@ class AIOProducer:
                             user_callback(err, msg)
                         except Exception:
                             pass  # User callback errors shouldn't break delivery
-                
-                # Move to next message in batch
-                callback_state['index'] += 1
+            
+            # Move to next message in batch
+            callback_state['index'] += 1
         
         return batch_delivery_callback, callback_state
 
@@ -509,13 +523,12 @@ class AIOProducer:
                 except Exception:
                     pass  # User callback errors shouldn't break error handling
 
-    async def flush_buffer(self):
-        """Manually flush the current message buffer for all topics"""
-        async with self._buffer_lock:
-            if self._message_buffer:
-                # Flush all topics (don't specify target_topic)
-                await self._flush_buffer()
-                # Update buffer activity since we just flushed
-                self._update_buffer_activity()
+    # ========================================================================
+    # UTILITY METHODS - Helper functions and internal utilities
+    # ========================================================================
+
+    async def _call(self, blocking_task, *args, **kwargs):
+        """Helper method for blocking operations that need ThreadPool execution"""
+        return await _common.async_call(self.executor, blocking_task, *args, **kwargs)
 
 
