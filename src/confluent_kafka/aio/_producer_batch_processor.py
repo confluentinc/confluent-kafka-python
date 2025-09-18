@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import copy
 import logging
 
@@ -218,7 +219,6 @@ class ProducerBatchProcessor:
             topic: Target topic for the batch
             batch_messages: List of prepared messages with callbacks
         """
-        import asyncio
         
         def _produce_batch_and_poll():
             """Helper function to run in thread pool"""

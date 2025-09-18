@@ -1,14 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import pytest
 import asyncio
 import concurrent.futures
+import logging
+import pytest
 import time
 import weakref
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 
 from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.aio._AIOProducer import AIOProducer
+from confluent_kafka.aio._common import AsyncLogger
 
 
 class TestAIOProducer:
@@ -525,8 +527,6 @@ class TestAIOProducer:
     @pytest.mark.asyncio
     async def test_wrapped_callbacks_integration(self, mock_producer, basic_config):
         """Test that wrapped callbacks are properly integrated during producer initialization."""
-        import asyncio
-        from unittest.mock import Mock, AsyncMock
         
         # Create real callback functions to test wrapping
         error_callback = AsyncMock()
@@ -551,8 +551,6 @@ class TestAIOProducer:
     @pytest.mark.asyncio
     async def test_wrapped_callbacks_execution(self, mock_producer, basic_config):
         """Test that wrapped callbacks can be executed properly."""
-        import asyncio
-        from unittest.mock import Mock, AsyncMock, patch
         
         # Create a mock callback that we can verify gets called
         mock_callback = AsyncMock()
@@ -579,8 +577,6 @@ class TestAIOProducer:
     @pytest.mark.asyncio
     async def test_logger_wrapping(self, mock_producer, basic_config):
         """Test that logger is properly wrapped with AsyncLogger."""
-        import logging
-        from unittest.mock import Mock, patch
         
         # Create a mock logger
         mock_logger = Mock(spec=logging.Logger)
@@ -602,7 +598,6 @@ class TestAIOProducer:
             assert passed_config['logger'] is not mock_logger  # Should be wrapped
             
             # Verify it's an AsyncLogger instance
-            from confluent_kafka.aio._common import AsyncLogger
             assert isinstance(passed_config['logger'], AsyncLogger)
             
         await producer.close()
