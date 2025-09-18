@@ -11,7 +11,7 @@ processors:
 
 extensions:
   sigv4auth:
-    region: us-west-2
+    region: FILL_IN_REGION_HERE
     service: aps
     assume_role:
       arn: FILL_IN_ROLE_ARN_HERE
