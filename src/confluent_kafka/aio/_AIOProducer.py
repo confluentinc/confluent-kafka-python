@@ -35,8 +35,11 @@ class AIOProducer:
         else:
             self.executor = concurrent.futures.ThreadPoolExecutor(
                 max_workers=max_workers)
+        # Store the event loop for callback handling
+        self._loop = asyncio.get_running_loop()
+        
         wrap_common_callbacks = _common.wrap_common_callbacks
-        wrap_common_callbacks(asyncio.get_running_loop(), producer_conf)
+        wrap_common_callbacks(self._loop, producer_conf)
 
         self._producer = confluent_kafka.Producer(producer_conf)
         
@@ -44,7 +47,6 @@ class AIOProducer:
         self._batch_size = batch_size
         self._message_buffer = []
         self._buffer_futures = []  # Track futures for each buffered message
-        self._buffer_lock = asyncio.Lock()  # Protect buffer access
     
         # Buffer timeout management
         self._buffer_timeout = buffer_timeout  # Timeout in seconds for buffer inactivity
@@ -176,7 +178,12 @@ class AIOProducer:
         Returns:
             Number of callbacks processed during this call
         """
-        return await self._call(self._producer.poll, timeout, *args, **kwargs)
+        if timeout > 0 or timeout == -1:
+            # Blocking call - use ThreadPool to avoid blocking event loop
+            return await self._call(self._producer.poll, timeout, *args, **kwargs)
+        else:
+            # Non-blocking call (timeout=0) - can run directly
+            return await self._call(self._producer.poll, 0, *args, **kwargs)
 
 
     async def produce(self, topic, value=None, key=None, *args, **kwargs):
@@ -191,37 +198,31 @@ class AIOProducer:
         result = asyncio.get_running_loop().create_future()
         user_callback = kwargs.get('on_delivery')
         
-        await self._buffer_lock.acquire()
+        msg_data = {
+            'topic': topic,
+            'value': value,
+            'key': key
+        }
         
-        try:
-            msg_data = {
-                'topic': topic,
-                'value': value,
-                'key': key
-            }
-            
-            # Add optional parameters to message data
-            if 'partition' in kwargs:
-                msg_data['partition'] = kwargs['partition']
-            if 'timestamp' in kwargs:
-                msg_data['timestamp'] = kwargs['timestamp']
-            if 'headers' in kwargs:
-                msg_data['headers'] = kwargs['headers']
-            
-            # Store user callback in message data for later execution
-            if user_callback:
-                msg_data['user_callback'] = user_callback
-            
-            self._message_buffer.append(msg_data)
-            self._buffer_futures.append(result)
-            
-            # Update buffer activity timestamp since we added a message
-            self._update_buffer_activity()
-            
-            should_flush = len(self._message_buffer) >= self._batch_size
-            
-        finally:
-            self._buffer_lock.release()
+        # Add optional parameters to message data
+        if 'partition' in kwargs:
+            msg_data['partition'] = kwargs['partition']
+        if 'timestamp' in kwargs:
+            msg_data['timestamp'] = kwargs['timestamp']
+        if 'headers' in kwargs:
+            msg_data['headers'] = kwargs['headers']
+        
+        # Store user callback in message data for later execution
+        if user_callback:
+            msg_data['user_callback'] = user_callback
+        
+        self._message_buffer.append(msg_data)
+        self._buffer_futures.append(result)
+        
+        # Update buffer activity timestamp since we added a message
+        self._update_buffer_activity()
+        
+        should_flush = len(self._message_buffer) >= self._batch_size
         
         if should_flush:
             await self._flush_buffer()
@@ -231,10 +232,9 @@ class AIOProducer:
     async def flush(self, *args, **kwargs):
         """Waits until all messages are delivered or timeout"""
         # First, flush any remaining messages in the buffer for all topics
-        async with self._buffer_lock:
-            if self._message_buffer:
-                # Flush all topics - the _flush_buffer method now properly handles multiple topics
-                await self._flush_buffer()
+        if self._message_buffer:
+            # Flush all topics - the _flush_buffer method now properly handles multiple topics
+            await self._flush_buffer()
         
         # Then flush the producer
         return await self._call(self._producer.flush, *args, **kwargs)
@@ -251,13 +251,16 @@ class AIOProducer:
         return await self._call(self._producer.purge, *args, **kwargs)
 
     async def flush_buffer(self):
-        """Manually flush the current message buffer for all topics"""
-        async with self._buffer_lock:
-            if self._message_buffer:
-                # Flush all topics (don't specify target_topic)
-                await self._flush_buffer()
-                # Update buffer activity since we just flushed
-                self._update_buffer_activity()
+        """Manually flush the current message buffer for all topics
+        
+        This is the public API method for manual buffer flushing.
+        It always flushes all topics and updates buffer activity.
+        """
+        if self._message_buffer:
+            # Flush all topics (don't specify target_topic)
+            await self._flush_buffer()
+            # Update buffer activity since we just flushed
+            self._update_buffer_activity()
 
     # ========================================================================
     # TRANSACTION OPERATIONS - Kafka transaction support
@@ -296,7 +299,7 @@ class AIOProducer:
         """Authentication operation that may involve network calls"""
         return await self._call(self._producer.set_sasl_credentials,
                                 *args, **kwargs)
-
+      
     # ========================================================================
     # BATCH PROCESSING OPERATIONS - Internal batching implementation
     # ========================================================================
@@ -367,6 +370,8 @@ class AIOProducer:
                 batch_messages.append(batch_msg)
             
             # Create delivery callback that handles both futures and user callbacks
+            # Futures: Used for async/await pattern - each produce() call returns a future
+            # User callbacks: Optional user-provided functions called on delivery/error
             batch_delivery_callback, callback_state = self._create_batch_callback(
                 group_data['futures'], 
                 group_data['callbacks']
@@ -439,8 +444,8 @@ class AIOProducer:
            is being processed using an internal counter.
            
         2. **Dual Callback Handling**: Each message has two callbacks to handle:
-           - asyncio.Future: For async/await pattern (always present)
-           - User callback: Optional user-provided function (sync or async)
+           - asyncio.Future: For async/await pattern (always present) - allows callers to await delivery
+           - User callback: Optional user-provided function (sync or async) - custom delivery notification
            
         3. **Thread Safety**: The callback runs in librdkafka's C thread, so we need
            to safely bridge to Python's asyncio event loop for async user callbacks.
@@ -476,14 +481,13 @@ class AIOProducer:
                 if err:
                     # Message delivery failed
                     future.set_exception(_KafkaException(err))
+                    if user_callback:
+                        self._handle_user_callback(user_callback, err, msg)
                 else:
                     # Message delivered successfully
                     future.set_result(msg)
                     if user_callback:
-                        try:
-                            user_callback(err, msg)
-                        except Exception:
-                            pass  # User callback errors shouldn't break delivery
+                        self._handle_user_callback(user_callback, err, msg)
             
             # Move to next message in batch
             callback_state['index'] += 1
@@ -518,14 +522,37 @@ class AIOProducer:
             
             # Call user callback to notify of failure
             if user_callback:
-                try:
-                    user_callback(exception, None)
-                except Exception:
-                    pass  # User callback errors shouldn't break error handling
+                self._handle_user_callback(user_callback, exception, None)
 
     # ========================================================================
     # UTILITY METHODS - Helper functions and internal utilities
     # ========================================================================
+
+    def _handle_user_callback(self, user_callback, err, msg):
+        """Handle user callback execution, supporting both sync and async callbacks
+        
+        This method is called from librdkafka's C thread context and needs to properly
+        handle both synchronous and asynchronous user callbacks.
+        
+        Args:
+            user_callback: User-provided callback function (sync or async)
+            err: Error object (None if successful)
+            msg: Message object
+        """
+        if asyncio.iscoroutinefunction(user_callback):
+            # Async callback - schedule it to run on the event loop
+            # We're in librdkafka's C thread, so we need to schedule this safely
+            try:
+                # Schedule the async callback to run on the event loop
+                self._loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(user_callback(err, msg))
+                )
+            except RuntimeError:
+                # Event loop might be closed - handle gracefully
+                pass
+        else:
+            # Sync callback - call directly
+            user_callback(err, msg)
 
     async def _call(self, blocking_task, *args, **kwargs):
         """Helper method for blocking operations that need ThreadPool execution"""
