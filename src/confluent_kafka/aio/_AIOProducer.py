@@ -23,7 +23,7 @@ import confluent_kafka
 from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
-from confluent_kafka.aio._callback_pool import CallbackPool
+from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
 
 
 logger = logging.getLogger(__name__)
@@ -49,10 +49,8 @@ class AIOProducer:
 
         self._producer = confluent_kafka.Producer(producer_conf)
         
-        # Batching configuration and buffer
+        # Batching configuration
         self._batch_size = batch_size
-        self._message_buffer = []
-        self._buffer_futures = []  # Track futures for each buffered message
     
         # Buffer timeout management
         self._buffer_timeout = buffer_timeout  # Timeout in seconds for buffer inactivity
@@ -64,10 +62,10 @@ class AIOProducer:
         # Start the buffer timeout management task
             self._start_buffer_timeout_task()
         
-        # Initialize callback pool for performance optimization
+        # Initialize batch processor for message batching and processing
         # Pool size should be larger than typical batch size to handle bursts
         pool_size = max(1000, batch_size * 2)
-        self._callback_pool = CallbackPool(initial_size=pool_size)
+        self._batch_processor = ProducerBatchProcessor(callback_pool_size=pool_size)
 
     async def close(self):
         """Close the producer and cleanup resources
@@ -94,7 +92,7 @@ class AIOProducer:
         self._stop_buffer_timeout_task()
         
         # Flush any remaining messages in the buffer
-        if self._message_buffer:
+        if not self._batch_processor.is_buffer_empty():
             try:
                 await self._flush_buffer()
                 # Update buffer activity since we just flushed
@@ -177,7 +175,7 @@ class AIOProducer:
                 # Check if buffer has been inactive for too long
                 time_since_activity = time.time() - producer._last_buffer_activity
                 if (time_since_activity >= producer._buffer_timeout and 
-                    producer._message_buffer):
+                    not producer._batch_processor.is_buffer_empty()):
                     
                     try:
                         # Flush the buffer due to timeout
@@ -229,12 +227,7 @@ class AIOProducer:
         Returns:
             Number of callbacks processed during this call
         """
-        if timeout > 0 or timeout == -1:
-            # Blocking call - use ThreadPool to avoid blocking event loop
-            return await self._call(self._producer.poll, timeout, *args, **kwargs)
-        else:
-            # Non-blocking call (timeout=0) - can run directly
-            return await self._call(self._producer.poll, 0, *args, **kwargs)
+        return await self._call(self._producer.poll, timeout, *args, **kwargs)
 
 
     async def produce(self, topic, value=None, key=None, *args, **kwargs):
@@ -267,13 +260,12 @@ class AIOProducer:
         if user_callback:
             msg_data['user_callback'] = user_callback
         
-        self._message_buffer.append(msg_data)
-        self._buffer_futures.append(result)
+        self._batch_processor.add_message(msg_data, result)
         
         self._update_buffer_activity()
         
         # Check if we should flush the buffer
-        if len(self._message_buffer) >= self._batch_size:
+        if self._batch_processor.get_buffer_size() >= self._batch_size:
             await self._flush_buffer()
         
         return result
@@ -287,7 +279,7 @@ class AIOProducer:
         2. Waits for librdkafka to deliver/acknowledge all messages
         """
         # First, flush any remaining messages in the buffer for all topics
-        if self._message_buffer:
+        if not self._batch_processor.is_buffer_empty():
             await self._flush_buffer()
             # Update buffer activity since we just flushed
             self._update_buffer_activity()
@@ -298,8 +290,7 @@ class AIOProducer:
     async def purge(self, *args, **kwargs):
         """Purges messages from internal queues - may block during cleanup"""
         # Clear local message buffer and futures
-        self._message_buffer.clear()
-        self._buffer_futures.clear()
+        self._batch_processor.clear_buffer()
         
         # Update buffer activity since we cleared the buffer
         self._update_buffer_activity()
@@ -346,115 +337,24 @@ class AIOProducer:
                                 *args, **kwargs)
       
     # ========================================================================
-    # BATCH PROCESSING OPERATIONS - Internal batching implementation
+    # BATCH PROCESSING OPERATIONS - Delegated to BatchProcessor
     # ========================================================================
 
     async def _flush_buffer(self, target_topic=None):
-        """Flush the current message buffer using produce_batch via thread pool
+        """Flush the current message buffer using batch processor
         
-        This method now properly handles messages for different topics by grouping
-        them and calling produce_batch separately for each topic.
+        This method delegates to the BatchProcessor which handles all the
+        complexity of grouping messages by topic and executing batch operations.
         """
-        if not self._message_buffer:
-            return
-        
-        topic_groups = self._group_messages_by_topic()
-        
-        # Determine which topics to process and which to keep in buffer
-        topics_to_process = []
-        messages_to_keep = []
-        futures_to_keep = []
-        
-        for topic, group_data in topic_groups.items():
-            if target_topic is None or topic == target_topic:
-                # This topic should be flushed
-                topics_to_process.append((topic, group_data))
-            else:
-                # Keep messages for non-target topics in buffer
-                messages_to_keep.extend(group_data['messages'])
-                futures_to_keep.extend(group_data['futures'])
-        
-        # Update buffers: clear all, then add back what should be kept
-        self._message_buffer.clear()
-        self._buffer_futures.clear()
-        self._message_buffer.extend(messages_to_keep)
-        self._buffer_futures.extend(futures_to_keep)
-        
-        # Process each selected topic group
-        for topic, group_data in topics_to_process:
-            
-            # Prepare batch messages
-            batch_messages = []
-            for i, msg_data in enumerate(group_data['messages']):
-                # Create a shallow copy and remove fields not needed by produce_batch
-                batch_msg = copy.copy(msg_data)
-                batch_msg.pop('user_callback', None)  # Remove user callback, we'll handle it in our callback
-                batch_msg.pop('topic', None)  # Remove topic since it's passed separately
-                batch_messages.append(batch_msg)
-            
-            # Create callbacks for each message using pool for performance
-            for i, batch_msg in enumerate(batch_messages):
-                # Get reusable callback from pool instead of creating new one
-                future = group_data['futures'][i]
-                user_callback = group_data['callbacks'][i]
-                message_callback = self._callback_pool.get_callback(future, user_callback, self)
-                
-                # Assign the pooled callback to this message
-                batch_msg['callback'] = message_callback
-            
-            try:
-                # Call produce_batch with individual callbacks (no batch callback needed)
-                await self._call(self._produce_batch_and_poll, topic, batch_messages)
-                        
-            except Exception as e:
-                # Handle batch failure by failing all unresolved futures for this topic
-                self._handle_batch_failure_individual(e, group_data['futures'], group_data['callbacks'])
-                # Re-raise the exception so caller knows the batch operation failed
-                raise
+        await self._batch_processor.flush_buffer(self, target_topic)
 
-    def _group_messages_by_topic(self):
-        """Group buffered messages by topic for batch processing
-        
-        This function efficiently organizes the mixed-topic message buffer into
-        topic-specific groups, since librdkafka's produce_batch requires separate
-        calls for each topic.
-        
-        Algorithm:
-        - Single O(n) pass through message buffer
-        - Groups related data (messages, futures, callbacks) by topic
-        - Maintains index relationships between buffer arrays
+    def get_batch_processor_stats(self):
+        """Get statistics from the batch processor's callback pool
         
         Returns:
-            dict: Topic groups with structure:
-                {
-                    'topic_name': {
-                        'messages': [msg_data1, msg_data2, ...],     # Message dictionaries
-                        'futures': [future1, future2, ...],         # Corresponding asyncio.Future objects  
-                        'callbacks': [callback1, callback2, ...],   # User delivery callbacks (optional)
-                    }
-                }
+            dict: Callback pool statistics for monitoring performance
         """
-        topic_groups = {}
-        
-        # Iterate through buffer once - O(n) complexity
-        for i, msg_data in enumerate(self._message_buffer):
-            topic = msg_data['topic']
-            
-            # Create new topic group if this is first message for this topic
-            if topic not in topic_groups:
-                topic_groups[topic] = {
-                    'messages': [],    # Message data for produce_batch
-                    'futures': [],     # Futures to resolve on delivery
-                    'callbacks': [],   # User callbacks to invoke on delivery  
-                }
-            
-            # Add message and related data to appropriate topic group
-            # Note: All arrays stay synchronized by index
-            topic_groups[topic]['messages'].append(msg_data)
-            topic_groups[topic]['futures'].append(self._buffer_futures[i])
-            topic_groups[topic]['callbacks'].append(msg_data.get('user_callback'))
-            
-        return topic_groups
+        return self._batch_processor.get_callback_pool_stats()
 
     def _create_message_callback(self, future, user_callback):
         """Create an individual callback for a specific message that knows its future
@@ -494,51 +394,6 @@ class AIOProducer:
                     future.set_exception(e)
         
         return message_delivery_callback
-
-    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks):
-        """Handle batch operation failure for individual callback approach
-        
-        When a batch operation fails before any individual callbacks are invoked,
-        we need to fail all futures for this batch since none of the per-message
-        callbacks will be called by librdkafka.
-        
-        Args:
-            exception: The exception that caused the batch to fail
-            batch_futures: List of futures for this batch
-            batch_callbacks: List of user callbacks for this batch
-        """
-        # Fail all futures since no individual callbacks will be invoked
-        for i, future in enumerate(batch_futures):
-            user_callback = batch_callbacks[i] if i < len(batch_callbacks) else None
-            
-            # Only set exception if future isn't already done
-            if not future.done():
-                future.set_exception(exception)
-            
-            # Call user callback to notify of failure
-            if user_callback:
-                self._handle_user_callback(user_callback, exception, None)
-
-    def _produce_batch_and_poll(self, target_topic, batch_messages):
-        """Helper method to run produce_batch with individual callbacks and poll
-        
-        This method uses the per-message callback approach where each message has
-        its own callback that knows exactly which future to resolve. No batch-level
-        callback is needed since each message is self-contained.
-        
-        Benefits:
-        - Perfect message-to-future mapping regardless of callback order
-        - No ordering assumptions or dependencies
-        - Each callback knows its exact target future via closure
-        - Robust against out-of-order delivery reports
-        """
-        # Call produce_batch with individual callbacks (no batch callback)
-        self._producer.produce_batch(target_topic, batch_messages)
-        
-        # Immediately poll to process delivery callbacks in the same worker
-        poll_result = self._producer.poll(0)
-        
-        return poll_result
 
     # ========================================================================
     # UTILITY METHODS - Helper functions and internal utilities

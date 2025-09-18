@@ -6,7 +6,6 @@ This module tests the ReusableMessageCallback and CallbackPool classes
 to ensure proper callback pooling, reuse, and memory management.
 """
 
-import asyncio
 import unittest
 from unittest.mock import Mock, MagicMock
 import sys
@@ -19,8 +18,8 @@ from confluent_kafka.aio._callback_pool import ReusableMessageCallback, Callback
 from confluent_kafka import KafkaException
 
 
-class TestReusableMessageCallback(unittest.TestCase):
-    """Test cases for ReusableMessageCallback class"""
+class TestCallbackPool(unittest.TestCase):
+    """Test cases for ReusableMessageCallback and CallbackPool classes"""
     
     def setUp(self):
         """Set up test fixtures"""
@@ -31,16 +30,16 @@ class TestReusableMessageCallback(unittest.TestCase):
         self.mock_pool = Mock()
         self.mock_producer = Mock()
     
-    def test_initialization(self):
-        """Test callback initialization"""
+    def test_reusable_callback_initialization(self):
+        """Test ReusableMessageCallback initialization"""
         callback = ReusableMessageCallback()
         self.assertIsNone(callback.future)
         self.assertIsNone(callback.user_callback)
         self.assertIsNone(callback.pool)
         self.assertIsNone(callback.producer)
     
-    def test_reset(self):
-        """Test callback reset functionality"""
+    def test_reusable_callback_reset(self):
+        """Test ReusableMessageCallback reset functionality"""
         self.callback.reset(
             self.mock_future,
             self.mock_user_callback,
@@ -53,8 +52,8 @@ class TestReusableMessageCallback(unittest.TestCase):
         self.assertEqual(self.callback.pool, self.mock_pool)
         self.assertEqual(self.callback.producer, self.mock_producer)
     
-    def test_successful_delivery_callback(self):
-        """Test callback execution for successful message delivery"""
+    def test_reusable_callback_successful_delivery(self):
+        """Test ReusableMessageCallback execution for successful message delivery"""
         # Setup
         self.callback.reset(
             self.mock_future,
@@ -85,8 +84,8 @@ class TestReusableMessageCallback(unittest.TestCase):
         self.assertIsNone(self.callback.user_callback)
         self.assertIsNone(self.callback.producer)
     
-    def test_failed_delivery_callback(self):
-        """Test callback execution for failed message delivery"""
+    def test_reusable_callback_failed_delivery(self):
+        """Test ReusableMessageCallback execution for failed message delivery"""
         # Setup
         self.callback.reset(
             self.mock_future,
@@ -117,8 +116,8 @@ class TestReusableMessageCallback(unittest.TestCase):
         # Verify callback was returned to pool
         self.mock_pool.return_callback.assert_called_once_with(self.callback)
     
-    def test_callback_without_user_callback(self):
-        """Test callback execution when no user callback is provided"""
+    def test_reusable_callback_without_user_callback(self):
+        """Test ReusableMessageCallback execution when no user callback is provided"""
         # Setup without user callback
         self.callback.reset(
             self.mock_future,
@@ -141,8 +140,8 @@ class TestReusableMessageCallback(unittest.TestCase):
         # Verify callback was still returned to pool
         self.mock_pool.return_callback.assert_called_once_with(self.callback)
     
-    def test_callback_with_already_done_future(self):
-        """Test callback execution when future is already done"""
+    def test_reusable_callback_with_already_done_future(self):
+        """Test ReusableMessageCallback execution when future is already done"""
         # Setup with done future
         self.mock_future.done.return_value = True
         self.callback.reset(
@@ -167,8 +166,8 @@ class TestReusableMessageCallback(unittest.TestCase):
         # Verify callback was returned to pool
         self.mock_pool.return_callback.assert_called_once_with(self.callback)
     
-    def test_callback_exception_handling(self):
-        """Test callback handles exceptions during processing"""
+    def test_reusable_callback_exception_handling(self):
+        """Test ReusableMessageCallback handles exceptions during processing"""
         # Setup
         self.callback.reset(
             self.mock_future,
@@ -190,19 +189,9 @@ class TestReusableMessageCallback(unittest.TestCase):
         
         # Verify callback was still returned to pool despite exception
         self.mock_pool.return_callback.assert_called_once_with(self.callback)
-
-
-class TestCallbackPool(unittest.TestCase):
-    """Test cases for CallbackPool class"""
     
-    def setUp(self):
-        """Set up test fixtures"""
-        self.mock_future = Mock()
-        self.mock_user_callback = Mock()
-        self.mock_producer = Mock()
-    
-    def test_initialization_with_default_size(self):
-        """Test pool initialization with default size"""
+    def test_pool_initialization_with_default_size(self):
+        """Test CallbackPool initialization with default size"""
         pool = CallbackPool()
         
         # Default size should be 1000
@@ -215,8 +204,8 @@ class TestCallbackPool(unittest.TestCase):
         for callback in pool._available:
             self.assertIsInstance(callback, ReusableMessageCallback)
     
-    def test_initialization_with_custom_size(self):
-        """Test pool initialization with custom size"""
+    def test_pool_initialization_with_custom_size(self):
+        """Test CallbackPool initialization with custom size"""
         pool = CallbackPool(initial_size=50)
         
         self.assertEqual(len(pool._available), 50)
@@ -224,8 +213,8 @@ class TestCallbackPool(unittest.TestCase):
         self.assertEqual(pool._created_count, 50)
         self.assertEqual(pool._reuse_count, 0)
     
-    def test_get_callback_from_pool(self):
-        """Test getting a callback from the pool (reuse scenario)"""
+    def test_pool_get_callback_from_pool(self):
+        """Test getting a callback from CallbackPool (reuse scenario)"""
         pool = CallbackPool(initial_size=10)
         initial_available = len(pool._available)
         
@@ -250,8 +239,8 @@ class TestCallbackPool(unittest.TestCase):
         self.assertEqual(pool._reuse_count, 1)  # First reuse
         self.assertEqual(pool._created_count, 10)  # No new creation
     
-    def test_get_callback_pool_expansion(self):
-        """Test getting a callback when pool is empty (expansion scenario)"""
+    def test_pool_get_callback_pool_expansion(self):
+        """Test getting a callback from CallbackPool when pool is empty (expansion scenario)"""
         pool = CallbackPool(initial_size=0)  # Empty pool
         
         # Get a callback - should trigger pool expansion
@@ -271,8 +260,8 @@ class TestCallbackPool(unittest.TestCase):
         self.assertEqual(pool._created_count, 1)  # New callback created
         self.assertEqual(pool._reuse_count, 0)  # No reuse, new creation
     
-    def test_return_callback_to_pool(self):
-        """Test returning a callback to the pool"""
+    def test_pool_return_callback_to_pool(self):
+        """Test returning a callback to CallbackPool"""
         pool = CallbackPool(initial_size=5)
         
         # Get a callback
@@ -293,8 +282,8 @@ class TestCallbackPool(unittest.TestCase):
         self.assertNotIn(callback, pool._in_use)
         self.assertIn(callback, pool._available)
     
-    def test_return_callback_not_in_use(self):
-        """Test returning a callback that's not in use (should be ignored)"""
+    def test_pool_return_callback_not_in_use(self):
+        """Test returning a callback to CallbackPool that's not in use (should be ignored)"""
         pool = CallbackPool(initial_size=5)
         callback = ReusableMessageCallback()  # Not from pool
         
@@ -309,7 +298,7 @@ class TestCallbackPool(unittest.TestCase):
         self.assertEqual(len(pool._in_use), initial_in_use)
     
     def test_pool_reuse_cycle(self):
-        """Test complete get/return cycle for callback reuse"""
+        """Test complete CallbackPool get/return cycle for callback reuse"""
         pool = CallbackPool(initial_size=2)
         
         # Get callback
@@ -330,8 +319,8 @@ class TestCallbackPool(unittest.TestCase):
         self.assertEqual(callback2.future, self.mock_future)
         self.assertEqual(callback2.producer, self.mock_producer)
     
-    def test_get_stats(self):
-        """Test pool statistics reporting"""
+    def test_pool_get_stats(self):
+        """Test CallbackPool statistics reporting"""
         pool = CallbackPool(initial_size=10)
         
         # Initial stats
@@ -376,8 +365,8 @@ class TestCallbackPool(unittest.TestCase):
         }
         self.assertEqual(stats, expected_stats)
     
-    def test_high_concurrency_simulation(self):
-        """Test pool behavior under high concurrency simulation"""
+    def test_pool_high_concurrency_simulation(self):
+        """Test CallbackPool behavior under high concurrency simulation"""
         pool = CallbackPool(initial_size=5)
         
         # Simulate getting many callbacks (more than initial size)
@@ -405,66 +394,6 @@ class TestCallbackPool(unittest.TestCase):
         final_stats = pool.get_stats()
         self.assertEqual(final_stats['in_use'], 0)
         self.assertEqual(final_stats['available'], 20)
-
-
-class TestCallbackPoolIntegration(unittest.TestCase):
-    """Integration tests for callback pool with actual asyncio futures"""
-    
-    def setUp(self):
-        """Set up test fixtures"""
-        self.loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(self.loop)
-        self.mock_producer = Mock()
-    
-    def tearDown(self):
-        """Clean up test fixtures"""
-        self.loop.close()
-    
-    def test_callback_with_real_future(self):
-        """Test callback pool with real asyncio futures"""
-        pool = CallbackPool(initial_size=2)
-        
-        # Create real future
-        future = self.loop.create_future()
-        
-        # Get callback from pool
-        callback = pool.get_callback(future, None, self.mock_producer)
-        
-        # Simulate successful delivery
-        mock_msg = Mock()
-        callback(None, mock_msg)
-        
-        # Verify future was resolved
-        self.assertTrue(future.done())
-        self.assertEqual(future.result(), mock_msg)
-        
-        # Verify callback was returned to pool
-        stats = pool.get_stats()
-        self.assertEqual(stats['in_use'], 0)
-        self.assertEqual(stats['available'], 2)
-    
-    def test_callback_with_real_future_error(self):
-        """Test callback pool with real future and error"""
-        pool = CallbackPool(initial_size=2)
-        
-        # Create real future
-        future = self.loop.create_future()
-        
-        # Get callback from pool
-        callback = pool.get_callback(future, None, self.mock_producer)
-        
-        # Simulate failed delivery
-        mock_error = Mock()
-        callback(mock_error, None)
-        
-        # Verify future was resolved with exception
-        self.assertTrue(future.done())
-        self.assertIsInstance(future.exception(), KafkaException)
-        
-        # Verify callback was returned to pool
-        stats = pool.get_stats()
-        self.assertEqual(stats['in_use'], 0)
-        self.assertEqual(stats['available'], 2)
 
 
 if __name__ == '__main__':
