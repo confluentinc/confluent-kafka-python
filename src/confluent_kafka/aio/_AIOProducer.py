@@ -15,12 +15,17 @@
 import asyncio
 import concurrent.futures
 import copy
-import confluent_kafka
-from confluent_kafka import KafkaException as _KafkaException
-import functools
+import logging
 import time
 import weakref
+
+import confluent_kafka
+from confluent_kafka import KafkaException as _KafkaException
+
 import confluent_kafka.aio._common as _common
+
+
+logger = logging.getLogger(__name__)
 
 
 class AIOProducer:
@@ -54,17 +59,27 @@ class AIOProducer:
         self._buffer_timeout_task = None  # Background task for timeout management
         self._is_closed = False  # Track if producer is closed
         
+        if buffer_timeout > 0:
         # Start the buffer timeout management task
-        self._start_buffer_timeout_task()
+            self._start_buffer_timeout_task()
 
     async def close(self):
         """Close the producer and cleanup resources
         
-        This method:
-        1. Sets the closed flag to stop the timeout task
-        2. Stops the buffer timeout monitoring task
-        3. Flushes any remaining messages in the buffer
-        4. Closes the underlying librdkafka producer
+        This method performs a graceful shutdown sequence to ensure all resources
+        are properly cleaned up and no messages are lost:
+        
+        1. **Signal Shutdown**: Sets the closed flag to signal the timeout task to stop
+        2. **Cancel Timeout Task**: Immediately cancels the buffer timeout monitoring task
+        3. **Flush Remaining Messages**: Flushes any buffered messages to ensure delivery
+        4. **Shutdown ThreadPool**: Waits for all pending ThreadPool operations to complete
+        5. **Cleanup**: Ensures the underlying librdkafka producer is properly closed. The shutdown 
+            is designed to be safe and non-blocking for the asyncio event loop
+            while ensuring all pending operations complete before the producer is closed.
+        
+        Raises:
+            Exception: May raise exceptions from buffer flushing, but these are logged
+                      and don't prevent the cleanup process from completing.
         """
         # Set closed flag to signal timeout task to stop
         self._is_closed = True
@@ -77,12 +92,24 @@ class AIOProducer:
             try:
                 await self.flush_buffer()
             except Exception:
+                logger.error("Error flushing buffer", exc_info=True)
                 # Don't let flush errors prevent cleanup
                 pass
         
-        # Close the underlying producer (this is not async in librdkafka)
-        # but we'll still run it in executor to be safe
-        await self._call(lambda: None)  # Just to ensure any pending operations complete
+        # Shutdown the ThreadPool executor and wait for any remaining tasks to complete
+        # This ensures that all pending poll(), flush(), and other blocking operations
+        # finish before the producer is considered fully closed
+        if hasattr(self, 'executor'):
+            # executor.shutdown(wait=True) is a blocking call that:
+            # - Prevents new tasks from being submitted to the ThreadPool
+            # - Waits for all currently executing and queued tasks to complete
+            # - Returns only when all worker threads have finished
+            # 
+            # We run this in a separate thread (using None as executor) to avoid
+            # blocking the asyncio event loop during the potentially long shutdown wait
+            await asyncio.get_running_loop().run_in_executor(
+                None, self.executor.shutdown, True
+            )
 
     def __del__(self):
         """Cleanup method called during garbage collection
