@@ -2,6 +2,7 @@
 Ducktape tests for transactions in async producer and consumer.
 """
 import uuid
+import asyncio
 from ducktape.tests.test import Test
 
 from tests.ducktape.producer_strategy import AsyncProducerStrategy
@@ -91,7 +92,6 @@ class TransactionsTest(Test):
                 assert len(seen) == 5, f"expected 5 committed messages, got {len(seen)}"
             finally:
                 await consumer.close()
-        import asyncio
         asyncio.run(run())
 
     def test_abort_transaction_then_retry_commit(self):
@@ -139,7 +139,6 @@ class TransactionsTest(Test):
                 assert all(not s.startswith('a') for s in seen), f"should not see aborted values, saw {seen}"
             finally:
                 await consumer.close()
-        import asyncio
         asyncio.run(run())
 
     def test_send_offsets_to_transaction(self):
@@ -177,9 +176,9 @@ class TransactionsTest(Test):
 
                 assignment = await consumer.assignment()
                 positions = await consumer.position(assignment)
-                group_md = await consumer.consumer_group_metadata()
+                group_metadata = await consumer.consumer_group_metadata()
 
-                await producer.send_offsets_to_transaction(positions, group_md)
+                await producer.send_offsets_to_transaction(positions, group_metadata)
                 await producer.commit_transaction()
 
                 # Verify output has results
@@ -204,7 +203,6 @@ class TransactionsTest(Test):
                     assert comm.offset >= pos.offset, f"committed {comm.offset} < position {pos.offset}"
             finally:
                 await consumer.close()
-        import asyncio
         asyncio.run(run())
 
     def test_commit_multiple_topics_partitions(self):
@@ -237,5 +235,4 @@ class TransactionsTest(Test):
                 assert seen == expected, f"expected {expected}, saw {seen}"
             finally:
                 await consumer.close()
-        import asyncio
         asyncio.run(run())
