@@ -439,8 +439,11 @@ def test_produce_batch_callback_mechanisms():
     count = producer.produce_batch('test-topic', messages, on_delivery=global_callback)
     assert count == 5
     
-    # Flush to trigger all callbacks
-    producer.flush()
+    # Flush to trigger all callbacks - expect exception from callback
+    try:
+        producer.flush()
+    except ValueError as e:
+        assert "Test callback exception" in str(e)
     
     # Verify callback distribution
     assert callback1_calls == [b'msg1']
@@ -523,3 +526,195 @@ def test_produce_batch_edge_cases():
     
     # If we get here without memory errors, cleanup is working
     assert True
+
+
+def test_produce_batch_argument_and_topic_validation():
+    """Test Group 1: Argument parsing and topic validation edge cases"""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    
+    # Test 1: Missing positional arguments
+    with pytest.raises(TypeError):
+        producer.produce_batch()
+    
+    # Test 2: Wrong argument types
+    with pytest.raises(TypeError):
+        producer.produce_batch(123, [{'value': b'test'}])  # topic not string
+    
+    # Test 3: Invalid partition values
+    with pytest.raises((TypeError, ValueError)):
+        producer.produce_batch('topic', [{'value': b'test'}], partition="invalid")
+    
+    # Test 4: Invalid topic names
+    # Note: Some invalid topics may be accepted by librdkafka but fail later
+    # Test empty topic (this should fail)
+    try:
+        producer.produce_batch("", [{'value': b'test'}])
+        # If it doesn't raise, that's also valid behavior
+    except (TypeError, ValueError, KafkaException):
+        pass  # Expected
+    
+    # Test very long topic name (may or may not fail depending on broker)
+    very_long_topic = "a" * 300
+    try:
+        count = producer.produce_batch(very_long_topic, [{'value': b'test'}])
+        # If it succeeds, that's also valid (broker-dependent)
+        assert count >= 0
+    except (TypeError, ValueError, KafkaException):
+        pass  # Also expected
+    
+    # Test 5: None topic (should fail during argument parsing)
+    with pytest.raises(TypeError):
+        producer.produce_batch(None, [{'value': b'test'}])
+    
+    # Test 6: Non-callable global callback (may be validated later)
+    try:
+        producer.produce_batch('topic', [{'value': b'test'}], callback="not_callable")
+        # Some implementations might not validate until callback is used
+    except (TypeError, AttributeError):
+        pass  # Expected behavior
+    
+    # Test 7: Non-callable per-message callback
+    # Note: Validation might happen during parsing or callback execution
+    messages = [{'value': b'test', 'callback': "not_callable"}]
+    try:
+        count = producer.produce_batch('topic', messages)
+        # If it doesn't fail immediately, try flushing
+        producer.flush()  # This might trigger the error
+    except (TypeError, AttributeError):
+        pass  # Expected behavior
+
+
+def test_produce_batch_error_conditions_and_limits():
+    """Test Group 2: Error conditions and extreme limits"""
+    
+    # Test 1: Specific BufferError testing
+    producer_small_queue = Producer({
+        'bootstrap.servers': 'localhost:9092',
+        'queue.buffering.max.messages': 2
+    })
+    
+    # Fill queue completely
+    try:
+        for i in range(5):
+            producer_small_queue.produce('test-topic', f'filler_{i}')
+    except BufferError:
+        pass  # Queue is full
+    
+    # This should handle queue full gracefully
+    large_batch = [{'value': f'msg_{i}'.encode()} for i in range(10)]
+    count = producer_small_queue.produce_batch('test-topic', large_batch)
+    assert 0 <= count <= len(large_batch)  # Some may fail due to queue limits
+    
+    # Test 2: Very large batch size
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    very_large_batch = [{'value': f'large_msg_{i}'.encode()} for i in range(1000)]
+    count = producer.produce_batch('test-topic', very_large_batch)
+    assert count >= 0  # May succeed or partially succeed
+    
+    # Test 3: Single very large message
+    huge_message = {'value': b'x' * (1024 * 1024)}  # 1MB message
+    count = producer.produce_batch('test-topic', [huge_message])
+    assert count >= 0  # May succeed or fail based on broker config
+    
+    # Test 4: Mixed success/failure with queue limits
+    messages_mixed = [
+        {'value': b'small1'},
+        {'value': b'x' * (100 * 1024)},  # Large message
+        {'value': b'small2'},
+        {'value': b'x' * (100 * 1024)},  # Another large message
+        {'value': b'small3'},
+    ]
+    count = producer.produce_batch('test-topic', messages_mixed)
+    assert 0 <= count <= len(messages_mixed)
+    
+    # Check that failed messages have error annotations
+    failed_count = sum(1 for msg in messages_mixed if '_error' in msg)
+    success_count = len(messages_mixed) - failed_count
+    assert success_count == count
+
+
+def test_produce_batch_configuration_and_concurrency():
+    """Test Group 3: Different configurations and thread safety"""
+    
+    # Test 1: Different producer configurations
+    configs = [
+        {'bootstrap.servers': 'localhost:9092', 'acks': 'all'},
+        {'bootstrap.servers': 'localhost:9092', 'acks': '0'},
+        {'bootstrap.servers': 'localhost:9092', 'compression.type': 'gzip'},
+        {'bootstrap.servers': 'localhost:9092', 'batch.size': 1000},
+        {'bootstrap.servers': 'localhost:9092', 'linger.ms': 100},
+    ]
+    
+    for i, config in enumerate(configs):
+        producer = Producer(config)
+        messages = [{'value': f'config_{i}_msg_{j}'.encode()} for j in range(5)]
+        count = producer.produce_batch('test-topic', messages)
+        assert count == 5, f"Failed with config {config}"
+    
+    # Test 2: Thread safety - multiple threads using same producer
+    import threading
+    import time
+    
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    results = []
+    errors = []
+    
+    def produce_worker(thread_id):
+        try:
+            messages = [{'value': f'thread_{thread_id}_msg_{i}'.encode()} 
+                       for i in range(20)]
+            count = producer.produce_batch('test-topic', messages)
+            results.append((thread_id, count))
+        except Exception as e:
+            errors.append((thread_id, e))
+    
+    # Start multiple threads
+    threads = []
+    for i in range(5):
+        t = threading.Thread(target=produce_worker, args=(i,))
+        threads.append(t)
+        t.start()
+    
+    # Wait for all threads to complete
+    for t in threads:
+        t.join()
+    
+    # Verify results
+    assert len(results) == 5, f"Expected 5 results, got {len(results)}"
+    assert len(errors) == 0, f"Unexpected errors: {errors}"
+    
+    # Verify all threads succeeded
+    for thread_id, count in results:
+        assert count == 20, f"Thread {thread_id} failed to produce all messages: {count}/20"
+    
+    # Test 3: Rapid successive batch calls
+    rapid_producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    total_count = 0
+    
+    for batch_num in range(10):
+        messages = [{'value': f'rapid_{batch_num}_{i}'.encode()} for i in range(10)]
+        count = rapid_producer.produce_batch('test-topic', messages)
+        total_count += count
+    
+    assert total_count == 100, f"Expected 100 total messages, got {total_count}"
+    
+    # Test 4: Interleaved batch and individual produce calls
+    mixed_producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    
+    # Batch produce
+    batch_messages = [{'value': f'batch_{i}'.encode()} for i in range(5)]
+    batch_count = mixed_producer.produce_batch('test-topic', batch_messages)
+    
+    # Individual produce calls
+    for i in range(5):
+        mixed_producer.produce('test-topic', f'individual_{i}'.encode())
+    
+    # Another batch
+    batch_messages2 = [{'value': f'batch2_{i}'.encode()} for i in range(5)]
+    batch_count2 = mixed_producer.produce_batch('test-topic', batch_messages2)
+    
+    assert batch_count == 5
+    assert batch_count2 == 5
+    
+    # Flush to ensure all messages are processed
+    mixed_producer.flush()

@@ -394,78 +394,44 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 }
 
 /**
- * @brief Produce a batch of messages.
- * @returns Number of messages successfully queued for producing.
+ * @brief Validate arguments and parse all messages in the batch
+ * @param self Producer handle
+ * @param messages_list Python list of message dictionaries
+ * @param default_partition Default partition for messages
+ * @param default_dr_cb Default delivery callback
+ * @param rkmessages Output array of librdkafka messages (must be pre-allocated)
+ * @param msgstates Output array of message states (must be pre-allocated)
+ * @param message_cnt Output parameter for message count
+ * @returns 0 on success, -1 on error (with Python exception set)
  */
-static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
-                                         PyObject *kwargs) {
-        const char *topic;
-        PyObject *messages_list = NULL;
-        int partition = RD_KAFKA_PARTITION_UA;
-        PyObject *dr_cb = NULL, *dr_cb2 = NULL;
-        rd_kafka_message_t *rkmessages = NULL;
-        struct Producer_msgstate **msgstates = NULL;
-        int message_cnt = 0;
-        int good = 0;
-        rd_kafka_topic_t *rkt = NULL;
+static int Producer_validate_and_parse_batch(Handle *self, PyObject *messages_list,
+                                            int default_partition, PyObject *default_dr_cb,
+                                            rd_kafka_message_t *rkmessages,
+                                            struct Producer_msgstate **msgstates,
+                                            int *message_cnt) {
         int i;
-
-        static char *kws[] = { "topic",
-                               "messages", 
-                               "partition",
-                               "callback",
-                               "on_delivery", /* Alias */
-                               NULL };
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-                                         "sO|iOO", kws,
-                                         &topic, &messages_list, &partition,
-                                         &dr_cb, &dr_cb2))
-                return NULL;
-
-        if (dr_cb2 && !dr_cb) /* Alias */
-                dr_cb = dr_cb2;
-
-        if (!dr_cb || dr_cb == Py_None)
-                dr_cb = self->u.Producer.default_dr_cb;
-
+        
         /* Validate messages_list is a list */
         if (!PyList_Check(messages_list)) {
-                PyErr_SetString(PyExc_TypeError, 
-                               "messages must be a list");
-                return NULL;
+                PyErr_SetString(PyExc_TypeError, "messages must be a list");
+                return -1;
         }
 
-        message_cnt = (int)PyList_Size(messages_list);
-        if (message_cnt == 0) {
-                return cfl_PyInt_FromInt(0);
+        *message_cnt = (int)PyList_Size(messages_list);
+        if (*message_cnt == 0) {
+                return 0; /* Empty batch is valid */
         }
 
-        /* Allocate arrays for librdkafka messages and msgstates */
-        rkmessages = calloc(message_cnt, sizeof(*rkmessages));
-        msgstates = calloc(message_cnt, sizeof(*msgstates));
-        if (!rkmessages || !msgstates) {
-                PyErr_NoMemory();
-                goto cleanup;
-        }
-
-        /* Get topic handle */
-        if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
-                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
-                                "Invalid topic: %s", topic);
-                goto cleanup;
-        }
-
-        /* Convert Python messages to librdkafka format */
-        for (i = 0; i < message_cnt; i++) {
+        /* Parse each message in the batch */
+        for (i = 0; i < *message_cnt; i++) {
                 PyObject *msg_dict = PyList_GetItem(messages_list, i);
                 PyObject *value_obj = NULL, *key_obj = NULL, *headers_obj = NULL;
                 PyObject *partition_obj = NULL, *timestamp_obj = NULL;
                 PyObject *callback_obj = NULL;
                 const char *value = NULL, *key = NULL;
                 Py_ssize_t value_len = 0, key_len = 0;
-                int msg_partition = partition;
-                PyObject *msg_dr_cb = dr_cb;
+                int msg_partition = default_partition;
+                PyObject *msg_dr_cb = default_dr_cb;
 #ifdef RD_KAFKA_V_HEADERS
                 rd_kafka_headers_t *rd_headers = NULL;
 #endif
@@ -473,7 +439,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                 if (!PyDict_Check(msg_dict)) {
                         PyErr_Format(PyExc_TypeError,
                                     "Message at index %d must be a dict", i);
-                        goto cleanup;
+                        return -1;
                 }
 
                 /* Extract message fields */
@@ -494,7 +460,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                             "Message value at index %d must be bytes or str", i);
-                                goto cleanup;
+                                return -1;
                         }
                 }
 
@@ -508,7 +474,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                         } else {
                                 PyErr_Format(PyExc_TypeError,
                                             "Message key at index %d must be bytes or str", i);
-                                goto cleanup;
+                                return -1;
                         }
                 }
 
@@ -517,7 +483,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                         if (!PyLong_Check(partition_obj)) {
                                 PyErr_Format(PyExc_TypeError,
                                             "Message partition at index %d must be int", i);
-                                goto cleanup;
+                                return -1;
                         }
                         msg_partition = (int)PyLong_AsLong(partition_obj);
                 }
@@ -526,7 +492,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                 if (timestamp_obj && timestamp_obj != Py_None) {
                         PyErr_Format(PyExc_NotImplementedError,
                                     "Message timestamps are not currently supported in batch mode");
-                        goto cleanup;
+                        return -1;
                 }
 
                 /* Parse callback */
@@ -540,7 +506,7 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                         if (!(rd_headers = py_headers_to_c(headers_obj))) {
                                 PyErr_Format(PyExc_ValueError,
                                             "Invalid headers at index %d", i);
-                                goto cleanup;
+                                return -1;
                         }
                 }
 #endif
@@ -568,9 +534,29 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
 #endif
         }
 
+        return 0;
+}
+
+/**
+ * @brief Execute batch produce and handle errors
+ * @param messages_list Original Python message list (for error annotation)
+ * @param rkt Topic handle
+ * @param partition Default partition
+ * @param rkmessages Array of librdkafka messages
+ * @param msgstates Array of message states
+ * @param message_cnt Number of messages
+ * @returns Number of messages successfully queued
+ */
+static int Producer_execute_and_handle_errors(PyObject *messages_list,
+                                            rd_kafka_topic_t *rkt, int partition,
+                                            rd_kafka_message_t *rkmessages,
+                                            struct Producer_msgstate **msgstates,
+                                            int message_cnt) {
+        int good = 0;
+        int i;
+
         /* Call librdkafka batch produce */
-        good = rd_kafka_produce_batch(rkt, partition, 
-                                     RD_KAFKA_MSG_F_COPY,
+        good = rd_kafka_produce_batch(rkt, partition, RD_KAFKA_MSG_F_COPY,
                                      rkmessages, message_cnt);
 
         /* Handle results and cleanup failed messages */
@@ -594,7 +580,77 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                 }
         }
 
+        return good;
+}
+
+
+/**
+ * @brief Produce a batch of messages.
+ * @returns Number of messages successfully queued for producing.
+ */
+static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
+                                         PyObject *kwargs) {
+        const char *topic;
+        PyObject *messages_list = NULL;
+        int partition = RD_KAFKA_PARTITION_UA;
+        PyObject *dr_cb = NULL, *dr_cb2 = NULL;
+        rd_kafka_message_t *rkmessages = NULL;
+        struct Producer_msgstate **msgstates = NULL;
+        int message_cnt = 0;
+        int good = 0;
+        rd_kafka_topic_t *rkt = NULL;
+
+        static char *kws[] = { "topic", "messages", "partition", "callback", "on_delivery", NULL };
+
+        /* Parse arguments */
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sO|iOO", kws,
+                                         &topic, &messages_list, &partition,
+                                         &dr_cb, &dr_cb2))
+                return NULL;
+
+        /* Handle callback aliases */
+        if (dr_cb2 && !dr_cb)
+                dr_cb = dr_cb2;
+        if (!dr_cb || dr_cb == Py_None)
+                dr_cb = self->u.Producer.default_dr_cb;
+
+        /* Get preliminary message count for allocation */
+        if (!PyList_Check(messages_list)) {
+                PyErr_SetString(PyExc_TypeError, "messages must be a list");
+                return NULL;
+        }
+        
+        message_cnt = (int)PyList_Size(messages_list);
+        if (message_cnt == 0) {
+                return cfl_PyInt_FromInt(0);
+        }
+
+        /* Allocate arrays for librdkafka messages and msgstates */
+        rkmessages = calloc(message_cnt, sizeof(*rkmessages));
+        msgstates = calloc(message_cnt, sizeof(*msgstates));
+        if (!rkmessages || !msgstates) {
+                PyErr_NoMemory();
+                goto cleanup;
+        }
+
+        /* Get topic handle */
+        if (!(rkt = rd_kafka_topic_new(self->rk, topic, NULL))) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG, "Invalid topic: %s", topic);
+                goto cleanup;
+        }
+
+        /* FUNCTION 1: Validate arguments and parse all messages */
+        if (Producer_validate_and_parse_batch(self, messages_list, partition, dr_cb,
+                                             rkmessages, msgstates, &message_cnt) != 0) {
+                goto cleanup;
+        }
+
+        /* FUNCTION 2: Execute batch and handle errors */
+        good = Producer_execute_and_handle_errors(messages_list, rkt, partition,
+                                                rkmessages, msgstates, message_cnt);
+
 cleanup:
+        /* Cleanup resources */
         if (rkt)
                 rd_kafka_topic_destroy(rkt);
         if (rkmessages)
