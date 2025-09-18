@@ -138,16 +138,29 @@ class AIOProducer:
            prevent garbage collection of the AIOProducer instance.
         2. **Self-Canceling**: The task checks if the producer still exists and stops itself
            if the producer has been garbage collected.
-        3. **Configurable Timeout**: Uses self._buffer_timeout to determine how long to wait.
+        3. **Adaptive Check Interval**: Uses self._buffer_timeout to determine both the timeout
+           threshold and the check frequency (checks every buffer_timeout/2, bounded by 0.1-1.0s).
         """
         async def timeout_monitor():
             # Use weak reference to avoid circular reference and allow garbage collection
             producer_ref = weakref.ref(self)
             
             while True:
-                await asyncio.sleep(1.0)  # Check every second
+                # Check interval should be proportional to buffer timeout for efficiency
+                # Use half the buffer timeout, with reasonable min/max bounds
+                producer = producer_ref()
+                if producer is None:
+                    break
                 
-                # Get the producer instance from weak reference
+                # Calculate adaptive check interval: buffer_timeout/2 with bounds
+                # - Base: buffer_timeout/2 (check twice per timeout period)  
+                # - Lower bound: 0.1s (prevent excessive CPU usage for tiny timeouts)
+                # - Upper bound: 1.0s (ensure responsiveness for large timeouts)
+                # Examples: 0.1s→0.1s, 1s→0.5s, 5s→1.0s, 30s→1.0s
+                check_interval = max(0.1, min(1.0, producer._buffer_timeout / 2))
+                await asyncio.sleep(check_interval)
+                
+                # Re-check producer after sleep (it might have been closed/garbage collected)
                 producer = producer_ref()
                 if producer is None or producer._is_closed:
                     # Producer has been garbage collected or closed, stop the task
@@ -162,6 +175,7 @@ class AIOProducer:
                         # Flush the buffer due to timeout
                         await producer.flush_buffer()
                     except Exception:
+                        logger.error("Error flushing buffer", exc_info=True)
                         # Don't let buffer flush errors crash the timeout task
                         pass
         
