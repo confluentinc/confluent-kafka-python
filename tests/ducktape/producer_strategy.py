@@ -21,13 +21,11 @@ class ProducerStrategy:
 
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter, delivered_container, failed_container=None):
         raise NotImplementedError()
-
-
-class SyncProducerStrategy(ProducerStrategy):
-    def create_producer(self, config_overrides=None):
-        config = {
+    
+    def _get_base_config(self):
+        """Get shared Kafka producer configuration optimized for low-latency, high-throughput"""
+        return {
             'bootstrap.servers': self.bootstrap_servers,
-            # Optimized configuration for low-latency, high-throughput (same as async)
             'queue.buffering.max.messages': 1000000,  # 1M messages (sufficient)
             'queue.buffering.max.kbytes': 1048576,    # 1GB (default)
             'batch.size': 65536,                      # 64KB batches (increased for better efficiency)
@@ -40,6 +38,39 @@ class SyncProducerStrategy(ProducerStrategy):
             'delivery.timeout.ms': 30000,            # 30s delivery timeout
             'max.in.flight.requests.per.connection': 5  # Pipeline requests
         }
+    
+    def _log_configuration(self, config, producer_type, extra_params=None):
+        """Log producer configuration for validation"""
+        separator = "=" * (len(f"{producer_type.upper()} PRODUCER CONFIGURATION") + 6)
+        self.logger.info(f"=== {producer_type.upper()} PRODUCER CONFIGURATION ===")
+        for key, value in config.items():
+            self.logger.info(f"{key}: {value}")
+        
+        if extra_params:
+            for key, value in extra_params.items():
+                self.logger.info(f"{key}: {value}")
+        
+        self.logger.info(separator)
+    
+    def _print_timing_metrics(self, producer_type, produce_times, poll_times, flush_time):
+        """Print code path timing metrics"""
+        avg_produce_time = sum(produce_times) / len(produce_times) * 1000 if produce_times else 0
+        avg_poll_time = sum(poll_times) / len(poll_times) * 1000 if poll_times else 0
+        flush_time_ms = flush_time * 1000
+        
+        separator = "=" * (len(f"{producer_type.upper()} PRODUCER CODE PATH TIMING") + 6)
+        print(f"\n=== {producer_type.upper()} PRODUCER CODE PATH TIMING ===")
+        print(f"Time to call {'AIO' if producer_type == 'ASYNC' else ''}Producer.produce(): {avg_produce_time:.4f}ms")
+        print(f"Time to call {'AIO' if producer_type == 'ASYNC' else ''}Producer.poll(): {avg_poll_time:.4f}ms")
+        print(f"Time to call {'AIO' if producer_type == 'ASYNC' else ''}Producer.flush(): {flush_time_ms:.4f}ms")
+        print(f"Total produce() calls: {len(produce_times)}")
+        print(f"Total poll() calls: {len(poll_times)}")
+        print(separator)
+
+
+class SyncProducerStrategy(ProducerStrategy):
+    def create_producer(self, config_overrides=None):
+        config = self._get_base_config()
         
         # Apply any test-specific overrides
         if config_overrides:
@@ -48,10 +79,7 @@ class SyncProducerStrategy(ProducerStrategy):
         producer = Producer(config)
         
         # Log the configuration for validation
-        self.logger.info("=== SYNC PRODUCER CONFIGURATION ===")
-        for key, value in config.items():
-            self.logger.info(f"{key}: {value}")
-        self.logger.info("=" * 40)
+        self._log_configuration(config, "SYNC")
         
         return producer
     
@@ -128,17 +156,7 @@ class SyncProducerStrategy(ProducerStrategy):
         flush_time = time.time() - flush_start
         
         # Print timing metrics
-        avg_produce_time = sum(produce_times) / len(produce_times) * 1000 if produce_times else 0
-        avg_poll_time = sum(poll_times) / len(poll_times) * 1000 if poll_times else 0
-        flush_time_ms = flush_time * 1000
-        
-        print(f"\n=== SYNC PRODUCER CODE PATH TIMING ===")
-        print(f"Time to call Producer.produce(): {avg_produce_time:.4f}ms")
-        print(f"Time to call Producer.poll(): {avg_poll_time:.4f}ms")
-        print(f"Time to call Producer.flush(): {flush_time_ms:.4f}ms")
-        print(f"Total produce() calls: {len(produce_times)}")
-        print(f"Total poll() calls: {len(poll_times)}")
-        print("=" * 45)
+        self._print_timing_metrics("SYNC", produce_times, poll_times, flush_time)
         
         return messages_sent
         
@@ -160,21 +178,7 @@ class AsyncProducerStrategy(ProducerStrategy):
         import logging
         logging.basicConfig(level=logging.INFO)
         
-        config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            # Optimized configuration for low-latency, high-throughput
-            'queue.buffering.max.messages': 1000000,  # 1M messages (sufficient)
-            'queue.buffering.max.kbytes': 1048576,    # 1GB (default)
-            'batch.size': 65536,                      # 64KB batches (increased for better efficiency)
-            'batch.num.messages': 50000,              # 50K messages per batch (up from 10K default)
-            'message.max.bytes': 2097152,             # 2MB max message size (up from ~1MB default)
-            'linger.ms': 1,                          # Wait 1ms for batching (low latency)
-            'compression.type': 'lz4',               # Fast compression
-            'acks': 1,                               # Wait for leader only (faster)
-            'retries': 3,                            # Retry failed sends
-            'delivery.timeout.ms': 30000,            # 30s delivery timeout
-            'max.in.flight.requests.per.connection': 5  # Pipeline requests
-        }
+        config = self._get_base_config()
         
         # Apply any test-specific overrides
         if config_overrides:
@@ -188,12 +192,8 @@ class AsyncProducerStrategy(ProducerStrategy):
         self._producer_instance = AIOProducer(config, max_workers=max_workers, batch_size=batch_size)
         
         # Log the configuration for validation
-        self.logger.info("=== ASYNC PRODUCER CONFIGURATION ===")
-        for key, value in config.items():
-            self.logger.info(f"{key}: {value}")
-        self.logger.info(f"max_workers: {max_workers}")
-        self.logger.info(f"batch_size: {batch_size}")
-        self.logger.info("=" * 41)
+        extra_params = {'max_workers': max_workers, 'batch_size': batch_size}
+        self._log_configuration(config, "ASYNC", extra_params)
         
         return self._producer_instance
     
@@ -253,12 +253,6 @@ class AsyncProducerStrategy(ProducerStrategy):
                         self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to produce message {messages_sent}: {e}")
 
-            # Print producer latency metrics
-            producer.print_latency_metrics()
-
-            # Print producer latency stats
-            producer.get_latency_stats()
-
             # Flush producer
             flush_start = time.time()
             await producer.flush(timeout=30)
@@ -275,17 +269,7 @@ class AsyncProducerStrategy(ProducerStrategy):
                     self.logger.error(f"Failed to deliver message with key {message_key}: {e}")  
             
             # Print timing metrics
-            avg_produce_time = sum(produce_times) / len(produce_times) * 1000 if produce_times else 0
-            avg_poll_time = sum(poll_times) / len(poll_times) * 1000 if poll_times else 0
-            flush_time_ms = flush_time * 1000
-            
-            print(f"\n=== ASYNC PRODUCER CODE PATH TIMING ===")
-            print(f"Time to call AIOProducer.produce(): {avg_produce_time:.4f}ms")
-            print(f"Time to call AIOProducer.poll(): {avg_poll_time:.4f}ms")
-            print(f"Time to call AIOProducer.flush(): {flush_time_ms:.4f}ms")
-            print(f"Total produce() calls: {len(produce_times)}")
-            print(f"Total poll() calls: {len(poll_times)}")
-            print("=" * 46)
+            self._print_timing_metrics("ASYNC", produce_times, poll_times, flush_time)
             
             return messages_sent
         
