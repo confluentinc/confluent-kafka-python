@@ -5,8 +5,9 @@ import subprocess
 PYTHON_SOAK_TEST_BRANCH = 'dev_otel_agent_soak_test'
 
 LIBRDKAFKA_VERSIONS = [
-    # '2.11.1'
-    # '2.10.1',
+    # '2.12.0',
+    '2.11.1',
+    '2.10.1',
     '2.8.0',
     '2.6.1',
     '2.5.3',
@@ -18,8 +19,9 @@ LIBRDKAFKA_VERSIONS = [
 ]
 
 PYTHON_VERSIONS = [
-    # '2.11.0'
-    # '2.10.1',
+    # '2.12.0',
+    '2.11.0',
+    '2.10.1',
     '2.8.0',
     '2.6.1',
     '2.5.3',

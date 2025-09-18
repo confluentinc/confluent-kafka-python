@@ -37,7 +37,7 @@ git fetch --tags
 git checkout $librdkafka_version
 echo "Configuring librdkafka $librdkafka_version with prefix $testdir/librdkafka-installation"
 ./configure --prefix=$testdir/librdkafka-installation
-sudo make uninstall
+make uninstall
 make clean
 make -j
 make install
