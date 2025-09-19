@@ -23,10 +23,10 @@ import confluent_kafka
 from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
-from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
-from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
-from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
-from confluent_kafka.aio._buffer_timeout_manager import BufferTimeoutManager
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchProcessor
+from confluent_kafka.aio.producer._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
 
 logger = logging.getLogger(__name__)

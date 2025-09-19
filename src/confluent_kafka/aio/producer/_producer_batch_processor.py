@@ -16,9 +16,9 @@ import asyncio
 import copy
 import logging
 
-from confluent_kafka.aio._callback_pool import CallbackPool
-from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
-from confluent_kafka.aio._message_batch import MessageBatch, create_message_batch
+from confluent_kafka.aio.producer._callback_pool import CallbackPool
+from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._message_batch import MessageBatch, create_message_batch
 
 logger = logging.getLogger(__name__)
 

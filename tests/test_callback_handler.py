@@ -15,7 +15,7 @@ import os
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio.producer._callback_handler import AsyncCallbackHandler
 
 
 class TestAsyncCallbackHandler(unittest.TestCase):

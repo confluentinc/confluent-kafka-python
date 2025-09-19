@@ -71,12 +71,14 @@ class KafkaBatchExecutor:
             - Poll for delivery reports to trigger callbacks for successful messages
             """
             # Call produce_batch with individual callbacks (no batch callback)
-            self._producer.produce_batch(topic, batch_messages)
+            # Convert tuple to list since produce_batch expects a list
+            messages_list = list(batch_messages) if isinstance(batch_messages, tuple) else batch_messages
+            self._producer.produce_batch(topic, messages_list)
             
             # Handle partial batch failures: Check for messages that failed during produce_batch
             # These messages have their msgstates destroyed in Producer.c and won't get callbacks
             # from librdkafka, so we need to manually invoke their callbacks
-            self._handle_partial_failures(batch_messages)
+            self._handle_partial_failures(messages_list)
             
             # Immediately poll to process delivery callbacks for successful messages
             poll_result = self._producer.poll(0)

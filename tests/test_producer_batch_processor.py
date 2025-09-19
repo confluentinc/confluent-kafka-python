@@ -18,10 +18,10 @@ import confluent_kafka
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
-from confluent_kafka.aio._AIOProducer import AIOProducer
-from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
-from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchProcessor
+from confluent_kafka.aio.producer._AIOProducer import AIOProducer
+from confluent_kafka.aio.producer._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
 
 
 class TestProducerBatchProcessor(unittest.TestCase):
