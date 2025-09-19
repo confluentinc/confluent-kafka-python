@@ -1,0 +1,4 @@
+====================================================================================================
+test_id:    tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=async
+status:     PASS
+run time:   5.987 seconds

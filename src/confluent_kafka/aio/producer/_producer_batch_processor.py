@@ -17,13 +17,13 @@ import copy
 import logging
 
 from confluent_kafka.aio.producer._callback_manager import CallbackManager
-from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 from confluent_kafka.aio.producer._message_batch import MessageBatch, create_message_batch
 
 logger = logging.getLogger(__name__)
 
 
-class ProducerBatchProcessor:
+class ProducerBatchManager:
     """Handles batching and processing of Kafka messages for AIOProducer
     
     This class encapsulates all the logic for:

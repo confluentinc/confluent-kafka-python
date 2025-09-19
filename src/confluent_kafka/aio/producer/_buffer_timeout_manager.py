@@ -34,8 +34,8 @@ class BufferTimeoutManager:
         """Initialize the buffer timeout manager
         
         Args:
-            batch_processor: ProducerBatchProcessor instance for creating batches
-            kafka_executor: KafkaBatchExecutor instance for executing batches
+            batch_processor: ProducerBatchManager instance for creating batches
+            kafka_executor: ProducerBatchExecutor instance for executing batches
             timeout: Timeout in seconds for buffer inactivity (0 disables timeout)
         """
         self._batch_processor = batch_processor

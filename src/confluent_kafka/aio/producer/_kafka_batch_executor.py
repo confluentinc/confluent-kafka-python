@@ -18,7 +18,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class KafkaBatchExecutor:
+class ProducerBatchExecutor:
     """Executes Kafka batch operations via thread pool
     
     This class is responsible for:

@@ -18,14 +18,14 @@ import confluent_kafka
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchProcessor
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager
 from confluent_kafka.aio.producer._AIOProducer import AIOProducer
 from confluent_kafka.aio.producer._callback_manager import CallbackManager
-from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 
 
-class TestProducerBatchProcessor(unittest.TestCase):
-    """Test cases for ProducerBatchProcessor class"""
+class TestProducerBatchManager(unittest.TestCase):
+    """Test cases for ProducerBatchManager class"""
     
     def setUp(self):
         """Set up test fixtures"""
@@ -48,8 +48,8 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         # Create callback manager and Kafka executor for batch processor
         self.callback_manager = CallbackManager(self.loop, initial_pool_size=100)
-        self.kafka_executor = KafkaBatchExecutor(self.confluent_kafka_producer, self.executor)
-        self.batch_processor = ProducerBatchProcessor(self.callback_manager, self.kafka_executor)
+        self.kafka_executor = ProducerBatchExecutor(self.confluent_kafka_producer, self.executor)
+        self.batch_processor = ProducerBatchManager(self.callback_manager, self.kafka_executor)
         
         # Create AIOProducer within the event loop context
         async def create_aio_producer():
@@ -80,16 +80,16 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.loop.close()
     
     def test_basic_functionality(self):
-        """Test basic ProducerBatchProcessor functionality: initialization, add_message, and clear_buffer"""
+        """Test basic ProducerBatchManager functionality: initialization, add_message, and clear_buffer"""
         # Test initialization with custom pool size
-        processor = ProducerBatchProcessor(self.callback_handler, self.kafka_executor, callback_pool_size=50)
+        processor = ProducerBatchManager(self.callback_manager, self.kafka_executor)
         self.assertEqual(processor.get_buffer_size(), 0)
         self.assertTrue(processor.is_buffer_empty())
         
         # Check callback pool stats
-        stats = processor.get_callback_pool_stats()
-        self.assertEqual(stats['available'], 50)
-        self.assertEqual(stats['created_total'], 50)
+        stats = processor.get_callback_manager_stats()
+        self.assertEqual(stats['available'], 100)
+        self.assertEqual(stats['created_total'], 100)
         
         # Test adding messages to the buffer
         future1 = Mock()
@@ -192,7 +192,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.assertIn('callback', batch_messages[1])
         
         # Verify callback pool was used
-        stats = self.batch_processor.get_callback_pool_stats()
+        stats = self.batch_processor.get_callback_manager_stats()
         self.assertEqual(stats['in_use'], 2)
         self.assertEqual(stats['reuse_count'], 2)
     
@@ -273,7 +273,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.loop.run_until_complete(async_test())
     
     def test_kafka_executor_integration(self):
-        """Test executing a batch operation via KafkaBatchExecutor"""
+        """Test executing a batch operation via ProducerBatchExecutor"""
         async def async_test():
             batch_messages = [
                 {'value': 'test1', 'callback': Mock()},
@@ -404,7 +404,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
             self.assertIn('callback', batch_msg)
         
         # Verify callback pool usage
-        stats = self.batch_processor.get_callback_pool_stats()
+        stats = self.batch_processor.get_callback_manager_stats()
         self.assertEqual(stats['in_use'], 3)
         self.assertEqual(stats['reuse_count'], 3)
 

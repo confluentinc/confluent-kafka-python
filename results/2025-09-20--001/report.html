@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="https://fb.me/react-0.13.1.min.js"></script>
+    <script src="https://fb.me/JSXTransformer-0.13.1.js"></script>
+  </head>
+  <link rel="stylesheet" href="report.css" type="text/css">
+  <body>
+    <div id="heading"></div>
+    <div id="summary_panel"></div>
+    <div id="color_key_panel"></div>
+    <div id="failed_test_panel"></div>
+    <div id="ignored_test_panel"></div>
+    <div id="flaky_test_panel"></div>
+    <div id="passed_test_panel"></div>
+    <script type="text/jsx">
+      /* This small block makes it possible to use React dev tools in the Chrome browser */
+      if (typeof window !== 'undefined') {
+        window.React = React;
+      }
+
+      var Heading = React.createClass({
+        render: function() {
+          return (
+            <div>
+              <h1>
+                System Test Report
+              </h1>
+              <p>Test Session: {this.props.heading.session}</p>
+              <p>Ducktape Version: {this.props.heading.ducktape_version}</p>
+            </div>
+          );
+        }
+      });
+      
+      var SummaryRow = React.createClass({
+        render: function() {
+          return (
+            <tr>
+              <td colSpan='5' align='center'>{this.props.summary_prop.expected_test_count}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.tests_run}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.passes}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.flaky}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.failures}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.ignored}</td>
+              <td colSpan='5' align='center'>{this.props.summary_prop.run_time}</td>
+            </tr>
+          );
+        }
+      })
+      
+      var SummaryTable = React.createClass({
+        render: function() {
+          return (
+            <table id="summary_report_table">
+              <thead>
+                <tr id="summary_header_row">
+                  <th colSpan='5' align='center'>Tests Expected</th>
+                  <th colSpan='5' align='center'>Tests Run</th>
+                  <th colSpan='5' align='center'>Passes</th>
+                  <th colSpan='5' align='center'>Flaky</th>
+                  <th colSpan='5' align='center'>Failures</th>
+                  <th colSpan='5' align='center'>Ignored</th>
+                  <th colSpan='5' align='center'>Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {this.props.summary_props.map(function(summary_prop){
+                  return (
+                    <SummaryRow summary_prop={summary_prop} />
+                  );
+                }, this)}
+              </tbody>
+            </table>
+          );
+        }
+      });
+      
+      var TestRow = React.createClass({
+        render: function() {
+          var className = this.props.test.test_result;
+          var detailCol;
+          if (className !== "ignore") {
+            detailCol = <td colSpan='5' align='center'><pre><a href={this.props.test.test_log}>Detail</a></pre></td>
+          } else {
+            detailCol = <td colSpan='5' align='center'></td>
+          }
+
+          return (
+            <tr className={className}>
+              <td colSpan='5' align='center'><pre>{this.props.test.test_name}</pre></td>
+              <td colSpan='5' align='center'><pre>{this.props.test.description}</pre></td>
+              <td colSpan='5' align='center'><pre>{this.props.test.run_time}</pre></td>
+              <td colSpan='5' align='center'><pre>{this.props.test.data}</pre></td>
+              <td colSpan='5' align='center'><pre className="pre_stack_trace">{this.props.test.summary}</pre></td>
+              {detailCol}
+            </tr>
+          );
+        }
+      });
+
+
+
+      var TestTable = React.createClass({
+        render: function() {
+          return (
+            <table className="report_table">
+              <thead>
+                <tr className="header_row">
+                  <th colSpan='5' align='center'>Test</th>
+                  <th colSpan='5' align='center'>Description</th>
+                  <th colSpan='5' align='center'>Time</th>
+                  <th colSpan='5' align='center'>Data</th>
+                  <th colSpan='5' align='center'>Summary</th>
+                  <th colSpan='5' align='center'>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {this.props.tests.map(function(test) {
+                  return (
+                    <TestRow test={test} /> 
+                  );
+                }, this)}
+              </tbody>
+            </table>
+          );
+        }
+      });
+
+      /* A key which shows how colors map to different test statuses. E.g. red -> fail, green -> pass, etc */
+      var ColorKeyTable = React.createClass({
+        render: function() {
+          return (
+            <table id="color_key_table">
+              <tbody>
+                {this.props.test_status_names.map(function(status_name) {
+                  return (
+                    <th colSpan='5' align='center' className={status_name}>{status_name}</th>
+                  );
+                }, this)}
+              </tbody>
+            </table>
+          );
+        }
+      });
+
+
+      ColorKeyPanel = React.createClass({
+        render: function() {
+          return (
+            <div>
+              <h3>Color Key</h3>
+              <ColorKeyTable test_status_names={this.props.test_status_names}/>
+            </div>
+          );
+
+        }
+      });
+
+      SummaryPanel = React.createClass({
+        render: function() {
+          return (
+            <div>
+              <h2>Summary</h2>
+              <SummaryTable summary_props={this.props.summary_props}/>
+            </div>
+          );
+        }
+      });
+
+      TestPanel = React.createClass({
+        render: function() {
+          return (
+            <div>
+              <h2>{this.props.title}</h2>
+              <TestTable tests={this.props.tests}/>
+            </div>
+          );
+        }
+      });
+
+      SUMMARY=[{
+        "expected_test_count": 2,
+        "tests_run": 2,
+        "passes": 2,
+        "flaky": 0,
+        "failures": 0,
+        "ignored": 0,
+        "run_time": '13.279 seconds'
+      }];
+      
+      HEADING={
+        "ducktape_version": '0.13.0',
+        "session": '2025-09-20--001'
+      };
+
+      COLOR_KEYS=['pass','fail','ignore','flaky'];
+
+      PASSED_TESTS=[{"test_name": "Module:      tests.ducktape.test_producer\nClass:       SimpleProducerTest\nMethod:      test_basic_produce\nNodes (used/allocated): 0/0\nArguments:\n{\n  \"producer_type\": \"async\"\n}", "test_result": "pass", "description": "Test basic message production with comprehensive metrics and bounds validation", "run_time": "5.987 seconds", "data": "", "summary": "Test Passed", "test_log": "SimpleProducerTest/test_basic_produce/producer_type=async/1"},{"test_name": "Module:      tests.ducktape.test_producer\nClass:       SimpleProducerTest\nMethod:      test_basic_produce\nNodes (used/allocated): 0/0\nArguments:\n{\n  \"producer_type\": \"sync\"\n}", "test_result": "pass", "description": "Test basic message production with comprehensive metrics and bounds validation", "run_time": "6.517 seconds", "data": "", "summary": "Test Passed", "test_log": "SimpleProducerTest/test_basic_produce/producer_type=sync/2"},];
+      FLAKY_TESTS=[];
+      FAILED_TESTS=[];
+      IGNORED_TESTS=[];
+
+      React.render(<Heading heading={HEADING}/>, document.getElementById('heading'));
+      React.render(<ColorKeyPanel test_status_names={COLOR_KEYS}/>, document.getElementById('color_key_panel'));
+      React.render(<SummaryPanel summary_props={SUMMARY}/>, document.getElementById('summary_panel'));
+      React.render(<TestPanel title="Failed Tests" tests={FAILED_TESTS}/>, document.getElementById('failed_test_panel'));
+      React.render(<TestPanel title="Ignored Tests" tests={IGNORED_TESTS}/>, document.getElementById('ignored_test_panel'));
+      React.render(<TestPanel title="Flaky Tests" tests={FLAKY_TESTS}/>, document.getElementById('flaky_test_panel'));
+      React.render(<TestPanel title="Passed Tests" tests={PASSED_TESTS}/>, document.getElementById('passed_test_panel'));
+    </script>
+  </body>
+</html>

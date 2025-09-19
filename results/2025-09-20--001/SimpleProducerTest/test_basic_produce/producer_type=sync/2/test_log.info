@@ -1,0 +1,35 @@
+[INFO  - 2025-09-20 00:43:08,216 - runner_client - log - lineno:456]: RunnerClient: Loading test {'directory': '/Users/kaushikraina/projects/njc/confluent-kafka-python/tests/ducktape', 'file_name': 'test_producer.py', 'cls_name': 'SimpleProducerTest', 'method_name': 'test_basic_produce', 'injected_args': {'producer_type': 'sync'}}
+[INFO  - 2025-09-20 00:43:08,232 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: on run 1/1
+[INFO  - 2025-09-20 00:43:08,234 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: Setting up...
+[INFO  - 2025-09-20 00:43:08,234 - test_producer - setUp - lineno:25]: Verifying connection to external Kafka at localhost:9092
+[INFO  - 2025-09-20 00:43:08,320 - kafka - verify_connection - lineno:41]: Successfully connected to Kafka. Available topics: ['test-sync-topic', 'test-topic', '__internal_confluent_only_broker_info', '_confluent-command', '_confluent-telemetry-metrics', '_confluent-link-metadata', 'test-async-topic']
+[INFO  - 2025-09-20 00:43:08,321 - test_producer - setUp - lineno:31]: Successfully connected to Kafka
+[INFO  - 2025-09-20 00:43:08,321 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: Running...
+[INFO  - 2025-09-20 00:43:08,321 - kafka - create_topic - lineno:61]: Creating topic: test-sync-topic (partitions=1, replication=1)
+[INFO  - 2025-09-20 00:43:08,331 - kafka - create_topic - lineno:74]: Topic test-sync-topic already exists
+[INFO  - 2025-09-20 00:43:08,331 - kafka - wait_for_topic - lineno:109]: Waiting for topic 'test-sync-topic' to be available...
+[INFO  - 2025-09-20 00:43:08,392 - kafka - wait_for_topic - lineno:114]: Topic 'test-sync-topic' is ready after 0.00s
+[INFO  - 2025-09-20 00:43:08,392 - test_producer - test_basic_produce - lineno:69]: Testing sync producer for 5.0 seconds
+[INFO  - 2025-09-20 00:43:08,392 - producer_strategy - _log_configuration - lineno:45]: === SYNC PRODUCER CONFIGURATION ===
+[INFO  - 2025-09-20 00:43:08,392 - producer_strategy - _log_configuration - lineno:47]: bootstrap.servers: localhost:9092
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: queue.buffering.max.messages: 1000000
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: queue.buffering.max.kbytes: 1048576
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: batch.size: 65536
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: batch.num.messages: 50000
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: message.max.bytes: 2097152
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: linger.ms: 1
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: compression.type: lz4
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: acks: 1
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: retries: 3
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: delivery.timeout.ms: 30000
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:47]: max.in.flight.requests.per.connection: 5
+[INFO  - 2025-09-20 00:43:08,393 - producer_strategy - _log_configuration - lineno:53]: =================================
+[INFO  - 2025-09-20 00:43:14,672 - test_producer - test_basic_produce - lineno:98]: === SYNC PRODUCER METRICS REPORT ===
+[WARNING - 2025-09-20 00:43:14,672 - test_producer - test_basic_produce - lineno:110]: Performance bounds validation failed: Memory growth too high: 647.89MB (maximum: 600.0MB)
+[INFO  - 2025-09-20 00:43:14,672 - test_producer - test_basic_produce - lineno:112]: Successfully completed basic production test with comprehensive metrics
+[INFO  - 2025-09-20 00:43:14,747 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: Tearing down...
+[INFO  - 2025-09-20 00:43:14,749 - test_producer - tearDown - lineno:311]: Test completed - external Kafka service remains running
+[INFO  - 2025-09-20 00:43:14,749 - service - stop - lineno:307]: KafkaClient-0-4412904656: stopping service
+[INFO  - 2025-09-20 00:43:14,750 - service - clean - lineno:323]: KafkaClient-0-4412904656: cleaning service
+[INFO  - 2025-09-20 00:43:14,750 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: PASS
+[INFO  - 2025-09-20 00:43:14,751 - runner_client - log - lineno:459]: RunnerClient: tests.ducktape.test_producer.SimpleProducerTest.test_basic_produce.producer_type=sync: Data: None

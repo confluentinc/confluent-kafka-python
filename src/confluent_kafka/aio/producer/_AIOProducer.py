@@ -23,9 +23,9 @@ import confluent_kafka
 from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
-from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchProcessor
+from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager
 from confluent_kafka.aio.producer._callback_manager import CallbackManager
-from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
 
@@ -63,10 +63,10 @@ class AIOProducer:
         self._is_closed = False  # Track if producer is closed
         
         # Initialize Kafka batch executor for handling Kafka operations
-        self._kafka_executor = KafkaBatchExecutor(self._producer, self.executor)
+        self._kafka_executor = ProducerBatchExecutor(self._producer, self.executor)
         
         # Initialize batch processor for message batching and processing
-        self._batch_processor = ProducerBatchProcessor(self._callback_manager, self._kafka_executor)
+        self._batch_processor = ProducerBatchManager(self._callback_manager, self._kafka_executor)
         
         # Initialize buffer timeout manager for timeout handling
         self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
@@ -273,7 +273,7 @@ class AIOProducer:
         This method demonstrates the new architecture where AIOProducer simply
         orchestrates the workflow between components:
         1. BatchProcessor creates immutable MessageBatch objects
-        2. KafkaBatchExecutor executes each batch
+        2. ProducerBatchExecutor executes each batch
         3. BufferTimeoutManager handles activity tracking
         """
         await self._batch_processor.flush_buffer(target_topic)

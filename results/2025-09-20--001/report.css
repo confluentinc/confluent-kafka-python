@@ -1,0 +1,83 @@
+body { 
+    font-family: verdana, arial, helvetica, sans-serif; 
+    font-size: 80%; 
+}
+
+table { 
+    font-size: 100%;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    color: gray;
+}
+
+#summary_header_row {
+    font-weight: bold;
+    color: white;
+    background-color: #777;
+}
+
+#summary_header_row th {
+    border: 1px solid #777;
+    padding: 2px; 
+}
+
+#summary_report_table {
+    width: 80%;
+    border-collapse: collapse;
+    border: 1px solid #777;
+}
+
+#summary_report_table td {
+    border: 1px solid #777;
+    padding: 2px;
+}
+
+.pre_stack_trace {
+    white-space: pre-wrap;       /* Since CSS 2.1 */
+    white-space: -moz-pre-wrap;  /* Mozilla, since 1999 */
+    white-space: -o-pre-wrap;    /* Opera 7 */
+    word-wrap: break-word;       /* Internet Explorer 5.5+ */
+}
+
+.header_row {
+    font-weight: bold;
+    color: white;
+    background-color: #777;
+}
+
+.header_row th {
+    border: 1px solid #777;
+    padding: 2px; 
+}
+
+.report_table {
+    width: 80%;
+    border-collapse: collapse;
+    border: 1px solid #777;
+}
+
+.report_table td {
+    border: 1px solid #777;
+    padding: 2px;
+}
+
+.pass {
+    background-color: #6c6;
+}
+
+.flaky {
+    background-color: #dd2;
+}
+
+.fail {
+    background-color: #c60; 
+}
+
+.ignore {
+    background-color: #555;
+}
+
+.testcase { 
+    margin-left: 2em;
+}

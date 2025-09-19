@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Unit tests for the KafkaBatchExecutor class (_kafka_batch_executor.py)
+Unit tests for the ProducerBatchExecutor class (_kafka_batch_executor.py)
 
-This module tests the KafkaBatchExecutor class to ensure proper
+This module tests the ProducerBatchExecutor class to ensure proper
 Kafka batch execution and partial failure handling.
 """
 
@@ -17,11 +17,11 @@ import confluent_kafka
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 
 
-class TestKafkaBatchExecutor(unittest.TestCase):
-    """Test cases for KafkaBatchExecutor class"""
+class TestProducerBatchExecutor(unittest.TestCase):
+    """Test cases for ProducerBatchExecutor class"""
     
     def setUp(self):
         """Set up test fixtures"""
@@ -35,7 +35,7 @@ class TestKafkaBatchExecutor(unittest.TestCase):
         self.mock_producer = Mock(spec=confluent_kafka.Producer)
         
         # Create the executor
-        self.kafka_executor = KafkaBatchExecutor(self.mock_producer, self.executor)
+        self.kafka_executor = ProducerBatchExecutor(self.mock_producer, self.executor)
     
     def tearDown(self):
         """Clean up test fixtures"""
@@ -43,7 +43,7 @@ class TestKafkaBatchExecutor(unittest.TestCase):
         self.loop.close()
     
     def test_initialization(self):
-        """Test KafkaBatchExecutor initialization"""
+        """Test ProducerBatchExecutor initialization"""
         self.assertEqual(self.kafka_executor._producer, self.mock_producer)
         self.assertEqual(self.kafka_executor._executor, self.executor)
     
