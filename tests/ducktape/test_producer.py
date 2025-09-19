@@ -308,7 +308,15 @@ class SimpleProducerTest(Test):
 
     @matrix(producer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
     def test_basic_produce_with_schema_registry(self, producer_type, serialization_type):
-        """Test producing messages with Schema Registry (Avro/JSON/Protobuf) for sync/async"""
+        """
+        Test producer with Schema Registry serialization.
+
+        Note: in this test, we are producing messages with the same schema,
+        a realistic high-throughput production scenario.
+        As we have cache for schemas, only the first message will make HTTP calls to Schema Registry server.
+        Performance impact comes from serialization overhead, not network calls.
+        """
+
         topic_name = f"test-topic-{producer_type}-{serialization_type}-serialization"
         test_duration = 5.0
 
@@ -324,26 +332,24 @@ class SimpleProducerTest(Test):
         # Create appropriate producer strategy
         strategy = self.create_producer(producer_type)
         strategy.metrics = metrics
-        strategy.schema_registry_url = 'http://localhost:8081'
 
         # Start metrics collection
         metrics.start()
 
-        # Message formatter by serialization_type
-        if serialization_type in ("avro", "json"):
-            def message_formatter(i):
-                return ({"name": f"User{i}", "age": i}, f"key-{i}")
-        else:
-            def message_formatter(i):
+        # Message formatter - realistic pattern where most messages use same schema
+        def message_formatter(i):
+            if serialization_type in ("avro", "json"):
+                return ({"name": f"User{i}", "age": i % 100 + 18}, f"key-{i}")
+            else:  # protobuf
                 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
                 msg = PublicTestProto_pb2.TestMessage(
-                    test_string="example string",
-                    test_bool=True,
-                    test_bytes=b'example bytes',
-                    test_double=1.0,
-                    test_float=12.0,
-                    test_fixed32=1,
-                    test_fixed64=1,
+                    test_string=f"Message_{i}",
+                    test_bool=i % 2 == 0,
+                    test_bytes=f'Data_{i}'.encode(),
+                    test_double=float(i * 0.1),
+                    test_float=float(i * 0.05),
+                    test_fixed32=i % 1000,
+                    test_fixed64=i * 100,
                 )
                 return (msg, f"key-{i}")
 

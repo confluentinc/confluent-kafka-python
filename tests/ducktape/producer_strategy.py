@@ -12,6 +12,10 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry._sync.json_schema import JSONSerializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
 from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
 from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 import os
@@ -76,9 +80,13 @@ class ProducerStrategy:
         print(f"Total poll() calls: {len(poll_times)}")
         print(separator)
 
-    def build_serializers(self, serialization_type):
+    def build_serializers(self, serialization_type, is_async=False):
         """Build and return (key_serializer, value_serializer) for the given serialization_type.
         Returns (None, None) if serialization_type is not provided.
+
+        Args:
+            serialization_type: Type of serialization ('avro', 'json', 'protobuf')
+            is_async: Whether to use async serializers (for AsyncProducerStrategy)
         """
         if not serialization_type:
             return None, None
@@ -86,9 +94,13 @@ class ProducerStrategy:
             'SCHEMA_REGISTRY_URL',
             getattr(self, 'schema_registry_url', 'http://localhost:8081')
         )
-        client_config = {'url': schema_registry_url}
+        client_config = {'url': schema_registry_url }
 
-        sr_client = SchemaRegistryClient(client_config)
+        # Use appropriate Schema Registry client based on async mode
+        if is_async:
+            sr_client = AsyncSchemaRegistryClient(client_config)
+        else:
+            sr_client = SchemaRegistryClient(client_config)
 
         key_serializer = StringSerializer('utf8')
 
@@ -101,10 +113,14 @@ class ProducerStrategy:
                     {"name": "age", "type": "int"}
                 ]
             }
-            value_serializer = AvroSerializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(avro_schema)
-            )
+            if is_async:
+                # For async, return the class and parameters for later async initialization
+                return key_serializer, ('async_avro', sr_client, json.dumps(avro_schema))
+            else:
+                value_serializer = AvroSerializer(
+                    schema_registry_client=sr_client,
+                    schema_str=json.dumps(avro_schema)
+                )
         elif serialization_type == 'json':
             json_schema = {
                 "type": "object",
@@ -114,11 +130,42 @@ class ProducerStrategy:
                 },
                 "required": ["name", "age"]
             }
-            value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
+            if is_async:
+                # For async, return the class and parameters for later async initialization
+                return key_serializer, ('async_json', sr_client, json.dumps(json_schema))
+            else:
+                value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
         elif serialization_type == 'protobuf':
-            value_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
+            if is_async:
+                # For async, return the class and parameters for later async initialization
+                return key_serializer, ('async_protobuf', sr_client, PublicTestProto_pb2.TestMessage)
+            else:
+                value_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
         else:
             raise ValueError(f"Unsupported serialization_type: {serialization_type}")
+        return key_serializer, value_serializer
+
+    async def build_async_serializers(self, serialization_type):
+        """Build async serializers - must be called from async context"""
+        key_serializer, serializer_info = self.build_serializers(serialization_type, is_async=True)
+
+        if serializer_info is None:
+            return None, None
+
+        serializer_type, sr_client, schema_data = serializer_info
+
+        if serializer_type == 'async_avro':
+            value_serializer = await AsyncAvroSerializer(
+                schema_registry_client=sr_client,
+                schema_str=schema_data
+            )
+        elif serializer_type == 'async_json':
+            value_serializer = await AsyncJSONSerializer(schema_data, sr_client)
+        elif serializer_type == 'async_protobuf':
+            value_serializer = await AsyncProtobufSerializer(schema_data, sr_client)
+        else:
+            raise ValueError(f"Unsupported async serializer type: {serializer_type}")
+
         return key_serializer, value_serializer
 
 
@@ -150,7 +197,7 @@ class SyncProducerStrategy(ProducerStrategy):
         flush_time = 0
 
         # Initialize serializers via helper (or None if not requested)
-        key_serializer, value_serializer = self.build_serializers(serialization_type)
+        key_serializer, value_serializer = self.build_serializers(serialization_type, is_async=False)
 
         def delivery_callback(err, msg):
             if err:
@@ -291,7 +338,10 @@ class AsyncProducerStrategy(ProducerStrategy):
             flush_time = 0
 
             # Get serializers if using Schema Registry
-            key_serializer, value_serializer = self.build_serializers(serialization_type)
+            if serialization_type:
+                key_serializer, value_serializer = await self.build_async_serializers(serialization_type)
+            else:
+                key_serializer, value_serializer = None, None
 
             # Pre-create shared metrics callback to avoid closure creation overhead
             if self.metrics:
@@ -313,7 +363,8 @@ class AsyncProducerStrategy(ProducerStrategy):
                     # Handle serialization if using Schema Registry
                     if serialization_type:
                         serialized_key = key_serializer(message_key)
-                        serialized_value = value_serializer(
+                        # Async serializers return coroutines, so we need to await them
+                        serialized_value = await value_serializer(
                             message_value, SerializationContext(topic_name, MessageField.VALUE)
                         )
                         message_size = len(serialized_key) + len(serialized_value)
