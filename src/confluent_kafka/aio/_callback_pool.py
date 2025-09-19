@@ -31,14 +31,14 @@ class ReusableMessageCallback:
         self.future = None
         self.user_callback = None
         self.pool = None  # Reference to pool for auto-return
-        self.producer = None  # Reference to producer for _handle_user_callback
+        self.callback_handler = None  # Reference to callback handler for user callback execution
     
-    def reset(self, future, user_callback, pool, producer):
+    def reset(self, future, user_callback, pool, callback_handler):
         """Reset this callback for a new message"""
         self.future = future
         self.user_callback = user_callback
         self.pool = pool
-        self.producer = producer
+        self.callback_handler = callback_handler
     
     def __call__(self, err, msg):
         """Handle the delivery callback"""
@@ -47,14 +47,14 @@ class ReusableMessageCallback:
                 # Message delivery failed
                 if not self.future.done():  # Prevent double-setting
                     self.future.set_exception(_KafkaException(err))
-                if self.user_callback and self.producer:
-                    self.producer._handle_user_callback(self.user_callback, err, msg)
+                if self.user_callback and self.callback_handler:
+                    self.callback_handler.handle_user_callback(self.user_callback, err, msg)
             else:
                 # Message delivered successfully  
                 if not self.future.done():  # Prevent double-setting
                     self.future.set_result(msg)
-                if self.user_callback and self.producer:
-                    self.producer._handle_user_callback(self.user_callback, err, msg)
+                if self.user_callback and self.callback_handler:
+                    self.callback_handler.handle_user_callback(self.user_callback, err, msg)
                         
         except Exception as e:
             logger.error(f"Error in reusable message delivery callback: {e}", exc_info=True)
@@ -71,8 +71,8 @@ class ReusableMessageCallback:
         future = self.future  # Keep reference for logging
         self.future = None
         self.user_callback = None
-        producer = self.producer
-        self.producer = None
+        callback_handler = self.callback_handler
+        self.callback_handler = None
         
         # Return to pool
         if self.pool:
@@ -91,7 +91,8 @@ class CallbackPool:
     - Improves overall throughput
     """
     
-    def __init__(self, initial_size=1000):
+    def __init__(self, callback_handler, initial_size=1000):
+        self._callback_handler = callback_handler
         self._available = []
         self._in_use = set()
         self._created_count = 0
@@ -102,7 +103,7 @@ class CallbackPool:
             self._available.append(ReusableMessageCallback())
             self._created_count += 1
     
-    def get_callback(self, future, user_callback, producer):
+    def get_callback(self, future, user_callback):
         """Get a callback from the pool"""
         if self._available:
             # Reuse existing callback
@@ -113,7 +114,7 @@ class CallbackPool:
             callback = ReusableMessageCallback()
             self._created_count += 1
         
-        callback.reset(future, user_callback, self, producer)
+        callback.reset(future, user_callback, self, self._callback_handler)
         self._in_use.add(callback)
         return callback
     

@@ -69,7 +69,7 @@ class AIOProducer:
         # Initialize batch processor for message batching and processing
         # Pool size should be larger than typical batch size to handle bursts
         pool_size = max(1000, batch_size * 2)
-        self._batch_processor = ProducerBatchProcessor(callback_pool_size=pool_size)
+        self._batch_processor = ProducerBatchProcessor(self._callback_handler, callback_pool_size=pool_size)
 
     async def close(self):
         """Close the producer and cleanup resources

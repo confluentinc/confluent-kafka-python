@@ -37,13 +37,14 @@ class ProducerBatchProcessor:
     - Reusable batch processing logic
     """
     
-    def __init__(self, callback_pool_size=1000):
+    def __init__(self, callback_handler, callback_pool_size=1000):
         """Initialize the batch processor
         
         Args:
+            callback_handler: AsyncCallbackHandler instance for user callback execution
             callback_pool_size: Initial size for the callback pool
         """
-        self._callback_pool = CallbackPool(initial_size=callback_pool_size)
+        self._callback_pool = CallbackPool(callback_handler, initial_size=callback_pool_size)
         self._message_buffer = []
         self._buffer_futures = []
     
@@ -115,8 +116,7 @@ class ProducerBatchProcessor:
             self._assign_callbacks_to_messages(
                 batch_messages, 
                 group_data['futures'], 
-                group_data['callbacks'],
-                aio_producer  # Pass AIOProducer instance for _handle_user_callback
+                group_data['callbacks']
             )
             
             try:
@@ -192,20 +192,19 @@ class ProducerBatchProcessor:
         
         return batch_messages
     
-    def _assign_callbacks_to_messages(self, batch_messages, futures, user_callbacks, aio_producer):
+    def _assign_callbacks_to_messages(self, batch_messages, futures, user_callbacks):
         """Assign individual callbacks to each message in the batch
         
         Args:
             batch_messages: List of message dictionaries for produce_batch
             futures: List of asyncio.Future objects to resolve
             user_callbacks: List of user callback functions (can be None)
-            aio_producer: AIOProducer instance for _handle_user_callback method
         """
         for i, batch_msg in enumerate(batch_messages):
             # Get reusable callback from pool instead of creating new one
             future = futures[i]
             user_callback = user_callbacks[i]
-            message_callback = self._callback_pool.get_callback(future, user_callback, aio_producer)
+            message_callback = self._callback_pool.get_callback(future, user_callback)
             
             # Assign the pooled callback to this message
             batch_msg['callback'] = message_callback
