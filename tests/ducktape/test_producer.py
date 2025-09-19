@@ -4,7 +4,7 @@ Assumes Kafka is already running on localhost:9092
 """
 import time
 from ducktape.tests.test import Test
-from ducktape.mark import matrix, parametrize
+from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
@@ -36,7 +36,7 @@ class SimpleProducerTest(Test):
             strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
         else:  # async
             strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
-        
+
         # Store config overrides for later use in create_producer
         strategy.config_overrides = config_overrides
         return strategy
@@ -92,7 +92,6 @@ class SimpleProducerTest(Test):
         # Get comprehensive metrics summary
         metrics_summary = metrics.get_summary()
         is_valid, violations = validate_metrics(metrics_summary, bounds)
-
 
         # Print comprehensive metrics report
         self.logger.info(f"=== {producer_type.upper()} PRODUCER METRICS REPORT ===")
@@ -175,7 +174,7 @@ class SimpleProducerTest(Test):
             # Get the actual metrics dictionary
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
-                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info("=== Producer Built-in Metrics ===")
                 self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
                 self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
                 self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
@@ -220,7 +219,7 @@ class SimpleProducerTest(Test):
         compression_config = {}
         if compression_type != 'none':
             compression_config['compression.type'] = compression_type
-        
+
         # Configure polling intervals based on compression type and producer type
         if producer_type == 'async':
             polling_config = {
@@ -236,14 +235,15 @@ class SimpleProducerTest(Test):
                 'none': 50      # Poll every 50 messages for none (standard)
             }
         poll_interval = polling_config.get(compression_type, 50 if producer_type == 'sync' else 100)
-        
+
         strategy = self.create_producer(producer_type, compression_config)
         strategy.poll_interval = poll_interval
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
+        self.logger.info(f"Testing {producer_type} producer with {compression_type} compression "
+                         f"for {test_duration} seconds")
         self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
         # Start metrics collection
@@ -285,7 +285,7 @@ class SimpleProducerTest(Test):
             # Get the actual metrics dictionary
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
-                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info("=== Producer Built-in Metrics ===")
                 self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
                 self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
                 self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
@@ -305,6 +305,81 @@ class SimpleProducerTest(Test):
                                 compression_type, "; ".join(violations))
 
         self.logger.info("Successfully completed %s compression test with comprehensive metrics", compression_type)
+
+    @matrix(producer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    def test_basic_produce_with_schema_registry(self, producer_type, serialization_type):
+        """
+        Test producer with Schema Registry serialization.
+
+        Note: in this test, we are producing messages with the same schema,
+        a realistic high-throughput production scenario.
+        As we have cache for schemas, only the first message will make HTTP calls to Schema Registry server.
+        Performance impact comes from serialization overhead, not network calls.
+        """
+
+        topic_name = f"test-topic-{producer_type}-{serialization_type}-serialization"
+        test_duration = 5.0
+
+        # Create topic and wait until ready
+        self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, f"Topic {topic_name} was not created within timeout"
+
+        # Initialize metrics
+        metrics = MetricsCollector()
+        bounds = MetricsBounds()
+
+        # Create appropriate producer strategy
+        strategy = self.create_producer(producer_type)
+        strategy.metrics = metrics
+
+        # Start metrics collection
+        metrics.start()
+
+        # Message formatter - realistic pattern where most messages use same schema
+        def message_formatter(i):
+            if serialization_type in ("avro", "json"):
+                return ({"name": f"User{i}", "age": i % 100 + 18}, f"key-{i}")
+            else:  # protobuf
+                from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
+                msg = PublicTestProto_pb2.TestMessage(
+                    test_string=f"Message_{i}",
+                    test_bool=i % 2 == 0,
+                    test_bytes=f'Data_{i}'.encode(),
+                    test_double=float(i * 0.1),
+                    test_float=float(i * 0.05),
+                    test_fixed32=i % 1000,
+                    test_fixed64=i * 100,
+                )
+                return (msg, f"key-{i}")
+
+        delivered_messages = []
+        failed_messages = []
+
+        start_time = time.time()
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages, serialization_type
+        )
+
+        # Finalize and validate metrics
+        metrics.finalize()
+        metrics_summary = metrics.get_summary()
+        is_valid, violations = validate_metrics(metrics_summary, bounds)
+
+        self.logger.info(f"=== {producer_type.upper()} {serialization_type.upper()} SR METRICS REPORT ===")
+        print_metrics_report(metrics_summary, is_valid, violations)
+
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
+
+        if not is_valid:
+            self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
+
+        self.logger.info("Successfully completed SR production test with comprehensive metrics")
 
     def tearDown(self):
         """Clean up test environment"""
