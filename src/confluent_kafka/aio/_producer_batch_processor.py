@@ -18,6 +18,7 @@ import logging
 
 from confluent_kafka.aio._callback_pool import CallbackPool
 from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio._message_batch import MessageBatch, create_message_batch
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,61 @@ class ProducerBatchProcessor:
         self._message_buffer.clear()
         self._buffer_futures.clear()
     
+    def create_batches(self, target_topic=None):
+        """Create MessageBatch objects from the current buffer
+        
+        Args:
+            target_topic: Optional topic to create batches for (None for all topics)
+            
+        Returns:
+            List[MessageBatch]: List of immutable MessageBatch objects
+        """
+        if self.is_buffer_empty():
+            return []
+        
+        topic_groups = self._group_messages_by_topic()
+        batches = []
+        
+        for topic, group_data in topic_groups.items():
+            if target_topic is None or topic == target_topic:
+                # Prepare batch messages
+                batch_messages = self._prepare_batch_messages(group_data['messages'])
+                
+                # Assign callbacks to messages
+                self._assign_callbacks_to_messages(
+                    batch_messages,
+                    group_data['futures'], 
+                    group_data['callbacks']
+                )
+                
+                # Create immutable MessageBatch object
+                batch = create_message_batch(
+                    topic=topic,
+                    messages=batch_messages,
+                    futures=group_data['futures'],
+                    callbacks=group_data['callbacks']
+                )
+                batches.append(batch)
+        
+        return batches
+    
+    def _clear_topic_from_buffer(self, target_topic):
+        """Remove messages for a specific topic from the buffer
+        
+        Args:
+            target_topic: Topic to remove from buffer
+        """
+        messages_to_keep = []
+        futures_to_keep = []
+        
+        for i, msg_data in enumerate(self._message_buffer):
+            if msg_data['topic'] != target_topic:
+                messages_to_keep.append(msg_data)
+                futures_to_keep.append(self._buffer_futures[i])
+        
+        self._message_buffer = messages_to_keep
+        self._buffer_futures = futures_to_keep
+    
     async def flush_buffer(self, target_topic=None):
         """Flush the current message buffer using produce_batch
         
@@ -86,48 +142,26 @@ class ProducerBatchProcessor:
         if self.is_buffer_empty():
             return
         
-        topic_groups = self._group_messages_by_topic()
+        # Create batches for processing
+        batches = self.create_batches(target_topic)
         
-        # Determine which topics to process and which to keep in buffer
-        topics_to_process = []
-        messages_to_keep = []
-        futures_to_keep = []
+        # Clear processed messages from buffer
+        if target_topic is None:
+            # Clear entire buffer
+            self.clear_buffer()
+        else:
+            # Clear only messages for the target topic
+            self._clear_topic_from_buffer(target_topic)
         
-        for topic, group_data in topic_groups.items():
-            if target_topic is None or topic == target_topic:
-                # This topic should be flushed
-                topics_to_process.append((topic, group_data))
-            else:
-                # Keep messages for non-target topics in buffer
-                messages_to_keep.extend(group_data['messages'])
-                futures_to_keep.extend(group_data['futures'])
-        
-        # Update buffers: clear all, then add back what should be kept
-        self._message_buffer.clear()
-        self._buffer_futures.clear()
-        self._message_buffer.extend(messages_to_keep)
-        self._buffer_futures.extend(futures_to_keep)
-        
-        # Process each selected topic group
-        for topic, group_data in topics_to_process:
-            
-            # Prepare batch messages
-            batch_messages = self._prepare_batch_messages(group_data['messages'])
-            
-            # Create callbacks for each message using pool for performance
-            self._assign_callbacks_to_messages(
-                batch_messages, 
-                group_data['futures'], 
-                group_data['callbacks']
-            )
-            
+        # Execute each batch
+        for batch in batches:
             try:
                 # Execute batch using the Kafka executor
-                await self._kafka_executor.execute_batch(topic, batch_messages)
+                await self._kafka_executor.execute_batch(batch.topic, batch.messages)
                         
             except Exception as e:
-                # Handle batch failure by failing all unresolved futures for this topic
-                self._handle_batch_failure(e, group_data['futures'], group_data['callbacks'])
+                # Handle batch failure by failing all unresolved futures for this batch
+                self._handle_batch_failure(e, batch.futures, batch.callbacks)
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
     

@@ -26,6 +26,7 @@ import confluent_kafka.aio._common as _common
 from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
 from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
 from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
+from confluent_kafka.aio._buffer_manager import BufferManager
 
 
 logger = logging.getLogger(__name__)
@@ -57,15 +58,8 @@ class AIOProducer:
         # Batching configuration
         self._batch_size = batch_size
     
-        # Buffer timeout management
-        self._buffer_timeout = buffer_timeout  # Timeout in seconds for buffer inactivity
-        self._last_buffer_activity = time.time()  # Track last buffer activity
-        self._buffer_timeout_task = None  # Background task for timeout management
+        # Producer state management
         self._is_closed = False  # Track if producer is closed
-        
-        if buffer_timeout > 0:
-        # Start the buffer timeout management task
-            self._start_buffer_timeout_task()
         
         # Initialize Kafka batch executor for handling Kafka operations
         self._kafka_executor = KafkaBatchExecutor(self._producer, self.executor)
@@ -74,6 +68,11 @@ class AIOProducer:
         # Pool size should be larger than typical batch size to handle bursts
         pool_size = max(1000, batch_size * 2)
         self._batch_processor = ProducerBatchProcessor(self._callback_handler, self._kafka_executor, callback_pool_size=pool_size)
+        
+        # Initialize buffer manager for timeout handling
+        self._buffer_manager = BufferManager(self._batch_processor, self._kafka_executor, buffer_timeout)
+        if buffer_timeout > 0:
+            self._buffer_manager.start_timeout_monitoring()
 
     async def close(self):
         """Close the producer and cleanup resources
@@ -97,14 +96,14 @@ class AIOProducer:
         self._is_closed = True
         
         # Stop the buffer timeout monitoring task
-        self._stop_buffer_timeout_task()
+        self._buffer_manager.stop_timeout_monitoring()
         
         # Flush any remaining messages in the buffer
         if not self._batch_processor.is_buffer_empty():
             try:
                 await self._flush_buffer()
                 # Update buffer activity since we just flushed
-                self._update_buffer_activity()
+                self._buffer_manager.mark_activity()
             except Exception:
                 logger.error("Error flushing buffer", exc_info=True)
                 # Don't let flush errors prevent cleanup
@@ -133,88 +132,9 @@ class AIOProducer:
         """
         if hasattr(self, '_is_closed'):
             self._is_closed = True
-        if hasattr(self, '_buffer_timeout_task') and self._buffer_timeout_task:
-            if not self._buffer_timeout_task.done():
-                self._buffer_timeout_task.cancel()
+        if hasattr(self, '_buffer_manager'):
+            self._buffer_manager.stop_timeout_monitoring()
 
-    # ========================================================================
-    # BUFFER TIMEOUT MANAGEMENT - Prevent messages from being held indefinitely
-    # ========================================================================
-    
-    def _start_buffer_timeout_task(self):
-        """Start the background task that monitors buffer inactivity and flushes stale messages
-        
-        This method creates an async task that runs in the background and periodically checks
-        if messages have been sitting in the buffer for too long without being flushed.
-        
-        Key design decisions:
-        1. **Weak Reference**: Uses weakref.ref(self) to prevent circular references that would
-           prevent garbage collection of the AIOProducer instance.
-        2. **Self-Canceling**: The task checks if the producer still exists and stops itself
-           if the producer has been garbage collected.
-        3. **Adaptive Check Interval**: Uses self._buffer_timeout to determine both the timeout
-           threshold and the check frequency (checks every buffer_timeout/2, bounded by 0.1-1.0s).
-        """
-        async def timeout_monitor():
-            # Use weak reference to avoid circular reference and allow garbage collection
-            producer_ref = weakref.ref(self)
-            
-            while True:
-                # Check interval should be proportional to buffer timeout for efficiency
-                # Use half the buffer timeout, with reasonable min/max bounds
-                producer = producer_ref()
-                if producer is None:
-                    break
-                
-                # Calculate adaptive check interval: buffer_timeout/2 with bounds
-                # - Base: buffer_timeout/2 (check twice per timeout period)  
-                # - Lower bound: 0.1s (prevent excessive CPU usage for tiny timeouts)
-                # - Upper bound: 1.0s (ensure responsiveness for large timeouts)
-                # Examples: 0.1s→0.1s, 1s→0.5s, 5s→1.0s, 30s→1.0s
-                check_interval = max(0.1, min(1.0, producer._buffer_timeout / 2))
-                await asyncio.sleep(check_interval)
-                
-                # Re-check producer after sleep (it might have been closed/garbage collected)
-                producer = producer_ref()
-                if producer is None or producer._is_closed:
-                    # Producer has been garbage collected or closed, stop the task
-                    break
-                
-                # Check if buffer has been inactive for too long
-                time_since_activity = time.time() - producer._last_buffer_activity
-                if (time_since_activity >= producer._buffer_timeout and 
-                    not producer._batch_processor.is_buffer_empty()):
-                    
-                    try:
-                        # Flush the buffer due to timeout
-                        await producer._flush_buffer()
-                        # Update buffer activity since we just flushed
-                        producer._update_buffer_activity()
-                    except Exception:
-                        logger.error("Error flushing buffer", exc_info=True)
-                        # Don't let buffer flush errors crash the timeout task
-                        pass
-        
-        # Create and store the timeout task
-        self._buffer_timeout_task = asyncio.create_task(timeout_monitor())
-    
-    def _update_buffer_activity(self):
-        """Update the timestamp of the last buffer activity
-        
-        This method should be called whenever:
-        1. Messages are added to the buffer (in produce())
-        2. Buffer is manually flushed 
-        3. Buffer is purged/cleared
-        
-        It helps the timeout task know when the buffer was last active.
-        """
-        self._last_buffer_activity = time.time()
-    
-    def _stop_buffer_timeout_task(self):
-        """Stop and cleanup the buffer timeout monitoring task"""
-        if self._buffer_timeout_task and not self._buffer_timeout_task.done():
-            self._buffer_timeout_task.cancel()
-            self._buffer_timeout_task = None
 
     # ========================================================================
     # CORE PRODUCER OPERATIONS - Main public API
@@ -270,7 +190,7 @@ class AIOProducer:
         
         self._batch_processor.add_message(msg_data, result)
         
-        self._update_buffer_activity()
+        self._buffer_manager.mark_activity()
         
         # Check if we should flush the buffer
         if self._batch_processor.get_buffer_size() >= self._batch_size:
@@ -290,7 +210,7 @@ class AIOProducer:
         if not self._batch_processor.is_buffer_empty():
             await self._flush_buffer()
             # Update buffer activity since we just flushed
-            self._update_buffer_activity()
+            self._buffer_manager.mark_activity()
         
         # Then flush the underlying producer and wait for delivery confirmation
         return await self._call(self._producer.flush, *args, **kwargs)
@@ -301,7 +221,7 @@ class AIOProducer:
         self._batch_processor.clear_buffer()
         
         # Update buffer activity since we cleared the buffer
-        self._update_buffer_activity()
+        self._buffer_manager.mark_activity()
         
         return await self._call(self._producer.purge, *args, **kwargs)
 
@@ -349,10 +269,13 @@ class AIOProducer:
     # ========================================================================
 
     async def _flush_buffer(self, target_topic=None):
-        """Flush the current message buffer using batch processor
+        """Flush the current message buffer using clean batch processing workflow
         
-        This method delegates to the BatchProcessor which handles all the
-        complexity of grouping messages by topic and executing batch operations.
+        This method demonstrates the new architecture where AIOProducer simply
+        orchestrates the workflow between components:
+        1. BatchProcessor creates immutable MessageBatch objects
+        2. KafkaBatchExecutor executes each batch
+        3. BufferManager handles activity tracking
         """
         await self._batch_processor.flush_buffer(target_topic)
 
@@ -363,6 +286,20 @@ class AIOProducer:
             dict: Callback pool statistics for monitoring performance
         """
         return self._batch_processor.get_callback_pool_stats()
+    
+    def create_batches_preview(self, target_topic=None):
+        """Create a preview of batches that would be created from current buffer
+        
+        This method demonstrates the clean separation: AIOProducer can easily
+        inspect what batches would be created without executing them.
+        
+        Args:
+            target_topic: Optional topic to preview (None for all topics)
+            
+        Returns:
+            List[MessageBatch]: List of immutable MessageBatch objects that would be processed
+        """
+        return self._batch_processor.create_batches(target_topic)
 
     def _create_message_callback(self, future, user_callback):
         """Create an individual callback for a specific message that knows its future
