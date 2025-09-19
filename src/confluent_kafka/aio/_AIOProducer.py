@@ -26,7 +26,7 @@ import confluent_kafka.aio._common as _common
 from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
 from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
 from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
-from confluent_kafka.aio._buffer_manager import BufferManager
+from confluent_kafka.aio._buffer_timeout_manager import BufferTimeoutManager
 
 
 logger = logging.getLogger(__name__)
@@ -69,10 +69,10 @@ class AIOProducer:
         pool_size = max(1000, batch_size * 2)
         self._batch_processor = ProducerBatchProcessor(self._callback_handler, self._kafka_executor, callback_pool_size=pool_size)
         
-        # Initialize buffer manager for timeout handling
-        self._buffer_manager = BufferManager(self._batch_processor, self._kafka_executor, buffer_timeout)
+        # Initialize buffer timeout manager for timeout handling
+        self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
         if buffer_timeout > 0:
-            self._buffer_manager.start_timeout_monitoring()
+            self._buffer_timeout_manager.start_timeout_monitoring()
 
     async def close(self):
         """Close the producer and cleanup resources
@@ -96,14 +96,14 @@ class AIOProducer:
         self._is_closed = True
         
         # Stop the buffer timeout monitoring task
-        self._buffer_manager.stop_timeout_monitoring()
+        self._buffer_timeout_manager.stop_timeout_monitoring()
         
         # Flush any remaining messages in the buffer
         if not self._batch_processor.is_buffer_empty():
             try:
                 await self._flush_buffer()
                 # Update buffer activity since we just flushed
-                self._buffer_manager.mark_activity()
+                self._buffer_timeout_manager.mark_activity()
             except Exception:
                 logger.error("Error flushing buffer", exc_info=True)
                 # Don't let flush errors prevent cleanup
@@ -132,8 +132,8 @@ class AIOProducer:
         """
         if hasattr(self, '_is_closed'):
             self._is_closed = True
-        if hasattr(self, '_buffer_manager'):
-            self._buffer_manager.stop_timeout_monitoring()
+        if hasattr(self, '_buffer_timeout_manager'):
+            self._buffer_timeout_manager.stop_timeout_monitoring()
 
 
     # ========================================================================
@@ -190,7 +190,7 @@ class AIOProducer:
         
         self._batch_processor.add_message(msg_data, result)
         
-        self._buffer_manager.mark_activity()
+        self._buffer_timeout_manager.mark_activity()
         
         # Check if we should flush the buffer
         if self._batch_processor.get_buffer_size() >= self._batch_size:
@@ -210,7 +210,7 @@ class AIOProducer:
         if not self._batch_processor.is_buffer_empty():
             await self._flush_buffer()
             # Update buffer activity since we just flushed
-            self._buffer_manager.mark_activity()
+            self._buffer_timeout_manager.mark_activity()
         
         # Then flush the underlying producer and wait for delivery confirmation
         return await self._call(self._producer.flush, *args, **kwargs)
@@ -221,7 +221,7 @@ class AIOProducer:
         self._batch_processor.clear_buffer()
         
         # Update buffer activity since we cleared the buffer
-        self._buffer_manager.mark_activity()
+        self._buffer_timeout_manager.mark_activity()
         
         return await self._call(self._producer.purge, *args, **kwargs)
 
@@ -275,7 +275,7 @@ class AIOProducer:
         orchestrates the workflow between components:
         1. BatchProcessor creates immutable MessageBatch objects
         2. KafkaBatchExecutor executes each batch
-        3. BufferManager handles activity tracking
+        3. BufferTimeoutManager handles activity tracking
         """
         await self._batch_processor.flush_buffer(target_topic)
 
