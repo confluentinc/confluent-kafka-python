@@ -17,23 +17,31 @@
 #
 
 import abc
+from urllib.parse import urlparse, parse_qs, urlunparse
 
 __all__ = [
     '_AbstractOAuthBearerFieldProviderBuilder',
     '_AbstractOAuthBearerOIDCFieldProviderBuilder',
     '_StaticOAuthBearerFieldProviderBuilder',
-    '_AbstractCustomOAuthBearerFieldProviderBuilder'
+    '_AbstractCustomOAuthBearerFieldProviderBuilder',
+    '_AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder'
 ]
+
+
+class _BearerFieldProvider(metaclass=abc.ABCMeta):
+    @abc.abstractmethod
+    def get_bearer_fields(self) -> dict:
+        raise NotImplementedError
 
 
 class _AbstractOAuthBearerFieldProviderBuilder(metaclass=abc.ABCMeta):
     """Abstract base class for OAuthBearer client builders"""
     required_properties = ['bearer.auth.logical.cluster', 'bearer.auth.identity.pool.id']
 
-    def __init__(self, conf):
-        self.conf = conf
-        self.logical_cluster = None
-        self.identity_pool = None
+    def __init__(self, conf: dict):
+        self.conf: dict = conf
+        self.logical_cluster: str = None
+        self.identity_pool: str = None
 
     def _validate(self):
         missing_properties = [prop for prop in
@@ -54,7 +62,7 @@ class _AbstractOAuthBearerFieldProviderBuilder(metaclass=abc.ABCMeta):
                             str(type(self.identity_pool)))
 
     @abc.abstractmethod
-    def build(self, max_retries, retries_wait_ms, retries_max_wait_ms):
+    def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int) -> _BearerFieldProvider:
         pass
 
 
@@ -63,12 +71,12 @@ class _AbstractOAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerFieldProv
                            'bearer.auth.scope',
                            'bearer.auth.issuer.endpoint.url']
 
-    def __init__(self, conf):
+    def __init__(self, conf: dict):
         super().__init__(conf)
-        self.client_id = None
-        self.client_secret = None
-        self.scope = None
-        self.token_endpoint = None
+        self.client_id: str = None
+        self.client_secret: str = None
+        self.scope: str = None
+        self.token_endpoint: str = None
 
     def _validate(self):
         super()._validate()
@@ -101,17 +109,50 @@ class _AbstractOAuthBearerOIDCFieldProviderBuilder(_AbstractOAuthBearerFieldProv
                             + str(type(self.token_endpoint)))
 
 
-class _BearerFieldProvider(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def get_bearer_fields(self) -> dict:
-        raise NotImplementedError
+class _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBuilder):
+
+    def __init__(self, conf: dict):
+        super().__init__(conf)
+        self.token_endpoint: str = 'http://169.254.169.254/metadata/identity/oauth2/token'
+
+    def _validate(self):
+        super()._validate()
+
+        self.token_endpoint = self.conf.pop('bearer.auth.issuer.endpoint.url', self.token_endpoint)
+        if not isinstance(self.token_endpoint, str):
+            raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
+                            + str(type(self.token_endpoint)))
+
+        try:
+            parsed_token_endpoint = urlparse(self.token_endpoint)
+        except Exception as ex:
+            raise ValueError(f'Failed to parse token endpoint URL: {ex}')
+
+        token_query = self.conf.pop('bearer.auth.issuer.endpoint.query', None)
+        if token_query:
+            if not isinstance(token_query, str):
+                raise TypeError("bearer.auth.issuer.endpoint.query must be a str, not "
+                                + str(type(token_query)))
+
+            parsed_token_endpoint = parsed_token_endpoint._replace(
+                query=token_query,
+                fragment=None)
+            self.token_endpoint = urlunparse(parsed_token_endpoint)
+
+        parsed_token_endpoint_query = parse_qs(parsed_token_endpoint.query)
+        if 'api-version' not in parsed_token_endpoint_query:
+            raise ValueError("Missing required 'api-version' query parameter "
+                             "in token endpoint URL")
+        if 'resource' not in parsed_token_endpoint_query:
+            raise ValueError("Missing required 'resource' query parameter "
+                             "in token endpoint URL")
 
 
 class _StaticFieldProvider(_BearerFieldProvider):
     def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
+        self.token: str = token
+        self.logical_cluster: str = logical_cluster
+        self.identity_pool: str = identity_pool
 
     def get_bearer_fields(self) -> dict:
         return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
@@ -123,9 +164,9 @@ class _StaticOAuthBearerFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBu
                            'bearer.auth.scope',
                            'bearer.auth.issuer.endpoint.url']
 
-    def __init__(self, conf):
+    def __init__(self, conf: dict):
         super().__init__(conf)
-        self.static_token = None
+        self.static_token: str = None
 
     def _validate(self):
         super()._validate()
@@ -137,7 +178,7 @@ class _StaticOAuthBearerFieldProviderBuilder(_AbstractOAuthBearerFieldProviderBu
             raise TypeError("bearer.auth.token must be a str, not " +
                             str(type(self.static_token)))
 
-    def build(self, max_retries, retries_wait_ms, retries_max_wait_ms):
+    def build(self, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self._validate()
         return _StaticFieldProvider(
             self.static_token,
@@ -150,7 +191,7 @@ class _AbstractCustomOAuthBearerFieldProviderBuilder:
     required_properties = ['bearer.auth.custom.provider.function',
                            'bearer.auth.custom.provider.config']
 
-    def __init__(self, conf):
+    def __init__(self, conf: dict):
         self.conf = conf
         self.custom_function = None
         self.custom_config = None
