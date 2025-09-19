@@ -6,8 +6,20 @@ implementations (sync vs async) with consistent interfaces for testing.
 """
 import time
 import asyncio
+import json
+import os
 from confluent_kafka import Consumer
 from confluent_kafka.aio import AIOConsumer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry._sync.json_schema import JSONDeserializer
+from confluent_kafka.schema_registry._sync.protobuf import ProtobufDeserializer
+from confluent_kafka.schema_registry.avro import AvroDeserializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONDeserializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufDeserializer
+from confluent_kafka.schema_registry._async.avro import AsyncAvroDeserializer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.serialization import StringDeserializer, SerializationContext, MessageField
+from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 
 
 class ConsumerStrategy:
@@ -22,8 +34,101 @@ class ConsumerStrategy:
     def create_consumer(self):
         raise NotImplementedError()
 
-    def consume_messages(self, topic_name, test_duration, start_time, consumed_container, timeout=1.0):
+    def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
+                         timeout=1.0, deserialization_type=None):
         raise NotImplementedError()
+
+    def _get_schema_registry_client(self, is_async=False):
+        """Get Schema Registry client with proper configuration"""
+        schema_registry_url = os.getenv(
+            'SCHEMA_REGISTRY_URL',
+            getattr(self, 'schema_registry_url', 'http://localhost:8081')
+        )
+        client_config = {
+            'url': schema_registry_url,
+            'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'
+        }
+
+        if is_async:
+            return AsyncSchemaRegistryClient(client_config)
+        else:
+            return SchemaRegistryClient(client_config)
+
+    def _get_schemas(self, deserialization_type):
+        """Get schema definitions for the given deserialization type, for testing purposes"""
+        if deserialization_type == 'avro':
+            return {
+                "type": "record",
+                "name": "User",
+                "fields": [
+                    {"name": "name", "type": "string"},
+                    {"name": "age", "type": "int"}
+                ]
+            }
+        elif deserialization_type == 'json':
+            return {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"}
+                },
+                "required": ["name", "age"]
+            }
+        elif deserialization_type == 'protobuf':
+            return PublicTestProto_pb2.TestMessage
+        else:
+            raise ValueError(f"Unsupported deserialization type: {deserialization_type}")
+
+    def build_deserializers(self, deserialization_type, is_async=False):
+        """
+        Build and return (key_deserializer, value_deserializer) for the given deserialization_type.
+        Returns (None, None) if deserialization_type is not provided.
+        """
+        if not deserialization_type:
+            return None, None
+
+        key_deserializer = StringDeserializer('utf8')
+
+        # For async, return None as value_deserializer (will be built in async context)
+        if is_async:
+            return key_deserializer, None
+
+        # Build sync deserializers
+        sr_client = self._get_schema_registry_client(is_async=False)
+        schema = self._get_schemas(deserialization_type)
+
+        if deserialization_type == 'avro':
+            value_deserializer = AvroDeserializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(schema)
+            )
+        elif deserialization_type == 'json':
+            value_deserializer = JSONDeserializer(json.dumps(schema))
+        elif deserialization_type == 'protobuf':
+            value_deserializer = ProtobufDeserializer(schema)
+
+        return key_deserializer, value_deserializer
+
+    async def build_async_deserializers(self, deserialization_type):
+        """Build async deserializers - must be called from async context"""
+        if not deserialization_type:
+            return None, None
+
+        key_deserializer = StringDeserializer('utf8')
+        sr_client = self._get_schema_registry_client(is_async=True)
+        schema = self._get_schemas(deserialization_type)
+
+        if deserialization_type == 'avro':
+            value_deserializer = await AsyncAvroDeserializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(schema)
+            )
+        elif deserialization_type == 'json':
+            value_deserializer = await AsyncJSONDeserializer(json.dumps(schema))
+        elif deserialization_type == 'protobuf':
+            value_deserializer = await AsyncProtobufDeserializer(schema)
+
+        return key_deserializer, value_deserializer
 
     def get_final_metrics(self):
         return None
@@ -46,7 +151,11 @@ class SyncConsumerStrategy(ConsumerStrategy):
         """Sync consumer has no built-in metrics like AIOConsumer"""
         return None
 
-    def consume_messages(self, topic_name, test_duration, start_time, consumed_container, timeout=1.0):
+    def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
+                         timeout=1.0, deserialization_type=None):
+        # Initialize deserializers if using Schema Registry
+        key_deserializer, value_deserializer = self.build_deserializers(deserialization_type, is_async=False)
+
         consumer = self.create_consumer()
         messages_consumed = 0
         consume_times = []  # Track consume batch latencies
@@ -82,13 +191,71 @@ class SyncConsumerStrategy(ConsumerStrategy):
                         self.logger.error(f"Consumer error: {msg.error()}")
                         continue
 
+                    # Deserialize message if deserializers are provided
+                    if key_deserializer or value_deserializer:
+                        try:
+                            # Deserialize key and value
+                            deserialized_key = msg.key()
+                            if key_deserializer and msg.key() is not None:
+                                deserialized_key = key_deserializer(msg.key())
+
+                            deserialized_value = msg.value()
+                            if value_deserializer and msg.value() is not None:
+                                deserialized_value = value_deserializer(
+                                    msg.value(),
+                                    SerializationContext(topic_name, MessageField.VALUE)
+                                )
+
+                            # Create minimal wrapper - only override key() and value() methods
+
+                            class DeserializedMessage:
+                                def __init__(self, original_msg, key, value):
+                                    self._original_msg = original_msg
+                                    self._key = key
+                                    self._value = value
+
+                                def key(self): return self._key
+                                def value(self): return self._value
+                                def error(self): return self._original_msg.error()
+                                def topic(self): return self._original_msg.topic()
+                                def partition(self): return self._original_msg.partition()
+                                def offset(self): return self._original_msg.offset()
+
+                            msg = DeserializedMessage(msg, deserialized_key, deserialized_value)
+
+                        except Exception as e:
+                            self.logger.error(f"Deserialization error: {e}")
+                            if self.metrics:
+                                self.metrics.record_error(f"Deserialization error: {e}")
+                            continue
+
                     # Successfully consumed a message
                     consumed_container.append(msg)
                     messages_consumed += 1
                     batch_consumed += 1
 
                     if self.metrics:
-                        message_size = len(msg.value()) + (len(msg.key()) if msg.key() else 0)
+                        # Calculate message size - handle both raw bytes and deserialized objects
+                        if key_deserializer or value_deserializer:
+                            # We have deserialized objects, need special handling
+                            try:
+                                if hasattr(msg.value(), '__len__'):
+                                    value_size = len(msg.value())
+                                elif hasattr(msg.value(), 'ByteSize'):
+                                    # Protobuf message
+                                    value_size = msg.value().ByteSize()
+                                elif hasattr(msg.value(), 'SerializeToString'):
+                                    # Protobuf message fallback
+                                    value_size = len(msg.value().SerializeToString())
+                                else:
+                                    value_size = 0
+                            except (AttributeError, TypeError):
+                                value_size = 0
+                        else:
+                            # Raw bytes, use simple len() - fast path for base case
+                            value_size = len(msg.value()) if msg.value() else 0
+
+                        message_size = value_size + (len(msg.key()) if msg.key() else 0)
                         self.metrics.record_processed_message(
                             message_size=message_size,
                             topic=msg.topic(),
@@ -180,9 +347,16 @@ class AsyncConsumerStrategy(ConsumerStrategy):
             return self._consumer_instance.get_metrics()
         return None
 
-    def consume_messages(self, topic_name, test_duration, start_time, consumed_container, timeout=1.0):
+    def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
+                         timeout=1.0, deserialization_type=None):
 
         async def async_consume():
+            # Initialize deserializers if using Schema Registry
+            if deserialization_type:
+                key_deserializer, value_deserializer = await self.build_async_deserializers(deserialization_type)
+            else:
+                key_deserializer, value_deserializer = None, None
+
             consumer = self.create_consumer()
             messages_consumed = 0
             consume_times = []  # Track consume batch latencies
@@ -218,13 +392,72 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                             self.logger.error(f"Consumer error: {msg.error()}")
                             continue
 
+                        # Deserialize message if deserializers are provided
+                        if key_deserializer or value_deserializer:
+                            try:
+                                # Deserialize key and value
+                                deserialized_key = msg.key()
+                                if key_deserializer and msg.key() is not None:
+                                    # Note: StringDeserializer is sync, so no await needed
+                                    deserialized_key = key_deserializer(msg.key())
+
+                                deserialized_value = msg.value()
+                                if value_deserializer and msg.value() is not None:
+                                    deserialized_value = await value_deserializer(
+                                        msg.value(),
+                                        SerializationContext(topic_name, MessageField.VALUE)
+                                    )
+
+                                # Create minimal wrapper - only override key() and value() methods
+
+                                class DeserializedMessage:
+                                    def __init__(self, original_msg, key, value):
+                                        self._original_msg = original_msg
+                                        self._key = key
+                                        self._value = value
+
+                                    def key(self): return self._key
+                                    def value(self): return self._value
+                                    def error(self): return self._original_msg.error()
+                                    def topic(self): return self._original_msg.topic()
+                                    def partition(self): return self._original_msg.partition()
+                                    def offset(self): return self._original_msg.offset()
+
+                                msg = DeserializedMessage(msg, deserialized_key, deserialized_value)
+
+                            except Exception as e:
+                                self.logger.error(f"Deserialization error: {e}")
+                                if self.metrics:
+                                    self.metrics.record_error(f"Deserialization error: {e}")
+                                continue
+
                         # Successfully consumed a message
                         consumed_container.append(msg)
                         messages_consumed += 1
                         batch_consumed += 1
 
                         if self.metrics:
-                            message_size = len(msg.value()) + (len(msg.key()) if msg.key() else 0)
+                            # Calculate message size - handle both raw bytes and deserialized objects
+                            if key_deserializer or value_deserializer:
+                                # We have deserialized objects, need special handling
+                                try:
+                                    if hasattr(msg.value(), '__len__'):
+                                        value_size = len(msg.value())
+                                    elif hasattr(msg.value(), 'ByteSize'):
+                                        # Protobuf message
+                                        value_size = msg.value().ByteSize()
+                                    elif hasattr(msg.value(), 'SerializeToString'):
+                                        # Protobuf message fallback
+                                        value_size = len(msg.value().SerializeToString())
+                                    else:
+                                        value_size = 0
+                                except (AttributeError, TypeError):
+                                    value_size = 0
+                            else:
+                                # Raw bytes, use simple len() - fast path for base case
+                                value_size = len(msg.value()) if msg.value() else 0
+
+                            message_size = value_size + (len(msg.key()) if msg.key() else 0)
                             self.metrics.record_processed_message(
                                 message_size=message_size,
                                 topic=msg.topic(),
