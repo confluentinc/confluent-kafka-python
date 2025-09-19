@@ -1,5 +1,16 @@
 # Confluent's Python client for Apache Kafka
 
+## v2.12.0
+
+v2.12.0 is a feature release with the following enhancements:
+
+- OAuth/OIDC metadata based authentication with Azure IMDS (#).
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.11.1
 
 v2.11.1 is a maintenance release with the following fixes:
