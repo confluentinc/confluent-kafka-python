@@ -16,7 +16,7 @@ import asyncio
 import copy
 import logging
 
-from confluent_kafka.aio.producer._callback_pool import CallbackPool
+from confluent_kafka.aio.producer._callback_manager import CallbackManager
 from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
 from confluent_kafka.aio.producer._message_batch import MessageBatch, create_message_batch
 
@@ -39,15 +39,14 @@ class ProducerBatchProcessor:
     - Reusable batch processing logic
     """
     
-    def __init__(self, callback_handler, kafka_executor, callback_pool_size=1000):
+    def __init__(self, callback_manager, kafka_executor):
         """Initialize the batch processor
         
         Args:
-            callback_handler: AsyncCallbackHandler instance for user callback execution
+            callback_manager: CallbackManager instance for callback execution and pooling
             kafka_executor: KafkaBatchExecutor instance for Kafka operations
-            callback_pool_size: Initial size for the callback pool
         """
-        self._callback_pool = CallbackPool(callback_handler, initial_size=callback_pool_size)
+        self._callback_manager = callback_manager
         self._kafka_executor = kafka_executor
         self._message_buffer = []
         self._buffer_futures = []
@@ -237,10 +236,10 @@ class ProducerBatchProcessor:
             user_callbacks: List of user callback functions (can be None)
         """
         for i, batch_msg in enumerate(batch_messages):
-            # Get reusable callback from pool instead of creating new one
+            # Get reusable callback from manager instead of creating new one
             future = futures[i]
             user_callback = user_callbacks[i]
-            message_callback = self._callback_pool.get_callback(future, user_callback)
+            message_callback = self._callback_manager.get_callback(future, user_callback)
             
             # Assign the pooled callback to this message
             batch_msg['callback'] = message_callback
@@ -266,14 +265,14 @@ class ProducerBatchProcessor:
             if not future.done():
                 future.set_exception(exception)
             
-            # Call user callback to notify of failure using injected callback handler
+            # Call user callback to notify of failure using callback manager
             if user_callback:
-                self._callback_pool._callback_handler.handle_user_callback(user_callback, exception, None)
+                self._callback_manager.handle_user_callback(user_callback, exception, None)
     
-    def get_callback_pool_stats(self):
-        """Get statistics about the callback pool
+    def get_callback_manager_stats(self):
+        """Get statistics about the callback manager
         
         Returns:
-            dict: Pool statistics including reuse ratios and counts
+            dict: Callback manager statistics including reuse ratios and counts
         """
-        return self._callback_pool.get_stats()
+        return self._callback_manager.get_stats()

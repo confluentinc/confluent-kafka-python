@@ -24,7 +24,7 @@ from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
 from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchProcessor
-from confluent_kafka.aio.producer._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio.producer._callback_manager import CallbackManager
 from confluent_kafka.aio.producer._kafka_batch_executor import KafkaBatchExecutor
 from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
@@ -47,8 +47,9 @@ class AIOProducer:
         # Store the event loop for callback handling
         self._loop = asyncio.get_running_loop()
         
-        # Initialize callback handler for user callback execution
-        self._callback_handler = AsyncCallbackHandler(self._loop)
+        # Initialize callback manager for user callback execution and pooling
+        pool_size = max(1000, batch_size * 2)
+        self._callback_manager = CallbackManager(self._loop, initial_pool_size=pool_size)
         
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_common_callbacks(self._loop, producer_conf)
@@ -65,9 +66,7 @@ class AIOProducer:
         self._kafka_executor = KafkaBatchExecutor(self._producer, self.executor)
         
         # Initialize batch processor for message batching and processing
-        # Pool size should be larger than typical batch size to handle bursts
-        pool_size = max(1000, batch_size * 2)
-        self._batch_processor = ProducerBatchProcessor(self._callback_handler, self._kafka_executor, callback_pool_size=pool_size)
+        self._batch_processor = ProducerBatchProcessor(self._callback_manager, self._kafka_executor)
         
         # Initialize buffer timeout manager for timeout handling
         self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
@@ -279,13 +278,13 @@ class AIOProducer:
         """
         await self._batch_processor.flush_buffer(target_topic)
 
-    def get_batch_processor_stats(self):
-        """Get statistics from the batch processor's callback pool
+    def get_callback_manager_stats(self):
+        """Get statistics from the callback manager
         
         Returns:
-            dict: Callback pool statistics for monitoring performance
+            dict: Callback manager statistics for monitoring performance
         """
-        return self._batch_processor.get_callback_pool_stats()
+        return self._batch_processor.get_callback_manager_stats()
     
     def create_batches_preview(self, target_topic=None):
         """Create a preview of batches that would be created from current buffer
@@ -347,14 +346,14 @@ class AIOProducer:
     def _handle_user_callback(self, user_callback, err, msg):
         """Handle user callback execution, supporting both sync and async callbacks
         
-        This method delegates to AsyncCallbackHandler for proper callback execution.
+        This method delegates to CallbackManager for proper callback execution.
         
         Args:
             user_callback: User-provided callback function (sync or async)
             err: Error object (None if successful)
             msg: Message object
         """
-        return self._callback_handler.handle_user_callback(user_callback, err, msg)
+        return self._callback_manager.handle_user_callback(user_callback, err, msg)
 
     async def _call(self, blocking_task, *args, **kwargs):
         """Helper method for blocking operations that need ThreadPool execution"""

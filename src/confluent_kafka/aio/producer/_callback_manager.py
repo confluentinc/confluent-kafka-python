@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 
 from confluent_kafka import KafkaException as _KafkaException
@@ -31,14 +32,12 @@ class ReusableMessageCallback:
         self.future = None
         self.user_callback = None
         self.pool = None  # Reference to pool for auto-return
-        self.callback_handler = None  # Reference to callback handler for user callback execution
     
-    def reset(self, future, user_callback, pool, callback_handler):
+    def reset(self, future, user_callback, pool):
         """Reset this callback for a new message"""
         self.future = future
         self.user_callback = user_callback
         self.pool = pool
-        self.callback_handler = callback_handler
     
     def __call__(self, err, msg):
         """Handle the delivery callback"""
@@ -47,14 +46,14 @@ class ReusableMessageCallback:
                 # Message delivery failed
                 if not self.future.done():  # Prevent double-setting
                     self.future.set_exception(_KafkaException(err))
-                if self.user_callback and self.callback_handler:
-                    self.callback_handler.handle_user_callback(self.user_callback, err, msg)
+                if self.user_callback and self.pool:
+                    self.pool.handle_user_callback(self.user_callback, err, msg)
             else:
                 # Message delivered successfully  
                 if not self.future.done():  # Prevent double-setting
                     self.future.set_result(msg)
-                if self.user_callback and self.callback_handler:
-                    self.callback_handler.handle_user_callback(self.user_callback, err, msg)
+                if self.user_callback and self.pool:
+                    self.pool.handle_user_callback(self.user_callback, err, msg)
                         
         except Exception as e:
             logger.error(f"Error in reusable message delivery callback: {e}", exc_info=True)
@@ -71,40 +70,99 @@ class ReusableMessageCallback:
         future = self.future  # Keep reference for logging
         self.future = None
         self.user_callback = None
-        callback_handler = self.callback_handler
-        self.callback_handler = None
         
         # Return to pool
         if self.pool:
             self.pool.return_callback(self)
 
 
-class CallbackPool:
-    """Pool of reusable callback objects for performance optimization
+class CallbackManager:
+    """Unified callback management with pooling and execution handling
     
-    This pool maintains a collection of ReusableMessageCallback objects that can
-    be reused instead of creating new callback closures for every message.
+    This class combines the functionality of AsyncCallbackHandler and CallbackPool
+    into a single cohesive component that:
     
-    Benefits:
+    Callback Execution:
+    - Handles both synchronous and asynchronous user callbacks
+    - Properly schedules async callbacks on the event loop
+    - Manages thread-safe callback execution from librdkafka
+    
+    Performance Optimization:
+    - Maintains a pool of reusable callback objects
     - Reduces object allocation overhead
-    - Minimizes garbage collection pressure  
-    - Improves overall throughput
+    - Minimizes garbage collection pressure
+    
+    Benefits of merging:
+    - Simpler architecture with fewer components
+    - Single responsibility for all callback concerns
+    - Eliminates dependency between pool and handler
+    - Cleaner interfaces throughout the system
     """
     
-    def __init__(self, callback_handler, initial_size=1000):
-        self._callback_handler = callback_handler
+    def __init__(self, loop: asyncio.AbstractEventLoop, initial_pool_size=1000):
+        """Initialize the unified callback manager
+        
+        Args:
+            loop: The asyncio event loop to use for scheduling async callbacks
+            initial_pool_size: Initial size for the callback pool
+        """
+        # Callback execution components
+        self._loop = loop
+        
+        # Callback pooling components
         self._available = []
         self._in_use = set()
         self._created_count = 0
         self._reuse_count = 0
         
         # Pre-create callback objects
-        for _ in range(initial_size):
+        for _ in range(initial_pool_size):
             self._available.append(ReusableMessageCallback())
             self._created_count += 1
     
+    def handle_user_callback(self, user_callback, err, msg):
+        """Handle user callback execution, supporting both sync and async callbacks
+        
+        This method is called from librdkafka's C thread context and needs to properly
+        handle both synchronous and asynchronous user callbacks.
+        
+        Args:
+            user_callback: User-provided callback function (sync or async)
+            err: Error object (None if successful)
+            msg: Message object
+        """
+        if not user_callback:
+            return
+            
+        if asyncio.iscoroutinefunction(user_callback):
+            # Async callback - schedule it to run on the event loop
+            # We're in librdkafka's C thread, so we need to schedule this safely
+            try:
+                # Schedule the async callback to run on the event loop
+                self._loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(user_callback(err, msg))
+                )
+            except RuntimeError:
+                # Event loop might be closed - handle gracefully
+                logger.warning("Event loop closed, cannot schedule async callback")
+                pass
+        else:
+            # Sync callback - call directly
+            try:
+                user_callback(err, msg)
+            except Exception as e:
+                logger.error(f"Error in sync user callback: {e}", exc_info=True)
+    
     def get_callback(self, future, user_callback):
-        """Get a callback from the pool"""
+        """Get a reusable callback from the pool
+        
+        Args:
+            future: asyncio.Future to resolve when message is delivered
+            user_callback: Optional user callback function for this message
+            
+        Returns:
+            ReusableMessageCallback: Configured callback ready for use
+        """
         if self._available:
             # Reuse existing callback
             callback = self._available.pop()
@@ -114,18 +172,26 @@ class CallbackPool:
             callback = ReusableMessageCallback()
             self._created_count += 1
         
-        callback.reset(future, user_callback, self, self._callback_handler)
+        callback.reset(future, user_callback, self)
         self._in_use.add(callback)
         return callback
     
     def return_callback(self, callback):
-        """Return a callback to the pool"""
+        """Return a callback to the pool for reuse
+        
+        Args:
+            callback: ReusableMessageCallback to return to the pool
+        """
         if callback in self._in_use:
             self._in_use.remove(callback)
             self._available.append(callback)
     
     def get_stats(self):
-        """Get pool statistics for monitoring"""
+        """Get pool statistics for monitoring
+        
+        Returns:
+            dict: Pool statistics including reuse ratios and counts
+        """
         return {
             'available': len(self._available),
             'in_use': len(self._in_use),
