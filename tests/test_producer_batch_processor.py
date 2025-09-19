@@ -207,7 +207,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         # Handle batch failure
         self.batch_processor._handle_batch_failure(
-            exception, futures, user_callbacks, self.aio_producer
+            exception, futures, user_callbacks
         )
         
         # Verify first future got exception (not already done)
@@ -222,7 +222,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         """Test comprehensive buffer flushing scenarios: empty buffer, successful flush, target topic, and exception handling"""
         async def async_test():
             # Test 1: Flush empty buffer (should be no-op)
-            await self.batch_processor.flush_buffer(self.aio_producer)
+            await self.batch_processor.flush_buffer()
             # Note: With real executor, we can't easily assert submit wasn't called
             
             # Test 2: Flush buffer with messages (successful case)
@@ -239,7 +239,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
             success_future.set_result("success")
             
             with patch.object(self.loop, 'run_in_executor', return_value=success_future):
-                await self.batch_processor.flush_buffer(self.aio_producer)
+                await self.batch_processor.flush_buffer()
             
             # Verify buffer was cleared
             self.assertTrue(self.batch_processor.is_buffer_empty())
@@ -255,7 +255,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
             
             with patch.object(self.loop, 'run_in_executor', return_value=success_future):
                 # Flush only topic1
-                await self.batch_processor.flush_buffer(self.aio_producer, target_topic='topic1')
+                await self.batch_processor.flush_buffer(target_topic='topic1')
             
             # Verify only topic1 was processed, topic2 remains in buffer
             self.assertEqual(self.batch_processor.get_buffer_size(), 1)
@@ -265,7 +265,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
             
             with patch.object(self.loop, 'run_in_executor', side_effect=exception):
                 with self.assertRaises(RuntimeError):
-                    await self.batch_processor.flush_buffer(self.aio_producer)
+                    await self.batch_processor.flush_buffer()
             
             # Verify buffer was still cleared (messages were processed, just failed)
             self.assertTrue(self.batch_processor.is_buffer_empty())

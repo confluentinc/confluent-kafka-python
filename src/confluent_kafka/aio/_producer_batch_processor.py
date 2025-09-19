@@ -74,11 +74,10 @@ class ProducerBatchProcessor:
         self._message_buffer.clear()
         self._buffer_futures.clear()
     
-    async def flush_buffer(self, aio_producer, target_topic=None):
+    async def flush_buffer(self, target_topic=None):
         """Flush the current message buffer using produce_batch
         
         Args:
-            aio_producer: The AIOProducer instance
             target_topic: Optional topic to flush (None for all topics)
             
         Returns:
@@ -128,7 +127,7 @@ class ProducerBatchProcessor:
                         
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this topic
-                self._handle_batch_failure(e, group_data['futures'], group_data['callbacks'], aio_producer)
+                self._handle_batch_failure(e, group_data['futures'], group_data['callbacks'])
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
     
@@ -213,7 +212,7 @@ class ProducerBatchProcessor:
             batch_msg['callback'] = message_callback
     
     
-    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks, aio_producer):
+    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks):
         """Handle batch operation failure by failing all unresolved futures
         
         When a batch operation fails before any individual callbacks are invoked,
@@ -224,7 +223,6 @@ class ProducerBatchProcessor:
             exception: The exception that caused the batch to fail
             batch_futures: List of futures for this batch
             batch_callbacks: List of user callbacks for this batch
-            aio_producer: AIOProducer instance for _handle_user_callback method
         """
         # Fail all futures since no individual callbacks will be invoked
         for i, future in enumerate(batch_futures):
@@ -234,9 +232,9 @@ class ProducerBatchProcessor:
             if not future.done():
                 future.set_exception(exception)
             
-            # Call user callback to notify of failure
+            # Call user callback to notify of failure using injected callback handler
             if user_callback:
-                aio_producer._handle_user_callback(user_callback, exception, None)
+                self._callback_pool._callback_handler.handle_user_callback(user_callback, exception, None)
     
     def get_callback_pool_stats(self):
         """Get statistics about the callback pool

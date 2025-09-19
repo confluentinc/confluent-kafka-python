@@ -354,7 +354,7 @@ class AIOProducer:
         This method delegates to the BatchProcessor which handles all the
         complexity of grouping messages by topic and executing batch operations.
         """
-        await self._batch_processor.flush_buffer(self, target_topic)
+        await self._batch_processor.flush_buffer(target_topic)
 
     def get_batch_processor_stats(self):
         """Get statistics from the batch processor's callback pool
