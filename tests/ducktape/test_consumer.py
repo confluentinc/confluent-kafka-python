@@ -100,93 +100,6 @@ class SimpleConsumerTest(Test):
             operation_type="poll",
         )
 
-    def _run_consumer_performance_test(self, consumer_type, operation_type, batch_size=None):
-        """
-        Shared helper for consumer performance tests
-
-        Args:
-            consumer_type: "sync" or "async"
-            operation_type: "consume" or "poll"
-            batch_size: Number of messages per batch (default None). Only required for consume operation
-        """
-        topic_name = f"test-{consumer_type}-{operation_type}-topic"
-        test_duration = 5.0  # 5 seconds
-        num_messages = 1500000  # 1.5M messages for sustained 5-second consumption at ~300K msg/s
-
-        # Create topic
-        self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
-
-        # Wait for topic to be available
-        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
-        assert topic_ready, (f"Topic {topic_name} was not created within timeout. "
-                             f"Available topics: {self.kafka.list_topics()}")
-
-        # Produce test messages
-        self.produce_test_messages(topic_name, num_messages)
-
-        # Initialize metrics collection and bounds
-        metrics = ConsumerMetricsCollector(operation_type=operation_type)
-        bounds = ConsumerMetricsBounds()
-
-        # Create appropriate consumer strategy
-        strategy = self.create_consumer_strategy(consumer_type, batch_size=batch_size)
-
-        # Assign metrics collector to strategy
-        strategy.metrics = metrics
-
-        if operation_type == "consume":
-            operation_desc = f"{operation_type} (batch_size={batch_size})"
-        else:
-            operation_desc = f"{operation_type} (single messages)"
-        self.logger.info(f"Testing {consumer_type} consumer {operation_desc} for {test_duration} seconds")
-
-        # Start metrics collection
-        metrics.start()
-
-        # Container for consumed messages
-        consumed_messages = []
-
-        # Run the test - choose method based on operation type
-        start_time = time.time()
-        if operation_type == "consume":
-            messages_consumed = strategy.consume_messages(
-                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
-            )
-        else:  # poll
-            messages_consumed = strategy.poll_messages(
-                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
-            )
-
-        # Finalize metrics collection
-        metrics.finalize()
-
-        # Get comprehensive metrics summary
-        metrics_summary = metrics.get_summary()
-        is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
-
-        # Print comprehensive metrics report
-        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size)
-
-        # Get AIOConsumer built-in metrics for comparison (if requested)
-        final_metrics = strategy.get_final_metrics()
-        if final_metrics:
-            self.logger.info("=== AIOConsumer Built-in Metrics ===")
-            for key, value in final_metrics.items():
-                self.logger.info(f"{key}: {value}")
-
-        # Enhanced assertions using metrics
-        assert messages_consumed > 0, "No messages were consumed"
-        assert len(consumed_messages) > 0, "No messages were collected"
-        assert metrics_summary['messages_consumed'] > 0, "No messages were consumed (metrics)"
-        assert metrics_summary['consumption_rate_msg_per_sec'] > 0, \
-            f"Consumption rate too low: {metrics_summary['consumption_rate_msg_per_sec']:.2f} msg/s"
-
-        # Validate against performance bounds
-        if not is_valid:
-            self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
-
-        self.logger.info(f"Successfully completed basic {operation_type} test with comprehensive metrics")
-
     # =========== Functional tests ===========
 
     def test_async_consumer_joins_and_leaves_rebalance(self):
@@ -384,6 +297,99 @@ class SimpleConsumerTest(Test):
 
         asyncio.run(async_callback_test())
 
+    def teardown(self):
+        """Clean up test environment"""
+        self.logger.info("Test completed - external Kafka service remains running")
+
+    # =========== Private Helper Methods ===========
+
+    def _run_consumer_performance_test(self, consumer_type, operation_type, batch_size=None):
+        """
+        Shared helper for consumer performance tests
+
+        Args:
+            consumer_type: "sync" or "async"
+            operation_type: "consume" or "poll"
+            batch_size: Number of messages per batch (default None). Only required for consume operation
+        """
+        topic_name = f"test-{consumer_type}-{operation_type}-topic"
+        test_duration = 5.0  # 5 seconds
+        num_messages = 1500000  # 1.5M messages for sustained 5-second consumption at ~300K msg/s
+
+        # Create topic
+        self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
+
+        # Wait for topic to be available
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, (f"Topic {topic_name} was not created within timeout. "
+                             f"Available topics: {self.kafka.list_topics()}")
+
+        # Produce test messages
+        self.produce_test_messages(topic_name, num_messages)
+
+        # Initialize metrics collection and bounds
+        metrics = ConsumerMetricsCollector(operation_type=operation_type)
+        bounds = ConsumerMetricsBounds()
+
+        # Create appropriate consumer strategy
+        strategy = self.create_consumer_strategy(consumer_type, batch_size=batch_size)
+
+        # Assign metrics collector to strategy
+        strategy.metrics = metrics
+
+        if operation_type == "consume":
+            operation_desc = f"{operation_type} (batch_size={batch_size})"
+        else:
+            operation_desc = f"{operation_type} (single messages)"
+        self.logger.info(f"Testing {consumer_type} consumer {operation_desc} for {test_duration} seconds")
+
+        # Start metrics collection
+        metrics.start()
+
+        # Container for consumed messages
+        consumed_messages = []
+
+        # Run the test - choose method based on operation type
+        start_time = time.time()
+        if operation_type == "consume":
+            messages_consumed = strategy.consume_messages(
+                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
+            )
+        else:  # poll
+            messages_consumed = strategy.poll_messages(
+                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
+            )
+
+        # Finalize metrics collection
+        metrics.finalize()
+
+        # Get comprehensive metrics summary
+        metrics_summary = metrics.get_summary()
+        is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
+
+        # Print comprehensive metrics report
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size)
+
+        # Get AIOConsumer built-in metrics for comparison (if requested)
+        final_metrics = strategy.get_final_metrics()
+        if final_metrics:
+            self.logger.info("=== AIOConsumer Built-in Metrics ===")
+            for key, value in final_metrics.items():
+                self.logger.info(f"{key}: {value}")
+
+        # Enhanced assertions using metrics
+        assert messages_consumed > 0, "No messages were consumed"
+        assert len(consumed_messages) > 0, "No messages were collected"
+        assert metrics_summary['messages_consumed'] > 0, "No messages were consumed (metrics)"
+        assert metrics_summary['consumption_rate_msg_per_sec'] > 0, \
+            f"Consumption rate too low: {metrics_summary['consumption_rate_msg_per_sec']:.2f} msg/s"
+
+        # Validate against performance bounds
+        if not is_valid:
+            self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
+
+        self.logger.info(f"Successfully completed basic {operation_type} test with comprehensive metrics")
+
     def _setup_topic_with_messages(self, topic_name, partitions=2, messages=10):
         """Helper: Create topic and produce test messages"""
         self.kafka.create_topic(topic_name, partitions=partitions, replication_factor=1)
@@ -420,7 +426,3 @@ class SimpleConsumerTest(Test):
         assigned_count = sum(len(a) for a in assignments)
         assert assigned_count == total_partitions, \
             f"Expected {total_partitions} total partitions, got {assigned_count}"
-
-    def teardown(self):
-        """Clean up test environment"""
-        self.logger.info("Test completed - external Kafka service remains running")
