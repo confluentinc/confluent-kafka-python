@@ -225,7 +225,21 @@ class ProducerBatchProcessor:
             # Call produce_batch with individual callbacks (no batch callback)
             producer.produce_batch(topic, batch_messages)
             
-            # Immediately poll to process delivery callbacks in the same worker
+            # Handle partial batch failures: Check for messages that failed during produce_batch
+            # These messages have their msgstates destroyed in Producer.c and won't get callbacks
+            # from librdkafka, so we need to manually invoke their callbacks
+            for msg_dict in batch_messages:
+                if '_error' in msg_dict:
+                    # This message failed during produce_batch - its callback won't be called by librdkafka
+                    callback = msg_dict.get('callback')
+                    if callback:
+                        # Extract the error from the message dict (set by Producer.c)
+                        error = msg_dict['_error']
+                        # Manually invoke the callback with the error
+                        # Note: msg is None since the message failed before being queued
+                        callback(error, None)
+            
+            # Immediately poll to process delivery callbacks for successful messages
             poll_result = producer.poll(0)
             
             return poll_result

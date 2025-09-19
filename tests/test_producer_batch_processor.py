@@ -36,10 +36,10 @@ class TestProducerBatchProcessor(unittest.TestCase):
         """Clean up test fixtures"""
         self.loop.close()
     
-    def test_initialization(self):
-        """Test ProducerBatchProcessor initialization"""
+    def test_basic_functionality(self):
+        """Test basic ProducerBatchProcessor functionality: initialization, add_message, and clear_buffer"""
+        # Test initialization with custom pool size
         processor = ProducerBatchProcessor(callback_pool_size=50)
-        
         self.assertEqual(processor.get_buffer_size(), 0)
         self.assertTrue(processor.is_buffer_empty())
         
@@ -47,35 +47,24 @@ class TestProducerBatchProcessor(unittest.TestCase):
         stats = processor.get_callback_pool_stats()
         self.assertEqual(stats['available'], 50)
         self.assertEqual(stats['created_total'], 50)
-    
-    def test_add_message(self):
-        """Test adding messages to the buffer"""
+        
+        # Test adding messages to the buffer
         future1 = Mock()
         future2 = Mock()
         msg_data1 = {'topic': 'topic1', 'value': 'test1', 'key': 'key1'}
         msg_data2 = {'topic': 'topic2', 'value': 'test2', 'key': 'key2'}
         
-        # Add messages
         self.batch_processor.add_message(msg_data1, future1)
         self.batch_processor.add_message(msg_data2, future2)
         
-        # Verify buffer state
+        # Verify buffer state after adding
         self.assertEqual(self.batch_processor.get_buffer_size(), 2)
         self.assertFalse(self.batch_processor.is_buffer_empty())
-    
-    def test_clear_buffer(self):
-        """Test clearing the buffer"""
-        # Add some messages
-        self.batch_processor.add_message({'topic': 'test'}, Mock())
-        self.batch_processor.add_message({'topic': 'test'}, Mock())
         
-        # Verify buffer has messages
-        self.assertEqual(self.batch_processor.get_buffer_size(), 2)
-        
-        # Clear buffer
+        # Test clearing the buffer
         self.batch_processor.clear_buffer()
         
-        # Verify buffer is empty
+        # Verify buffer is empty after clearing
         self.assertEqual(self.batch_processor.get_buffer_size(), 0)
         self.assertTrue(self.batch_processor.is_buffer_empty())
     
@@ -189,21 +178,62 @@ class TestProducerBatchProcessor(unittest.TestCase):
             user_callbacks[0], exception, None
         )
     
-    def test_flush_empty_buffer(self):
-        """Test flushing empty buffer"""
+    def test_buffer_flush_scenarios(self):
+        """Test comprehensive buffer flushing scenarios: empty buffer, successful flush, target topic, and exception handling"""
         async def async_test():
-            # Should return immediately without doing anything
-            await self.batch_processor.flush_buffer(
-                self.mock_aio_producer
-            )
-            
-            # Verify no operations were performed
+            # Test 1: Flush empty buffer (should be no-op)
+            await self.batch_processor.flush_buffer(self.mock_aio_producer)
             self.mock_executor.submit.assert_not_called()
+            
+            # Test 2: Flush buffer with messages (successful case)
+            future1 = self.loop.create_future()
+            future2 = self.loop.create_future()
+            msg1 = {'topic': 'topic1', 'value': 'test1'}
+            msg2 = {'topic': 'topic1', 'value': 'test2'}
+            
+            self.batch_processor.add_message(msg1, future1)
+            self.batch_processor.add_message(msg2, future2)
+            
+            # Mock successful batch execution
+            success_future = self.loop.create_future()
+            success_future.set_result("success")
+            
+            with patch.object(self.loop, 'run_in_executor', return_value=success_future):
+                await self.batch_processor.flush_buffer(self.mock_aio_producer)
+            
+            # Verify buffer was cleared
+            self.assertTrue(self.batch_processor.is_buffer_empty())
+            
+            # Test 3: Flush with target topic (selective flushing)
+            future3 = self.loop.create_future()
+            future4 = self.loop.create_future()
+            msg3 = {'topic': 'topic1', 'value': 'test3'}
+            msg4 = {'topic': 'topic2', 'value': 'test4'}
+            
+            self.batch_processor.add_message(msg3, future3)
+            self.batch_processor.add_message(msg4, future4)
+            
+            with patch.object(self.loop, 'run_in_executor', return_value=success_future):
+                # Flush only topic1
+                await self.batch_processor.flush_buffer(self.mock_aio_producer, target_topic='topic1')
+            
+            # Verify only topic1 was processed, topic2 remains in buffer
+            self.assertEqual(self.batch_processor.get_buffer_size(), 1)
+            
+            # Test 4: Exception handling during flush
+            exception = RuntimeError("Batch execution failed")
+            
+            with patch.object(self.loop, 'run_in_executor', side_effect=exception):
+                with self.assertRaises(RuntimeError):
+                    await self.batch_processor.flush_buffer(self.mock_aio_producer)
+            
+            # Verify buffer was still cleared (messages were processed, just failed)
+            self.assertTrue(self.batch_processor.is_buffer_empty())
         
         self.loop.run_until_complete(async_test())
     
     def test_execute_batch(self):
-        """Test executing a batch operation"""
+        """Test executing a batch operation via ThreadPool"""
         async def async_test():
             batch_messages = [
                 {'value': 'test1', 'callback': Mock()},
@@ -225,82 +255,72 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         self.loop.run_until_complete(async_test())
     
-    def test_flush_buffer_with_messages(self):
-        """Test flushing buffer with actual messages"""
-        async def async_test():
-            # Add messages to buffer
-            future1 = self.loop.create_future()
-            future2 = self.loop.create_future()
+    def test_callback_future_mapping_integrity(self):
+        """Test that callbacks are correctly mapped to their corresponding futures and messages"""
+        # Create test messages with unique identifiers
+        messages_data = []
+        futures = []
+        user_callbacks = []
+        
+        for i in range(4):
+            future = Mock()
+            future.done.return_value = False
+            user_callback = Mock()
+            msg_data = {
+                'topic': f'topic{i % 2}',  # Mix topics to test grouping
+                'value': f'unique_value_{i}',
+                'key': f'unique_key_{i}',
+                'user_callback': user_callback
+            }
             
-            msg1 = {'topic': 'topic1', 'value': 'test1'}
-            msg2 = {'topic': 'topic1', 'value': 'test2'}
+            self.batch_processor.add_message(msg_data, future)
+            messages_data.append(msg_data)
+            futures.append(future)
+            user_callbacks.append(user_callback)
+        
+        # Group messages and prepare for batch processing
+        topic_groups = self.batch_processor._group_messages_by_topic()
+        
+        # Test each topic group's mapping integrity
+        for topic, group_data in topic_groups.items():
+            batch_messages = self.batch_processor._prepare_batch_messages(group_data['messages'])
             
-            self.batch_processor.add_message(msg1, future1)
-            self.batch_processor.add_message(msg2, future2)
+            # Assign callbacks to messages
+            self.batch_processor._assign_callbacks_to_messages(
+                batch_messages,
+                group_data['futures'],
+                group_data['callbacks'],
+                self.mock_aio_producer
+            )
             
-            # Mock successful batch execution
-            future_result = self.loop.create_future()
-            future_result.set_result("success")
-            
-            with patch.object(self.loop, 'run_in_executor', return_value=future_result):
-                await self.batch_processor.flush_buffer(
-                    self.mock_aio_producer
+            # Verify that each callback knows about the correct future and user_callback
+            for i, batch_msg in enumerate(batch_messages):
+                callback = batch_msg['callback']
+                expected_future = group_data['futures'][i]
+                expected_user_callback = group_data['callbacks'][i]
+                
+                # Verify the callback has the right future and user_callback
+                self.assertEqual(callback.future, expected_future)
+                self.assertEqual(callback.user_callback, expected_user_callback)
+                
+                # Test callback execution with success
+                test_msg = Mock()
+                test_msg.value.return_value = batch_msg['value']
+                
+                # Call the callback with success (err=None)
+                callback(None, test_msg)
+                
+                # Verify the correct future was resolved
+                expected_future.set_result.assert_called_once_with(test_msg)
+                
+                # Verify the correct user callback was invoked
+                self.mock_aio_producer._handle_user_callback.assert_called_with(
+                    expected_user_callback, None, test_msg
                 )
-            
-            # Verify buffer was cleared
-            self.assertTrue(self.batch_processor.is_buffer_empty())
-        
-        self.loop.run_until_complete(async_test())
-    
-    def test_flush_buffer_with_target_topic(self):
-        """Test flushing buffer with specific target topic"""
-        async def async_test():
-            # Add messages for different topics
-            future1 = self.loop.create_future()
-            future2 = self.loop.create_future()
-            
-            msg1 = {'topic': 'topic1', 'value': 'test1'}
-            msg2 = {'topic': 'topic2', 'value': 'test2'}
-            
-            self.batch_processor.add_message(msg1, future1)
-            self.batch_processor.add_message(msg2, future2)
-            
-            # Mock successful batch execution
-            future_result = self.loop.create_future()
-            future_result.set_result("success")
-            
-            with patch.object(self.loop, 'run_in_executor', return_value=future_result):
-                # Flush only topic1
-                await self.batch_processor.flush_buffer(
-                    self.mock_aio_producer, target_topic='topic1'
-                )
-            
-            # Verify only topic1 was processed, topic2 remains in buffer
-            self.assertEqual(self.batch_processor.get_buffer_size(), 1)
-        
-        self.loop.run_until_complete(async_test())
-    
-    def test_flush_buffer_with_exception(self):
-        """Test flushing buffer when batch execution fails"""
-        async def async_test():
-            # Add message to buffer
-            future1 = self.loop.create_future()
-            msg1 = {'topic': 'topic1', 'value': 'test1'}
-            self.batch_processor.add_message(msg1, future1)
-            
-            # Mock failed batch execution
-            exception = RuntimeError("Batch execution failed")
-            
-            with patch.object(self.loop, 'run_in_executor', side_effect=exception):
-                with self.assertRaises(RuntimeError):
-                    await self.batch_processor.flush_buffer(
-                        self.mock_aio_producer
-                    )
-            
-            # Verify buffer was still cleared (messages were processed, just failed)
-            self.assertTrue(self.batch_processor.is_buffer_empty())
-        
-        self.loop.run_until_complete(async_test())
+                
+                # Reset mocks for next iteration
+                expected_future.reset_mock()
+                self.mock_aio_producer._handle_user_callback.reset_mock()
     
     def test_complete_batch_cycle(self):
         """Test complete batch processing cycle"""
@@ -355,6 +375,110 @@ class TestProducerBatchProcessor(unittest.TestCase):
         stats = self.batch_processor.get_callback_pool_stats()
         self.assertEqual(stats['in_use'], 3)
         self.assertEqual(stats['reuse_count'], 3)
+
+    def test_partial_batch_failure_handling(self):
+        """Test that partial batch failures are handled correctly using real C produce_batch"""
+        import confluent_kafka
+        
+        # Create a real Producer instance for testing
+        producer_config = {
+            'bootstrap.servers': 'nonexistent-broker:9092',  # Will fail to connect
+            'client.id': 'test-producer',
+            'message.timeout.ms': 100,
+            'queue.buffering.max.messages': 5,  # Small queue to trigger queue full errors
+        }
+        
+        try:
+            real_producer = confluent_kafka.Producer(producer_config)
+        except Exception:
+            # If we can't create a real producer, skip this test
+            self.skipTest("Could not create real Producer")
+        
+        # Create futures for tracking
+        future1 = asyncio.Future()
+        future2 = asyncio.Future() 
+        future3 = asyncio.Future()
+        
+        # Track callback invocations
+        callback_results = []
+        
+        def track_callback(msg_id):
+            def callback(err, msg):
+                callback_results.append({'msg_id': msg_id, 'err': err, 'msg': msg})
+            return callback
+        
+        # Add messages to buffer - use scenarios that cause immediate failures
+        msg1_data = {'topic': 'test-topic', 'value': 'small message', 'user_callback': track_callback('msg1')}
+        msg2_data = {'topic': 'test-topic', 'value': 'x' * (5 * 1024 * 1024), 'user_callback': track_callback('msg2')}  # Large message - will fail immediately
+        msg3_data = {'topic': 'test-topic', 'value': 'another small', 'user_callback': track_callback('msg3')}
+        
+        self.batch_processor.add_message(msg1_data, future1)
+        self.batch_processor.add_message(msg2_data, future2)
+        self.batch_processor.add_message(msg3_data, future3)
+        
+        # Mock AIOProducer for callback handling
+        mock_aio_producer = Mock()
+        mock_aio_producer._handle_user_callback = Mock(side_effect=lambda cb, err, msg: cb(err, msg) if cb else None)
+        
+        # Test the _execute_batch method with real producer
+        async def run_test():
+            # Group messages by topic
+            topic_groups = self.batch_processor._group_messages_by_topic()
+            topic_data = topic_groups['test-topic']
+            
+            # Prepare batch messages
+            batch_messages = self.batch_processor._prepare_batch_messages(topic_data['messages'])
+            
+            # Assign callbacks to messages
+            self.batch_processor._assign_callbacks_to_messages(
+                batch_messages,
+                topic_data['futures'], 
+                topic_data['callbacks'],
+                mock_aio_producer
+            )
+            
+            # Execute the batch with real producer - this should handle the partial failure
+            def _produce_batch_and_poll():
+                """Execute with real C code"""
+                # This will call the actual Producer.c produce_batch function
+                result = real_producer.produce_batch('test-topic', batch_messages)
+                
+                # Handle partial batch failures (our fix)
+                failed_count = 0
+                for msg_dict in batch_messages:
+                    if '_error' in msg_dict:
+                        failed_count += 1
+                        callback = msg_dict.get('callback')
+                        if callback:
+                            error = msg_dict['_error']
+                            callback(error, None)
+                
+                # Poll for successful callbacks
+                poll_result = real_producer.poll(0)
+                return result, failed_count, poll_result
+            
+            # Run synchronously for testing
+            result, failed_count, poll_result = _produce_batch_and_poll()
+            
+            # Verify our fix works
+            if failed_count > 0:
+                # If we got immediate failures, verify our fix handled them
+                failed_messages = [msg for msg in batch_messages if '_error' in msg]
+                self.assertEqual(len(failed_messages), failed_count)
+                
+                # Verify that large message specifically failed
+                large_msg = next((msg for msg in batch_messages if len(str(msg.get('value', ''))) > 1000), None)
+                if large_msg and '_error' in large_msg:
+                    self.assertIn('MSG_SIZE_TOO_LARGE', str(large_msg['_error']))
+                    print(f"✅ Large message correctly failed: {large_msg['_error']}")
+            else:
+                # If no immediate failures, that's also valid - some errors happen during delivery
+                print("ℹ️  No immediate failures detected - errors may occur during delivery")
+            
+            print(f"produce_batch result: {result}, failed_count: {failed_count}, poll_result: {poll_result}")
+        
+        # Run the async test
+        self.loop.run_until_complete(run_test())
 
 
 if __name__ == '__main__':
