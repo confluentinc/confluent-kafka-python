@@ -285,10 +285,7 @@ class SimpleConsumerTest(Test):
 
     def create_serializers(self, serialization_type):
         """Create Schema Registry serializers for message production"""
-        sr_client = SchemaRegistryClient({
-            'url': 'http://localhost:8081',
-            'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'
-        })
+        sr_client = SchemaRegistryClient({'url': 'http://localhost:8081'})
 
         key_serializer = StringSerializer('utf8')
 
