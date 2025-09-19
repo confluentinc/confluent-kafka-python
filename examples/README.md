@@ -18,6 +18,8 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 Additional examples for [Confluent Cloud](https://www.confluent.io/confluent-cloud/):
 
 * [confluent_cloud.py](confluent_cloud.py): Produce messages to Confluent Cloud and then read them back again.
+* [oauth_oidc_ccloud_producer.py](oauth_oidc_ccloud_producer.py): Demonstrates OAuth/OIDC Authentication with Confluent Cloud (client credentials).
+* [oauth_oidc_ccloud_azure_imds_producer.py](oauth_oidc_ccloud_azure_imds_producer.py): Demonstrates OAuth/OIDC Authentication with Confluent Cloud (Azure IMDS metadata based authentication).
 * [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python): Integration with Confluent Cloud and Confluent Cloud Schema Registry
 
 ## venv setup
