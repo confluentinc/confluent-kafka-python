@@ -14,7 +14,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import abc
 import random
 
 from attrs import define as _attrs_define
@@ -27,11 +26,9 @@ from typing import List, Dict, Type, TypeVar, \
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',
-    '_BearerFieldProvider',
     'is_success',
     'is_retriable',
     'full_jitter',
-    '_StaticFieldProvider',
     '_SchemaCache',
     'RuleKind',
     'RuleMode',
@@ -51,12 +48,6 @@ __all__ = [
 VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
-class _BearerFieldProvider(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def get_bearer_fields(self) -> dict:
-        raise NotImplementedError
-
-
 def is_success(status_code: int) -> bool:
     return 200 <= status_code <= 299
 
@@ -68,17 +59,6 @@ def is_retriable(status_code: int) -> bool:
 def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
-
-
-class _StaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    def get_bearer_fields(self) -> dict:
-        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
-                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _SchemaCache(object):
