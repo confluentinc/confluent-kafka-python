@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
 from confluent_kafka.aio._AIOProducer import AIOProducer
 from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
 
 
 class TestProducerBatchProcessor(unittest.TestCase):
@@ -30,10 +31,6 @@ class TestProducerBatchProcessor(unittest.TestCase):
         """Set up test fixtures"""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        
-        # Create callback handler for batch processor
-        self.callback_handler = AsyncCallbackHandler(self.loop)
-        self.batch_processor = ProducerBatchProcessor(self.callback_handler, callback_pool_size=10)
         
         # Create a real ThreadPoolExecutor
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
@@ -48,6 +45,11 @@ class TestProducerBatchProcessor(unittest.TestCase):
         }
         
         self.confluent_kafka_producer = confluent_kafka.Producer(self.producer_config)
+        
+        # Create callback handler and Kafka executor for batch processor
+        self.callback_handler = AsyncCallbackHandler(self.loop)
+        self.kafka_executor = KafkaBatchExecutor(self.confluent_kafka_producer, self.executor)
+        self.batch_processor = ProducerBatchProcessor(self.callback_handler, self.kafka_executor, callback_pool_size=10)
         
         # Create AIOProducer within the event loop context
         async def create_aio_producer():
@@ -80,7 +82,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
     def test_basic_functionality(self):
         """Test basic ProducerBatchProcessor functionality: initialization, add_message, and clear_buffer"""
         # Test initialization with custom pool size
-        processor = ProducerBatchProcessor(self.callback_handler, callback_pool_size=50)
+        processor = ProducerBatchProcessor(self.callback_handler, self.kafka_executor, callback_pool_size=50)
         self.assertEqual(processor.get_buffer_size(), 0)
         self.assertTrue(processor.is_buffer_empty())
         
@@ -270,8 +272,8 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         self.loop.run_until_complete(async_test())
     
-    def test_execute_batch(self):
-        """Test executing a batch operation via ThreadPool"""
+    def test_kafka_executor_integration(self):
+        """Test executing a batch operation via KafkaBatchExecutor"""
         async def async_test():
             batch_messages = [
                 {'value': 'test1', 'callback': Mock()},
@@ -283,9 +285,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
             future_result.set_result("poll_result")
             
             with patch.object(self.loop, 'run_in_executor', return_value=future_result) as mock_run_in_executor:
-                result = await self.batch_processor._execute_batch(
-                    self.executor, self.confluent_kafka_producer, 'test-topic', batch_messages
-                )
+                result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
                 
                 # Verify run_in_executor was called
                 mock_run_in_executor.assert_called_once()
@@ -453,13 +453,8 @@ class TestProducerBatchProcessor(unittest.TestCase):
                 topic_data['callbacks']
             )
             
-            # Execute the batch using the actual batch processor method
-            result = await self.batch_processor._execute_batch(
-                self.aio_producer.executor, 
-                test_producer, 
-                'test-topic', 
-                batch_messages
-            )
+            # Execute the batch using the Kafka executor
+            result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
             
             # Check for partial failures by examining the batch_messages
             failed_count = sum(1 for msg_dict in batch_messages if '_error' in msg_dict)

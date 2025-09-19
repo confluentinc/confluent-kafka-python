@@ -25,6 +25,7 @@ from confluent_kafka import KafkaException as _KafkaException
 import confluent_kafka.aio._common as _common
 from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
 from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
+from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
 
 
 logger = logging.getLogger(__name__)
@@ -66,10 +67,13 @@ class AIOProducer:
         # Start the buffer timeout management task
             self._start_buffer_timeout_task()
         
+        # Initialize Kafka batch executor for handling Kafka operations
+        self._kafka_executor = KafkaBatchExecutor(self._producer, self.executor)
+        
         # Initialize batch processor for message batching and processing
         # Pool size should be larger than typical batch size to handle bursts
         pool_size = max(1000, batch_size * 2)
-        self._batch_processor = ProducerBatchProcessor(self._callback_handler, callback_pool_size=pool_size)
+        self._batch_processor = ProducerBatchProcessor(self._callback_handler, self._kafka_executor, callback_pool_size=pool_size)
 
     async def close(self):
         """Close the producer and cleanup resources

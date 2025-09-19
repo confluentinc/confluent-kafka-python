@@ -17,6 +17,7 @@ import copy
 import logging
 
 from confluent_kafka.aio._callback_pool import CallbackPool
+from confluent_kafka.aio._kafka_batch_executor import KafkaBatchExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +38,16 @@ class ProducerBatchProcessor:
     - Reusable batch processing logic
     """
     
-    def __init__(self, callback_handler, callback_pool_size=1000):
+    def __init__(self, callback_handler, kafka_executor, callback_pool_size=1000):
         """Initialize the batch processor
         
         Args:
             callback_handler: AsyncCallbackHandler instance for user callback execution
+            kafka_executor: KafkaBatchExecutor instance for Kafka operations
             callback_pool_size: Initial size for the callback pool
         """
         self._callback_pool = CallbackPool(callback_handler, initial_size=callback_pool_size)
+        self._kafka_executor = kafka_executor
         self._message_buffer = []
         self._buffer_futures = []
     
@@ -120,8 +123,8 @@ class ProducerBatchProcessor:
             )
             
             try:
-                # Call produce_batch with individual callbacks
-                await self._execute_batch(aio_producer.executor, aio_producer._producer, topic, batch_messages)
+                # Execute batch using the Kafka executor
+                await self._kafka_executor.execute_batch(topic, batch_messages)
                         
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this topic
@@ -209,43 +212,6 @@ class ProducerBatchProcessor:
             # Assign the pooled callback to this message
             batch_msg['callback'] = message_callback
     
-    async def _execute_batch(self, executor, producer, topic, batch_messages):
-        """Execute the batch operation via thread pool
-        
-        Args:
-            executor: ThreadPoolExecutor for running blocking operations
-            producer: confluent_kafka.Producer instance
-            topic: Target topic for the batch
-            batch_messages: List of prepared messages with callbacks
-        """
-        
-        def _produce_batch_and_poll():
-            """Helper function to run in thread pool"""
-            # Call produce_batch with individual callbacks (no batch callback)
-            producer.produce_batch(topic, batch_messages)
-            
-            # Handle partial batch failures: Check for messages that failed during produce_batch
-            # These messages have their msgstates destroyed in Producer.c and won't get callbacks
-            # from librdkafka, so we need to manually invoke their callbacks
-            for msg_dict in batch_messages:
-                if '_error' in msg_dict:
-                    # This message failed during produce_batch - its callback won't be called by librdkafka
-                    callback = msg_dict.get('callback')
-                    if callback:
-                        # Extract the error from the message dict (set by Producer.c)
-                        error = msg_dict['_error']
-                        # Manually invoke the callback with the error
-                        # Note: msg is None since the message failed before being queued
-                        callback(error, None)
-            
-            # Immediately poll to process delivery callbacks for successful messages
-            poll_result = producer.poll(0)
-            
-            return poll_result
-        
-        # Execute in thread pool to avoid blocking event loop
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(executor, _produce_batch_and_poll)
     
     def _handle_batch_failure(self, exception, batch_futures, batch_callbacks, aio_producer):
         """Handle batch operation failure by failing all unresolved futures
