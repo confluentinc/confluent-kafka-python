@@ -24,6 +24,7 @@ from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
 from confluent_kafka.aio._producer_batch_processor import ProducerBatchProcessor
+from confluent_kafka.aio._callback_handler import AsyncCallbackHandler
 
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ class AIOProducer:
                 max_workers=max_workers)
         # Store the event loop for callback handling
         self._loop = asyncio.get_running_loop()
+        
+        # Initialize callback handler for user callback execution
+        self._callback_handler = AsyncCallbackHandler(self._loop)
         
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_common_callbacks(self._loop, producer_conf)
@@ -402,28 +406,14 @@ class AIOProducer:
     def _handle_user_callback(self, user_callback, err, msg):
         """Handle user callback execution, supporting both sync and async callbacks
         
-        This method is called from librdkafka's C thread context and needs to properly
-        handle both synchronous and asynchronous user callbacks.
+        This method delegates to AsyncCallbackHandler for proper callback execution.
         
         Args:
             user_callback: User-provided callback function (sync or async)
             err: Error object (None if successful)
             msg: Message object
         """
-        if asyncio.iscoroutinefunction(user_callback):
-            # Async callback - schedule it to run on the event loop
-            # We're in librdkafka's C thread, so we need to schedule this safely
-            try:
-                # Schedule the async callback to run on the event loop
-                self._loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(user_callback(err, msg))
-                )
-            except RuntimeError:
-                # Event loop might be closed - handle gracefully
-                pass
-        else:
-            # Sync callback - call directly
-            user_callback(err, msg)
+        return self._callback_handler.handle_user_callback(user_callback, err, msg)
 
     async def _call(self, blocking_task, *args, **kwargs):
         """Helper method for blocking operations that need ThreadPool execution"""
