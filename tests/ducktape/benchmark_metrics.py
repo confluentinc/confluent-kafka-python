@@ -265,8 +265,20 @@ class MetricsBounds:
             with open(config_path, 'r') as f:
                 config = json.load(f)
 
-            # Set values from config file
-            for key, value in config.items():
+            # Always use environment-based format
+            environment = os.getenv('BENCHMARK_ENVIRONMENT',
+                                    config.get('_default_environment', 'local'))
+            if environment not in config:
+                available_envs = [k for k in config.keys() if not k.startswith('_')]
+                raise ValueError(
+                    f"Environment '{environment}' not found in config. "
+                    f"Available environments: {available_envs}"
+                )
+            bounds_config = config[environment]
+            print(f"Loading benchmark bounds for environment: {environment}")
+
+            # Set values from the selected configuration
+            for key, value in bounds_config.items():
                 if not key.startswith('_'):  # Skip comment fields like "_comment"
                     setattr(self, key, value)
 
