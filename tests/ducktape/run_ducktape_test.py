@@ -31,18 +31,8 @@ def get_test_info(test_type):
     return test_info.get(test_type)
 
 
-def main():
-    """Run the ducktape test based on specified type"""
-    parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
-    parser.add_argument('test_type', choices=['producer', 'consumer', 'producer_sr'],
-                        help='Type of test to run')
-    parser.add_argument('test_method', nargs='?',
-                        help='Specific test method to run (optional)')
-    parser.add_argument('--debug', action='store_true',
-                        help='Enable debug output')
-
-    args = parser.parse_args()
-
+def run_single_test_type(args):
+    """Run a single test type"""
     test_info = get_test_info(args.test_type)
 
     # Header
@@ -135,6 +125,62 @@ def main():
     except Exception as e:
         print(f"Error running test: {e}")
         return 1
+
+
+def run_all_tests(args):
+    """Run all available test types"""
+    test_types = ['producer', 'consumer', 'producer_sr']
+    overall_success = True
+    
+    print("Confluent Kafka Python - All Ducktape Tests")
+    print(f"Timestamp: {datetime.now().isoformat()}")
+    print("=" * 70)
+    
+    for test_type in test_types:
+        print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")
+        
+        # Create a new args object for this test type
+        test_args = argparse.Namespace(
+            test_type=test_type,
+            test_method=args.test_method,
+            debug=args.debug
+        )
+        
+        # Run the specific test type
+        result = run_single_test_type(test_args)
+        if result != 0:
+            overall_success = False
+            print(f"\n❌ {test_type.upper()} tests failed!")
+        else:
+            print(f"\n✅ {test_type.upper()} tests passed!")
+    
+    print(f"\n{'='*70}")
+    if overall_success:
+        print("🎉 All tests completed successfully!")
+        return 0
+    else:
+        print("💥 Some tests failed. Check the output above for details.")
+        return 1
+
+
+def main():
+    """Run the ducktape test based on specified type"""
+    parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
+    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'producer_sr'],
+                        help='Type of test to run (default: run all tests)')
+    parser.add_argument('test_method', nargs='?',
+                        help='Specific test method to run (optional)')
+    parser.add_argument('--debug', action='store_true',
+                        help='Enable debug output')
+
+    args = parser.parse_args()
+
+    # If no test_type provided, run all tests
+    if args.test_type is None:
+        return run_all_tests(args)
+
+    # Run single test type
+    return run_single_test_type(args)
 
 
 if __name__ == "__main__":
