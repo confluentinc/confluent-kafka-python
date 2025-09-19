@@ -79,24 +79,14 @@ class ReusableMessageCallback:
 class CallbackManager:
     """Unified callback management with pooling and execution handling
     
-    This class combines the functionality of AsyncCallbackHandler and CallbackPool
-    into a single cohesive component that:
+    This class is responsible for:
+    - Handling both synchronous and asynchronous user callbacks
+    - Properly scheduling async callbacks on the event loop
+    - Managing thread-safe callback execution from librdkafka
+    - Maintaining a pool of reusable callback objects
+    - Reducing object allocation overhead
+    - Minimizing garbage collection pressure
     
-    Callback Execution:
-    - Handles both synchronous and asynchronous user callbacks
-    - Properly schedules async callbacks on the event loop
-    - Manages thread-safe callback execution from librdkafka
-    
-    Performance Optimization:
-    - Maintains a pool of reusable callback objects
-    - Reduces object allocation overhead
-    - Minimizes garbage collection pressure
-    
-    Benefits of merging:
-    - Simpler architecture with fewer components
-    - Single responsibility for all callback concerns
-    - Eliminates dependency between pool and handler
-    - Cleaner interfaces throughout the system
     """
     
     def __init__(self, loop: asyncio.AbstractEventLoop, initial_pool_size=1000):

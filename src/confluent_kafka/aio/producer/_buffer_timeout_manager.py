@@ -28,16 +28,6 @@ class BufferTimeoutManager:
     - Tracking buffer activity timestamps
     - Managing background timeout monitoring tasks
     - Coordinating between batch processor and executor for timeout flushes
-    
-    Benefits of separation:
-    - Single responsibility: only handles timeout management
-    - Clean separation from producer lifecycle management
-    - Easier testing with mock dependencies
-    - Reusable timeout logic across different producer implementations
-    
-    The name "BufferTimeoutManager" clearly indicates this component's specific
-    purpose: managing timeouts for message buffers to prevent messages from
-    being held indefinitely.
     """
     
     def __init__(self, batch_processor, kafka_executor, timeout):

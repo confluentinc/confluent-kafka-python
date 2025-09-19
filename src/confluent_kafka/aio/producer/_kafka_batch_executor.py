@@ -26,12 +26,6 @@ class KafkaBatchExecutor:
     - Handling partial batch failures from librdkafka
     - Managing thread pool execution to avoid blocking the event loop
     - Processing delivery callbacks for successful messages
-    
-    Benefits of separation:
-    - Single responsibility: only handles Kafka operations
-    - Clean interface between batch processing and Kafka execution
-    - Easier testing with mock Kafka producers
-    - Reusable across different batch processing strategies
     """
     
     def __init__(self, producer, executor):

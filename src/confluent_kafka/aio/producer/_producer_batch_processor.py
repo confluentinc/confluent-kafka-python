@@ -31,12 +31,6 @@ class ProducerBatchProcessor:
     - Managing message buffers and futures
     - Creating and managing callbacks
     - Executing batch operations via librdkafka
-    
-    Benefits of separation:
-    - Single responsibility principle
-    - Easier testing and maintenance
-    - Cleaner AIOProducer code
-    - Reusable batch processing logic
     """
     
     def __init__(self, callback_manager, kafka_executor):
