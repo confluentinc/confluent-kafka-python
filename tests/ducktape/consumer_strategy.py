@@ -30,7 +30,7 @@ class ConsumerStrategy:
 
 
 class SyncConsumerStrategy(ConsumerStrategy):
-    def create_consumer(self, config_overrides=None):
+    def create_consumer(self):
         config = {
             'bootstrap.servers': self.bootstrap_servers,
             'group.id': self.group_id,
@@ -38,20 +38,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
             'enable.auto.commit': 'true',
             'auto.commit.interval.ms': '5000'
         }
-
-        # Apply any test-specific overrides
-        if config_overrides:
-            config.update(config_overrides)
-
         consumer = Consumer(config)
-
-        # Log the configuration for validation
-        if self.logger:
-            self.logger.info("=== SYNC CONSUMER CONFIGURATION ===")
-            for key, value in config.items():
-                self.logger.info(f"{key}: {value}")
-            self.logger.info("=" * 40)
-
         return consumer
 
     def get_final_metrics(self):
@@ -174,7 +161,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
         super().__init__(*args, **kwargs)
         self._consumer_instance = None
 
-    def create_consumer(self, config_overrides=None):
+    def create_consumer(self):
         config = {
             'bootstrap.servers': self.bootstrap_servers,
             'group.id': self.group_id,
@@ -183,18 +170,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
             'auto.commit.interval.ms': '5000'
         }
 
-        # Apply any test-specific overrides
-        if config_overrides:
-            config.update(config_overrides)
-
         self._consumer_instance = AIOConsumer(config, max_workers=20)
-
-        # Log the configuration for validation
-        if self.logger:
-            self.logger.info("=== ASYNC CONSUMER CONFIGURATION ===")
-            for key, value in config.items():
-                self.logger.info(f"{key}: {value}")
-            self.logger.info("=" * 41)
 
         return self._consumer_instance
 

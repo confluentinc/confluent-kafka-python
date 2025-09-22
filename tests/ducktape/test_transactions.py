@@ -10,6 +10,7 @@ from tests.ducktape.consumer_strategy import AsyncConsumerStrategy, SyncConsumer
 from tests.ducktape.services.kafka import KafkaClient
 from confluent_kafka import Producer
 
+
 class TransactionsTest(Test):
     def __init__(self, test_context):
         super(TransactionsTest, self).__init__(test_context=test_context)

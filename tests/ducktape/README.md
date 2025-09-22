@@ -22,7 +22,6 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 
 ## Test Cases
 
-### Producer Tests
 - **test_basic_produce**: Basic message production with integrated metrics tracking
 - **test_produce_multiple_batches**: Parameterized tests (2s, 5s, 10s durations) with metrics
 - **test_produce_with_compression**: Matrix tests (none, gzip, snappy) with compression-aware metrics
