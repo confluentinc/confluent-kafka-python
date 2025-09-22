@@ -5,6 +5,8 @@ Assumes Kafka is already running on localhost:9092
 import time
 from ducktape.services.service import Service
 
+from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions
+
 
 class KafkaClient(Service):
     """Kafka client wrapper - assumes external Kafka is running"""
@@ -35,7 +37,6 @@ class KafkaClient(Service):
     def verify_connection(self):
         """Verify that Kafka is accessible"""
         try:
-            from confluent_kafka.admin import AdminClient
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
 
             # Try to get cluster metadata to verify connection
@@ -50,8 +51,6 @@ class KafkaClient(Service):
     def create_topic(self, topic, partitions=1, replication_factor=1):
         """Create a topic using Kafka admin client"""
         try:
-            from confluent_kafka.admin import AdminClient, NewTopic
-
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
 
             topic_config = NewTopic(
@@ -77,16 +76,12 @@ class KafkaClient(Service):
                     else:
                         self.logger.warning("Failed to create topic %s: %s", topic_name, e)
 
-        except ImportError:
-            self.logger.error("confluent_kafka not available for topic creation")
         except Exception as e:
             self.logger.error("Failed to create topic %s: %s", topic, e)
 
     def list_topics(self):
         """List all topics using admin client"""
         try:
-            from confluent_kafka.admin import AdminClient
-
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
             metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
 
@@ -94,9 +89,6 @@ class KafkaClient(Service):
             self.logger.debug("Available topics: %s", topics)
             return topics
 
-        except ImportError:
-            self.logger.error("confluent_kafka not available for listing topics")
-            return []
         except Exception as e:
             self.logger.error("Failed to list topics: %s", e)
             return []
@@ -130,8 +122,6 @@ class KafkaClient(Service):
     def add_partitions(self, topic_name, new_partition_count):
         """Add partitions to an existing topic"""
         try:
-            from confluent_kafka.admin import AdminClient, NewPartitions
-
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
             metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
 
