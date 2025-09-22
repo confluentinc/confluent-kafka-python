@@ -9,6 +9,8 @@ from ducktape.services.service import Service
 class KafkaClient(Service):
     """Kafka client wrapper - assumes external Kafka is running"""
 
+    DEFAULT_TIMEOUT = 10
+
     def __init__(self, context, bootstrap_servers="localhost:9092"):
         # Use num_nodes=0 since we're not managing any nodes
         super(KafkaClient, self).__init__(context, num_nodes=0)
@@ -37,12 +39,12 @@ class KafkaClient(Service):
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
 
             # Try to get cluster metadata to verify connection
-            metadata = admin_client.list_topics(timeout=10)
+            metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
             self.logger.info("Successfully connected to Kafka. Available topics: %s",
                              list(metadata.topics.keys()))
             return True
         except Exception as e:
-            self.logger.error("Failed to connect to Kafka at %s: %s", self.bootstrap_servers_str, e)
+            self.logger.error("Failed to connect to Kafka: %s", e)
             return False
 
     def create_topic(self, topic, partitions=1, replication_factor=1):
@@ -86,7 +88,7 @@ class KafkaClient(Service):
             from confluent_kafka.admin import AdminClient
 
             admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
-            metadata = admin_client.list_topics(timeout=10)
+            metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
 
             topics = list(metadata.topics.keys())
             self.logger.debug("Available topics: %s", topics)
@@ -124,3 +126,30 @@ class KafkaClient(Service):
 
         self.logger.error("Timeout waiting for topic '%s' after %ds", topic_name, max_wait_time)
         return False
+
+    def add_partitions(self, topic_name, new_partition_count):
+        """Add partitions to an existing topic"""
+        try:
+            from confluent_kafka.admin import AdminClient, NewPartitions
+
+            admin_client = AdminClient({'bootstrap.servers': self.bootstrap_servers_str})
+            metadata = admin_client.list_topics(timeout=self.DEFAULT_TIMEOUT)
+
+            if topic_name not in metadata.topics:
+                raise ValueError(f"Topic {topic_name} does not exist")
+
+            current_partitions = len(metadata.topics[topic_name].partitions)
+            if new_partition_count <= current_partitions:
+                return  # No change needed
+
+            # Add partitions
+            new_partitions = NewPartitions(topic=topic_name, new_total_count=new_partition_count)
+            fs = admin_client.create_partitions([new_partitions])
+
+            # Wait for completion
+            for topic, f in fs.items():
+                f.result(timeout=30)
+
+        except Exception as e:
+            self.logger.error("Failed to add partitions to topic %s: %s", topic_name, e)
+            raise
