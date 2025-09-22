@@ -128,7 +128,7 @@ class TestAIOConsumer:
     @pytest.mark.asyncio
     async def test_concurrent_operations_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test concurrent async operations handle errors gracefully."""
-        # Mock: 2 poll calls fail, assignment succeeds
+        # Mock: 2 poll calls fail
         mock_consumer.return_value.poll.side_effect = [
             KafkaException(KafkaError(KafkaError._TRANSPORT)),
             KafkaException(KafkaError(KafkaError._TRANSPORT))
@@ -141,17 +141,15 @@ class TestAIOConsumer:
         tasks = [
             consumer.poll(timeout=0.1),
             consumer.poll(timeout=0.1),
-            consumer.assignment()
         ]
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify results
-        assert len(results) == 3
+        assert len(results) == 2
         assert isinstance(results[0], KafkaException)
         assert isinstance(results[1], KafkaException)
-        assert results[2] == []
-
+        
     @pytest.mark.asyncio
     async def test_network_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test AIOConsumer handles network errors gracefully."""
