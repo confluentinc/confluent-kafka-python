@@ -13,6 +13,13 @@ from tests.ducktape.consumer_benchmark_metrics import (
     validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry._sync.json_schema import JSONSerializer
+from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
+import json
 import asyncio
 import pytest
 
@@ -59,33 +66,68 @@ class SimpleConsumerTest(Test):
     def create_consumer(self, consumer_type, group_id=None, batch_size=10):
         return self.create_consumer_strategy(consumer_type, group_id, batch_size).create_consumer()
 
-    def produce_test_messages(self, topic_name, num_messages):
-        """Produce messages to topic for consumer tests"""
-        producer = Producer({'bootstrap.servers': self.kafka.bootstrap_servers()})
+    def produce_test_messages(self, topic_name, num_messages, serialization_type=None):
+        """Produce messages to topic for consumer tests with optional Schema Registry serialization"""
+        # Create producer configuration
+        producer_config = {
+            'bootstrap.servers': self.kafka.bootstrap_servers(),
+            'client.id': f'ducktape-test-producer'
+        }
+        producer = Producer(producer_config)
 
-        self.logger.info(f"Producing {num_messages} test messages to {topic_name}")
+        # Setup serializers if using Schema Registry
+        if serialization_type:
+            key_serializer, value_serializer = self.create_serializers(serialization_type)
+            self.logger.info(f"Producing {num_messages} messages with {serialization_type} serialization to {topic_name}")
+        else:
+            self.logger.info(f"Producing {num_messages} messages to {topic_name}")
 
+        # Produce messages
         for i in range(num_messages):
-            producer.produce(
-                topic=topic_name,
-                value=f"Test message {i}",
-                key=f"key-{i}"
-            )
+            try:
+                # Create message content based on serialization type
+                if serialization_type == 'avro' or serialization_type == 'json':
+                    message_value = {'name': f'User{i}', 'age': i % 100}
+                elif serialization_type == 'protobuf':
+                    message_value = PublicTestProto_pb2.TestMessage(test_string=f'User{i}', test_int32=i % 100)
+                else:
+                    message_value = f"Test message {i}"
 
-            # Flush more frequently to prevent buffer overflow with large message count
-            if i % 50 == 0:
-                producer.poll(0)
-                if i % 1000 == 0:
-                    producer.flush(timeout=1)  # Periodic flush
+                # Serialize key and value if using Schema Registry
+                if serialization_type:
+                    serialized_key = key_serializer(f'key{i}')
+                    serialized_value = value_serializer(
+                        message_value,
+                        SerializationContext(topic_name, MessageField.VALUE)
+                    )
+                else:
+                    serialized_key = f"key-{i}"
+                    serialized_value = message_value
 
-        producer.flush(timeout=60)  # Final flush with longer timeout
-        self.logger.info(f"Successfully produced {num_messages} messages")
+                producer.produce(
+                    topic=topic_name,
+                    key=serialized_key,
+                    value=serialized_value,
+                )
+
+                # Flush more frequently to prevent buffer overflow with large message count
+                if i % 50 == 0:
+                    producer.poll(0)
+                    if i % 1000 == 0:
+                        producer.flush(timeout=1)  # Periodic flush
+
+            except Exception as e:
+                self.logger.error(f"Failed to produce message {i}: {e}")
+
+        # Final flush
+        producer.flush(timeout=60)
+        self.logger.info(f"Successfully produced {num_messages} plain text messages")
 
     # =========== Performance tests ===========
 
     @matrix(consumer_type=["sync", "async"], batch_size=[1, 5, 20])
     def test_basic_consume(self, consumer_type, batch_size):
-        """Test basic message consumption with comprehensive metrics and bounds validation"""
+        """Test batch consumption with comprehensive metrics and bounds validation"""
         self._run_consumer_performance_test(
             consumer_type=consumer_type,
             operation_type="consume",
@@ -94,10 +136,49 @@ class SimpleConsumerTest(Test):
 
     @matrix(consumer_type=["sync", "async"])
     def test_basic_poll(self, consumer_type):
-        """Test basic message polling (single message) with comprehensive metrics and bounds validation"""
+        """Test single message polling with comprehensive metrics and bounds validation"""
         self._run_consumer_performance_test(
             consumer_type=consumer_type,
             operation_type="poll",
+        )
+
+    @matrix(consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    def test_basic_consume_with_schema_registry(self, consumer_type, serialization_type):
+        """
+        Test batch consumption with Schema Registry deserialization with comprehensive metrics and bounds validation.
+
+        Note: in this test, we are consuming messages with the same schema,
+        a realistic high-throughput scenario.
+        We cache the schema in the Schema Registry client, so only the first message
+        makes HTTP calls to the Schema Registry server.
+        Performance impact compared to test_basic_consume should come from per-message
+        deserialization overhead.
+        """
+
+        self._run_consumer_performance_test(
+            consumer_type=consumer_type,
+            operation_type="consume",
+            batch_size=20,
+            serialization_type=serialization_type,
+        )
+
+    @matrix(consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    def test_basic_poll_with_schema_registry(self, consumer_type, serialization_type):
+        """
+        Test single message polling with Schema Registry deserialization with comprehensive metrics and bounds validation.
+
+        Note: in this test, we are consuming messages with the same schema,
+        a realistic high-throughput scenario.
+        We cache the schema in the Schema Registry client, so only the first message
+        makes HTTP calls to the Schema Registry server.
+        Performance impact compared to test_basic_consume should come from per-message
+        deserialization overhead.
+        """
+
+        self._run_consumer_performance_test(
+            consumer_type=consumer_type,
+            operation_type="poll",
+            serialization_type=serialization_type,
         )
 
     # =========== Functional tests ===========
@@ -303,7 +384,9 @@ class SimpleConsumerTest(Test):
 
     # =========== Private Helper Methods ===========
 
-    def _run_consumer_performance_test(self, consumer_type, operation_type, batch_size=None):
+    def _run_consumer_performance_test(self, consumer_type, operation_type,
+                                       batch_size=None,
+                                       serialization_type=None):
         """
         Shared helper for consumer performance tests
 
@@ -311,8 +394,9 @@ class SimpleConsumerTest(Test):
             consumer_type: "sync" or "async"
             operation_type: "consume" or "poll"
             batch_size: Number of messages per batch (default None). Only required for consume operation
+            serialization_type: Schema Registry serialization type ("avro", "json", "protobuf") or None for plain text
         """
-        topic_name = f"test-{consumer_type}-{operation_type}-topic"
+        topic_name = f"test-{consumer_type}-{operation_type}-{serialization_type or 'plain'}-topic"
         test_duration = 5.0  # 5 seconds
         num_messages = 1500000  # 1.5M messages for sustained 5-second consumption at ~300K msg/s
 
@@ -325,10 +409,10 @@ class SimpleConsumerTest(Test):
                              f"Available topics: {self.kafka.list_topics()}")
 
         # Produce test messages
-        self.produce_test_messages(topic_name, num_messages)
+        self.produce_test_messages(topic_name, num_messages, serialization_type)
 
         # Initialize metrics collection and bounds
-        metrics = ConsumerMetricsCollector(operation_type=operation_type)
+        metrics = ConsumerMetricsCollector(operation_type=operation_type, serialization_type=serialization_type)
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
@@ -337,11 +421,7 @@ class SimpleConsumerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        if operation_type == "consume":
-            operation_desc = f"{operation_type} (batch_size={batch_size})"
-        else:
-            operation_desc = f"{operation_type} (single messages)"
-        self.logger.info(f"Testing {consumer_type} consumer {operation_desc} for {test_duration} seconds")
+        self.logger.info(f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
@@ -349,15 +429,17 @@ class SimpleConsumerTest(Test):
         # Container for consumed messages
         consumed_messages = []
 
-        # Run the test - choose method based on operation type
+        # Run the test
         start_time = time.time()
         if operation_type == "consume":
             messages_consumed = strategy.consume_messages(
-                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
+                topic_name, test_duration, start_time, consumed_messages,
+                timeout=0.1, serialization_type=serialization_type
             )
         else:  # poll
             messages_consumed = strategy.poll_messages(
-                topic_name, test_duration, start_time, consumed_messages, timeout=0.1
+                topic_name, test_duration, start_time, consumed_messages,
+                timeout=0.1, serialization_type=serialization_type
             )
 
         # Finalize metrics collection
@@ -368,7 +450,7 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size)
+        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size, serialization_type)
 
         # Get AIOConsumer built-in metrics for comparison (if requested)
         final_metrics = strategy.get_final_metrics()
@@ -389,6 +471,9 @@ class SimpleConsumerTest(Test):
             self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
 
         self.logger.info(f"Successfully completed basic {operation_type} test with comprehensive metrics")
+
+        # Return consumed messages for additional validation (e.g., Schema Registry deserialization checks)
+        return consumed_messages
 
     def _setup_topic_with_messages(self, topic_name, partitions=2, messages=10):
         """Helper: Create topic and produce test messages"""
@@ -426,3 +511,41 @@ class SimpleConsumerTest(Test):
         assigned_count = sum(len(a) for a in assignments)
         assert assigned_count == total_partitions, \
             f"Expected {total_partitions} total partitions, got {assigned_count}"
+
+    def create_serializers(self, serialization_type):
+        """Create Schema Registry serializers for message production"""
+        sr_client = SchemaRegistryClient({'url': 'http://localhost:8081'})
+
+        key_serializer = StringSerializer('utf8')
+
+        if serialization_type == 'avro':
+            avro_schema = {
+                "type": "record",
+                "name": "User",
+                "fields": [
+                    {"name": "name", "type": "string"},
+                    {"name": "age", "type": "int"}
+                ]
+            }
+            value_serializer = AvroSerializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(avro_schema)
+            )
+        elif serialization_type == 'json':
+            json_schema = {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "age": {"type": "integer"}
+                },
+                "required": ["name", "age"]
+            }
+            value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
+        elif serialization_type == 'protobuf':
+            value_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
+
+        return key_serializer, value_serializer
+
+    def teardown(self):
+        """Clean up test environment"""
+        self.logger.info("Test completed - external Kafka service remains running")
