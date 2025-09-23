@@ -56,7 +56,7 @@ class BufferTimeoutManager:
         2. **Self-Canceling**: The task stops itself if the manager is garbage collected
         3. **Adaptive Check Interval**: Uses timeout to determine check frequency
         """
-        if self._timeout <= 0:
+        if not self._timeout or self._timeout <= 0:
             return  # Timeout disabled
             
         self._running = True
@@ -116,7 +116,8 @@ class BufferTimeoutManager:
                     manager.mark_activity()
                 except Exception:
                     logger.error("Error flushing buffer due to timeout", exc_info=True)
-                    # Don't let buffer flush errors crash the timeout task
+                    # Re-raise all exceptions - don't swallow any errors
+                    raise
     
     async def _flush_buffer_due_to_timeout(self):
         """Flush buffer due to timeout by coordinating batch processor and executor
@@ -127,7 +128,7 @@ class BufferTimeoutManager:
         3. Clear the processed messages from the buffer
         """
         # Create batches from current buffer
-        batches = self._create_batches_for_timeout_flush()
+        batches = self._batch_processor.create_batches()
         
         # Execute all batches
         for batch in batches:
@@ -136,11 +137,4 @@ class BufferTimeoutManager:
         # Clear the buffer since all messages were processed
         self._batch_processor.clear_buffer()
     
-    def _create_batches_for_timeout_flush(self):
-        """Create MessageBatch objects for timeout flush
-        
-        Returns:
-            List[MessageBatch]: List of immutable MessageBatch objects
-        """
-        return self._batch_processor.create_batches()
 

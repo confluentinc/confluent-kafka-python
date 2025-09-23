@@ -100,8 +100,8 @@ class AIOProducer:
                 self._buffer_timeout_manager.mark_activity()
             except Exception:
                 logger.error("Error flushing buffer", exc_info=True)
-                # Don't let flush errors prevent cleanup
-                pass
+                # Re-raise all exceptions - don't swallow any errors
+                raise
         
         # Shutdown the ThreadPool executor and wait for any remaining tasks to complete
         # This ensures that all pending poll(), flush(), and other blocking operations

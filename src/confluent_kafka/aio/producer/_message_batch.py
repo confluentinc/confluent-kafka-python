@@ -12,27 +12,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from collections import namedtuple
-from typing import List, Any, Optional
+from typing import NamedTuple, Sequence, Any, Optional
+import asyncio
 
 
-# Create immutable MessageBatch value object
-MessageBatch = namedtuple('MessageBatch', [
-    'topic',        # str: Target topic for this batch
-    'messages',     # tuple: Prepared message dictionaries with callbacks
-    'futures',      # tuple: asyncio.Future objects to resolve
-])
-
-
-def create_message_batch(topic: str, messages: List[dict], futures: List[Any], callbacks: Optional[Any] = None) -> MessageBatch:
-    """Create an immutable MessageBatch from lists
+# Create immutable MessageBatch value object using modern typing
+class MessageBatch(NamedTuple):
+    """Immutable batch of messages for Kafka production
     
-    This factory function converts mutable lists into an immutable MessageBatch object.
+    This represents a group of messages destined for the same topic,
+    along with their associated futures for delivery confirmation.
+    """
+    topic: str                                    # Target topic for this batch
+    messages: Sequence[dict]                      # Prepared message dictionaries
+    futures: Sequence[asyncio.Future]             # Futures to resolve on delivery
+    
+    @property
+    def size(self) -> int:
+        """Get the number of messages in this batch"""
+        return len(self.messages)
+    
+    @property  
+    def info(self) -> str:
+        """Get a string representation of batch info"""
+        return f"MessageBatch(topic='{self.topic}', size={len(self.messages)})"
+
+
+def create_message_batch(topic: str, messages: Sequence[dict], futures: Sequence[asyncio.Future], callbacks: Optional[Any] = None) -> MessageBatch:
+    """Create an immutable MessageBatch from sequences
+    
+    This factory function converts mutable sequences into an immutable MessageBatch object.
+    Uses tuples internally for immutability while accepting any sequence type as input.
     
     Args:
         topic: Target topic name
-        messages: List of prepared message dictionaries
-        futures: List of asyncio.Future objects
+        messages: Sequence of prepared message dictionaries
+        futures: Sequence of asyncio.Future objects
         callbacks: Deprecated parameter, ignored for backwards compatibility
         
     Returns:
@@ -40,20 +55,8 @@ def create_message_batch(topic: str, messages: List[dict], futures: List[Any], c
     """
     return MessageBatch(
         topic=topic,
-        messages=tuple(messages),
-        futures=tuple(futures)
+        messages=tuple(messages) if not isinstance(messages, tuple) else messages,
+        futures=tuple(futures) if not isinstance(futures, tuple) else futures
     )
 
 
-# Add convenience properties to MessageBatch
-def _get_batch_size(self) -> int:
-    """Get the number of messages in this batch"""
-    return len(self.messages)
-
-def _get_batch_info(self) -> str:
-    """Get a string representation of batch info"""
-    return f"MessageBatch(topic='{self.topic}', size={len(self.messages)})"
-
-# Monkey-patch methods onto the namedtuple
-MessageBatch.size = property(_get_batch_size)
-MessageBatch.info = property(_get_batch_info)
