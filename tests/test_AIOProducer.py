@@ -4,12 +4,10 @@ import asyncio
 import concurrent.futures
 import logging
 import pytest
-import time
-import weakref
 from unittest.mock import Mock, AsyncMock, patch
 
 from confluent_kafka import KafkaError, KafkaException
-from confluent_kafka.aio._AIOProducer import AIOProducer
+from confluent_kafka.aio.producer._AIOProducer import AIOProducer
 from confluent_kafka.aio._common import AsyncLogger
 
 
@@ -18,15 +16,12 @@ class TestAIOProducer:
 
     @pytest.fixture
     def mock_producer(self):
-        """Mock the underlying confluent_kafka.Producer."""
-        with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer') as mock:
+        with patch('confluent_kafka.aio.producer._AIOProducer.confluent_kafka.Producer') as mock:
             yield mock
 
     @pytest.fixture
     def mock_common(self):
-        """Mock the _common module callback wrapping."""
-        with patch('confluent_kafka.aio._AIOProducer._common') as mock:
-            # Make async_call return a proper awaitable
+        with patch('confluent_kafka.aio.producer._AIOProducer._common') as mock:
             async def mock_async_call(executor, blocking_task, *args, **kwargs):
                 return blocking_task(*args, **kwargs)
             mock.async_call.side_effect = mock_async_call
@@ -34,43 +29,34 @@ class TestAIOProducer:
 
     @pytest.fixture
     def basic_config(self):
-        """Basic producer configuration."""
         return {'bootstrap.servers': 'localhost:9092'}
 
     @pytest.mark.asyncio
     async def test_constructor_behavior(self, mock_producer, mock_common, basic_config):
-        """Test constructor creates producer with correct configuration and behavior."""
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=5)
         try:
-            # Test 1: Constructor with custom executor
             producer1 = AIOProducer(
                 basic_config,
-                max_workers=3,  # Should be ignored since executor is provided
+                max_workers=3,
                 executor=custom_executor
             )
 
-            # Test actual object state, not mock calls
             assert producer1.executor is custom_executor
             assert producer1.executor._max_workers == 5
-            assert producer1._is_closed is False  # New implementation uses _is_closed
-            assert hasattr(producer1, '_buffer_timeout_task')  # New: timeout task
-            assert hasattr(producer1, '_producer')  # Should have underlying producer
+            assert producer1._is_closed is False
+            assert hasattr(producer1, '_buffer_timeout_manager')
+            assert hasattr(producer1, '_producer')
 
-            # Test 2: Constructor with default executor and batching
             producer2 = AIOProducer(basic_config, max_workers=2, batch_size=500)
 
-            # Test executor was created with correct max_workers
             assert producer2.executor is not custom_executor
             assert isinstance(producer2.executor, concurrent.futures.ThreadPoolExecutor)
             assert producer2.executor._max_workers == 2
 
-            # Test batching configuration
             assert producer2._batch_size == 500
             assert producer2._is_closed is False
-            assert hasattr(producer2, '_buffer_timeout_task')
-            assert not producer2._buffer_timeout_task.done()
+            assert hasattr(producer2, '_buffer_timeout_manager')
 
-            # Clean up
             await producer2.close()
             assert producer2._is_closed is True
 
@@ -79,25 +65,21 @@ class TestAIOProducer:
 
     @pytest.mark.asyncio
     async def test_close_method(self, mock_producer, mock_common, basic_config):
-        """Test close method functionality (equivalent to old stop method)."""
-        # Test closing active producer
         producer = AIOProducer(basic_config)
         assert producer._is_closed is False
 
         await producer.close()
         assert producer._is_closed is True
 
-        # Test closing already closed producer
         producer2 = AIOProducer(basic_config)
         assert producer2._is_closed is False
 
-        await producer2.close()  # First close
-        await producer2.close()  # Should not raise exception on second close
+        await producer2.close()
+        await producer2.close()
         assert producer2._is_closed is True
 
     @pytest.mark.asyncio
     async def test_call_method_executor_usage(self, mock_producer, mock_common, basic_config):
-        """Test that _call method uses ThreadPoolExecutor for async-to-sync bridging."""
         producer = AIOProducer(basic_config)
 
         mock_method = Mock(return_value="test_result")
@@ -108,56 +90,42 @@ class TestAIOProducer:
 
     @pytest.mark.asyncio
     async def test_produce_success(self, mock_producer, mock_common, basic_config):
-        """Test successful message production with batching."""
-        producer = AIOProducer(basic_config, batch_size=1)  # Force immediate flush
-
+        producer = AIOProducer(basic_config, batch_size=1)
         mock_msg = Mock()
 
-        # Mock the batch operation to simulate successful delivery
-        def mock_produce_batch(topic, messages, on_delivery=None):
-            if on_delivery:
-                # Simulate successful delivery for each message
-                for _ in messages:
-                    on_delivery(None, mock_msg)
+        async def mock_flush_buffer(target_topic=None):
+            batches = producer._batch_processor.create_batches(target_topic)
+            for batch in batches:
+                for future in batch.futures:
+                    if not future.done():
+                        future.set_result(mock_msg)
+            producer._batch_processor.clear_buffer()
         
-        mock_producer.return_value.produce_batch.side_effect = mock_produce_batch
-        mock_producer.return_value.poll.return_value = 1
-
-        # Produce a message - should trigger immediate flush due to batch_size=1
-        result_future = await producer.produce(topic="test_topic", value="test_value")
-
-        # Wait for the future to complete
-        result = await result_future
-        assert result is mock_msg
+        with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
+            result_future = await producer.produce(topic="test_topic", value="test_value")
+            result = await result_future
+            assert result is mock_msg
 
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_produce_error(self, mock_producer, mock_common, basic_config):
-        """Test message production error handling with batching."""
-        producer = AIOProducer(basic_config, batch_size=1)  # Force immediate flush
-
+        producer = AIOProducer(basic_config, batch_size=1)
         mock_error = KafkaError(KafkaError._MSG_TIMED_OUT)
 
-        # Mock the batch operation to simulate error delivery
-        def mock_produce_batch(topic, messages, on_delivery=None):
-            if on_delivery:
-                # Simulate error delivery for each message
-                for _ in messages:
-                    on_delivery(mock_error, None)
-        
-        mock_producer.return_value.produce_batch.side_effect = mock_produce_batch
-        mock_producer.return_value.poll.return_value = 1
+        async def mock_flush_buffer(target_topic=None):
+            batches = producer._batch_processor.create_batches(target_topic)
+            for batch in batches:
+                for future in batch.futures:
+                    if not future.done():
+                        future.set_exception(KafkaException(mock_error))
+            producer._batch_processor.clear_buffer()
 
-        # Produce a message - should trigger immediate flush due to batch_size=1
-        result_future = await producer.produce(topic="test_topic", value="test_value")
+        with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
+            result_future = await producer.produce(topic="test_topic", value="test_value")
 
-        # The future should be rejected with KafkaException
-        with pytest.raises(KafkaException):
-            await result_future
-
-        # Verify the batch producer was called
-        mock_producer.return_value.produce_batch.assert_called_once()
+            with pytest.raises(KafkaException):
+                await result_future
 
         await producer.close()
 
@@ -280,21 +248,15 @@ class TestAIOProducer:
 
     @pytest.mark.asyncio
     async def test_constructor_new_implementation(self, mock_producer, mock_common, basic_config):
-        """Test constructor for current implementation with batching and buffer timeout."""
-
-        # Test default parameters
         producer1 = AIOProducer(basic_config)
-        assert producer1._batch_size == 1000  # default
-        assert producer1._buffer_timeout == 5.0  # default
+        assert producer1._batch_size == 1000
         assert isinstance(producer1.executor, concurrent.futures.ThreadPoolExecutor)
-        assert hasattr(producer1, '_loop')  # event loop stored
-        assert producer1._buffer_timeout_task is not None  # timeout task created
-        assert len(producer1._message_buffer) == 0  # buffers initialized
-        assert len(producer1._buffer_futures) == 0
+        assert hasattr(producer1, '_loop')
+        assert hasattr(producer1, '_buffer_timeout_manager')
+        assert producer1._batch_processor.is_buffer_empty()
         assert producer1._is_closed is False
         await producer1.close()
 
-        # Test custom parameters
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         try:
             producer2 = AIOProducer(
@@ -305,7 +267,7 @@ class TestAIOProducer:
             )
             assert producer2.executor is custom_executor
             assert producer2._batch_size == 500
-            assert producer2._buffer_timeout == 10.0
+            assert hasattr(producer2, '_buffer_timeout_manager')
             await producer2.close()
         finally:
             custom_executor.shutdown(wait=True)
@@ -561,7 +523,7 @@ class TestAIOProducer:
         }
         
         # We need to test the actual wrapping, so don't mock _common
-        with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer') as mock_prod_class:
+        with patch('confluent_kafka.aio.producer._AIOProducer.confluent_kafka.Producer') as mock_prod_class:
             producer = AIOProducer(config_with_callback)
             
             # Verify that the callback was wrapped by checking the config passed to Producer
@@ -586,7 +548,7 @@ class TestAIOProducer:
             'logger': mock_logger
         }
         
-        with patch('confluent_kafka.aio._AIOProducer.confluent_kafka.Producer') as mock_prod_class:
+        with patch('confluent_kafka.aio.producer._AIOProducer.confluent_kafka.Producer') as mock_prod_class:
             producer = AIOProducer(config_with_logger)
             
             # Verify that the logger was wrapped

@@ -103,5 +103,8 @@ class ProducerBatchExecutor:
                     error = msg_dict['_error']
                     # Manually invoke the callback with the error
                     # Note: msg is None since the message failed before being queued
-                    # Let callback exceptions propagate - don't swallow them
-                    callback(error, None)
+                    try:
+                        callback(error, None)
+                    except Exception:
+                        logger.warning("Exception in callback during partial failure handling", exc_info=True)
+                        raise
