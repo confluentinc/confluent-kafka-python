@@ -16,9 +16,8 @@ import asyncio
 import copy
 import logging
 
-from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 from confluent_kafka import KafkaException as _KafkaException
-from confluent_kafka.aio.producer._message_batch import MessageBatch, create_message_batch
+from confluent_kafka.aio.producer._message_batch import create_message_batch
 
 logger = logging.getLogger(__name__)
 

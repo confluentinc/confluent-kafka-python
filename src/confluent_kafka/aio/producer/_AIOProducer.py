@@ -14,13 +14,9 @@
 
 import asyncio
 import concurrent.futures
-import copy
 import logging
-import time
-import weakref
 
 import confluent_kafka
-from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
 from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager
@@ -100,7 +96,6 @@ class AIOProducer:
                 self._buffer_timeout_manager.mark_activity()
             except Exception:
                 logger.error("Error flushing buffer", exc_info=True)
-                # Re-raise all exceptions - don't swallow any errors
                 raise
         
         # Shutdown the ThreadPool executor and wait for any remaining tasks to complete
@@ -178,6 +173,9 @@ class AIOProducer:
         if 'timestamp' in kwargs:
             msg_data['timestamp'] = kwargs['timestamp']
         if 'headers' in kwargs:
+            # NOTE: Headers are currently ignored in batch mode due to librdkafka API limitations.
+            # The headers will be silently discarded when messages are sent via rd_kafka_produce_batch().
+            # Use individual synchronous produce() calls if headers are required.
             msg_data['headers'] = kwargs['headers']
         
         self._batch_processor.add_message(msg_data, result)
@@ -272,21 +270,6 @@ class AIOProducer:
         await self._batch_processor.flush_buffer(target_topic)
 
     
-    def create_batches_preview(self, target_topic=None):
-        """Create a preview of batches that would be created from current buffer
-        
-        This method demonstrates the clean separation: AIOProducer can easily
-        inspect what batches would be created without executing them.
-        
-        Args:
-            target_topic: Optional topic to preview (None for all topics)
-            
-        Returns:
-            List[MessageBatch]: List of immutable MessageBatch objects that would be processed
-        """
-        return self._batch_processor.create_batches(target_topic)
-
-
     # ========================================================================
     # UTILITY METHODS - Helper functions and internal utilities
     # ========================================================================
