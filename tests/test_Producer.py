@@ -293,44 +293,60 @@ def test_producer_bool_value():
     assert bool(p)
 
 
-def test_produce_batch_core_functionality():
-    """
-    Consolidated test covering core functionality, data types, encoding, and API limitations.
-    
-    Combines: test_produce_batch_basic_functionality + test_produce_batch_edge_cases + 
-              test_produce_batch_unsupported_features
-    Scenarios: 36 total
-    """
+def test_produce_batch_basic_types_and_data():
+    """Test basic data types, None/empty handling, and partition functionality."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === BASIC FUNCTIONALITY (19 scenarios) ===
-    
-    # Test 1: Mixed data types
     basic_messages = [
         {'value': b'bytes_message', 'key': b'bytes_key'},
         {'value': 'string_message', 'key': 'string_key'},
         {'value': 'unicode: 你好', 'key': b'mixed_key'},
-        {'value': None, 'key': None},  # None values
-        {'value': b'', 'key': ''},     # Empty values
-        {}  # Empty dict
+        {'value': None, 'key': None},
+        {'value': b'', 'key': ''},
+        {}
     ]
     count = producer.produce_batch('test-topic', basic_messages)
     assert count == 6
     for msg in basic_messages:
         assert '_error' not in msg
     
-    # Test 2: Zero-length vs None distinction (5 scenarios)
     zero_vs_none_messages = [
-        {'value': b'', 'key': b''},      # Zero-length bytes
-        {'value': '', 'key': ''},        # Zero-length strings  
-        {'value': None, 'key': None},    # None values
-        {'value': b'data', 'key': None}, # Mixed None/data
-        {'value': None, 'key': b'key'},  # Mixed data/None
+        {'value': b'', 'key': b''},
+        {'value': '', 'key': ''},
+        {'value': None, 'key': None},
+        {'value': b'data', 'key': None},
+        {'value': None, 'key': b'key'},
     ]
     count = producer.produce_batch('test-topic', zero_vs_none_messages)
     assert count == 5
     
-    # Test 3: Mixed encoding strings (5 scenarios)
+    binary_messages = [
+        {'value': b'\x00' * 100, 'key': b'null_bytes'},
+        {'value': bytes(range(256)), 'key': b'all_bytes'},
+        {'value': b'\xff' * 100, 'key': b'high_bytes'},
+    ]
+    count = producer.produce_batch('test-topic', binary_messages)
+    assert count == 3
+    
+    partition_messages = [
+        {'value': b'default_partition'},
+        {'value': b'specific_partition', 'partition': 1},
+        {'value': b'another_partition', 'partition': 2}
+    ]
+    count = producer.produce_batch('test-topic', partition_messages, partition=0)
+    assert count == 3
+    
+    count = producer.produce_batch('test-topic', [])
+    assert count == 0
+    
+    count = producer.produce_batch('test-topic', [{'value': b'single'}])
+    assert count == 1
+    
+
+def test_produce_batch_encoding_and_unicode():
+    """Test advanced encoding, Unicode handling, and large message scenarios."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
+    
     encoding_messages = [
         {'value': 'UTF-8: café', 'key': 'utf8'},
         {'value': 'Emoji: 🚀🎉', 'key': '🔑'},
@@ -341,40 +357,6 @@ def test_produce_batch_core_functionality():
     count = producer.produce_batch('test-topic', encoding_messages)
     assert count == 5
     
-    # Test 4: Binary data edge cases (3 scenarios)
-    binary_messages = [
-        {'value': b'\x00' * 100, 'key': b'null_bytes'},     # Null bytes
-        {'value': bytes(range(256)), 'key': b'all_bytes'},  # All possible byte values
-        {'value': b'\xff' * 100, 'key': b'high_bytes'},     # High byte values
-    ]
-    count = producer.produce_batch('test-topic', binary_messages)
-    assert count == 3
-    
-    # Test 5: Partition handling, empty batch, single message, large batch
-    partition_messages = [
-        {'value': b'default_partition'},
-        {'value': b'specific_partition', 'partition': 1},
-        {'value': b'another_partition', 'partition': 2}
-    ]
-    count = producer.produce_batch('test-topic', partition_messages, partition=0)
-    assert count == 3
-    
-    # Empty batch
-    count = producer.produce_batch('test-topic', [])
-    assert count == 0
-    
-    # Single message
-    count = producer.produce_batch('test-topic', [{'value': b'single'}])
-    assert count == 1
-    
-    # Large batch (100 messages)
-    large_messages = [{'value': f'msg_{i}'.encode()} for i in range(100)]
-    count = producer.produce_batch('test-topic', large_messages)
-    assert count == 100
-    
-    # === EDGE CASES (15 scenarios) ===
-    
-    # Test 6: Advanced Unicode and encoding
     unicode_messages = [
         {'value': '🚀 emoji', 'key': '🔑 key'},
         {'value': '中文消息', 'key': '中文键'},
@@ -382,48 +364,50 @@ def test_produce_batch_core_functionality():
         {'value': 'Здравствуй', 'key': 'ключ'},
         {'value': '\x00\x01\x02', 'key': 'control'},
         {'value': 'UTF-8: 你好'.encode('utf-8'), 'key': b'bytes_utf8'},
-        {'value': b'\x80\x81\x82', 'key': 'binary'}  # Non-UTF8 bytes
+        {'value': b'\x80\x81\x82', 'key': 'binary'}
     ]
     count = producer.produce_batch('test-topic', unicode_messages)
     assert count == len(unicode_messages)
+
+
+def test_produce_batch_scalability_and_limits():
+    """Test batch scalability, large messages, and API limitations."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # Test 7: Large messages and scalability
-    large_payload = b'x' * (100 * 1024)  # 100KB message
+    large_messages = [{'value': f'msg_{i}'.encode()} for i in range(100)]
+    count = producer.produce_batch('test-topic', large_messages)
+    assert count == 100
+    
+    large_payload = b'x' * (100 * 1024)
     large_messages = [
         {'value': large_payload, 'key': b'large1'},
         {'value': b'small', 'key': b'small1'},
         {'value': large_payload, 'key': b'large2'}
     ]
     count = producer.produce_batch('test-topic', large_messages)
-    assert count >= 0  # May succeed or fail based on broker config
+    assert count >= 0
     
-    # Very long strings (1MB)
     long_string = 'x' * (1024 * 1024)
     long_string_messages = [
         {'value': long_string, 'key': 'long_value'},
-        {'value': 'short', 'key': long_string},  # Long key
+        {'value': 'short', 'key': long_string},
     ]
     count = producer.produce_batch('test-topic', long_string_messages)
     assert count >= 0
     
-    # Test 8: Batch size scalability
     batch_sizes = [1, 10, 100, 500]
     for size in batch_sizes:
         messages = [{'value': f'scale_{size}_{i}'.encode()} for i in range(size)]
         count = producer.produce_batch('test-topic', messages)
         assert count == size, f"Failed for batch size {size}"
     
-    # === UNSUPPORTED FEATURES (2 scenarios) ===
-    
-    # Test 9: Timestamps not supported
     messages_with_timestamp = [{'value': b'msg', 'timestamp': 1234567890}]
     with pytest.raises(NotImplementedError, match="Message timestamps are not currently supported"):
         producer.produce_batch('test-topic', messages_with_timestamp)
     
-    # Test 10: Headers parsed but ignored
     messages_with_headers = [{'value': b'msg', 'headers': {'key': b'value'}}]
     count = producer.produce_batch('test-topic', messages_with_headers)
-    assert count == 1  # Should succeed but headers are ignored
+    assert count == 1
 
 
 @pytest.mark.parametrize("invalid_input,expected_error", [
@@ -437,26 +421,17 @@ def test_produce_batch_core_functionality():
     ([{'value': b'test', 'partition': 2147483647}], None),  # Max int32
     ([{'value': b'test', 'partition': 999999}], None),  # Very large partition
 ])
-def test_produce_batch_validation_and_errors(invalid_input, expected_error):
-    """
-    Consolidated test covering input validation, argument validation, and error handling.
-    
-    Combines: test_produce_batch_input_validation + test_produce_batch_argument_and_topic_validation + 
-              test_produce_batch_partial_failures
-    Scenarios: 27 total
-    """
+def test_produce_batch_input_validation(invalid_input, expected_error):
+    """Test input validation and message field validation."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === INPUT VALIDATION (14 scenarios) ===
-    
     if expected_error is None:
-        # These cases should not raise exceptions during validation
         count = producer.produce_batch('test-topic', invalid_input)
         assert count >= 0
     else:
         with pytest.raises((TypeError, ValueError), match=expected_error):
             producer.produce_batch('test-topic', invalid_input)
-    # Test unexpected message fields (should be ignored gracefully)
+    
     messages_with_extras = [{
         'value': b'normal', 'key': b'normal', 'partition': 0,
         'callback': lambda err, msg: None,
@@ -465,81 +440,72 @@ def test_produce_batch_validation_and_errors(invalid_input, expected_error):
     count = producer.produce_batch('test-topic', messages_with_extras)
     assert count == 1
     
-    # Test special characters in topic names
     special_topics = ["topic-with-dashes", "topic_with_underscores", "topic.with.dots", "topic123numbers"]
     for topic in special_topics:
         try:
             count = producer.produce_batch(topic, [{'value': b'test'}])
             assert count >= 0
         except (KafkaException, ValueError, TypeError):
-            assert True  # Some topic names may be invalid depending on broker config
+            assert True
+
+
+def test_produce_batch_argument_validation():
+    """Test function argument validation and topic name handling."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === ARGUMENT VALIDATION (7 scenarios) ===
-    
-    # Missing positional arguments
     with pytest.raises(TypeError):
         producer.produce_batch()
     
-    # Wrong argument types
     with pytest.raises(TypeError):
-        producer.produce_batch(123, [{'value': b'test'}])  # topic not string
+        producer.produce_batch(123, [{'value': b'test'}])
     
-    # Invalid partition values
     with pytest.raises((TypeError, ValueError)):
         producer.produce_batch('topic', [{'value': b'test'}], partition="invalid")
     
-    # Invalid topic names
     try:
         producer.produce_batch("", [{'value': b'test'}])
-        assert True  # Empty topic accepted
+        assert True
     except (TypeError, ValueError, KafkaException):
-        assert True  # Expected - empty topic should fail
+        assert True
     
-    # Very long topic name
     very_long_topic = "a" * 300
     try:
         count = producer.produce_batch(very_long_topic, [{'value': b'test'}])
         assert count >= 0
     except (TypeError, ValueError, KafkaException):
-        assert True  # Also expected
+        assert True
     
-    # None topic
     with pytest.raises(TypeError):
         producer.produce_batch(None, [{'value': b'test'}])
     
-    # Non-callable callbacks
     try:
         producer.produce_batch('topic', [{'value': b'test'}], callback="not_callable")
-        assert True  # Validation deferred
+        assert True
     except (TypeError, AttributeError):
-        assert True  # Expected behavior
-    
-    # === PARTIAL FAILURES (6 scenarios) ===
-    
-    # Configure small queue to trigger failures
+        assert True
+
+
+def test_produce_batch_partial_failures():
+    """Test partial failure scenarios and error annotation."""
     small_queue_producer = Producer({
         'bootstrap.servers': 'localhost:9092',
         'queue.buffering.max.messages': 5
     })
     
-    # Fill up the queue first
     try:
         for i in range(10):
             small_queue_producer.produce('test-topic', f'filler_{i}')
     except BufferError:
-        assert True  # Expected when queue fills up
+        assert True
     
-    # Test partial failures
     messages = [{'value': f'batch_msg_{i}'.encode()} for i in range(10)]
     count = small_queue_producer.produce_batch('test-topic', messages)
     assert 0 <= count <= len(messages)
     
-    # Verify error annotations
     failed_messages = [msg for msg in messages if '_error' in msg]
     successful_count = len(messages) - len(failed_messages)
     assert successful_count == count
     
-    # Test restrictive producer limits
     restrictive_producer = Producer({
         'bootstrap.servers': 'localhost:9092',
         'queue.buffering.max.messages': 1,
@@ -547,33 +513,23 @@ def test_produce_batch_validation_and_errors(invalid_input, expected_error):
     })
     
     mixed_size_messages = [
-        {'value': b'small'},          # Should pass
-        {'value': b'x' * 2000},       # Should fail (too large)
-        {'value': b'tiny'},           # Should pass
+        {'value': b'small'},
+        {'value': b'x' * 2000},
+        {'value': b'tiny'},
     ]
     count = restrictive_producer.produce_batch('test-topic', mixed_size_messages)
     assert 0 <= count <= 3
     
-    # All messages failing scenario
-    all_fail_messages = [{'value': b'x' * 10000} for _ in range(3)]  # All too large
+    all_fail_messages = [{'value': b'x' * 10000} for _ in range(3)]
     count = restrictive_producer.produce_batch('test-topic', all_fail_messages)
     assert count == 0
     assert all('_error' in msg for msg in all_fail_messages)
 
 
-def test_produce_batch_callbacks_and_exceptions():
-    """
-    Consolidated test covering callback mechanisms, advanced callback scenarios, and exception handling.
-    
-    Combines: test_produce_batch_callback_mechanisms + test_produce_batch_callback_advanced + 
-              test_produce_batch_exception_propagation
-    Scenarios: 18+ total
-    """
+def test_produce_batch_callback_mechanisms():
+    """Test basic callback mechanisms and distribution."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === CALLBACK MECHANISMS (10+ scenarios) ===
-    
-    # Callback tracking
     global_calls = []
     callback1_calls = []
     callback2_calls = []
@@ -592,38 +548,33 @@ def test_produce_batch_callbacks_and_exceptions():
         exception_calls.append(msg.value())
         raise ValueError("Test callback exception")
     
-    # Test mixed callback scenarios
     messages = [
-        {'value': b'msg1', 'callback': callback1},      # Per-message callback
-        {'value': b'msg2'},                             # Uses global callback
-        {'value': b'msg3', 'callback': callback2},      # Different per-message callback
-        {'value': b'msg4'},                             # Uses global callback
-        {'value': b'msg5', 'callback': exception_callback}  # Callback that throws
+        {'value': b'msg1', 'callback': callback1},
+        {'value': b'msg2'},
+        {'value': b'msg3', 'callback': callback2},
+        {'value': b'msg4'},
+        {'value': b'msg5', 'callback': exception_callback}
     ]
     
     count = producer.produce_batch('test-topic', messages, on_delivery=global_callback)
     assert count == 5
     
-    # Flush to trigger all callbacks
     try:
         producer.flush()
     except ValueError as e:
         assert "Test callback exception" in str(e)
     
-    # Verify callback distribution
     assert callback1_calls == [b'msg1']
     assert callback2_calls == [b'msg3']
     assert exception_calls == [b'msg5']
     global_values = [msg for err, msg in global_calls]
     assert set(global_values) == {b'msg2', b'msg4'}
     
-    # Test no callbacks scenario
     no_callback_messages = [{'value': b'no_cb_msg'}]
     count = producer.produce_batch('test-topic', no_callback_messages)
     assert count == 1
-    producer.flush()  # Should not crash
+    producer.flush()
     
-    # Test callback parameter aliases
     alias_calls = []
     def alias_callback(err, msg):
         alias_calls.append(msg.value())
@@ -633,13 +584,15 @@ def test_produce_batch_callbacks_and_exceptions():
     assert count1 == 1 and count2 == 1
     producer.flush()
     assert set(alias_calls) == {b'alias1', b'alias2'}
+
+
+def test_produce_batch_callback_advanced():
+    """Test advanced callback scenarios and edge cases."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === ADVANCED CALLBACK SCENARIOS (4 scenarios) ===
-    
-    # Test circular reference in callback
     circular_calls = []
     def circular_callback(err, msg):
-        circular_callback.self_ref = circular_callback  # Create circular reference
+        circular_callback.self_ref = circular_callback
         circular_calls.append(msg.value() if msg else None)
         
     messages = [{'value': b'circular', 'callback': circular_callback}]
@@ -647,21 +600,22 @@ def test_produce_batch_callbacks_and_exceptions():
     assert count == 1
     producer.flush()
     
-    # Test slow callbacks (performance impact)
     slow_calls = []
     def slow_callback(err, msg):
-        time.sleep(0.01)  # Simulate slow callback (10ms)
+        time.sleep(0.01)
         slow_calls.append(msg.value() if msg else None)
         
     slow_messages = [{'value': f'slow_{i}'.encode(), 'callback': slow_callback} for i in range(5)]
     count = producer.produce_batch('test-topic', slow_messages)
-    producer.flush(2.0)  # Allow time for slow callbacks
+    producer.flush(2.0)
     assert count == 5
     assert len(slow_calls) == 5
+
+
+def test_produce_batch_exception_propagation():
+    """Test exception handling and propagation from callbacks."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === EXCEPTION PROPAGATION (4 scenarios) ===
-    
-    # Test exception propagation during flush
     exception_calls_2 = []
     def exception_callback_2(err, msg):
         exception_calls_2.append(msg.value() if msg else None)
@@ -675,14 +629,12 @@ def test_produce_batch_callbacks_and_exceptions():
     count = producer.produce_batch('test-topic', messages)
     assert count == 3
     
-    # Flush should propagate callback exceptions
     try:
         producer.flush(1.0)
     except RuntimeError as e:
         assert "Critical callback error" in str(e)
         assert len(exception_calls_2) == 1
     
-    # Test multiple callback exceptions
     multi_exception_calls = []
     def multi_exception_callback(err, msg):
         multi_exception_calls.append(msg.value() if msg else None)
@@ -698,22 +650,13 @@ def test_produce_batch_callbacks_and_exceptions():
     try:
         producer.flush(1.0)
     except (RuntimeError, ValueError):
-        pass  # Either exception type is acceptable
+        assert True
     
     assert len(multi_exception_calls) >= 1
 
 
-def test_produce_batch_concurrency_and_threading():
-    """
-    Consolidated test covering threading, race conditions, and message state corruption.
-    
-    Combines: test_produce_batch_configuration_and_concurrency + test_produce_batch_race_conditions_advanced + 
-              test_produce_batch_message_state_corruption
-    Scenarios: 19+ total
-    """
-    # === CONFIGURATION & BASIC THREADING (12+ scenarios) ===
-    
-    # Test different producer configurations
+def test_produce_batch_threading_basic():
+    """Test basic threading and producer configurations."""
     configs = [
         {'bootstrap.servers': 'localhost:9092', 'acks': 'all'},
         {'bootstrap.servers': 'localhost:9092', 'acks': '0'},
@@ -728,7 +671,6 @@ def test_produce_batch_concurrency_and_threading():
         count = producer.produce_batch('test-topic', messages)
         assert count == 5, f"Failed with config {config}"
     
-    # Test thread safety with shared producer
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     results = []
     errors = []
@@ -762,7 +704,6 @@ def test_produce_batch_concurrency_and_threading():
     for thread_id, batch_num, count in results:
         assert count == 5, f"Thread {thread_id} batch {batch_num} failed: {count}/5"
     
-    # Test rapid successive batch calls
     rapid_producer = Producer({'bootstrap.servers': 'localhost:9092'})
     total_count = 0
     for batch_num in range(10):
@@ -770,10 +711,10 @@ def test_produce_batch_concurrency_and_threading():
         count = rapid_producer.produce_batch('test-topic', messages)
         total_count += count
     assert total_count == 100
-    
-    # === ADVANCED RACE CONDITIONS (4 scenarios) ===
-    
-    # Test rapid fire from multiple threads with resource contention
+
+
+def test_produce_batch_race_conditions():
+    """Test advanced race conditions and resource contention."""
     race_producer = Producer({'bootstrap.servers': 'localhost:9092'})
     race_results = []
     race_errors = []
@@ -782,7 +723,6 @@ def test_produce_batch_concurrency_and_threading():
     def racing_producer(thread_id):
         try:
             for batch_num in range(3):
-                # Create contention by accessing shared data
                 contention_data['counter'] += 1
                 shared_value = contention_data['counter']
                 
@@ -794,12 +734,11 @@ def test_produce_batch_concurrency_and_threading():
                 contention_data['messages'].extend(messages)
                 count = race_producer.produce_batch('test-topic', messages)
                 race_results.append((thread_id, batch_num, count))
-                time.sleep(0.001)  # Small delay to increase chance of race conditions
+                time.sleep(0.001)
                 
         except Exception as e:
             race_errors.append((thread_id, e))
     
-    # Start racing threads
     race_threads = []
     for i in range(4):
         t = threading.Thread(target=racing_producer, args=(i,))
@@ -811,10 +750,12 @@ def test_produce_batch_concurrency_and_threading():
     
     assert len(race_results) == 12, f"Expected 12 results, got {len(race_results)}"
     assert len(race_errors) == 0, f"Unexpected errors: {race_errors}"
+
+
+def test_produce_batch_message_corruption():
+    """Test message state corruption and recursive callback scenarios."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === MESSAGE STATE CORRUPTION (3 scenarios) ===
-    
-    # Test message list modification during callback
     original_messages = [
         {'value': b'msg1'},
         {'value': b'msg2'},
@@ -837,11 +778,10 @@ def test_produce_batch_concurrency_and_threading():
     producer.flush(1.0)
     assert len(corruption_attempts) >= 1
     
-    # Test recursive produce_batch calls from callback
     recursive_calls = []
     
     def recursive_callback(err, msg):
-        if len(recursive_calls) < 2:  # Prevent infinite recursion
+        if len(recursive_calls) < 2:
             recursive_calls.append(msg.value() if msg else None)
             try:
                 new_messages = [{'value': f'recursive_{len(recursive_calls)}'.encode()}]
@@ -856,26 +796,16 @@ def test_produce_batch_concurrency_and_threading():
     assert len(recursive_calls) >= 1
 
 
-def test_produce_batch_memory_and_resources():
-    """
-    Consolidated test covering memory management, stress testing, and resource lifecycle.
-    
-    Combines: test_produce_batch_memory_stress + test_produce_batch_memory_critical_scenarios + 
-              test_produce_batch_resource_management
-    Scenarios: 11 total
-    """
+def test_produce_batch_memory_stress():
+    """Test memory stress scenarios and cleanup verification."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === MEMORY STRESS (4 scenarios) ===
-    
-    # Test maximum message count (stress test)
-    max_messages = [{'value': f'msg_{i}'.encode()} for i in range(5000)]  # Reduced from 10k for faster testing
+    max_messages = [{'value': f'msg_{i}'.encode()} for i in range(5000)]
     count = producer.produce_batch('test-topic', max_messages)
     assert 0 <= count <= len(max_messages)
     
-    # Test deep nested message structure
     nested_messages = []
-    for i in range(500):  # Reduced from 1000 for faster testing
+    for i in range(500):
         nested_messages.append({
             'value': f'nested_{i}'.encode(),
             'key': f'key_{i}'.encode(),
@@ -885,8 +815,7 @@ def test_produce_batch_memory_and_resources():
     count = producer.produce_batch('test-topic', nested_messages)
     assert count >= 0
     
-    # Test memory cleanup verification
-    for batch_num in range(10):  # Reduced from 20 for faster testing
+    for batch_num in range(10):
         messages = [{'value': f'mem_test_{batch_num}_{i}'.encode()} for i in range(50)]
         count = producer.produce_batch('test-topic', messages)
         assert count >= 0
@@ -897,14 +826,16 @@ def test_produce_batch_memory_and_resources():
     producer.flush()
     gc.collect()
     
-    # === CRITICAL MEMORY SCENARIOS (3 scenarios) ===
+
+def test_produce_batch_memory_critical():
+    """Test critical memory scenarios and producer lifecycle."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # Test producer destruction during active callbacks
     destruction_calls = []
     
     def destruction_callback(err, msg):
         destruction_calls.append(msg.value() if msg else None)
-        time.sleep(0.01)  # Simulate work that might outlast producer
+        time.sleep(0.01)
     
     temp_producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
@@ -915,18 +846,18 @@ def test_produce_batch_memory_and_resources():
     count = temp_producer.produce_batch('test-topic', messages)
     assert count == 2
     
-    temp_producer.flush(0.01)  # Very short timeout
+    temp_producer.flush(0.01)
     del temp_producer
     gc.collect()
-    time.sleep(0.05)  # Allow time for any pending callbacks
+    time.sleep(0.05)
     
-    # Test memory pressure during batch operations
+    
     memory_pressure_batches = []
     try:
-        for i in range(5):  # Reduced from 10 for faster testing
+        for i in range(5):
             large_messages = [
-                {'value': b'x' * 5000}  # Reduced from 10KB for faster testing
-                for j in range(50)      # Reduced from 100 for faster testing
+                {'value': b'x' * 5000}
+                for j in range(50)
             ]
             count = producer.produce_batch(f'memory-pressure-topic-{i}', large_messages)
             memory_pressure_batches.append(count)
@@ -939,19 +870,19 @@ def test_produce_batch_memory_and_resources():
     
     assert len(memory_pressure_batches) > 0
     assert sum(memory_pressure_batches) > 0
-    
-    # === RESOURCE MANAGEMENT (4 scenarios) ===
-    
-    # Test many producers with batch operations
+
+
+def test_produce_batch_resource_management():
+    """Test resource management and handle lifecycle."""
     producers = []
     try:
-        for i in range(10):  # Reduced from 20 for faster testing
+        for i in range(10):
             p = Producer({'bootstrap.servers': 'localhost:9092'})
             producers.append(p)
             
             messages = [{'value': f'producer_{i}_msg_{j}'.encode()} for j in range(5)]
             count = p.produce_batch('test-topic', messages)
-            assert count >= 0
+        assert count >= 0
     finally:
         for p in producers:
             try:
@@ -959,19 +890,17 @@ def test_produce_batch_memory_and_resources():
             except Exception:
                 continue
     
-    # Test rapid batch creation and destruction
-    for i in range(20):  # Reduced from 50 for faster testing
+    for i in range(20):
         temp_messages = [{'value': f'temp_{i}_{j}'.encode()} for j in range(3)]
         temp_producer = Producer({'bootstrap.servers': 'localhost:9092'})
         count = temp_producer.produce_batch('test-topic', temp_messages)
         assert count >= 0
         temp_producer.flush(0.01)
     
-    gc.collect()  # Force cleanup
+    gc.collect()
     
-    # Test handle exhaustion scenario
     handles = []
-    for i in range(50):  # Reduced from 100 for faster testing
+    for i in range(50):
         try:
             messages = [{'value': f'handle_test_{i}'.encode()}]
             temp_producer = Producer({'bootstrap.servers': 'localhost:9092'})
@@ -982,7 +911,6 @@ def test_produce_batch_memory_and_resources():
             print(f"System limits reached at iteration {i}: {type(e).__name__}: {e}")
             break
     
-    # Cleanup all handles
     for handle in handles:
         try:
             handle.flush(0.01)
@@ -990,63 +918,50 @@ def test_produce_batch_memory_and_resources():
             continue
 
 
-def test_produce_batch_limits_and_performance():
-    """
-    Consolidated test covering system limits, performance boundaries, and scalability.
-    
-    Combines: test_produce_batch_error_conditions_and_limits + performance scenarios from other tests
-    Scenarios: 8+ total
-    """
-    # === ERROR CONDITIONS AND LIMITS (5 scenarios) ===
-    
-    # Test specific BufferError testing
+def test_produce_batch_error_conditions():
+    """Test error conditions and system limits."""
     producer_small_queue = Producer({
         'bootstrap.servers': 'localhost:9092',
         'queue.buffering.max.messages': 2
     })
     
-    # Fill queue completely
     try:
         for i in range(5):
             producer_small_queue.produce('test-topic', f'filler_{i}')
     except BufferError:
-        assert True  # Queue is full
-    
-    # This should handle queue full gracefully
+        assert True
     large_batch = [{'value': f'msg_{i}'.encode()} for i in range(10)]
     count = producer_small_queue.produce_batch('test-topic', large_batch)
     assert 0 <= count <= len(large_batch)
     
-    # Test very large batch size
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     very_large_batch = [{'value': f'large_msg_{i}'.encode()} for i in range(1000)]
     count = producer.produce_batch('test-topic', very_large_batch)
     assert count >= 0
     
-    # Test single very large message
-    huge_message = {'value': b'x' * (1024 * 1024)}  # 1MB message
+    huge_message = {'value': b'x' * (1024 * 1024)}
     count = producer.produce_batch('test-topic', [huge_message])
     assert count >= 0
     
-    # Test mixed success/failure with queue limits
     messages_mixed = [
         {'value': b'small1'},
-        {'value': b'x' * (50 * 1024)},  # Large message (50KB)
+        {'value': b'x' * (50 * 1024)},
         {'value': b'small2'},
-        {'value': b'x' * (50 * 1024)},  # Another large message
+        {'value': b'x' * (50 * 1024)},
         {'value': b'small3'},
     ]
     count = producer.produce_batch('test-topic', messages_mixed)
     assert 0 <= count <= len(messages_mixed)
     
-    # Check that failed messages have error annotations
     failed_count = sum(1 for msg in messages_mixed if '_error' in msg)
     success_count = len(messages_mixed) - failed_count
     assert success_count == count
+
+
+def test_produce_batch_performance_scenarios():
+    """Test performance boundaries and scalability."""
+    producer = Producer({'bootstrap.servers': 'localhost:9092'})
     
-    # === PERFORMANCE SCENARIOS (3+ scenarios) ===
-    
-    # Test performance with different batch sizes
     performance_results = []
     batch_sizes = [10, 50, 100, 500, 1000]
     
@@ -1059,12 +974,10 @@ def test_produce_batch_limits_and_performance():
         performance_results.append((size, count, elapsed))
         assert count == size, f"Performance test failed for size {size}"
     
-    # Verify performance scales reasonably (larger batches shouldn't be dramatically slower per message)
     for size, count, elapsed in performance_results:
         per_message_time = elapsed / count if count > 0 else float('inf')
         assert per_message_time < 0.01, f"Performance too slow for batch size {size}: {per_message_time}s per message"
     
-    # Test concurrent performance
     concurrent_producer = Producer({'bootstrap.servers': 'localhost:9092'})
     concurrent_results = []
     
@@ -1078,7 +991,6 @@ def test_produce_batch_limits_and_performance():
         except Exception as e:
             concurrent_results.append((worker_id, 0, float('inf')))
     
-    # Run concurrent batch operations
     concurrent_threads = []
     for i in range(5):
         t = threading.Thread(target=concurrent_batch_worker, args=(i,))
@@ -1088,35 +1000,24 @@ def test_produce_batch_limits_and_performance():
     for t in concurrent_threads:
         t.join()
     
-    # Verify concurrent performance
     assert len(concurrent_results) == 5
     for worker_id, count, elapsed in concurrent_results:
         assert count == 100, f"Concurrent worker {worker_id} failed: {count}/100"
         assert elapsed < 5.0, f"Concurrent worker {worker_id} too slow: {elapsed}s"
 
 
-def test_produce_batch_integrations():
-    """
-    Consolidated test covering framework integrations and compatibility.
-    
-    Combines: test_produce_batch_transactional_integration + test_produce_batch_serialization_integration
-    Scenarios: 6 total
-    """
-    # === TRANSACTIONAL INTEGRATION (3 scenarios) ===
-    
-    # Test transactional producer with batch operations
+def test_produce_batch_transactional_integration():
+    """Test transactional producer integration with batch operations."""
     try:
         transactional_producer = Producer({
             'bootstrap.servers': 'localhost:9092',
             'transactional.id': 'test-batch-txn-' + str(int(time.time()))
         })
         
-        # Initialize transactions (may fail without broker)
         try:
             transactional_producer.init_transactions(0.5)
             transactional_producer.begin_transaction()
             
-            # Batch operations within transaction
             txn_messages = [
                 {'value': f'txn_msg_{i}'.encode()} 
                 for i in range(5)
@@ -1124,28 +1025,24 @@ def test_produce_batch_integrations():
             count = transactional_producer.produce_batch('test-topic', txn_messages)
             assert count == 5
             
-            # Commit transaction
             transactional_producer.commit_transaction(0.5)
             
         except KafkaException as e:
-            # Expected without real broker - test should not crash
             assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT, KafkaError._CONFLICT)
             
         transactional_producer.flush(0.1)
         
     except KafkaException as e:
-        # Configuration may be invalid without broker - verify it's expected error
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT, KafkaError._CONFLICT, KafkaError._INVALID_CONFIG)
-    
-    # === SERIALIZATION INTEGRATION (3 scenarios) ===
-    
-    # Test SerializingProducer compatibility
+
+
+def test_produce_batch_serialization_integration():
+    """Test serialization framework compatibility with batch operations."""
     serializing_producer = SerializingProducer({
         'bootstrap.servers': 'localhost:9092',
         'value.serializer': StringSerializer('utf_8')
     })
     
-    # Check if SerializingProducer supports produce_batch
     if hasattr(serializing_producer, 'produce_batch'):
         serialized_messages = [
             {'value': f'serialized_msg_{i}'} 
@@ -1155,26 +1052,21 @@ def test_produce_batch_integrations():
         assert count >= 0
         serializing_producer.flush(0.5)
     else:
-        # SerializingProducer doesn't support batch - this is expected
         assert not hasattr(serializing_producer, 'produce_batch')
     
-    # Test AvroProducer compatibility
     avro_producer = AvroProducer({
         'bootstrap.servers': 'localhost:9092',
         'schema.registry.url': 'http://localhost:8081'
     })
     
-    # Check if AvroProducer supports produce_batch
     if hasattr(avro_producer, 'produce_batch'):
-        # AvroProducer would need schema-serialized data, not raw dicts
         try:
             avro_messages = [
-                {'value': f'avro_value_{i}'.encode()}  # Use bytes instead of dict
+                {'value': f'avro_value_{i}'.encode()}
                 for i in range(3)
             ]
             count = avro_producer.produce_batch('test-topic', avro_messages)
             assert count >= 0
             avro_producer.flush(0.5)
         except (KafkaException, TypeError) as e:
-            # Expected - AvroProducer may not support batch or needs proper schema
             assert isinstance(e, (KafkaException, TypeError))
