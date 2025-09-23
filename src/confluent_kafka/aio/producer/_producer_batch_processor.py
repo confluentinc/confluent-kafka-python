@@ -16,8 +16,8 @@ import asyncio
 import copy
 import logging
 
-from confluent_kafka.aio.producer._callback_manager import CallbackManager
 from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
+from confluent_kafka import KafkaException as _KafkaException
 from confluent_kafka.aio.producer._message_batch import MessageBatch, create_message_batch
 
 logger = logging.getLogger(__name__)
@@ -29,18 +29,16 @@ class ProducerBatchManager:
     This class encapsulates all the logic for:
     - Grouping messages by topic
     - Managing message buffers and futures
-    - Creating and managing callbacks
+    - Creating simple future-resolving callbacks
     - Executing batch operations via librdkafka
     """
     
-    def __init__(self, callback_manager, kafka_executor):
+    def __init__(self, kafka_executor):
         """Initialize the batch processor
         
         Args:
-            callback_manager: CallbackManager instance for callback execution and pooling
             kafka_executor: KafkaBatchExecutor instance for Kafka operations
         """
-        self._callback_manager = callback_manager
         self._kafka_executor = kafka_executor
         self._message_buffer = []
         self._buffer_futures = []
@@ -88,19 +86,15 @@ class ProducerBatchManager:
                 # Prepare batch messages
                 batch_messages = self._prepare_batch_messages(group_data['messages'])
                 
-                # Assign callbacks to messages
-                self._assign_callbacks_to_messages(
-                    batch_messages,
-                    group_data['futures'], 
-                    group_data['callbacks']
-                )
+                # Assign simple future-resolving callbacks to messages
+                self._assign_future_callbacks(batch_messages, group_data['futures'])
                 
                 # Create immutable MessageBatch object
                 batch = create_message_batch(
                     topic=topic,
                     messages=batch_messages,
                     futures=group_data['futures'],
-                    callbacks=group_data['callbacks']
+                    callbacks=None  # No user callbacks anymore
                 )
                 batches.append(batch)
         
@@ -154,7 +148,7 @@ class ProducerBatchManager:
                         
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this batch
-                self._handle_batch_failure(e, batch.futures, batch.callbacks)
+                self._handle_batch_failure(e, batch.futures)
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
     
@@ -176,7 +170,6 @@ class ProducerBatchManager:
                     'topic_name': {
                         'messages': [msg_data1, msg_data2, ...],     # Message dictionaries
                         'futures': [future1, future2, ...],         # Corresponding asyncio.Future objects  
-                        'callbacks': [callback1, callback2, ...],   # User delivery callbacks (optional)
                     }
                 }
         """
@@ -191,14 +184,12 @@ class ProducerBatchManager:
                 topic_groups[topic] = {
                     'messages': [],    # Message data for produce_batch
                     'futures': [],     # Futures to resolve on delivery
-                    'callbacks': [],   # User callbacks to invoke on delivery  
                 }
             
             # Add message and related data to appropriate topic group
             # Note: All arrays stay synchronized by index
             topic_groups[topic]['messages'].append(msg_data)
             topic_groups[topic]['futures'].append(self._buffer_futures[i])
-            topic_groups[topic]['callbacks'].append(msg_data.get('user_callback'))
             
         return topic_groups
     
@@ -215,31 +206,37 @@ class ProducerBatchManager:
         for msg_data in messages:
             # Create a shallow copy and remove fields not needed by produce_batch
             batch_msg = copy.copy(msg_data)
-            batch_msg.pop('user_callback', None)  # Remove user callback, we'll handle it in our callback
             batch_msg.pop('topic', None)  # Remove topic since it's passed separately
             batch_messages.append(batch_msg)
         
         return batch_messages
     
-    def _assign_callbacks_to_messages(self, batch_messages, futures, user_callbacks):
-        """Assign individual callbacks to each message in the batch
+    def _assign_future_callbacks(self, batch_messages, futures):
+        """Assign simple future-resolving callbacks to each message in the batch
         
         Args:
             batch_messages: List of message dictionaries for produce_batch
             futures: List of asyncio.Future objects to resolve
-            user_callbacks: List of user callback functions (can be None)
         """
         for i, batch_msg in enumerate(batch_messages):
-            # Get reusable callback from manager instead of creating new one
             future = futures[i]
-            user_callback = user_callbacks[i]
-            message_callback = self._callback_manager.get_callback(future, user_callback)
             
-            # Assign the pooled callback to this message
-            batch_msg['callback'] = message_callback
+            def create_simple_callback(fut):
+                """Create a simple callback that only resolves the future"""
+                def simple_callback(err, msg):
+                    if err:
+                        if not fut.done():
+                            fut.set_exception(_KafkaException(err))
+                    else:
+                        if not fut.done():
+                            fut.set_result(msg)
+                return simple_callback
+            
+            # Assign the simple callback to this message
+            batch_msg['callback'] = create_simple_callback(future)
     
     
-    def _handle_batch_failure(self, exception, batch_futures, batch_callbacks):
+    def _handle_batch_failure(self, exception, batch_futures):
         """Handle batch operation failure by failing all unresolved futures
         
         When a batch operation fails before any individual callbacks are invoked,
@@ -249,24 +246,10 @@ class ProducerBatchManager:
         Args:
             exception: The exception that caused the batch to fail
             batch_futures: List of futures for this batch
-            batch_callbacks: List of user callbacks for this batch
         """
         # Fail all futures since no individual callbacks will be invoked
-        for i, future in enumerate(batch_futures):
-            user_callback = batch_callbacks[i] if i < len(batch_callbacks) else None
-            
+        for future in batch_futures:
             # Only set exception if future isn't already done
             if not future.done():
                 future.set_exception(exception)
-            
-            # Call user callback to notify of failure using callback manager
-            if user_callback:
-                self._callback_manager.handle_user_callback(user_callback, exception, None)
     
-    def get_callback_manager_stats(self):
-        """Get statistics about the callback manager
-        
-        Returns:
-            dict: Callback manager statistics including reuse ratios and counts
-        """
-        return self._callback_manager.get_stats()

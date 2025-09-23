@@ -21,11 +21,10 @@ MessageBatch = namedtuple('MessageBatch', [
     'topic',        # str: Target topic for this batch
     'messages',     # tuple: Prepared message dictionaries with callbacks
     'futures',      # tuple: asyncio.Future objects to resolve
-    'callbacks'     # tuple: User callback functions (can be None)
 ])
 
 
-def create_message_batch(topic: str, messages: List[dict], futures: List[Any], callbacks: List[Optional[callable]]) -> MessageBatch:
+def create_message_batch(topic: str, messages: List[dict], futures: List[Any], callbacks: Optional[Any] = None) -> MessageBatch:
     """Create an immutable MessageBatch from lists
     
     This factory function converts mutable lists into an immutable MessageBatch object.
@@ -34,7 +33,7 @@ def create_message_batch(topic: str, messages: List[dict], futures: List[Any], c
         topic: Target topic name
         messages: List of prepared message dictionaries
         futures: List of asyncio.Future objects
-        callbacks: List of user callback functions
+        callbacks: Deprecated parameter, ignored for backwards compatibility
         
     Returns:
         MessageBatch: Immutable batch object
@@ -42,8 +41,7 @@ def create_message_batch(topic: str, messages: List[dict], futures: List[Any], c
     return MessageBatch(
         topic=topic,
         messages=tuple(messages),
-        futures=tuple(futures), 
-        callbacks=tuple(callbacks)
+        futures=tuple(futures)
     )
 
 

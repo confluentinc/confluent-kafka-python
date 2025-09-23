@@ -89,7 +89,7 @@ class ProducerBatchExecutor:
         When produce_batch encounters messages that fail immediately (e.g., message too large,
         invalid topic, etc.), librdkafka destroys their msgstates and won't call their callbacks.
         We detect these failures by checking for '_error' in the message dict (set by Producer.c)
-        and manually invoke their callbacks.
+        and manually invoke the simple future-resolving callbacks.
         
         Args:
             batch_messages: List of message dictionaries that were passed to produce_batch
@@ -103,7 +103,5 @@ class ProducerBatchExecutor:
                     error = msg_dict['_error']
                     # Manually invoke the callback with the error
                     # Note: msg is None since the message failed before being queued
-                    try:
-                        callback(error, None)
-                    except Exception as e:
-                        logger.error(f"Error in callback for failed message: {e}", exc_info=True)
+                    # Let callback exceptions propagate - don't swallow them
+                    callback(error, None)

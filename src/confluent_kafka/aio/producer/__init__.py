@@ -23,11 +23,6 @@ Core Components:
 - KafkaBatchExecutor: Kafka operations and thread pool management
 - BufferTimeoutManager: Timeout monitoring and automatic flushing
 
-Callback Management:
-- AsyncCallbackHandler: Sync/async callback execution
-- CallbackPool: Performance optimization through object pooling
-- ReusableMessageCallback: Individual pooled callback objects
-
 Data Structures:
 - MessageBatch: Immutable value object for batch data
 

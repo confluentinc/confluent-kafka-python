@@ -239,8 +239,7 @@ class AsyncProducerStrategy(ProducerStrategy):
                     delivery_future = await producer.produce(
                         topic=topic_name,
                         value=message_value,
-                        key=message_key,
-                        on_delivery=shared_metrics_callback
+                        key=message_key
                     )
                     produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
@@ -263,9 +262,22 @@ class AsyncProducerStrategy(ProducerStrategy):
                 try:
                     msg = await delivery_future
                     delivered_container.append(msg)
+                    
+                    # Record delivery metrics (replaces the old callback approach)
+                    if self.metrics:
+                        # Calculate latency if we have send time
+                        latency_ms = 0.0
+                        if message_key in send_times:
+                            latency_ms = (time.time() - send_times[message_key]) * 1000
+                            del send_times[message_key]
+                        
+                        self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+                        
                 except Exception as e:
                     if failed_container is not None:
                         failed_container.append(e)
+                    if self.metrics:
+                        self.metrics.record_failed(topic=topic_name, partition=0)
                     self.logger.error(f"Failed to deliver message with key {message_key}: {e}")  
             
             # Print timing metrics

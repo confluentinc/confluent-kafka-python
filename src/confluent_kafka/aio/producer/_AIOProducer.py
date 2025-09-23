@@ -24,7 +24,6 @@ from confluent_kafka import KafkaException as _KafkaException
 
 import confluent_kafka.aio._common as _common
 from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager
-from confluent_kafka.aio.producer._callback_manager import CallbackManager
 from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
@@ -44,12 +43,8 @@ class AIOProducer:
         else:
             self.executor = concurrent.futures.ThreadPoolExecutor(
                 max_workers=max_workers)
-        # Store the event loop for callback handling
+        # Store the event loop for async operations
         self._loop = asyncio.get_running_loop()
-        
-        # Initialize callback manager for user callback execution and pooling
-        pool_size = max(1000, batch_size * 2)
-        self._callback_manager = CallbackManager(self._loop, initial_pool_size=pool_size)
         
         wrap_common_callbacks = _common.wrap_common_callbacks
         wrap_common_callbacks(self._loop, producer_conf)
@@ -66,7 +61,7 @@ class AIOProducer:
         self._kafka_executor = ProducerBatchExecutor(self._producer, self.executor)
         
         # Initialize batch processor for message batching and processing
-        self._batch_processor = ProducerBatchManager(self._callback_manager, self._kafka_executor)
+        self._batch_processor = ProducerBatchManager(self._kafka_executor)
         
         # Initialize buffer timeout manager for timeout handling
         self._buffer_timeout_manager = BufferTimeoutManager(self._batch_processor, self._kafka_executor, buffer_timeout)
@@ -142,7 +137,7 @@ class AIOProducer:
     async def poll(self, timeout=0, *args, **kwargs):
         """Processes delivery callbacks from librdkafka - blocking behavior depends on timeout
         
-        This method triggers any pending delivery callbacks (on_delivery) that have been
+        This method triggers any pending delivery reports that have been
         queued by librdkafka when messages are delivered or fail to deliver.
         
         Args:
@@ -165,9 +160,11 @@ class AIOProducer:
             value: Message payload (optional)
             key: Message key (optional)
             *args, **kwargs: Additional parameters like partition, timestamp, headers
+            
+        Returns:
+            asyncio.Future: Future that resolves to the delivered message or raises exception on failure
         """
         result = asyncio.get_running_loop().create_future()
-        user_callback = kwargs.get('on_delivery')
         
         msg_data = {
             'topic': topic,
@@ -182,10 +179,6 @@ class AIOProducer:
             msg_data['timestamp'] = kwargs['timestamp']
         if 'headers' in kwargs:
             msg_data['headers'] = kwargs['headers']
-        
-        # Store user callback in message data for later execution
-        if user_callback:
-            msg_data['user_callback'] = user_callback
         
         self._batch_processor.add_message(msg_data, result)
         
@@ -278,13 +271,6 @@ class AIOProducer:
         """
         await self._batch_processor.flush_buffer(target_topic)
 
-    def get_callback_manager_stats(self):
-        """Get statistics from the callback manager
-        
-        Returns:
-            dict: Callback manager statistics for monitoring performance
-        """
-        return self._batch_processor.get_callback_manager_stats()
     
     def create_batches_preview(self, target_topic=None):
         """Create a preview of batches that would be created from current buffer
@@ -300,60 +286,11 @@ class AIOProducer:
         """
         return self._batch_processor.create_batches(target_topic)
 
-    def _create_message_callback(self, future, user_callback):
-        """Create an individual callback for a specific message that knows its future
-        
-        Each message gets its own callback function that:
-        1. Knows exactly which future to resolve (via closure)
-        2. Knows which user callback to invoke (via closure) 
-        3. Can be called in any order without confusion
-        
-        Args:
-            future: The asyncio.Future for this specific message
-            user_callback: Optional user callback function for this message
-            
-        Returns:
-            callable: Delivery callback function for this specific message
-        """
-        def message_delivery_callback(err, msg):
-            """Individual message delivery callback - knows its exact future"""
-            try:
-                if err:
-                    # Message delivery failed
-                    if not future.done():  # Prevent double-setting
-                        future.set_exception(_KafkaException(err))
-                    if user_callback:
-                        self._handle_user_callback(user_callback, err, msg)
-                else:
-                    # Message delivered successfully  
-                    if not future.done():  # Prevent double-setting
-                        future.set_result(msg)
-                    if user_callback:
-                        self._handle_user_callback(user_callback, err, msg)
-                        
-            except Exception as e:
-                logger.error(f"Error in message delivery callback: {e}", exc_info=True)
-                # Ensure future gets resolved even if there's an error in callback processing
-                if not future.done():
-                    future.set_exception(e)
-        
-        return message_delivery_callback
 
     # ========================================================================
     # UTILITY METHODS - Helper functions and internal utilities
     # ========================================================================
 
-    def _handle_user_callback(self, user_callback, err, msg):
-        """Handle user callback execution, supporting both sync and async callbacks
-        
-        This method delegates to CallbackManager for proper callback execution.
-        
-        Args:
-            user_callback: User-provided callback function (sync or async)
-            err: Error object (None if successful)
-            msg: Message object
-        """
-        return self._callback_manager.handle_user_callback(user_callback, err, msg)
 
     async def _call(self, blocking_task, *args, **kwargs):
         """Helper method for blocking operations that need ThreadPool execution"""
