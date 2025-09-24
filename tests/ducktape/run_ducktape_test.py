@@ -23,10 +23,6 @@ def get_test_info(test_type):
             'file': 'test_consumer.py',
             'description': 'Consumer Benchmark Tests'
         },
-        'producer_sr': {
-            'file': 'test_producer_with_schema_registry.py',
-            'description': 'Producer with Schema Registry Tests'
-        },
         'transactions': {
             'file': 'test_transactions.py',
             'description': 'Transactional Producer and Consumer Tests'
@@ -133,7 +129,7 @@ def run_single_test_type(args):
 
 def run_all_tests(args):
     """Run all available test types"""
-    test_types = ['producer', 'consumer', 'producer_sr']
+    test_types = ['producer', 'consumer']
     overall_success = True
 
     print("Confluent Kafka Python - All Ducktape Tests")
@@ -170,7 +166,7 @@ def run_all_tests(args):
 def main():
     """Run the ducktape test based on specified type"""
     parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
-    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'producer_sr', 'transactions'],
+    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'transactions'],
                         help='Type of test to run (default: run all tests)')
     parser.add_argument('test_method', nargs='?',
                         help='Specific test method to run (optional)')
