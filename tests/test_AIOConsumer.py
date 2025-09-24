@@ -5,12 +5,12 @@ import asyncio
 import concurrent.futures
 from unittest.mock import Mock, patch
 
-from confluent_kafka import TopicPartition
+from confluent_kafka import TopicPartition, KafkaError, KafkaException
 from confluent_kafka.aio._AIOConsumer import AIOConsumer
 
 
 class TestAIOConsumer:
-    """Unit tests for AIOConsumer class - focusing on async wrapper logic."""
+    """Unit tests for AIOConsumer class."""
 
     @pytest.fixture
     def mock_consumer(self):
@@ -124,3 +124,42 @@ class TestAIOConsumer:
         results = await asyncio.gather(*tasks)
         assert len(results) == 3
         assert all(result is not None for result in results)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_operations_error_handling(self, mock_consumer, mock_common, basic_config):
+        """Test concurrent async operations handle errors gracefully."""
+        # Mock: 2 poll calls fail
+        mock_consumer.return_value.poll.side_effect = [
+            KafkaException(KafkaError(KafkaError._TRANSPORT)),
+            KafkaException(KafkaError(KafkaError._TRANSPORT))
+        ]
+        mock_consumer.return_value.assignment.return_value = []
+
+        consumer = AIOConsumer(basic_config)
+
+        # Run concurrent operations
+        tasks = [
+            consumer.poll(timeout=0.1),
+            consumer.poll(timeout=0.1),
+        ]
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Verify results
+        assert len(results) == 2
+        assert isinstance(results[0], KafkaException)
+        assert isinstance(results[1], KafkaException)
+
+    @pytest.mark.asyncio
+    async def test_network_error_handling(self, mock_consumer, mock_common, basic_config):
+        """Test AIOConsumer handles network errors gracefully."""
+        mock_consumer.return_value.poll.side_effect = KafkaException(
+            KafkaError(KafkaError._TRANSPORT, "Network timeout")
+        )
+
+        consumer = AIOConsumer(basic_config)
+
+        with pytest.raises(KafkaException) as exc_info:
+            await consumer.poll(timeout=1.0)
+
+        assert exc_info.value.args[0].code() == KafkaError._TRANSPORT

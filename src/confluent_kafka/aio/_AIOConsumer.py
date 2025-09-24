@@ -55,9 +55,33 @@ class AIOConsumer:
         return ret
 
     async def poll(self, *args, **kwargs):
+        """
+        Polls for a single message from the subscribed topics.
+
+        Performance Note:
+            For high-throughput applications, prefer consume() over poll():
+            consume() can retrieve multiple messages per call and amortize the async
+            overhead across the entire batch.
+
+            On the other hand, poll() retrieves one message per call, which means
+            the ThreadPoolExecutor overhead is applied to each individual message.
+            This can result inlower throughput compared to the synchronous consumer.poll()
+            due tothe async coordination overhead not being amortized.
+
+        """
         return await self._call(self._consumer.poll, *args, **kwargs)
 
     async def consume(self, *args, **kwargs):
+        """
+        Consumes a batch of messages from the subscribed topics.
+
+        Performance Note:
+            This method is recommended for high-throughput applications.
+
+            By retrieving multiple messages per ThreadPoolExecutor call, the async
+            coordination overhead is shared across all messages in the batch,
+            resulting in much better throughput compared to repeated poll() calls.
+        """
         return await self._call(self._consumer.consume, *args, **kwargs)
 
     def _edit_rebalance_callbacks_args(self, args):
@@ -121,3 +145,12 @@ class AIOConsumer:
     async def set_sasl_credentials(self, *args, **kwargs):
         return await self._call(self._consumer.set_sasl_credentials,
                                 *args, **kwargs)
+
+    async def list_topics(self, *args, **kwargs):
+        return await self._call(self._consumer.list_topics, *args, **kwargs)
+
+    async def get_watermark_offsets(self, *args, **kwargs):
+        return await self._call(self._consumer.get_watermark_offsets, *args, **kwargs)
+
+    async def offsets_for_times(self, *args, **kwargs):
+        return await self._call(self._consumer.offsets_for_times, *args, **kwargs)

@@ -5,7 +5,8 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 ## Prerequisites
 
 - `pip install ducktape confluent-kafka psutil`
-- Kafka running on `localhost:9092`
+- Kafka running on `localhost:9092` (PLAINTEXT listener - ducktape tests use the simple port)
+- Schema Registry running on `localhost:8081` (uses `host.docker.internal:29092` for Kafka connection)
 
 ## Running Tests
 
@@ -13,8 +14,11 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 # Run all tests with integrated performance metrics
 ./tests/ducktape/run_ducktape_test.py
 
-# Run specific test with metrics
-./tests/ducktape/run_ducktape_test.py SimpleProducerTest.test_basic_produce
+# Run all tests in a file
+./tests/ducktape/run_ducktape_test.py test_producer.py
+
+# Run a specific test with metrics
+./tests/ducktape/run_ducktape_test.py test_producer.py SimpleProducerTest.test_basic_produce
 ```
 
 ## Test Cases
@@ -37,29 +41,60 @@ Every test automatically includes:
 
 ## Configuration
 
-Performance bounds are loaded from a JSON config file. By default, it loads `benchmark_bounds.json`, but you can override this with the `BENCHMARK_BOUNDS_CONFIG` environment variable:
+Performance bounds are loaded from an environment-based JSON config file. By default, it loads `benchmark_bounds.json`, but you can override this with the `BENCHMARK_BOUNDS_CONFIG` environment variable.
+
+### Environment-Based Configuration
+
+The bounds configuration supports different environments with different performance thresholds:
 
 ```json
 {
-  "min_throughput_msg_per_sec": 1500.0,
-  "max_p95_latency_ms": 1500.0,
-  "max_error_rate": 0.01,
-  "min_success_rate": 0.99,
-  "max_p99_latency_ms": 2500.0,
-  "max_memory_growth_mb": 600.0,
-  "max_buffer_full_rate": 0.03,
-  "min_messages_per_poll": 15.0
+  "_comment": "Performance bounds for benchmark tests by environment",
+  "local": {
+    "_comment": "Default bounds for local development - more relaxed thresholds",
+    "min_throughput_msg_per_sec": 1000.0,
+    "max_p95_latency_ms": 2000.0,
+    "max_error_rate": 0.02,
+    "min_success_rate": 0.98,
+    "max_p99_latency_ms": 3000.0,
+    "max_memory_growth_mb": 800.0,
+    "max_buffer_full_rate": 0.05,
+    "min_messages_per_poll": 10.0
+  },
+  "ci": {
+    "_comment": "Stricter bounds for CI environment - production-like requirements",
+    "min_throughput_msg_per_sec": 1500.0,
+    "max_p95_latency_ms": 1500.0,
+    "max_error_rate": 0.01,
+    "min_success_rate": 0.99,
+    "max_p99_latency_ms": 2500.0,
+    "max_memory_growth_mb": 600.0,
+    "max_buffer_full_rate": 0.03,
+    "min_messages_per_poll": 15.0
+  },
+  "_default_environment": "local"
 }
 ```
 
+### Environment Selection
+
+- **BENCHMARK_ENVIRONMENT**: Selects which environment bounds to use (`local`, `ci`, etc.)
+- **Default**: Uses "local" environment if not specified
+- **CI**: Automatically uses "ci" environment in CI pipelines
+
 Usage:
 ```bash
-# Use default config file
+# Use default environment (local)
 ./run_ducktape_test.py
 
-# Use different configs for different environments
-BENCHMARK_BOUNDS_CONFIG=ci_bounds.json ./run_ducktape_test.py
-BENCHMARK_BOUNDS_CONFIG=production_bounds.json ./run_ducktape_test.py
+# Explicitly use local environment
+BENCHMARK_ENVIRONMENT=local ./run_ducktape_test.py
+
+# Use CI environment with stricter bounds
+BENCHMARK_ENVIRONMENT=ci ./run_ducktape_test.py
+
+# Use different config file entirely
+BENCHMARK_BOUNDS_CONFIG=custom_bounds.json ./run_ducktape_test.py
 ```
 
 ```python
