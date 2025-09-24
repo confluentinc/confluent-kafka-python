@@ -173,10 +173,12 @@ class AIOProducer:
         if 'timestamp' in kwargs:
             msg_data['timestamp'] = kwargs['timestamp']
         if 'headers' in kwargs:
-            # NOTE: Headers are currently ignored in batch mode due to librdkafka API limitations.
-            # The headers will be silently discarded when messages are sent via rd_kafka_produce_batch().
+            # Headers are not supported in batch mode due to librdkafka API limitations.
             # Use individual synchronous produce() calls if headers are required.
-            msg_data['headers'] = kwargs['headers']
+            raise NotImplementedError(
+                "Headers are not supported in AIOProducer batch mode. "
+                "Use the synchronous Producer.produce() method if headers are required."
+            )
         
         self._batch_processor.add_message(msg_data, result)
         
