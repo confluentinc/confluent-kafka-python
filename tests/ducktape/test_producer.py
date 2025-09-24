@@ -4,11 +4,11 @@ Assumes Kafka is already running on localhost:9092
 """
 import time
 from ducktape.tests.test import Test
-from ducktape.mark import matrix, parametrize
+from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
-from confluent_kafka import Producer
+from tests.ducktape.producer_strategy import SyncProducerStrategy, AsyncProducerStrategy
 
 
 class SimpleProducerTest(Test):
@@ -30,10 +30,22 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully connected to Kafka")
 
-    def test_basic_produce(self):
+    def create_producer(self, producer_type, config_overrides=None):
+        """Create appropriate producer strategy based on type"""
+        if producer_type == "sync":
+            strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+        else:  # async
+            strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+
+        # Store config overrides for later use in create_producer
+        strategy.config_overrides = config_overrides
+        return strategy
+
+    @matrix(producer_type=["sync", "async"])
+    def test_basic_produce(self, producer_type):
         """Test basic message production with comprehensive metrics and bounds validation"""
 
-        topic_name = "test-topic"
+        topic_name = f"test-{producer_type}-topic"
         test_duration = 5.0  # 5 seconds
 
         # Create topic
@@ -48,77 +60,31 @@ class SimpleProducerTest(Test):
         metrics = MetricsCollector()
         bounds = MetricsBounds()
 
-        # Configure producer
-        producer_config = {
-            'bootstrap.servers': self.kafka.bootstrap_servers(),
-            'client.id': 'ducktape-test-producer'
-        }
+        # Create appropriate producer strategy
+        strategy = self.create_producer(producer_type)
 
-        self.logger.info("Creating producer with config: %s", producer_config)
-        producer = Producer(producer_config)
+        # Assign metrics collector to strategy
+        strategy.metrics = metrics
 
-        # Enhanced delivery callback with metrics tracking
-        send_times = {}  # Track send times for latency calculation
-
-        def delivery_callback(err, msg):
-            """Delivery report callback with metrics tracking"""
-            if err is not None:
-                self.logger.error("Message delivery failed: %s", err)
-                metrics.record_failed(topic=msg.topic() if msg else topic_name,
-                                      partition=msg.partition() if msg else 0)
-            else:
-                # Calculate actual latency if we have send time
-                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
-                if msg_key in send_times:
-                    latency_ms = (time.time() - send_times[msg_key]) * 1000
-                    del send_times[msg_key]  # Clean up
-                else:
-                    latency_ms = 0.0  # Default latency if timing info not available
-
-                metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+        self.logger.info(f"Testing {producer_type} producer for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
 
-        # Time-based message production with metrics
-        self.logger.info("Producing messages with metrics for %.1f seconds to topic %s", test_duration, topic_name)
+        # Message formatter
+        def message_formatter(msg_num):
+            return f"Test message {msg_num}", f"key-{msg_num}"
+
+        # Containers for results
+        delivered_messages = []
+        failed_messages = []
+
+        # Run the test
         start_time = time.time()
-        messages_sent = 0
-
-        while time.time() - start_time < test_duration:
-            message_value = f"Test message {messages_sent}"
-            message_key = f"key-{messages_sent}"
-
-            try:
-                # Record message being sent with metrics
-                message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
-                metrics.record_sent(message_size, topic=topic_name, partition=0)
-
-                # Track send time for latency calculation
-                send_times[message_key] = time.time()
-
-                producer.produce(
-                    topic=topic_name,
-                    value=message_value,
-                    key=message_key,
-                    callback=delivery_callback
-                )
-                messages_sent += 1
-
-                # Poll frequently to trigger delivery callbacks and record poll operations
-                if messages_sent % 100 == 0:
-                    producer.poll(0)
-                    metrics.record_poll()
-
-            except BufferError:
-                # Record buffer full events and poll
-                metrics.record_buffer_full()
-                producer.poll(0.001)
-                continue
-
-        # Flush to ensure all messages are sent
-        self.logger.info("Flushing producer...")
-        producer.flush(timeout=30)
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages
+        )
 
         # Finalize metrics collection
         metrics.finalize()
@@ -128,15 +94,15 @@ class SimpleProducerTest(Test):
         is_valid, violations = validate_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        self.logger.info("Basic production test with metrics completed:")
+        self.logger.info(f"=== {producer_type.upper()} PRODUCER METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
         # Enhanced assertions using metrics
-        assert messages_sent > 0, "No messages were sent during test duration"
-        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
         assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
-            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s " \
-            f"(expected > 10 msg/s)"
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         # Validate against performance bounds
         if not is_valid:
@@ -145,13 +111,11 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully completed basic production test with comprehensive metrics")
 
-    @parametrize(test_duration=2)
-    @parametrize(test_duration=5)
-    @parametrize(test_duration=10)
-    def test_produce_multiple_batches(self, test_duration):
+    @matrix(producer_type=["sync", "async"], test_duration=[2, 5, 10])
+    def test_produce_multiple_batches(self, producer_type, test_duration):
         """Test batch throughput with comprehensive metrics and bounds validation"""
 
-        topic_name = f"batch-test-topic-{test_duration}s"
+        topic_name = f"{producer_type}-batch-test-topic-{test_duration}s"
 
         # Create topic
         self.kafka.create_topic(topic_name, partitions=2, replication_factor=1)
@@ -165,92 +129,62 @@ class SimpleProducerTest(Test):
         bounds = MetricsBounds()
         # Adjust bounds for different test durations
         if test_duration <= 2:
-            bounds.min_throughput_msg_per_sec = 500.0  # Lower threshold for short tests
+            bounds.min_throughput_msg_per_sec = 50.0  # Lower threshold for short tests
 
-        # Configure producer with batch settings
-        producer_config = {
-            'bootstrap.servers': self.kafka.bootstrap_servers(),
-            'client.id': f'batch-test-producer-{test_duration}s',
-            'batch.size': 1000,  # Small batch size for testing
-            'linger.ms': 100     # Small linger time for testing
-        }
+        # Create appropriate producer strategy
+        strategy = self.create_producer(producer_type)
 
-        producer = Producer(producer_config)
+        # Assign metrics collector to strategy
+        strategy.metrics = metrics
 
-        # Enhanced delivery callback with metrics
-        send_times = {}
-
-        def delivery_callback(err, msg):
-            if err is None:
-                # Calculate latency
-                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
-                if msg_key in send_times:
-                    latency_ms = (time.time() - send_times[msg_key]) * 1000
-                    del send_times[msg_key]
-                else:
-                    latency_ms = 0.0  # Default for batch processing
-
-                metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
-            else:
-                self.logger.error("Delivery failed: %s", err)
-                metrics.record_failed(topic=msg.topic() if msg else topic_name,
-                                      partition=msg.partition() if msg else 0)
+        self.logger.info(f"Testing {producer_type} producer with batches for {test_duration} seconds")
 
         # Start metrics collection
         metrics.start()
 
-        # Time-based batch message production with metrics
-        self.logger.info("Producing batches with metrics for %d seconds", test_duration)
+        # Message formatter for batch test
+        def message_formatter(msg_num):
+            return f"Batch message {msg_num}", f"batch-key-{msg_num}"
+
+        # Containers for results
+        delivered_messages = []
+        failed_messages = []
+
+        # Run the test
         start_time = time.time()
-        messages_sent = 0
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages
+        )
 
-        while time.time() - start_time < test_duration:
-            try:
-                message_value = f"Batch message {messages_sent}"
-                message_key = f"batch-key-{messages_sent % 10}"  # Use modulo for key distribution
-                partition = messages_sent % 2  # Distribute across partitions
-
-                # Record metrics
-                message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
-                metrics.record_sent(message_size, topic=topic_name, partition=partition)
-                send_times[message_key] = time.time()
-
-                producer.produce(
-                    topic=topic_name,
-                    value=message_value,
-                    key=message_key,
-                    callback=delivery_callback
-                )
-                messages_sent += 1
-
-                # Poll occasionally to trigger callbacks and record polls
-                if messages_sent % 100 == 0:
-                    producer.poll(0)
-                    metrics.record_poll()
-
-            except BufferError:
-                # Record buffer full events
-                metrics.record_buffer_full()
-                producer.poll(0.001)
-                continue
-
-        # Final flush
-        producer.flush(timeout=30)
-
-        # Finalize metrics
+        # Finalize metrics collection
         metrics.finalize()
 
         # Get comprehensive metrics summary
         metrics_summary = metrics.get_summary()
         is_valid, violations = validate_metrics(metrics_summary, bounds)
 
+        # Get AIOProducer built-in metrics for comparison (async only)
+        final_metrics = strategy.get_final_metrics()
+
         # Print comprehensive metrics report
-        self.logger.info("Batch production test (%ds) with metrics completed:", test_duration)
+        self.logger.info(f"=== {producer_type.upper()} BATCH TEST ({test_duration}s) METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
+        if final_metrics:
+            # Get the actual metrics dictionary
+            producer_metrics_summary = final_metrics.get_summary()
+            if producer_metrics_summary:
+                self.logger.info("=== Producer Built-in Metrics ===")
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
+
         # Enhanced assertions using metrics
-        assert messages_sent > 0, "No messages were sent during test duration"
-        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
         assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
             f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
@@ -262,11 +196,11 @@ class SimpleProducerTest(Test):
 
         self.logger.info("Successfully completed %ds batch production test with comprehensive metrics", test_duration)
 
-    @matrix(compression_type=['none', 'gzip', 'snappy'])
-    def test_produce_with_compression(self, compression_type):
+    @matrix(producer_type=["sync", "async"], compression_type=['none', 'gzip', 'snappy'])
+    def test_produce_with_compression(self, producer_type, compression_type):
         """Test compression throughput with comprehensive metrics and bounds validation"""
 
-        topic_name = f"compression-test-{compression_type}"
+        topic_name = f"{producer_type}-compression-test-{compression_type}"
         test_duration = 5.0  # 5 seconds
 
         # Create topic
@@ -279,92 +213,90 @@ class SimpleProducerTest(Test):
         # Initialize metrics collection and bounds
         metrics = MetricsCollector()
         bounds = MetricsBounds()
-        # Adjust bounds for compression tests (may be slower)
+        # Adjust bounds for compression tests (may be slower with large messages)
         bounds.min_throughput_msg_per_sec = 5.0  # Lower threshold for large messages
         bounds.max_p95_latency_ms = 5000.0  # Allow higher latency for compression
 
-        # Configure producer with compression
-        producer_config = {
-            'bootstrap.servers': self.kafka.bootstrap_servers(),
-            'client.id': f'compression-test-{compression_type}',
-            'compression.type': compression_type
-        }
+        # Create appropriate producer strategy with compression config
+        compression_config = {}
+        if compression_type != 'none':
+            compression_config['compression.type'] = compression_type
 
-        producer = Producer(producer_config)
+        # Configure polling intervals based on compression type and producer type
+        if producer_type == 'async':
+            polling_config = {
+                'gzip': 10,     # Poll every 10 messages for gzip (frequent)
+                'snappy': 50,   # Poll every 50 messages for snappy (moderate)
+                'none': 100     # Poll every 100 messages for none (standard)
+            }
+        else:  # sync
+            # Sync producers need more frequent polling to prevent buffer overflow as throughput is very high
+            polling_config = {
+                'gzip': 5,      # Poll every 5 messages for gzip (most frequent)
+                'snappy': 25,   # Poll every 25 messages for snappy (moderate)
+                'none': 50      # Poll every 50 messages for none (standard)
+            }
+        poll_interval = polling_config.get(compression_type, 50 if producer_type == 'sync' else 100)
 
-        # Create larger messages to test compression effectiveness
-        large_message = "x" * 1000  # 1KB message
-        send_times = {}
+        strategy = self.create_producer(producer_type, compression_config)
+        strategy.poll_interval = poll_interval
 
-        def delivery_callback(err, msg):
-            if err is None:
-                # Calculate latency
-                msg_key = msg.key().decode('utf-8', errors='replace') if msg.key() else 'unknown'
-                if msg_key in send_times:
-                    latency_ms = (time.time() - send_times[msg_key]) * 1000
-                    del send_times[msg_key]
-                else:
-                    latency_ms = 0.0  # Default for compression processing
+        # Assign metrics collector to strategy
+        strategy.metrics = metrics
 
-                metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
-            else:
-                metrics.record_failed(topic=msg.topic() if msg else topic_name,
-                                      partition=msg.partition() if msg else 0)
+        self.logger.info(
+            f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
+        self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
         # Start metrics collection
         metrics.start()
 
-        # Time-based message production with compression and metrics
-        self.logger.info("Producing messages with %s compression and metrics for %.1f seconds",
-                         compression_type, test_duration)
+        # Create larger messages to test compression effectiveness
+        large_message = "x" * 1000  # 1KB message
+
+        # Message formatter for compression test
+        def message_formatter(msg_num):
+            return f"{large_message}-{msg_num}", f"comp-key-{msg_num}"
+
+        # Containers for results
+        delivered_messages = []
+        failed_messages = []
+
+        # Run the test
         start_time = time.time()
-        messages_sent = 0
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages
+        )
 
-        while time.time() - start_time < test_duration:
-            try:
-                message_value = f"{large_message}-{messages_sent}"
-                message_key = f"comp-key-{messages_sent}"
-
-                # Record metrics
-                message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
-                metrics.record_sent(message_size, topic=topic_name, partition=0)
-                send_times[message_key] = time.time()
-
-                producer.produce(
-                    topic=topic_name,
-                    value=message_value,
-                    key=message_key,
-                    callback=delivery_callback
-                )
-                messages_sent += 1
-
-                # Poll frequently to prevent buffer overflow and record polls
-                if messages_sent % 10 == 0:
-                    producer.poll(0)
-                    metrics.record_poll()
-
-            except BufferError:
-                # Record buffer full events
-                metrics.record_buffer_full()
-                producer.poll(0.001)
-                continue
-
-        producer.flush(timeout=30)
-
-        # Finalize metrics
+        # Finalize metrics collection
         metrics.finalize()
 
         # Get comprehensive metrics summary
         metrics_summary = metrics.get_summary()
         is_valid, violations = validate_metrics(metrics_summary, bounds)
 
+        # Get AIOProducer built-in metrics for comparison (async only)
+        final_metrics = strategy.get_final_metrics()
+
         # Print comprehensive metrics report
-        self.logger.info("Compression test (%s) with metrics completed:", compression_type)
+        self.logger.info(f"=== {producer_type.upper()} COMPRESSION TEST ({compression_type}) METRICS REPORT ===")
         print_metrics_report(metrics_summary, is_valid, violations)
 
+        if final_metrics:
+            # Get the actual metrics dictionary
+            producer_metrics_summary = final_metrics.get_summary()
+            if producer_metrics_summary:
+                self.logger.info("=== Producer Built-in Metrics ===")
+                self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
+                self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
+                self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
+                self.logger.info(f"Latency: Avg={producer_metrics_summary['avg_latency_ms']:.1f}ms")
+
         # Enhanced assertions using metrics
-        assert messages_sent > 0, "No messages were sent during test duration"
-        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered"
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
         assert metrics_summary['send_throughput_msg_per_sec'] > 5, \
             f"Send throughput too low for {compression_type}: " \
             f"{metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"

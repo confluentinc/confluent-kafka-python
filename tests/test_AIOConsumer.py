@@ -22,6 +22,9 @@ class TestAIOConsumer:
     def mock_common(self):
         """Mock the _common module callback wrapping."""
         with patch('confluent_kafka.aio._AIOConsumer._common') as mock:
+            async def mock_async_call(executor, blocking_task, *args, **kwargs):
+                return blocking_task(*args, **kwargs)
+            mock.async_call.side_effect = mock_async_call
             yield mock
 
     @pytest.fixture
