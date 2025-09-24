@@ -233,7 +233,7 @@ class KafkaClusterFixture(object):
 
         future_topic.get(name).result()
         return name
-    
+
     def delete_topic(self, topic):
         """
         Deletes a topic with this cluster.
