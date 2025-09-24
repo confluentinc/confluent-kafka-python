@@ -73,15 +73,16 @@ class Operation(Enum):
     REMOVE = 1
 
 
-def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(kafka_cluster, partition_assignment_strategy):
+def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(
+        kafka_cluster, partition_assignment_strategy):
     """
     Test consumer upgrade and downgrade.
     """
     topic_name_prefix = f"{topic_prefix}_{partition_assignment_strategy}"
     topic = kafka_cluster.create_topic_and_wait_propogation(topic_name_prefix,
-                                                                    {
-                                                                        "num_partitions": number_of_partitions
-                                                                    })
+                                                            {
+                                                                "num_partitions": number_of_partitions
+                                                            })
     admin_client = kafka_cluster.admin()
 
     consumer_conf = {'group.id': topic,
