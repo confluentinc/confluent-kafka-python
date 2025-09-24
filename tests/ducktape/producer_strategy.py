@@ -7,6 +7,18 @@ implementations (sync vs async) with consistent interfaces for testing.
 import time
 import asyncio
 from confluent_kafka import Producer
+import json
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry._sync.json_schema import JSONSerializer
+from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
+from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+from confluent_kafka.schema_registry.schema_registry_client import AsyncSchemaRegistryClient
+from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
+from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
+import os
 
 
 class ProducerStrategy:
@@ -20,14 +32,8 @@ class ProducerStrategy:
     def create_producer(self):
         raise NotImplementedError()
 
-    def produce_messages(
-            self,
-            topic_name,
-            test_duration,
-            start_time,
-            message_formatter,
-            delivered_container,
-            failed_container=None):
+    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
+                         delivered_container, failed_container=None, serialization_type=None):
         raise NotImplementedError()
 
     def _get_base_config(self):
@@ -75,8 +81,92 @@ class ProducerStrategy:
         print(f"Total poll() calls: {len(poll_times)}")
         print(separator)
 
+    def build_serializers(self, serialization_type):
+        """Build and return (key_serializer, value_serializer) for the given serialization_type.
+        Returns (None, None) if serialization_type is not provided.
+        This method should be implemented by concrete strategy classes.
+        """
+        raise NotImplementedError("Subclasses must implement build_serializers")
+
 
 class SyncProducerStrategy(ProducerStrategy):
+    def build_serializers(self, serialization_type):
+        """Build synchronous serializers for Schema Registry"""
+        if not serialization_type:
+            return None, None
+
+        schema_registry_url = os.getenv(
+            'SCHEMA_REGISTRY_URL',
+            getattr(self, 'schema_registry_url', 'http://localhost:8081')
+        )
+        client_config = {
+            'url': schema_registry_url,
+        }
+        sr_client = SchemaRegistryClient(client_config)
+        key_serializer = StringSerializer('utf8')
+
+        if serialization_type == 'avro':
+            avro_schema = {
+                "type": "record",
+                "name": "TestMessage",
+                "fields": [
+                    {"name": "test_string", "type": "string"},
+                    {"name": "test_bool", "type": "boolean"},
+                    {"name": "test_bytes", "type": "bytes"},
+                    {"name": "test_double", "type": "double"},
+                    {"name": "test_float", "type": "float"},
+                    {"name": "test_fixed32", "type": "int"},
+                    {"name": "test_fixed64", "type": "long"},
+                    {"name": "test_int32", "type": "int"},
+                    {"name": "test_int64", "type": "long"},
+                    {"name": "test_sfixed32", "type": "int"},
+                    {"name": "test_sfixed64", "type": "long"},
+                    {"name": "test_sint32", "type": "int"},
+                    {"name": "test_sint64", "type": "long"},
+                    {"name": "test_uint32", "type": "int"},
+                    {"name": "test_uint64", "type": "long"}
+                ]
+            }
+            value_serializer = AvroSerializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(avro_schema)
+            )
+        elif serialization_type == 'json':
+            json_schema = {
+                "type": "object",
+                "title": "TestMessage",  # Required for Schema Registry
+                "properties": {
+                    "test_string": {"type": "string"},
+                    "test_bool": {"type": "boolean"},
+                    "test_bytes": {"type": "string"},  # JSON represents bytes as string
+                    "test_double": {"type": "number"},
+                    "test_float": {"type": "number"},
+                    "test_fixed32": {"type": "integer"},
+                    "test_fixed64": {"type": "integer"},
+                    "test_int32": {"type": "integer"},
+                    "test_int64": {"type": "integer"},
+                    "test_sfixed32": {"type": "integer"},
+                    "test_sfixed64": {"type": "integer"},
+                    "test_sint32": {"type": "integer"},
+                    "test_sint64": {"type": "integer"},
+                    "test_uint32": {"type": "integer"},
+                    "test_uint64": {"type": "integer"}
+                },
+                "required": [
+                    "test_string", "test_bool", "test_bytes", "test_double", "test_float",
+                    "test_fixed32", "test_fixed64", "test_int32", "test_int64",
+                    "test_sfixed32", "test_sfixed64", "test_sint32", "test_sint64",
+                    "test_uint32", "test_uint64"
+                ]
+            }
+            value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
+        elif serialization_type == 'protobuf':
+            value_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
+        else:
+            raise ValueError(f"Unsupported serialization_type: {serialization_type}")
+
+        return key_serializer, value_serializer
+
     def create_producer(self, config_overrides=None):
         config = self._get_base_config()
 
@@ -91,14 +181,8 @@ class SyncProducerStrategy(ProducerStrategy):
 
         return producer
 
-    def produce_messages(
-            self,
-            topic_name,
-            test_duration,
-            start_time,
-            message_formatter,
-            delivered_container,
-            failed_container=None):
+    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
+                         delivered_container, failed_container=None, serialization_type=None):
         config_overrides = getattr(self, 'config_overrides', None)
         producer = self.create_producer(config_overrides)
         messages_sent = 0
@@ -109,13 +193,18 @@ class SyncProducerStrategy(ProducerStrategy):
         poll_times = []
         flush_time = 0
 
+        # Initialize serializers via helper (or None if not requested)
+        key_serializer, value_serializer = self.build_serializers(serialization_type)
+
         def delivery_callback(err, msg):
             if err:
                 if failed_container is not None:
                     failed_container.append(err)
                 if self.metrics:
-                    self.metrics.record_failed(topic=msg.topic() if msg else topic_name,
-                                               partition=msg.partition() if msg else 0)
+                    self.metrics.record_failed(
+                        topic=msg.topic() if msg else topic_name,
+                        partition=msg.partition() if msg else 0
+                    )
             else:
                 delivered_container.append(msg)
                 if self.metrics:
@@ -131,20 +220,37 @@ class SyncProducerStrategy(ProducerStrategy):
         while time.time() - start_time < test_duration:
             message_value, message_key = message_formatter(messages_sent)
             try:
-                # Track send time for latency calculation
-                if self.metrics:
-                    send_times[message_key] = time.time()
-                    message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
-                    self.metrics.record_sent(message_size, topic=topic_name, partition=0)
-
-                # Produce message
-                produce_start = time.time()
-                producer.produce(
-                    topic=topic_name,
-                    value=message_value,
-                    key=message_key,
-                    on_delivery=delivery_callback
-                )
+                if serialization_type:
+                    # Serialize key and value using Schema Registry serializers
+                    serialized_key = key_serializer(message_key)
+                    serialized_value = value_serializer(
+                        message_value, SerializationContext(topic_name, MessageField.VALUE)
+                    )
+                    message_size = len(serialized_key) + len(serialized_value)
+                    if self.metrics:
+                        send_times[message_key] = time.time()
+                        self.metrics.record_sent(message_size, topic=topic_name, partition=0)
+                    produce_start = time.time()
+                    producer.produce(
+                        topic=topic_name,
+                        value=serialized_value,
+                        key=serialized_key,
+                        on_delivery=delivery_callback
+                    )
+                else:
+                    # Track send time for latency calculation (plain string messages)
+                    if self.metrics:
+                        send_times[message_key] = time.time()
+                        message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
+                        self.metrics.record_sent(message_size, topic=topic_name, partition=0)
+                    # Produce message
+                    produce_start = time.time()
+                    producer.produce(
+                        topic=topic_name,
+                        value=message_value,
+                        key=message_key,
+                        on_delivery=delivery_callback
+                    )
                 produce_times.append(time.time() - produce_start)
                 messages_sent += 1
 
@@ -187,6 +293,84 @@ class AsyncProducerStrategy(ProducerStrategy):
         super().__init__(*args, **kwargs)
         self._producer_instance = None
 
+    async def build_serializers(self, serialization_type):
+        """Build asynchronous serializers for Schema Registry"""
+        if not serialization_type:
+            return None, None
+
+        schema_registry_url = os.getenv(
+            'SCHEMA_REGISTRY_URL',
+            getattr(self, 'schema_registry_url', 'http://localhost:8081')
+        )
+        client_config = {
+            'url': schema_registry_url,
+            'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'
+        }
+        sr_client = AsyncSchemaRegistryClient(client_config)
+        key_serializer = StringSerializer('utf8')
+
+        if serialization_type == 'avro':
+            avro_schema = {
+                "type": "record",
+                "name": "TestMessage",
+                "fields": [
+                    {"name": "test_string", "type": "string"},
+                    {"name": "test_bool", "type": "boolean"},
+                    {"name": "test_bytes", "type": "bytes"},
+                    {"name": "test_double", "type": "double"},
+                    {"name": "test_float", "type": "float"},
+                    {"name": "test_fixed32", "type": "int"},
+                    {"name": "test_fixed64", "type": "long"},
+                    {"name": "test_int32", "type": "int"},
+                    {"name": "test_int64", "type": "long"},
+                    {"name": "test_sfixed32", "type": "int"},
+                    {"name": "test_sfixed64", "type": "long"},
+                    {"name": "test_sint32", "type": "int"},
+                    {"name": "test_sint64", "type": "long"},
+                    {"name": "test_uint32", "type": "int"},
+                    {"name": "test_uint64", "type": "long"}
+                ]
+            }
+            value_serializer = await AsyncAvroSerializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(avro_schema)
+            )
+        elif serialization_type == 'json':
+            json_schema = {
+                "type": "object",
+                "title": "TestMessage",  # Required for Schema Registry
+                "properties": {
+                    "test_string": {"type": "string"},
+                    "test_bool": {"type": "boolean"},
+                    "test_bytes": {"type": "string"},
+                    "test_double": {"type": "number"},
+                    "test_float": {"type": "number"},
+                    "test_fixed32": {"type": "integer"},
+                    "test_fixed64": {"type": "integer"},
+                    "test_int32": {"type": "integer"},
+                    "test_int64": {"type": "integer"},
+                    "test_sfixed32": {"type": "integer"},
+                    "test_sfixed64": {"type": "integer"},
+                    "test_sint32": {"type": "integer"},
+                    "test_sint64": {"type": "integer"},
+                    "test_uint32": {"type": "integer"},
+                    "test_uint64": {"type": "integer"}
+                },
+                "required": [
+                    "test_string", "test_bool", "test_bytes", "test_double", "test_float",
+                    "test_fixed32", "test_fixed64", "test_int32", "test_int64",
+                    "test_sfixed32", "test_sfixed64", "test_sint32", "test_sint64",
+                    "test_uint32", "test_uint64"
+                ]
+            }
+            value_serializer = await AsyncJSONSerializer(json.dumps(json_schema), sr_client)
+        elif serialization_type == 'protobuf':
+            value_serializer = await AsyncProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
+        else:
+            raise ValueError(f"Unsupported serialization_type: {serialization_type}")
+
+        return key_serializer, value_serializer
+
     def create_producer(self, config_overrides=None):
         from confluent_kafka.aio import AIOProducer
         # Enable logging for AIOProducer
@@ -212,26 +396,26 @@ class AsyncProducerStrategy(ProducerStrategy):
 
         return self._producer_instance
 
-    def produce_messages(
-            self,
-            topic_name,
-            test_duration,
-            start_time,
-            message_formatter,
-            delivered_container,
-            failed_container=None):
+    def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
+                         delivered_container, failed_container=None, serialization_type=None):
 
         async def async_produce():
             config_overrides = getattr(self, 'config_overrides', None)
+
+            # Use AIOProducer for all cases (SR and non-SR)
             producer = self.create_producer(config_overrides)
             messages_sent = 0
-            pending_futures = []
-            send_times = {}  # Track send times for latency calculation
 
             # Temporary metrics for timing sections
             produce_times = []
             poll_times = []
             flush_time = 0
+            pending_futures = []
+            send_times = {}
+
+            # Get serializers if using Schema Registry
+            if serialization_type:
+                key_serializer, value_serializer = await self.build_serializers(serialization_type)
 
             # Pre-create shared metrics callback to avoid closure creation overhead
             if self.metrics:
@@ -244,13 +428,30 @@ class AsyncProducerStrategy(ProducerStrategy):
                             latency_ms = (time.time() - send_times[msg_key]) * 1000
                             del send_times[msg_key]
                         self.metrics.record_delivered(latency_ms, topic=msg.topic(), partition=msg.partition())
+                    if not err:  # Also append to delivered_messages for assertion
+                        delivered_container.append(msg)
 
             while time.time() - start_time < test_duration:
                 message_value, message_key = message_formatter(messages_sent)
                 try:
+                    # Handle serialization if using Schema Registry
+                    if serialization_type:
+                        serialized_key = key_serializer(message_key)
+                        # Async serializers return coroutines, so we need to await them
+                        serialized_value = await value_serializer(
+                            message_value, SerializationContext(topic_name, MessageField.VALUE)
+                        )
+                        message_size = len(serialized_key) + len(serialized_value)
+                        produce_value = serialized_value
+                        produce_key = serialized_key
+                    else:
+                        # Plain string encoding for non-SR
+                        message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
+                        produce_value = message_value
+                        produce_key = message_key
+
                     # Record sent message for metrics and track send time
                     if self.metrics:
-                        message_size = len(message_value.encode('utf-8')) + len(message_key.encode('utf-8'))
                         self.metrics.record_sent(message_size, topic=topic_name, partition=0)
                         send_times[message_key] = time.time()  # Track send time for latency
 
@@ -258,8 +459,9 @@ class AsyncProducerStrategy(ProducerStrategy):
                     produce_start = time.time()
                     delivery_future = await producer.produce(
                         topic=topic_name,
-                        value=message_value,
-                        key=message_key
+                        value=produce_value,
+                        key=produce_key,
+                        on_delivery=shared_metrics_callback
                     )
                     produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
