@@ -259,11 +259,9 @@ class SyncConsumerStrategy(ConsumerStrategy):
                     self._record_message_metrics(msg,
                                                consume_latency_ms / max(len(messages), 1))
 
+        finally:
             consumer.close()
-            return messages_consumed
-        except Exception:
-            consumer.close()
-            raise
+        return messages_consumed
 
     def poll_messages(self, topic_name, test_duration, start_time, consumed_container,
                       timeout=1.0, serialization_type=None):
@@ -303,12 +301,9 @@ class SyncConsumerStrategy(ConsumerStrategy):
                 consumed_container.append(msg)
                 messages_consumed += 1
                 self._record_message_metrics(msg, poll_latency_ms)
-
+        finally:
             consumer.close()
-            return messages_consumed
-        except Exception:
-            consumer.close()
-            raise
+        return messages_consumed
 
 
 class AsyncConsumerStrategy(ConsumerStrategy):
@@ -427,11 +422,9 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                         self._record_message_metrics(msg,
                                                    consume_latency_ms / max(len(messages), 1))
 
+            finally:
                 await consumer.close()
-                return messages_consumed
-            except Exception:
-                await consumer.close()
-                raise
+            return messages_consumed
 
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(async_consume())
@@ -476,11 +469,9 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                     messages_consumed += 1
                     self._record_message_metrics(msg, poll_latency_ms)
 
+            finally:
                 await consumer.close()
-                return messages_consumed
-            except Exception:
-                await consumer.close()
-                raise
+            return messages_consumed
 
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(async_poll())
