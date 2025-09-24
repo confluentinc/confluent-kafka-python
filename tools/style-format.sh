@@ -27,8 +27,8 @@ else
 fi
 
 clang_format_version=$(${CLANG_FORMAT} --version | sed -Ee 's/.*version ([[:digit:]]+)\.[[:digit:]]+\.[[:digit:]]+.*/\1/')
-if [[ $clang_format_version != "10" ]] ; then
-    echo "$0: clang-format version 10, '$clang_format_version' detected"
+if [[ $clang_format_version != "18" ]] ; then
+    echo "$0: clang-format version 18, '$clang_format_version' detected"
     exit 1
 fi
 
