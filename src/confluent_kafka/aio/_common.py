@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import asyncio
+import functools
 
 
 class AsyncLogger:
@@ -46,6 +47,26 @@ def wrap_conf_callback(loop, conf, name):
 def wrap_conf_logger(loop, conf):
     if 'logger' in conf:
         conf['logger'] = AsyncLogger(loop, conf['logger'])
+
+
+async def async_call(executor, blocking_task, *args, **kwargs):
+    """Helper function for blocking operations that need ThreadPool execution
+
+    Args:
+        executor: ThreadPoolExecutor to use for blocking operations
+        blocking_task: The blocking function to execute
+        *args, **kwargs: Arguments to pass to the blocking function
+
+    Returns:
+        Result of the blocking function execution
+    """
+    return (await asyncio.gather(
+        asyncio.get_running_loop().run_in_executor(executor,
+                                                   functools.partial(
+                                                       blocking_task,
+                                                       *args,
+                                                       **kwargs))
+    ))[0]
 
 
 def wrap_common_callbacks(loop, conf):
