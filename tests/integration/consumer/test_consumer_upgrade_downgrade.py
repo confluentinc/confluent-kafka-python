@@ -36,23 +36,6 @@ def get_group_protocol_type(a, group_id):
         raise
 
 
-def list_offsets(a, topic, no_of_partitions):
-    topic_partition_offsets = {}
-    for partition in range(no_of_partitions):
-        topic_partition = TopicPartition(topic, partition)
-        topic_partition_offsets[topic_partition] = OffsetSpec.latest()
-    futmap = a.list_offsets(topic_partition_offsets, isolation_level=IsolationLevel.READ_COMMITTED, request_timeout=30)
-    for partition, fut in futmap.items():
-        try:
-            result = fut.result()
-            print("Topicname : {} Partition_Index : {} Offset : {} Timestamp : {}"
-                  .format(partition.topic, partition.partition, result.offset,
-                          result.timestamp))
-        except KafkaException as e:
-            print("Topicname : {} Partition_Index : {} Error : {}"
-                  .format(partition.topic, partition.partition, e))
-
-
 def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_protocol):
     total_msg_read = 0
     expected_partitions_per_consumer = number_of_partitions // len(consumers)
@@ -71,7 +54,6 @@ def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_proto
 
     # Produce some messages to the topic
     kafka_cluster.seed_topic(topic)
-    list_offsets(admin_client, topic, number_of_partitions)
 
     while total_msg_read < 100:
         for consumer in consumers:
