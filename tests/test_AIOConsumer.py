@@ -149,7 +149,7 @@ class TestAIOConsumer:
         assert len(results) == 2
         assert isinstance(results[0], KafkaException)
         assert isinstance(results[1], KafkaException)
-        
+
     @pytest.mark.asyncio
     async def test_network_error_handling(self, mock_consumer, mock_common, basic_config):
         """Test AIOConsumer handles network errors gracefully."""
