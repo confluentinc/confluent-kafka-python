@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import pytest
+from enum import Enum
 from confluent_kafka import ConsumerGroupType, KafkaException
 from tests.common import TestUtils
 
@@ -35,7 +36,7 @@ def get_group_protocol_type(a, group_id):
         raise
 
 
-def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_protocol):
+def check_consumer(kafka_cluster, consumers, admin_client, group_id, topic, expected_protocol):
     no_of_messages = 100
     total_msg_read = 0
     expected_partitions_per_consumer = number_of_partitions // len(consumers)
@@ -50,7 +51,7 @@ def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_proto
         assert len(assignment) == expected_partitions_per_consumer
     assert len(all_assignments) == number_of_partitions
 
-    assert get_group_protocol_type(admin_client, topic) == expected_protocol
+    assert get_group_protocol_type(admin_client, group_id) == expected_protocol
 
     # Produce some messages to the topic
     test_data = ['test-data{}'.format(i) for i in range(0, no_of_messages)]
@@ -65,6 +66,11 @@ def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_proto
                 total_msg_read += 1
 
     assert total_msg_read == no_of_messages, f"Expected to read {no_of_messages} messages, but read {total_msg_read}"
+
+
+class Operation(Enum):
+    ADD = 0
+    REMOVE = 1
 
 
 def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(kafka_cluster, partition_assignment_strategy):
@@ -90,22 +96,26 @@ def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(k
         **consumer_conf
     }
 
-    consumer = kafka_cluster.consumer(consumer_conf_classic)
-    assert consumer is not None
-    consumer.subscribe([topic])
-    check_consumer(kafka_cluster, [consumer], admin_client, topic, ConsumerGroupType.CLASSIC)
+    test_scenarios = [(Operation.ADD, consumer_conf_classic, ConsumerGroupType.CLASSIC),
+                      (Operation.ADD, consumer_conf_consumer, ConsumerGroupType.CONSUMER),
+                      (Operation.REMOVE, None, ConsumerGroupType.CONSUMER),
+                      (Operation.ADD, consumer_conf_classic, ConsumerGroupType.CONSUMER),
+                      (Operation.REMOVE, None, ConsumerGroupType.CLASSIC)]
+    consumers = []
 
-    # Now simulate an upgrade by creating a new consumer with 'consumer' protocol
-    consumer2 = kafka_cluster.consumer(consumer_conf_consumer)
-    assert consumer2 is not None
-    consumer2.subscribe([topic])
-    check_consumer(kafka_cluster, [consumer, consumer2], admin_client, topic, ConsumerGroupType.CONSUMER)
+    for operation, conf, expected_protocol in test_scenarios:
+        if operation == Operation.ADD:
+            consumer = kafka_cluster.consumer(conf)
+            assert consumer is not None
+            consumer.subscribe([topic])
+            consumers.append(consumer)
+        elif operation == Operation.REMOVE:
+            consumer_to_remove = consumers.pop(0)
+            consumer_to_remove.close()
+        check_consumer(kafka_cluster, consumers, admin_client, topic, topic, expected_protocol)
 
-    # Now simulate a downgrade by deleting the second consumer and keeping only 'classic' consumer
-    consumer2.close()
-    check_consumer(kafka_cluster, [consumer], admin_client, topic, ConsumerGroupType.CLASSIC)
-
-    consumer.close()
+    assert len(consumers) == 1
+    consumers[0].close()
     kafka_cluster.delete_topic(topic)
 
 
