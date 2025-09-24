@@ -15,7 +15,6 @@
 import asyncio
 import concurrent.futures
 import confluent_kafka
-import functools
 import confluent_kafka.aio._common as _common
 
 

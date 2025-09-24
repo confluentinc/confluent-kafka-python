@@ -6,9 +6,8 @@ Unit tests for AIOProducer class.
 """
 import asyncio
 import concurrent.futures
-import logging
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
 
 from confluent_kafka import KafkaError, KafkaException
 from confluent_kafka.aio.producer._AIOProducer import AIOProducer
@@ -103,7 +102,7 @@ class TestAIOProducer:
                     if not future.done():
                         future.set_result(mock_msg)
             producer._batch_processor.clear_buffer()
-        
+
         with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
             result_future = await producer.produce(topic="test_topic", value="test_value")
             result = await result_future
@@ -202,7 +201,8 @@ class TestAIOProducer:
         # Verify task stops and producer is closed
         assert producer._is_closed is True
         await asyncio.sleep(0.1)  # Grace period for cleanup
-        assert producer._buffer_timeout_manager._timeout_task is None or producer._buffer_timeout_manager._timeout_task.done()
+        assert (producer._buffer_timeout_manager._timeout_task is None or
+                producer._buffer_timeout_manager._timeout_task.done())
 
     @pytest.mark.asyncio
     async def test_multiple_concurrent_produce(self, mock_producer, mock_common, basic_config):
@@ -220,8 +220,10 @@ class TestAIOProducer:
             for i, msg_data in enumerate(messages):
                 mock_msg = Mock()
                 mock_msg.topic.return_value = topic
-                mock_msg.value.return_value = msg_data['value'].encode() if isinstance(msg_data['value'], str) else msg_data['value']
-                
+                mock_msg.value.return_value = (
+                    msg_data['value'].encode() if isinstance(
+                        msg_data['value'], str) else msg_data['value'])
+
                 completed_produces.append((topic, msg_data['value']))
                 # Call the individual message callback
                 if 'callback' in msg_data:
@@ -266,7 +268,7 @@ class TestAIOProducer:
         custom_executor = concurrent.futures.ThreadPoolExecutor(max_workers=8)
         try:
             producer2 = AIOProducer(
-                basic_config, 
+                basic_config,
                 executor=custom_executor,
                 batch_size=500,
                 buffer_timeout=10.0
@@ -284,16 +286,17 @@ class TestAIOProducer:
 
         # Test close method with messages in buffer
         producer = AIOProducer(basic_config)
-        
+
         # Add some messages to buffer
-        with patch.object(producer, '_flush_buffer') as mock_flush:
+        with patch.object(producer, '_flush_buffer'):
             await producer.produce('test', 'msg1')
             assert producer._batch_processor.get_buffer_size() == 1
 
             # Test close method
             await producer.close()
             assert producer._is_closed is True
-            assert producer._buffer_timeout_manager._timeout_task is None or producer._buffer_timeout_manager._timeout_task.done()
+            assert (producer._buffer_timeout_manager._timeout_task is None or
+                    producer._buffer_timeout_manager._timeout_task.done())
 
     @pytest.mark.asyncio
     async def test_buffer_timeout_task_management(self, mock_producer, mock_common, basic_config):
@@ -309,7 +312,8 @@ class TestAIOProducer:
         # Test task stops on close
         await producer.close()
         assert producer._is_closed is True
-        assert producer._buffer_timeout_manager._timeout_task is None or producer._buffer_timeout_manager._timeout_task.done()
+        assert (producer._buffer_timeout_manager._timeout_task is None or
+                producer._buffer_timeout_manager._timeout_task.done())
 
     @pytest.mark.asyncio
     async def test_buffer_timeout_behavior(self, mock_producer, mock_common, basic_config):
@@ -325,14 +329,14 @@ class TestAIOProducer:
         with patch.object(producer, '_flush_buffer'):  # Prevent auto-flush
             await producer.produce('test', 'msg1')
         assert producer._buffer_timeout_manager._last_activity > initial_time
-        
+
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_poll_method_new_implementation(self, mock_producer, mock_common, basic_config):
         """Test poll method with different timeout scenarios."""
         producer = AIOProducer(basic_config)
-        
+
         # Test timeout=0 (non-blocking)
         with patch.object(producer, '_call') as mock_call:
             await producer.poll(timeout=0)
@@ -349,7 +353,7 @@ class TestAIOProducer:
     async def test_produce_method_batching(self, mock_producer, mock_common, basic_config):
         """Test produce method with batching behavior."""
         producer = AIOProducer(basic_config, batch_size=3)
-        
+
         # Test basic produce adds to buffer
         with patch.object(producer, '_flush_buffer') as mock_flush:
             future1 = await producer.produce('topic1', 'value1', key='key1')
@@ -370,13 +374,13 @@ class TestAIOProducer:
     async def test_flush_and_purge_methods_new_implementation(self, mock_producer, mock_common, basic_config):
         """Test flush and purge methods for current implementation."""
         producer = AIOProducer(basic_config)
-        
+
         # Add messages to buffer
         with patch.object(producer, '_flush_buffer'):  # Prevent auto-flush
             await producer.produce('test', 'msg1')
             await producer.produce('test', 'msg2')
         assert producer._batch_processor.get_buffer_size() == 2
-        
+
         # Test purge clears buffers
         with patch.object(producer, '_call') as mock_call:
             await producer.purge()
@@ -384,14 +388,14 @@ class TestAIOProducer:
 
         assert producer._batch_processor.get_buffer_size() == 0
         assert len(producer._batch_processor._buffer_futures) == 0
-        
+
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_group_messages_by_topic(self, mock_producer, mock_common, basic_config):
         """Test message grouping by topic for batch processing."""
         producer = AIOProducer(basic_config)
-        
+
         # Test empty buffer
         groups = producer._batch_processor._group_messages_by_topic()
         assert groups == {}
@@ -414,16 +418,15 @@ class TestAIOProducer:
 
         await producer.close()
 
-
     @pytest.mark.asyncio
     async def test_error_handling_new_implementation(self, mock_producer, mock_common, basic_config):
         """Test error handling in current implementation."""
         producer = AIOProducer(basic_config)
-        
+
         # Test batch error propagation
         producer._batch_processor._message_buffer = [{'topic': 'test', 'value': 'msg', 'user_callback': None}]
         producer._batch_processor._buffer_futures = [asyncio.Future()]
-        
+
         with patch.object(producer._batch_processor, 'flush_buffer', side_effect=Exception("Batch failed")):
             with pytest.raises(Exception, match="Batch failed"):
                 await producer._flush_buffer()
@@ -434,12 +437,12 @@ class TestAIOProducer:
     async def test_future_based_usage_pattern(self, mock_producer, mock_common, basic_config):
         """Test the recommended Future-based usage pattern instead of callbacks."""
         producer = AIOProducer(basic_config, batch_size=1)
-        
+
         # Mock successful delivery
         mock_msg = Mock()
         mock_msg.topic.return_value = "test-topic"
         mock_msg.value.return_value = b"test-value"
-        
+
         async def mock_flush_buffer(target_topic=None):
             batches = producer._batch_processor.create_batches(target_topic)
             for batch in batches:
@@ -447,27 +450,27 @@ class TestAIOProducer:
                     if not future.done():
                         future.set_result(mock_msg)
             producer._batch_processor.clear_buffer()
-        
+
         with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
             # Recommended usage: await the Future returned by produce()
             future = await producer.produce(topic="test-topic", value="test-value")
             result = await future
-            
+
             # Verify the result
             assert result is mock_msg
             assert result.topic() == "test-topic"
             assert result.value() == b"test-value"
-        
+
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_future_based_error_handling(self, mock_producer, mock_common, basic_config):
         """Test Future-based error handling pattern."""
         producer = AIOProducer(basic_config, batch_size=1)
-        
+
         # Mock delivery error
         mock_error = KafkaException(KafkaError(KafkaError._MSG_TIMED_OUT))
-        
+
         async def mock_flush_buffer(target_topic=None):
             batches = producer._batch_processor.create_batches(target_topic)
             for batch in batches:
@@ -475,26 +478,26 @@ class TestAIOProducer:
                     if not future.done():
                         future.set_exception(mock_error)
             producer._batch_processor.clear_buffer()
-        
+
         with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
             # Recommended usage: handle exceptions via Future
             future = await producer.produce(topic="test-topic", value="test-value")
-            
+
             with pytest.raises(KafkaException):
                 await future
-        
+
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_future_based_concurrent_usage(self, mock_producer, mock_common, basic_config):
         """Test Future-based concurrent usage pattern."""
         producer = AIOProducer(basic_config, batch_size=1)
-        
+
         # Mock successful delivery
         mock_msg = Mock()
         mock_msg.topic.return_value = "test-topic"
         mock_msg.value.return_value = b"test-value"
-        
+
         async def mock_flush_buffer(target_topic=None):
             batches = producer._batch_processor.create_batches(target_topic)
             for batch in batches:
@@ -502,39 +505,38 @@ class TestAIOProducer:
                     if not future.done():
                         future.set_result(mock_msg)
             producer._batch_processor.clear_buffer()
-        
+
         with patch.object(producer, '_flush_buffer', side_effect=mock_flush_buffer):
             # Recommended usage: collect Futures and await them together
             futures = []
             for i in range(5):
                 future = await producer.produce(topic="test-topic", value=f"test-value-{i}")
                 futures.append(future)
-            
+
             # Wait for all deliveries to complete
             results = await asyncio.gather(*futures)
-            
+
             # Verify all results
             assert len(results) == 5
             for result in results:
                 assert result is mock_msg
-        
+
         await producer.close()
 
     @pytest.mark.asyncio
     async def test_edge_cases_batching(self, mock_producer, mock_common, basic_config):
         """Test edge cases in batching behavior."""
         producer = AIOProducer(basic_config, batch_size=100)
-        
+
         # Test large batch handling
         with patch.object(producer, '_flush_buffer') as mock_flush:
             large_batch_tasks = [
                 producer.produce('test', f'msg{i}')
                 for i in range(150)  # Exceeds batch_size
             ]
-            
+
             # Should trigger flush automatically at 100
-            futures = await asyncio.gather(*large_batch_tasks)
+            await asyncio.gather(*large_batch_tasks)
             assert mock_flush.call_count >= 1  # At least one flush
 
         await producer.close()
-

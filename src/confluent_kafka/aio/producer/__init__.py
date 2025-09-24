@@ -19,7 +19,7 @@ This module contains all the components for the async Kafka producer:
 
 Core Components:
 - AIOProducer: Main async producer with clean architecture
-- ProducerBatchProcessor: Message batching and organization  
+- ProducerBatchProcessor: Message batching and organization
 - KafkaBatchExecutor: Kafka operations and thread pool management
 - BufferTimeoutManager: Timeout monitoring and automatic flushing
 
@@ -28,7 +28,7 @@ Data Structures:
 
 Architecture Benefits:
 ✅ Single Responsibility: Each component has one clear purpose
-✅ Clean Interfaces: Well-defined boundaries between components  
+✅ Clean Interfaces: Well-defined boundaries between components
 ✅ Immutable Data: MessageBatch objects prevent accidental mutations
 ✅ Better Testing: Components can be tested independently
 ✅ Maintainable: Clear separation makes changes safer

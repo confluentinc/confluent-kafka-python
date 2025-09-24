@@ -4,7 +4,7 @@ Assumes Kafka is already running on localhost:9092
 """
 import time
 from ducktape.tests.test import Test
-from ducktape.mark import matrix, parametrize
+from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
@@ -36,7 +36,7 @@ class SimpleProducerTest(Test):
             strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
         else:  # async
             strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
-        
+
         # Store config overrides for later use in create_producer
         strategy.config_overrides = config_overrides
         return strategy
@@ -92,7 +92,6 @@ class SimpleProducerTest(Test):
         # Get comprehensive metrics summary
         metrics_summary = metrics.get_summary()
         is_valid, violations = validate_metrics(metrics_summary, bounds)
-
 
         # Print comprehensive metrics report
         self.logger.info(f"=== {producer_type.upper()} PRODUCER METRICS REPORT ===")
@@ -176,7 +175,7 @@ class SimpleProducerTest(Test):
             # Get the actual metrics dictionary
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
-                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info("=== Producer Built-in Metrics ===")
                 self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
                 self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
                 self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")
@@ -222,7 +221,7 @@ class SimpleProducerTest(Test):
         compression_config = {}
         if compression_type != 'none':
             compression_config['compression.type'] = compression_type
-        
+
         # Configure polling intervals based on compression type and producer type
         if producer_type == 'async':
             polling_config = {
@@ -238,14 +237,15 @@ class SimpleProducerTest(Test):
                 'none': 50      # Poll every 50 messages for none (standard)
             }
         poll_interval = polling_config.get(compression_type, 50 if producer_type == 'sync' else 100)
-        
+
         strategy = self.create_producer(producer_type, compression_config)
         strategy.poll_interval = poll_interval
 
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
+        self.logger.info(
+            f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
         self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
         # Start metrics collection
@@ -287,7 +287,7 @@ class SimpleProducerTest(Test):
             # Get the actual metrics dictionary
             producer_metrics_summary = final_metrics.get_summary()
             if producer_metrics_summary:
-                self.logger.info(f"=== Producer Built-in Metrics ===")
+                self.logger.info("=== Producer Built-in Metrics ===")
                 self.logger.info(f"Runtime: {producer_metrics_summary['duration_seconds']:.2f}s")
                 self.logger.info(f"Success Rate: {producer_metrics_summary['success_rate']:.3f}")
                 self.logger.info(f"Throughput: {producer_metrics_summary['send_throughput_msg_per_sec']:.1f} msg/sec")

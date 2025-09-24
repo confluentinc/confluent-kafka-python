@@ -51,12 +51,12 @@ def wrap_conf_logger(loop, conf):
 
 async def async_call(executor, blocking_task, *args, **kwargs):
     """Helper function for blocking operations that need ThreadPool execution
-    
+
     Args:
         executor: ThreadPoolExecutor to use for blocking operations
         blocking_task: The blocking function to execute
         *args, **kwargs: Arguments to pass to the blocking function
-    
+
     Returns:
         Result of the blocking function execution
     """
