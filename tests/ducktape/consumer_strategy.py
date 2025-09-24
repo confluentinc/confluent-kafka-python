@@ -123,56 +123,6 @@ class ConsumerStrategy:
         else:
             raise ValueError(f"Unsupported deserialization type: {deserialization_type}")
 
-    def build_deserializers(self, deserialization_type, is_async=False):
-        """
-        Build and return (key_deserializer, value_deserializer) for the given deserialization_type.
-        Returns (None, None) if deserialization_type is not provided.
-        """
-        if not deserialization_type:
-            return None, None
-
-        key_deserializer = StringDeserializer('utf8')
-
-        # For async, return None as value_deserializer (will be built in async context)
-        if is_async:
-            return key_deserializer, None
-
-        # Build sync deserializers
-        sr_client = self._get_schema_registry_client(is_async=False)
-        schema = self._get_schemas(deserialization_type)
-
-        if deserialization_type == 'avro':
-            value_deserializer = AvroDeserializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(schema)
-            )
-        elif deserialization_type == 'json':
-            value_deserializer = JSONDeserializer(json.dumps(schema))
-        elif deserialization_type == 'protobuf':
-            value_deserializer = ProtobufDeserializer(schema)
-
-        return key_deserializer, value_deserializer
-
-    async def build_async_deserializers(self, deserialization_type):
-        """Build async deserializers - must be called from async context"""
-        if not deserialization_type:
-            return None, None
-
-        key_deserializer = StringDeserializer('utf8')
-        sr_client = self._get_schema_registry_client(is_async=True)
-        schema = self._get_schemas(deserialization_type)
-
-        if deserialization_type == 'avro':
-            value_deserializer = await AsyncAvroDeserializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(schema)
-            )
-        elif deserialization_type == 'json':
-            value_deserializer = await AsyncJSONDeserializer(json.dumps(schema))
-        elif deserialization_type == 'protobuf':
-            value_deserializer = await AsyncProtobufDeserializer(schema)
-
-        return key_deserializer, value_deserializer
 
 
     def _record_message_metrics(self, msg, latency_ms):
@@ -200,6 +150,27 @@ class ConsumerStrategy:
 
 
 class SyncConsumerStrategy(ConsumerStrategy):
+    def build_deserializers(self, deserialization_type):
+        """Build sync deserializers"""
+        if not deserialization_type:
+            return None, None
+
+        key_deserializer = StringDeserializer('utf8')
+        sr_client = self._get_schema_registry_client(is_async=False)
+        schema = self._get_schemas(deserialization_type)
+
+        if deserialization_type == 'avro':
+            value_deserializer = AvroDeserializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(schema)
+            )
+        elif deserialization_type == 'json':
+            value_deserializer = JSONDeserializer(json.dumps(schema))
+        elif deserialization_type == 'protobuf':
+            value_deserializer = ProtobufDeserializer(schema)
+
+        return key_deserializer, value_deserializer
+
     def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
         """Sync deserialization logic"""
         if not (key_deserializer or value_deserializer):
@@ -245,7 +216,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
     def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
                          timeout=1.0, serialization_type=None):
         # Initialize deserializers if using Schema Registry
-        key_deserializer, value_deserializer = self.build_deserializers(serialization_type, is_async=False)
+        key_deserializer, value_deserializer = self.build_deserializers(serialization_type)
 
         consumer = self.create_consumer()
 
@@ -297,10 +268,7 @@ class SyncConsumerStrategy(ConsumerStrategy):
     def poll_messages(self, topic_name, test_duration, start_time, consumed_container,
                       timeout=1.0, serialization_type=None):
         # Initialize deserializers if using Schema Registry
-        key_deserializer, value_deserializer = (
-            self.build_deserializers(serialization_type) if serialization_type
-            else (None, None)
-        )
+        key_deserializer, value_deserializer = self.build_deserializers(serialization_type)
 
         consumer = self.create_consumer()
 
@@ -347,6 +315,27 @@ class AsyncConsumerStrategy(ConsumerStrategy):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._consumer_instance = None
+
+    async def build_deserializers(self, deserialization_type):
+        """Build async deserializers - must be called from async context"""
+        if not deserialization_type:
+            return None, None
+
+        key_deserializer = StringDeserializer('utf8')
+        sr_client = self._get_schema_registry_client(is_async=True)
+        schema = self._get_schemas(deserialization_type)
+
+        if deserialization_type == 'avro':
+            value_deserializer = await AsyncAvroDeserializer(
+                schema_registry_client=sr_client,
+                schema_str=json.dumps(schema)
+            )
+        elif deserialization_type == 'json':
+            value_deserializer = await AsyncJSONDeserializer(json.dumps(schema))
+        elif deserialization_type == 'protobuf':
+            value_deserializer = await AsyncProtobufDeserializer(schema)
+
+        return key_deserializer, value_deserializer
 
     async def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
         """Async deserialization logic"""
@@ -395,10 +384,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                          timeout=1.0, serialization_type=None):
         async def async_consume():
             # Initialize deserializers if using Schema Registry
-            key_deserializer, value_deserializer = (
-                await self.build_async_deserializers(serialization_type) if serialization_type
-                else (None, None)
-            )
+            key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
 
             consumer = self.create_consumer()
 
@@ -454,10 +440,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
                       timeout=1.0, serialization_type=None):
         async def async_poll():
             # Initialize deserializers if using Schema Registry
-            key_deserializer, value_deserializer = (
-                await self.build_async_deserializers(serialization_type) if serialization_type
-                else (None, None)
-            )
+            key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
 
             consumer = self.create_consumer()
 
