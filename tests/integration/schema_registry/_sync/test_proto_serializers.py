@@ -52,7 +52,7 @@ def test_protobuf_message_serialization(kafka_cluster, pb2, data):
     Validates that we get the same message back that we put in.
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-proto")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-proto")
     sr = kafka_cluster.schema_registry()
 
     value_serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
@@ -85,7 +85,7 @@ def test_protobuf_reference_registration(kafka_cluster, pb2, expected_refs):
 
     """
     sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-proto-refs")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2, sr, {'use.deprecated.format': False})
     producer = kafka_cluster.producer(key_serializer=serializer)
 
@@ -106,7 +106,7 @@ def test_protobuf_serializer_type_mismatch(kafka_cluster):
     pb2_2 = NestedTestProto_pb2.NestedMessage
 
     sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-proto-refs")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
 
     producer = kafka_cluster.producer(key_serializer=serializer)
@@ -127,7 +127,7 @@ def test_protobuf_deserializer_type_mismatch(kafka_cluster):
     pb2_2 = metadata_proto_pb2.HDFSOptions
 
     sr = kafka_cluster.schema_registry()
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-proto-refs")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-proto-refs")
     serializer = ProtobufSerializer(pb2_1, sr, {'use.deprecated.format': False})
     deserializer = ProtobufDeserializer(pb2_2, {'use.deprecated.format': False})
 

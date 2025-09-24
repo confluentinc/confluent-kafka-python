@@ -247,9 +247,9 @@ class KafkaClusterFixture(object):
         except Exception as e:
             print("Failed to delete topic {}: {}".format(topic, e))
 
-    def create_topic_and_wait_propogation(self, prefix, conf=None, **create_topic_kwargs):
+    def create_topic_and_wait_propagation(self, prefix, conf=None, **create_topic_kwargs):
         """
-        Creates a new topic with this cluster. Wait for the topic to be propogated to all brokers.
+        Creates a new topic with this cluster. Wait for the topic to be propagated to all brokers.
 
         :param str prefix: topic name
         :param dict conf: additions/overrides to topic configuration.
@@ -258,7 +258,7 @@ class KafkaClusterFixture(object):
         """
         name = self.create_topic(prefix, conf, **create_topic_kwargs)
 
-        # wait for topic propogation across all the brokers.
+        # wait for topic propagation across all the brokers.
         # FIXME: find a better way to wait for topic creation
         #        for all languages, given option to send request to
         #        a specific broker isn't present everywhere.

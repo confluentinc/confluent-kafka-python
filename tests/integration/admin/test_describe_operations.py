@@ -204,7 +204,7 @@ def test_describe_operations(sasl_cluster):
 
     # Create Topic
     topic_config = {"compression.type": "gzip"}
-    our_topic = sasl_cluster.create_topic_and_wait_propogation(topic_prefix,
+    our_topic = sasl_cluster.create_topic_and_wait_propagation(topic_prefix,
                                                                {
                                                                    "num_partitions": 1,
                                                                    "config": topic_config,

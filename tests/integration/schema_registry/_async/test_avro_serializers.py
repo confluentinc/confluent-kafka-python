@@ -151,7 +151,7 @@ async def _references_test_common(kafka_cluster, awarded_user, serializer_schema
     Args:
         kafka_cluster (KafkaClusterFixture): cluster fixture
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("reference-avro")
+    topic = kafka_cluster.create_topic_and_wait_propagation("reference-avro")
     sr = kafka_cluster.async_schema_registry()
 
     value_serializer = await AsyncAvroSerializer(
@@ -223,7 +223,7 @@ async def test_avro_record_serialization(kafka_cluster, load_file, avsc, data, r
         data (object): data to be serialized
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-avro")
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file(avsc)
@@ -267,7 +267,7 @@ async def test_delivery_report_serialization(kafka_cluster, load_file, avsc, dat
         data (object): data to be serialized
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro-dr")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-avro-dr")
     sr = kafka_cluster.async_schema_registry()
     schema_str = load_file(avsc)
 
@@ -314,7 +314,7 @@ async def test_avro_record_serialization_custom(kafka_cluster):
         kafka_cluster (KafkaClusterFixture): cluster fixture
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-avro")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-avro")
     sr = kafka_cluster.async_schema_registry()
 
     user = User('Bowie', 47, 'purple')

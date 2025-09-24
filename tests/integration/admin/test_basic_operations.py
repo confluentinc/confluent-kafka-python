@@ -208,7 +208,7 @@ def test_basic_operations(kafka_cluster):
     # Second iteration: create topic.
     #
     for validate in (True, False):
-        our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+        our_topic = kafka_cluster.create_topic_and_wait_propagation(topic_prefix,
                                                                     {
                                                                         "num_partitions": num_partitions,
                                                                         "config": topic_config,

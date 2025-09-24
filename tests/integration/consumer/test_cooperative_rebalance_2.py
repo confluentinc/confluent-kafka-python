@@ -52,7 +52,7 @@ def test_cooperative_rebalance_2(kafka_cluster):
 
     reb = RebalanceState()
 
-    topic1 = kafka_cluster.create_topic_and_wait_propogation("topic1")
+    topic1 = kafka_cluster.create_topic_and_wait_propagation("topic1")
 
     consumer = kafka_cluster.consumer(consumer_conf)
 

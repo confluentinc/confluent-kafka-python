@@ -56,13 +56,13 @@ def test_incremental_alter_configs(kafka_cluster):
     num_partitions = 2
     topic_config = {"compression.type": "gzip"}
 
-    our_topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+    our_topic = kafka_cluster.create_topic_and_wait_propagation(topic_prefix,
                                                                 {
                                                                     "num_partitions": num_partitions,
                                                                     "config": topic_config,
                                                                     "replication_factor": 1,
                                                                 })
-    our_topic2 = kafka_cluster.create_topic_and_wait_propogation(topic_prefix2,
+    our_topic2 = kafka_cluster.create_topic_and_wait_propagation(topic_prefix2,
                                                                  {
                                                                      "num_partitions": num_partitions,
                                                                      "config": topic_config,

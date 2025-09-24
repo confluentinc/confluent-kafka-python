@@ -27,7 +27,7 @@ def test_list_offsets(kafka_cluster):
     admin_client = kafka_cluster.admin()
 
     # Create a topic with a single partition
-    topic = kafka_cluster.create_topic_and_wait_propogation("test-topic-verify-list-offsets",
+    topic = kafka_cluster.create_topic_and_wait_propagation("test-topic-verify-list-offsets",
                                                             {
                                                                 "num_partitions": 1,
                                                                 "replication_factor": 1,

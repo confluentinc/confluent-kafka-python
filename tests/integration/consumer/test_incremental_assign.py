@@ -30,8 +30,8 @@ def test_incremental_assign(kafka_cluster):
                      'enable.auto.commit': 'false',
                      'auto.offset.reset': 'error'}
 
-    topic1 = kafka_cluster.create_topic_and_wait_propogation("topic1")
-    topic2 = kafka_cluster.create_topic_and_wait_propogation("topic2")
+    topic1 = kafka_cluster.create_topic_and_wait_propagation("topic1")
+    topic2 = kafka_cluster.create_topic_and_wait_propagation("topic2")
 
     kafka_cluster.seed_topic(topic1, value_source=[b'a'])
     kafka_cluster.seed_topic(topic2, value_source=[b'b'])
