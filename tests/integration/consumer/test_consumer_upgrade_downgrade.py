@@ -53,23 +53,19 @@ def list_offsets(a, topic, no_of_partitions):
                   .format(partition.topic, partition.partition, e))
 
 
-# def produce_messages(producer, topic, partitions, num_messages):
-#     for i in range(num_messages):
-#         key = "key-{}".format(i)
-#         value = "value-{}".format(i)
-#         partition = i % partitions
-#         producer.produce(topic, key=key, value=value, partition=partition)
-#     producer.flush()
-
-
 def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_protocol):
     total_msg_read = 0
-    while len(consumers[-1].assignment()) != number_of_partitions // len(consumers):
+    expected_partitions_per_consumer = number_of_partitions // len(consumers)
+    while len(consumers[-1].assignment()) != expected_partitions_per_consumer:
         for consumer in consumers:
             consumer.poll(0.1)
 
+    all_assignments = set()
     for consumer in consumers:
-        assert len(consumer.assignment()) == number_of_partitions // len(consumers)
+        assignment = consumer.assignment()
+        all_assignments.update(assignment)
+        assert len(assignment) == expected_partitions_per_consumer
+    assert len(all_assignments) == number_of_partitions
 
     assert get_group_protocol_type(admin_client, topic) == expected_protocol
 
@@ -91,7 +87,8 @@ def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(k
     """
     Test consumer upgrade and downgrade.
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation(topic_prefix,
+    topic_name_prefix = f"{topic_prefix}_{partition_assignment_strategy}"
+    topic = kafka_cluster.create_topic_and_wait_propogation(topic_name_prefix,
                                                                     {
                                                                         "num_partitions": number_of_partitions
                                                                     })
@@ -114,7 +111,7 @@ def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(k
     assert consumer2 is not None
     consumer2.subscribe([topic])
     check_consumer(kafka_cluster, [consumer, consumer2], admin_client, topic, ConsumerGroupType.CONSUMER)
-    
+
     # Now simulate a downgrade by deleting the second consumer and keeping only 'classic' consumer
     consumer2.close()
     check_consumer(kafka_cluster, [consumer], admin_client, topic, ConsumerGroupType.CLASSIC)
