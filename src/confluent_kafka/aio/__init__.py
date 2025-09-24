@@ -13,5 +13,5 @@
 # limitations under the License.
 
 from ._AIOConsumer import AIOConsumer
-from ._AIOProducer import AIOProducer
+from .producer import AIOProducer
 __all__ = ['AIOConsumer', 'AIOProducer']

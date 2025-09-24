@@ -26,6 +26,10 @@ def get_test_info(test_type):
         'producer_sr': {
             'file': 'test_producer_with_schema_registry.py',
             'description': 'Producer with Schema Registry Tests'
+        },
+        'transactions': {
+            'file': 'test_transactions.py',
+            'description': 'Transactional Producer and Consumer Tests'
         }
     }
     return test_info.get(test_type)
@@ -131,21 +135,21 @@ def run_all_tests(args):
     """Run all available test types"""
     test_types = ['producer', 'consumer', 'producer_sr']
     overall_success = True
-    
+
     print("Confluent Kafka Python - All Ducktape Tests")
     print(f"Timestamp: {datetime.now().isoformat()}")
     print("=" * 70)
-    
+
     for test_type in test_types:
         print(f"\n{'='*20} Running {test_type.upper()} Tests {'='*20}")
-        
+
         # Create a new args object for this test type
         test_args = argparse.Namespace(
             test_type=test_type,
             test_method=args.test_method,
             debug=args.debug
         )
-        
+
         # Run the specific test type
         result = run_single_test_type(test_args)
         if result != 0:
@@ -153,7 +157,7 @@ def run_all_tests(args):
             print(f"\n❌ {test_type.upper()} tests failed!")
         else:
             print(f"\n✅ {test_type.upper()} tests passed!")
-    
+
     print(f"\n{'='*70}")
     if overall_success:
         print("🎉 All tests completed successfully!")
@@ -166,7 +170,7 @@ def run_all_tests(args):
 def main():
     """Run the ducktape test based on specified type"""
     parser = argparse.ArgumentParser(description="Confluent Kafka Python - Ducktape Test Runner")
-    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'producer_sr'],
+    parser.add_argument('test_type', nargs='?', choices=['producer', 'consumer', 'producer_sr', 'transactions'],
                         help='Type of test to run (default: run all tests)')
     parser.add_argument('test_method', nargs='?',
                         help='Specific test method to run (optional)')

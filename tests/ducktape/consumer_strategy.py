@@ -209,7 +209,6 @@ class SyncConsumerStrategy(ConsumerStrategy):
             'enable.auto.commit': 'true',
             'auto.commit.interval.ms': '5000'
         }
-
         consumer = Consumer(config)
         return consumer
 
@@ -373,6 +372,7 @@ class AsyncConsumerStrategy(ConsumerStrategy):
         }
 
         self._consumer_instance = AIOConsumer(config, max_workers=20)
+
         return self._consumer_instance
 
     def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
