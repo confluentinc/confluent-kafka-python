@@ -244,8 +244,8 @@ class SimpleProducerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(
-            f"Testing {producer_type} producer with {compression_type} compression for {test_duration} seconds")
+        self.logger.info(f"Testing {producer_type} producer with {compression_type} compression "
+                         f"for {test_duration} seconds")
         self.logger.info(f"Using polling interval: {poll_interval} messages per poll")
 
         # Start metrics collection
@@ -309,6 +309,121 @@ class SimpleProducerTest(Test):
                            f"compression: {'; '.join(violations)}")
 
         self.logger.info("Successfully completed %s compression test with comprehensive metrics", compression_type)
+
+    @matrix(producer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    def test_basic_produce_with_schema_registry(self, producer_type, serialization_type):
+        """
+        Test producer with Schema Registry serialization.
+
+        Note: in this test, we are producing messages with the same schema,
+        a realistic high-throughput production scenario.
+        As we have cache for schemas, only the first message will make HTTP calls to Schema Registry server.
+        Performance impact comes from serialization overhead, not network calls.
+        """
+
+        topic_name = f"performance-test-produce-{serialization_type or 'plain'}-topic"
+        test_duration = 5.0
+
+        # Create topic and wait until ready
+        self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, f"Topic {topic_name} was not created within timeout"
+
+        # Initialize metrics
+        metrics = MetricsCollector()
+        bounds = MetricsBounds()
+
+        # Create appropriate producer strategy
+        strategy = self.create_producer(producer_type)
+        strategy.metrics = metrics
+
+        # Start metrics collection
+        metrics.start()
+
+        # Message formatter - realistic pattern where messages use same schema
+        def message_formatter(i):
+            try:
+                # Create message content based on serialization type
+                if serialization_type == 'protobuf':
+                    from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
+                    message_value = PublicTestProto_pb2.TestMessage(
+                        test_string=f'User{i}',
+                        test_bool=i % 2 == 0,
+                        test_bytes=f'bytes{i}'.encode('utf-8'),
+                        test_double=float(i),
+                        test_float=float(i),
+                        test_fixed32=i,
+                        test_fixed64=i,
+                        test_int32=i,
+                        test_int64=i,
+                        test_sfixed32=i,
+                        test_sfixed64=i,
+                        test_sint32=i,
+                        test_sint64=i,
+                        test_uint32=i,
+                        test_uint64=i
+                    )
+                elif serialization_type:  # Avro or JSON
+                    # Match the Protobuf schema structure for Avro/JSON
+                    # For JSON, convert bytes to base64 string
+                    if serialization_type == 'json':
+                        test_bytes = f'bytes{i}'  # JSON uses string for bytes
+                    else:
+                        test_bytes = f'bytes{i}'.encode('utf-8')  # Avro uses actual bytes
+
+                    message_value = {
+                        'test_string': f'User{i}',
+                        'test_bool': i % 2 == 0,
+                        'test_bytes': test_bytes,
+                        'test_double': float(i),
+                        'test_float': float(i),
+                        'test_fixed32': i,
+                        'test_fixed64': i,
+                        'test_int32': i,
+                        'test_int64': i,
+                        'test_sfixed32': i,
+                        'test_sfixed64': i,
+                        'test_sint32': i,
+                        'test_sint64': i,
+                        'test_uint32': i,
+                        'test_uint64': i
+                    }
+                else:
+                    # Plain messages - no complex structure needed
+                    message_value = f"Test message {i}"  # Simple string message
+
+                return (message_value, f"key-{i}")
+            except Exception as e:
+                self.logger.error(f"Error creating message {i}: {e}")
+                return (f"Test message {i}", f"key-{i}")
+
+        delivered_messages = []
+        failed_messages = []
+
+        start_time = time.time()
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages, serialization_type
+        )
+
+        # Finalize and validate metrics
+        metrics.finalize()
+        metrics_summary = metrics.get_summary()
+        is_valid, violations = validate_metrics(metrics_summary, bounds)
+
+        self.logger.info(f"=== {producer_type.upper()} {serialization_type.upper()} SR METRICS REPORT ===")
+        print_metrics_report(metrics_summary, is_valid, violations)
+
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
+
+        if not is_valid:
+            self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
+
+        self.logger.info("Successfully completed SR production test with comprehensive metrics")
 
     def tearDown(self):
         """Clean up test environment"""
