@@ -233,6 +233,19 @@ class KafkaClusterFixture(object):
 
         future_topic.get(name).result()
         return name
+    
+    def delete_topic(self, topic):
+        """
+        Deletes a topic with this cluster.
+
+        :param str topic: topic name
+        """
+        future = self.admin().delete_topics([topic])
+        try:
+            future.get(topic).result()
+            print("Topic {} deleted".format(topic))
+        except Exception as e:
+            print("Failed to delete topic {}: {}".format(topic, e))
 
     def create_topic_and_wait_propogation(self, prefix, conf=None, **create_topic_kwargs):
         """
