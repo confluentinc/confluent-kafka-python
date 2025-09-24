@@ -45,7 +45,7 @@ def test_numeric_serialization(kafka_cluster, serializer, deserializer, data):
         data(object): input data
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-numeric")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-numeric")
 
     producer = kafka_cluster.producer(value_serializer=serializer)
     producer.produce(topic, value=data)
@@ -77,7 +77,7 @@ def test_string_serialization(kafka_cluster, data, codec):
         codec (str): encoding type
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-string")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-string")
 
     producer = kafka_cluster.producer(value_serializer=StringSerializer(codec))
 
@@ -119,7 +119,7 @@ def test_mixed_serialization(kafka_cluster, key_serializer, value_serializer,
         value (object): value data
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-numeric")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-numeric")
 
     producer = kafka_cluster.producer(key_serializer=key_serializer,
                                       value_serializer=value_serializer)
