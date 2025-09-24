@@ -51,7 +51,7 @@ def prefixed_delivery_cb(prefix):
 
 
 def test_commit_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propagation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -66,7 +66,7 @@ def test_commit_transaction(kafka_cluster):
 
 
 def test_abort_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propagation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -81,7 +81,7 @@ def test_abort_transaction(kafka_cluster):
 
 
 def test_abort_retry_commit_transaction(kafka_cluster):
-    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propagation("output_topic")
 
     producer = kafka_cluster.producer({
         'transactional.id': 'example_transactional_id',
@@ -99,8 +99,8 @@ def test_abort_retry_commit_transaction(kafka_cluster):
 
 
 def test_send_offsets_committed_transaction(kafka_cluster):
-    input_topic = kafka_cluster.create_topic_and_wait_propogation("input_topic")
-    output_topic = kafka_cluster.create_topic_and_wait_propogation("output_topic")
+    input_topic = kafka_cluster.create_topic_and_wait_propagation("input_topic")
+    output_topic = kafka_cluster.create_topic_and_wait_propagation("output_topic")
     error_cb = prefixed_error_cb('test_send_offsets_committed_transaction')
     producer = kafka_cluster.producer({
         'client.id': 'producer1',

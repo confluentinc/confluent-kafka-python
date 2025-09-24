@@ -257,7 +257,7 @@ async def test_json_record_serialization(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
@@ -305,7 +305,7 @@ async def test_json_record_serialization_incompatible(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
@@ -332,7 +332,7 @@ async def test_json_record_serialization_custom(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("product.json")
@@ -377,7 +377,7 @@ async def test_json_record_deserialization_mismatch(kafka_cluster, load_file):
         load_file (callable(str)): JSON Schema file reader
 
     """
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     schema_str = load_file("contractor.json")
@@ -418,7 +418,7 @@ async def _register_referenced_schemas(sr: AsyncSchemaRegistryClient, load_file)
 
 
 async def test_json_reference(kafka_cluster, load_file):
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     product = {"productId": 1,
@@ -457,7 +457,7 @@ async def test_json_reference(kafka_cluster, load_file):
 
 
 async def test_json_reference_custom(kafka_cluster, load_file):
-    topic = kafka_cluster.create_topic_and_wait_propogation("serialization-json")
+    topic = kafka_cluster.create_topic_and_wait_propagation("serialization-json")
     sr = kafka_cluster.async_schema_registry()
 
     product = _TestProduct(product_id=1,
