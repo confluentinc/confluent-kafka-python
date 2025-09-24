@@ -10,7 +10,7 @@ from ducktape.mark import matrix
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.consumer_benchmark_metrics import (
     ConsumerMetricsCollector, ConsumerMetricsBounds,
-    validate_consumer_metrics, print_consumer_metrics_report)
+                                                       validate_consumer_metrics, print_consumer_metrics_report)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -86,12 +86,52 @@ class SimpleConsumerTest(Test):
         for i in range(num_messages):
             try:
                 # Create message content based on serialization type
-                if serialization_type == 'avro' or serialization_type == 'json':
-                    message_value = {'name': f'User{i}', 'age': i % 100}
-                elif serialization_type == 'protobuf':
-                    message_value = PublicTestProto_pb2.TestMessage(test_string=f'User{i}', test_int32=i % 100)
+                if serialization_type == 'protobuf':
+                    message_value = PublicTestProto_pb2.TestMessage(
+                        test_string=f'User{i}',
+                        test_bool=i % 2 == 0,
+                        test_bytes=f'bytes{i}'.encode('utf-8'),
+                        test_double=float(i),
+                        test_float=float(i),
+                        test_fixed32=i,
+                        test_fixed64=i,
+                        test_int32=i,
+                        test_int64=i,
+                        test_sfixed32=i,
+                        test_sfixed64=i,
+                        test_sint32=i,
+                        test_sint64=i,
+                        test_uint32=i,
+                        test_uint64=i
+                    )
+                elif serialization_type:  # Avro or JSON
+                    # Match the Protobuf schema structure for Avro/JSON
+                    # For JSON, convert bytes to base64 string
+                    if serialization_type == 'json':
+                        test_bytes = f'bytes{i}'  # JSON uses string for bytes
+                    else:
+                        test_bytes = f'bytes{i}'.encode('utf-8')  # Avro uses actual bytes
+
+                    message_value = {
+                        'test_string': f'User{i}',
+                        'test_bool': i % 2 == 0,
+                        'test_bytes': test_bytes,
+                        'test_double': float(i),
+                        'test_float': float(i),
+                        'test_fixed32': i,
+                        'test_fixed64': i,
+                        'test_int32': i,
+                        'test_int64': i,
+                        'test_sfixed32': i,
+                        'test_sfixed64': i,
+                        'test_sint32': i,
+                        'test_sint64': i,
+                        'test_uint32': i,
+                        'test_uint64': i
+                    }
                 else:
-                    message_value = f"Test message {i}"
+                    # Plain messages - no complex structure needed
+                    message_value = None  # Will be handled in serialization section
 
                 # Serialize key and value if using Schema Registry
                 if serialization_type:
@@ -102,7 +142,7 @@ class SimpleConsumerTest(Test):
                     )
                 else:
                     serialized_key = f"key-{i}"
-                    serialized_value = message_value
+                    serialized_value = f"User{i}"  # Simple string for plain messages
 
                 producer.produce(
                     topic=topic_name,
@@ -160,6 +200,7 @@ class SimpleConsumerTest(Test):
             operation_type="consume",
             batch_size=20,
             serialization_type=serialization_type,
+            num_messages_to_produce=500000,
         )
 
     @matrix(consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
@@ -179,6 +220,7 @@ class SimpleConsumerTest(Test):
             consumer_type=consumer_type,
             operation_type="poll",
             serialization_type=serialization_type,
+            num_messages_to_produce=500000,
         )
 
     # =========== Functional tests ===========
@@ -386,7 +428,8 @@ class SimpleConsumerTest(Test):
 
     def _run_consumer_performance_test(self, consumer_type, operation_type,
                                        batch_size=None,
-                                       serialization_type=None):
+                                       serialization_type=None,
+                                       num_messages_to_produce=1500000):
         """
         Shared helper for consumer performance tests
 
@@ -396,9 +439,8 @@ class SimpleConsumerTest(Test):
             batch_size: Number of messages per batch (default None). Only required for consume operation
             serialization_type: Schema Registry serialization type ("avro", "json", "protobuf") or None for plain text
         """
-        topic_name = f"test-{consumer_type}-{operation_type}-{serialization_type or 'plain'}-topic"
+        topic_name = f"performance-test-{consumer_type}-{operation_type}-{serialization_type or 'plain'}-topic"
         test_duration = 5.0  # 5 seconds
-        num_messages = 1500000  # 1.5M messages for sustained 5-second consumption at ~300K msg/s
 
         # Create topic
         self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
@@ -409,7 +451,7 @@ class SimpleConsumerTest(Test):
                              f"Available topics: {self.kafka.list_topics()}")
 
         # Produce test messages
-        self.produce_test_messages(topic_name, num_messages, serialization_type)
+        self.produce_test_messages(topic_name, num_messages_to_produce, serialization_type)
 
         # Initialize metrics collection and bounds
         metrics = ConsumerMetricsCollector(operation_type=operation_type, serialization_type=serialization_type)
@@ -433,14 +475,14 @@ class SimpleConsumerTest(Test):
         start_time = time.time()
         if operation_type == "consume":
             messages_consumed = strategy.consume_messages(
-                topic_name, test_duration, start_time, consumed_messages,
-                timeout=0.1, serialization_type=serialization_type
-            )
+                        topic_name, test_duration, start_time, consumed_messages,
+                        timeout=0.1, serialization_type=serialization_type
+                )
         else:  # poll
             messages_consumed = strategy.poll_messages(
-                topic_name, test_duration, start_time, consumed_messages,
-                timeout=0.1, serialization_type=serialization_type
-            )
+                        topic_name, test_duration, start_time, consumed_messages,
+                        timeout=0.1, serialization_type=serialization_type
+        )
 
         # Finalize metrics collection
         metrics.finalize()
@@ -451,13 +493,6 @@ class SimpleConsumerTest(Test):
 
         # Print comprehensive metrics report
         print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size, serialization_type)
-
-        # Get AIOConsumer built-in metrics for comparison (if requested)
-        final_metrics = strategy.get_final_metrics()
-        if final_metrics:
-            self.logger.info("=== AIOConsumer Built-in Metrics ===")
-            for key, value in final_metrics.items():
-                self.logger.info(f"{key}: {value}")
 
         # Enhanced assertions using metrics
         assert messages_consumed > 0, "No messages were consumed"
@@ -514,17 +549,31 @@ class SimpleConsumerTest(Test):
 
     def create_serializers(self, serialization_type):
         """Create Schema Registry serializers for message production"""
-        sr_client = SchemaRegistryClient({'url': 'http://localhost:8081'})
+        sr_client = SchemaRegistryClient({'url': 'http://localhost:8081', 'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'})
 
         key_serializer = StringSerializer('utf8')
 
         if serialization_type == 'avro':
+            # Match the Protobuf TestMessage structure
             avro_schema = {
                 "type": "record",
-                "name": "User",
+                "name": "TestMessage",
                 "fields": [
-                    {"name": "name", "type": "string"},
-                    {"name": "age", "type": "int"}
+                    {"name": "test_string", "type": "string"},
+                    {"name": "test_bool", "type": "boolean"},
+                    {"name": "test_bytes", "type": "bytes"},
+                    {"name": "test_double", "type": "double"},
+                    {"name": "test_float", "type": "float"},
+                    {"name": "test_fixed32", "type": "int"},
+                    {"name": "test_fixed64", "type": "long"},
+                    {"name": "test_int32", "type": "int"},
+                    {"name": "test_int64", "type": "long"},
+                    {"name": "test_sfixed32", "type": "int"},
+                    {"name": "test_sfixed64", "type": "long"},
+                    {"name": "test_sint32", "type": "int"},
+                    {"name": "test_sint64", "type": "long"},
+                    {"name": "test_uint32", "type": "int"},
+                    {"name": "test_uint64", "type": "long"}
                 ]
             }
             value_serializer = AvroSerializer(
@@ -532,13 +581,29 @@ class SimpleConsumerTest(Test):
                 schema_str=json.dumps(avro_schema)
             )
         elif serialization_type == 'json':
+            # Match the Protobuf TestMessage structure
             json_schema = {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
-                    "age": {"type": "integer"}
+                    "test_string": {"type": "string"},
+                    "test_bool": {"type": "boolean"},
+                    "test_bytes": {"type": "string"},
+                    "test_double": {"type": "number"},
+                    "test_float": {"type": "number"},
+                    "test_fixed32": {"type": "integer"},
+                    "test_fixed64": {"type": "integer"},
+                    "test_int32": {"type": "integer"},
+                    "test_int64": {"type": "integer"},
+                    "test_sfixed32": {"type": "integer"},
+                    "test_sfixed64": {"type": "integer"},
+                    "test_sint32": {"type": "integer"},
+                    "test_sint64": {"type": "integer"},
+                    "test_uint32": {"type": "integer"},
+                    "test_uint64": {"type": "integer"}
                 },
-                "required": ["name", "age"]
+                "required": ["test_string", "test_bool", "test_bytes", "test_double", "test_float",
+                           "test_fixed32", "test_fixed64", "test_int32", "test_int64", "test_sfixed32",
+                           "test_sfixed64", "test_sint32", "test_sint64", "test_uint32", "test_uint64"]
             }
             value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
         elif serialization_type == 'protobuf':

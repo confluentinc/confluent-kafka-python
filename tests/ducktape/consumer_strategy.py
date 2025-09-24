@@ -50,7 +50,7 @@ class ConsumerStrategy:
         raise NotImplementedError()
 
     def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
-                         timeout=1.0, deserialization_type=None):
+                         timeout=1.0, serialization_type=None):
         raise NotImplementedError()
 
     def _get_schema_registry_client(self, is_async=False):
@@ -61,7 +61,6 @@ class ConsumerStrategy:
         )
         client_config = {
             'url': schema_registry_url,
-            'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'
         }
 
         if is_async:
@@ -72,22 +71,52 @@ class ConsumerStrategy:
     def _get_schemas(self, deserialization_type):
         """Get schema definitions for the given deserialization type, for testing purposes"""
         if deserialization_type == 'avro':
+            # Match the Protobuf TestMessage structure
             return {
                 "type": "record",
-                "name": "User",
+                "name": "TestMessage",
                 "fields": [
-                    {"name": "name", "type": "string"},
-                    {"name": "age", "type": "int"}
+                    {"name": "test_string", "type": "string"},
+                    {"name": "test_bool", "type": "boolean"},
+                    {"name": "test_bytes", "type": "bytes"},
+                    {"name": "test_double", "type": "double"},
+                    {"name": "test_float", "type": "float"},
+                    {"name": "test_fixed32", "type": "int"},
+                    {"name": "test_fixed64", "type": "long"},
+                    {"name": "test_int32", "type": "int"},
+                    {"name": "test_int64", "type": "long"},
+                    {"name": "test_sfixed32", "type": "int"},
+                    {"name": "test_sfixed64", "type": "long"},
+                    {"name": "test_sint32", "type": "int"},
+                    {"name": "test_sint64", "type": "long"},
+                    {"name": "test_uint32", "type": "int"},
+                    {"name": "test_uint64", "type": "long"}
                 ]
             }
         elif deserialization_type == 'json':
+            # Match the Protobuf TestMessage structure
             return {
                 "type": "object",
                 "properties": {
-                    "name": {"type": "string"},
-                    "age": {"type": "integer"}
+                    "test_string": {"type": "string"},
+                    "test_bool": {"type": "boolean"},
+                    "test_bytes": {"type": "string"},
+                    "test_double": {"type": "number"},
+                    "test_float": {"type": "number"},
+                    "test_fixed32": {"type": "integer"},
+                    "test_fixed64": {"type": "integer"},
+                    "test_int32": {"type": "integer"},
+                    "test_int64": {"type": "integer"},
+                    "test_sfixed32": {"type": "integer"},
+                    "test_sfixed64": {"type": "integer"},
+                    "test_sint32": {"type": "integer"},
+                    "test_sint64": {"type": "integer"},
+                    "test_uint32": {"type": "integer"},
+                    "test_uint64": {"type": "integer"}
                 },
-                "required": ["name", "age"]
+                "required": ["test_string", "test_bool", "test_bytes", "test_double", "test_float",
+                           "test_fixed32", "test_fixed64", "test_int32", "test_int64", "test_sfixed32",
+                           "test_sfixed64", "test_sint32", "test_sint64", "test_uint32", "test_uint64"]
             }
         elif deserialization_type == 'protobuf':
             return PublicTestProto_pb2.TestMessage
@@ -145,11 +174,34 @@ class ConsumerStrategy:
 
         return key_deserializer, value_deserializer
 
-    def get_final_metrics(self):
-        return None
 
+    def _record_message_metrics(self, msg, latency_ms):
+        """Shared metrics recording logic"""
+        if self.metrics:
+            # For deserialized messages, use original raw bytes for size calculation
+            if hasattr(msg, '_original_msg'):
+                # DeserializedMessage - use original raw bytes
+                original_msg = msg._original_msg
+                value_size = len(original_msg.value()) if original_msg.value() else 0
+                key_size = len(original_msg.key()) if original_msg.key() else 0
+            else:
+                # Raw message - use directly
+                value_size = len(msg.value()) if msg.value() else 0
+                key_size = len(msg.key()) if msg.key() else 0
+
+            message_size = value_size + key_size
+            self.metrics.record_processed_message(
+                message_size=message_size,
+                topic=msg.topic(),
+                partition=msg.partition(),
+                offset=msg.offset(),
+                operation_latency_ms=latency_ms
+            )
+
+
+class SyncConsumerStrategy(ConsumerStrategy):
     def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
-        """Shared deserialization logic for both sync and async consumers"""
+        """Sync deserialization logic"""
         if not (key_deserializer or value_deserializer):
             return msg
 
@@ -177,8 +229,127 @@ class ConsumerStrategy:
             self.logger.error(f"Deserialization error: {e}")
             return msg  # Return original message if deserialization fails
 
-    async def _deserialize_message_async(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
-        """Shared async deserialization logic"""
+
+    def create_consumer(self):
+        config = {
+            'bootstrap.servers': self.bootstrap_servers,
+            'group.id': self.group_id,
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': 'true',
+            'auto.commit.interval.ms': '5000'
+        }
+
+        consumer = Consumer(config)
+        return consumer
+
+    def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
+                         timeout=1.0, serialization_type=None):
+        # Initialize deserializers if using Schema Registry
+        key_deserializer, value_deserializer = self.build_deserializers(serialization_type, is_async=False)
+
+        consumer = self.create_consumer()
+
+        try:
+            # Sync consume implementation
+            messages_consumed = 0
+
+            consumer.subscribe([topic_name])
+
+            while time.time() - start_time < test_duration:
+                consume_start = time.time()
+                messages = consumer.consume(num_messages=self.batch_size, timeout=timeout)
+                consume_end = time.time()
+
+                consume_latency_ms = (consume_end - consume_start) * 1000
+
+                if self.metrics:
+                    self.metrics.record_api_call(consume_latency_ms)
+                    self.metrics.record_batch_operation(len(messages) if messages else 0)
+
+                if not messages:
+                    if self.metrics:
+                        self.metrics.record_timeout()
+                    continue
+
+                # Process all messages in the batch
+                batch_consumed = 0
+                for msg in messages:
+                    if msg.error():
+                        if self.metrics:
+                            self.metrics.record_error(str(msg.error()))
+                        self.logger.error(f"Consumer error: {msg.error()}")
+                        continue
+
+                    # Deserialize message
+                    msg = self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed + batch_consumed)
+                    consumed_container.append(msg)
+                    messages_consumed += 1
+                    batch_consumed += 1
+                    self._record_message_metrics(msg,
+                                               consume_latency_ms / max(len(messages), 1))
+
+            consumer.close()
+            return messages_consumed
+        except Exception:
+            consumer.close()
+            raise
+
+    def poll_messages(self, topic_name, test_duration, start_time, consumed_container,
+                      timeout=1.0, serialization_type=None):
+        # Initialize deserializers if using Schema Registry
+        key_deserializer, value_deserializer = (
+            self.build_deserializers(serialization_type) if serialization_type
+            else (None, None)
+        )
+
+        consumer = self.create_consumer()
+
+        try:
+            # Sync poll implementation
+            messages_consumed = 0
+            consumer.subscribe([topic_name])
+
+            while time.time() - start_time < test_duration:
+                poll_start = time.time()
+                msg = consumer.poll(timeout=timeout)
+                poll_end = time.time()
+
+                poll_latency_ms = (poll_end - poll_start) * 1000
+
+                if self.metrics:
+                    self.metrics.record_api_call(poll_latency_ms)
+
+                if msg is None:
+                    if self.metrics:
+                        self.metrics.record_timeout()
+                    continue
+
+                if msg.error():
+                    if self.metrics:
+                        self.metrics.record_error(str(msg.error()))
+                    self.logger.error(f"Consumer error: {msg.error()}")
+                    continue
+
+                # Deserialize message
+                msg = self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed)
+                consumed_container.append(msg)
+                messages_consumed += 1
+                self._record_message_metrics(msg, poll_latency_ms)
+
+            consumer.close()
+            return messages_consumed
+        except Exception:
+            consumer.close()
+            raise
+
+
+class AsyncConsumerStrategy(ConsumerStrategy):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._consumer_instance = None
+
+    async def _deserialize_message(self, msg, key_deserializer, value_deserializer, topic_name, message_count):
+        """Async deserialization logic"""
         if not (key_deserializer or value_deserializer):
             return msg
 
@@ -207,280 +378,6 @@ class ConsumerStrategy:
             self.logger.error(f"Async deserialization error: {e}")
             return msg  # Return original message if deserialization fails
 
-    def _calculate_message_size(self, msg, has_deserializers):
-        """Calculate message size handling both raw bytes and deserialized objects"""
-        if has_deserializers:
-            # We have deserialized objects, need special handling
-            try:
-                if hasattr(msg.value(), '__len__'):
-                    return len(msg.value())
-                elif isinstance(msg.value(), (str, bytes)):
-                    return len(msg.value())
-                else:
-                    # For complex objects, estimate size
-                    return len(str(msg.value()).encode('utf-8'))
-            except:
-                return 0
-        else:
-            return len(msg.value()) if msg.value() else 0
-
-
-    def _record_message_metrics(self, msg, key_deserializer, value_deserializer, latency_ms):
-        """Shared metrics recording logic"""
-        if self.metrics:
-            value_size = self._calculate_message_size(msg, key_deserializer or value_deserializer)
-            message_size = value_size + (len(msg.key()) if msg.key() else 0)
-            self.metrics.record_processed_message(
-                message_size=message_size,
-                topic=msg.topic(),
-                partition=msg.partition(),
-                offset=msg.offset(),
-                operation_latency_ms=latency_ms
-            )
-
-    def _poll_messages_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                           timeout, key_deserializer, value_deserializer, is_async=False):
-        """Shared poll implementation for both sync and async"""
-        messages_consumed = 0
-        poll_times = []
-
-        if is_async:
-            return self._poll_messages_async_impl(consumer, topic_name, test_duration, start_time,
-                                                consumed_container, timeout, key_deserializer,
-                                                value_deserializer, messages_consumed, poll_times)
-        else:
-            return self._poll_messages_sync_impl(consumer, topic_name, test_duration, start_time,
-                                               consumed_container, timeout, key_deserializer,
-                                               value_deserializer, messages_consumed, poll_times)
-
-    def _poll_messages_sync_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                                timeout, key_deserializer, value_deserializer, messages_consumed, poll_times):
-        """Sync poll implementation"""
-        consumer.subscribe([topic_name])
-
-        while time.time() - start_time < test_duration:
-            poll_start = time.time()
-            msg = consumer.poll(timeout=timeout)
-            poll_end = time.time()
-
-            poll_latency_ms = (poll_end - poll_start) * 1000
-            poll_times.append(poll_latency_ms)
-
-            if self.metrics:
-                self.metrics.record_api_call(poll_latency_ms)
-
-            if msg is None:
-                if self.metrics:
-                    self.metrics.record_timeout()
-                continue
-
-            if msg.error():
-                if self.metrics:
-                    self.metrics.record_error(str(msg.error()))
-                self.logger.error(f"Consumer error: {msg.error()}")
-                continue
-
-            # Deserialize message
-            msg = self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed)
-            consumed_container.append(msg)
-            messages_consumed += 1
-            self._record_message_metrics(msg, key_deserializer, value_deserializer, poll_latency_ms)
-
-        consumer.close()
-        return messages_consumed
-
-    async def _poll_messages_async_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                                       timeout, key_deserializer, value_deserializer, messages_consumed, poll_times):
-        """Async poll implementation"""
-        await consumer.subscribe([topic_name])
-
-        while time.time() - start_time < test_duration:
-            poll_start = time.time()
-            msg = await consumer.poll(timeout=timeout)
-            poll_end = time.time()
-
-            poll_latency_ms = (poll_end - poll_start) * 1000
-            poll_times.append(poll_latency_ms)
-
-            if self.metrics:
-                self.metrics.record_api_call(poll_latency_ms)
-
-            if msg is None:
-                if self.metrics:
-                    self.metrics.record_timeout()
-                continue
-
-            if msg.error():
-                if self.metrics:
-                    self.metrics.record_error(str(msg.error()))
-                self.logger.error(f"Consumer error: {msg.error()}")
-                continue
-
-            # Deserialize message
-            msg = await self._deserialize_message_async(msg, key_deserializer, value_deserializer, topic_name, messages_consumed)
-            consumed_container.append(msg)
-            messages_consumed += 1
-            self._record_message_metrics(msg, key_deserializer, value_deserializer, poll_latency_ms)
-
-        await consumer.close()
-        return messages_consumed
-
-    def _consume_messages_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                              timeout, key_deserializer, value_deserializer, is_async=False):
-        """Shared consume implementation for both sync and async"""
-        if is_async:
-            return self._consume_messages_async_impl(consumer, topic_name, test_duration, start_time,
-                                                   consumed_container, timeout, key_deserializer, value_deserializer)
-        else:
-            return self._consume_messages_sync_impl(consumer, topic_name, test_duration, start_time,
-                                                  consumed_container, timeout, key_deserializer, value_deserializer)
-
-    def _consume_messages_sync_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                                   timeout, key_deserializer, value_deserializer):
-        """Sync consume implementation"""
-        messages_consumed = 0
-        consume_times = []
-
-        consumer.subscribe([topic_name])
-
-        while time.time() - start_time < test_duration:
-            consume_start = time.time()
-            messages = consumer.consume(num_messages=self.batch_size, timeout=timeout)
-            consume_end = time.time()
-
-            consume_latency_ms = (consume_end - consume_start) * 1000
-            consume_times.append(consume_latency_ms)
-
-            if self.metrics:
-                self.metrics.record_api_call(consume_latency_ms)
-                self.metrics.record_batch_operation(len(messages) if messages else 0)
-
-            if not messages:
-                if self.metrics:
-                    self.metrics.record_timeout()
-                continue
-
-            # Process all messages in the batch
-            batch_consumed = 0
-            for msg in messages:
-                if msg.error():
-                    if self.metrics:
-                        self.metrics.record_error(str(msg.error()))
-                    self.logger.error(f"Consumer error: {msg.error()}")
-                    continue
-
-                # Deserialize message
-                msg = self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed + batch_consumed)
-                consumed_container.append(msg)
-                messages_consumed += 1
-                batch_consumed += 1
-                self._record_message_metrics(msg, key_deserializer, value_deserializer,
-                                           consume_latency_ms / max(len(messages), 1))
-
-        consumer.close()
-        return messages_consumed
-
-    async def _consume_messages_async_impl(self, consumer, topic_name, test_duration, start_time, consumed_container,
-                                          timeout, key_deserializer, value_deserializer):
-        """Async consume implementation"""
-        messages_consumed = 0
-        consume_times = []
-
-        await consumer.subscribe([topic_name])
-
-        while time.time() - start_time < test_duration:
-            consume_start = time.time()
-            messages = await consumer.consume(num_messages=self.batch_size, timeout=timeout)
-            consume_end = time.time()
-
-            consume_latency_ms = (consume_end - consume_start) * 1000
-            consume_times.append(consume_latency_ms)
-
-            if self.metrics:
-                self.metrics.record_api_call(consume_latency_ms)
-                self.metrics.record_batch_operation(len(messages) if messages else 0)
-
-            if not messages:
-                if self.metrics:
-                    self.metrics.record_timeout()
-                continue
-
-            # Process all messages in the batch
-            batch_consumed = 0
-            for msg in messages:
-                if msg.error():
-                    if self.metrics:
-                        self.metrics.record_error(str(msg.error()))
-                    self.logger.error(f"Consumer error: {msg.error()}")
-                    continue
-
-                # Deserialize message
-                msg = await self._deserialize_message_async(msg, key_deserializer, value_deserializer, topic_name, messages_consumed + batch_consumed)
-                consumed_container.append(msg)
-                messages_consumed += 1
-                batch_consumed += 1
-                self._record_message_metrics(msg, key_deserializer, value_deserializer,
-                                           consume_latency_ms / max(len(messages), 1))
-
-        await consumer.close()
-        return messages_consumed
-
-
-class SyncConsumerStrategy(ConsumerStrategy):
-    def create_consumer(self):
-        config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'auto.offset.reset': 'earliest',
-            'enable.auto.commit': 'true',
-            'auto.commit.interval.ms': '5000'
-        }
-
-        consumer = Consumer(config)
-        return consumer
-
-    def get_final_metrics(self):
-        """Sync consumer has no built-in metrics like AIOConsumer"""
-        return None
-
-    def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
-                         timeout=1.0, serialization_type=None):
-        # Initialize deserializers if using Schema Registry
-        key_deserializer, value_deserializer = self.build_deserializers(serialization_type, is_async=False)
-
-        consumer = self.create_consumer()
-
-        try:
-            return self._consume_messages_sync_impl(consumer, topic_name, test_duration, start_time,
-                                                  consumed_container, timeout, key_deserializer, value_deserializer)
-        except Exception:
-            consumer.close()
-            raise
-
-    def poll_messages(self, topic_name, test_duration, start_time, consumed_container,
-                      timeout=1.0, serialization_type=None):
-        """Poll messages one by one using consumer.poll() instead of batch consume()"""
-
-        # Initialize deserializers if using Schema Registry
-        if serialization_type:
-            key_deserializer, value_deserializer = self.build_deserializers(serialization_type)
-        else:
-            key_deserializer, value_deserializer = None, None
-
-        consumer = self.create_consumer()
-
-        try:
-            return self._poll_messages_sync_impl(consumer, topic_name, test_duration, start_time,
-                                               consumed_container, timeout, key_deserializer, value_deserializer, 0, [])
-        except Exception:
-            consumer.close()
-            raise
-
-
-class AsyncConsumerStrategy(ConsumerStrategy):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._consumer_instance = None
 
     def create_consumer(self):
         config = {
@@ -494,27 +391,58 @@ class AsyncConsumerStrategy(ConsumerStrategy):
         self._consumer_instance = AIOConsumer(config, max_workers=20)
         return self._consumer_instance
 
-    def get_final_metrics(self):
-        """Get metrics from the AIOConsumer instance (if available)"""
-        if self._consumer_instance and hasattr(self._consumer_instance, 'get_metrics'):
-            return self._consumer_instance.get_metrics()
-        return None
-
     def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
                          timeout=1.0, serialization_type=None):
-
         async def async_consume():
             # Initialize deserializers if using Schema Registry
-            if serialization_type:
-                key_deserializer, value_deserializer = await self.build_async_deserializers(serialization_type)
-            else:
-                key_deserializer, value_deserializer = None, None
+            key_deserializer, value_deserializer = (
+                await self.build_async_deserializers(serialization_type) if serialization_type
+                else (None, None)
+            )
 
             consumer = self.create_consumer()
 
             try:
-                return await self._consume_messages_async_impl(consumer, topic_name, test_duration, start_time,
-                                                             consumed_container, timeout, key_deserializer, value_deserializer)
+                # Async consume implementation
+                messages_consumed = 0
+
+                await consumer.subscribe([topic_name])
+
+                while time.time() - start_time < test_duration:
+                    consume_start = time.time()
+                    messages = await consumer.consume(num_messages=self.batch_size, timeout=timeout)
+                    consume_end = time.time()
+
+                    consume_latency_ms = (consume_end - consume_start) * 1000
+
+                    if self.metrics:
+                        self.metrics.record_api_call(consume_latency_ms)
+                        self.metrics.record_batch_operation(len(messages) if messages else 0)
+
+                    if not messages:
+                        if self.metrics:
+                            self.metrics.record_timeout()
+                        continue
+
+                    # Process all messages in the batch
+                    batch_consumed = 0
+                    for msg in messages:
+                        if msg.error():
+                            if self.metrics:
+                                self.metrics.record_error(str(msg.error()))
+                            self.logger.error(f"Consumer error: {msg.error()}")
+                            continue
+
+                        # Deserialize message
+                        msg = await self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed + batch_consumed)
+                        consumed_container.append(msg)
+                        messages_consumed += 1
+                        batch_consumed += 1
+                        self._record_message_metrics(msg,
+                                                   consume_latency_ms / max(len(messages), 1))
+
+                await consumer.close()
+                return messages_consumed
             except Exception:
                 await consumer.close()
                 raise
@@ -524,20 +452,49 @@ class AsyncConsumerStrategy(ConsumerStrategy):
 
     def poll_messages(self, topic_name, test_duration, start_time, consumed_container,
                       timeout=1.0, serialization_type=None):
-        """Poll messages one by one using consumer.poll() instead of batch consume()"""
-
         async def async_poll():
             # Initialize deserializers if using Schema Registry
-            if serialization_type:
-                key_deserializer, value_deserializer = await self.build_async_deserializers(serialization_type)
-            else:
-                key_deserializer, value_deserializer = None, None
+            key_deserializer, value_deserializer = (
+                await self.build_async_deserializers(serialization_type) if serialization_type
+                else (None, None)
+            )
 
             consumer = self.create_consumer()
 
             try:
-                return await self._poll_messages_async_impl(consumer, topic_name, test_duration, start_time,
-                                                          consumed_container, timeout, key_deserializer, value_deserializer, 0, [])
+                # Async poll implementation
+                messages_consumed = 0
+                await consumer.subscribe([topic_name])
+
+                while time.time() - start_time < test_duration:
+                    poll_start = time.time()
+                    msg = await consumer.poll(timeout=timeout)
+                    poll_end = time.time()
+
+                    poll_latency_ms = (poll_end - poll_start) * 1000
+
+                    if self.metrics:
+                        self.metrics.record_api_call(poll_latency_ms)
+
+                    if msg is None:
+                        if self.metrics:
+                            self.metrics.record_timeout()
+                        continue
+
+                    if msg.error():
+                        if self.metrics:
+                            self.metrics.record_error(str(msg.error()))
+                        self.logger.error(f"Consumer error: {msg.error()}")
+                        continue
+
+                    # Deserialize message
+                    msg = await self._deserialize_message(msg, key_deserializer, value_deserializer, topic_name, messages_consumed)
+                    consumed_container.append(msg)
+                    messages_consumed += 1
+                    self._record_message_metrics(msg, poll_latency_ms)
+
+                await consumer.close()
+                return messages_consumed
             except Exception:
                 await consumer.close()
                 raise
