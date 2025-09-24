@@ -402,7 +402,6 @@ class AsyncProducerStrategy(ProducerStrategy):
         async def async_produce():
             config_overrides = getattr(self, 'config_overrides', None)
 
-            # Use AIOProducer for all cases (SR and non-SR)
             producer = self.create_producer(config_overrides)
             messages_sent = 0
 
