@@ -286,7 +286,7 @@ class KafkaClusterFixture(object):
             value_source = ['test-data{}'.format(i) for i in range(0, 100)]
 
         if key_source is None:
-            key_source = ['test-key{}'.format(i) for i in range(0, 100)]
+            key_source = [None]
 
         KafkaClusterFixture._produce(self._producer, topic, value_source, key_source, header_source)
 

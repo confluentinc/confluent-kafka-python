@@ -36,6 +36,7 @@ def get_group_protocol_type(a, group_id):
 
 
 def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_protocol):
+    no_of_messages = 100
     total_msg_read = 0
     expected_partitions_per_consumer = number_of_partitions // len(consumers)
     while len(consumers[-1].assignment()) != expected_partitions_per_consumer:
@@ -52,16 +53,18 @@ def check_consumer(kafka_cluster, consumers, admin_client, topic, expected_proto
     assert get_group_protocol_type(admin_client, topic) == expected_protocol
 
     # Produce some messages to the topic
-    kafka_cluster.seed_topic(topic)
+    test_data = ['test-data{}'.format(i) for i in range(0, no_of_messages)]
+    test_keys = ['test-key{}'.format(i) for i in range(0, no_of_messages)]  # we want each partition to have data
+    kafka_cluster.seed_topic(topic, test_data, test_keys)
 
-    while total_msg_read < 100:
+    while total_msg_read < no_of_messages:
         for consumer in consumers:
             # Poll for messages
             msg = consumer.poll(0.1)
             if msg is not None:
                 total_msg_read += 1
-    
-    assert total_msg_read == 100, "Expected to read 100 messages, but read {}".format(total_msg_read)
+
+    assert total_msg_read == no_of_messages, f"Expected to read {no_of_messages} messages, but read {total_msg_read}"
 
 
 def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(kafka_cluster, partition_assignment_strategy):
