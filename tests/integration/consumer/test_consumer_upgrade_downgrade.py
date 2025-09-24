@@ -16,8 +16,7 @@
 # limitations under the License.
 
 import pytest
-from confluent_kafka import ConsumerGroupType, IsolationLevel, KafkaException, TopicPartition
-from confluent_kafka.admin import OffsetSpec
+from confluent_kafka import ConsumerGroupType, KafkaException
 from tests.common import TestUtils
 
 topic_prefix = "test_consumer_upgrade_downgrade_"
@@ -76,20 +75,25 @@ def perform_consumer_upgrade_downgrade_test_with_partition_assignment_strategy(k
                                                                     })
     admin_client = kafka_cluster.admin()
 
-    # Create a consumer with the latest version
     consumer_conf = {'group.id': topic,
-                     'auto.offset.reset': 'earliest',
-                     'group.protocol': 'classic'}
-    consumer_conf['partition.assignment.strategy'] = partition_assignment_strategy
-    consumer = kafka_cluster.consumer(consumer_conf)
+                     'auto.offset.reset': 'earliest'}
+    consumer_conf_classic = {
+        'group.protocol': 'classic',
+        'partition.assignment.strategy': partition_assignment_strategy,
+        **consumer_conf
+    }
+    consumer_conf_consumer = {
+        'group.protocol': 'consumer',
+        **consumer_conf
+    }
+
+    consumer = kafka_cluster.consumer(consumer_conf_classic)
     assert consumer is not None
     consumer.subscribe([topic])
     check_consumer(kafka_cluster, [consumer], admin_client, topic, ConsumerGroupType.CLASSIC)
-    del consumer_conf['partition.assignment.strategy']
 
     # Now simulate an upgrade by creating a new consumer with 'consumer' protocol
-    consumer_conf['group.protocol'] = 'consumer'
-    consumer2 = kafka_cluster.consumer(consumer_conf)
+    consumer2 = kafka_cluster.consumer(consumer_conf_consumer)
     assert consumer2 is not None
     consumer2.subscribe([topic])
     check_consumer(kafka_cluster, [consumer, consumer2], admin_client, topic, ConsumerGroupType.CONSUMER)
