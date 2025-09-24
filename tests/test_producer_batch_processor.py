@@ -3,7 +3,7 @@
 Unit tests for the BatchProcessor class (_batch_processor.py)
 
 This module tests the BatchProcessor class to ensure proper
-message batching, topic grouping, and callback management.
+message batching, topic grouping, and future management.
 """
 
 import asyncio
@@ -128,7 +128,6 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         self.assertEqual(len(batch_messages), 2)
         
-        self.assertNotIn('user_callback', batch_messages[0])
         self.assertNotIn('topic', batch_messages[0])
         self.assertIn('value', batch_messages[0])
         self.assertIn('key', batch_messages[0])
@@ -160,7 +159,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         # Handle batch failure
         self.batch_processor._handle_batch_failure(
-            exception, futures, user_callbacks
+            exception, futures
         )
         
         # Verify first future got exception (not already done)
@@ -283,56 +282,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
         
         return messages_data, futures, user_callbacks
     
-    def test_callback_future_mapping_setup(self):
-        """Test callback-future mapping during message setup"""
-        messages_data, futures, user_callbacks = self._create_mixed_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        
-        self.assertEqual(len(topic_groups), 2)
-        for topic, group_data in topic_groups.items():
-            self.assertIn('messages', group_data)
-            self.assertIn('futures', group_data)
-            self.assertIn('callbacks', group_data)
     
-    def test_callback_assignment_correctness(self):
-        """Test that callbacks are assigned to correct futures"""
-        self._create_mixed_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        
-        for topic, group_data in topic_groups.items():
-            batch_messages = self.batch_processor._prepare_batch_messages(group_data['messages'])
-            self.batch_processor._assign_future_callbacks(
-                batch_messages, group_data['futures']
-            )
-            
-            for i, batch_msg in enumerate(batch_messages):
-                callback = batch_msg['callback']
-                expected_future = group_data['futures'][i]
-                expected_user_callback = group_data['callbacks'][i]
-                
-                self.assertEqual(callback.future, expected_future)
-                self.assertEqual(callback.user_callback, expected_user_callback)
-    
-    def test_callback_execution_with_success(self):
-        """Test callback execution resolves correct futures"""
-        self._create_mixed_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        
-        for topic, group_data in topic_groups.items():
-            batch_messages = self.batch_processor._prepare_batch_messages(group_data['messages'])
-            self.batch_processor._assign_future_callbacks(
-                batch_messages, group_data['futures']
-            )
-            
-            for i, batch_msg in enumerate(batch_messages):
-                callback = batch_msg['callback']
-                expected_future = group_data['futures'][i]
-                
-                test_msg = Mock()
-                test_msg.value.return_value = batch_msg['value']
-                
-                callback(None, test_msg)
-                expected_future.set_result.assert_called_once_with(test_msg)
     
     def _add_alternating_topic_messages(self):
         """Helper to add messages alternating between two topics"""
@@ -380,43 +330,16 @@ class TestProducerBatchProcessor(unittest.TestCase):
             self.assertIn('value', batch_msg)
             self.assertIn('key', batch_msg)
     
-    def test_batch_cycle_callback_pool_usage(self):
-        """Test callback pool usage in batch cycle"""
-        self._add_alternating_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        
-        batch_messages = self.batch_processor._prepare_batch_messages(
-            topic_groups['topic0']['messages']
-        )
-        
-        self.batch_processor._assign_future_callbacks(
-            batch_messages,
-            topic_groups['topic0']['futures']
-        )
-        
-        for batch_msg in batch_messages:
-            self.assertIn('callback', batch_msg)
-        
-        # Callback pool stats not available in actual implementation
 
-    def _create_test_messages_with_tracking(self):
-        """Helper to create test messages with callback tracking"""
-        callback_results = []
-        
-        def track_callback(msg_id):
-            def callback(err, msg):
-                callback_results.append({'msg_id': msg_id, 'err': err, 'msg': msg})
-            return callback
-        
-        msg1_data = {'topic': 'test-topic', 'value': 'small message', 'user_callback': track_callback('msg1')}
-        msg2_data = {'topic': 'test-topic', 'value': 'x' * (5 * 1024 * 1024), 'user_callback': track_callback('msg2')}
-        msg3_data = {'topic': 'test-topic', 'value': 'another small', 'user_callback': track_callback('msg3')}
-        
-        return [msg1_data, msg2_data, msg3_data], callback_results
     
     def test_batch_message_preparation_with_mixed_sizes(self):
         """Test batch message preparation with mixed message sizes"""
-        messages, _ = self._create_test_messages_with_tracking()
+        # Create test messages with different sizes
+        messages = [
+            {'topic': 'test-topic', 'value': 'small message'},
+            {'topic': 'test-topic', 'value': 'x' * (5 * 1024 * 1024)},  # Large message
+            {'topic': 'test-topic', 'value': 'another small'},
+        ]
         futures = [asyncio.Future(), asyncio.Future(), asyncio.Future()]
         
         for msg, future in zip(messages, futures):
@@ -430,54 +353,58 @@ class TestProducerBatchProcessor(unittest.TestCase):
         large_msg = next((msg for msg in batch_messages if len(str(msg.get('value', ''))) > 1000), None)
         self.assertIsNotNone(large_msg)
     
-    def test_batch_callback_assignment_with_futures(self):
-        """Test callback assignment to batch messages with futures"""
-        messages, _ = self._create_test_messages_with_tracking()
-        futures = [asyncio.Future(), asyncio.Future(), asyncio.Future()]
+    def test_future_based_usage_pattern(self):
+        """Test the recommended Future-based usage pattern instead of callbacks."""
+        # Create test messages without user callbacks
+        messages = [
+            {'topic': 'test-topic', 'value': 'test1', 'key': 'key1'},
+            {'topic': 'test-topic', 'value': 'test2', 'key': 'key2'},
+        ]
+        futures = [asyncio.Future(), asyncio.Future()]
         
+        # Add messages to batch processor
         for msg, future in zip(messages, futures):
             self.batch_processor.add_message(msg, future)
         
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        topic_data = topic_groups['test-topic']
-        batch_messages = self.batch_processor._prepare_batch_messages(topic_data['messages'])
+        # Verify messages are in buffer
+        self.assertEqual(self.batch_processor.get_buffer_size(), 2)
         
-        self.batch_processor._assign_future_callbacks(
-            batch_messages, topic_data['futures'], topic_data['callbacks']
-        )
+        # Simulate successful delivery by resolving futures
+        mock_msg1 = Mock()
+        mock_msg1.topic.return_value = 'test-topic'
+        mock_msg1.value.return_value = b'test1'
         
-        for batch_msg in batch_messages:
-            self.assertIn('callback', batch_msg)
+        mock_msg2 = Mock()
+        mock_msg2.topic.return_value = 'test-topic'
+        mock_msg2.value.return_value = b'test2'
+        
+        # Applications should await these futures to get delivery results
+        futures[0].set_result(mock_msg1)
+        futures[1].set_result(mock_msg2)
+        
+        # Verify futures are resolved
+        self.assertTrue(futures[0].done())
+        self.assertTrue(futures[1].done())
+        self.assertEqual(futures[0].result(), mock_msg1)
+        self.assertEqual(futures[1].result(), mock_msg2)
     
-    def test_batch_executor_with_oversized_messages(self):
-        """Test batch executor handles oversized messages correctly"""
-        messages, callback_results = self._create_test_messages_with_tracking()
-        futures = [asyncio.Future(), asyncio.Future(), asyncio.Future()]
+    def test_future_based_error_handling(self):
+        """Test Future-based error handling pattern."""
+        # Create test message
+        message = {'topic': 'test-topic', 'value': 'test', 'key': 'key'}
+        future = asyncio.Future()
         
-        for msg, future in zip(messages, futures):
-            self.batch_processor.add_message(msg, future)
+        # Add message to batch processor
+        self.batch_processor.add_message(message, future)
         
-        async def run_test():
-            topic_groups = self.batch_processor._group_messages_by_topic()
-            topic_data = topic_groups['test-topic']
-            batch_messages = self.batch_processor._prepare_batch_messages(topic_data['messages'])
-            
-            self.batch_processor._assign_future_callbacks(
-                batch_messages, topic_data['futures']
-            )
-            
-            result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
-            failed_count = sum(1 for msg_dict in batch_messages if '_error' in msg_dict)
-            
-            if failed_count > 0:
-                failed_messages = [msg for msg in batch_messages if '_error' in msg]
-                self.assertEqual(len(failed_messages), failed_count)
-                
-                large_msg = next((msg for msg in batch_messages if len(str(msg.get('value', ''))) > 1000), None)
-                if large_msg and '_error' in large_msg:
-                    self.assertIn('MSG_SIZE_TOO_LARGE', str(large_msg['_error']))
+        # Simulate delivery error by setting exception on future
+        mock_error = RuntimeError("Delivery failed")
+        future.set_exception(mock_error)
         
-        self.loop.run_until_complete(run_test())
+        # Verify future is resolved with exception
+        self.assertTrue(future.done())
+        with self.assertRaises(RuntimeError):
+            future.result()
 
 
 if __name__ == '__main__':

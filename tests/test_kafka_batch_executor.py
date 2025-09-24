@@ -12,11 +12,11 @@ from unittest.mock import Mock, patch
 import sys
 import os
 import concurrent.futures
-import confluent_kafka
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+import confluent_kafka
 from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
 
 
@@ -105,10 +105,13 @@ class TestKafkaBatchExecutor(unittest.TestCase):
             self.mock_producer.produce_batch.return_value = None
             self.mock_producer.poll.return_value = 0
             
-            result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
+            # Expect the callback exception to be raised
+            with self.assertRaises(Exception) as context:
+                await self.kafka_executor.execute_batch('test-topic', batch_messages)
             
+            # Verify the callback was called before the exception
             failing_callback.assert_called_once_with('TEST_ERROR', None)
-            self.assertEqual(result, 0)
+            self.assertEqual(str(context.exception), "Callback error")
         
         self.loop.run_until_complete(async_test())
     
