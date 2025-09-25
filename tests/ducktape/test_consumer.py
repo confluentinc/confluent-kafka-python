@@ -168,7 +168,8 @@ class SimpleConsumerTest(Test):
     @matrix(consumer_type=["sync", "async"], batch_size=[1, 5, 20])
     def test_basic_consume(self, consumer_type, batch_size):
         """Test batch consumption with comprehensive metrics and bounds validation"""
-        self._run_consumer_performance_test(
+        
+        self._run_consumer_performance_benchmark(
             consumer_type=consumer_type,
             operation_type="consume",
             batch_size=batch_size,
@@ -177,7 +178,8 @@ class SimpleConsumerTest(Test):
     @matrix(consumer_type=["sync", "async"])
     def test_basic_poll(self, consumer_type):
         """Test single message polling with comprehensive metrics and bounds validation"""
-        self._run_consumer_performance_test(
+
+        self._run_consumer_performance_benchmark(
             consumer_type=consumer_type,
             operation_type="poll",
         )
@@ -195,7 +197,7 @@ class SimpleConsumerTest(Test):
         deserialization overhead.
         """
 
-        self._run_consumer_performance_test(
+        self._run_consumer_performance_benchmark(
             consumer_type=consumer_type,
             operation_type="consume",
             batch_size=20,
@@ -216,7 +218,7 @@ class SimpleConsumerTest(Test):
         deserialization overhead.
         """
 
-        self._run_consumer_performance_test(
+        self._run_consumer_performance_benchmark(
             consumer_type=consumer_type,
             operation_type="poll",
             serialization_type=serialization_type,
@@ -426,7 +428,7 @@ class SimpleConsumerTest(Test):
 
     # =========== Private Helper Methods ===========
 
-    def _run_consumer_performance_test(self, consumer_type, operation_type,
+    def _run_consumer_performance_benchmark(self, consumer_type, operation_type,
                                        batch_size=None,
                                        serialization_type=None,
                                        num_messages_to_produce=1500000):
