@@ -21,6 +21,35 @@ otel_collector_package_url="https://github.com/open-telemetry/"\
 "opentelemetry-collector-releases/releases/download/"\
 "v${otel_collector_version}/otelcol-contrib_${otel_collector_version}_linux_amd64.deb"
 
+validate_config() {
+    local errors=0
+
+    if grep -q "FILL_IN_REGION_HERE" otel-config.yaml; then
+        echo "ERROR: AWS region not configured in otel-config.yaml"
+        echo "Please set AWS_REGION in the file"
+        errors=$((errors + 1))
+    fi
+
+    if grep -q "FILL_IN_ROLE_ARN_HERE" otel-config.yaml; then
+        echo "ERROR: AWS Role ARN not configured in otel-config.yaml"
+        echo "Please set AWS_ROLE_ARN in the file"
+        errors=$((errors + 1))
+    fi
+    
+    if grep -q "FILL_IN_REMOTE_WRITE_ENDPOINT_HERE" otel-config.yaml; then
+        echo "ERROR: Prometheus endpoint not configured"
+        echo "Please set PROMETHEUS_ENDPOINT in the file"
+        errors=$((errors + 1))
+    fi
+    
+    if [[ $errors -gt 0 ]]; then
+        echo "Configuration validation failed. Please fix the above errors."
+        exit 1
+    fi
+    
+    echo "Configuration validation passed."
+}
+validate_config
 
 sudo apt update
 sudo apt install -y git curl wget make gcc g++ zlib1g-dev libssl-dev \
