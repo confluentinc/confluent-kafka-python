@@ -2,7 +2,7 @@
 import os
 import subprocess
 
-PYTHON_SOAK_TEST_BRANCH = 'dev_otel_agent_soak_test'
+PYTHON_SOAK_TEST_BRANCH = 'master'
 
 LIBRDKAFKA_VERSIONS = [
     # '2.12.0',
