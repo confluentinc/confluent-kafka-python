@@ -16,7 +16,7 @@
 # limitations under the License.
 
 # Examples of setting up Schema Registry with OAuth with static token,
-# Client Credentials, and custom functions
+# Client Credentials, Azure IMDS, and custom functions
 
 
 # CUSTOM OAuth configuration takes in a custom function, config for that
@@ -48,6 +48,16 @@ def main():
 
     client_credentials_oauth_sr_client = SchemaRegistryClient(client_credentials_oauth_config)
     print(client_credentials_oauth_sr_client.get_subjects())
+
+    azure_imds_oauth_config = {
+        'url': 'https://psrc-123456.us-east-1.aws.confluent.cloud',
+        'bearer.auth.credentials.source': 'OAUTHBEARER_AZURE_IMDS',
+        'bearer.auth.issuer.endpoint.query': 'resource=&api-version=&client_id=',
+        'bearer.auth.logical.cluster': 'lsrc-12345',
+        'bearer.auth.identity.pool.id': 'pool-abcd'}
+
+    azure_imds_oauth_sr_client = SchemaRegistryClient(azure_imds_oauth_config)
+    print(azure_imds_oauth_sr_client.get_subjects())
 
     def custom_oauth_function(config):
         return config

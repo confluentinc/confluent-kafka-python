@@ -19,9 +19,11 @@ import pytest
 import time
 from unittest.mock import Mock, patch
 
-from confluent_kafka.schema_registry._sync.schema_registry_client import _OAuthClient, SchemaRegistryClient
+from confluent_kafka.schema_registry._sync.schema_registry_client import (
+    _OAuthClient, _OAuthAzureIMDSClient, SchemaRegistryClient
+)
 from confluent_kafka.schema_registry._sync.schema_registry_client import _CustomOAuthClient
-from confluent_kafka.schema_registry.common.schema_registry_client import _StaticFieldProvider
+from confluent_kafka.schema_registry.common._oauthbearer import _StaticFieldProvider
 from confluent_kafka.schema_registry.error import OAuthTokenError
 
 """
@@ -45,7 +47,7 @@ TEST_URL = 'http://SchemaRegistry:65534'
 
 def test_expiry():
     oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
-    oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 1}
+    oauth_client.token_object = {'expires_at': time.time() + 2, 'expires_in': 1}
     assert not oauth_client.token_expired()
     time.sleep(1.5)
     assert oauth_client.token_expired()
@@ -55,21 +57,49 @@ def test_get_token():
     oauth_client = _OAuthClient('id', 'secret', 'scope', 'endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
 
     def update_token1():
-        oauth_client.token = {'expires_at': 0, 'expires_in': 1, 'access_token': '123'}
+        oauth_client.token_object = {'expires_at': 0, 'expires_in': 1, 'access_token': '123'}
+        oauth_client.token = '123'
 
     def update_token2():
-        oauth_client.token = {'expires_at': time.time() + 2, 'expires_in': 1, 'access_token': '1234'}
+        oauth_client.token_object = {'expires_at': time.time() + 2, 'expires_in': 1, 'access_token': '1234'}
+        oauth_client.token = '1234'
 
     oauth_client.generate_access_token = Mock(side_effect=update_token1)
     oauth_client.get_access_token()
     assert oauth_client.generate_access_token.call_count == 1
-    assert oauth_client.token['access_token'] == '123'
+    assert oauth_client.token_object['access_token'] == '123'
 
     oauth_client.generate_access_token = Mock(side_effect=update_token2)
     oauth_client.get_access_token()
     # Call count resets to 1 after reassigning generate_access_token
     assert oauth_client.generate_access_token.call_count == 1
-    assert oauth_client.token['access_token'] == '1234'
+    assert oauth_client.token_object['access_token'] == '1234'
+
+    oauth_client.get_access_token()
+    assert oauth_client.generate_access_token.call_count == 1
+
+
+def test_get_token_azure_imds():
+    oauth_client = _OAuthAzureIMDSClient('endpoint', TEST_CLUSTER, TEST_POOL, 2, 1000, 20000)
+
+    def update_token1():
+        oauth_client.token_object = {'expires_on': 0, 'expires_in': 1, 'access_token': '123'}
+        oauth_client.token = '123'
+
+    def update_token2():
+        oauth_client.token_object = {'expires_on': time.time() + 2, 'expires_in': 1, 'access_token': '1234'}
+        oauth_client.token = '1234'
+
+    oauth_client.generate_access_token = Mock(side_effect=update_token1)
+    oauth_client.get_access_token()
+    assert oauth_client.generate_access_token.call_count == 1
+    assert oauth_client.token_object['access_token'] == '123'
+
+    oauth_client.generate_access_token = Mock(side_effect=update_token2)
+    oauth_client.get_access_token()
+    # Call count resets to 1 after reassigning generate_access_token
+    assert oauth_client.generate_access_token.call_count == 1
+    assert oauth_client.token_object['access_token'] == '1234'
 
     oauth_client.get_access_token()
     assert oauth_client.generate_access_token.call_count == 1
