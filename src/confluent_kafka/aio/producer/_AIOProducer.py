@@ -73,7 +73,7 @@ class AIOProducer:
 
         1. **Signal Shutdown**: Sets the closed flag to signal the timeout task to stop
         2. **Cancel Timeout Task**: Immediately cancels the buffer timeout monitoring task
-        3. **Flush Remaining Messages**: Flushes any buffered messages to ensure delivery
+        3. **Flush All Messages**: Flushes any buffered messages and waits for delivery confirmation
         4. **Shutdown ThreadPool**: Waits for all pending ThreadPool operations to complete
         5. **Cleanup**: Ensures the underlying librdkafka producer is properly closed. The shutdown
             is designed to be safe and non-blocking for the asyncio event loop
@@ -89,15 +89,12 @@ class AIOProducer:
         # Stop the buffer timeout monitoring task
         self._buffer_timeout_manager.stop_timeout_monitoring()
 
-        # Flush any remaining messages in the buffer
-        if not self._batch_processor.is_buffer_empty():
-            try:
-                await self._flush_buffer()
-                # Update buffer activity since we just flushed
-                self._buffer_timeout_manager.mark_activity()
-            except Exception:
-                logger.error("Error flushing buffer", exc_info=True)
-                raise
+        # Flush any remaining messages and ensure delivery
+        try:
+            await self.flush()
+        except Exception:
+            logger.error("Error flushing messages during close", exc_info=True)
+            raise
 
         # Shutdown the ThreadPool executor and wait for any remaining tasks to complete
         # This ensures that all pending poll(), flush(), and other blocking operations
