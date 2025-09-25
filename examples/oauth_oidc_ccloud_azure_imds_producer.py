@@ -22,7 +22,52 @@
 import logging
 import argparse
 from confluent_kafka import Producer
-from confluent_kafka.serialization import StringSerializer
+from confluent_kafka.schema_registry.json_schema import JSONSerializer
+from confluent_kafka.serialization import (StringSerializer,
+                                           SerializationContext, MessageField)
+from confluent_kafka.schema_registry import SchemaRegistryClient
+
+
+class User(object):
+    """
+    User record
+
+    Args:
+        name (str): User's name
+
+        favorite_number (int): User's favorite number
+
+        favorite_color (str): User's favorite color
+
+        address(str): User's address; confidential
+    """
+
+    def __init__(self, name, address, favorite_number, favorite_color):
+        self.name = name
+        self.favorite_number = favorite_number
+        self.favorite_color = favorite_color
+        # address should not be serialized, see user_to_dict()
+        self._address = address
+
+
+def user_to_dict(user, ctx):
+    """
+    Returns a dict representation of a User instance for serialization.
+
+    Args:
+        user (User): User instance.
+
+        ctx (SerializationContext): Metadata pertaining to the serialization
+            operation.
+
+    Returns:
+        dict: Dict populated with user attributes to be serialized.
+    """
+
+    # User._address must not be serialized; omit from dict
+    return dict(name=user.name,
+                favorite_number=user.favorite_number,
+                favorite_color=user.favorite_color)
 
 
 def producer_config(args):
@@ -41,6 +86,21 @@ def producer_config(args):
     if args.logical_cluster and args.identity_pool_id:
         params['sasl.oauthbearer.extensions'] = 'logicalCluster=' + args.logical_cluster + \
             ',identityPoolId=' + args.identity_pool_id
+
+    return params
+
+
+def schema_registry_config(args):
+    params = {
+        'url': args.schema_registry,
+        'bearer.auth.credentials.source': 'OAUTHBEARER_AZURE_IMDS',
+        'bearer.auth.issuer.endpoint.query': 'resource=&api-version=&client_id=',
+    }
+    # These two parameters are only applicable when producing to
+    # confluent cloud where some sasl extensions are required.
+    if args.logical_cluster and args.identity_pool_id:
+        params['bearer.auth.logical.cluster'] = args.logical_cluster
+        params['bearer.auth.identity.pool.id'] = args.identity_pool_id
 
     return params
 
@@ -72,27 +132,54 @@ def delivery_report(err, msg):
 
 def main(args):
     topic = args.topic
-    delimiter = args.delimiter
     producer_conf = producer_config(args)
     producer = Producer(producer_conf)
-    serializer = StringSerializer('utf_8')
+    string_serializer = StringSerializer('utf_8')
+    schema_str = """
+    {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "description": "A Confluent Kafka Python User",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "User's name",
+          "type": "string"
+        },
+        "favorite_number": {
+          "description": "User's favorite number",
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "favorite_color": {
+          "description": "User's favorite color",
+          "type": "string"
+        }
+      },
+      "required": [ "name", "favorite_number", "favorite_color" ]
+    }
+    """
+    schema_registry_conf = schema_registry_config(args)
+    schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+
+    string_serializer = StringSerializer('utf_8')
+    json_serializer = JSONSerializer(schema_str, schema_registry_client, user_to_dict)
 
     print('Producing records to topic {}. ^C to exit.'.format(topic))
     while True:
         # Serve on_delivery callbacks from previous calls to produce()
         producer.poll(0.0)
         try:
-            msg_data = input(">")
-            msg = msg_data.split(delimiter)
-            if len(msg) == 2:
-                producer.produce(topic=topic,
-                                 key=serializer(msg[0]),
-                                 value=serializer(msg[1]),
-                                 on_delivery=delivery_report)
-            else:
-                producer.produce(topic=topic,
-                                 value=serializer(msg[0]),
-                                 on_delivery=delivery_report)
+            name = input(">")
+            user = User(name=name,
+                        address="NA",
+                        favorite_color="blue",
+                        favorite_number=7)
+            serialized_user = json_serializer(user, SerializationContext(topic, MessageField.VALUE))
+            producer.produce(topic=topic,
+                             key=string_serializer(name),
+                             value=serialized_user,
+                             on_delivery=delivery_report)
         except KeyboardInterrupt:
             break
 
@@ -106,8 +193,8 @@ if __name__ == '__main__':
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-t', dest="topic", default="example_producer_oauth",
                         help="Topic name")
-    parser.add_argument('-d', dest="delimiter", default="|",
-                        help="Key-Value delimiter. Defaults to '|'"),
+    parser.add_argument('-s', dest="schema_registry", required=True,
+                        help="Schema Registry (http(s)://host[:port]")
     parser.add_argument('--query', dest="query", required=True,
                         help="Query parameters for Azure IMDS token endpoint")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")

@@ -141,7 +141,7 @@ class _AbstractOAuthBearerOIDCAzureIMDSFieldProviderBuilder(_AbstractOAuthBearer
             self.token_endpoint = urlunparse(parsed_token_endpoint)
         elif not token_endpoint_override:
             raise ValueError("bearer.auth.issuer.endpoint.query must be provided "
-                             "when bearer.auth.issuer.endpoint.url isn overridden")
+                             "when bearer.auth.issuer.endpoint.url isn't overridden")
 
 
 class _StaticFieldProvider(_BearerFieldProvider):
