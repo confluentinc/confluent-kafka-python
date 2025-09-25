@@ -407,10 +407,13 @@ class AsyncProducerStrategy(ProducerStrategy):
 
             # Temporary metrics for timing sections
             produce_times = []
-            poll_times = []
             flush_time = 0
             pending_futures = []
             send_times = {}
+
+            # Get serializers if using Schema Registry
+            if serialization_type:
+                key_serializer, value_serializer = await self.build_serializers(serialization_type)
 
             # Get serializers if using Schema Registry
             if serialization_type:

@@ -14,13 +14,14 @@ import psutil
 class ConsumerMetricsCollector:
     """Collects comprehensive performance metrics for consumer testing."""
 
-    def __init__(self, operation_type: str = "poll"):
+    def __init__(self, operation_type: str = "poll", serialization_type: str = None):
         # Basic timing
         self.start_time = None
         self.end_time = None
 
         # Operation type: "poll" or "consume"
         self.operation_type = operation_type
+        self.serialization_type = serialization_type
 
         # Consumer metrics (generic for both poll/consume)
         self.messages_consumed = 0
@@ -295,7 +296,7 @@ def validate_consumer_metrics(metrics: Dict[str, Any], bounds: ConsumerMetricsBo
 
 
 def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, violations: List[str],
-                                  consumer_type: str = None, batch_size: int = None):
+                                  consumer_type: str = None, batch_size: int = None, serialization_type: str = None):
     """Print simplified consumer metrics report"""
     # Detect operation type from metrics keys
     op_name = "consume"  # default
@@ -308,6 +309,8 @@ def print_consumer_metrics_report(metrics: Dict[str, Any], is_valid: bool, viola
         header_parts.append(f"{consumer_type.upper()}")
     if op_name == "consume" and batch_size is not None:
         header_parts.append(f"{op_name.upper()}(batch_size={batch_size})")
+    if serialization_type:
+        header_parts.append(f"serialization_type={serialization_type}")
     else:
         header_parts.append(f"{op_name.upper()}()")
 
