@@ -407,6 +407,7 @@ class AsyncProducerStrategy(ProducerStrategy):
 
             # Temporary metrics for timing sections
             produce_times = []
+            poll_times = []  # Async producer doesn't use polling, but needed for metrics
             flush_time = 0
             pending_futures = []
             send_times = {}
