@@ -28,6 +28,13 @@ from ._model import (Node,  # noqa: F401
                      IsolationLevel,
                      ElectionType)
 
+import os
+try:
+    import tomllib
+except ImportError:
+    # For Python 3.12 and earlier
+    import tomli as tomllib
+
 from .cimpl import (Producer,
                     Consumer,
                     Message,
@@ -54,7 +61,8 @@ __all__ = ['admin', 'Consumer',
            'ConsumerGroupType', 'Uuid',
            'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo']
 
-__version__ = version()[0]
+
+__version__ = version()
 
 
 class ThrottleEvent(object):
