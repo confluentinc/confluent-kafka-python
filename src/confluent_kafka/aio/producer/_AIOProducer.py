@@ -33,7 +33,7 @@ class AIOProducer:
     # INITIALIZATION AND LIFECYCLE MANAGEMENT
     # ========================================================================
 
-    def __init__(self, producer_conf, max_workers=4, executor=None, batch_size=1000, buffer_timeout=5.0):
+    def __init__(self, producer_conf, max_workers=4, executor=None, batch_size=1000, buffer_timeout=1.0):
         if executor is not None:
             self.executor = executor
         else:
