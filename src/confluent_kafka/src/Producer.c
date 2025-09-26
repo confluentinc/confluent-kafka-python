@@ -393,6 +393,42 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
         return cfl_PyInt_FromInt(qlen);
 }
 
+
+static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
+
+        CallState cs;
+
+        if (!self->rk)
+            Py_RETURN_TRUE;
+
+        CallState_begin(self, &cs);
+
+        /* Warn if there are pending messages */
+        int outq_len = rd_kafka_outq_len(self->rk);
+        if (outq_len > 0) {
+            const char msg[150];
+            sprintf(msg, "There are %d message(s) still in producer queue! "
+                    "Use flush() or wait for delivery.", outq_len);
+            rd_kafka_log_print(
+                self->rk,
+                CK_LOG_WARNING,
+                "CLOSWARN",
+                msg
+            );
+        }
+        rd_kafka_destroy(self->rk);
+        rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Producer destroy requested");
+
+        self->rk = NULL;
+
+        if (!CallState_end(self, &cs))
+            return NULL;
+
+        Py_RETURN_TRUE;
+
+}
+
+
 static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         CallState cs;
         rd_kafka_error_t *error;
@@ -609,7 +645,15 @@ static PyMethodDef Producer_methods[] = {
 	  "  :rtype: int\n"
 	  "\n"
 	},
-
+	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
+          ".. py:function:: close()\n"
+          "\n"
+	  "   Request to close the producer on demand.\n"
+	  "\n"
+      "  :rtype: bool\n"
+      "  :returns: True if producer close requested successfully, False otherwise\n"
+      "\n"
+	},
 	{ "flush", (PyCFunction)Producer_flush, METH_VARARGS|METH_KEYWORDS,
           ".. py:function:: flush([timeout])\n"
           "\n"

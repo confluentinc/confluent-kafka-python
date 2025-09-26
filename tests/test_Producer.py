@@ -1,11 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import pytest
+import json
 from struct import pack
+
+import pytest
 
 from confluent_kafka import Producer, KafkaError, KafkaException, \
     TopicPartition, libversion
-
 from tests.common import TestConsumer
 
 
@@ -46,6 +47,8 @@ def test_basic_api():
         p.list_topics(timeout=0.2)
     except KafkaException as e:
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
+
+    assert p.close(), "Failed to validate that producer was closed."
 
 
 def test_produce_timestamp():
@@ -239,6 +242,8 @@ def test_transaction_api():
     assert ex.value.args[0].fatal() is False
     assert ex.value.args[0].txn_requires_abort() is False
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_purge():
     """
@@ -274,6 +279,8 @@ def test_purge():
     p.flush(0.002)
     assert cb_detector["on_delivery_called"]
 
+    assert p.close(), "The producer was not closed"
+
 
 def test_producer_bool_value():
     """
@@ -283,3 +290,20 @@ def test_producer_bool_value():
 
     p = Producer({})
     assert bool(p)
+    assert p.close(), "The producer was not fully closed"
+
+
+def test_producer_close():
+    """
+    Ensures the producer close can be requested on demand
+    """
+    conf = {
+        'debug': 'all',
+        'socket.timeout.ms': 10,
+        'error_cb': error_cb,
+        'message.timeout.ms': 10
+    }
+    producer = Producer(conf)
+    msg = {"test": "test"}
+    producer.produce(json.dumps(msg))
+    assert producer.close(), "The producer could nto be closed on demand"
