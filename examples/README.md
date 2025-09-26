@@ -11,6 +11,51 @@ The scripts in this directory provide various examples of using Confluent's Pyth
 
 * [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
 
+### Web Framework Integration
+
+The AsyncIO producer works seamlessly with popular Python web frameworks:
+
+**FastAPI/Starlette:**
+
+```python
+from fastapi import FastAPI
+from confluent_kafka.aio import AIOProducer
+
+app = FastAPI()
+producer = None
+
+@app.on_event("startup")
+async def startup():
+    global producer
+    producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+
+@app.post("/events")
+async def create_event(data: dict):
+    delivery_future = await producer.produce("events", value=str(data))
+    message = await delivery_future
+    return {"offset": message.offset()}
+```
+
+**aiohttp:**
+
+```python
+from aiohttp import web
+from confluent_kafka.aio import AIOProducer
+
+async def init_app():
+    app = web.Application()
+    app['producer'] = AIOProducer({"bootstrap.servers": "localhost:9092"})
+    return app
+
+async def handle_event(request):
+    producer = request.app['producer']
+    delivery_future = await producer.produce("events", value="data")
+    message = await delivery_future
+    return web.json_response({"offset": message.offset()})
+```
+
+For more details, see [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/).
+
 ## Transactional Examples
 
 * [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).

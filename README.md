@@ -71,9 +71,28 @@ For a more detailed example that includes both an async producer and consumer, s
 
 #### When to use AsyncIO vs synchronous Producer
 
-- Use AsyncIO `Producer` when your code runs under an event loop (FastAPI/Starlette, aiohttp, asyncio workers) and must not block.
-- Use synchronous `Producer` for scripts, batch jobs, and highest-throughput pipelines where you control threads/processes and can call `poll()`/`flush()` directly.
-- In async servers, prefer AsyncIO `Producer`; if you need headers, call sync `produce()` via `run_in_executor` for that path.
+- **Use AsyncIO `Producer`** when your code runs under an event loop (FastAPI/Starlette, aiohttp, Sanic, asyncio workers) and must not block.
+- **Use synchronous `Producer`** for scripts, batch jobs, and highest-throughput pipelines where you control threads/processes and can call `poll()`/`flush()` directly.
+- **In async servers**, prefer AsyncIO `Producer`; if you need headers, call sync `produce()` via `run_in_executor` for that path.
+
+#### Migration from Custom AsyncIO Wrappers
+
+If you previously implemented custom AsyncIO wrappers (like those described in [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)), you can now migrate to the official `AIOProducer`:
+
+```python
+# Old custom wrapper approach
+class AIOProducer:
+    def __init__(self, configs, loop=None):
+        self._loop = loop or asyncio.get_event_loop()
+        self._producer = confluent_kafka.Producer(configs)
+        # ... custom polling thread implementation
+
+# New official approach  
+from confluent_kafka.aio import AIOProducer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+```
+
+The official implementation handles thread pool management, callback scheduling, and cleanup automatically.
 
 
 ### Basic Producer example
