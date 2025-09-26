@@ -89,7 +89,7 @@ class AIOProducer:
         # Stop the buffer timeout monitoring task
         self._buffer_timeout_manager.stop_timeout_monitoring()
 
-        # Flush any remaining messages and ensure delivery
+        # Flush any remaining messages
         try:
             await self.flush()
         except Exception:
@@ -204,6 +204,9 @@ class AIOProducer:
 
     async def purge(self, *args, **kwargs):
         """Purges messages from internal queues - may block during cleanup"""
+        # Cancel all pending futures
+        self._batch_processor.cancel_pending_futures()
+        
         # Clear local message buffer and futures
         self._batch_processor.clear_buffer()
 
