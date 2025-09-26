@@ -97,9 +97,11 @@ Request paths to trigger exceptions:
 +--------+-------------------------------------------------+-------+------------------------------+
 | DELETE | /subjects/notfound/versions/422                 | 42202 | Invalid version              |
 +--------+-------------------------------------------------+-------+------------------------------+
-| GET    | /config/notconfig                               | 40401 | Subject not found            |
+| GET    | /config/notfound                                | 40401 | Subject not found            |
 +--------+-------------------------------------------------+-------+------------------------------+
 | PUT    | /config**                                       | 42203 | Invalid compatibility level  |
++--------+-------------------------------------------------+-------+------------------------------+
+| DELETE | /config/notfound                                | 40401 | Subject not found            |
 +--------+-------------------------------------------------+-------+------------------------------+
 | POST   | /compatibility/subjects/notfound/versions/[0-9] | 40401 | Subject not found            |
 +--------+-------------------------------------------------+-------+------------------------------+
@@ -108,6 +110,10 @@ Request paths to trigger exceptions:
 | POST   | /compatibility/subjects/notfound/versions/404   | 40402 | Version not found            |
 +--------+-------------------------------------------------+-------+------------------------------+
 | POST   | /compatibility/subjects/invalid/versions/bad    | 42202 | Invalid version              |
++--------+-------------------------------------------------+-------+------------------------------+
+| PUT    | /mode/invalid_mode                              | 42204 | Invalid mode                 |
++--------+-------------------------------------------------+-------+------------------------------+
+| PUT    | /mode/operation_not_permitted                   | 42205 | Operation not permitted      |
 +--------+-------------------------------------------------+-------+------------------------------+
 * POST /subjects/{}/versions does not follow the documented API error.
 ** PUT /config reacts to a trigger in the body: - {"compatibility": "FULL"}
@@ -131,12 +137,27 @@ def mock_schema_registry():
 
         respx_mock.post(COMPATIBILITY_SUBJECTS_VERSIONS_RE).mock(
             side_effect=post_compatibility_subjects_versions_callback)
+        respx_mock.post(COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE).mock(
+            side_effect=post_compatibility_subjects_all_versions_callback)
 
-        respx_mock.get(COMPATIBILITY_RE).mock(side_effect=get_compatibility_callback)
-        respx_mock.put(COMPATIBILITY_RE).mock(side_effect=put_compatibility_callback)
+        respx_mock.get(CONFIG_RE).mock(side_effect=get_config_callback)
+        respx_mock.put(CONFIG_RE).mock(side_effect=put_config_callback)
+        respx_mock.delete(CONFIG_RE).mock(side_effect=delete_config_callback)
+
+        respx_mock.get(CONTEXTS_RE).mock(side_effect=get_contexts_callback)
+
+        respx_mock.get(MODE_GLOBAL_RE).mock(side_effect=get_global_mode_callback)
+        respx_mock.put(MODE_GLOBAL_RE).mock(side_effect=put_global_mode_callback)
+        respx_mock.get(MODE_RE).mock(side_effect=get_mode_callback)
+        respx_mock.put(MODE_RE).mock(side_effect=put_mode_callback)
+        respx_mock.delete(MODE_RE).mock(side_effect=delete_mode_callback)
 
         respx_mock.get(SCHEMAS_RE).mock(side_effect=get_schemas_callback)
+        respx_mock.get(SCHEMAS_VERSIONS_RE).mock(side_effect=get_schema_versions_callback)
+        respx_mock.get(SCHEMAS_SUBJECTS_RE).mock(side_effect=get_schema_subjects_callback)
+        respx_mock.get(SCHEMAS_TYPES_RE).mock(side_effect=get_schema_types_callback)
 
+        respx_mock.get(SUBJECTS_VERSIONS_REFERENCED_BY_RE).mock(side_effect=get_subject_version_referenced_by_callback)
         respx_mock.get(SUBJECTS_VERSIONS_RE).mock(side_effect=get_subject_version_callback)
         respx_mock.delete(SUBJECTS_VERSIONS_RE).mock(side_effect=delete_subject_version_callback)
         respx_mock.post(SUBJECTS_VERSIONS_RE).mock(side_effect=post_subject_version_callback)
@@ -149,11 +170,25 @@ def mock_schema_registry():
 
 
 # request paths
-SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)?(.*)$")
+SCHEMAS_RE = re.compile("/schemas/ids/([0-9]*)$")
+SCHEMAS_VERSIONS_RE = re.compile(r"/schemas/ids/([0-9]*)/versions(\?.*)?$")
+SCHEMAS_SUBJECTS_RE = re.compile(r"/schemas/ids/([0-9]*)/subjects(\?.*)?$")
+SCHEMAS_TYPES_RE = re.compile("/schemas/types$")
+
 SUBJECTS_RE = re.compile("/subjects/?(.*)$")
 SUBJECTS_VERSIONS_RE = re.compile("/subjects/(.*)/versions/?(.*)$")
-COMPATIBILITY_RE = re.compile("/config/?(.*)$")
+SUBJECTS_VERSIONS_SCHEMA_RE = re.compile(r"/subjects/(.*)/versions/(.*)/schema(\?.*)?$")
+SUBJECTS_VERSIONS_REFERENCED_BY_RE = re.compile(r"/subjects/(.*)/versions/(.*)/referencedby(\?.*)?$")
+
+CONFIG_RE = re.compile("/config/?(.*)$")
+
 COMPATIBILITY_SUBJECTS_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions/?(.*)$")
+COMPATIBILITY_SUBJECTS_ALL_VERSIONS_RE = re.compile("/compatibility/subjects/(.*)/versions")
+
+MODE_GLOBAL_RE = re.compile(r"/mode(\?.*)?$")
+MODE_RE = re.compile("/mode/(.*)$")
+
+CONTEXTS_RE = re.compile(r"/contexts(\?.*)?$")
 
 # constants
 SCHEMA_ID = 47
@@ -189,16 +224,16 @@ def _auth_matcher(request):
     return Response(401, json=unauthorized)
 
 
-def _load_avsc(name):
+def _load_avsc(name) -> str:
     with open(os.path.join(work_dir, '..', 'integration', 'schema_registry',
                            'data', name)) as fd:
         return fd.read()
 
 
-def get_compatibility_callback(request, route):
+def get_config_callback(request, route):
     COUNTER['GET'][request.url.path] += 1
 
-    path_match = re.match(COMPATIBILITY_RE, request.url.path)
+    path_match = re.match(CONFIG_RE, request.url.path)
     subject = path_match.group(1)
 
     if subject == "notfound":
@@ -208,7 +243,7 @@ def get_compatibility_callback(request, route):
     return Response(200, json={'compatibility': 'FULL'})
 
 
-def put_compatibility_callback(request, route):
+def put_config_callback(request, route):
     COUNTER['PUT'][request.url.path] += 1
 
     body = json.loads(request.content.decode('utf-8'))
@@ -219,6 +254,24 @@ def put_compatibility_callback(request, route):
                                    'message': "Invalid compatibility level"})
 
     return Response(200, json=body)
+
+
+def delete_config_callback(request, route):
+    COUNTER['DELETE'][request.url.path] += 1
+
+    path_match = re.match(CONFIG_RE, request.url.path)
+    subject = path_match.group(1)
+
+    if subject == "notfound":
+        return Response(404, json={'error_code': 40401,
+                                   'message': "Subject not found"})
+
+    return Response(200, json={'compatibility': 'FULL'})
+
+
+def get_contexts_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=['context1', 'context2'])
 
 
 def delete_subject_callback(request, route):
@@ -271,6 +324,24 @@ def get_schemas_callback(request, route):
                                    'message': "Schema not found"})
 
     return Response(200, json={'schema': _load_avsc(SCHEMA)})
+
+
+def get_schema_subjects_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=SUBJECTS)
+
+
+def get_schema_types_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=['AVRO', 'JSON', 'PROTOBUF'])
+
+
+def get_schema_versions_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[
+        {'subject': 'subject1', 'version': 1},
+        {'subject': 'subject2', 'version': 2}
+    ])
 
 
 def get_subject_version_callback(request, route):
@@ -336,6 +407,11 @@ def post_subject_version_callback(request, route):
         return Response(200, json={'id': SCHEMA_ID})
 
 
+def get_subject_version_referenced_by_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json=[1, 2])
+
+
 def post_compatibility_subjects_versions_callback(request, route):
     COUNTER['POST'][request.url.path] += 1
 
@@ -363,6 +439,49 @@ def post_compatibility_subjects_versions_callback(request, route):
                                    'message': 'Invalid Schema'})
 
     return Response(200, json={'is_compatible': True})
+
+
+def post_compatibility_subjects_all_versions_callback(request, route):
+    COUNTER['POST'][request.url.path] += 1
+    return Response(200, json={'is_compatible': True})
+
+
+def get_global_mode_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
+
+
+def put_global_mode_callback(request, route):
+    COUNTER['PUT'][request.url.path] += 1
+    body = json.loads(request.content.decode('utf-8'))
+    return Response(200, json=body)
+
+
+def get_mode_callback(request, route):
+    COUNTER['GET'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
+
+
+def put_mode_callback(request, route):
+    COUNTER['PUT'][request.url.path] += 1
+
+    path_match = re.match(MODE_RE, request.url.path)
+    subject = path_match.group(1)
+    body = json.loads(request.content.decode('utf-8'))
+    mode = body.get('mode')
+
+    if subject == 'invalid_mode':
+        return Response(422, json={'error_code': 42204,
+                                   'message': "Invalid mode"})
+    if subject == 'operation_not_permitted':
+        return Response(422, json={'error_code': 42205,
+                                   'message': "Operation not permitted"})
+    return Response(200, json={'mode': mode})
+
+
+def delete_mode_callback(request, route):
+    COUNTER['DELETE'][request.url.path] += 1
+    return Response(200, json={'mode': 'READWRITE'})
 
 
 @pytest.fixture(scope="package")
