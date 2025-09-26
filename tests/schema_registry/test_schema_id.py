@@ -16,7 +16,14 @@
 # limitations under the License.
 #
 import io
+import pytest
+
 from confluent_kafka.schema_registry.serde import SchemaId
+from confluent_kafka.schema_registry import (
+    dual_schema_id_deserializer,
+    header_schema_id_serializer,
+    SerializationError
+)
 
 
 def test_schema_guid():
@@ -71,3 +78,26 @@ def test_schema_id_with_message_indexes():
     assert indexes == [1, 2, 3]
     output = schema_id.id_to_bytes()
     assert output == input
+
+
+def test_dual_schema_id_deserializer_handles_none_context():
+    """
+    Ensures dual_schema_id_deserializer handles None SerializationContext properly.
+    """
+    schema_id = SchemaId("AVRO")
+    test_data = b'\x00\x00\x00\x00\x01'  # Valid schema ID format
+
+    result = dual_schema_id_deserializer(test_data, ctx=None, schema_id=schema_id)
+
+    # Verify it returns BytesIO and parsed the schema ID
+    assert isinstance(result, io.BytesIO)
+    assert schema_id.id == 1
+
+
+def test_header_schema_id_serializer_handles_none_context():
+    """
+    Ensures header_schema_id_serializer handles None SerializationContext properly.
+    """
+    # schema_id won't be used since function raises error early when ctx=None
+    with pytest.raises(SerializationError, match="SerializationContext is required"):
+        header_schema_id_serializer(b"test_payload", ctx=None, schema_id=None)
