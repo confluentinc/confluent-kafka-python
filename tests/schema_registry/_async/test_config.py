@@ -68,7 +68,17 @@ def test_config_ssl_key_no_certificate():
     conf = {'url': TEST_URL,
             'ssl.key.location': '/ssl/keys/client'}
     with pytest.raises(ValueError, match="ssl.certificate.location required"
-                                         " when configuring ssl.key.location"):
+                                         " when configuring ssl.key.location"
+                                         " or ssl.key.password"):
+        AsyncSchemaRegistryClient(conf)
+
+
+def test_config_ssl_password_no_certificate():
+    conf = {'url': TEST_URL,
+            'ssl.key.password': 'sesame'}
+    with pytest.raises(ValueError, match="ssl.certificate.location required"
+                                         " when configuring ssl.key.location"
+                                         " or ssl.key.password"):
         AsyncSchemaRegistryClient(conf)
 
 
