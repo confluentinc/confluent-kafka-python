@@ -1,14 +1,14 @@
+# Confluent's Python Client for Apache Kafka
+=======================================================
+
 > [!WARNING]
 > Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
-We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
+> We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
 
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
-Confluent's Python Client for Apache Kafka<sup>TM</sup>
-=======================================================
-
-**confluent-kafka-python** provides a high-level Producer, Consumer and AdminClient compatible with all
-[Apache Kafka<sup>TM<sup>](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
+**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all
+[Apache Kafka™](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
 and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
 
 - **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
@@ -23,9 +23,10 @@ pace with core Apache Kafka and components of the [Confluent Platform](https://w
 
 ## Usage
 
-For a step-by-step guide on using the client see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
+For a step-by-step guide on using the client, see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
 
-Aditional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) github repo, which include demonstration of:
+Additional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) GitHub repo, which include demonstrations of:
+
 - Exactly once data processing using the transactional API.
 - Integration with asyncio.
 - (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
@@ -35,7 +36,89 @@ Also refer to the [API documentation](http://docs.confluent.io/current/clients/c
 
 Finally, the [tests](tests) are useful as a reference for example usage.
 
-### Basic Producer Example
+
+### AsyncIO Producer (experimental)
+
+Use the AsyncIO `Producer` inside async applications to avoid blocking the event loop.
+
+```python
+import asyncio
+from confluent_kafka.aio import AIOProducer
+
+async def main():
+    p = AIOProducer({"bootstrap.servers": "mybroker"})
+    try:
+        # produce() returns a Future; first await the coroutine to get the Future,
+        # then await the Future to get the delivered Message.
+        delivery_future = await p.produce("mytopic", value=b"hello")
+        delivered_msg = await delivery_future
+        # Optionally flush any remaining buffered messages before shutdown
+        await p.flush()
+    finally:
+        await p.close()
+
+asyncio.run(main())
+```
+
+Notes:
+
+- Batched async produce buffers messages; delivery callbacks, stats, errors, and logger run on the event loop.
+- Per-message headers are not supported in the batched async path. If headers are required, use the synchronous `Producer.produce(...)` (you can offload to a thread in async apps).
+
+For a more detailed example that includes both an async producer and consumer, see
+[`examples/asyncio_example.py`](examples/asyncio_example.py).
+
+
+#### When to use AsyncIO vs synchronous Producer
+
+- **Use AsyncIO `Producer`** when your code runs under an event loop (FastAPI/Starlette, aiohttp, Sanic, asyncio workers) and must not block.
+- **Use synchronous `Producer`** for scripts, batch jobs, and highest-throughput pipelines where you control threads/processes and can call `poll()`/`flush()` directly.
+- **In async servers**, prefer AsyncIO `Producer`; if you need headers, call sync `produce()` via `run_in_executor` for that path.
+
+#### Migration from Custom AsyncIO Wrappers
+
+If you previously implemented custom AsyncIO wrappers (like those described in [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)), you can now migrate to the official `AIOProducer`:
+
+```python
+# Old custom wrapper approach
+class AIOProducer:
+    def __init__(self, configs, loop=None):
+        self._loop = loop or asyncio.get_event_loop()
+        self._producer = confluent_kafka.Producer(configs)
+        # ... custom polling thread implementation
+
+# New official approach  
+from confluent_kafka.aio import AIOProducer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+```
+
+The official implementation handles thread pool management, callback scheduling, and cleanup automatically.
+
+#### AsyncIO with Schema Registry
+
+The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. All major serialization formats have async variants:
+
+```python
+from confluent_kafka.aio import AIOProducer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+
+# Setup async Schema Registry client and serializer
+schema_client = AsyncSchemaRegistryClient({"url": "http://localhost:8081"})
+serializer = await AsyncAvroSerializer(schema_client, schema_str=avro_schema)
+
+# Use with AsyncIO producer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+serialized_value = await serializer(data, SerializationContext("topic", MessageField.VALUE))
+delivery_future = await producer.produce("topic", value=serialized_value)
+```
+
+Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
+
+**Note:** The async Schema Registry interface mirrors the synchronous client exactly - same configuration options, same calling patterns, no unexpected gotchas or limitations. Simply add `await` to method calls and use the `Async` prefixed classes.
+
+
+### Basic Producer example
 
 ```python
 from confluent_kafka import Producer
@@ -69,7 +152,7 @@ For a discussion on the poll based producer API, refer to the
 blog post.
 
 
-### Basic Consumer Example
+### Basic Consumer example
 
 ```python
 from confluent_kafka import Consumer
@@ -97,7 +180,7 @@ c.close()
 ```
 
 
-### Basic AdminClient Example
+### Basic AdminClient example
 
 Create topics:
 
@@ -123,9 +206,9 @@ for topic, f in fs.items():
 ```
 
 
-## Thread Safety
+## Thread safety
 
-The `Producer`, `Consumer` and `AdminClient` are all thread safe.
+The `Producer`, `Consumer`, and `AdminClient` are all thread safe.
 
 
 ## Install
@@ -136,7 +219,7 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 pip install confluent-kafka
 ```
 
-**NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
+**NOTE**: The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
           its dependencies using the repositories below and then build
           confluent-kafka using the instructions in the
@@ -160,7 +243,7 @@ To use Schema Registry with the Protobuf serializer/deserializer:
 pip install "confluent-kafka[protobuf,schemaregistry]"
 ```
 
-When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
+When using Data Contract rules (including CSFLE) add the `rules` extra, e.g.:
 
 ```bash
 pip install "confluent-kafka[avro,schemaregistry,rules]"
@@ -171,7 +254,7 @@ pip install "confluent-kafka[avro,schemaregistry,rules]"
 For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
 
-## Broker Compatibility
+## Broker compatibility
 
 The Python client (as well as the underlying C library librdkafka) supports
 all broker versions &gt;= 0.8.
@@ -180,8 +263,8 @@ is not safe for a client to assume what protocol version is actually supported
 by the broker, thus you will need to hint the Python client what protocol
 version it may use. This is done through two configuration settings:
 
- * `broker.version.fallback=YOUR_BROKER_VERSION` (default 0.9.0.1)
- * `api.version.request=true|false` (default true)
+- `broker.version.fallback=YOUR_BROKER_VERSION` (default 0.9.0.1)
+- `api.version.request=true|false` (default true)
 
 When using a Kafka 0.10 broker or later you don't need to do anything
 (`api.version.request=true` is the default).
@@ -190,13 +273,12 @@ If you use Kafka broker 0.9 or 0.8 you must set
 `broker.version.fallback` to your broker version,
 e.g `broker.version.fallback=0.9.0.1`.
 
-More info here:
-https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility
+More info: [Broker version compatibility wiki](https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility)
 
 
 ## SSL certificates
 
-If you're connecting to a Kafka cluster through SSL you will need to configure
+If you're connecting to a Kafka cluster through SSL, you will need to configure
 the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
 authentication is used).
 
@@ -206,7 +288,7 @@ or `/usr/lib/ssl/cacert.pem`. CA certificates are typically provided by the
 Linux distribution's `ca-certificates` package which needs to be installed
 through `apt`, `yum`, et.al.
 
-If your system stores CA certificates in another location you will need to
+If your system stores CA certificates in another location, you will need to
 configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
 
 Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
@@ -223,11 +305,11 @@ by confluent-kafka-python. confluent-kafka-python has no affiliation with and is
 The Apache Software Foundation.
 
 
-## Developer Notes
+## Developer notes
 
-Instructions on building and testing confluent-kafka-python can be found [here](DEVELOPER.md).
+Instructions on building and testing confluent-kafka-python can be found in [DEVELOPER.md](DEVELOPER.md).
 
 
 ## Confluent Cloud
 
-For a step-by-step guide on using the Python client with Confluent Cloud see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
+For a step-by-step guide on using the Python client with Confluent Cloud, see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
