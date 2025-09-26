@@ -26,7 +26,7 @@ def _read_version_from_pyproject(pyproject_path=None):
     if not pyproject_path:
         pyproject_path = os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml')
 
-    if not pyproject_path.is_file():
+    if not os.path.isfile(pyproject_path):
         return None
     
     with open(pyproject_path, "rb") as f:
