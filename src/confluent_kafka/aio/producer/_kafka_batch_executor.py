@@ -26,6 +26,7 @@ class ProducerBatchExecutor:
     - Handling partial batch failures from librdkafka
     - Managing thread pool execution to avoid blocking the event loop
     - Processing delivery callbacks for successful messages
+    - Supporting partition-specific batch operations
     """
 
     def __init__(self, producer, executor):
@@ -38,7 +39,7 @@ class ProducerBatchExecutor:
         self._producer = producer
         self._executor = executor
 
-    async def execute_batch(self, topic, batch_messages):
+    async def execute_batch(self, topic, batch_messages, partition=-1):
         """Execute a batch operation via thread pool
 
         This method handles the complete batch execution workflow:
@@ -49,6 +50,7 @@ class ProducerBatchExecutor:
         Args:
             topic: Target topic for the batch
             batch_messages: List of prepared messages with callbacks assigned
+            partition: Target partition for the batch (-1 = RD_KAFKA_PARTITION_UA)
 
         Returns:
             Result from producer.poll() indicating number of delivery reports processed
@@ -60,14 +62,17 @@ class ProducerBatchExecutor:
             """Helper function to run in thread pool
 
             This function encapsulates all the blocking Kafka operations:
-            - Call produce_batch with individual message callbacks
+            - Call produce_batch with specific partition and individual message callbacks
             - Handle partial batch failures for messages that fail immediately
             - Poll for delivery reports to trigger callbacks for successful messages
             """
-            # Call produce_batch with individual callbacks (no batch callback)
+            # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
             messages_list = list(batch_messages) if isinstance(batch_messages, tuple) else batch_messages
-            self._producer.produce_batch(topic, messages_list)
+            
+            # Use the provided partition for the entire batch
+            # This enables proper partition control while working around librdkafka limitations
+            self._producer.produce_batch(topic, messages_list, partition=partition)
 
             # Handle partial batch failures: Check for messages that failed during produce_batch
             # These messages have their msgstates destroyed in Producer.c and won't get callbacks
