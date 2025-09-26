@@ -2,6 +2,8 @@
 > Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
 We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
 
+[![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
+
 Confluent's Python Client for Apache Kafka<sup>TM</sup>
 =======================================================
 
@@ -130,7 +132,9 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 **Install self-contained binary wheels**
 
-    $ pip install confluent-kafka
+```bash
+pip install confluent-kafka
+```
 
 **NOTE:** The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
           If you need SASL Kerberos/GSSAPI support you must install librdkafka and
@@ -140,19 +144,27 @@ The `Producer`, `Consumer` and `AdminClient` are all thread safe.
 
 To use Schema Registry with the Avro serializer/deserializer:
 
-    $ pip install "confluent-kafka[avro,schemaregistry]"
+```bash
+pip install "confluent-kafka[avro,schemaregistry]"
+```
 
 To use Schema Registry with the JSON serializer/deserializer:
 
-    $ pip install "confluent-kafka[json,schemaregistry]"
+```bash
+pip install "confluent-kafka[json,schemaregistry]"
+```
 
 To use Schema Registry with the Protobuf serializer/deserializer:
 
-    $ pip install "confluent-kafka[protobuf,schemaregistry]"
+```bash
+pip install "confluent-kafka[protobuf,schemaregistry]"
+```
 
 When using Data Contract rules (including CSFLE) add the `rules`extra, e.g.:
 
-    $ pip install "confluent-kafka[avro,schemaregistry,rules]"
+```bash
+pip install "confluent-kafka[avro,schemaregistry,rules]"
+```
 
 **Install from source**
 
