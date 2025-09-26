@@ -80,8 +80,6 @@ def _read_version_from_pyproject(pyproject_path=None):
     # Fallback to 'tool.poetry.version' for Poetry projects
     elif "tool" in data and "poetry" in data["tool"] and "version" in data["tool"]["poetry"]:
         return data["tool"]["poetry"]["version"]
-    
-    return None
 
 
 def version():
