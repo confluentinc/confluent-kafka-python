@@ -98,8 +98,8 @@ def schema_registry_config(args):
     }
     # These two parameters are only applicable when producing to
     # confluent cloud where some sasl extensions are required.
-    if args.logical_cluster and args.identity_pool_id:
-        params['bearer.auth.logical.cluster'] = args.logical_cluster
+    if args.logical_schema_registry_cluster and args.identity_pool_id:
+        params['bearer.auth.logical.cluster'] = args.logical_schema_registry_cluster
         params['bearer.auth.identity.pool.id'] = args.identity_pool_id
 
     return params
@@ -198,6 +198,10 @@ if __name__ == '__main__':
     parser.add_argument('--query', dest="query", required=True,
                         help="Query parameters for Azure IMDS token endpoint")
     parser.add_argument('--logical-cluster', dest="logical_cluster", required=False, help="Logical Cluster.")
+    parser.add_argument('--logical-schema-registry-cluster',
+                        dest="logical_schema_registry_cluster",
+                        required=False,
+                        help="Logical Schema Registry Cluster.")
     parser.add_argument('--identity-pool-id', dest="identity_pool_id", required=False, help="Identity Pool ID.")
 
     main(parser.parse_args())
