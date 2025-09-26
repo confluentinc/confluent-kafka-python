@@ -28,13 +28,20 @@ from ._model import (Node,  # noqa: F401
                      IsolationLevel,
                      ElectionType)
 
+import os
+try:
+    import tomllib
+except ImportError:
+    # For Python 3.12 and earlier
+    import tomli as tomllib
+
 from .cimpl import (Producer,
                     Consumer,
                     Message,
                     TopicPartition,
                     Uuid,
                     libversion,
-                    version,
+                    version as _cimpl_version,
                     TIMESTAMP_NOT_AVAILABLE,
                     TIMESTAMP_CREATE_TIME,
                     TIMESTAMP_LOG_APPEND_TIME,
@@ -54,7 +61,35 @@ __all__ = ['admin', 'Consumer',
            'ConsumerGroupType', 'Uuid',
            'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo']
 
-__version__ = version()[0]
+
+def _read_version_from_pyproject(pyproject_path=None):
+    """Reads the project version from pyproject.toml using tomllib."""
+
+    if not pyproject_path:
+        pyproject_path = os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml')
+
+    if not pyproject_path.is_file():
+        return None
+    
+    with open(pyproject_path, "rb") as f:
+        data = tomllib.load(f)
+    
+    # Check for 'project.version' first (PEP 621)
+    if "project" in data and "version" in data["project"]:
+        return data["project"]["version"]
+    # Fallback to 'tool.poetry.version' for Poetry projects
+    elif "tool" in data and "poetry" in data["tool"] and "version" in data["tool"]["poetry"]:
+        return data["tool"]["poetry"]["version"]
+    
+    return None
+
+
+def version():
+    conf_s = _read_version_from_pyproject()
+    return conf_s if conf_s else _cimpl_version()[0]
+
+
+__version__ = version()
 
 
 class ThrottleEvent(object):
