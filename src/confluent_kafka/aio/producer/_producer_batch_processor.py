@@ -25,7 +25,7 @@ class ProducerBatchManager:
     """Handles batching and processing of Kafka messages for AIOProducer
 
     This class encapsulates all the logic for:
-    - Grouping messages by topic
+    - Grouping messages by topic and partition
     - Managing message buffers and futures
     - Creating simple future-resolving callbacks
     - Executing batch operations via librdkafka
@@ -64,6 +64,12 @@ class ProducerBatchManager:
         self._message_buffer.clear()
         self._buffer_futures.clear()
 
+    def cancel_pending_futures(self):
+        """Cancel all pending futures in the buffer"""
+        for future in self._buffer_futures:
+            if not future.done():
+                future.cancel()
+
     def create_batches(self, target_topic=None):
         """Create MessageBatch objects from the current buffer
 
@@ -76,10 +82,11 @@ class ProducerBatchManager:
         if self.is_buffer_empty():
             return []
 
-        topic_groups = self._group_messages_by_topic()
+        # Group by topic and partition for optimal batching
+        topic_partition_groups = self._group_messages_by_topic_and_partition()
         batches = []
 
-        for topic, group_data in topic_groups.items():
+        for (topic, partition), group_data in topic_partition_groups.items():
             if target_topic is None or topic == target_topic:
                 # Prepare batch messages
                 batch_messages = self._prepare_batch_messages(group_data['messages'])
@@ -87,12 +94,13 @@ class ProducerBatchManager:
                 # Assign simple future-resolving callbacks to messages
                 self._assign_future_callbacks(batch_messages, group_data['futures'])
 
-                # Create immutable MessageBatch object
+                # Create immutable MessageBatch object with partition info
                 batch = create_message_batch(
                     topic=topic,
                     messages=batch_messages,
                     futures=group_data['futures'],
-                    callbacks=None  # No user callbacks anymore
+                    callbacks=None,  # No user callbacks anymore
+                    partition=partition  # Add partition info to batch
                 )
                 batches.append(batch)
 
@@ -141,8 +149,8 @@ class ProducerBatchManager:
         # Execute each batch
         for batch in batches:
             try:
-                # Execute batch using the Kafka executor
-                await self._kafka_executor.execute_batch(batch.topic, batch.messages)
+                # Execute batch using the Kafka executor with partition info
+                await self._kafka_executor.execute_batch(batch.topic, batch.messages, batch.partition)
 
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this batch
@@ -150,46 +158,52 @@ class ProducerBatchManager:
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
 
-    def _group_messages_by_topic(self):
-        """Group buffered messages by topic for batch processing
+    def _group_messages_by_topic_and_partition(self):
+        """Group buffered messages by topic and partition for optimal batch processing
 
         This function efficiently organizes the mixed-topic message buffer into
-        topic-specific groups, since librdkafka's produce_batch requires separate
-        calls for each topic.
+        topic+partition-specific groups, enabling proper partition control while
+        maintaining batch efficiency.
 
         Algorithm:
         - Single O(n) pass through message buffer
-        - Groups related data (messages, futures, callbacks) by topic
+        - Groups related data (messages, futures) by (topic, partition) tuple
         - Maintains index relationships between buffer arrays
+        - Uses partition from message data, defaults to RD_KAFKA_PARTITION_UA (-1) if not specified
 
         Returns:
-            dict: Topic groups with structure:
+            dict: Topic+partition groups with structure:
                 {
-                    'topic_name': {
+                    ('topic_name', partition): {
                         'messages': [msg_data1, msg_data2, ...],     # Message dictionaries
                         'futures': [future1, future2, ...],         # Corresponding asyncio.Future objects
                     }
                 }
         """
-        topic_groups = {}
+        topic_partition_groups = {}
 
         # Iterate through buffer once - O(n) complexity
         for i, msg_data in enumerate(self._message_buffer):
             topic = msg_data['topic']
+            # Get partition from message data, default to RD_KAFKA_PARTITION_UA (-1) if not specified
+            partition = msg_data.get('partition', -1)  # -1 = RD_KAFKA_PARTITION_UA
+            
+            # Create composite key for grouping
+            group_key = (topic, partition)
 
-            # Create new topic group if this is first message for this topic
-            if topic not in topic_groups:
-                topic_groups[topic] = {
+            # Create new topic+partition group if this is first message for this combination
+            if group_key not in topic_partition_groups:
+                topic_partition_groups[group_key] = {
                     'messages': [],    # Message data for produce_batch
                     'futures': [],     # Futures to resolve on delivery
                 }
 
-            # Add message and related data to appropriate topic group
+            # Add message and related data to appropriate topic+partition group
             # Note: All arrays stay synchronized by index
-            topic_groups[topic]['messages'].append(msg_data)
-            topic_groups[topic]['futures'].append(self._buffer_futures[i])
+            topic_partition_groups[group_key]['messages'].append(msg_data)
+            topic_partition_groups[group_key]['futures'].append(self._buffer_futures[i])
 
-        return topic_groups
+        return topic_partition_groups
 
     def _prepare_batch_messages(self, messages):
         """Prepare messages for produce_batch by removing internal fields
@@ -205,6 +219,8 @@ class ProducerBatchManager:
             # Create a shallow copy and remove fields not needed by produce_batch
             batch_msg = copy.copy(msg_data)
             batch_msg.pop('topic', None)  # Remove topic since it's passed separately
+            # Note: We keep 'partition' in individual messages for reference,
+            # but the batch partition will be used by produce_batch
             batch_messages.append(batch_msg)
 
         return batch_messages
