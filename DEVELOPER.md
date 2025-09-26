@@ -128,6 +128,7 @@ Performance considerations:
 - Batched async produce is more efficient than individual awaited produce calls.
 - For maximum throughput without event loop integration, use the synchronous Producer.
 - The official implementation outperforms custom AsyncIO wrappers due to optimized thread pool management.
+- AsyncIO Schema Registry client maintains 100% interface parity with sync client - no unexpected gotchas or limitations.
 
 Event loop safety:
 

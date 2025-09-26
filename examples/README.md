@@ -56,6 +56,45 @@ async def handle_event(request):
 
 For more details, see [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/).
 
+### AsyncIO with Schema Registry
+
+The AsyncIO producer and consumer work seamlessly with async Schema Registry serializers:
+
+```python
+from confluent_kafka.aio import AIOProducer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+
+async def setup_async_avro_producer():
+    schema_registry_client = AsyncSchemaRegistryClient({"url": "http://localhost:8081"})
+    
+    avro_serializer = await AsyncAvroSerializer(
+        schema_registry_client=schema_registry_client,
+        schema_str=user_schema
+    )
+    
+    producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+    
+    # Serialize and produce
+    serialized_data = await avro_serializer(user_data, SerializationContext("users", MessageField.VALUE))
+    delivery_future = await producer.produce("users", value=serialized_data)
+    message = await delivery_future
+```
+
+**Available Async Serializers:**
+- `AsyncAvroSerializer` / `AsyncAvroDeserializer`
+- `AsyncJSONSerializer` / `AsyncJSONDeserializer`  
+- `AsyncProtobufSerializer` / `AsyncProtobufDeserializer`
+
+**Import paths:**
+```python
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer, AsyncJSONDeserializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer, AsyncProtobufDeserializer
+```
+
+**API Consistency:** The async Schema Registry client and serializers maintain 100% interface parity with their synchronous counterparts. All configuration options, method signatures, and behaviors are identical - just add `await` and use the `Async` prefixed classes.
+
 ## Transactional Examples
 
 * [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).

@@ -94,6 +94,29 @@ producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
 
 The official implementation handles thread pool management, callback scheduling, and cleanup automatically.
 
+#### AsyncIO with Schema Registry
+
+The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. All major serialization formats have async variants:
+
+```python
+from confluent_kafka.aio import AIOProducer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+
+# Setup async Schema Registry client and serializer
+schema_client = AsyncSchemaRegistryClient({"url": "http://localhost:8081"})
+serializer = await AsyncAvroSerializer(schema_client, schema_str=avro_schema)
+
+# Use with AsyncIO producer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+serialized_value = await serializer(data, SerializationContext("topic", MessageField.VALUE))
+delivery_future = await producer.produce("topic", value=serialized_value)
+```
+
+Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
+
+**Note:** The async Schema Registry interface mirrors the synchronous client exactly - same configuration options, same calling patterns, no unexpected gotchas or limitations. Simply add `await` to method calls and use the `Async` prefixed classes.
+
 
 ### Basic Producer example
 
