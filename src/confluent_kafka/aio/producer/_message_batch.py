@@ -20,12 +20,13 @@ import asyncio
 class MessageBatch(NamedTuple):
     """Immutable batch of messages for Kafka production
 
-    This represents a group of messages destined for the same topic,
+    This represents a group of messages destined for the same topic and partition,
     along with their associated futures for delivery confirmation.
     """
     topic: str                                    # Target topic for this batch
     messages: Sequence[dict]                      # Prepared message dictionaries
     futures: Sequence[asyncio.Future]             # Futures to resolve on delivery
+    partition: int = -1                           # Target partition for this batch (-1 = RD_KAFKA_PARTITION_UA)
 
     @property
     def size(self) -> int:
@@ -35,13 +36,14 @@ class MessageBatch(NamedTuple):
     @property
     def info(self) -> str:
         """Get a string representation of batch info"""
-        return f"MessageBatch(topic='{self.topic}', size={len(self.messages)})"
+        return f"MessageBatch(topic='{self.topic}', partition={self.partition}, size={len(self.messages)})"
 
 
 def create_message_batch(topic: str,
                          messages: Sequence[dict],
                          futures: Sequence[asyncio.Future],
-                         callbacks: Optional[Any] = None) -> MessageBatch:
+                         callbacks: Optional[Any] = None,
+                         partition: int = -1) -> MessageBatch:
     """Create an immutable MessageBatch from sequences
 
     This factory function converts mutable sequences into an immutable MessageBatch object.
@@ -52,6 +54,7 @@ def create_message_batch(topic: str,
         messages: Sequence of prepared message dictionaries
         futures: Sequence of asyncio.Future objects
         callbacks: Deprecated parameter, ignored for backwards compatibility
+        partition: Target partition for this batch (-1 = RD_KAFKA_PARTITION_UA)
 
     Returns:
         MessageBatch: Immutable batch object
@@ -59,5 +62,6 @@ def create_message_batch(topic: str,
     return MessageBatch(
         topic=topic,
         messages=tuple(messages) if not isinstance(messages, tuple) else messages,
-        futures=tuple(futures) if not isinstance(futures, tuple) else futures
+        futures=tuple(futures) if not isinstance(futures, tuple) else futures,
+        partition=partition
     )
