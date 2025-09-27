@@ -1,4 +1,4 @@
-# Confluent Python client for Apache Kafka
+# Confluent Python Client for Apache Kafka - CHANGELOG
 
 ## Unreleased
 
