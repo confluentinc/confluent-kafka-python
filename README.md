@@ -1,9 +1,5 @@
 # Confluent's Python Client for Apache Kafka
-=======================================================
 
-> [!WARNING]
-> Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
-> We apologize for the inconvenience and appreciate the feedback that we have gotten from the community.
 
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
@@ -32,7 +28,7 @@ Additional examples can be found in the [examples](examples) directory or the [c
 - (De)serializing Protobuf, JSON, and Avro data with Confluent Schema Registry integration.
 - [Confluent Cloud](https://www.confluent.io/confluent-cloud/) configuration.
 
-Also refer to the [API documentation](http://docs.confluent.io/current/clients/confluent-kafka-python/index.html).
+Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
 Finally, the [tests](tests) are useful as a reference for example usage.
 
@@ -96,26 +92,7 @@ The official implementation handles thread pool management, callback scheduling,
 
 #### AsyncIO with Schema Registry
 
-The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. All major serialization formats have async variants:
-
-```python
-from confluent_kafka.aio import AIOProducer
-from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
-from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
-
-# Setup async Schema Registry client and serializer
-schema_client = AsyncSchemaRegistryClient({"url": "http://localhost:8081"})
-serializer = await AsyncAvroSerializer(schema_client, schema_str=avro_schema)
-
-# Use with AsyncIO producer
-producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
-serialized_value = await serializer(data, SerializationContext("topic", MessageField.VALUE))
-delivery_future = await producer.produce("topic", value=serialized_value)
-```
-
-Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
-
-**Note:** The async Schema Registry interface mirrors the synchronous client exactly - same configuration options, same calling patterns, no unexpected gotchas or limitations. Simply add `await` to method calls and use the `Async` prefixed classes.
+The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. See the [Schema Registry Integration](#schema-registry-integration) section below for full details on both synchronous and asynchronous usage.
 
 
 ### Basic Producer example
@@ -150,6 +127,100 @@ p.flush()
 For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
 blog post.
+
+
+### Schema Registry Integration
+
+This client provides full integration with Schema Registry for schema management and message serialization, and is compatible with both [Confluent Platform](https://docs.confluent.io/platform/current/schema-registry/index.html) and [Confluent Cloud](https://docs.confluent.io/cloud/current/sr/index.html). Both synchronous and asynchronous clients are available.
+
+**Learn more:**
+
+- [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) – step-by-step course with videos and labs.
+- [Schema Registry Basics](https://developer.confluent.io/learn-kafka/stream-processing/sr-schema-registry/) – short tutorial explaining subjects, compatibility, and serialization patterns.
+
+#### Synchronous Client & Serializers
+
+Use the synchronous `SchemaRegistryClient` with the standard `Producer` and `Consumer`.
+
+```python
+from confluent_kafka import Producer
+from confluent_kafka.schema_registry import SchemaRegistryClient
+from confluent_kafka.schema_registry.avro import AvroSerializer
+from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+
+# 1. Configure Schema Registry Client
+# For Confluent Platform:
+schema_registry_conf = {'url': 'http://localhost:8081'}
+# For Confluent Cloud:
+# schema_registry_conf = {
+#     'url': 'https://<ccloud-schema-registry-url>',
+#     'basic.auth.user.info': '<sr-api-key>:<sr-api-secret>'
+# }
+# Notes (Confluent Cloud): Obtain the Schema Registry URL and create an SR API key/secret
+# in the Confluent Cloud Console (Cluster -> Schema Registry). See:
+# https://docs.confluent.io/cloud/current/sr/index.html
+schema_registry_client = SchemaRegistryClient(schema_registry_conf)
+
+# 2. Configure AvroSerializer
+avro_serializer = AvroSerializer(schema_registry_client,
+                                 user_schema_str,
+                                 lambda user, ctx: user.to_dict())
+
+# 3. Configure Producer
+producer_conf = {
+    'bootstrap.servers': 'localhost:9092',
+    'key.serializer': StringSerializer('utf_8'),
+    'value.serializer': avro_serializer
+}
+producer = Producer(producer_conf)
+
+# 4. Produce messages
+producer.produce('my-topic', key='user1', value=some_user_object)
+producer.flush()
+```
+
+#### Asynchronous Client & Serializers (AsyncIO)
+
+Use the `AsyncSchemaRegistryClient` and `Async` serializers with `AIOProducer` and `AIOConsumer`. The configuration is the same as the synchronous client.
+
+```python
+from confluent_kafka.aio import AIOProducer
+from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
+
+# Setup async Schema Registry client and serializer
+# (See configuration options in the synchronous example above)
+schema_registry_conf = {'url': 'http://localhost:8081'}
+schema_client = AsyncSchemaRegistryClient(schema_registry_conf)
+serializer = await AsyncAvroSerializer(schema_client, schema_str=avro_schema)
+
+# Use with AsyncIO producer
+producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
+serialized_value = await serializer(data, SerializationContext("topic", MessageField.VALUE))
+delivery_future = await producer.produce("topic", value=serialized_value)
+```
+
+Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
+
+See also:
+- Example: [`examples/asyncio_avro_producer.py`](examples/asyncio_avro_producer.py)
+
+**Import paths:**
+
+```python
+from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
+from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer, AsyncJSONDeserializer
+from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSerializer, AsyncProtobufDeserializer
+```
+
+**Client-Side Field Level Encryption (CSFLE):** To use Data Contracts rules (including CSFLE), install the `rules` extra (see Install section), and refer to the encryption examples in [`examples/README.md`](examples/README.md). For CSFLE-specific guidance, see the [Confluent Cloud CSFLE documentation](https://docs.confluent.io/cloud/current/security/encrypt/csfle/overview.html).
+
+**Note:** The async Schema Registry interface mirrors the synchronous client exactly - same configuration options, same calling patterns, no unexpected gotchas or limitations. Simply add `await` to method calls and use the `Async` prefixed classes.
+
+#### Troubleshooting
+
+- **401/403 Unauthorized when using Confluent Cloud:** Verify your `basic.auth.user.info` (SR API key/secret) is correct and that the Schema Registry URL is for your specific cluster. Ensure you are using an SR API key, not a Kafka API key.
+- **Schema not found:** Check that your `subject.name.strategy` configuration matches how your schemas are registered in Schema Registry, and that the topic and message field (key/value) pairing is correct.
 
 
 ### Basic Consumer example
@@ -243,13 +314,13 @@ To use Schema Registry with the Protobuf serializer/deserializer:
 pip install "confluent-kafka[protobuf,schemaregistry]"
 ```
 
-When using Data Contract rules (including CSFLE) add the `rules` extra, e.g.:
+When using Data Contract rules—for example, to enable [Client-Side Field Level Encryption (CSFLE)](https://docs.confluent.io/cloud/current/security/encrypt/csfle/overview.html) or to define data quality, validation, or transformation policies (see [Schema Registry rules](https://docs.confluent.io/platform/current/schema-registry/rules/overview.html))—install the `rules` extra for the Confluent Kafka client:
 
 ```bash
 pip install "confluent-kafka[avro,schemaregistry,rules]"
 ```
 
-**Install from source**
+### Install from source
 
 For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
 
@@ -267,49 +338,4 @@ version it may use. This is done through two configuration settings:
 - `api.version.request=true|false` (default true)
 
 When using a Kafka 0.10 broker or later you don't need to do anything
-(`api.version.request=true` is the default).
-If you use Kafka broker 0.9 or 0.8 you must set
-`api.version.request=false` and set
-`broker.version.fallback` to your broker version,
-e.g `broker.version.fallback=0.9.0.1`.
-
-More info: [Broker version compatibility wiki](https://github.com/edenhill/librdkafka/wiki/Broker-version-compatibility)
-
-
-## SSL certificates
-
-If you're connecting to a Kafka cluster through SSL, you will need to configure
-the client with `'security.protocol': 'SSL'` (or `'SASL_SSL'` if SASL
-authentication is used).
-
-The client will use CA certificates to verify the broker's certificate.
-The embedded OpenSSL library will look for CA certificates in `/usr/lib/ssl/certs/`
-or `/usr/lib/ssl/cacert.pem`. CA certificates are typically provided by the
-Linux distribution's `ca-certificates` package which needs to be installed
-through `apt`, `yum`, et.al.
-
-If your system stores CA certificates in another location, you will need to
-configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
-
-Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
-Python package. To use certifi, add an `import certifi` line and configure the
-client's CA location with `'ssl.ca.location': certifi.where()`.
-
-
-## License
-
-[Apache License v2.0](http://www.apache.org/licenses/LICENSE-2.0)
-
-KAFKA is a registered trademark of The Apache Software Foundation and has been licensed for use
-by confluent-kafka-python. confluent-kafka-python has no affiliation with and is not endorsed by
-The Apache Software Foundation.
-
-
-## Developer notes
-
-Instructions on building and testing confluent-kafka-python can be found in [DEVELOPER.md](DEVELOPER.md).
-
-
-## Confluent Cloud
-
-For a step-by-step guide on using the Python client with Confluent Cloud, see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) on [Confluent Developer](https://developer.confluent.io/). 
+(`
