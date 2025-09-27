@@ -31,7 +31,7 @@
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
 
-## v2.11.1
+## v2.11.1 - 2025-08-18
 
 v2.11.1 is a maintenance release with the following fixes:
 
@@ -40,7 +40,7 @@ confluent-kafka-python v2.11.1 is based on librdkafka v2.11.1, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.11.0
+## v2.11.0 - 2025-07-03
 
 v2.11.0 is a feature release with the following enhancements:
 
@@ -49,7 +49,7 @@ confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.10.1
+## v2.10.1 - 2025-06-11
 
 v2.10.1 is a maintenance release with the following fixes:
 
@@ -65,7 +65,7 @@ confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-## v2.10.0
+## v2.10.0 - 2025-04-18
 
 v2.10.0 is a feature release with the following fixes and enhancements:
 
@@ -76,7 +76,7 @@ confluent-kafka-python v2.10.0 is based on librdkafka v2.10.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-## v2.9.0
+## v2.9.0 - 2025-03-28
 
 v2.9.0 is a feature release with the following fixes and enhancements:
 
