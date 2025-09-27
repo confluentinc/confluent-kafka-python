@@ -22,12 +22,22 @@ import random
 import logging
 import signal
 
+# This example demonstrates comprehensive AsyncIO usage patterns with Kafka:
+# - Event loop safe callbacks that don't block the loop
+# - Batched async produce with transaction handling
+# - Proper async consumer with partition management
+# - Graceful shutdown with signal handling
+# - Thread pool integration for blocking operations
+
 logging.basicConfig()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 running = True
 
 
+# AsyncIO Pattern: Event loop safe callbacks
+# These callbacks are automatically scheduled onto the event loop by AIOProducer/AIOConsumer
+# ensuring they don't block the loop and can safely interact with other async operations
 async def error_cb(err):
     logger.error(f'Kafka error: {err}')
 
@@ -57,11 +67,15 @@ def configure_common(conf):
 
 async def run_producer():
     topic = sys.argv[2]
+    # AsyncIO Pattern: Non-blocking producer with thread pool
+    # max_workers=5 creates a ThreadPoolExecutor for offloading blocking librdkafka calls
     producer = AIOProducer(configure_common(
         {
             'transactional.id': 'producer1'
         }), max_workers=5)
 
+    # AsyncIO Pattern: Async transaction lifecycle
+    # All transaction operations are awaitable and won't block the event loop
     await producer.init_transactions()
     # TODO: handle exceptions with transactional API
     transaction_active = False
@@ -70,11 +84,15 @@ async def run_producer():
             await producer.begin_transaction()
             transaction_active = True
 
+            # AsyncIO Pattern: Batched async produce with concurrent futures
+            # Creates 100 concurrent produce operations, each returning a Future
+            # that resolves when the message is delivered or fails
             produce_futures = [asyncio.create_task(
                 producer.produce(topic=topic,
                                  key=f'testkey{i}',
                                  value=f'testvalue{i}'))
                                for i in range(100)]
+            # Wait for all produce operations to complete concurrently
             results = await asyncio.gather(*produce_futures)
 
             for msg in results:
@@ -83,35 +101,43 @@ async def run_producer():
                                                        msg.partition(),
                                                        msg.offset()))
 
+            # AsyncIO Pattern: Non-blocking transaction commit
             await producer.commit_transaction()
             transaction_active = False
+            # Use asyncio.sleep() instead of time.sleep() to yield control to event loop
             await asyncio.sleep(1)
     except Exception as e:
         logger.error(e)
     finally:
+        # AsyncIO Pattern: Proper async cleanup
+        # Always clean up resources asynchronously to avoid blocking the event loop
         if transaction_active:
             await producer.abort_transaction()
-        await producer.stop()
+        await producer.stop()  # Stops background tasks and closes connections
         logger.info('Closed producer')
 
 
 async def run_consumer():
     topic = sys.argv[2]
     group_id = f'{topic}_{random.randint(1, 1000)}'
+    # AsyncIO Pattern: Non-blocking consumer with manual offset management
+    # Callbacks will be scheduled on the event loop automatically
     consumer = AIOConsumer(configure_common(
         {
             'group.id': group_id,
             'auto.offset.reset': 'latest',
-            'enable.auto.commit': 'false',
-            'enable.auto.offset.store': 'false',
+            'enable.auto.commit': 'false',  # Manual commit for precise control
+            'enable.auto.offset.store': 'false',  # Manual offset storage
             'partition.assignment.strategy': 'cooperative-sticky',
         }))
 
+    # AsyncIO Pattern: Async rebalance callbacks
+    # These callbacks can perform async operations safely within the event loop
     async def on_assign(consumer, partitions):
         # Calling incremental_assign is necessary to pause the assigned partitions
         # otherwise it'll be done by the consumer after callback termination.
         await consumer.incremental_assign(partitions)
-        await consumer.pause(partitions)
+        await consumer.pause(partitions)  # Demonstrates async partition control
         logger.debug(f'on_assign {partitions}')
         # Resume the partitions as it's just a pause example
         await consumer.resume(partitions)
@@ -119,7 +145,8 @@ async def run_consumer():
     async def on_revoke(consumer, partitions):
         logger.debug(f'before on_revoke {partitions}', )
         try:
-            await consumer.commit()
+            # AsyncIO Pattern: Non-blocking commit during rebalance
+            await consumer.commit()  # Ensure offsets are committed before losing partitions
         except Exception as e:
             logger.info(f'Error during commit: {e}')
         logger.debug(f'after on_revoke {partitions}')
@@ -137,14 +164,18 @@ async def run_consumer():
                                  on_lost=on_lost)
         i = 0
         while running:
+            # AsyncIO Pattern: Non-blocking message polling
+            # poll() returns a coroutine that yields control back to the event loop
             message = await consumer.poll(1.0)
             if message is None:
                 continue
 
             if i % 100 == 0:
+                # AsyncIO Pattern: Async metadata operations
+                # Both assignment() and position() are async and won't block the loop
                 position = await consumer.position(await consumer.assignment())
                 logger.info(f'Current position: {position}')
-                await consumer.commit()
+                await consumer.commit()  # Async commit of stored offsets
                 logger.info('Stored offsets were committed')
 
             err = message.error()
@@ -152,14 +183,19 @@ async def run_consumer():
                 logger.error(f'Error: {err}')
             else:
                 logger.info(f'Consumed: {message.value()}')
+                # AsyncIO Pattern: Async offset storage
                 await consumer.store_offsets(message=message)
                 i += 1
     finally:
-        await consumer.unsubscribe()
-        await consumer.close()
+        # AsyncIO Pattern: Proper async consumer cleanup
+        # Always unsubscribe and close asynchronously
+        await consumer.unsubscribe()  # Leave consumer group gracefully
+        await consumer.close()  # Close connections and stop background tasks
         logger.info('Closed consumer')
 
 
+# AsyncIO Pattern: Signal handling for graceful shutdown
+# Sets a flag that async tasks check to terminate cleanly
 def signal_handler(*_):
     global running
     logger.info('Signal received, shutting down...')
@@ -167,11 +203,15 @@ def signal_handler(*_):
 
 
 async def main():
+    # AsyncIO Pattern: Signal handling setup
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
+    # AsyncIO Pattern: Concurrent task execution
+    # Both producer and consumer run concurrently in the same event loop
     producer_task = asyncio.create_task(run_producer())
     consumer_task = asyncio.create_task(run_consumer())
+    # Wait for both tasks to complete (or be cancelled by signal)
     await asyncio.gather(producer_task, consumer_task)
 
 try:
