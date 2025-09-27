@@ -1,16 +1,18 @@
-# Confluent Kafka Python Examples
+# Python Client Examples for Apache Kafka
 
-The scripts in this directory provide various examples of using Confluent's Python client for Kafka:
+The scripts in this directory provide various examples of using the Confluent Python client for Kafka:
 
 ## Basic Producer/Consumer Examples
 
-* [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
-* [consumer.py](consumer.py): Read messages from a Kafka topic.
+- [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
+- [consumer.py](consumer.py): Read messages from a Kafka topic.
 
 ## AsyncIO Examples
 
-* [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
-* [asyncio_avro_producer.py](asyncio_avro_producer.py): Minimal AsyncIO Avro producer using `AsyncSchemaRegistryClient` and `AsyncAvroSerializer` (supports Confluent Cloud using `--sr-api-key`/`--sr-api-secret`).
+- [asyncio_example.py](asyncio_example.py): Comprehensive AsyncIO example demonstrating both AIOProducer and AIOConsumer with transactional operations, batched async produce, proper event loop integration, signal handling, and async callback patterns.
+- [asyncio_avro_producer.py](asyncio_avro_producer.py): Minimal AsyncIO Avro producer using `AsyncSchemaRegistryClient` and `AsyncAvroSerializer` (supports Confluent Cloud using `--sr-api-key`/`--sr-api-secret`).
+
+**Architecture:** For implementation details and component design, see the [AIOProducer Architecture Overview](../aio_producer_simple_diagram.md).
 
 ### Web Framework Integration
 
@@ -68,28 +70,30 @@ from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
 async def setup_async_avro_producer():
     schema_registry_client = AsyncSchemaRegistryClient({"url": "http://localhost:8081"})
-    
+
     avro_serializer = await AsyncAvroSerializer(
         schema_registry_client=schema_registry_client,
         schema_str=user_schema
     )
-    
+
     producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
-    
+
     # Serialize and produce
     serialized_data = await avro_serializer(user_data, SerializationContext("users", MessageField.VALUE))
     delivery_future = await producer.produce("users", value=serialized_data)
     message = await delivery_future
 ```
 
-**Available Async Serializers:**
+#### Available Async Serializers
+
 - `AsyncAvroSerializer` / `AsyncAvroDeserializer`
-- `AsyncJSONSerializer` / `AsyncJSONDeserializer`  
+- `AsyncJSONSerializer` / `AsyncJSONDeserializer`
 - `AsyncProtobufSerializer` / `AsyncProtobufDeserializer`
 
 Note: Async deserialization follows the same pattern; use the corresponding `Async*Deserializer` with `AIOConsumer`.
 
-**Import paths:**
+#### Import paths
+
 ```python
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
 from confluent_kafka.schema_registry._async.json_schema import AsyncJSONSerializer, AsyncJSONDeserializer
@@ -99,41 +103,20 @@ from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSeriali
 **API Consistency:** The async Schema Registry client and serializers maintain 100% interface parity with their synchronous counterparts. All configuration options, method signatures, and behaviors are identical - just add `await` and use the `Async` prefixed classes.
 
 For Client-Side Field Level Encryption (CSFLE) with Data Contract rules, see the encryption examples:
+
 - `avro_producer_encryption.py`
 - `json_producer_encryption.py`
 - `protobuf_producer_encryption.py`
 
-
-### Avro Serialization
-
-* [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
-* [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
-* [avro_producer_encryption.py](avro_producer_encryption.py): Produce Avro data with client-side field level encryption (CSFLE).
-* [avro_consumer_encryption.py](avro_consumer_encryption.py): Consume Avro data with client-side field level encryption (CSFLE).
-
-### JSON Serialization
-
-* [json_producer.py](json_producer.py): Produce JSON serialized data using JSONSerializer.
-* [json_consumer.py](json_consumer.py): Read JSON serialized data using JSONDeserializer.
-* [json_producer_encryption.py](json_producer_encryption.py): Produce JSON data with client-side field level encryption (CSFLE).
-* [json_consumer_encryption.py](json_consumer_encryption.py): Consume JSON data with client-side field level encryption (CSFLE).
-
-### Protobuf Serialization
-
-* [protobuf_producer.py](protobuf_producer.py): Produce Protobuf serialized data using ProtobufSerializer.
-* [protobuf_consumer.py](protobuf_consumer.py): Read Protobuf serialized data using ProtobufDeserializer.
-* [protobuf_producer_encryption.py](protobuf_producer_encryption.py): Produce Protobuf data with client-side field level encryption (CSFLE).
-* [protobuf_consumer_encryption.py](protobuf_consumer_encryption.py): Consume Protobuf data with client-side field level encryption (CSFLE).
-
 ## Transactional Examples
 
-* [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).
+- [eos_transactions.py](eos_transactions.py): Transactional producer with exactly once semantics (EOS).
 
 ## Schema Registry & Serialization Examples
 
 This client provides serializers for Avro, JSON Schema, and Protobuf that integrate with Schema Registry on both [Confluent Platform](https://docs.confluent.io/platform/current/schema-registry/index.html) and [Confluent Cloud](https://docs.confluent.io/cloud/current/sr/index.html). Both synchronous and asynchronous versions are available.
 
-**Configuration for Schema Registry:**
+### Configuration for Schema Registry
 
 ```python
 # For Confluent Platform (local)
@@ -149,6 +132,11 @@ schema_registry_conf = {'url': 'http://localhost:8081'}
 Notes (Confluent Cloud): Find the Schema Registry URL and create an SR API key/secret
 in the Confluent Cloud Console (Cluster -> Schema Registry). Reference:
 [Confluent Cloud Schema Registry docs](https://docs.confluent.io/cloud/current/sr/index.html)
+
+**Note for Confluent Cloud Users**:
+
+- **Automatic Zone Detection**: When connected to a Confluent Cloud cluster, the producer automatically prioritizes brokers in the same availability zone to reduce latency. No extra configuration is required.
+- **Simplified Configuration Profiles**: You can use predefined configuration profiles optimized for different workloads (for example, high performance). These can be selected in the Confluent Cloud Console and are used by the client upon connection. You can still override specific settings in your client configuration.
 
 ### Synchronous Usage
 
@@ -175,8 +163,8 @@ producer = Producer(producer_conf)
 
 ### Asynchronous usage (AsyncIO)
 
-Use async serializers with `AIOProducer` and `AIOConsumer`. Note that you must 
-instantiate the serializer and then call it to serialize the data *before* 
+Use async serializers with `AIOProducer` and `AIOConsumer`. Note that you must
+instantiate the serializer and then call it to serialize the data *before*
 producing.
 
 ```python
@@ -189,29 +177,29 @@ async def setup_async_avro_producer():
     # Use the appropriate configuration from the section above
     schema_registry_conf = {"url": "http://localhost:8081"}
     schema_registry_client = AsyncSchemaRegistryClient(schema_registry_conf)
-    
+
     avro_serializer = await AsyncAvroSerializer(
         schema_registry_client=schema_registry_client,
         schema_str=user_schema
     )
-    
+
     producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
-    
+
     # Serialize and produce
     serialized_data = await avro_serializer(user_data, SerializationContext("users", MessageField.VALUE))
     delivery_future = await producer.produce("users", value=serialized_data)
     message = await delivery_future
 ```
 
-**Available Async Serializers:**
+#### Available Async Serializers
 
-- `AsyncAvroSerializer` / `AsyncAvroDeserializer`  
+- `AsyncAvroSerializer` / `AsyncAvroDeserializer`
 - `AsyncJSONSerializer` / `AsyncJSONDeserializer`
 - `AsyncProtobufSerializer` / `AsyncProtobufDeserializer`
 
 Note: Async deserialization follows the same pattern; use the corresponding `Async*Deserializer` with `AIOConsumer`.
 
-**Import paths:**
+#### Import paths
 
 ```python
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
@@ -221,60 +209,61 @@ from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSeriali
 
 **API Consistency:** The async Schema Registry client and serializers maintain 100% interface parity with their synchronous counterparts. All configuration options, method signatures, and behaviors are identical - just add `await` and use the `Async` prefixed classes.
 
+### Example Files by Serialization Format
 
-### Avro Serialization
+#### Avro Serialization
 
-* [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
-* [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
-* [avro_producer_encryption.py](avro_producer_encryption.py): Produce Avro data with client-side field level encryption (CSFLE).
-* [avro_consumer_encryption.py](avro_consumer_encryption.py): Consume Avro data with client-side field level encryption (CSFLE).
+- [avro_producer.py](avro_producer.py): Produce Avro serialized data using AvroSerializer.
+- [avro_consumer.py](avro_consumer.py): Read Avro serialized data using AvroDeserializer.
+- [avro_producer_encryption.py](avro_producer_encryption.py): Produce Avro data with client-side field level encryption (CSFLE).
+- [avro_consumer_encryption.py](avro_consumer_encryption.py): Consume Avro data with client-side field level encryption (CSFLE).
 
-### JSON Serialization
+#### JSON Serialization
 
-* [json_producer.py](json_producer.py): Produce JSON serialized data using JSONSerializer.
-* [json_consumer.py](json_consumer.py): Read JSON serialized data using JSONDeserializer.
-* [json_producer_encryption.py](json_producer_encryption.py): Produce JSON data with client-side field level encryption (CSFLE).
-* [json_consumer_encryption.py](json_consumer_encryption.py): Consume JSON data with client-side field level encryption (CSFLE).
+- [json_producer.py](json_producer.py): Produce JSON serialized data using JSONSerializer.
+- [json_consumer.py](json_consumer.py): Read JSON serialized data using JSONDeserializer.
+- [json_producer_encryption.py](json_producer_encryption.py): Produce JSON data with client-side field level encryption (CSFLE).
+- [json_consumer_encryption.py](json_consumer_encryption.py): Consume JSON data with client-side field level encryption (CSFLE).
 
-### Protobuf Serialization
+#### Protobuf Serialization
 
-* [protobuf_producer.py](protobuf_producer.py): Produce Protobuf serialized data using ProtobufSerializer.
-* [protobuf_consumer.py](protobuf_consumer.py): Read Protobuf serialized data using ProtobufDeserializer.
-* [protobuf_producer_encryption.py](protobuf_producer_encryption.py): Produce Protobuf data with client-side field level encryption (CSFLE).
-* [protobuf_consumer_encryption.py](protobuf_consumer_encryption.py): Consume Protobuf data with client-side field level encryption (CSFLE).
+- [protobuf_producer.py](protobuf_producer.py): Produce Protobuf serialized data using ProtobufSerializer.
+- [protobuf_consumer.py](protobuf_consumer.py): Read Protobuf serialized data using ProtobufDeserializer.
+- [protobuf_producer_encryption.py](protobuf_producer_encryption.py): Produce Protobuf data with client-side field level encryption (CSFLE).
+- [protobuf_consumer_encryption.py](protobuf_consumer_encryption.py): Consume Protobuf data with client-side field level encryption (CSFLE).
 
 ## Authentication Examples
 
-* [sasl_producer.py](sasl_producer.py): Demonstrates SASL Authentication.
-* [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
-* [oauth_oidc_ccloud_producer.py](oauth_oidc_ccloud_producer.py): Demonstrates OAuth OIDC authentication with Confluent Cloud.
-* [oauth_schema_registry.py](oauth_schema_registry.py): Demonstrates OAuth authentication with Schema Registry.
+- [sasl_producer.py](sasl_producer.py): Demonstrates SASL Authentication.
+- [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
+- [oauth_oidc_ccloud_producer.py](oauth_oidc_ccloud_producer.py): Demonstrates OAuth OIDC authentication with Confluent Cloud.
+- [oauth_schema_registry.py](oauth_schema_registry.py): Demonstrates OAuth authentication with Schema Registry.
 
 ## Admin API Examples
 
-* [adminapi.py](adminapi.py): Various AdminClient operations (topics, configs, ACLs).
-* [adminapi_logger.py](adminapi_logger.py): AdminClient operations with custom logger configuration.
-* [get_watermark_offsets.py](get_watermark_offsets.py): Consumer method for listing committed offsets and consumer lag for group and topics.
+- [adminapi.py](adminapi.py): Various AdminClient operations (topics, configs, ACLs).
+- [adminapi_logger.py](adminapi_logger.py): AdminClient operations with custom logger configuration.
+- [get_watermark_offsets.py](get_watermark_offsets.py): Consumer method for listing committed offsets and consumer lag for group and topics.
 
 ## Confluent Cloud Examples
 
-* [confluent_cloud.py](confluent_cloud.py): Produce messages to Confluent Cloud and then read them back again.
-* [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python): Integration with Confluent Cloud and Confluent Cloud Schema Registry.
+- [confluent_cloud.py](confluent_cloud.py): Produce messages to Confluent Cloud and then read them back again.
+- [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python): Integration with Confluent Cloud and Confluent Cloud Schema Registry.
 
-**Confluent Cloud Resources:**
+### Confluent Cloud Resources
 
-* [Getting Started with Python](https://developer.confluent.io/get-started/python/) - Step-by-step tutorial.
-* [Confluent Cloud Console](https://confluent.cloud/) - Sign up and manage clusters.
-* [Python Client Configuration for Confluent Cloud](https://docs.confluent.io/cloud/current/client-apps/config-client.html#python-client)
-* [Confluent Developer](https://developer.confluent.io/) - Tutorials, guides, and code examples.
+- [Getting Started with Python](https://developer.confluent.io/get-started/python/) - Step-by-step tutorial.
+- [Confluent Cloud Console](https://confluent.cloud/) - Sign up and manage clusters.
+- [Python Client Configuration for Confluent Cloud](https://docs.confluent.io/cloud/current/client-apps/config-client.html#python-client)
+- [Confluent Developer](https://developer.confluent.io/) - Tutorials, guides, and code examples.
 
 ## Running the Examples
 
 Most examples require a running Kafka cluster. You can use:
 
-* Local Kafka installation
-* Docker Compose (see `docker/` subdirectory)
-* [Confluent Cloud](https://confluent.cloud/) - see [Getting Started with Python](https://developer.confluent.io/get-started/python/) guide.
+- Local Kafka installation
+- Docker Compose (see `docker/` subdirectory)
+- [Confluent Cloud](https://confluent.cloud/) - see [Getting Started with Python](https://developer.confluent.io/get-started/python/) guide.
 
 ### Basic Usage Pattern
 
@@ -296,11 +285,11 @@ For Avro, JSON, and Protobuf examples, you'll also need a Schema Registry:
 python3 avro_producer.py localhost:9092 http://localhost:8081
 ```
 
-**Schema Registry Resources:**
+### Schema Registry Resources
 
-* [Schema Registry Overview](https://docs.confluent.io/platform/current/schema-registry/index.html)
-* [Using Schema Registry with Python](https://docs.confluent.io/kafka-clients/python/current/overview.html#schema-registry)
-* [Confluent Cloud Schema Registry](https://docs.confluent.io/cloud/current/sr/index.html)
+- [Schema Registry Overview](https://docs.confluent.io/platform/current/schema-registry/index.html)
+- [Using Schema Registry with Python](https://docs.confluent.io/kafka-clients/python/current/overview.html#schema-registry)
+- [Confluent Cloud Schema Registry](https://docs.confluent.io/cloud/current/sr/index.html)
 
 Check each example's source code for specific command-line arguments and configuration requirements.
 

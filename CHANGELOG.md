@@ -1,4 +1,4 @@
-# Confluent's Python client for Apache Kafka
+# Confluent Python client for Apache Kafka
 
 ## Unreleased
 

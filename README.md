@@ -1,21 +1,18 @@
-# Confluent's Python Client for Apache Kafka
-
+# Confluent Python Client for Apache Kafka
 
 [![Try Confluent Cloud - The Data Streaming Platform](https://images.ctfassets.net/8vofjvai1hpv/10bgcSfn5MzmvS4nNqr94J/af43dd2336e3f9e0c0ca4feef4398f6f/confluent-banner-v2.svg)](https://confluent.cloud/signup?utm_source=github&utm_medium=banner&utm_campaign=tm.plg.cflt-oss-repos&utm_term=confluent-kafka-python)
 
-**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all
-[Apache Kafka™](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/)
-and [Confluent Platform](https://www.confluent.io/product/compare/). The client is:
+**confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka™](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
 
-- **Reliable** - It's a wrapper around [librdkafka](https://github.com/edenhill/librdkafka) (provided automatically via binary wheels) which is widely deployed in a diverse set of production scenarios. It's tested using [the same set of system tests](https://github.com/confluentinc/confluent-kafka-python/tree/master/src/confluent_kafka/kafkatest) as the Java client [and more](https://github.com/confluentinc/confluent-kafka-python/tree/master/tests). It's supported by [Confluent](https://confluent.io).
+## Key Features
 
-- **Performant** - Performance is a key design consideration. Maximum throughput is on par with the Java client for larger message sizes (where the overhead of the Python interpreter has less impact). Latency is on par with the Java client.
-
-- **Future proof** - Confluent, founded by the
-creators of Kafka, is building a [streaming platform](https://www.confluent.io/product/compare/)
-with Apache Kafka at its core. It's high priority for us that client features keep
-pace with core Apache Kafka and components of the [Confluent Platform](https://www.confluent.io/product/compare/).
-
+- **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
+- **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
+- **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
+- **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
+- **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
+- **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
+- **[Confluent Cloud] Simplified Configuration Profiles**: Pre-defined configuration profiles optimized for common use cases like high throughput or low latency, simplifying client setup.
 
 ## Usage
 
@@ -31,8 +28,6 @@ Additional examples can be found in the [examples](examples) directory or the [c
 Also see the [Python client docs](https://docs.confluent.io/kafka-clients/python/current/overview.html) and the [API reference](https://docs.confluent.io/kafka-clients/python/current/).
 
 Finally, the [tests](tests) are useful as a reference for example usage.
-
-
 ### AsyncIO Producer (experimental)
 
 Use the AsyncIO `Producer` inside async applications to avoid blocking the event loop.
@@ -64,6 +59,7 @@ Notes:
 For a more detailed example that includes both an async producer and consumer, see
 [`examples/asyncio_example.py`](examples/asyncio_example.py).
 
+**Architecture:** For implementation details and component architecture, see the [AIOProducer Architecture Overview](aio_producer_simple_diagram.md).
 
 #### When to use AsyncIO vs synchronous Producer
 
@@ -71,30 +67,11 @@ For a more detailed example that includes both an async producer and consumer, s
 - **Use synchronous `Producer`** for scripts, batch jobs, and highest-throughput pipelines where you control threads/processes and can call `poll()`/`flush()` directly.
 - **In async servers**, prefer AsyncIO `Producer`; if you need headers, call sync `produce()` via `run_in_executor` for that path.
 
-#### Migration from Custom AsyncIO Wrappers
-
-If you previously implemented custom AsyncIO wrappers (like those described in [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)), you can now migrate to the official `AIOProducer`:
-
-```python
-# Old custom wrapper approach
-class AIOProducer:
-    def __init__(self, configs, loop=None):
-        self._loop = loop or asyncio.get_event_loop()
-        self._producer = confluent_kafka.Producer(configs)
-        # ... custom polling thread implementation
-
-# New official approach  
-from confluent_kafka.aio import AIOProducer
-producer = AIOProducer({"bootstrap.servers": "localhost:9092"})
-```
-
-The official implementation handles thread pool management, callback scheduling, and cleanup automatically.
-
 #### AsyncIO with Schema Registry
 
-The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. See the [Schema Registry Integration](#schema-registry-integration) section below for full details on both synchronous and asynchronous usage.
+The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. See the [Schema Registry Integration](#schema-registry-integration) section below for full details.
 
-
+**Migration Note:** If you previously used custom AsyncIO wrappers, you can now migrate to the official `AIOProducer` which handles thread pool management, callback scheduling, and cleanup automatically. See the [blog post](https://www.confluent.io/blog/kafka-python-asyncio-integration/) for migration guidance.
 ### Basic Producer example
 
 ```python
@@ -127,13 +104,11 @@ p.flush()
 For a discussion on the poll based producer API, refer to the
 [Integrating Apache Kafka With Python Asyncio Web Applications](https://www.confluent.io/blog/kafka-python-asyncio-integration/)
 blog post.
-
-
 ### Schema Registry Integration
 
 This client provides full integration with Schema Registry for schema management and message serialization, and is compatible with both [Confluent Platform](https://docs.confluent.io/platform/current/schema-registry/index.html) and [Confluent Cloud](https://docs.confluent.io/cloud/current/sr/index.html). Both synchronous and asynchronous clients are available.
 
-**Learn more:**
+#### Learn more
 
 - [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/) – step-by-step course with videos and labs.
 - [Schema Registry Basics](https://developer.confluent.io/learn-kafka/stream-processing/sr-schema-registry/) – short tutorial explaining subjects, compatibility, and serialization patterns.
@@ -148,17 +123,10 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
 
-# 1. Configure Schema Registry Client
-# For Confluent Platform:
-schema_registry_conf = {'url': 'http://localhost:8081'}
-# For Confluent Cloud:
-# schema_registry_conf = {
-#     'url': 'https://<ccloud-schema-registry-url>',
-#     'basic.auth.user.info': '<sr-api-key>:<sr-api-secret>'
-# }
-# Notes (Confluent Cloud): Obtain the Schema Registry URL and create an SR API key/secret
-# in the Confluent Cloud Console (Cluster -> Schema Registry). See:
-# https://docs.confluent.io/cloud/current/sr/index.html
+# Configure Schema Registry Client
+schema_registry_conf = {'url': 'http://localhost:8081'}  # Confluent Platform
+# For Confluent Cloud, add: 'basic.auth.user.info': '<sr-api-key>:<sr-api-secret>'
+# See: https://docs.confluent.io/cloud/current/sr/index.html
 schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
 # 2. Configure AvroSerializer
@@ -203,9 +171,10 @@ delivery_future = await producer.produce("topic", value=serialized_value)
 Available async serializers: `AsyncAvroSerializer`, `AsyncJSONSerializer`, `AsyncProtobufSerializer` (and corresponding deserializers).
 
 See also:
+
 - Example: [`examples/asyncio_avro_producer.py`](examples/asyncio_avro_producer.py)
 
-**Import paths:**
+#### Import paths
 
 ```python
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer, AsyncAvroDeserializer
@@ -221,8 +190,6 @@ from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSeriali
 
 - **401/403 Unauthorized when using Confluent Cloud:** Verify your `basic.auth.user.info` (SR API key/secret) is correct and that the Schema Registry URL is for your specific cluster. Ensure you are using an SR API key, not a Kafka API key.
 - **Schema not found:** Check that your `subject.name.strategy` configuration matches how your schemas are registered in Schema Registry, and that the topic and message field (key/value) pairing is correct.
-
-
 ### Basic Consumer example
 
 ```python
@@ -249,8 +216,6 @@ while True:
 
 c.close()
 ```
-
-
 ### Basic AdminClient example
 
 Create topics:
@@ -275,55 +240,29 @@ for topic, f in fs.items():
     except Exception as e:
         print("Failed to create topic {}: {}".format(topic, e))
 ```
-
-
 ## Thread safety
 
 The `Producer`, `Consumer`, and `AdminClient` are all thread safe.
-
-
 ## Install
 
-**Install self-contained binary wheels**
-
 ```bash
+# Basic installation
 pip install confluent-kafka
-```
 
-**NOTE**: The pre-built Linux wheels do NOT contain SASL Kerberos/GSSAPI support.
-          If you need SASL Kerberos/GSSAPI support you must install librdkafka and
-          its dependencies using the repositories below and then build
-          confluent-kafka using the instructions in the
-          "Install from source" section below.
+# With Schema Registry support
+pip install "confluent-kafka[avro,schemaregistry]"     # Avro
+pip install "confluent-kafka[json,schemaregistry]"     # JSON Schema  
+pip install "confluent-kafka[protobuf,schemaregistry]" # Protobuf
 
-To use Schema Registry with the Avro serializer/deserializer:
-
-```bash
-pip install "confluent-kafka[avro,schemaregistry]"
-```
-
-To use Schema Registry with the JSON serializer/deserializer:
-
-```bash
-pip install "confluent-kafka[json,schemaregistry]"
-```
-
-To use Schema Registry with the Protobuf serializer/deserializer:
-
-```bash
-pip install "confluent-kafka[protobuf,schemaregistry]"
-```
-
-When using Data Contract rules—for example, to enable [Client-Side Field Level Encryption (CSFLE)](https://docs.confluent.io/cloud/current/security/encrypt/csfle/overview.html) or to define data quality, validation, or transformation policies (see [Schema Registry rules](https://docs.confluent.io/platform/current/schema-registry/rules/overview.html))—install the `rules` extra for the Confluent Kafka client:
-
-```bash
+# With Data Contract rules (includes CSFLE support)
 pip install "confluent-kafka[avro,schemaregistry,rules]"
 ```
 
-### Install from source
+**Note:** Pre-built Linux wheels do not include SASL Kerberos/GSSAPI support. For Kerberos, see the source installation instructions in [INSTALL.md](INSTALL.md).
+
+**Install from source**
 
 For source install, see the *Install from source* section in [INSTALL.md](INSTALL.md).
-
 
 ## Broker compatibility
 

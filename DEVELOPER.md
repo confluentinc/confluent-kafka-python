@@ -115,6 +115,8 @@ Source:
 
 For a complete usage example, see [`examples/asyncio_example.py`](examples/asyncio_example.py).
 
+**Architecture:** See the [AIOProducer Architecture Overview](aio_producer_simple_diagram.md) for component design and data flow details.
+
 Design guidelines:
 
 - Offload blocking librdkafka calls using `_common.async_call` with a `ThreadPoolExecutor`.
