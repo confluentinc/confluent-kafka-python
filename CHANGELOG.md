@@ -1,5 +1,36 @@
 # Confluent's Python client for Apache Kafka
 
+## Unreleased
+
+### Added
+
+- AsyncIO Producer (experimental): Introduces `confluent_kafka.aio.AIOProducer` for
+  asynchronous message production in asyncio applications. This API offloads
+  blocking librdkafka calls to a thread pool and schedules common callbacks
+  (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
+  loop for safe usage inside async frameworks.
+
+### Features
+
+- Batched async produce: `await aio.AIOProducer(...).produce(topic, value=...)`
+  buffers messages and flushes when the buffer threshold or timeout is reached.
+- Async lifecycle: `await producer.flush()`, `await producer.purge()`, and
+  transactional operations (`init_transactions`, `begin_transaction`,
+  `commit_transaction`, `abort_transaction`).
+
+### Limitations
+
+- Per-message headers are not supported in the current batched async produce
+  path. If headers are required, use the synchronous `Producer.produce(...)` or
+  offload a sync produce call to a thread executor within your async app.
+
+### Guidance
+
+- Use the AsyncIO Producer inside async apps/servers (FastAPI/Starlette, aiohttp,
+  asyncio tasks) to avoid blocking the event loop.
+- For batch jobs, scripts, or highest-throughput pipelines without an event
+  loop, the synchronous `Producer` remains recommended.
+
 ## v2.11.1
 
 v2.11.1 is a maintenance release with the following fixes:
