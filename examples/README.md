@@ -1,6 +1,8 @@
 # Python Client Examples for Apache Kafka
 
-The scripts in this directory provide various examples of using the Confluent Python client for Kafka:
+The scripts in this directory provide various examples of using the Confluent Python client for Kafka. While these examples work with any Kafka deployment, they're optimized for [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/) which provide additional features, security, and enterprise support.
+
+**Why These Examples Use `confluent-kafka-python`:** Unlike the basic Apache Kafka Python client (`kafka-python`), this client provides production-ready performance via `librdkafka`, built-in Schema Registry integration, AsyncIO support, and enterprise features like transactions and exactly-once semantics.
 
 ## Basic Producer/Consumer Examples
 

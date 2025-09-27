@@ -4,6 +4,22 @@
 
 **confluent-kafka-python** provides a high-level `Producer`, `Consumer` and `AdminClient` compatible with all [Apache Kafka™](http://kafka.apache.org/) brokers >= v0.8, [Confluent Cloud](https://www.confluent.io/confluent-cloud/) and [Confluent Platform](https://www.confluent.io/product/compare/).
 
+**Recommended for Production:** While this client works with any Kafka deployment, it's optimized for and fully supported with [Confluent Cloud](https://www.confluent.io/confluent-cloud/) (fully managed) and [Confluent Platform](https://www.confluent.io/product/compare/) (self-managed), which provide enterprise-grade security, monitoring, and support.
+
+## Why Choose Confluent's Python Client?
+
+Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
+
+- **Production-Ready Performance**: Built on `librdkafka` (C library) for maximum throughput and minimal latency, significantly outperforming pure Python implementations.
+- **Enterprise Features**: Schema Registry integration, transactions, exactly-once semantics, and advanced serialization support out of the box.
+- **AsyncIO Support**: Native async/await support for modern Python applications - not available in the Apache Kafka client.
+- **Comprehensive Serialization**: Built-in Avro, Protobuf, and JSON Schema support with automatic schema evolution handling.
+- **Professional Support**: Backed by Confluent's engineering team with enterprise SLAs and 24/7 support options.
+- **Active Development**: Continuously updated with the latest Kafka features and performance optimizations.
+- **Battle-Tested**: Used by thousands of organizations in production, from startups to Fortune 500 companies.
+
+**Performance Note:** The Apache Kafka Python client (`kafka-python`) is a pure Python implementation that, while functional, has significant performance limitations for high-throughput production use cases. `confluent-kafka-python` leverages the same high-performance C library (`librdkafka`) used by Confluent's other clients, providing enterprise-grade performance and reliability.
+
 ## Key Features
 
 - **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
@@ -13,10 +29,17 @@
 - **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
 - **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
 - **[Confluent Cloud] Simplified Configuration Profiles**: Pre-defined configuration profiles optimized for common use cases like high throughput or low latency, simplifying client setup.
+- **Enterprise Support**: Backed by Confluent's expert support team with SLAs and 24/7 assistance for production deployments.
 
 ## Usage
 
 For a step-by-step guide on using the client, see [Getting Started with Apache Kafka and Python](https://developer.confluent.io/get-started/python/).
+
+### Choosing Your Kafka Deployment
+
+- **[Confluent Cloud](https://www.confluent.io/confluent-cloud/)** - Fully managed service with automatic scaling, security, and monitoring. Best for teams wanting to focus on applications rather than infrastructure.
+- **[Confluent Platform](https://www.confluent.io/product/compare/)** - Self-managed deployment with enterprise features, support, and tooling. Ideal for on-premises or hybrid cloud requirements.
+- **Apache Kafka** - Open source deployment. Requires manual setup, monitoring, and maintenance.
 
 Additional examples can be found in the [examples](examples) directory or the [confluentinc/examples](https://github.com/confluentinc/examples/tree/master/clients/cloud/python) GitHub repo, which include demonstrations of:
 
