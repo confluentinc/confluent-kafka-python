@@ -22,7 +22,6 @@ import confluent_kafka.aio._common as _common
 from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager
 from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor
 from confluent_kafka.aio.producer._buffer_timeout_manager import BufferTimeoutManager
-from confluent_kafka.cimpl import KafkaException, KafkaError
 
 
 logger = logging.getLogger(__name__)
