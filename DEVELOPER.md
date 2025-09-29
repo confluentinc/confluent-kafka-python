@@ -126,8 +126,11 @@ Design guidelines:
 
 Performance considerations:
 
-- AsyncIO producer adds ~12% overhead compared to fire-and-forget sync produce in web applications.
+- AsyncIO producer adds up to 50% overhead compared to fire-and-forget sync produce
+  in highest possible throughput cases. Normal application operations see no significant overhead.
 - Batched async produce is more efficient than individual awaited produce calls.
+  This is caused by thread contention while librdkafka queue locking mechanisms
+  are in play.
 - For maximum throughput without event loop integration, use the synchronous Producer.
 - The official implementation outperforms custom AsyncIO wrappers due to optimized thread pool management.
 - AsyncIO Schema Registry client maintains 100% interface parity with sync client - no unexpected gotchas or limitations.
