@@ -55,22 +55,28 @@ class TestUtils:
 
     @staticmethod
     def update_conf_group_protocol(conf=None):
-        if conf is not None and 'group.id' in conf and TestUtils.use_group_protocol_consumer():
+        if TestUtils.can_upgrade_group_protocol_to_consumer(conf):
             conf['group.protocol'] = 'consumer'
 
     @staticmethod
+    def can_upgrade_group_protocol_to_consumer(conf):
+        return (conf is not None and 'group.id' in conf and
+                'group.protocol' not in conf and TestUtils.use_group_protocol_consumer())
+
+    @staticmethod
     def remove_forbidden_conf_group_protocol_consumer(conf):
-        if conf is None:
+        if (conf is None or
+                not TestUtils.use_group_protocol_consumer() or
+                conf.get('group.protocol', 'consumer') != 'consumer'):
             return
-        if TestUtils.use_group_protocol_consumer():
-            forbidden_conf_properties = ["session.timeout.ms",
-                                         "partition.assignment.strategy",
-                                         "heartbeat.interval.ms",
-                                         "group.protocol.type"]
-            for prop in forbidden_conf_properties:
-                if prop in conf:
-                    print("Skipping setting forbidden configuration {prop} for `CONSUMER` protocol")
-                    del conf[prop]
+        forbidden_conf_properties = ["session.timeout.ms",
+                                     "partition.assignment.strategy",
+                                     "heartbeat.interval.ms",
+                                     "group.protocol.type"]
+        for prop in forbidden_conf_properties:
+            if prop in conf:
+                print(f"Skipping setting forbidden configuration {prop} for `CONSUMER` protocol")
+                del conf[prop]
 
 
 class TestConsumer(Consumer):
