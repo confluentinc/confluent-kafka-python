@@ -123,6 +123,7 @@ class ProducerBatchManager:
         self._message_buffer = messages_to_keep
         self._buffer_futures = futures_to_keep
 
+
     async def flush_buffer(self, target_topic=None):
         """Flush the current message buffer using produce_batch
 
@@ -137,26 +138,52 @@ class ProducerBatchManager:
 
         # Create batches for processing
         batches = self.create_batches(target_topic)
+        
+        # Execute batches with cleanup
+        await self._execute_batches(batches, target_topic)
 
-        # Clear processed messages from buffer
-        if target_topic is None:
-            # Clear entire buffer
-            self.clear_buffer()
-        else:
-            # Clear only messages for the target topic
-            self._clear_topic_from_buffer(target_topic)
+    async def _execute_batches(self, batches, target_topic=None):
+        """Execute batches and handle cleanup after successful execution
+        
+        Args:
+            batches: List of batches to execute
+            target_topic: Optional topic for selective buffer clearing
+            
+        Returns:
+            None
+            
+        Raises:
+            Exception: If any batch execution fails
+        """
+        # Track which messages we're about to process for buffer clearing
+        messages_to_clear = []
+        futures_to_clear = []
 
         # Execute each batch
         for batch in batches:
             try:
-                # Execute batch using the Kafka executor with partition info
+                # Execute batch using the Kafka executor
                 await self._kafka_executor.execute_batch(batch.topic, batch.messages, batch.partition)
-
+                
+                # Only clear messages from buffer after successful execution
+                # Collect the messages and futures that were successfully processed
+                messages_to_clear.extend(batch.messages)
+                futures_to_clear.extend(batch.futures)
+                
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this batch
                 self._handle_batch_failure(e, batch.futures)
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
+
+        # Clear successfully processed messages from buffer
+        if messages_to_clear:
+            if target_topic is None:
+                # Clear entire buffer since all messages were processed
+                self.clear_buffer()
+            else:
+                # Clear only messages for the target topic that were successfully processed
+                self._clear_topic_from_buffer(target_topic)
 
     def _group_messages_by_topic_and_partition(self):
         """Group buffered messages by topic and partition for optimal batch processing
