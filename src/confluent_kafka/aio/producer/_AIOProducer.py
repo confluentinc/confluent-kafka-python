@@ -206,7 +206,7 @@ class AIOProducer:
         """Purges messages from internal queues - may block during cleanup"""
         # Cancel all pending futures
         self._batch_processor.cancel_pending_futures()
-        
+
         # Clear local message buffer and futures
         self._batch_processor.clear_buffer()
 
@@ -238,12 +238,21 @@ class AIOProducer:
                                 *args, **kwargs)
 
     async def commit_transaction(self, *args, **kwargs):
-        """Network call to commit transaction"""
+        """Commit transaction after flushing all buffered messages"""
+
+        # First, flush all messages (both local buffer and librdkafka queue)
+        await self.flush()
+
+        # Then commit transaction
         return await self._call(self._producer.commit_transaction,
                                 *args, **kwargs)
 
     async def abort_transaction(self, *args, **kwargs):
         """Network call to abort transaction"""
+
+        # Clear mesasges pending in the local buffer
+        await self.purge()
+
         return await self._call(self._producer.abort_transaction,
                                 *args, **kwargs)
 

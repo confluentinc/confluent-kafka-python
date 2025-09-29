@@ -2,6 +2,7 @@
 Ducktape test for Confluent Kafka Python Consumer
 Assumes Kafka is already running on localhost:9092
 """
+
 import time
 import uuid
 from ducktape.tests.test import Test
@@ -9,15 +10,22 @@ from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
 from tests.ducktape.consumer_benchmark_metrics import (
-    ConsumerMetricsCollector, ConsumerMetricsBounds,
-                                                       validate_consumer_metrics, print_consumer_metrics_report)
+    ConsumerMetricsCollector,
+    ConsumerMetricsBounds,
+    validate_consumer_metrics,
+    print_consumer_metrics_report,
+)
 from tests.ducktape.consumer_strategy import SyncConsumerStrategy, AsyncConsumerStrategy
 from confluent_kafka import Producer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.schema_registry._sync.json_schema import JSONSerializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
-from confluent_kafka.serialization import StringSerializer, SerializationContext, MessageField
+from confluent_kafka.serialization import (
+    StringSerializer,
+    SerializationContext,
+    MessageField,
+)
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 import json
 import asyncio
@@ -38,8 +46,10 @@ class SimpleConsumerTest(Test):
         self.logger.info("Verifying connection to external Kafka at localhost:9092")
 
         if not self.kafka.verify_connection():
-            raise Exception("Cannot connect to Kafka at localhost:9092. "
-                            "Please ensure Kafka is running.")
+            raise Exception(
+                "Cannot connect to Kafka at localhost:9092. "
+                "Please ensure Kafka is running."
+            )
 
         self.logger.info("Successfully connected to Kafka")
 
@@ -50,35 +60,35 @@ class SimpleConsumerTest(Test):
 
         if consumer_type == "sync":
             return SyncConsumerStrategy(
-                self.kafka.bootstrap_servers(),
-                group_id,
-                self.logger,
-                batch_size
+                self.kafka.bootstrap_servers(), group_id, self.logger, batch_size
             )
         else:  # async
             return AsyncConsumerStrategy(
-                self.kafka.bootstrap_servers(),
-                group_id,
-                self.logger,
-                batch_size
+                self.kafka.bootstrap_servers(), group_id, self.logger, batch_size
             )
 
     def create_consumer(self, consumer_type, group_id=None, batch_size=10):
-        return self.create_consumer_strategy(consumer_type, group_id, batch_size).create_consumer()
+        return self.create_consumer_strategy(
+            consumer_type, group_id, batch_size
+        ).create_consumer()
 
     def produce_test_messages(self, topic_name, num_messages, serialization_type=None):
         """Produce messages to topic for consumer tests with optional Schema Registry serialization"""
         # Create producer configuration
         producer_config = {
-            'bootstrap.servers': self.kafka.bootstrap_servers(),
-            'client.id': f'ducktape-test-producer'
+            "bootstrap.servers": self.kafka.bootstrap_servers(),
+            "client.id": f"ducktape-test-producer",
         }
         producer = Producer(producer_config)
 
         # Setup serializers if using Schema Registry
         if serialization_type:
-            key_serializer, value_serializer = self.create_serializers(serialization_type)
-            self.logger.info(f"Producing {num_messages} messages with {serialization_type} serialization to {topic_name}")
+            key_serializer, value_serializer = self.create_serializers(
+                serialization_type
+            )
+            self.logger.info(
+                f"Producing {num_messages} messages with {serialization_type} serialization to {topic_name}"
+            )
         else:
             self.logger.info(f"Producing {num_messages} messages to {topic_name}")
 
@@ -86,11 +96,11 @@ class SimpleConsumerTest(Test):
         for i in range(num_messages):
             try:
                 # Create message content based on serialization type
-                if serialization_type == 'protobuf':
+                if serialization_type == "protobuf":
                     message_value = PublicTestProto_pb2.TestMessage(
-                        test_string=f'User{i}',
+                        test_string=f"User{i}",
                         test_bool=i % 2 == 0,
-                        test_bytes=f'bytes{i}'.encode('utf-8'),
+                        test_bytes=f"bytes{i}".encode("utf-8"),
                         test_double=float(i),
                         test_float=float(i),
                         test_fixed32=i,
@@ -102,32 +112,34 @@ class SimpleConsumerTest(Test):
                         test_sint32=i,
                         test_sint64=i,
                         test_uint32=i,
-                        test_uint64=i
+                        test_uint64=i,
                     )
                 elif serialization_type:  # Avro or JSON
                     # Match the Protobuf schema structure for Avro/JSON
                     # For JSON, convert bytes to base64 string
-                    if serialization_type == 'json':
-                        test_bytes = f'bytes{i}'  # JSON uses string for bytes
+                    if serialization_type == "json":
+                        test_bytes = f"bytes{i}"  # JSON uses string for bytes
                     else:
-                        test_bytes = f'bytes{i}'.encode('utf-8')  # Avro uses actual bytes
+                        test_bytes = f"bytes{i}".encode(
+                            "utf-8"
+                        )  # Avro uses actual bytes
 
                     message_value = {
-                        'test_string': f'User{i}',
-                        'test_bool': i % 2 == 0,
-                        'test_bytes': test_bytes,
-                        'test_double': float(i),
-                        'test_float': float(i),
-                        'test_fixed32': i,
-                        'test_fixed64': i,
-                        'test_int32': i,
-                        'test_int64': i,
-                        'test_sfixed32': i,
-                        'test_sfixed64': i,
-                        'test_sint32': i,
-                        'test_sint64': i,
-                        'test_uint32': i,
-                        'test_uint64': i
+                        "test_string": f"User{i}",
+                        "test_bool": i % 2 == 0,
+                        "test_bytes": test_bytes,
+                        "test_double": float(i),
+                        "test_float": float(i),
+                        "test_fixed32": i,
+                        "test_fixed64": i,
+                        "test_int32": i,
+                        "test_int64": i,
+                        "test_sfixed32": i,
+                        "test_sfixed64": i,
+                        "test_sint32": i,
+                        "test_sint64": i,
+                        "test_uint32": i,
+                        "test_uint64": i,
                     }
                 else:
                     # Plain messages - no complex structure needed
@@ -135,10 +147,10 @@ class SimpleConsumerTest(Test):
 
                 # Serialize key and value if using Schema Registry
                 if serialization_type:
-                    serialized_key = key_serializer(f'key{i}')
+                    serialized_key = key_serializer(f"key{i}")
                     serialized_value = value_serializer(
                         message_value,
-                        SerializationContext(topic_name, MessageField.VALUE)
+                        SerializationContext(topic_name, MessageField.VALUE),
                     )
                 else:
                     serialized_key = f"key-{i}"
@@ -168,7 +180,7 @@ class SimpleConsumerTest(Test):
     @matrix(consumer_type=["sync", "async"], batch_size=[1, 5, 20])
     def test_basic_consume(self, consumer_type, batch_size):
         """Test batch consumption with comprehensive metrics and bounds validation"""
-        
+
         self._run_consumer_performance_benchmark(
             consumer_type=consumer_type,
             operation_type="consume",
@@ -184,8 +196,12 @@ class SimpleConsumerTest(Test):
             operation_type="poll",
         )
 
-    @matrix(consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
-    def test_basic_consume_with_schema_registry(self, consumer_type, serialization_type):
+    @matrix(
+        consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"]
+    )
+    def test_basic_consume_with_schema_registry(
+        self, consumer_type, serialization_type
+    ):
         """
         Test batch consumption with Schema Registry deserialization with comprehensive metrics and bounds validation.
 
@@ -205,7 +221,9 @@ class SimpleConsumerTest(Test):
             num_messages_to_produce=500000,
         )
 
-    @matrix(consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"])
+    @matrix(
+        consumer_type=["sync", "async"], serialization_type=["avro", "json", "protobuf"]
+    )
     def test_basic_poll_with_schema_registry(self, consumer_type, serialization_type):
         """
         Test single message polling with Schema Registry deserialization with comprehensive metrics and bounds validation.
@@ -256,7 +274,9 @@ class SimpleConsumerTest(Test):
 
                 # Phase 2: Consumer2 joins (should split partitions)
                 await consumer2.subscribe([topic_name], on_assign=track_rebalance)
-                await self._wait_for_balanced_assignment([consumer1, consumer2], total_partitions=2)
+                await self._wait_for_balanced_assignment(
+                    [consumer1, consumer2], total_partitions=2
+                )
                 assert len(rebalance_events) >= 2
 
                 # Phase 3: Consumer2 leaves (consumer1 should get all partitions back)
@@ -317,12 +337,16 @@ class SimpleConsumerTest(Test):
             # Verify initial state: 2 partitions total, 1 each
             assignment1_initial = await consumer1.assignment()
             assignment2_initial = await consumer2.assignment()
-            total_partitions_initial = len(assignment1_initial) + len(assignment2_initial)
+            total_partitions_initial = len(assignment1_initial) + len(
+                assignment2_initial
+            )
 
-            assert total_partitions_initial == 2, \
-                f"Should have 2 total partitions initially, got {total_partitions_initial}"
-            assert len(rebalance_events) >= 2, \
-                f"Should have at least 2 rebalance events, got {len(rebalance_events)}"
+            assert (
+                total_partitions_initial == 2
+            ), f"Should have 2 total partitions initially, got {total_partitions_initial}"
+            assert (
+                len(rebalance_events) >= 2
+            ), f"Should have at least 2 rebalance events, got {len(rebalance_events)}"
 
             # Add partitions to existing topic (2 -> 4 partitions)
             self.kafka.add_partitions(topic_name, new_partition_count=4)
@@ -343,7 +367,9 @@ class SimpleConsumerTest(Test):
 
                 # Check total partitions across all consumers
                 assignments = await asyncio.gather(*[c.assignment() for c in consumers])
-                total_partitions_current = sum(len(assignment) for assignment in assignments)
+                total_partitions_current = sum(
+                    len(assignment) for assignment in assignments
+                )
 
                 # Rebalance complete when total partitions = 4 (distributed among 3 consumers)
                 if total_partitions_current == 4:
@@ -354,29 +380,38 @@ class SimpleConsumerTest(Test):
             assignment1_final = await consumer1.assignment()
             assignment2_final = await consumer2.assignment()
             assignment3_final = await consumer3.assignment()
-            total_partitions_final = (len(assignment1_final) +
-                                      len(assignment2_final) +
-                                      len(assignment3_final))
+            total_partitions_final = (
+                len(assignment1_final) + len(assignment2_final) + len(assignment3_final)
+            )
 
-            assert total_partitions_final == 4, \
-                f"Should have 4 total partitions after adding, got {total_partitions_final}"
+            assert (
+                total_partitions_final == 4
+            ), f"Should have 4 total partitions after adding, got {total_partitions_final}"
             # With 3 consumers and 4 partitions, distribution should be roughly 1-2 partitions per consumer
-            assert len(assignment1_final) >= 1, \
-                f"Consumer 1 should have at least 1 partition, got {len(assignment1_final)}"
-            assert len(assignment2_final) >= 1, \
-                f"Consumer 2 should have at least 1 partition, got {len(assignment2_final)}"
-            assert len(assignment3_final) >= 1, \
-                f"Consumer 3 should have at least 1 partition, got {len(assignment3_final)}"
-            assert len(rebalance_events) >= 5, \
-                ("Should have at least 5 rebalance events after partition addition and consumer3 join, "
-                 f"got {len(rebalance_events)}")
+            assert (
+                len(assignment1_final) >= 1
+            ), f"Consumer 1 should have at least 1 partition, got {len(assignment1_final)}"
+            assert (
+                len(assignment2_final) >= 1
+            ), f"Consumer 2 should have at least 1 partition, got {len(assignment2_final)}"
+            assert (
+                len(assignment3_final) >= 1
+            ), f"Consumer 3 should have at least 1 partition, got {len(assignment3_final)}"
+            assert len(rebalance_events) >= 5, (
+                "Should have at least 5 rebalance events after partition addition and consumer3 join, "
+                f"got {len(rebalance_events)}"
+            )
 
             # Verify consumers can still consume from all partitions
             msg1 = await consumer1.poll(timeout=5.0)
             msg2 = await consumer2.poll(timeout=5.0)
             msg3 = await consumer3.poll(timeout=5.0)
-            messages_received = sum([1 for msg in [msg1, msg2, msg3] if msg is not None])
-            assert messages_received > 0, "Consumers should receive messages from new partitions"
+            messages_received = sum(
+                [1 for msg in [msg1, msg2, msg3] if msg is not None]
+            )
+            assert (
+                messages_received > 0
+            ), "Consumers should receive messages from new partitions"
 
             # Clean up
             await consumer1.close()
@@ -411,7 +446,9 @@ class SimpleConsumerTest(Test):
                     await consumer.poll(timeout=10.0)
 
                 # Verify callback was called before the crash
-                assert len(callback_calls) == 1, "Callback should have been called before crash"
+                assert (
+                    len(callback_calls) == 1
+                ), "Callback should have been called before crash"
 
             finally:
                 # Consumer may be in an unusable state after the exception
@@ -428,10 +465,14 @@ class SimpleConsumerTest(Test):
 
     # =========== Private Helper Methods ===========
 
-    def _run_consumer_performance_benchmark(self, consumer_type, operation_type,
-                                       batch_size=None,
-                                       serialization_type=None,
-                                       num_messages_to_produce=1500000):
+    def _run_consumer_performance_benchmark(
+        self,
+        consumer_type,
+        operation_type,
+        batch_size=None,
+        serialization_type=None,
+        num_messages_to_produce=1500000,
+    ):
         """
         Shared helper for consumer performance tests
 
@@ -449,14 +490,20 @@ class SimpleConsumerTest(Test):
 
         # Wait for topic to be available
         topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
-        assert topic_ready, (f"Topic {topic_name} was not created within timeout. "
-                             f"Available topics: {self.kafka.list_topics()}")
+        assert topic_ready, (
+            f"Topic {topic_name} was not created within timeout. "
+            f"Available topics: {self.kafka.list_topics()}"
+        )
 
         # Produce test messages
-        self.produce_test_messages(topic_name, num_messages_to_produce, serialization_type)
+        self.produce_test_messages(
+            topic_name, num_messages_to_produce, serialization_type
+        )
 
         # Initialize metrics collection and bounds
-        metrics = ConsumerMetricsCollector(operation_type=operation_type, serialization_type=serialization_type)
+        metrics = ConsumerMetricsCollector(
+            operation_type=operation_type, serialization_type=serialization_type
+        )
         bounds = ConsumerMetricsBounds()
 
         # Create appropriate consumer strategy
@@ -465,7 +512,9 @@ class SimpleConsumerTest(Test):
         # Assign metrics collector to strategy
         strategy.metrics = metrics
 
-        self.logger.info(f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, for {test_duration} seconds")
+        self.logger.info(
+            f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, for {test_duration} seconds"
+        )
 
         # Start metrics collection
         metrics.start()
@@ -477,14 +526,22 @@ class SimpleConsumerTest(Test):
         start_time = time.time()
         if operation_type == "consume":
             messages_consumed = strategy.consume_messages(
-                        topic_name, test_duration, start_time, consumed_messages,
-                        timeout=0.1, serialization_type=serialization_type
-                )
+                topic_name,
+                test_duration,
+                start_time,
+                consumed_messages,
+                timeout=0.1,
+                serialization_type=serialization_type,
+            )
         else:  # poll
             messages_consumed = strategy.poll_messages(
-                        topic_name, test_duration, start_time, consumed_messages,
-                        timeout=0.1, serialization_type=serialization_type
-        )
+                topic_name,
+                test_duration,
+                start_time,
+                consumed_messages,
+                timeout=0.1,
+                serialization_type=serialization_type,
+            )
 
         # Finalize metrics collection
         metrics.finalize()
@@ -494,20 +551,34 @@ class SimpleConsumerTest(Test):
         is_valid, violations = validate_consumer_metrics(metrics_summary, bounds)
 
         # Print comprehensive metrics report
-        print_consumer_metrics_report(metrics_summary, is_valid, violations, consumer_type, batch_size, serialization_type)
+        print_consumer_metrics_report(
+            metrics_summary,
+            is_valid,
+            violations,
+            consumer_type,
+            batch_size,
+            serialization_type,
+        )
 
         # Enhanced assertions using metrics
         assert messages_consumed > 0, "No messages were consumed"
         assert len(consumed_messages) > 0, "No messages were collected"
-        assert metrics_summary['messages_consumed'] > 0, "No messages were consumed (metrics)"
-        assert metrics_summary['consumption_rate_msg_per_sec'] > 0, \
-            f"Consumption rate too low: {metrics_summary['consumption_rate_msg_per_sec']:.2f} msg/s"
+        assert (
+            metrics_summary["messages_consumed"] > 0
+        ), "No messages were consumed (metrics)"
+        assert (
+            metrics_summary["consumption_rate_msg_per_sec"] > 0
+        ), f"Consumption rate too low: {metrics_summary['consumption_rate_msg_per_sec']:.2f} msg/s"
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning("Performance bounds validation failed: %s", "; ".join(violations))
+            self.logger.warning(
+                "Performance bounds validation failed: %s", "; ".join(violations)
+            )
 
-        self.logger.info(f"Successfully completed basic {operation_type} test with comprehensive metrics")
+        self.logger.info(
+            f"Successfully completed basic {operation_type} test with comprehensive metrics"
+        )
 
         # Return consumed messages for additional validation (e.g., Schema Registry deserialization checks)
         return consumed_messages
@@ -528,10 +599,13 @@ class SimpleConsumerTest(Test):
             await asyncio.sleep(1.0)
 
         assignment = await consumer.assignment()
-        assert len(assignment) == expected_partitions, \
-            f"Expected {expected_partitions} partitions, got {len(assignment)}"
+        assert (
+            len(assignment) == expected_partitions
+        ), f"Expected {expected_partitions} partitions, got {len(assignment)}"
 
-    async def _wait_for_balanced_assignment(self, consumers, total_partitions, max_wait=15):
+    async def _wait_for_balanced_assignment(
+        self, consumers, total_partitions, max_wait=15
+    ):
         """Helper: Wait for consumers to split partitions evenly"""
         for _ in range(max_wait):
             for consumer in consumers:
@@ -540,22 +614,30 @@ class SimpleConsumerTest(Test):
             assignments = [await c.assignment() for c in consumers]
             assigned_count = sum(len(a) for a in assignments)
 
-            if assigned_count == total_partitions and all(len(a) > 0 for a in assignments):
+            if assigned_count == total_partitions and all(
+                len(a) > 0 for a in assignments
+            ):
                 return
             await asyncio.sleep(1.0)
 
         assignments = [await c.assignment() for c in consumers]
         assigned_count = sum(len(a) for a in assignments)
-        assert assigned_count == total_partitions, \
-            f"Expected {total_partitions} total partitions, got {assigned_count}"
+        assert (
+            assigned_count == total_partitions
+        ), f"Expected {total_partitions} total partitions, got {assigned_count}"
 
     def create_serializers(self, serialization_type):
         """Create Schema Registry serializers for message production"""
-        sr_client = SchemaRegistryClient({'url': 'http://localhost:8081', 'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'})
+        sr_client = SchemaRegistryClient(
+            {
+                "url": "http://localhost:8081",
+                "basic.auth.user.info": "ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw",
+            }
+        )
 
-        key_serializer = StringSerializer('utf8')
+        key_serializer = StringSerializer("utf8")
 
-        if serialization_type == 'avro':
+        if serialization_type == "avro":
             # Match the Protobuf TestMessage structure
             avro_schema = {
                 "type": "record",
@@ -575,14 +657,13 @@ class SimpleConsumerTest(Test):
                     {"name": "test_sint32", "type": "int"},
                     {"name": "test_sint64", "type": "long"},
                     {"name": "test_uint32", "type": "int"},
-                    {"name": "test_uint64", "type": "long"}
-                ]
+                    {"name": "test_uint64", "type": "long"},
+                ],
             }
             value_serializer = AvroSerializer(
-                schema_registry_client=sr_client,
-                schema_str=json.dumps(avro_schema)
+                schema_registry_client=sr_client, schema_str=json.dumps(avro_schema)
             )
-        elif serialization_type == 'json':
+        elif serialization_type == "json":
             # Match the Protobuf TestMessage structure
             json_schema = {
                 "type": "object",
@@ -601,15 +682,31 @@ class SimpleConsumerTest(Test):
                     "test_sint32": {"type": "integer"},
                     "test_sint64": {"type": "integer"},
                     "test_uint32": {"type": "integer"},
-                    "test_uint64": {"type": "integer"}
+                    "test_uint64": {"type": "integer"},
                 },
-                "required": ["test_string", "test_bool", "test_bytes", "test_double", "test_float",
-                           "test_fixed32", "test_fixed64", "test_int32", "test_int64", "test_sfixed32",
-                           "test_sfixed64", "test_sint32", "test_sint64", "test_uint32", "test_uint64"]
+                "required": [
+                    "test_string",
+                    "test_bool",
+                    "test_bytes",
+                    "test_double",
+                    "test_float",
+                    "test_fixed32",
+                    "test_fixed64",
+                    "test_int32",
+                    "test_int64",
+                    "test_sfixed32",
+                    "test_sfixed64",
+                    "test_sint32",
+                    "test_sint64",
+                    "test_uint32",
+                    "test_uint64",
+                ],
             }
             value_serializer = JSONSerializer(json.dumps(json_schema), sr_client)
-        elif serialization_type == 'protobuf':
-            value_serializer = ProtobufSerializer(PublicTestProto_pb2.TestMessage, sr_client)
+        elif serialization_type == "protobuf":
+            value_serializer = ProtobufSerializer(
+                PublicTestProto_pb2.TestMessage, sr_client
+            )
 
         return key_serializer, value_serializer
 
