@@ -155,20 +155,11 @@ class ProducerBatchManager:
         Raises:
             Exception: If any batch execution fails
         """
-        # Track which messages we're about to process for buffer clearing
-        messages_to_clear = []
-        futures_to_clear = []
-
         # Execute each batch
         for batch in batches:
             try:
                 # Execute batch using the Kafka executor
                 await self._kafka_executor.execute_batch(batch.topic, batch.messages, batch.partition)
-                
-                # Only clear messages from buffer after successful execution
-                # Collect the messages and futures that were successfully processed
-                messages_to_clear.extend(batch.messages)
-                futures_to_clear.extend(batch.futures)
                 
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this batch
@@ -177,13 +168,12 @@ class ProducerBatchManager:
                 raise
 
         # Clear successfully processed messages from buffer
-        if messages_to_clear:
-            if target_topic is None:
-                # Clear entire buffer since all messages were processed
-                self.clear_buffer()
-            else:
-                # Clear only messages for the target topic that were successfully processed
-                self._clear_topic_from_buffer(target_topic)
+        if target_topic is None:
+            # Clear entire buffer since all messages were processed
+            self.clear_buffer()
+        else:
+            # Clear only messages for the target topic that were successfully processed
+            self._clear_topic_from_buffer(target_topic)
 
     def _group_messages_by_topic_and_partition(self):
         """Group buffered messages by topic and partition for optimal batch processing
