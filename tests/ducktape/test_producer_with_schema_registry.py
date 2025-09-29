@@ -9,7 +9,7 @@ from confluent_kafka.schema_registry._sync.protobuf import ProtobufSerializer
 from confluent_kafka.schema_registry.avro import AvroSerializer
 from confluent_kafka.serialization import MessageField, SerializationContext, StringSerializer
 from tests.ducktape.services.kafka import KafkaClient
-from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
+from tests.ducktape.producer_benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
 from tests.integration.schema_registry.data.proto import PublicTestProto_pb2
 from confluent_kafka import Producer
 
