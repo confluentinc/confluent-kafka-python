@@ -124,15 +124,10 @@ class BufferTimeoutManager:
 
         This method handles the complete timeout flush workflow:
         1. Create batches from the batch processor
-        2. Execute each batch via the Kafka executor
-        3. Clear the processed messages from the buffer
+        2. Execute batches from the batch processor 
         """
         # Create batches from current buffer
         batches = self._batch_processor.create_batches()
-
-        # Execute all batches
-        for batch in batches:
-            await self._kafka_executor.execute_batch(batch.topic, batch.messages)
-
-        # Clear the buffer since all messages were processed
-        self._batch_processor.clear_buffer()
+        
+        # Execute batches with cleanup using the common function
+        await self._batch_processor._execute_batches(batches)
