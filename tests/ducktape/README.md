@@ -1,6 +1,6 @@
-# Ducktape Producer Tests
+# Ducktape Tests
 
-Ducktape-based producer tests for the Confluent Kafka Python client with comprehensive performance metrics.
+Ducktape-based tests for the Confluent Kafka Python client with comprehensive performance metrics.
 
 ## Prerequisites
 
@@ -15,17 +15,11 @@ Ducktape-based producer tests for the Confluent Kafka Python client with compreh
 ./tests/ducktape/run_ducktape_test.py
 
 # Run all tests in a file
-./tests/ducktape/run_ducktape_test.py test_producer.py
+./tests/ducktape/run_ducktape_test.py producer
 
 # Run a specific test with metrics
-./tests/ducktape/run_ducktape_test.py test_producer.py SimpleProducerTest.test_basic_produce
+./tests/ducktape/run_ducktape_test.py producer SimpleProducerTest.test_basic_produce
 ```
-
-## Test Cases
-
-- **test_basic_produce**: Basic message production with integrated metrics tracking
-- **test_produce_multiple_batches**: Parameterized tests (2s, 5s, 10s durations) with metrics
-- **test_produce_with_compression**: Matrix tests (none, gzip, snappy) with compression-aware metrics
 
 ## Integrated Performance Metrics Features
 
@@ -41,7 +35,7 @@ Every test automatically includes:
 
 ## Configuration
 
-Performance bounds are loaded from an environment-based JSON config file. By default, it loads `benchmark_bounds.json`, but you can override this with the `BENCHMARK_BOUNDS_CONFIG` environment variable.
+Performance bounds are loaded from an environment-based JSON config file. By default, it loads `producer_benchmark_bounds.json`, but you can override this with the `BENCHMARK_BOUNDS_CONFIG` environment variable.
 
 ### Environment-Based Configuration
 
@@ -98,9 +92,9 @@ BENCHMARK_BOUNDS_CONFIG=custom_bounds.json ./run_ducktape_test.py
 ```
 
 ```python
-from benchmark_metrics import MetricsBounds
+from producer_benchmark_metrics import MetricsBounds
 
-# Loads from BENCHMARK_BOUNDS_CONFIG env var, or benchmark_bounds.json if not set
+# Loads from BENCHMARK_BOUNDS_CONFIG env var, or producer_benchmark_bounds.json if not set
 bounds = MetricsBounds()
 
 # Or load from a specific config file

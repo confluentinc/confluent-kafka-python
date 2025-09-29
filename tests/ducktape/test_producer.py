@@ -7,7 +7,7 @@ from ducktape.tests.test import Test
 from ducktape.mark import matrix
 
 from tests.ducktape.services.kafka import KafkaClient
-from tests.ducktape.benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
+from tests.ducktape.producer_benchmark_metrics import MetricsCollector, MetricsBounds, validate_metrics, print_metrics_report
 from tests.ducktape.producer_strategy import SyncProducerStrategy, AsyncProducerStrategy
 
 
@@ -110,6 +110,78 @@ class SimpleProducerTest(Test):
             assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info("Successfully completed basic production test with comprehensive metrics")
+
+    @matrix(producer_type=["sync", "async"])
+    def test_basic_produce_with_transaction(self, producer_type):
+        """Test basic transactional message production with comprehensive metrics and bounds validation"""
+
+        topic_name = f"test-{producer_type}-topic-with-transaction"
+        test_duration = 5.0  # 5 seconds
+
+        # Create topic
+        self.kafka.create_topic(topic_name, partitions=1, replication_factor=1)
+
+        # Wait for topic to be available with retry logic
+        topic_ready = self.kafka.wait_for_topic(topic_name, max_wait_time=30)
+        assert topic_ready, (f"Topic {topic_name} was not created within timeout. "
+                             f"Available topics: {self.kafka.list_topics()}")
+
+        # Initialize metrics collection and bounds
+        metrics = MetricsCollector()
+        import os
+        config_path = os.path.join(os.path.dirname(__file__), "transaction_benchmark_bounds.json")
+        bounds = MetricsBounds.from_config_file(config_path)
+
+        # Create appropriate producer strategy
+        strategy = self.create_producer(producer_type)
+
+        # Assign metrics collector to strategy
+        strategy.metrics = metrics
+
+        self.logger.info(f"Testing {producer_type} producer for {test_duration} seconds")
+
+        # Start metrics collection
+        metrics.start()
+
+        # Message formatter
+        def message_formatter(msg_num):
+            return f"Test message {msg_num}", f"key-{msg_num}"
+
+        # Containers for results
+        delivered_messages = []
+        failed_messages = []
+
+        # Run the test
+        start_time = time.time()
+        messages_sent = strategy.produce_messages(
+            topic_name, test_duration, start_time, message_formatter,
+            delivered_messages, failed_messages, use_transaction=True
+        )
+
+        # Finalize metrics collection
+        metrics.finalize()
+
+        # Get comprehensive metrics summary
+        metrics_summary = metrics.get_summary()
+        is_valid, violations = validate_metrics(metrics_summary, bounds)
+
+        # Print comprehensive metrics report
+        self.logger.info(f"=== {producer_type.upper()} PRODUCER WITH TRANSACTION METRICS REPORT ===")
+        print_metrics_report(metrics_summary, is_valid, violations)
+
+        # Enhanced assertions using metrics
+        assert messages_sent > 0, "No messages were sent"
+        assert len(delivered_messages) > 0, "No messages were delivered"
+        assert metrics_summary['messages_delivered'] > 0, "No messages were delivered (metrics)"
+        assert metrics_summary['send_throughput_msg_per_sec'] > 10, \
+            f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
+
+        # Validate against performance bounds
+        if not is_valid:
+            self.logger.error("Performance bounds validation failed: %s", "; ".join(violations))
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
+
+        self.logger.info("Successfully completed basic production test with comprehensive metrics with transaction")
 
     @matrix(producer_type=["sync", "async"], test_duration=[2, 5, 10])
     def test_produce_multiple_batches(self, producer_type, test_duration):

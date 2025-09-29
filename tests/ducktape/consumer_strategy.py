@@ -53,6 +53,29 @@ class ConsumerStrategy:
                          timeout=1.0, serialization_type=None):
         raise NotImplementedError()
 
+    def _get_base_config(self):
+        """Get shared Kafka consumer configuration optimized for low-latency, high-throughput"""
+        return {
+            'bootstrap.servers': self.bootstrap_servers,
+            'group.id': self.group_id,
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': 'true',
+            'auto.commit.interval.ms': '5000'
+        }
+
+    def _log_configuration(self, config, consumer_type, extra_params=None):
+        """Log consumer configuration for validation"""
+        separator = "=" * (len(f"{consumer_type.upper()} CONSUMER CONFIGURATION") + 6)
+        self.logger.info(f"=== {consumer_type.upper()} CONSUMER CONFIGURATION ===")
+        for key, value in config.items():
+            self.logger.info(f"{key}: {value}")
+
+        if extra_params:
+            for key, value in extra_params.items():
+                self.logger.info(f"{key}: {value}")
+
+        self.logger.info(separator)
+
     def _get_schema_registry_client(self, is_async=False):
         """Get Schema Registry client with proper configuration"""
         schema_registry_url = os.getenv(
@@ -201,15 +224,18 @@ class SyncConsumerStrategy(ConsumerStrategy):
             return msg  # Return original message if deserialization fails
 
 
-    def create_consumer(self):
-        config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'auto.offset.reset': 'earliest',
-            'enable.auto.commit': 'true',
-            'auto.commit.interval.ms': '5000'
-        }
+    def create_consumer(self, config_overrides=None):
+        config = self._get_base_config()
+
+        # Apply any test-specific overrides
+        if config_overrides:
+            config.update(config_overrides)
+
         consumer = Consumer(config)
+
+        # Log the configuration for validation
+        self._log_configuration(config, "SYNC")
+
         return consumer
 
     def consume_messages(self, topic_name, test_duration, start_time, consumed_container,
@@ -362,16 +388,20 @@ class AsyncConsumerStrategy(ConsumerStrategy):
             return msg  # Return original message if deserialization fails
 
 
-    def create_consumer(self):
-        config = {
-            'bootstrap.servers': self.bootstrap_servers,
-            'group.id': self.group_id,
-            'auto.offset.reset': 'earliest',
-            'enable.auto.commit': 'true',
-            'auto.commit.interval.ms': '5000'
-        }
+    def create_consumer(self, config_overrides=None):
+        config = self._get_base_config()
 
-        self._consumer_instance = AIOConsumer(config, max_workers=20)
+        # Apply any test-specific overrides
+        if config_overrides:
+            config.update(config_overrides)
+
+        max_workers = getattr(self, 'max_workers', 20)
+
+        self._consumer_instance = AIOConsumer(config, max_workers=max_workers)
+
+        # Log the configuration for validation
+        extra_params = {'max_workers': max_workers}
+        self._log_configuration(config, "ASYNC", extra_params)
 
         return self._consumer_instance
 
@@ -380,8 +410,9 @@ class AsyncConsumerStrategy(ConsumerStrategy):
         async def async_consume():
             # Initialize deserializers if using Schema Registry
             key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
-
-            consumer = self.create_consumer()
+            
+            config_overrides = getattr(self, 'config_overrides', None)
+            consumer = self.create_consumer(config_overrides)
 
             try:
                 # Async consume implementation
@@ -435,7 +466,8 @@ class AsyncConsumerStrategy(ConsumerStrategy):
             # Initialize deserializers if using Schema Registry
             key_deserializer, value_deserializer = await self.build_deserializers(serialization_type)
 
-            consumer = self.create_consumer()
+            config_overrides = getattr(self, 'config_overrides', None)
+            consumer = self.create_consumer(config_overrides)
 
             try:
                 # Async poll implementation

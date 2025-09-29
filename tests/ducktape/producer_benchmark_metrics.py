@@ -253,7 +253,7 @@ class MetricsBounds:
         config_path = os.getenv("BENCHMARK_BOUNDS_CONFIG")
         if config_path is None:
             # Default to config file in same directory as this module
-            config_path = os.path.join(os.path.dirname(__file__), "benchmark_bounds.json")
+            config_path = os.path.join(os.path.dirname(__file__), "producer_benchmark_bounds.json")
         self._load_from_config_file(config_path)
 
     def _load_from_config_file(self, config_path: str):
