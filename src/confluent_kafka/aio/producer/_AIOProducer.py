@@ -257,7 +257,8 @@ class AIOProducer:
         Messages produced before the call (i.e. inside the transaction boundary) will be aborted.
         Messages that are still in flight may be failed by librdkafka as they are considered
         outside the transaction boundary.
-        Refer to librdkafka documentation section "Transactional producer API" in `rdkafka.h` for more details.
+        Refer to librdkafka documentation section "Transactional producer API" for more details:
+        https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#transactional-producer
         """
 
         # Flush to ensure messages in the local batch_processor buffer are delivered to librdkafka

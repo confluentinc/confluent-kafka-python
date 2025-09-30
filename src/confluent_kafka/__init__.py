@@ -19,47 +19,61 @@
 from .deserializing_consumer import DeserializingConsumer
 from .serializing_producer import SerializingProducer
 from .error import KafkaException, KafkaError
-from ._model import (Node,  # noqa: F401
-                     ConsumerGroupTopicPartitions,
-                     ConsumerGroupState,
-                     ConsumerGroupType,
-                     TopicCollection,
-                     TopicPartitionInfo,
-                     IsolationLevel,
-                     ElectionType)
-
+from ._model import (
+    Node,  # noqa: F401
+    ConsumerGroupTopicPartitions,
+    ConsumerGroupState,
+    ConsumerGroupType,
+    TopicCollection,
+    TopicPartitionInfo,
+    IsolationLevel,
+)
 import os
-try:
-    import tomllib
-except ImportError:
-    # For Python 3.12 and earlier
-    import tomli as tomllib
+from .cimpl import (
+    Producer,
+    Consumer,
+    Message,
+    TopicPartition,
+    Uuid,
+    libversion,
+    version,
+    TIMESTAMP_NOT_AVAILABLE,
+    TIMESTAMP_CREATE_TIME,
+    TIMESTAMP_LOG_APPEND_TIME,
+    OFFSET_BEGINNING,
+    OFFSET_END,
+    OFFSET_STORED,
+    OFFSET_INVALID,
+)
 
-from .cimpl import (Producer,
-                    Consumer,
-                    Message,
-                    TopicPartition,
-                    Uuid,
-                    libversion,
-                    version,
-                    TIMESTAMP_NOT_AVAILABLE,
-                    TIMESTAMP_CREATE_TIME,
-                    TIMESTAMP_LOG_APPEND_TIME,
-                    OFFSET_BEGINNING,
-                    OFFSET_END,
-                    OFFSET_STORED,
-                    OFFSET_INVALID)
-
-__all__ = ['admin', 'Consumer',
-           'KafkaError', 'KafkaException',
-           'kafkatest', 'libversion', 'Message',
-           'OFFSET_BEGINNING', 'OFFSET_END', 'OFFSET_INVALID', 'OFFSET_STORED',
-           'Producer', 'DeserializingConsumer',
-           'SerializingProducer', 'TIMESTAMP_CREATE_TIME', 'TIMESTAMP_LOG_APPEND_TIME',
-           'TIMESTAMP_NOT_AVAILABLE', 'TopicPartition', 'Node',
-           'ConsumerGroupTopicPartitions', 'ConsumerGroupState',
-           'ConsumerGroupType', 'Uuid',
-           'IsolationLevel', 'TopicCollection', 'TopicPartitionInfo']
+__all__ = [
+    "admin",
+    "Consumer",
+    "KafkaError",
+    "KafkaException",
+    "kafkatest",
+    "libversion",
+    "Message",
+    "OFFSET_BEGINNING",
+    "OFFSET_END",
+    "OFFSET_INVALID",
+    "OFFSET_STORED",
+    "Producer",
+    "DeserializingConsumer",
+    "SerializingProducer",
+    "TIMESTAMP_CREATE_TIME",
+    "TIMESTAMP_LOG_APPEND_TIME",
+    "TIMESTAMP_NOT_AVAILABLE",
+    "TopicPartition",
+    "Node",
+    "ConsumerGroupTopicPartitions",
+    "ConsumerGroupState",
+    "ConsumerGroupType",
+    "Uuid",
+    "IsolationLevel",
+    "TopicCollection",
+    "TopicPartitionInfo",
+]
 
 
 __version__ = version()
@@ -80,42 +94,41 @@ class ThrottleEvent(object):
     :ivar float throttle_time: The amount of time (in seconds) the broker throttled (delayed) the request
     """
 
-    def __init__(self, broker_name,
-                 broker_id,
-                 throttle_time):
+    def __init__(self, broker_name, broker_id, throttle_time):
         self.broker_name = broker_name
         self.broker_id = broker_id
         self.throttle_time = throttle_time
 
     def __str__(self):
-        return "{}/{} throttled for {} ms".format(self.broker_name, self.broker_id,
-                                                  int(self.throttle_time * 1000))
+        return "{}/{} throttled for {} ms".format(
+            self.broker_name, self.broker_id, int(self.throttle_time * 1000)
+        )
 
 
 def _resolve_plugins(plugins):
-    """ Resolve embedded plugins from the wheel's library directory.
+    """Resolve embedded plugins from the wheel's library directory.
 
-        For internal module use only.
+    For internal module use only.
 
-        :param str plugins: The plugin.library.paths value
+    :param str plugins: The plugin.library.paths value
     """
     from sys import platform
 
     # Location of __init__.py and the embedded library directory
     basedir = os.path.dirname(__file__)
 
-    if platform in ('win32', 'cygwin'):
-        paths_sep = ';'
-        ext = '.dll'
+    if platform in ("win32", "cygwin"):
+        paths_sep = ";"
+        ext = ".dll"
         libdir = basedir
-    elif platform in ('linux', 'linux2'):
-        paths_sep = ':'
-        ext = '.so'
-        libdir = os.path.join(basedir, '.libs')
-    elif platform == 'darwin':
-        paths_sep = ':'
-        ext = '.dylib'
-        libdir = os.path.join(basedir, '.dylibs')
+    elif platform in ("linux", "linux2"):
+        paths_sep = ":"
+        ext = ".so"
+        libdir = os.path.join(basedir, ".libs")
+    elif platform == "darwin":
+        paths_sep = ":"
+        ext = ".dylib"
+        libdir = os.path.join(basedir, ".dylibs")
     else:
         # Unknown platform, there are probably no embedded plugins.
         return plugins
@@ -126,7 +139,7 @@ def _resolve_plugins(plugins):
 
     resolved = []
     for plugin in plugins.split(paths_sep):
-        if '/' in plugin or '\\' in plugin:
+        if "/" in plugin or "\\" in plugin:
             # Path specified, leave unchanged
             resolved.append(plugin)
             continue

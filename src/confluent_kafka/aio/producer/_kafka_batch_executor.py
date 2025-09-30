@@ -69,7 +69,7 @@ class ProducerBatchExecutor:
             # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
             messages_list = list(batch_messages) if isinstance(batch_messages, tuple) else batch_messages
-            
+
             # Use the provided partition for the entire batch
             # This enables proper partition control while working around librdkafka limitations
             self._producer.produce_batch(topic, messages_list, partition=partition)

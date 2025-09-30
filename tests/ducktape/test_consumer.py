@@ -510,8 +510,8 @@ class SimpleConsumerTest(Test):
         strategy.metrics = metrics
 
         self.logger.info(
-            f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type},
-            for {test_duration} seconds"
+            f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, "
+            f"for {test_duration} seconds"
         )
 
         # Start metrics collection
