@@ -99,7 +99,6 @@ def _resolve_plugins(plugins):
 
         :param str plugins: The plugin.library.paths value
     """
-    import os
     from sys import platform
 
     # Location of __init__.py and the embedded library directory
