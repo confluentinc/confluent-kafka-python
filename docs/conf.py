@@ -20,6 +20,7 @@ except ImportError:
     # For Python 3.12 and earlier
     import tomli as tomllib
 
+
 def _read_version_from_pyproject(pyproject_path=None):
     """Reads the project version from pyproject.toml using tomllib."""
 
@@ -28,10 +29,10 @@ def _read_version_from_pyproject(pyproject_path=None):
 
     if not os.path.isfile(pyproject_path):
         return None
-    
+
     with open(pyproject_path, "rb") as f:
         data = tomllib.load(f)
-    
+
     # Check for 'project.version' first (PEP 621)
     if "project" in data and "version" in data["project"]:
         return data["project"]["version"]
