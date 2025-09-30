@@ -1209,6 +1209,129 @@ def test_json_encryption_with_union():
     assert obj == obj2
 
 
+def test_json_encryption_with_union_of_refs():
+    executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
+
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    rule_conf = {'secret': 'mysecret'}
+    schema = {
+        "type": "object",
+        "properties": {
+            "messageType": {
+                "type": "string"
+            },
+            "version": {
+                "type": "string"
+            },
+            "payload": {
+                "type": "object",
+                "oneOf": [
+                    {
+                        "$ref": "#/$defs/authentication_request"
+                    },
+                    {
+                        "$ref": "#/$defs/authentication_status"
+                    }
+                ]
+            }
+        },
+        "required": [
+            "payload",
+            "messageType",
+            "version"
+        ],
+        "$defs": {
+            "authentication_request": {
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "confluent:tags": ["PII"]
+                    },
+                    "timestamp": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "requestId": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "messageId",
+                    "timestamp"
+                ]
+            },
+            "authentication_status": {
+                "properties": {
+                    "messageId": {
+                        "type": "string",
+                        "confluent:tags": ["PII"]
+                    },
+                    "authType": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "messageId",
+                    "authType"
+                ]
+            }
+        }
+    }
+
+    rule = Rule(
+        "test-encrypt",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "ENCRYPT",
+        ["PII"],
+        RuleParams({
+            "encrypt.kek.name": "kek1",
+            "encrypt.kms.type": "local-kms",
+            "encrypt.kms.key.id": "mykey"
+        }),
+        None,
+        None,
+        "ERROR,NONE",
+        False
+    )
+    client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "JSON",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        "messageType": "authentication_request",
+        "version": "1.0",
+        "payload": {
+            "messageId": "12345",
+            "timestamp": 1757410647
+        }
+    }
+
+    ser = JSONSerializer(json.dumps(schema), client, conf=ser_conf, rule_conf=rule_conf)
+    dek_client = executor.executor.client
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+
+    # reset encrypted fields
+    assert obj['payload']['messageId'] != '12345'
+    obj['payload']['messageId'] = '12345'
+
+    deser = JSONDeserializer(None, schema_registry_client=client, rule_conf=rule_conf)
+    executor.executor.client = dek_client
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_json_encryption_with_references():
     executor = FieldEncryptionExecutor.register_with_clock(FakeClock())
 
