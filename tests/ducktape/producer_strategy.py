@@ -6,6 +6,7 @@ implementations (sync vs async) with consistent interfaces for testing.
 """
 import time
 import asyncio
+import uuid
 from confluent_kafka import Producer
 import json
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -181,14 +182,27 @@ class SyncProducerStrategy(ProducerStrategy):
 
         return producer
 
+    def create_transactional_producer(self):
+        overrides = {
+            'transactional.id': f'sync-tx-producer-{uuid.uuid4()}',
+            'acks': 'all',
+            'enable.idempotence': True
+        }
+        return self.create_producer(config_overrides=overrides)
+
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
-                         delivered_container, failed_container=None, serialization_type=None):
+                         delivered_container, failed_container=None, serialization_type=None,
+                         use_transaction=False):
         config_overrides = getattr(self, 'config_overrides', None)
-        producer = self.create_producer(config_overrides)
-        messages_sent = 0
-        send_times = {}  # Track send times for latency calculation
+        if use_transaction:
+            producer = self.create_transactional_producer()
+            producer.init_transactions()
+        else:
+            producer = self.create_producer(config_overrides)
 
         # Temporary metrics for timing sections
+        messages_sent = 0
+        send_times = {}  # Track send times for latency calculation
         produce_times = []
         poll_times = []
         flush_time = 0
@@ -220,6 +234,10 @@ class SyncProducerStrategy(ProducerStrategy):
         while time.time() - start_time < test_duration:
             message_value, message_key = message_formatter(messages_sent)
             try:
+                # Begin transaction if using transactions
+                if use_transaction:
+                    producer.begin_transaction()
+
                 if serialization_type:
                     # Serialize key and value using Schema Registry serializers
                     serialized_key = key_serializer(message_key)
@@ -251,6 +269,10 @@ class SyncProducerStrategy(ProducerStrategy):
                         key=message_key,
                         on_delivery=delivery_callback
                     )
+                # Commit transaction if using transactions
+                if use_transaction:
+                    producer.commit_transaction()
+
                 produce_times.append(time.time() - produce_start)
                 messages_sent += 1
 
@@ -396,25 +418,34 @@ class AsyncProducerStrategy(ProducerStrategy):
 
         return self._producer_instance
 
+    def create_transactional_producer(self):
+        overrides = {
+            'transactional.id': f'async-tx-producer-{uuid.uuid4()}',
+            'acks': 'all',
+            'enable.idempotence': True
+        }
+        return self.create_producer(config_overrides=overrides)
+
     def produce_messages(self, topic_name, test_duration, start_time, message_formatter,
-                         delivered_container, failed_container=None, serialization_type=None):
+                         delivered_container, failed_container=None, serialization_type=None,
+                         use_transaction=False):
 
         async def async_produce():
             config_overrides = getattr(self, 'config_overrides', None)
 
-            producer = self.create_producer(config_overrides)
-            messages_sent = 0
+            if use_transaction:
+                producer = self.create_transactional_producer()
+                await producer.init_transactions()
+            else:
+                producer = self.create_producer(config_overrides)
 
             # Temporary metrics for timing sections
+            messages_sent = 0
             produce_times = []
             poll_times = []  # Async producer doesn't use polling, but needed for metrics
             flush_time = 0
             pending_futures = []
             send_times = {}
-
-            # Get serializers if using Schema Registry
-            if serialization_type:
-                key_serializer, value_serializer = await self.build_serializers(serialization_type)
 
             # Get serializers if using Schema Registry
             if serialization_type:
@@ -437,6 +468,10 @@ class AsyncProducerStrategy(ProducerStrategy):
             while time.time() - start_time < test_duration:
                 message_value, message_key = message_formatter(messages_sent)
                 try:
+                    # Begin transaction if using transactions
+                    if use_transaction:
+                        await producer.begin_transaction()
+
                     # Handle serialization if using Schema Registry
                     if serialization_type:
                         serialized_key = key_serializer(message_key)
@@ -466,6 +501,11 @@ class AsyncProducerStrategy(ProducerStrategy):
                         key=produce_key,
                         on_delivery=shared_metrics_callback
                     )
+
+                    # Commit transaction if using transactions
+                    if use_transaction:
+                        await producer.commit_transaction()
+
                     produce_times.append(time.time() - produce_start)
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1

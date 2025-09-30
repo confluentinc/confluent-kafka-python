@@ -5,10 +5,9 @@ import uuid
 import asyncio
 from ducktape.tests.test import Test
 
-from confluent_kafka.aio._AIOProducer import AIOProducer
 from tests.ducktape.consumer_strategy import AsyncConsumerStrategy, SyncConsumerStrategy
+from tests.ducktape.producer_strategy import SyncProducerStrategy, AsyncProducerStrategy
 from tests.ducktape.services.kafka import KafkaClient
-from confluent_kafka import Producer
 
 
 class TransactionsTest(Test):
@@ -27,30 +26,20 @@ class TransactionsTest(Test):
         return topic
 
     def _create_transactional_producer(self, producer_type):
-        """Create transactional producer based on type"""
-        # TODO: use producer_strategy to simplify code once it's merged
+        """Create transactional producer based on type using producer_strategy"""
+        # Overrides for transactional producers
+        overrides = {
+            'transactional.id': f'{producer_type}-tx-producer-{uuid.uuid4()}',
+            'acks': 'all',
+            'enable.idempotence': True
+        }
+
         if producer_type == "sync":
-            config = {
-                'bootstrap.servers': self.kafka.bootstrap_servers(),
-                'batch.size': 65536,
-                'linger.ms': 1,
-                'compression.type': 'lz4',
-                'transactional.id': f'sync-tx-producer-{uuid.uuid4()}',
-                'acks': 'all',
-                'enable.idempotence': True
-            }
-            return Producer(config)
+            strategy = SyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+            return strategy.create_producer(config_overrides=overrides)
         else:  # async
-            config = {
-                'bootstrap.servers': self.kafka.bootstrap_servers(),
-                'batch.size': 65536,
-                'linger.ms': 1,
-                'compression.type': 'lz4',
-                'transactional.id': f'async-tx-producer-{uuid.uuid4()}',
-                'acks': 'all',
-                'enable.idempotence': True,
-            }
-            return AIOProducer(config, max_workers=10)
+            strategy = AsyncProducerStrategy(self.kafka.bootstrap_servers(), self.logger)
+            return strategy.create_producer(config_overrides=overrides)
 
     def _create_transactional_consumer(self, consumer_type, group_id=None):
         """Create read_committed consumer based on type using strategy pattern"""
@@ -72,13 +61,17 @@ class TransactionsTest(Test):
             return strategy.create_consumer(config_overrides=overrides)
 
     async def _transactional_produce(self, producer, topic: str, values: list[str], partition: int | None = None):
-        """Produce values within an active transaction, polling to drive delivery."""
-        for v in values:
+        """Produce values within an active transaction using async producer."""
+        for i, v in enumerate(values):
             kwargs = {'topic': topic, 'value': v}
             if partition is not None:
                 kwargs['partition'] = partition
-            await producer.produce(**kwargs)
-            await producer.poll(0.0)
+
+            try:
+                await producer.produce(**kwargs)
+            except Exception as e:
+                print(f"ERROR: Failed to queue async message {i}: {e}")
+                raise
 
     async def _seed_topic(self, topic: str, values: list[str]):
         """Seed a topic using transactional producer."""
@@ -99,21 +92,27 @@ class TransactionsTest(Test):
             topic = self._new_topic()
             producer = self._create_transactional_producer("async")
             consumer = self._create_transactional_consumer("async")
+
             try:
                 await producer.init_transactions()
                 await producer.begin_transaction()
                 await self._transactional_produce(producer, topic, [f'c{i}' for i in range(5)])
                 await producer.commit_transaction()
-
                 await consumer.subscribe([topic])
+
                 seen = []
-                for _ in range(20):
+                for i in range(20):
                     msg = await consumer.poll(timeout=1.0)
-                    if not msg or msg.error():
+                    if not msg:
                         continue
-                    seen.append(msg.value().decode('utf-8'))
+                    if msg.error():
+                        continue
+
+                    value = msg.value().decode('utf-8')
+                    seen.append(value)
                     if len(seen) >= 5:
                         break
+
                 assert len(seen) == 5, f"expected 5 committed messages, got {len(seen)}"
             finally:
                 await consumer.close()
@@ -125,6 +124,7 @@ class TransactionsTest(Test):
             topic = self._new_topic()
             producer = self._create_transactional_producer("async")
             consumer = self._create_transactional_consumer("async")
+
             try:
                 await producer.init_transactions()
 
