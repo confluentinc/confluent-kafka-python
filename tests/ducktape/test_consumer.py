@@ -77,7 +77,7 @@ class SimpleConsumerTest(Test):
         # Create producer configuration
         producer_config = {
             "bootstrap.servers": self.kafka.bootstrap_servers(),
-            "client.id": f"ducktape-test-producer",
+            "client.id": "ducktape-test-producer",
         }
         producer = Producer(producer_config)
 
@@ -226,7 +226,8 @@ class SimpleConsumerTest(Test):
     )
     def test_basic_poll_with_schema_registry(self, consumer_type, serialization_type):
         """
-        Test single message polling with Schema Registry deserialization with comprehensive metrics and bounds validation.
+        Test single message polling with Schema Registry deserialization with comprehensive metrics
+        and bounds validation.
 
         Note: in this test, we are consuming messages with the same schema,
         a realistic high-throughput scenario.
@@ -459,10 +460,6 @@ class SimpleConsumerTest(Test):
 
         asyncio.run(async_callback_test())
 
-    def teardown(self):
-        """Clean up test environment"""
-        self.logger.info("Test completed - external Kafka service remains running")
-
     # =========== Private Helper Methods ===========
 
     def _run_consumer_performance_benchmark(
@@ -513,7 +510,8 @@ class SimpleConsumerTest(Test):
         strategy.metrics = metrics
 
         self.logger.info(
-            f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, for {test_duration} seconds"
+            f"Testing {consumer_type} consumer {operation_type}, with serialization type {serialization_type}, "
+            f"for {test_duration} seconds"
         )
 
         # Start metrics collection
@@ -631,7 +629,6 @@ class SimpleConsumerTest(Test):
         sr_client = SchemaRegistryClient(
             {
                 "url": "http://localhost:8081",
-                "basic.auth.user.info": "ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw",
             }
         )
 

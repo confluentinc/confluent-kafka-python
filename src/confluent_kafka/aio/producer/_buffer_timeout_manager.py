@@ -124,10 +124,10 @@ class BufferTimeoutManager:
 
         This method handles the complete timeout flush workflow:
         1. Create batches from the batch processor
-        2. Execute batches from the batch processor 
+        2. Execute batches from the batch processor
         """
         # Create batches from current buffer
         batches = self._batch_processor.create_batches()
-        
+
         # Execute batches with cleanup using the common function
         await self._batch_processor._execute_batches(batches)

@@ -229,6 +229,10 @@ class AIOProducer:
 
     async def begin_transaction(self, *args, **kwargs):
         """Network call to begin transaction"""
+
+        # Flush messages to set a clean state before entering a transaction
+        await self.flush()
+
         return await self._call(self._producer.begin_transaction,
                                 *args, **kwargs)
 
@@ -240,7 +244,7 @@ class AIOProducer:
     async def commit_transaction(self, *args, **kwargs):
         """Commit transaction after flushing all buffered messages"""
 
-        # First, flush all messages (both local buffer and librdkafka queue)
+        # Flush to ensure messages in the local batch_processor buffer are delivered to librdkafka
         await self.flush()
 
         # Then commit transaction
@@ -248,10 +252,17 @@ class AIOProducer:
                                 *args, **kwargs)
 
     async def abort_transaction(self, *args, **kwargs):
-        """Network call to abort transaction"""
+        """Network call to abort transaction
 
-        # Clear mesasges pending in the local buffer
-        await self.purge()
+        Messages produced before the call (i.e. inside the transaction boundary) will be aborted.
+        Messages that are still in flight may be failed by librdkafka as they are considered
+        outside the transaction boundary.
+        Refer to librdkafka documentation section "Transactional producer API" for more details:
+        https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#transactional-producer
+        """
+
+        # Flush to ensure messages in the local batch_processor buffer are delivered to librdkafka
+        await self.flush()
 
         return await self._call(self._producer.abort_transaction,
                                 *args, **kwargs)

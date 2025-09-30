@@ -118,6 +118,41 @@ class TransactionsTest(Test):
                 await consumer.close()
         asyncio.run(run())
 
+    def test_produce_after_abort_transaction(self):
+        """Test that produce() calls after abort_transaction() fail with STATE error.
+
+        Transactional producers can only produce within transaction boundaries.
+        After abort_transaction(), there is no active transaction, so produce() must fail.
+        """
+        async def run():
+            topic = self._new_topic()
+            producer = self._create_transactional_producer("async")
+
+            try:
+                await producer.init_transactions()
+                await producer.begin_transaction()
+
+                # Produce some messages within the transaction
+                await self._transactional_produce(producer, topic, ['msg1', 'msg2'])
+
+                # Abort the transaction
+                await producer.abort_transaction()
+
+                # Now try to produce without starting a new transaction
+                # This will fail with STATE error because transactional producers require active transactions
+                try:
+                    future = await producer.produce(topic, value="should-fail")
+                    await future  # This should raise KafkaError{code=_STATE}
+                    assert False, "Expected produce() after abort to fail, but it succeeded"
+                except Exception as e:
+                    print("Expected error after abort: {e}")
+                    assert "Local: Erroneous state" in str(e), f"Expected STATE error, got: {e}"
+
+            finally:
+                pass  # No consumer needed for this test
+
+        asyncio.run(run())
+
     def test_abort_transaction_then_retry_commit(self):
         """Aborted messages must be invisible, and retrying with new transaction must only commit visible results."""
         async def run():
