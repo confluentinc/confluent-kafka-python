@@ -89,18 +89,18 @@ class ProducerBatchManager:
         for (topic, partition), group_data in topic_partition_groups.items():
             if target_topic is None or topic == target_topic:
                 # Prepare batch messages
-                batch_messages = self._prepare_batch_messages(group_data['messages'])
+                batch_messages = self._prepare_batch_messages(group_data["messages"])
 
                 # Assign simple future-resolving callbacks to messages
-                self._assign_future_callbacks(batch_messages, group_data['futures'])
+                self._assign_future_callbacks(batch_messages, group_data["futures"])
 
                 # Create immutable MessageBatch object with partition info
                 batch = create_message_batch(
                     topic=topic,
                     messages=batch_messages,
-                    futures=group_data['futures'],
+                    futures=group_data["futures"],
                     callbacks=None,  # No user callbacks anymore
-                    partition=partition  # Add partition info to batch
+                    partition=partition,  # Add partition info to batch
                 )
                 batches.append(batch)
 
@@ -116,13 +116,12 @@ class ProducerBatchManager:
         futures_to_keep = []
 
         for i, msg_data in enumerate(self._message_buffer):
-            if msg_data['topic'] != target_topic:
+            if msg_data["topic"] != target_topic:
                 messages_to_keep.append(msg_data)
                 futures_to_keep.append(self._buffer_futures[i])
 
         self._message_buffer = messages_to_keep
         self._buffer_futures = futures_to_keep
-
 
     async def flush_buffer(self, target_topic=None):
         """Flush the current message buffer using produce_batch
@@ -138,20 +137,20 @@ class ProducerBatchManager:
 
         # Create batches for processing
         batches = self.create_batches(target_topic)
-        
+
         # Execute batches with cleanup
         await self._execute_batches(batches, target_topic)
 
     async def _execute_batches(self, batches, target_topic=None):
         """Execute batches and handle cleanup after successful execution
-        
+
         Args:
             batches: List of batches to execute
             target_topic: Optional topic for selective buffer clearing
-            
+
         Returns:
             None
-            
+
         Raises:
             Exception: If any batch execution fails
         """
@@ -159,8 +158,10 @@ class ProducerBatchManager:
         for batch in batches:
             try:
                 # Execute batch using the Kafka executor
-                await self._kafka_executor.execute_batch(batch.topic, batch.messages, batch.partition)
-                
+                await self._kafka_executor.execute_batch(
+                    batch.topic, batch.messages, batch.partition
+                )
+
             except Exception as e:
                 # Handle batch failure by failing all unresolved futures for this batch
                 self._handle_batch_failure(e, batch.futures)
@@ -201,24 +202,24 @@ class ProducerBatchManager:
 
         # Iterate through buffer once - O(n) complexity
         for i, msg_data in enumerate(self._message_buffer):
-            topic = msg_data['topic']
+            topic = msg_data["topic"]
             # Get partition from message data, default to RD_KAFKA_PARTITION_UA (-1) if not specified
-            partition = msg_data.get('partition', -1)  # -1 = RD_KAFKA_PARTITION_UA
-            
+            partition = msg_data.get("partition", -1)  # -1 = RD_KAFKA_PARTITION_UA
+
             # Create composite key for grouping
             group_key = (topic, partition)
 
             # Create new topic+partition group if this is first message for this combination
             if group_key not in topic_partition_groups:
                 topic_partition_groups[group_key] = {
-                    'messages': [],    # Message data for produce_batch
-                    'futures': [],     # Futures to resolve on delivery
+                    "messages": [],  # Message data for produce_batch
+                    "futures": [],  # Futures to resolve on delivery
                 }
 
             # Add message and related data to appropriate topic+partition group
             # Note: All arrays stay synchronized by index
-            topic_partition_groups[group_key]['messages'].append(msg_data)
-            topic_partition_groups[group_key]['futures'].append(self._buffer_futures[i])
+            topic_partition_groups[group_key]["messages"].append(msg_data)
+            topic_partition_groups[group_key]["futures"].append(self._buffer_futures[i])
 
         return topic_partition_groups
 
@@ -235,7 +236,7 @@ class ProducerBatchManager:
         for msg_data in messages:
             # Create a shallow copy and remove fields not needed by produce_batch
             batch_msg = copy.copy(msg_data)
-            batch_msg.pop('topic', None)  # Remove topic since it's passed separately
+            batch_msg.pop("topic", None)  # Remove topic since it's passed separately
             # Note: We keep 'partition' in individual messages for reference,
             # but the batch partition will be used by produce_batch
             batch_messages.append(batch_msg)
@@ -254,6 +255,7 @@ class ProducerBatchManager:
 
             def create_simple_callback(fut):
                 """Create a simple callback that only resolves the future"""
+
                 def simple_callback(err, msg):
                     if err:
                         if not fut.done():
@@ -261,10 +263,11 @@ class ProducerBatchManager:
                     else:
                         if not fut.done():
                             fut.set_result(msg)
+
                 return simple_callback
 
             # Assign the simple callback to this message
-            batch_msg['callback'] = create_simple_callback(future)
+            batch_msg["callback"] = create_simple_callback(future)
 
     def _handle_batch_failure(self, exception, batch_futures):
         """Handle batch operation failure by failing all unresolved futures
