@@ -255,7 +255,8 @@ class AIOProducer:
         """Network call to abort transaction
 
         Messages produced before the call (i.e. inside the transaction boundary) will be aborted.
-        Messages that are still in flight may be failed by librdkafka as they are considered outside the transaction boundary.
+        Messages that are still in flight may be failed by librdkafka as they are considered
+        outside the transaction boundary.
         Refer to librdkafka documentation section "Transactional producer API" in `rdkafka.h` for more details.
         """
 
