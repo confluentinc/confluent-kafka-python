@@ -49,7 +49,7 @@ class TestKafkaBatchExecutor(unittest.TestCase):
 
             result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
 
-            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages)
+            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages, partition=-1)
             self.mock_producer.poll.assert_called_once_with(0)
             self.assertEqual(result, 2)
 
@@ -69,7 +69,7 @@ class TestKafkaBatchExecutor(unittest.TestCase):
 
             result = await self.kafka_executor.execute_batch('test-topic', batch_messages)
 
-            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages)
+            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages, partition=-1)
             self.mock_producer.poll.assert_called_once_with(0)
 
             callback1.assert_not_called()
@@ -89,7 +89,7 @@ class TestKafkaBatchExecutor(unittest.TestCase):
                 await self.kafka_executor.execute_batch('test-topic', batch_messages)
 
             self.assertEqual(str(context.exception), "Kafka error")
-            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages)
+            self.mock_producer.produce_batch.assert_called_once_with('test-topic', batch_messages, partition=-1)
 
         self.loop.run_until_complete(async_test())
 
