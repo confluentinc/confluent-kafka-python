@@ -22,7 +22,6 @@ This document provides information useful to developers working on confluent-kaf
    ```
 
 2. **Create Virtual Environment**
-
    ```bash
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
