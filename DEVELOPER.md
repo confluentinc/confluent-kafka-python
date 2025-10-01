@@ -35,6 +35,12 @@ If librdkafka is installed in a non-standard location provide the include and li
 C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 ```
 
+On MacOS, If you installed librdkafka with brew, you can use the following
+```bash
+export C_INCLUDE_PATH=$(brew --prefix librdkafka)/include
+export LIBRARY_PATH=$(brew --prefix librdkafka)/lib
+```
+
 4. **Install confluent-kafka-python with optional dependencies**
    ```bash
    pip3 install -e .[dev,tests,docs]
@@ -85,6 +91,26 @@ python3 tools/unasync.py --check
 ```
 
 If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counter parts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the --check flag and fail the build.
+
+
+## Local Setup with UV
+
+Tested with python 3.11
+
+```bash
+# Modify pyproject.toml to require python version >=3.11
+# This fixes the cel-python dependency conflict
+uv venv --python 3.11
+source .venv/bin/activate
+
+uv sync --extra dev --extra tests
+uv pip install trivup setuptools
+pytest tests/
+
+# When making changes, change project.version in pyproject.toml before re-running:
+uv sync --extra dev --extra tests
+
+```
 
 
 ## Tests
