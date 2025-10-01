@@ -326,7 +326,6 @@ class AsyncProducerStrategy(ProducerStrategy):
         )
         client_config = {
             'url': schema_registry_url,
-            'basic.auth.user.info': 'ASUHV2PEDSTIW3LF:cfltSQ9mRLOItofBcTEzk6Ml/86VAqb9gjy2YYoeRDZZgML/LZ/ift9QBOyuyAyw'
         }
         sr_client = AsyncSchemaRegistryClient(client_config)
         key_serializer = StringSerializer('utf8')
