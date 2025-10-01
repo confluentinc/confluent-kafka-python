@@ -7,7 +7,7 @@ import time
 from struct import pack
 
 from confluent_kafka import Producer, KafkaError, KafkaException, \
-    TopicPartition, libversion
+    TopicPartition
 
 from tests.common import TestConsumer
 
@@ -61,22 +61,10 @@ def test_produce_timestamp():
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
                   'message.timeout.ms': 10})
-
-    # Requires librdkafka >=v0.9.4
-
-    try:
-        p.produce('mytopic', timestamp=1234567)
-    except NotImplementedError:
-        # Should only fail on non-supporting librdkafka
-        if libversion()[1] >= 0x00090400:
-            raise
-
+    p.produce('mytopic', timestamp=1234567)
     p.flush()
 
 
-# Should be updated to 0.11.4 when it is released
-@pytest.mark.skipif(libversion()[1] < 0x000b0400,
-                    reason="requires librdkafka >=0.11.4")
 def test_produce_headers():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
@@ -120,9 +108,6 @@ def test_produce_headers():
     p.flush()
 
 
-# Should be updated to 0.11.4 when it is released
-@pytest.mark.skipif(libversion()[1] >= 0x000b0400,
-                    reason="Old versions should fail when using headers")
 def test_produce_headers_should_fail():
     """ Test produce() with timestamp arg """
     p = Producer({'socket.timeout.ms': 10,
