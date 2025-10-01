@@ -324,3 +324,38 @@ def test_consumer_without_groupid():
     with pytest.raises(ValueError) as ex:
         TestConsumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')
+
+
+def test_callback_exception_no_system_error():
+
+    exception_raised = []
+
+    def error_cb_that_raises(error):
+        """Error callback that raises an exception"""
+        exception_raised.append(error)
+        raise RuntimeError("Test exception from error_cb")
+
+    # Create consumer with error callback that raises exception
+    consumer = TestConsumer({
+        'group.id': 'test-callback-systemerror-fix',
+        'bootstrap.servers': 'nonexistent-broker:9092',  # Will trigger error
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_that_raises
+    })
+
+    consumer.subscribe(['test-topic'])
+
+    # This should trigger the error callback due to connection failure
+    # Before fix: Would get RuntimeError + SystemError (Issue #865)
+    # After fix: Should only get RuntimeError (no SystemError)
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer.consume(timeout=0.1)
+
+    # Verify we got the expected exception message
+    assert "Test exception from error_cb" in str(exc_info.value)
+
+    # Verify the error callback was actually called
+    assert len(exception_raised) > 0
+
+    consumer.close()
