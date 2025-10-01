@@ -6,10 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec
+    UserScramCredentialUpsertion, OffsetSpec, _ElectionType as ElectionType
 from confluent_kafka import KafkaException, KafkaError, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel, TopicCollection, ElectionType
+    IsolationLevel, TopicCollection
 import concurrent.futures
 
 
