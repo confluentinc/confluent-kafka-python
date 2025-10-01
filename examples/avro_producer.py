@@ -111,6 +111,9 @@ def main(args):
         schema_str = f.read()
 
     schema_registry_conf = {'url': args.schema_registry}
+    # If Confluent Cloud SR credentials are provided, add to config
+    if args.sr_api_key and args.sr_api_secret:
+        schema_registry_conf['basic.auth.user.info'] = f"{args.sr_api_key}:{args.sr_api_secret}"
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
     avro_serializer = AvroSerializer(schema_registry_client,
@@ -156,9 +159,12 @@ if __name__ == '__main__':
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
                         help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('--sr-api-key', dest="sr_api_key", default=None,
+                        help="Confluent Cloud Schema Registry API key (optional)")
+    parser.add_argument('--sr-api-secret', dest="sr_api_secret", default=None,
+                        help="Confluent Cloud Schema Registry API secret (optional)")
     parser.add_argument('-t', dest="topic", default="example_serde_avro",
                         help="Topic name")
     parser.add_argument('-p', dest="specific", default="true",
                         help="Avro specific record")
-
     main(parser.parse_args())
