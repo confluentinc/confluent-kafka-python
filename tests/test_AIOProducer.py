@@ -139,7 +139,7 @@ class TestAIOProducer:
         batch_called = asyncio.Event()
         captured_messages = None
 
-        def mock_produce_batch(topic, messages):
+        def mock_produce_batch(topic, messages, partition=None):
             nonlocal captured_messages
             captured_messages = messages
             batch_called.set()
@@ -209,10 +209,10 @@ class TestAIOProducer:
         """Test multiple concurrent produce operations with batching."""
         producer = AIOProducer(basic_config, max_workers=3, batch_size=1)  # Force immediate flush
 
-        completed_produces = []
+        completed_produces = set()
         batch_call_count = 0
 
-        def mock_produce_batch(topic, messages):
+        def mock_produce_batch(topic, messages, partition=None):
             nonlocal batch_call_count
             batch_call_count += 1
 
@@ -224,7 +224,7 @@ class TestAIOProducer:
                     msg_data['value'].encode() if isinstance(
                         msg_data['value'], str) else msg_data['value'])
 
-                completed_produces.append((topic, msg_data['value']))
+                completed_produces.add((topic, msg_data['value']))
                 # Call the individual message callback
                 if 'callback' in msg_data:
                     msg_data['callback'](None, mock_msg)
@@ -397,7 +397,7 @@ class TestAIOProducer:
         producer = AIOProducer(basic_config)
 
         # Test empty buffer
-        groups = producer._batch_processor._group_messages_by_topic()
+        groups = producer._batch_processor._group_messages_by_topic_and_partition()
         assert groups == {}
 
         # Add mixed topic messages
@@ -408,13 +408,13 @@ class TestAIOProducer:
         ]
         producer._batch_processor._buffer_futures = [Mock(), Mock(), Mock()]
 
-        groups = producer._batch_processor._group_messages_by_topic()
+        groups = producer._batch_processor._group_messages_by_topic_and_partition()
 
         # Test grouping correctness
         assert len(groups) == 2
-        assert 'topic1' in groups and 'topic2' in groups
-        assert len(groups['topic1']['messages']) == 2  # msg1, msg3
-        assert len(groups['topic2']['messages']) == 1  # msg2
+        assert ('topic1', -1) in groups and ('topic2', -1) in groups
+        assert len(groups[('topic1', -1)]['messages']) == 2  # msg1, msg3
+        assert len(groups[('topic2', -1)]['messages']) == 1  # msg2
 
         await producer.close()
 
