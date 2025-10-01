@@ -202,16 +202,22 @@ authentication is used).
 
 The client will use CA certificates to verify the broker's certificate.
 The embedded OpenSSL library will look for CA certificates in `/usr/lib/ssl/certs/`
-or `/usr/lib/ssl/cacert.pem`. CA certificates are typically provided by the
-Linux distribution's `ca-certificates` package which needs to be installed
-through `apt`, `yum`, et.al.
+or `/usr/lib/ssl/cacert.pem`.
+
+On Linux, CA certificates are typically provided by the distribution's `ca-certificates`
+package which needs to be installed through `apt`, `yum`, et.al.
+
+On MacOS, different versions can store CA certificates in different locations.
+On MacOS Mojave and later, for instance, this is usually ` '/private/etc/ssl/cert.pem'`.
 
 If your system stores CA certificates in another location you will need to
 configure the client with `'ssl.ca.location': '/path/to/cacert.pem'`.
 
-Alternatively, the CA certificates can be provided by the [certifi](https://pypi.org/project/certifi/)
-Python package. To use certifi, add an `import certifi` line and configure the
-client's CA location with `'ssl.ca.location': certifi.where()`.
+A more generic and fool-proof way to ensure SSL works is to install the 
+[certifi](https://pypi.org/project/certifi/) Python package, which provides its own 
+bundled CA certificates, much like how Java works. To use certifi, install it, and then
+add an `import certifi` line and configure the client's CA location with 
+`'ssl.ca.location': certifi.where()`.
 
 
 ## License
