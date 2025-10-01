@@ -24,7 +24,7 @@ def test_version():
     assert len(sver) > 0
     assert iver > 0
 
-    assert confluent_kafka.version()[0] == confluent_kafka.__version__
+    assert confluent_kafka.version() == confluent_kafka.__version__
 
 
 def test_error_cb():

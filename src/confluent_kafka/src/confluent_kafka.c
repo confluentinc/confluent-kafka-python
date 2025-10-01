@@ -2935,31 +2935,29 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
 
 
 static PyObject *libversion (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si",
-			     rd_kafka_version_str(),
-			     rd_kafka_version());
+	return Py_BuildValue("s", rd_kafka_version_str());
 }
 
 /**
  * @brief confluent-kafka-python version.
  */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", CFL_VERSION_STR, CFL_VERSION);
+	return Py_BuildValue("s", CFL_VERSION_STR);
 }
 
 static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
 	 "\n"
-	 "  :returns: (version_string, version_int) tuple\n"
-	 "  :rtype: tuple(str,int)\n"
+	 "  :returns: version_string\n"
+	 "  :rtype: str\n"
 	 "\n"
 	},
 	{"version", version, METH_NOARGS,
 	 "  Retrieve module version string and integer\n"
 	 "\n"
-	 "  :returns: (version_string, version_int) tuple\n"
-	 "  :rtype: tuple(str,int)\n"
+	 "  :returns: version_string\n"
+	 "  :rtype: str\n"
 	 "\n"
 	},
 	{ NULL }
