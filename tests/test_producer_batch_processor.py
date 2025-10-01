@@ -100,19 +100,19 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.batch_processor.add_message(msg2, future2)
         self.batch_processor.add_message(msg3, future3)
 
-        topic_groups = self.batch_processor._group_messages_by_topic()
+        topic_groups = self.batch_processor._group_messages_by_topic_and_partition()
 
         self.assertEqual(len(topic_groups), 2)
 
-        self.assertIn('topic1', topic_groups)
-        topic1_group = topic_groups['topic1']
+        self.assertIn(('topic1', -1), topic_groups)
+        topic1_group = topic_groups[('topic1', -1)]
         self.assertEqual(len(topic1_group['messages']), 2)
         self.assertEqual(len(topic1_group['futures']), 2)
         self.assertEqual(topic1_group['futures'][0], future1)
         self.assertEqual(topic1_group['futures'][1], future3)
 
-        self.assertIn('topic2', topic_groups)
-        topic2_group = topic_groups['topic2']
+        self.assertIn(('topic2', -1), topic_groups)
+        topic2_group = topic_groups[('topic2', -1)]
         self.assertEqual(len(topic2_group['messages']), 1)
         self.assertEqual(len(topic2_group['futures']), 1)
         self.assertEqual(topic2_group['futures'][0], future2)
@@ -231,7 +231,9 @@ class TestProducerBatchProcessor(unittest.TestCase):
                 with self.assertRaises(RuntimeError):
                     await self.batch_processor.flush_buffer()
 
-            self.assertTrue(self.batch_processor.is_buffer_empty())
+            # Buffer should NOT be empty on exception - we want to retry
+            self.assertFalse(self.batch_processor.is_buffer_empty())
+            self.assertEqual(self.batch_processor.get_buffer_size(), 1)
 
         self.loop.run_until_complete(async_test())
 
@@ -303,21 +305,21 @@ class TestProducerBatchProcessor(unittest.TestCase):
     def test_batch_cycle_topic_grouping(self):
         """Test topic grouping in batch cycle"""
         self._add_alternating_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
+        topic_groups = self.batch_processor._group_messages_by_topic_and_partition()
 
         self.assertEqual(len(topic_groups), 2)
-        self.assertIn('topic0', topic_groups)
-        self.assertIn('topic1', topic_groups)
-        self.assertEqual(len(topic_groups['topic0']['messages']), 3)
-        self.assertEqual(len(topic_groups['topic1']['messages']), 2)
+        self.assertIn(('topic0', -1), topic_groups)
+        self.assertIn(('topic1', -1), topic_groups)
+        self.assertEqual(len(topic_groups[('topic0', -1)]['messages']), 3)
+        self.assertEqual(len(topic_groups[('topic1', -1)]['messages']), 2)
 
     def test_batch_cycle_message_preparation(self):
         """Test message preparation in batch cycle"""
         self._add_alternating_topic_messages()
-        topic_groups = self.batch_processor._group_messages_by_topic()
+        topic_groups = self.batch_processor._group_messages_by_topic_and_partition()
 
         batch_messages = self.batch_processor._prepare_batch_messages(
-            topic_groups['topic0']['messages']
+            topic_groups[('topic0', -1)]['messages']
         )
 
         self.assertEqual(len(batch_messages), 3)
@@ -339,8 +341,8 @@ class TestProducerBatchProcessor(unittest.TestCase):
         for msg, future in zip(messages, futures):
             self.batch_processor.add_message(msg, future)
 
-        topic_groups = self.batch_processor._group_messages_by_topic()
-        topic_data = topic_groups['test-topic']
+        topic_groups = self.batch_processor._group_messages_by_topic_and_partition()
+        topic_data = topic_groups[('test-topic', -1)]
         batch_messages = self.batch_processor._prepare_batch_messages(topic_data['messages'])
 
         self.assertEqual(len(batch_messages), 3)
