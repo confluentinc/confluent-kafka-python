@@ -149,11 +149,14 @@ class ProducerBatchManager:
         try:
             # Execute batches with cleanup
             await self._execute_batches(batches, target_topic)
-        except Exception as e:
+        except Exception:
             # Add batches back to buffer on failure
-            self._add_batches_back_to_buffer(batches)
+            try:
+                self._add_batches_back_to_buffer(batches)
+            except Exception:
+                logger.error(f"Error adding batches back to buffer on failure. messages might be lost: {batches}")
+                raise
             raise
-
 
     async def _execute_batches(self, batches, target_topic=None):
         """Execute batches and handle cleanup after successful execution
@@ -167,7 +170,7 @@ class ProducerBatchManager:
 
         Raises:
             Exception: If any batch execution fails
-        """      
+        """
         # Execute each batch
         for batch in batches:
             try:
@@ -184,7 +187,7 @@ class ProducerBatchManager:
 
     def _add_batches_back_to_buffer(self, batches):
         """Add batches back to the buffer when execution fails
-        
+
         Args:
             batches: List of MessageBatch objects to add back to buffer
         """
@@ -197,7 +200,7 @@ class ProducerBatchManager:
                     'value': message.get('value'),
                     'key': message.get('key'),
                 }
-                
+
                 # Add optional fields if present
                 if 'partition' in message:
                     msg_data['partition'] = message['partition']
@@ -205,7 +208,7 @@ class ProducerBatchManager:
                     msg_data['timestamp'] = message['timestamp']
                 if 'headers' in message:
                     msg_data['headers'] = message['headers']
-                
+
                 # Add the message and its future back to the buffer
                 self._message_buffer.append(msg_data)
                 self._buffer_futures.append(batch.futures[i])
