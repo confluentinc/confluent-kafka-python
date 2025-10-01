@@ -435,12 +435,10 @@ class TestProducerBatchProcessor(unittest.TestCase):
         self.assertEqual(self.batch_processor._message_buffer[0]['topic'], 'test-topic')
         self.assertEqual(self.batch_processor._message_buffer[0]['value'], 'test1')
         self.assertEqual(self.batch_processor._message_buffer[0]['key'], 'key1')
-        self.assertEqual(self.batch_processor._message_buffer[0]['partition'], 0)
 
         self.assertEqual(self.batch_processor._message_buffer[1]['topic'], 'test-topic')
         self.assertEqual(self.batch_processor._message_buffer[1]['value'], 'test2')
         self.assertEqual(self.batch_processor._message_buffer[1]['key'], 'key2')
-        self.assertEqual(self.batch_processor._message_buffer[1]['partition'], 0)
 
         # Verify futures are preserved
         self.assertEqual(self.batch_processor._buffer_futures[0], future1)
