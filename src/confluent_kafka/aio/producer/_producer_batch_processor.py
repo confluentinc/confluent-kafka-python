@@ -138,8 +138,22 @@ class ProducerBatchManager:
         # Create batches for processing
         batches = self.create_batches(target_topic)
 
-        # Execute batches with cleanup
-        await self._execute_batches(batches, target_topic)
+        # Clear the buffer immediately to prevent race conditions
+        if target_topic is None:
+            # Clear entire buffer since we're processing all messages
+            self.clear_buffer()
+        else:
+            # Clear only messages for the target topic that we're processing
+            self._clear_topic_from_buffer(target_topic)
+
+        try:
+            # Execute batches with cleanup
+            await self._execute_batches(batches, target_topic)
+        except Exception as e:
+            # Add batches back to buffer on failure
+            self._add_batches_back_to_buffer(batches)
+            raise
+
 
     async def _execute_batches(self, batches, target_topic=None):
         """Execute batches and handle cleanup after successful execution
@@ -153,7 +167,7 @@ class ProducerBatchManager:
 
         Raises:
             Exception: If any batch execution fails
-        """
+        """      
         # Execute each batch
         for batch in batches:
             try:
@@ -168,13 +182,33 @@ class ProducerBatchManager:
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
 
-        # Clear successfully processed messages from buffer
-        if target_topic is None:
-            # Clear entire buffer since all messages were processed
-            self.clear_buffer()
-        else:
-            # Clear only messages for the target topic that were successfully processed
-            self._clear_topic_from_buffer(target_topic)
+    def _add_batches_back_to_buffer(self, batches):
+        """Add batches back to the buffer when execution fails
+        
+        Args:
+            batches: List of MessageBatch objects to add back to buffer
+        """
+        for batch in batches:
+            # Add each message and its future back to the buffer
+            for i, message in enumerate(batch.messages):
+                # Reconstruct the original message data from the batch
+                msg_data = {
+                    'topic': batch.topic,
+                    'value': message.get('value'),
+                    'key': message.get('key'),
+                }
+                
+                # Add optional fields if present
+                if 'partition' in message:
+                    msg_data['partition'] = message['partition']
+                if 'timestamp' in message:
+                    msg_data['timestamp'] = message['timestamp']
+                if 'headers' in message:
+                    msg_data['headers'] = message['headers']
+                
+                # Add the message and its future back to the buffer
+                self._message_buffer.append(msg_data)
+                self._buffer_futures.append(batch.futures[i])
 
     def _group_messages_by_topic_and_partition(self):
         """Group buffered messages by topic and partition for optimal batch processing
