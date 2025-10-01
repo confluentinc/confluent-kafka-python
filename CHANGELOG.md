@@ -1,6 +1,37 @@
-# Confluent's Python client for Apache Kafka
+# Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.11.1
+## Unreleased
+
+### Added
+
+- AsyncIO Producer (experimental): Introduces `confluent_kafka.aio.AIOProducer` for
+  asynchronous message production in asyncio applications. This API offloads
+  blocking librdkafka calls to a thread pool and schedules common callbacks
+  (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
+  loop for safe usage inside async frameworks.
+
+### Features
+
+- Batched async produce: `await aio.AIOProducer(...).produce(topic, value=...)`
+  buffers messages and flushes when the buffer threshold or timeout is reached.
+- Async lifecycle: `await producer.flush()`, `await producer.purge()`, and
+  transactional operations (`init_transactions`, `begin_transaction`,
+  `commit_transaction`, `abort_transaction`).
+
+### Limitations
+
+- Per-message headers are not supported in the current batched async produce
+  path. If headers are required, use the synchronous `Producer.produce(...)` or
+  offload a sync produce call to a thread executor within your async app.
+
+### Guidance
+
+- Use the AsyncIO Producer inside async apps/servers (FastAPI/Starlette, aiohttp,
+  asyncio tasks) to avoid blocking the event loop.
+- For batch jobs, scripts, or highest-throughput pipelines without an event
+  loop, the synchronous `Producer` remains recommended.
+
+## v2.11.1 - 2025-08-18
 
 v2.11.1 is a maintenance release with the following fixes:
 
@@ -9,7 +40,7 @@ confluent-kafka-python v2.11.1 is based on librdkafka v2.11.1, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.11.0
+## v2.11.0 - 2025-07-03
 
 v2.11.0 is a feature release with the following enhancements:
 
@@ -18,7 +49,7 @@ confluent-kafka-python v2.11.0 is based on librdkafka v2.11.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.10.1
+## v2.10.1 - 2025-06-11
 
 v2.10.1 is a maintenance release with the following fixes:
 
@@ -34,7 +65,7 @@ confluent-kafka-python v2.10.1 is based on librdkafka v2.10.1, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.1)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-## v2.10.0
+## v2.10.0 - 2025-04-18
 
 v2.10.0 is a feature release with the following fixes and enhancements:
 
@@ -45,7 +76,7 @@ confluent-kafka-python v2.10.0 is based on librdkafka v2.10.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.10.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-## v2.9.0
+## v2.9.0 - 2025-03-28
 
 v2.9.0 is a feature release with the following fixes and enhancements:
 
@@ -58,7 +89,7 @@ confluent-kafka-python v2.9.0 is based on librdkafka v2.8.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.8.0)
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
-## v2.8.2
+## v2.8.2 - 2025-02-28
 
 v2.8.2 is a maintenance release with the following fixes and enhancements:
 
@@ -73,7 +104,7 @@ Note: Versioning is skipped due to breaking change in v2.8.1.
 Do not run software with v2.8.1 installed.
 
 
-## v2.8.0
+## v2.8.0 - 2025-01-07
 
 v2.8.0 is a feature release with the features, fixes and enhancements:
 
@@ -82,7 +113,7 @@ confluent-kafka-python v2.8.0 is based on librdkafka v2.8.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.7.0
+## v2.7.0 - 2024-12-21
 
 v2.7.0 is a feature release with the features, fixes and enhancements present in v2.6.2 including the following fix:
 
@@ -93,7 +124,7 @@ confluent-kafka-python v2.7.0 is based on librdkafka v2.6.1, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.6.2
+## v2.6.2 - 2024-12-18
 
 > [!WARNING]
 > Due to an error in which we included dependency changes to a recent patch release, Confluent recommends users to **refrain from upgrading to 2.6.2** of Confluent Kafka. Confluent will release a new minor version, 2.7.0, where the dependency changes will be appropriately included. Users who have already upgraded to 2.6.2 and made the required dependency changes are free to remain on that version and are recommended to upgrade to 2.7.0 when that version is available. Upon the release of 2.7.0, the 2.6.2 version will be marked deprecated.
@@ -136,7 +167,7 @@ confluent-kafka-python is based on librdkafka v2.6.1, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.6.1
+## v2.6.1 - 2024-11-18
 
 v2.6.1 is a maintenance release with the following fixes and enhancements:
 
@@ -149,7 +180,7 @@ confluent-kafka-python is based on librdkafka v2.6.1, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.6.0
+## v2.6.0 - 2024-10-11
 
 v2.6.0 is a feature release with the following features, fixes and enhancements:
 
@@ -163,7 +194,7 @@ confluent-kafka-python is based on librdkafka v2.6.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.5.3
+## v2.5.3 - 2024-09-02
 
 v2.5.3 is a maintenance release with the following fixes and enhancements:
 
@@ -178,7 +209,7 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 
-## v2.5.0
+## v2.5.0 - 2024-07-10
 
 > [!WARNING]
 This version has introduced a regression in which an assert is triggered during **PushTelemetry** call. This happens when no metric is matched on the client side among those requested by broker subscription. 
@@ -211,7 +242,7 @@ confluent-kafka-python is based on librdkafka v2.5.0, see the
 for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
-## v2.4.0
+## v2.4.0 - 2024-05-07
 
 v2.4.0 is a feature release with the following features, fixes and enhancements:
 

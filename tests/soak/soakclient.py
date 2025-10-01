@@ -411,7 +411,7 @@ class SoakClient (object):
         if 'group.id' not in conf:
             # Generate a group.id bound to this client and python version
             conf['group.id'] = 'soakclient-{}-{}-{}'.format(
-                self.hostname, version()[0], sys.version.split(' ')[0])
+                self.hostname, version(), sys.version.split(' ')[0])
 
         conf = {k: v for k, v in conf.items()}
 
