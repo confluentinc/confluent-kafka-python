@@ -109,7 +109,9 @@ def test_produce_headers():
 
 
 def test_produce_headers_should_work():
-    """ Test produce() with headers works, however NOTE headers are not supported in batch mode and silently ignored """
+    """ Test produce() with headers works, however
+    NOTE headers are not supported in batch mode and silently ignored
+    """
     p = Producer({'socket.timeout.ms': 10,
                   'error_cb': error_cb,
                   'message.timeout.ms': 10})
