@@ -37,13 +37,8 @@
 
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
- *
- * Hex version representation:
- *  0xMMmmRRPP
- *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x020b0100
-#define CFL_VERSION_STR "2.11.1"
+#define CFL_VERSION_STR "2.12.0b1"
 
 /**
  * Minimum required librdkafka version. This is checked both during
