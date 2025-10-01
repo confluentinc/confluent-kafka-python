@@ -400,6 +400,70 @@ class TestProducerBatchProcessor(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             future.result()
 
+    def test_add_batches_back_to_buffer_basic(self):
+        """Test adding batches back to buffer with basic message data"""
+        from confluent_kafka.aio.producer._message_batch import create_message_batch
+
+        # Create test futures
+        future1 = asyncio.Future()
+        future2 = asyncio.Future()
+
+        # Create test batch with basic message data
+        batch = create_message_batch(
+            topic='test-topic',
+            messages=[
+                {'value': 'test1', 'key': 'key1'},
+                {'value': 'test2', 'key': 'key2'}
+            ],
+            futures=[future1, future2],
+            partition=0
+        )
+
+        # Ensure buffer is initially empty
+        self.assertTrue(self.batch_processor.is_buffer_empty())
+
+        # Add batch back to buffer
+        self.batch_processor._add_batches_back_to_buffer([batch])
+
+        # Verify buffer state
+        self.assertEqual(self.batch_processor.get_buffer_size(), 2)
+        self.assertFalse(self.batch_processor.is_buffer_empty())
+
+        # Verify message data was reconstructed correctly
+        self.assertEqual(self.batch_processor._message_buffer[0]['topic'], 'test-topic')
+        self.assertEqual(self.batch_processor._message_buffer[0]['value'], 'test1')
+        self.assertEqual(self.batch_processor._message_buffer[0]['key'], 'key1')
+        self.assertEqual(self.batch_processor._message_buffer[0]['partition'], 0)
+
+        self.assertEqual(self.batch_processor._message_buffer[1]['topic'], 'test-topic')
+        self.assertEqual(self.batch_processor._message_buffer[1]['value'], 'test2')
+        self.assertEqual(self.batch_processor._message_buffer[1]['key'], 'key2')
+        self.assertEqual(self.batch_processor._message_buffer[1]['partition'], 0)
+
+        # Verify futures are preserved
+        self.assertEqual(self.batch_processor._buffer_futures[0], future1)
+        self.assertEqual(self.batch_processor._buffer_futures[1], future2)
+
+    def test_add_batches_back_to_buffer_empty_batch(self):
+        """Test adding empty batch back to buffer"""
+        from confluent_kafka.aio.producer._message_batch import create_message_batch
+
+        # Create empty batch
+        batch = create_message_batch(
+            topic='test-topic',
+            messages=[],
+            futures=[],
+            partition=0
+        )
+
+        initial_size = self.batch_processor.get_buffer_size()
+
+        # Add empty batch back
+        self.batch_processor._add_batches_back_to_buffer([batch])
+
+        # Buffer size should remain unchanged
+        self.assertEqual(self.batch_processor.get_buffer_size(), initial_size)
+
 
 if __name__ == '__main__':
     # Run all tests
