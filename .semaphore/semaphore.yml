@@ -304,7 +304,7 @@ blocks:
             - pip install ducktape psutil
             
             # Install existing test requirements
-            - pip install -r requirements/requirements-tests.txt
+            - pip install -r requirements/requirements-tests-install.txt
             
             # Build and install confluent-kafka from source
             - lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
