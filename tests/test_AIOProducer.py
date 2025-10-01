@@ -209,7 +209,7 @@ class TestAIOProducer:
         """Test multiple concurrent produce operations with batching."""
         producer = AIOProducer(basic_config, max_workers=3, batch_size=1)  # Force immediate flush
 
-        completed_produces = set()
+        completed_produces = []
         batch_call_count = 0
 
         def mock_produce_batch(topic, messages, partition=None):
@@ -224,7 +224,7 @@ class TestAIOProducer:
                     msg_data['value'].encode() if isinstance(
                         msg_data['value'], str) else msg_data['value'])
 
-                completed_produces.add((topic, msg_data['value']))
+                completed_produces.append((topic, msg_data['value']))
                 # Call the individual message callback
                 if 'callback' in msg_data:
                     msg_data['callback'](None, mock_msg)
