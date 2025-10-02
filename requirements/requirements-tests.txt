@@ -1,5 +1,5 @@
 # core test requirements
-urllib3
+urllib3<3
 flake8
 orjson
 pytest
