@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2.12.0b1 - 2025-10-01
+
 ### Added
 
 - AsyncIO Producer (experimental): Introduces `confluent_kafka.aio.AIOProducer` for
