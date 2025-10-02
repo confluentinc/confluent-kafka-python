@@ -15,8 +15,6 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64 - Python 3.7-3.12"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -35,8 +33,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -59,8 +55,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -81,8 +75,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -107,8 +99,6 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
   - name: "Wheels: Linux arm64"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -122,12 +112,10 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - ./tools/build-manylinux.sh "${LIBRDKAFKA_VERSION#v}"
+            - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -145,8 +133,6 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
-    run:
-      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -376,8 +362,6 @@ blocks:
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
-    run:
-      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.7-3.12"
       - "Wheels: OSX x64 - Python 3.13"
@@ -396,11 +380,11 @@ blocks:
             - artifact pull workflow artifacts
             - cd artifacts
             - ls *.tgz |xargs -n1 tar -xvf
-            - tar cvf confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
+            - tar cvf confluent-kafka-python-wheels-v2.12.0b1-dev1-${SEMAPHORE_WORKFLOW_ID}.tgz wheelhouse/
             - ls -la
-            - sha256sum confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
+            - sha256sum confluent-kafka-python-wheels-v2.12.0b1-dev1-${SEMAPHORE_WORKFLOW_ID}.tgz
             - cd ..
-            - artifact push project artifacts/confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-${SEMAPHORE_GIT_TAG_NAME}-${SEMAPHORE_WORKFLOW_ID}.tgz
+            - artifact push project artifacts/confluent-kafka-python-wheels-v2.12.0b1-dev1-${SEMAPHORE_WORKFLOW_ID}.tgz --destination confluent-kafka-python-wheels-v2.12.0b1-dev1-${SEMAPHORE_WORKFLOW_ID}.tgz
             - echo Thank you
 
 after_pipeline:
