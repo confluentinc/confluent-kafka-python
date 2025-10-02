@@ -127,7 +127,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
+            self.logger.warning(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
             assert (
@@ -222,7 +222,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
+            self.logger.warning(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
             assert (
@@ -331,7 +331,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
+            self.logger.warning(
                 "Performance bounds validation failed for %ds test: %s",
                 test_duration,
                 "; ".join(violations),
@@ -475,7 +475,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.error(
+            self.logger.warning(
                 "Performance bounds validation failed for %s compression: %s",
                 compression_type,
                 "; ".join(violations),
