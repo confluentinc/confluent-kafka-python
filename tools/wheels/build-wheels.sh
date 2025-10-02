@@ -51,7 +51,7 @@ esac
 
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==$cibuildwheel_version urllib3
+install_pkgs=cibuildwheel==$cibuildwheel_version
 
 # Ensure we have pip installed if using uv
 uv pip install pip || true
