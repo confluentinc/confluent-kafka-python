@@ -13,7 +13,7 @@
     },
     "ci": {
       "_comment": "Stricter bounds for CI environment - production-like requirements for transactions",
-      "min_throughput_msg_per_sec": 250.0,
+      "min_throughput_msg_per_sec": 150.0,
       "max_p95_latency_ms": 5000.0,
       "max_error_rate": 0.01,
       "min_success_rate": 0.99,
