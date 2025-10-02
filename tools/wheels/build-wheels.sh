@@ -10,7 +10,7 @@ this_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export CIBW_SKIP="pp* cp27-* cp35-* cp36-* *i686 *musllinux* $CIBW_SKIP"
 # Run a simple test suite
 export CIBW_TEST_REQUIRES="pytest"
-export CIBW_TEST_COMMAND="pytest {project}/tests/test_Producer.py"
+export CIBW_TEST_COMMAND="pytest {project}/tests/test_error.py"
 export CIBW_MANYLINUX_X86_64_IMAGE="manylinux_2_28"
 export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
 
@@ -51,7 +51,7 @@ esac
 
 $this_dir/install-librdkafka.sh $librdkafka_version dest
 
-install_pkgs=cibuildwheel==$cibuildwheel_version
+install_pkgs=cibuildwheel==$cibuildwheel_version urllib3
 
 # Ensure we have pip installed if using uv
 uv pip install pip || true
