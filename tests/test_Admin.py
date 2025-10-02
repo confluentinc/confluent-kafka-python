@@ -6,10 +6,10 @@ from confluent_kafka.admin import AdminClient, NewTopic, NewPartitions, \
     ResourcePatternType, AclOperation, AclPermissionType, AlterConfigOpType, \
     ScramCredentialInfo, ScramMechanism, \
     UserScramCredentialAlteration, UserScramCredentialDeletion, \
-    UserScramCredentialUpsertion, OffsetSpec
-from confluent_kafka import KafkaException, KafkaError, libversion, \
+    UserScramCredentialUpsertion, OffsetSpec, _ElectionType as ElectionType
+from confluent_kafka import KafkaException, KafkaError, \
     TopicPartition, ConsumerGroupTopicPartitions, ConsumerGroupState, \
-    IsolationLevel, TopicCollection, ElectionType
+    IsolationLevel, TopicCollection
 import concurrent.futures
 
 
@@ -76,8 +76,6 @@ def test_acl_binding_type():
         AclBinding(*attrs_copy)
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_basic_api():
     """ Basic API tests, these wont really do anything since there is no
         broker configured. """
@@ -100,8 +98,6 @@ def test_basic_api():
         assert e.args[0].code() in (KafkaError._TIMED_OUT, KafkaError._TRANSPORT)
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_create_topics_api():
     """ create_topics() tests, these wont really do anything since there is no
         broker configured. """
@@ -179,8 +175,6 @@ def test_create_topics_api():
                                   config=["fails", "because not a dict"])])
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_delete_topics_api():
     """ delete_topics() tests, these wont really do anything since there is no
         broker configured. """
@@ -219,8 +213,6 @@ def test_delete_topics_api():
                         validate_only="maybe")
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_create_partitions_api():
     """ create_partitions() tests, these wont really do anything since there
         is no broker configured. """
@@ -262,8 +254,6 @@ def test_create_partitions_api():
         assert e.args[0].code() == KafkaError._TIMED_OUT
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_describe_configs_api():
     """ describe_configs() tests, these wont really do anything since there
         is no broker configured. """
@@ -292,8 +282,6 @@ def test_describe_configs_api():
             f.result(timeout=1)
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_alter_configs_api():
     """ alter_configs() tests, these wont really do anything since there
         is no broker configured. """
