@@ -239,6 +239,7 @@ from confluent_kafka.schema_registry._async.protobuf import AsyncProtobufSeriali
 - [sasl_producer.py](sasl_producer.py): Demonstrates SASL Authentication.
 - [oauth_producer.py](oauth_producer.py): Demonstrates OAuth Authentication (client credentials).
 - [oauth_oidc_ccloud_producer.py](oauth_oidc_ccloud_producer.py): Demonstrates OAuth OIDC authentication with Confluent Cloud.
+* [oauth_oidc_ccloud_azure_imds_producer.py](oauth_oidc_ccloud_azure_imds_producer.py): Demonstrates OAuth/OIDC Authentication with Confluent Cloud (Azure IMDS metadata based authentication).
 - [oauth_schema_registry.py](oauth_schema_registry.py): Demonstrates OAuth authentication with Schema Registry.
 
 ## Admin API Examples
