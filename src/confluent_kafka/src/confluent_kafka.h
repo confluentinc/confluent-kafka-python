@@ -270,6 +270,9 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
 typedef struct {
 	PyThreadState *thread_state;
 	int crashed;   /* Callback crashed */
+	PyObject *err_type; /* Error type emitted from the callback */
+	PyObject *err_value; /* Error object emitted from the callback */
+	PyObject *err_traceback; /* Error traceback emitted from the callback */
 } CallState;
 
 /**
