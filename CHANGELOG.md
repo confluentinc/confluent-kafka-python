@@ -31,6 +31,17 @@
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
 
+## v2.12.0 - in progress
+
+v2.12.0 is a feature release with the following enhancements:
+
+- Kafka OAuth/OIDC metadata based authentication examples with Azure IMDS (#2083).
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
+
 ## v2.11.1 - 2025-08-18
 
 v2.11.1 is a maintenance release with the following fixes:
