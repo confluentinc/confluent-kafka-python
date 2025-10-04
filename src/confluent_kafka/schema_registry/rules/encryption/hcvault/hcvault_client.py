@@ -30,7 +30,7 @@ class HcVaultKmsClient(tink.KmsClient):
 
     def __init__(
         self, key_uri: Optional[str], token: Optional[str], ns: Optional[str] = None,
-        role_id: Optional[str] = None, role_secret_id: Optional[str] = None
+        role_id: Optional[str] = None, secret_id: Optional[str] = None
     ) -> None:
         """Creates a new HcVaultKmsClient that is bound to the key specified in 'key_uri'.
 
@@ -60,8 +60,8 @@ class HcVaultKmsClient(tink.KmsClient):
             namespace=ns,
             verify=False
         )
-        if role_id and role_secret_id:
-            self._client.auth.approle.login(role_id=role_id, secret_id=role_secret_id)
+        if role_id and secret_id:
+            self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 
     def does_support(self, key_uri: str) -> bool:
         """Returns true iff this client supports KMS key specified in 'key_uri'.
