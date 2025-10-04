@@ -23,6 +23,8 @@ from confluent_kafka.schema_registry.rules.encryption.kms_driver_registry import
 _PREFIX = "hcvault://"
 _TOKEN_ID = "token.id"
 _NAMESPACE = "namespace"
+_APP_ROLE_ID = "app.role.id"
+_APP_ROLE_SECRET_ID = "app.role.secret.id"
 
 
 class HcVaultKmsDriver(KmsDriver):
@@ -37,11 +39,18 @@ class HcVaultKmsDriver(KmsDriver):
         if key_url is not None:
             uri_prefix = key_url
         token = conf.get(_TOKEN_ID)
-        namespace = conf.get(_NAMESPACE)
         if token is None:
             token = os.getenv("VAULT_TOKEN")
+        namespace = conf.get(_NAMESPACE)
+        if namespace is None:
             namespace = os.getenv("VAULT_NAMESPACE")
-        return HcVaultKmsClient(uri_prefix, token, namespace)
+        role_id = conf.get(_APP_ROLE_ID)
+        if role_id is None:
+            role_id = os.getenv("VAULT_APP_ROLE_ID")
+        role_secret_id = conf.get(_APP_ROLE_SECRET_ID)
+        if role_secret_id is None:
+            role_secret_id = os.getenv("VAULT_APP_ROLE_SECRET_ID")
+        return HcVaultKmsClient(uri_prefix, token, namespace, role_id, role_secret_id)
 
     @classmethod
     def register(cls):
