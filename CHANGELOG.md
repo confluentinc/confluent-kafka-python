@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+v2.12.0 is a feature release with the following enhancements:
+
 ### Added
 
 - AsyncIO Producer (experimental): Introduces `confluent_kafka.aio.AIOProducer` for
@@ -30,6 +32,11 @@
   asyncio tasks) to avoid blocking the event loop.
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
+
 
 ## v2.11.1 - 2025-08-18
 
