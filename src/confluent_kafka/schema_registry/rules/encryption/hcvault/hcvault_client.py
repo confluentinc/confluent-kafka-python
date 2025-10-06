@@ -29,9 +29,10 @@ class HcVaultKmsClient(tink.KmsClient):
     """Basic HashiCorp Vault client for AEAD."""
 
     def __init__(
-        self, key_uri: Optional[str], token: str, ns: Optional[str] = None
+        self, key_uri: Optional[str], token: Optional[str], ns: Optional[str] = None,
+        role_id: Optional[str] = None, secret_id: Optional[str] = None
     ) -> None:
-        """Creates a new GcpKmsClient that is bound to the key specified in 'key_uri'.
+        """Creates a new HcVaultKmsClient that is bound to the key specified in 'key_uri'.
 
         Uses the specified credentials when communicating with the KMS.
 
@@ -59,6 +60,8 @@ class HcVaultKmsClient(tink.KmsClient):
             namespace=ns,
             verify=False
         )
+        if role_id and secret_id:
+            self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 
     def does_support(self, key_uri: str) -> bool:
         """Returns true iff this client supports KMS key specified in 'key_uri'.
