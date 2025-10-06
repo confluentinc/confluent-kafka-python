@@ -6,7 +6,7 @@ import concurrent.futures
 from unittest.mock import Mock, patch
 
 from confluent_kafka import TopicPartition, KafkaError, KafkaException
-from confluent_kafka.aio._AIOConsumer import AIOConsumer
+from confluent_kafka.experimental.aio._AIOConsumer import AIOConsumer
 
 
 class TestAIOConsumer:
@@ -15,13 +15,13 @@ class TestAIOConsumer:
     @pytest.fixture
     def mock_consumer(self):
         """Mock the underlying confluent_kafka.Consumer."""
-        with patch('confluent_kafka.aio._AIOConsumer.confluent_kafka.Consumer') as mock:
+        with patch('confluent_kafka.experimental.aio._AIOConsumer.confluent_kafka.Consumer') as mock:
             yield mock
 
     @pytest.fixture
     def mock_common(self):
         """Mock the _common module callback wrapping."""
-        with patch('confluent_kafka.aio._AIOConsumer._common') as mock:
+        with patch('confluent_kafka.experimental.aio._AIOConsumer._common') as mock:
             async def mock_async_call(executor, blocking_task, *args, **kwargs):
                 return blocking_task(*args, **kwargs)
             mock.async_call.side_effect = mock_async_call

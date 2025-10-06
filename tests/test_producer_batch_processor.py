@@ -6,9 +6,9 @@ This module tests the BatchProcessor class to ensure proper
 message batching, topic grouping, and future management.
 """
 
-from confluent_kafka.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
-from confluent_kafka.aio.producer._AIOProducer import AIOProducer
-from confluent_kafka.aio.producer._producer_batch_processor import ProducerBatchManager as ProducerBatchProcessor
+from confluent_kafka.experimental.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
+from confluent_kafka.experimental.aio.producer._AIOProducer import AIOProducer
+from confluent_kafka.experimental.aio.producer._producer_batch_processor import ProducerBatchManager as ProducerBatchProcessor
 import asyncio
 import unittest
 from unittest.mock import Mock, patch
@@ -404,7 +404,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_add_batches_back_to_buffer_basic(self):
         """Test adding batches back to buffer with basic message data"""
-        from confluent_kafka.aio.producer._message_batch import create_message_batch
+        from confluent_kafka.experimental.aio.producer._message_batch import create_message_batch
 
         # Create test futures
         future1 = asyncio.Future()
@@ -446,7 +446,7 @@ class TestProducerBatchProcessor(unittest.TestCase):
 
     def test_add_batches_back_to_buffer_empty_batch(self):
         """Test adding empty batch back to buffer"""
-        from confluent_kafka.aio.producer._message_batch import create_message_batch
+        from confluent_kafka.experimental.aio.producer._message_batch import create_message_batch
 
         # Create empty batch
         batch = create_message_batch(

@@ -10,7 +10,7 @@ import asyncio
 import json
 import os
 from confluent_kafka import Consumer
-from confluent_kafka.aio import AIOConsumer
+from confluent_kafka.experimental.aio import AIOConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry._sync.json_schema import JSONDeserializer
 from confluent_kafka.schema_registry._sync.protobuf import ProtobufDeserializer

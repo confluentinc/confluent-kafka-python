@@ -15,7 +15,7 @@
 import asyncio
 import concurrent.futures
 import confluent_kafka
-import confluent_kafka.aio._common as _common
+from . import _common as _common
 
 
 class AIOConsumer:
@@ -153,3 +153,5 @@ class AIOConsumer:
 
     async def offsets_for_times(self, *args, **kwargs):
         return await self._call(self._consumer.offsets_for_times, *args, **kwargs)
+
+

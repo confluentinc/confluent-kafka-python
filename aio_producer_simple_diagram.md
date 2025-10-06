@@ -77,9 +77,9 @@ The `AIOProducer` implements a multi-component architecture designed for high-pe
 
 ### Source Code Location
 
-- **Main Implementation**: `src/confluent_kafka/aio/producer/_AIOProducer.py`
-- **Supporting Modules**: `src/confluent_kafka/aio/producer/` directory
-- **Common Utilities**: `src/confluent_kafka/aio/_common.py`
+- **Main Implementation**: `src/confluent_kafka/experimental/aio/producer/_AIOProducer.py`
+- **Supporting Modules**: `src/confluent_kafka/experimental/aio/producer/` directory
+- **Common Utilities**: `src/confluent_kafka/experimental/aio/_common.py`
 
 ### Design Principles
 
