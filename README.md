@@ -27,7 +27,7 @@ Unlike the basic Apache Kafka Python client, `confluent-kafka-python` provides:
 
 - **High Performance & Reliability**: Built on [`librdkafka`](https://github.com/confluentinc/librdkafka), the battle-tested C client for Apache Kafka, ensuring maximum throughput, low latency, and stability. The client is supported by Confluent and is trusted in mission-critical production environments.
 - **Comprehensive Kafka Support**: Full support for the Kafka protocol, transactions, and administration APIs.
-- **AsyncIO Producer**: A fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
+- **Experimental; AsyncIO Producer**: An experimental fully asynchronous producer (`AIOProducer`) for seamless integration with modern Python applications using `asyncio`.
 - **Seamless Schema Registry Integration**: Synchronous and asynchronous clients for Confluent Schema Registry to handle schema management and serialization (Avro, Protobuf, JSON Schema).
 - **Improved Error Handling**: Detailed, context-aware error messages and exceptions to speed up debugging and troubleshooting.
 - **[Confluent Cloud] Automatic Zone Detection**: Producers automatically connect to brokers in the same availability zone, reducing latency and data transfer costs without requiring manual configuration.
@@ -60,7 +60,7 @@ Use the AsyncIO `Producer` inside async applications to avoid blocking the event
 
 ```python
 import asyncio
-from confluent_kafka.aio import AIOProducer
+from confluent_kafka.experimental.aio import AIOProducer
 
 async def main():
     p = AIOProducer({"bootstrap.servers": "mybroker"})
@@ -97,7 +97,6 @@ For a more detailed example that includes both an async producer and consumer, s
 
 The AsyncIO producer and consumer integrate seamlessly with async Schema Registry serializers. See the [Schema Registry Integration](#schema-registry-integration) section below for full details.
 
-**Migration Note:** If you previously used custom AsyncIO wrappers, you can now migrate to the official `AIOProducer` which handles thread pool management, callback scheduling, and cleanup automatically. See the [blog post](https://www.confluent.io/blog/kafka-python-asyncio-integration/) for migration guidance.
 ### Basic Producer example
 
 ```python
@@ -178,7 +177,7 @@ producer.flush()
 Use the `AsyncSchemaRegistryClient` and `Async` serializers with `AIOProducer` and `AIOConsumer`. The configuration is the same as the synchronous client.
 
 ```python
-from confluent_kafka.aio import AIOProducer
+from confluent_kafka.experimental.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 
@@ -316,7 +315,7 @@ For source install, see the *Install from source* section in [INSTALL.md](INSTAL
 ## Broker compatibility
 
 The Python client (as well as the underlying C library librdkafka) supports
-all broker versions &gt;= 0.8.
+all broker versions >= 0.8.
 But due to the nature of the Kafka protocol in broker versions 0.8 and 0.9 it
 is not safe for a client to assume what protocol version is actually supported
 by the broker, thus you will need to hint the Python client what protocol
