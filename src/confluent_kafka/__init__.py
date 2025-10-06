@@ -49,6 +49,7 @@ from .cimpl import (
 __all__ = [
     "admin",
     "Consumer",
+    "experimental",
     "KafkaError",
     "KafkaException",
     "kafkatest",

@@ -393,7 +393,7 @@ class AsyncProducerStrategy(ProducerStrategy):
         return key_serializer, value_serializer
 
     def create_producer(self, config_overrides=None):
-        from confluent_kafka.aio import AIOProducer
+        from confluent_kafka.experimental.aio import AIOProducer
         # Enable logging for AIOProducer
         import logging
         logging.basicConfig(level=logging.INFO)
