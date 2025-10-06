@@ -16,7 +16,7 @@
 # limitations under the License.
 
 
-# This example use Azure IMDS for credential-less authentication
+# This example uses Azure IMDS for credential-less authentication
 # to Kafka on Confluent Cloud
 
 import logging
@@ -37,7 +37,7 @@ def producer_config(args):
         'sasl.oauthbearer.config': f'query={args.query}'
     }
     # These two parameters are only applicable when producing to
-    # confluent cloud where some sasl extensions are required.
+    # Confluent Cloud where some sasl extensions are required.
     if args.logical_cluster and args.identity_pool_id:
         params['sasl.oauthbearer.extensions'] = 'logicalCluster=' + args.logical_cluster + \
             ',identityPoolId=' + args.identity_pool_id
@@ -50,7 +50,7 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
 
         msg (Message): The message that was produced or failed.
 
@@ -94,7 +94,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="OAUTH example with client credentials grant")
+    parser = argparse.ArgumentParser(description="OAuth/OIDC example using Azure IMDS metadata-based authentication")
     parser.add_argument('-b', dest="bootstrap_servers", required=True,
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-t', dest="topic", default="example_producer_oauth",
