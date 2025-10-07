@@ -474,7 +474,10 @@ class SimpleProducerTest(Test):
                 compression_type,
                 "; ".join(violations),
             )
-            assert False, f"Performance bounds validation failed for {compression_type} compression: {'; '.join(violations)}"
+            assert False, (
+                f"Performance bounds validation failed for {compression_type} compression: "
+                f"{'; '.join(violations)}"
+            )
 
         self.logger.info(
             "Successfully completed %s compression test with comprehensive metrics",
