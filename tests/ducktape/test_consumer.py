@@ -570,7 +570,7 @@ class SimpleConsumerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
 
