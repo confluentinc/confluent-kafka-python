@@ -130,6 +130,7 @@ class SimpleProducerTest(Test):
             self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed basic production test with comprehensive metrics"
@@ -222,6 +223,7 @@ class SimpleProducerTest(Test):
             self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed basic production test with comprehensive metrics with transaction"
@@ -330,6 +332,7 @@ class SimpleProducerTest(Test):
                 test_duration,
                 "; ".join(violations),
             )
+            assert False, f"Performance bounds validation failed for {test_duration}s test: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed %ds batch production test with comprehensive metrics",
@@ -471,6 +474,7 @@ class SimpleProducerTest(Test):
                 compression_type,
                 "; ".join(violations),
             )
+            assert False, f"Performance bounds validation failed for {compression_type} compression: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed %s compression test with comprehensive metrics",
@@ -610,6 +614,7 @@ class SimpleProducerTest(Test):
             self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed SR production test with comprehensive metrics"
