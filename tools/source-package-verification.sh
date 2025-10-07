@@ -8,6 +8,18 @@ set -e
 pip install -r requirements/requirements-tests-install.txt
 pip install -U build
 
+# Cache trivup Apache Kafka versions
+for version in 3.9.0 4.0.0; do
+    cache restore kafka_2.13-$version.tgz || true
+    if [[ ! -f  ./kafka_2.13-$version.tgz ]]; then
+        wget -O ./kafka_2.13-$version.tgz "https://archive.apache.org/dist/kafka/$version/kafka_2.13-$version.tgz"
+        cache store kafka_2.13-$version.tgz ./kafka_2.13-$version.tgz || true
+    fi
+    mkdir -p tmp-KafkaCluster/KafkaCluster/KafkaBrokerApp/kafka/$version
+    cd tmp-KafkaCluster/KafkaCluster/KafkaBrokerApp/kafka/$version
+    tar -xvf $PWD/kafka_2.13-$version.tgz --strip-components=1
+done
+
 lib_dir=dest/runtimes/$OS_NAME-$ARCH/native
 tools/wheels/install-librdkafka.sh "${LIBRDKAFKA_VERSION#v}" dest
 export CFLAGS="$CFLAGS -I${PWD}/dest/build/native/include"
