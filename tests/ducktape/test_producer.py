@@ -127,7 +127,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
 
@@ -219,7 +219,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
 
@@ -325,7 +325,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed for %ds test: %s",
                 test_duration,
                 "; ".join(violations),
@@ -466,7 +466,7 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed for %s compression: %s",
                 compression_type,
                 "; ".join(violations),
@@ -607,7 +607,7 @@ class SimpleProducerTest(Test):
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
 
