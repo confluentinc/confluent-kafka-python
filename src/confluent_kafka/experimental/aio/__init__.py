@@ -16,5 +16,3 @@ from ._AIOConsumer import AIOConsumer
 from .producer import AIOProducer
 
 __all__ = ['AIOConsumer', 'AIOProducer']
-
-

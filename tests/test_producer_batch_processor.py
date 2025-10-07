@@ -8,7 +8,9 @@ message batching, topic grouping, and future management.
 
 from confluent_kafka.experimental.aio.producer._kafka_batch_executor import ProducerBatchExecutor as KafkaBatchExecutor
 from confluent_kafka.experimental.aio.producer._AIOProducer import AIOProducer
-from confluent_kafka.experimental.aio.producer._producer_batch_processor import ProducerBatchManager as ProducerBatchProcessor
+from confluent_kafka.experimental.aio.producer._producer_batch_processor import (
+    ProducerBatchManager as ProducerBatchProcessor
+)
 import asyncio
 import unittest
 from unittest.mock import Mock, patch

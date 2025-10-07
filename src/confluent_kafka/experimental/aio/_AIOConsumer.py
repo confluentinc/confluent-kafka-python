@@ -153,5 +153,3 @@ class AIOConsumer:
 
     async def offsets_for_times(self, *args, **kwargs):
         return await self._call(self._consumer.offsets_for_times, *args, **kwargs)
-
-

@@ -18,5 +18,3 @@ Experimental APIs for confluent_kafka.
 These APIs are subject to change and may be removed or modified in
 incompatible ways in future releases.
 """
-
-

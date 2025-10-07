@@ -91,7 +91,7 @@ async def run_producer():
                 producer.produce(topic=topic,
                                  key=f'testkey{i}',
                                  value=f'testvalue{i}'))
-                              for i in range(100)]
+                               for i in range(100)]
             # Wait for all produce operations to complete concurrently
             results = await asyncio.gather(*produce_futures)
 
