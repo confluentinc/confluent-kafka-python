@@ -16,8 +16,8 @@
 
 import asyncio
 import sys
-from confluent_kafka.aio import AIOProducer
-from confluent_kafka.aio import AIOConsumer
+from confluent_kafka.experimental.aio import AIOProducer
+from confluent_kafka.experimental.aio import AIOConsumer
 import random
 import logging
 import signal

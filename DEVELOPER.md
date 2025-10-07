@@ -62,7 +62,7 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 ## Project layout
 
 - `src/confluent_kafka/` — core sync client APIs
-- `src/confluent_kafka/aio/` — AsyncIO Producer/Consumer (first-class asyncio, not generated)
+- `src/confluent_kafka/experimental/aio/` — AsyncIO Producer/Consumer (first-class asyncio, not generated)
 - `src/confluent_kafka/schema_registry/` — Schema Registry clients and serdes
 - `tests/` — unit and integration tests (including async producer tests)
 - `examples/` — runnable samples (includes asyncio example)
@@ -103,14 +103,14 @@ python3 tools/unasync.py --check
 
 If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counterparts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the `--check` flag and fail the build.
 
-Note: The AsyncIO Producer/Consumer under `src/confluent_kafka/aio/` are first-class asyncio implementations and are not generated using `unasync`.
+Note: The AsyncIO Producer/Consumer under `src/confluent_kafka/experimental/aio/` are first-class asyncio implementations and are not generated using `unasync`.
 
 ## AsyncIO Producer development (AIOProducer)
 
 Source:
 
-- `src/confluent_kafka/aio/producer/_AIOProducer.py` (public async API)
-- Internal modules in `src/confluent_kafka/aio/producer/` and helpers in `src/confluent_kafka/aio/_common.py`
+- `src/confluent_kafka/experimental/aio/producer/_AIOProducer.py` (public async API)
+- Internal modules in `src/confluent_kafka/experimental/aio/producer/` and helpers in `src/confluent_kafka/experimental/aio/_common.py`
 
 For a complete usage example, see [`examples/asyncio_example.py`](examples/asyncio_example.py).
 

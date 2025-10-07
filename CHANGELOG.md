@@ -6,7 +6,7 @@
 
 ### Added
 
-- AsyncIO Producer (experimental): Introduces `confluent_kafka.aio.AIOProducer` for
+- AsyncIO Producer (experimental): Introduces beta class `AIOProducer` for
   asynchronous message production in asyncio applications. This API offloads
   blocking librdkafka calls to a thread pool and schedules common callbacks
   (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
@@ -14,7 +14,7 @@
 
 ### Features
 
-- Batched async produce: `await aio.AIOProducer(...).produce(topic, value=...)`
+- Batched async produce: `await AIOProducer(...).produce(topic, value=...)`
   buffers messages and flushes when the buffer threshold or timeout is reached.
 - Async lifecycle: `await producer.flush()`, `await producer.purge()`, and
   transactional operations (`init_transactions`, `begin_transaction`,
