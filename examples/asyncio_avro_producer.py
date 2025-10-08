@@ -20,7 +20,7 @@
 import argparse
 import asyncio
 
-from confluent_kafka.aio import AIOProducer
+from confluent_kafka.experimental.aio import AIOProducer
 from confluent_kafka.schema_registry import AsyncSchemaRegistryClient
 from confluent_kafka.schema_registry._async.avro import AsyncAvroSerializer
 from confluent_kafka.serialization import SerializationContext, MessageField

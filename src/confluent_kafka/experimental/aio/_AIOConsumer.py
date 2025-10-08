@@ -15,7 +15,7 @@
 import asyncio
 import concurrent.futures
 import confluent_kafka
-import confluent_kafka.aio._common as _common
+from . import _common as _common
 
 
 class AIOConsumer:
