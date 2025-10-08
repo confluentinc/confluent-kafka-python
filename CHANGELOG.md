@@ -5,13 +5,11 @@
 
 v2.12.0 is a feature release with the following enhancements:
 
- - **General Availability for Next Generation Consumer Group Protocol (KIP-848)**: 
-Starting with __confluent-kafka-python 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**  (GA release). Please refer the following [migration guide](docs/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
- - **AsyncIO Producer (experimental):** Introduces beta class `AIOProducer` for
-  asynchronous message production in asyncio applications.
+### [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) – General Availibility
+Starting with __confluent-kafka-python 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**. Please refer the following [migration guide](docs/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
 
-<details>
-<summary> AsyncIO Producer (experimental) </summary>
+### AsyncIO Producer (experimental)
+ Introduces beta class `AIOProducer` for asynchronous message production in asyncio applications.
 
 #### Added
 
@@ -42,8 +40,6 @@ Starting with __confluent-kafka-python 2.12.0__, the next generation consumer gr
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
 
-</details>
-<br />
 
 confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
 [librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
