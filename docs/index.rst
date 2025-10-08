@@ -1095,7 +1095,7 @@ https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
 
 .. _pythonclient_migration_kip848:
 
-KIP-848 - Migration Guide
-=========================
+`KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ - Migration Guide
+==================================================================================================================================================
 
 .. include:: kip-848-migration-guide.rst

@@ -1,6 +1,8 @@
-### KIP-848 - Migration Guide
+Starting with **confluent-kafka-python v2.12.0** (GA release), the next generation consumer group rebalance protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is **production-ready**.
 
-#### Overview
+**Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
+
+# Overview
 
 - **What changed:**
 
@@ -8,17 +10,17 @@
 
 - **Requirements:**
 
-  - Broker version **4.0.0+**
-  - confluent-kafka-python version **2.12.0+**: GA (production-ready)
+  - Broker version **v4.0.0+**
+  - confluent-kafka-python version **v2.12.0+**: GA (production-ready)
 
 - **Enablement (client-side):**
 
   - `group.protocol=consumer`
-  - `group.remote.assignor=<assignor>` (optional; broker-controlled if `NULL`; default broker assignor is `uniform`)
+  - `group.remote.assignor=<assignor>` (optional; broker-controlled if unset; default broker assignor is `uniform`)
 
-#### Available Features
+# Available Features
 
-All KIP-848 features are supported including:
+All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) features are supported including:
 
 - Subscription to one or more topics, including **regular expression (regex) subscriptions**
 - Rebalance callbacks (**incremental only**)
@@ -28,9 +30,9 @@ All KIP-848 features are supported including:
 - Upgrade from `classic` protocol or downgrade from `consumer` protocol
 - AdminClient changes as per KIP
 
-#### Contract Changes
+# Contract Changes
 
-##### Client Configuration changes
+## Client Configuration changes
 
 | Classic Protocol (Deprecated Configs in KIP-848) | KIP-848 / Next-Gen Replacement                        |
 |--------------------------------------------------|-------------------------------------------------------|
@@ -41,7 +43,7 @@ All KIP-848 features are supported including:
 
 **Note:** The properties listed under “Classic Protocol (Deprecated Configs in KIP-848)” are **no longer used** when using the KIP-848 consumer protocol.
 
-##### Rebalance Callback Changes
+## Rebalance Callback Changes
 
 - The **protocol is fully incremental** in KIP-848.
 - In the **rebalance callbacks**, you **must use**:
@@ -51,7 +53,7 @@ All KIP-848 features are supported including:
 - ⚠️ The `partitions` list passed to `incremental_assign()` and `incremental_unassign()` contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, as was the case with `assign()` in the classic protocol.
 - All assignors under KIP-848 are now **sticky**, including `range`, which was **not sticky** in the classic protocol.
 
-##### Static Group Membership
+## Static Group Membership
 
 - Duplicate `group.instance.id` handling:
   - **Newly joining member** is fenced with **UNRELEASED_INSTANCE_ID (fatal)**.
@@ -60,28 +62,28 @@ All KIP-848 features are supported including:
   - Ensure only **one active instance per** `group.instance.id`.
   - Consumers must shut down cleanly to avoid blocking replacements until session timeout expires.
 
-##### Session Timeout & Fetching
+## Session Timeout & Fetching
 
 - **Session timeout is broker-controlled**:
   - If the Coordinator is unreachable, a consumer **continues fetching messages** but cannot commit offsets.
   - Consumer is fenced once a heartbeat response is received from the Coordinator.
 - In the classic protocol, the client stopped fetching when session timeout expired.
 
-##### Closing / Auto-Commit
+## Closing / Auto-Commit
 
 - On `close()` or unsubscribe with auto-commit enabled:
   - Member retries committing offsets until a timeout expires.
   - Currently uses the **default remote session timeout**.
   - Future **KIP-1092** will allow custom commit timeouts.
 
-##### Error Handling Changes
+## Error Handling Changes
 
 - `UNKNOWN_TOPIC_OR_PART` (**subscription case**):
   - No longer returned if a topic is missing in the **local cache** when subscribing; the subscription proceeds.
 - `TOPIC_AUTHORIZATION_FAILED`:
   - Reported once per heartbeat or subscription change, even if only one topic is unauthorized.
 
-##### Summary of Key Differences (Classic vs Next-Gen)
+## Summary of Key Differences (Classic vs Next-Gen)
 
 - **Assignment:** Classic protocol calculated by **Group Leader (consumer)**; KIP-848 calculated by **Group Coordinator (broker)**
 - **Assignors:** Classic range assignor was **not sticky**; KIP-848 assignors are **sticky**, including range
@@ -92,9 +94,9 @@ All KIP-848 features are supported including:
 - **Unknown topics:** KIP-848 does not return error on subscription if topic missing
 - **Upgrade/Downgrade:** KIP-848 supports upgrade/downgrade from/to `classic` and `consumer` protocols
 
-#### Minimal Example Config
+# Minimal Example Config
 
-##### Classic Protocol
+## Classic Protocol
 
 ``` properties
 # Optional; default is 'classic'
@@ -105,7 +107,7 @@ session.timeout.ms=45000
 heartbeat.interval.ms=15000
 ```
 
-##### Next-Gen Protocol / KIP-848
+## Next-Gen Protocol / KIP-848
 
 ``` properties
 group.protocol=consumer
@@ -113,16 +115,16 @@ group.protocol=consumer
 # Optional: select a remote assignor
 # Valid options currently: 'uniform' or 'range'
 #   group.remote.assignor=<uniform,range>
-# If unset(NULL), broker chooses the assignor (default: 'uniform')
+# If unset, broker chooses the assignor (default: 'uniform')
 
 # Session & heartbeat now controlled by broker:
 #   group.consumer.session.timeout.ms
 #   group.consumer.heartbeat.interval.ms
 ```
 
-#### Rebalance Callback Migration
+# Rebalance Callback Migration
 
-##### Range Assignor (Classic)
+## Range Assignor (Classic)
 
 ``` python
 # Rebalance Callback for Range Assignor (Classic Protocol)
@@ -136,7 +138,7 @@ def on_revoke(consumer, partitions):
     consumer.unassign()
 ```
 
-##### Incremental Assignor (Including Range in Consumer / KIP-848, Any Protocol)
+## Incremental Assignor (Including Range in Consumer / KIP-848, Any Protocol)
 
 ``` python
 # Rebalance callback for incremental assignor
@@ -152,19 +154,19 @@ def on_revoke(consumer, partitions):
 
 **Note:** The `partitions` list contains **only partitions being added or revoked**, not the full partition list as in the classic `consumer.assign()`.
 
-#### Upgrade and Downgrade
+# Upgrade and Downgrade
 
 - A group made up entirely of `classic` consumers runs under the classic protocol.
 - The group is **upgraded to the consumer protocol** as soon as at least one `consumer` protocol member joins.
 - The group is **downgraded back to the classic protocol** if the last `consumer` protocol member leaves while `classic` members remain.
 - Both **rolling upgrade** (classic → consumer) and **rolling downgrade** (consumer → classic) are supported.
 
-#### Migration Checklist (Next-Gen Protocol / KIP-848)
+# Migration Checklist (Next-Gen Protocol / [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol))
 
-1.  Upgrade to **confluent-kafka-python ≥ 2.12.0** (GA release)
-2.  Run against **Kafka brokers ≥ 4.0.0**
+1.  Upgrade to **confluent-kafka-python ≥ v2.12.0** (GA release)
+2.  Run against **Kafka brokers ≥ v4.0.0**
 3.  Set `group.protocol=consumer`
-4.  Optionally set `group.remote.assignor`; leave `NULL` for broker-controlled (default: `uniform`), valid options: `uniform` or `range`
+4.  Optionally set `group.remote.assignor`; leave unspecified for broker-controlled (default: `uniform`), valid options: `uniform` or `range`
 5.  Replace deprecated configs with new ones
 6.  Update rebalance callbacks to **incremental APIs only**
 7.  Review static membership handling (`group.instance.id`)

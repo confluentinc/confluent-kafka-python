@@ -1,3 +1,7 @@
+Starting with **confluent-kafka-python v2.12.0** (GA release), the next generation consumer group rebalance protocol defined in `KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ is **production-ready**.
+
+**Note:** The new consumer group protocol defined in `KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. ``group.protocol`` configuration property dictates whether to use the new ``consumer`` protocol or older ``classic`` protocol. It defaults to ``classic`` if not provided.
+
 ********
 Overview
 ********
@@ -8,20 +12,20 @@ Overview
 
 -  **Requirements:**
 
-   -  Broker version **4.0.0+**
-   -  confluent-kafka-python version **2.12.0+**: GA (production-ready)
+   -  Broker version **v4.0.0+**
+   -  confluent-kafka-python version **v2.12.0+**: GA (production-ready)
 
 -  **Enablement (client-side):**
 
    -  ``group.protocol=consumer``
    -  ``group.remote.assignor=<assignor>`` (optional; broker-controlled
-      if ``NULL``; default broker assignor is ``uniform``)
+      if unset; default broker assignor is ``uniform``)
 
 ******************
 Available Features
 ******************
 
-All KIP-848 features are supported including:
+All `KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ features are supported including:
 
 -  Subscription to one or more topics, including **regular expression
    (regex) subscriptions**
@@ -176,7 +180,7 @@ Next-Gen Protocol / KIP-848
    # Optional: select a remote assignor
    # Valid options currently: 'uniform' or 'range'
    #   group.remote.assignor=<uniform,range>
-   # If unset(NULL), broker chooses the assignor (default: 'uniform')
+   # If unset, broker chooses the assignor (default: 'uniform')
 
    # Session & heartbeat now controlled by broker:
    #   group.consumer.session.timeout.ms
@@ -231,14 +235,14 @@ Upgrade and Downgrade
 -  Both **rolling upgrade** (classic → consumer) and **rolling
    downgrade** (consumer → classic) are supported.
 
-*************************************************
-Migration Checklist (Next-Gen Protocol / KIP-848)
-*************************************************
+**************************************************************************************************************************************************************************
+Migration Checklist (Next-Gen Protocol / `KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_)
+**************************************************************************************************************************************************************************
 
-1. Upgrade to **confluent-kafka-python ≥ 2.12.0** (GA release)
-2. Run against **Kafka brokers ≥ 4.0.0**
+1. Upgrade to **confluent-kafka-python ≥ v2.12.0** (GA release)
+2. Run against **Kafka brokers ≥ v4.0.0**
 3. Set ``group.protocol=consumer``
-4. Optionally set ``group.remote.assignor``; leave ``NULL`` for
+4. Optionally set ``group.remote.assignor``; leave unspecified for
    broker-controlled (default: ``uniform``), valid options: ``uniform``
    or ``range``
 5. Replace deprecated configs with new ones
