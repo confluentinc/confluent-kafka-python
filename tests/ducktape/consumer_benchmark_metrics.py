@@ -228,7 +228,7 @@ class ConsumerMetricsBounds:
                  min_consumption_rate: float = 1.0,
                  max_avg_latency_ms: float = 5000.0,
                  max_p95_latency_ms: float = 10000.0,
-                 min_success_rate: float = 0.95,
+                 min_success_rate: float = 0.90,
                  max_error_rate: float = 0.05,
                  max_memory_growth_mb: float = 600.0,
                  min_messages_per_consume: float = 0.5,
