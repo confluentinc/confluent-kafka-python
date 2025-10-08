@@ -1,18 +1,19 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
 
-## v2.12.0 - 2025-10-07
+## v2.12.0 - 2025-10-09
 
 v2.12.0 is a feature release with the following enhancements:
 
-confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
-for a complete list of changes, enhancements, fixes and upgrade considerations.
+ - **General Availability for Next Generation Consumer Group Protocol (KIP-848)**: 
+Starting with __confluent-kafka-python 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**  (GA release). Please refer the following [migration guide](docs/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
+ - **AsyncIO Producer (experimental):** Introduces beta class `AIOProducer` for
+  asynchronous message production in asyncio applications.
 
+<details>
+<summary> AsyncIO Producer (experimental) </summary>
 
-## v2.12.0b1 - 2025-10-01
-
-### Added
+#### Added
 
 - AsyncIO Producer (experimental): Introduces beta class `AIOProducer` for
   asynchronous message production in asyncio applications. This API offloads
@@ -20,7 +21,7 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
   (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
   loop for safe usage inside async frameworks.
 
-### Features
+#### Features
 
 - Batched async produce: `await AIOProducer(...).produce(topic, value=...)`
   buffers messages and flushes when the buffer threshold or timeout is reached.
@@ -28,18 +29,25 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
   transactional operations (`init_transactions`, `begin_transaction`,
   `commit_transaction`, `abort_transaction`).
 
-### Limitations
+#### Limitations
 
 - Per-message headers are not supported in the current batched async produce
   path. If headers are required, use the synchronous `Producer.produce(...)` or
   offload a sync produce call to a thread executor within your async app.
 
-### Guidance
+#### Guidance
 
 - Use the AsyncIO Producer inside async apps/servers (FastAPI/Starlette, aiohttp,
   asyncio tasks) to avoid blocking the event loop.
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
+
+</details>
+<br />
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.11.1 - 2025-08-18
