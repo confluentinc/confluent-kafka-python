@@ -143,7 +143,7 @@ RCs, so it only needs to be set once for each release.
 
 Commit these changes with a commit-message containing the version:
 
-    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h docs/conf.py pyproject.toml
+    $ git commit -m "Version v0.11.4rc1" src/confluent_kafka/src/confluent_kafka.h pyproject.toml
 
 
 ## 5. Tag, CI build, wheel verification, upload
@@ -254,7 +254,9 @@ the git history to look tidy, remove any test tags, and then go back to
 
 
 
-### 5.5.2. CANDIDATE ITERATION: Create PR
+### 5.5.2. Create PR
+
+**CANDIDATE ITERATION:**
 
 Once all test and RC builds are successful and have been verified and you're
 ready to go ahead with the release, it is time create a PR to have the
@@ -268,6 +270,13 @@ so try to keep the commit history tidy from the start in the RC branch.
 
 Create a PR for the RC branch and add team mates as reviewers and wait for
 review approval.
+
+**RELEASE ITERATION:**
+
+Same as the _CANDIDATE ITERATION_ plus:
+
+Update `tests/soak/setup_all_versions.py` with the released version
+to be tested in the soak test.
 
 
 ### 5.5.3. CANDIDATE ITERATION: Merge PR
