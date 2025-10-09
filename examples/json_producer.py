@@ -76,7 +76,7 @@ def delivery_report(err, msg):
     Reports the success or failure of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
         msg (Message): The message that was produced or failed.
     """
 
