@@ -49,8 +49,6 @@ blocks:
           value: x64
         - name: CIBW_SKIP
           value: cp36-* cp37-* cp38-* cp39-* cp310-* cp311-* cp312-*
-        - name: CIBW_ENVIRONMENT_MACOS
-          value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
         - name: Build
           commands:
@@ -97,8 +95,6 @@ blocks:
           value: arm64
         - name: CIBW_SKIP
           value: cp38-* cp39-* cp310-* cp311-* cp312-*
-        - name: CIBW_ENVIRONMENT_MACOS
-          value: MACOSX_DEPLOYMENT_TARGET=13
       jobs:
         - name: Build
           commands:
