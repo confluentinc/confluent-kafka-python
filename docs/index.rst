@@ -6,6 +6,7 @@ A reliable, performant and feature-rich Python client for Apache Kafka v0.8 and 
 Guides
    - :ref:`Configuration Guide <pythonclient_configuration>`
    - :ref:`Transactional API <pythonclient_transactional>`
+   - :ref:`KIP-848 Migration Guide <pythonclient_migration_kip848>`
 
 Client API
    - :ref:`Producer <pythonclient_producer>`
@@ -1090,3 +1091,11 @@ addition to the properties dictated by the underlying librdkafka C library:
 
 For the full range of configuration properties, please consult librdkafka's documentation:
 https://github.com/edenhill/librdkafka/blob/master/CONFIGURATION.md
+
+
+.. _pythonclient_migration_kip848:
+
+`KIP-848 <https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol>`_ - Migration Guide
+==================================================================================================================================================
+
+.. include:: kip-848-migration-guide.rst

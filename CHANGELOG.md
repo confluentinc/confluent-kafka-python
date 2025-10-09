@@ -1,20 +1,18 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-
-## v2.12.0 - 2025-10-07
+## v2.12.0 - 2025-10-09
 
 v2.12.0 is a feature release with the following enhancements:
 
-- Kafka OAuth/OIDC metadata based authentication examples with Azure IMDS (#2083).
+### [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) – General Availability
+Starting with __confluent-kafka-python 2.12.0__, the next generation consumer group rebalance protocol defined in **[KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol)** is **production-ready**. Please refer to the following [migration guide](docs/kip-848-migration-guide.md) for moving from `classic` to `consumer` protocol.
 
-confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
-[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
-for a complete list of changes, enhancements, fixes and upgrade considerations.
+**Note:** The new consumer group protocol defined in [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+Next+Generation+of+the+Consumer+Rebalance+Protocol) is not enabled by default. There are few contract change associated with the new protocol and might cause breaking changes. `group.protocol` configuration property dictates whether to use the new `consumer` protocol or older `classic` protocol. It defaults to `classic` if not provided.
 
+### AsyncIO Producer (experimental)
+ Introduces beta class `AIOProducer` for asynchronous message production in asyncio applications.
 
-## v2.12.0b1 - 2025-10-01
-
-### Added
+#### Added
 
 - AsyncIO Producer (experimental): Introduces beta class `AIOProducer` for
   asynchronous message production in asyncio applications. This API offloads
@@ -22,7 +20,7 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
   (`error_cb`, `throttle_cb`, `stats_cb`, `oauth_cb`, `logger`) onto the event
   loop for safe usage inside async frameworks.
 
-### Features
+#### Features
 
 - Batched async produce: `await AIOProducer(...).produce(topic, value=...)`
   buffers messages and flushes when the buffer threshold or timeout is reached.
@@ -30,18 +28,27 @@ for a complete list of changes, enhancements, fixes and upgrade considerations.
   transactional operations (`init_transactions`, `begin_transaction`,
   `commit_transaction`, `abort_transaction`).
 
-### Limitations
+#### Limitations
 
 - Per-message headers are not supported in the current batched async produce
   path. If headers are required, use the synchronous `Producer.produce(...)` or
   offload a sync produce call to a thread executor within your async app.
 
-### Guidance
+#### Guidance
 
 - Use the AsyncIO Producer inside async apps/servers (FastAPI/Starlette, aiohttp,
   asyncio tasks) to avoid blocking the event loop.
 - For batch jobs, scripts, or highest-throughput pipelines without an event
   loop, the synchronous `Producer` remains recommended.
+
+### Enhancement and Fixes
+
+- Kafka OAuth/OIDC metadata based authentication examples with Azure IMDS (#2083).
+
+
+confluent-kafka-python v2.12.0 is based on librdkafka v2.12.0, see the
+[librdkafka release notes](https://github.com/confluentinc/librdkafka/releases/tag/v2.12.0)
+for a complete list of changes, enhancements, fixes and upgrade considerations.
 
 
 ## v2.11.1 - 2025-08-18
