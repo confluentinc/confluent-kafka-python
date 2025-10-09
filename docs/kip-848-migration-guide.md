@@ -46,10 +46,11 @@ All [KIP-848](https://cwiki.apache.org/confluence/display/KAFKA/KIP-848%3A+The+N
 ## Rebalance Callback Changes
 
 - The **protocol is fully incremental** in KIP-848.
-- In the **rebalance callbacks**, you **must use**:
+- In the **rebalance callbacks**, you **must only use** (optional - if not used, client will handle it internally):
   - `consumer.incremental_assign(partitions)` to assign new partitions
   - `consumer.incremental_unassign(partitions)` to revoke partitions
 - **Do not** use `consumer.assign()` or `consumer.unassign()` when using `group.protocol='consumer'` (KIP-848).
+- If you don't provide incremental assign/unassign inside rebalance callbacks, the client will automatically use incremental assign/unassign internally.
 - ⚠️ The `partitions` list passed to `incremental_assign()` and `incremental_unassign()` contains only the **incremental changes** — partitions being **added** or **revoked** — **not the full assignment**, as was the case with `assign()` in the classic protocol.
 - All assignors under KIP-848 are now **sticky**, including `range`, which was **not sticky** in the classic protocol.
 
@@ -131,11 +132,11 @@ group.protocol=consumer
 def on_assign(consumer, partitions):
     # Full partition list is provided under the classic protocol
     print(f"[Classic] Assigned partitions: {partitions}")
-    consumer.assign(partitions)
+    consumer.assign(partitions) # Optional: client handles if not used
 
 def on_revoke(consumer, partitions):
     print(f"[Classic] Revoked partitions: {partitions}")
-    consumer.unassign()
+    consumer.unassign() # Optional: client handles if not used
 ```
 
 ## Incremental Assignor (Including Range in Consumer / KIP-848, Any Protocol)
@@ -145,11 +146,11 @@ def on_revoke(consumer, partitions):
 def on_assign(consumer, partitions):
     # Only incremental partitions are passed here (not full list)
     print(f"[KIP-848] Incrementally assigning: {partitions}")
-    consumer.incremental_assign(partitions)
+    consumer.incremental_assign(partitions) # Optional: client handles if not used
 
 def on_revoke(consumer, partitions):
     print(f"[KIP-848] Incrementally revoking: {partitions}")
-    consumer.incremental_unassign(partitions)
+    consumer.incremental_unassign(partitions) # Optional: client handles if not used
 ```
 
 **Note:** The `partitions` list contains **only partitions being added or revoked**, not the full partition list as in the classic `consumer.assign()`.
@@ -168,7 +169,7 @@ def on_revoke(consumer, partitions):
 3.  Set `group.protocol=consumer`
 4.  Optionally set `group.remote.assignor`; leave unspecified for broker-controlled (default: `uniform`), valid options: `uniform` or `range`
 5.  Replace deprecated configs with new ones
-6.  Update rebalance callbacks to **incremental APIs only**
+6.  Update rebalance callbacks to **incremental APIs only** (if used)
 7.  Review static membership handling (`group.instance.id`)
 8.  Ensure proper shutdown to avoid fencing issues
 9.  Adjust error handling for unknown topics and authorization failures
