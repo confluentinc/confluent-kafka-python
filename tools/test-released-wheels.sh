@@ -41,7 +41,7 @@ for version in "${python_versions[@]}"; do
 
     if [ "$2" = "test" ]; then
         echo "Installing confluent_kafka from test PyPI"
-        pip install --index-url https://test.pypi.org/simple/ confluent_kafka==$1 > /dev/null 2>&1
+        pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple confluent_kafka==$1
     else
         echo "Installing confluent_kafka"
         pip install confluent_kafka==$1
