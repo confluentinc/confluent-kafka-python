@@ -509,6 +509,16 @@ class AsyncProducerStrategy(ProducerStrategy):
                     pending_futures.append((delivery_future, message_key))  # Store delivery future
                     messages_sent += 1
 
+                    # Use configured polling interval (default to 50 if not set)
+                    poll_interval = getattr(self, 'poll_interval', 50)
+
+                    if messages_sent % poll_interval == 0:
+                        poll_start = time.time()
+                        await producer.poll(0)
+                        poll_times.append(time.time() - poll_start)
+                        if self.metrics:
+                            self.metrics.record_poll()
+
                 except Exception as e:
                     if failed_container is not None:
                         failed_container.append(e)

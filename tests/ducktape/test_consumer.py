@@ -570,9 +570,10 @@ class SimpleConsumerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             f"Successfully completed basic {operation_type} test with comprehensive metrics"

@@ -127,9 +127,10 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed basic production test with comprehensive metrics"
@@ -219,9 +220,10 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed basic production test with comprehensive metrics with transaction"
@@ -325,11 +327,12 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed for %ds test: %s",
                 test_duration,
                 "; ".join(violations),
             )
+            assert False, f"Performance bounds validation failed for {test_duration}s test: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed %ds batch production test with comprehensive metrics",
@@ -466,10 +469,14 @@ class SimpleProducerTest(Test):
 
         # Validate against performance bounds
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed for %s compression: %s",
                 compression_type,
                 "; ".join(violations),
+            )
+            assert False, (
+                f"Performance bounds validation failed for {compression_type} compression: "
+                f"{'; '.join(violations)}"
             )
 
         self.logger.info(
@@ -607,9 +614,10 @@ class SimpleProducerTest(Test):
         ), f"Send throughput too low: {metrics_summary['send_throughput_msg_per_sec']:.2f} msg/s"
 
         if not is_valid:
-            self.logger.warning(
+            self.logger.error(
                 "Performance bounds validation failed: %s", "; ".join(violations)
             )
+            assert False, f"Performance bounds validation failed: {'; '.join(violations)}"
 
         self.logger.info(
             "Successfully completed SR production test with comprehensive metrics"
