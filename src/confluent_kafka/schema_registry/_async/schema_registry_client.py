@@ -667,7 +667,13 @@ class AsyncSchemaRegistryClient(object):
         if schema_id is not None:
             result = self._cache.get_schema_by_id(subject_name, schema_id)
             if result is not None:
-                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
+                return RegisteredSchema(
+                    schema_id=schema_id,
+                    guid=result[0],
+                    subject=subject_name,
+                    version=None,
+                    schema=result[1]
+                )
 
         request = schema.to_dict()
 
@@ -682,7 +688,7 @@ class AsyncSchemaRegistryClient(object):
             guid=result.guid,
             subject=result.subject or subject_name,
             version=result.version,
-            schema=result.schema,
+            schema=result.schema
         )
 
         # The registered schema may not be fully populated
