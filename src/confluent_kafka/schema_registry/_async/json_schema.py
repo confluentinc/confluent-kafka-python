@@ -98,10 +98,9 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
     | ``normalize.schemas``       | bool     | transform schemas to have a consistent format,     |
     |                             |          | including ordering properties and references.      |
     +-----------------------------+----------+----------------------------------------------------+
-    |                             |          | Whether to use the given schema ID for           |
-    | ``use.schema.id``           | int      | serialization.                                   |
-    |                             |          |                                                  |
-    +-----------------------------+----------+--------------------------------------------------+
+    |                             |          | Whether to use the given schema ID for             |
+    | ``use.schema.id``           | int      | serialization.                                     |
+    +-----------------------------+----------+----------------------------------------------------+
     |                             |          | Whether to use the latest subject version for      |
     | ``use.latest.version``      | bool     | serialization.                                     |
     |                             |          |                                                    |
