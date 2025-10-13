@@ -57,11 +57,13 @@ def _resolve_named_schema(
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
+
     :param schema: Schema to resolve named schemas for.
     :param schema_registry_client: SchemaRegistryClient to use for retrieval.
     :param pool: DescriptorPool to add resolved schemas to.
     :return: DescriptorPool
     """
+
     if visited is None:
         visited = set()
     if schema.references is not None:
@@ -104,7 +106,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Whether to use the given schema ID for               |
     | ``use.schema.id``                   | int      | serialization.                                       |
     |                                     |          |                                                      |
-    +-----------------------------------------+----------+--------------------------------------------------+
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
@@ -186,6 +188,7 @@ class ProtobufSerializer(BaseSerializer):
     See Also:
         `Protobuf API reference <https://googleapis.dev/python/protobuf/latest/google/protobuf.html>`_
     """  # noqa: E501
+
     __slots__ = ['_skip_known_types', '_known_subjects', '_msg_class', '_index_array',
                  '_schema', '_schema_id', '_ref_reference_subject_func',
                  '_use_deprecated_format', '_parsed_schemas']
