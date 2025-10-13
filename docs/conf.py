@@ -12,7 +12,7 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sphinx_rtd_theme
+# import sphinx_rtd_theme
 import os
 try:
     import tomllib
