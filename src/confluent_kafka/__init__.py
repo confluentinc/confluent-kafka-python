@@ -27,6 +27,7 @@ from ._model import (
     TopicCollection,
     TopicPartitionInfo,
     IsolationLevel,
+    ElectionType
 )
 import os
 from .cimpl import (
@@ -74,6 +75,7 @@ __all__ = [
     "IsolationLevel",
     "TopicCollection",
     "TopicPartitionInfo",
+    "ElectionType"
 ]
 
 

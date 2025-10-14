@@ -57,6 +57,7 @@ def _resolve_named_schema(
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
+
     :param schema: Schema to resolve named schemas for.
     :param schema_registry_client: SchemaRegistryClient to use for retrieval.
     :param pool: DescriptorPool to add resolved schemas to.
@@ -104,7 +105,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Whether to use the given schema ID for               |
     | ``use.schema.id``                   | int      | serialization.                                       |
     |                                     |          |                                                      |
-    +-----------------------------------------+----------+--------------------------------------------------+
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
