@@ -19,8 +19,6 @@ from typing import Any, Dict, List, Sequence
 
 import confluent_kafka
 
-from .. import _common
-
 logger = logging.getLogger(__name__)
 
 
@@ -65,10 +63,10 @@ class ProducerBatchExecutor:
         Args:
             topic: Target topic for the batch
             batch_messages: List of prepared messages with callbacks assigned
-            partition: Target partition for the batch (-1 = RD_KAFKA_PARTITION_UA)
+            partition: Target partition (-1 = RD_KAFKA_PARTITION_UA)
 
         Returns:
-            Result from producer.poll() indicating number of delivery reports processed
+            Result from producer.poll() indicating # of delivery reports processed
 
         Raises:
             Exception: Any exception from the batch operation is propagated
@@ -77,9 +75,9 @@ class ProducerBatchExecutor:
             """Helper function to run in thread pool
 
             This function encapsulates all the blocking Kafka operations:
-            - Call produce_batch with specific partition and individual message callbacks
+            - Call produce_batch with specific partition & individual callbacks
             - Handle partial batch failures for messages that fail immediately
-            - Poll for delivery reports to trigger callbacks for successful messages
+            - Poll for delivery reports to trigger callbacks for successful msgs
             """
             # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
@@ -90,7 +88,8 @@ class ProducerBatchExecutor:
             )
 
             # Use the provided partition for the entire batch
-            # This enables proper partition control while working around librdkafka limitations
+            # This enables proper partition control while working around
+            # librdkafka limitations
             self._producer.produce_batch(topic, messages_list, partition=partition)
 
             # Handle partial batch failures: Check for messages that failed
@@ -99,7 +98,7 @@ class ProducerBatchExecutor:
             # so we need to manually invoke their callbacks
             self._handle_partial_failures(messages_list)
 
-            # Immediately poll to process delivery callbacks for successful messages
+            # Immediately poll to process delivery callbacks for successful msgs
             poll_result = self._producer.poll(0)
 
             return poll_result
@@ -108,24 +107,10 @@ class ProducerBatchExecutor:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, _produce_batch_and_poll)
 
-    async def flush_librdkafka_queue(self, timeout=-1):
-        """Flush the librdkafka queue and wait for all messages to be delivered
-
-        This method awaits until all outstanding produce requests are completed
-        or the timeout is reached, unless the timeout is set to 0 (non-blocking).
-
-        Args:
-            timeout: Maximum time to wait in seconds:
-                    - -1 = wait indefinitely (default)
-                    - 0 = non-blocking, return immediately
-                    - >0 = wait up to timeout seconds
-
-        Returns:
-            Number of messages still in queue after flush attempt
-        """
-        return await _common.async_call(self._executor, self._producer.flush, timeout)
-
-    def _handle_partial_failures(self, batch_messages: List[Dict[str, Any]]) -> None:
+    def _handle_partial_failures(
+        self,
+        batch_messages: List[Dict[str, Any]]
+    ) -> None:
         """Handle messages that failed during produce_batch
 
         When produce_batch encounters messages that fail immediately (e.g.,
@@ -135,7 +120,7 @@ class ProducerBatchExecutor:
         manually invoke the simple future-resolving callbacks.
 
         Args:
-            batch_messages: List of message dictionaries that were passed to produce_batch
+            batch_messages: List of message dicts passed to produce_batch
         """
         for msg_dict in batch_messages:
             if '_error' in msg_dict:
@@ -146,7 +131,7 @@ class ProducerBatchExecutor:
                     # Extract the error from the message dict (set by Producer.c)
                     error = msg_dict['_error']
                     # Manually invoke the callback with the error
-                    # Note: msg is None since the message failed before being queued
+                    # Note: msg is None since message failed before being queued
                     try:
                         callback(error, None)
                     except Exception:

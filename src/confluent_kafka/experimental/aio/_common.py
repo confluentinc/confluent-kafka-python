@@ -18,6 +18,8 @@ import logging
 import concurrent.futures
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
+from ..._types import ConfigDict
+
 T = TypeVar('T')
 
 
@@ -32,7 +34,7 @@ class AsyncLogger:
         self.logger = logger
 
     def log(self, *args: Any, **kwargs: Any) -> None:
-        self.loop.call_soon_threadsafe(lambda: self.logger.log(*args, **kwargs))
+        self.loop.call_soon_threadsafe(self.logger.log, *args, **kwargs)
 
 
 def wrap_callback(

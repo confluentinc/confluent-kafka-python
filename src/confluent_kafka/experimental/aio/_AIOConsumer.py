@@ -14,17 +14,18 @@
 
 import asyncio
 import concurrent.futures
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
 import confluent_kafka
 
 from . import _common as _common
+from ..._types import ConfigDict
 
 
 class AIOConsumer:
     def __init__(
         self,
-        consumer_conf: Dict[str, Any],
+        consumer_conf: ConfigDict,
         max_workers: int = 2,
         executor: Optional[concurrent.futures.Executor] = None
     ) -> None:

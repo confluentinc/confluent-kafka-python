@@ -15,7 +15,7 @@
 import asyncio
 import concurrent.futures
 import logging
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 import confluent_kafka
 
@@ -23,6 +23,7 @@ from .. import _common as _common
 from ._producer_batch_processor import ProducerBatchManager
 from ._kafka_batch_executor import ProducerBatchExecutor
 from ._buffer_timeout_manager import BufferTimeoutManager
+from ..._types import ConfigDict
 
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ class AIOProducer:
 
     def __init__(
         self,
-        producer_conf: Dict[str, Any],
+        producer_conf: ConfigDict,
         max_workers: int = 4,
         executor: Optional[concurrent.futures.Executor] = None,
         batch_size: int = 1000,
@@ -224,7 +225,7 @@ class AIOProducer:
             # Update buffer activity since we just flushed
             self._buffer_timeout_manager.mark_activity()
 
-        # Then flush the underlying producer and wait for delivery confirmation
+        # Then flush underlying producer and wait for delivery confirmation
         return await self._call(self._producer.flush, *args, **kwargs)
 
     async def purge(self, *args: Any, **kwargs: Any) -> Any:
