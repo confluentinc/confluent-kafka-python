@@ -23,7 +23,7 @@ from .serialization import (MessageField,
                             SerializationContext)
 from .error import (KeySerializationError,
                     ValueSerializationError)
-from ._types import ConfigDict, HeadersType, DeliveryCallback, Serializer
+from ._types import ConfigDict, HeadersType, DeliveryCallback
 
 
 class SerializingProducer(_ProducerImpl):
