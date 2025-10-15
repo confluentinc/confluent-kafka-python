@@ -6,16 +6,12 @@ This module tests the BufferTimeoutManager class to ensure proper
 buffer timeout monitoring and automatic flush handling.
 """
 
-from confluent_kafka.experimental.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 import asyncio
 import unittest
-from unittest.mock import Mock, AsyncMock, patch
-import sys
-import os
 import time
+from unittest.mock import Mock, AsyncMock
 
-# Add src to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+from confluent_kafka.experimental.aio.producer._buffer_timeout_manager import BufferTimeoutManager
 
 
 class TestBufferTimeoutManager(unittest.TestCase):
@@ -129,7 +125,7 @@ class TestBufferTimeoutManager(unittest.TestCase):
         async def track_batch_flush():
             call_order.append('batch_processor')
         
-        async def track_kafka_flush():
+        async def track_kafka_flush(timeout=0):
             call_order.append('kafka_executor')
         
         self.mock_batch_processor.flush_buffer.side_effect = track_batch_flush
