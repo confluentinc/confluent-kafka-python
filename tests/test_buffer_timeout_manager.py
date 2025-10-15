@@ -192,8 +192,11 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
         self.loop.run_until_complete(async_test())
 
-    def test_monitor_timeout_does_not_flush_empty_buffer(self):
-        """Test that timeout monitoring doesn't flush if buffer is empty"""
+    def test_monitor_timeout_flushes_librdkafka_even_when_buffer_empty(self):
+        """Test that timeout monitoring flushes librdkafka queue even when local buffer is empty
+        This ensures that messages sitting in librdkafka's internal queue get delivered,
+        even if there are no messages in our local buffer.
+        """
         # Configure buffer as empty
         self.mock_batch_processor.is_buffer_empty.return_value = True
 
@@ -210,9 +213,10 @@ class TestBufferTimeoutManager(unittest.TestCase):
             # Stop monitoring
             self.timeout_manager.stop_timeout_monitoring()
 
-            # Verify flush was NOT called for empty buffer
-            self.mock_batch_processor.flush_buffer.assert_not_called()
-            self.mock_kafka_executor.flush_librdkafka_queue.assert_not_called()
+            # flush_buffer() returns early since buffer is empty
+            self.mock_batch_processor.flush_buffer.assert_called_once()
+            # BUT librdkafka queue flush should still happen
+            self.mock_kafka_executor.flush_librdkafka_queue.assert_called_once()
 
         self.loop.run_until_complete(async_test())
 
