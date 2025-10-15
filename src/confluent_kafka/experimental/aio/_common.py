@@ -18,8 +18,6 @@ import logging
 import concurrent.futures
 from typing import Any, Callable, Dict, Optional, Tuple, TypeVar
 
-from ..._types import ConfigDict
-
 T = TypeVar('T')
 
 

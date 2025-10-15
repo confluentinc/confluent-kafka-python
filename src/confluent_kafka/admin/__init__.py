@@ -156,7 +156,8 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_resource_result(f: concurrent.futures.Future, futmap: Dict[ConfigResource, concurrent.futures.Future]) -> None:
+    def _make_resource_result(f: concurrent.futures.Future,
+                              futmap: Dict[ConfigResource, concurrent.futures.Future]) -> None:
         """
         Map per-resource results to per-resource futures in futmap.
         The result value of each (successful) future is a ConfigResource.
@@ -185,7 +186,8 @@ class AdminClient (_AdminClientImpl):
         pass
 
     @staticmethod
-    def _make_consumer_groups_result(f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]) -> None:
+    def _make_consumer_groups_result(f: concurrent.futures.Future,
+                                      futmap: Dict[str, concurrent.futures.Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         """
@@ -210,7 +212,8 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_consumer_group_offsets_result(f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]) -> None:
+    def _make_consumer_group_offsets_result(f: concurrent.futures.Future,
+                                             futmap: Dict[str, concurrent.futures.Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
@@ -262,7 +265,8 @@ class AdminClient (_AdminClientImpl):
                 fut.set_exception(e)
 
     @staticmethod
-    def _make_futmap_result_from_list(f: concurrent.futures.Future, futmap: Dict[Any, concurrent.futures.Future]) -> None:
+    def _make_futmap_result_from_list(f: concurrent.futures.Future,
+                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
         try:
 
             results = f.result()
@@ -313,7 +317,9 @@ class AdminClient (_AdminClientImpl):
         return f
 
     @staticmethod
-    def _make_futures(futmap_keys: List[Any], class_check: Optional[type], make_result_fn: Any) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
+    def _make_futures(futmap_keys: List[Any], class_check: Optional[type],
+                      make_result_fn: Any) -> Tuple[concurrent.futures.Future,
+                                                     Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -335,7 +341,9 @@ class AdminClient (_AdminClientImpl):
         return f, futmap
 
     @staticmethod
-    def _make_futures_v2(futmap_keys: Union[List[Any], Set[Any]], class_check: Optional[type], make_result_fn: Any) -> Tuple[concurrent.futures.Future, Dict[Any, concurrent.futures.Future]]:
+    def _make_futures_v2(futmap_keys: Union[List[Any], Set[Any]], class_check: Optional[type],
+                         make_result_fn: Any) -> Tuple[concurrent.futures.Future,
+                                                        Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -517,7 +525,8 @@ class AdminClient (_AdminClientImpl):
                                 "UserScramCredentialDeletion")
 
     @staticmethod
-    def _check_list_offsets_request(topic_partition_offsets: Dict[_TopicPartition, OffsetSpec], kwargs: Dict[str, Any]) -> None:
+    def _check_list_offsets_request(topic_partition_offsets: Dict[_TopicPartition, OffsetSpec],
+                                     kwargs: Dict[str, Any]) -> None:
         if not isinstance(topic_partition_offsets, dict):
             raise TypeError("Expected topic_partition_offsets to be " +
                             "dict of [TopicPartitions,OffsetSpec] for list offsets request")
@@ -645,7 +654,8 @@ class AdminClient (_AdminClientImpl):
 
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
-    def create_partitions(self, new_partitions: List[NewPartitions], **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
+    def create_partitions(self, new_partitions: List[NewPartitions],
+                          **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
         """
         Create additional partitions for the given topics.
 
@@ -679,7 +689,8 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def describe_configs(self, resources: List[ConfigResource], **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
+    def describe_configs(self, resources: List[ConfigResource],
+                         **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
         """
         Get the configuration of the specified resources.
 
@@ -711,7 +722,8 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def alter_configs(self, resources: List[ConfigResource], **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
+    def alter_configs(self, resources: List[ConfigResource],
+                      **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
         """
         .. deprecated:: 2.2.0
 
@@ -759,7 +771,8 @@ class AdminClient (_AdminClientImpl):
 
         return futmap
 
-    def incremental_alter_configs(self, resources: List[ConfigResource], **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
+    def incremental_alter_configs(self, resources: List[ConfigResource],
+                                   **kwargs: Any) -> Dict[ConfigResource, concurrent.futures.Future]:
         """
         Update configuration properties for the specified resources.
         Updates are incremental, i.e only the values mentioned are changed
@@ -856,7 +869,8 @@ class AdminClient (_AdminClientImpl):
 
         return f
 
-    def delete_acls(self, acl_binding_filters: List[AclBindingFilter], **kwargs: Any) -> Dict[AclBindingFilter, concurrent.futures.Future]:
+    def delete_acls(self, acl_binding_filters: List[AclBindingFilter],
+                    **kwargs: Any) -> Dict[AclBindingFilter, concurrent.futures.Future]:
         """
         Delete ACL bindings matching one or more ACL binding filters.
 
@@ -1058,13 +1072,16 @@ class AdminClient (_AdminClientImpl):
         if len(group_ids) == 0:
             raise ValueError("Expected at least one group to be deleted")
 
-        f, futmap = AdminClient._make_futures(group_ids, string_type, AdminClient._make_consumer_groups_result)
+        f, futmap = AdminClient._make_futures(group_ids, string_type,
+                                              AdminClient._make_consumer_groups_result)
 
         super(AdminClient, self).delete_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
 
-    def list_consumer_group_offsets(self, list_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
+    def list_consumer_group_offsets(
+            self, list_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions],
+            **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
         """
         List offset information for the consumer group and (optional) topic partition provided in the request.
 
@@ -1092,15 +1109,18 @@ class AdminClient (_AdminClientImpl):
 
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
-        f, futmap = AdminClient._make_futures([request.group_id for request in list_consumer_group_offsets_request],
-                                              string_type,
-                                              AdminClient._make_consumer_group_offsets_result)
+        f, futmap = AdminClient._make_futures(
+            [request.group_id for request in list_consumer_group_offsets_request],
+            string_type,
+            AdminClient._make_consumer_group_offsets_result)
 
         super(AdminClient, self).list_consumer_group_offsets(list_consumer_group_offsets_request, f, **kwargs)
 
         return futmap
 
-    def alter_consumer_group_offsets(self, alter_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions], **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
+    def alter_consumer_group_offsets(
+            self, alter_consumer_group_offsets_request: List[_ConsumerGroupTopicPartitions],
+            **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
         """
         Alter offset for the consumer group and topic partition provided in the request.
 
@@ -1152,7 +1172,9 @@ class AdminClient (_AdminClientImpl):
         """
         super(AdminClient, self).set_sasl_credentials(username, password)
 
-    def describe_user_scram_credentials(self, users: Optional[List[str]] = None, **kwargs: Any) -> Union[concurrent.futures.Future, Dict[str, concurrent.futures.Future]]:
+    def describe_user_scram_credentials(
+            self, users: Optional[List[str]] = None,
+            **kwargs: Any) -> Union[concurrent.futures.Future, Dict[str, concurrent.futures.Future]]:
         """
         Describe user SASL/SCRAM credentials.
 
@@ -1183,12 +1205,14 @@ class AdminClient (_AdminClientImpl):
         if users is None:
             internal_f, ret_fut = AdminClient._make_single_future_pair()
         else:
-            internal_f, ret_fut = AdminClient._make_futures_v2(users, None,
-                                                               AdminClient._make_futmap_result)
+            internal_f, ret_fut = AdminClient._make_futures_v2(
+                users, None, AdminClient._make_futmap_result)
         super(AdminClient, self).describe_user_scram_credentials(users, internal_f, **kwargs)
         return ret_fut
 
-    def alter_user_scram_credentials(self, alterations: List[UserScramCredentialAlteration], **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
+    def alter_user_scram_credentials(
+            self, alterations: List[UserScramCredentialAlteration],
+            **kwargs: Any) -> Dict[str, concurrent.futures.Future]:
         """
         Alter user SASL/SCRAM credentials.
 
@@ -1210,13 +1234,15 @@ class AdminClient (_AdminClientImpl):
         """
         AdminClient._check_alter_user_scram_credentials_request(alterations)
 
-        f, futmap = AdminClient._make_futures_v2(set([alteration.user for alteration in alterations]), None,
-                                                 AdminClient._make_futmap_result)
+        f, futmap = AdminClient._make_futures_v2(
+            set([alteration.user for alteration in alterations]), None,
+            AdminClient._make_futmap_result)
 
         super(AdminClient, self).alter_user_scram_credentials(alterations, f, **kwargs)
         return futmap
 
-    def list_offsets(self, topic_partition_offsets: Dict[_TopicPartition, OffsetSpec], **kwargs: Any) -> Dict[_TopicPartition, concurrent.futures.Future]:
+    def list_offsets(self, topic_partition_offsets: Dict[_TopicPartition, OffsetSpec],
+                     **kwargs: Any) -> Dict[_TopicPartition, concurrent.futures.Future]:
         """
         Enables to find the beginning offset,
         end offset as well as the offset matching a timestamp
@@ -1250,14 +1276,15 @@ class AdminClient (_AdminClientImpl):
                             int(offset_spec._value))
             for topic_partition, offset_spec in topic_partition_offsets.items()]
 
-        f, futmap = AdminClient._make_futures_v2(topic_partition_offsets_list,
-                                                 _TopicPartition,
-                                                 AdminClient._make_futmap_result)
+        f, futmap = AdminClient._make_futures_v2(
+            topic_partition_offsets_list, _TopicPartition,
+            AdminClient._make_futmap_result)
 
         super(AdminClient, self).list_offsets(topic_partition_offsets_list, f, **kwargs)
         return futmap
 
-    def delete_records(self, topic_partition_offsets: List[_TopicPartition], **kwargs: Any) -> Dict[_TopicPartition, concurrent.futures.Future]:
+    def delete_records(self, topic_partition_offsets: List[_TopicPartition],
+                       **kwargs: Any) -> Dict[_TopicPartition, concurrent.futures.Future]:
         """
         Deletes all the records before the specified offsets (not including),
         in the specified topics and partitions.
@@ -1294,7 +1321,9 @@ class AdminClient (_AdminClientImpl):
         super(AdminClient, self).delete_records(topic_partition_offsets, f, **kwargs)
         return futmap
 
-    def elect_leaders(self, election_type: _ElectionType, partitions: Optional[List[_TopicPartition]] = None, **kwargs: Any) -> concurrent.futures.Future:
+    def elect_leaders(self, election_type: _ElectionType,
+                      partitions: Optional[List[_TopicPartition]] = None,
+                      **kwargs: Any) -> concurrent.futures.Future:
         """
         Perform Preferred or Unclean leader election for
         all the specified partitions or all partitions in the cluster.
