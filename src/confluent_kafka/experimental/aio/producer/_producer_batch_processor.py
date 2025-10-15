@@ -12,11 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import copy
 import logging
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from confluent_kafka import KafkaException as _KafkaException
-from ._message_batch import create_message_batch
+from ._message_batch import create_message_batch, MessageBatch
+
+if TYPE_CHECKING:
+    # Import only for type checking to avoid circular dependency
+    from ._kafka_batch_executor import ProducerBatchExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +37,21 @@ class ProducerBatchManager:
     - Executing batch operations via librdkafka
     """
 
-    def __init__(self, kafka_executor):
+    def __init__(self, kafka_executor: "ProducerBatchExecutor") -> None:
         """Initialize the batch processor
 
         Args:
             kafka_executor: KafkaBatchExecutor instance for Kafka operations
         """
         self._kafka_executor = kafka_executor
-        self._message_buffer = []
-        self._buffer_futures = []
+        self._message_buffer: List[Dict[str, Any]] = []
+        self._buffer_futures: List[asyncio.Future[Any]] = []
 
-    def add_message(self, msg_data, future):
+    def add_message(
+        self,
+        msg_data: Dict[str, Any],
+        future: asyncio.Future[Any]
+    ) -> None:
         """Add a message to the batch buffer
 
         Args:
@@ -51,30 +61,33 @@ class ProducerBatchManager:
         self._message_buffer.append(msg_data)
         self._buffer_futures.append(future)
 
-    def get_buffer_size(self):
+    def get_buffer_size(self) -> int:
         """Get the current number of messages in the buffer"""
         return len(self._message_buffer)
 
-    def is_buffer_empty(self):
+    def is_buffer_empty(self) -> bool:
         """Check if the buffer is empty"""
         return len(self._message_buffer) == 0
 
-    def clear_buffer(self):
+    def clear_buffer(self) -> None:
         """Clear the entire buffer"""
         self._message_buffer.clear()
         self._buffer_futures.clear()
 
-    def cancel_pending_futures(self):
+    def cancel_pending_futures(self) -> None:
         """Cancel all pending futures in the buffer"""
         for future in self._buffer_futures:
             if not future.done():
                 future.cancel()
 
-    def create_batches(self, target_topic=None):
+    def create_batches(
+        self,
+        target_topic: Optional[str] = None
+    ) -> List[MessageBatch]:
         """Create MessageBatch objects from the current buffer
 
         Args:
-            target_topic: Optional topic to create batches for (None for all topics)
+            target_topic: Optional topic to create batches for (None for all)
 
         Returns:
             List[MessageBatch]: List of immutable MessageBatch objects
@@ -106,7 +119,7 @@ class ProducerBatchManager:
 
         return batches
 
-    def _clear_topic_from_buffer(self, target_topic):
+    def _clear_topic_from_buffer(self, target_topic: str) -> None:
         """Remove messages for a specific topic from the buffer
 
         Args:
@@ -123,7 +136,7 @@ class ProducerBatchManager:
         self._message_buffer = messages_to_keep
         self._buffer_futures = futures_to_keep
 
-    async def flush_buffer(self, target_topic=None):
+    async def flush_buffer(self, target_topic: Optional[str] = None) -> None:
         """Flush the current message buffer using produce_batch
 
         Args:
@@ -158,7 +171,11 @@ class ProducerBatchManager:
                 raise
             raise
 
-    async def _execute_batches(self, batches, target_topic=None):
+    async def _execute_batches(
+        self,
+        batches: List[MessageBatch],
+        target_topic: Optional[str] = None
+    ) -> None:
         """Execute batches and handle cleanup after successful execution
 
         Args:
@@ -185,7 +202,7 @@ class ProducerBatchManager:
                 # Re-raise the exception so caller knows the batch operation failed
                 raise
 
-    def _add_batches_back_to_buffer(self, batches):
+    def _add_batches_back_to_buffer(self, batches: List[MessageBatch]) -> None:
         """Add batches back to the buffer when execution fails
 
         Args:
@@ -213,8 +230,10 @@ class ProducerBatchManager:
                 self._message_buffer.append(msg_data)
                 self._buffer_futures.append(batch.futures[i])
 
-    def _group_messages_by_topic_and_partition(self):
-        """Group buffered messages by topic and partition for optimal batch processing
+    def _group_messages_by_topic_and_partition(
+        self
+    ) -> Dict[Tuple[str, int], Dict[str, List[Any]]]:
+        """Group buffered messages by topic and partition for optimal batching
 
         This function efficiently organizes the mixed-topic message buffer into
         topic+partition-specific groups, enabling proper partition control while
@@ -224,14 +243,15 @@ class ProducerBatchManager:
         - Single O(n) pass through message buffer
         - Groups related data (messages, futures) by (topic, partition) tuple
         - Maintains index relationships between buffer arrays
-        - Uses partition from message data, defaults to RD_KAFKA_PARTITION_UA (-1) if not specified
+        - Uses partition from message data, defaults to RD_KAFKA_PARTITION_UA
+          (-1) if not specified
 
         Returns:
             dict: Topic+partition groups with structure:
                 {
                     ('topic_name', partition): {
-                        'messages': [msg_data1, msg_data2, ...],     # Message dictionaries
-                        'futures': [future1, future2, ...],         # Corresponding asyncio.Future objects
+                        'messages': [msg_data1, ...],  # Message dicts
+                        'futures': [future1, ...],     # asyncio.Future objects
                     }
                 }
         """
@@ -260,7 +280,10 @@ class ProducerBatchManager:
 
         return topic_partition_groups
 
-    def _prepare_batch_messages(self, messages):
+    def _prepare_batch_messages(
+        self,
+        messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         """Prepare messages for produce_batch by removing internal fields
 
         Args:
@@ -280,8 +303,12 @@ class ProducerBatchManager:
 
         return batch_messages
 
-    def _assign_future_callbacks(self, batch_messages, futures):
-        """Assign simple future-resolving callbacks to each message in the batch
+    def _assign_future_callbacks(
+        self,
+        batch_messages: List[Dict[str, Any]],
+        futures: Sequence[asyncio.Future[Any]]
+    ) -> None:
+        """Assign simple future-resolving callbacks to each message in batch
 
         Args:
             batch_messages: List of message dictionaries for produce_batch
@@ -290,10 +317,12 @@ class ProducerBatchManager:
         for i, batch_msg in enumerate(batch_messages):
             future = futures[i]
 
-            def create_simple_callback(fut):
+            def create_simple_callback(
+                fut: asyncio.Future[Any]
+            ) -> Callable[[Any, Any], None]:
                 """Create a simple callback that only resolves the future"""
 
-                def simple_callback(err, msg):
+                def simple_callback(err: Any, msg: Any) -> None:
                     if err:
                         if not fut.done():
                             fut.set_exception(_KafkaException(err))
@@ -306,7 +335,11 @@ class ProducerBatchManager:
             # Assign the simple callback to this message
             batch_msg["callback"] = create_simple_callback(future)
 
-    def _handle_batch_failure(self, exception, batch_futures):
+    def _handle_batch_failure(
+        self,
+        exception: Exception,
+        batch_futures: Sequence[asyncio.Future[Any]]
+    ) -> None:
         """Handle batch operation failure by failing all unresolved futures
 
         When a batch operation fails before any individual callbacks are invoked,
