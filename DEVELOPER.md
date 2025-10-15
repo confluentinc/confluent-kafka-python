@@ -10,18 +10,12 @@ This document provides information useful to developers working on confluent-kaf
 - Git
 - librdkafka (for Kafka functionality)
 
-<<<<<<< HEAD
 ### Quick start (editable install)
 
 <!-- markdownlint-disable MD029 -->
 
 1. **Fork and Clone**
 
-=======
-### Setup Steps
-
-1. **Fork and Clone**
->>>>>>> 7b378e7 (add accidentally removed md files)
    ```bash
    git clone https://github.com/your-username/confluent-kafka-python.git
    cd confluent-kafka-python
@@ -36,12 +30,8 @@ This document provides information useful to developers working on confluent-kaf
 **Note**: On Windows the variables for Visual Studio are named INCLUDE and LIB
 
 3. **Install librdkafka** (if not already installed)
-<<<<<<< HEAD
 
 See the main README.md for platform-specific installation instructions.
-=======
-See the main README.md for platform-specific installation instructions
->>>>>>> 7b378e7 (add accidentally removed md files)
 
 If librdkafka is installed in a non-standard location provide the include and library directories with:
 
@@ -49,36 +39,24 @@ If librdkafka is installed in a non-standard location provide the include and li
 C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 ```
 
-<<<<<<< HEAD
 4. **Install confluent-kafka-python (editable) with dev/test/docs extras**
 
-=======
-4. **Install confluent-kafka-python with optional dependencies**
->>>>>>> 7b378e7 (add accidentally removed md files)
    ```bash
    pip3 install -e .[dev,tests,docs]
    ```
 
-<<<<<<< HEAD
    Alternatively you can build the bundle independently with:
-=======
-   This will also build the wheel be default. Alternatively you can build the bundle independently with:
->>>>>>> 7b378e7 (add accidentally removed md files)
 
    ```bash
    python3 -m build
    ```
 
 5. **Verify Setup**
-<<<<<<< HEAD
 
-=======
->>>>>>> 7b378e7 (add accidentally removed md files)
    ```bash
    python3 -c "import confluent_kafka; print('Setup successful!')"
    ```
 
-<<<<<<< HEAD
 <!-- markdownlint-enable MD029 -->
 
 ## Project layout
@@ -90,8 +68,6 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
 - `examples/` — runnable samples (includes asyncio example)
 - `tools/unasync.py` — SR-only sync code generation from async sources
 
-=======
->>>>>>> 7b378e7 (add accidentally removed md files)
 ## Generate Documentation
 
 Install docs dependencies:
@@ -116,11 +92,7 @@ python3 setup.py build_sphinx
 
 Documentation will be generated in  `build/sphinx/html`.
 
-<<<<<<< HEAD
 ## Unasync — maintaining sync versions of async code (Schema Registry only)
-=======
-## Unasync -- maintaining sync versions of async code
->>>>>>> 7b378e7 (add accidentally removed md files)
 
 ```bash
 python3 tools/unasync.py
@@ -129,7 +101,6 @@ python3 tools/unasync.py
 python3 tools/unasync.py --check
 ```
 
-<<<<<<< HEAD
 If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counterparts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the `--check` flag and fail the build.
 
 Note: The AsyncIO Producer/Consumer under `src/confluent_kafka/experimental/aio/` are first-class asyncio implementations and are not generated using `unasync`.
@@ -212,12 +183,3 @@ See “Generate Documentation” above; ensure examples and code blocks compile 
 
 - Build errors related to librdkafka: ensure headers and libraries are discoverable; see “Install librdkafka” above for `C_INCLUDE_PATH` and `LIBRARY_PATH`.
 - Async tests hanging: check event loop usage and that `await producer.close()` is called to stop background tasks.
-=======
-If you make any changes to the async code (in `src/confluent_kafka/schema_registry/_async` and `tests/integration/schema_registry/_async`), you **must** run this script to generate the sync counter parts (in `src/confluent_kafka/schema_registry/_sync` and `tests/integration/schema_registry/_sync`). Otherwise, this script will be run in CI with the --check flag and fail the build.
-
-
-## Tests
-
-
-See [tests/README.md](tests/README.md) for instructions on how to run tests.
->>>>>>> 7b378e7 (add accidentally removed md files)
