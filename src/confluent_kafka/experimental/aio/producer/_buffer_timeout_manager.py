@@ -125,6 +125,10 @@ class BufferTimeoutManager:
         This method handles the complete timeout flush workflow:
         1. Create batches from the batch processor
         2. Execute batches from the batch processor
+        3. Flush librdkafka queue to ensure messages are delivered
         """
-        # Create batches from current buffer
+        # Create batches from current buffer and send to librdkafka queue
         await self._batch_processor.flush_buffer()
+
+        # Flush librdkafka queue to ensure messages are delivered to broker
+        await self._kafka_executor.flush_librdkafka_queue()
