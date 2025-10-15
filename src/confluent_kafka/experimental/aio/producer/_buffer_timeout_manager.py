@@ -106,8 +106,7 @@ class BufferTimeoutManager:
 
             # Check if buffer has been inactive for too long
             time_since_activity = time.time() - manager._last_activity
-            if (time_since_activity >= manager._timeout and
-                    not manager._batch_processor.is_buffer_empty()):
+            if (time_since_activity >= manager._timeout):
 
                 try:
                     # Flush the buffer due to timeout
@@ -131,4 +130,5 @@ class BufferTimeoutManager:
         await self._batch_processor.flush_buffer()
 
         # Flush librdkafka queue to ensure messages are delivered to broker
-        await self._kafka_executor.flush_librdkafka_queue()
+        # 0 timeout means non-blocking flush
+        await self._kafka_executor.flush_librdkafka_queue(0)
