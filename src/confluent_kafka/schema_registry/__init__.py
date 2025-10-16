@@ -199,7 +199,6 @@ def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationConte
                 for header in headers:
                     if header[0] == header_key:
                         header_value = header[1]
-                        break
             elif isinstance(headers, dict):
                 header_value = headers.get(header_key, None)
 

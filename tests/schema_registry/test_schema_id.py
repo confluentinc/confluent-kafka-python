@@ -24,6 +24,7 @@ from confluent_kafka.schema_registry import (
     header_schema_id_serializer,
     SerializationError
 )
+from confluent_kafka.serialization import SerializationContext, MessageField
 
 
 def test_schema_guid():
@@ -101,3 +102,34 @@ def test_header_schema_id_serializer_handles_none_context():
     # schema_id won't be used since function raises error early when ctx=None
     with pytest.raises(SerializationError, match="SerializationContext is required"):
         header_schema_id_serializer(b"test_payload", ctx=None, schema_id=None)
+
+
+def test_dual_schema_id_deserializer_uses_last_header_with_list():
+    """
+    Tests that when multiple headers with the same key exist (list format),
+    the LAST header value is used.
+    """
+    schema_id = SchemaId("AVRO")
+    
+    headers_list = [
+        ("other_header", b"some_value"),
+        ("__value_schema_id", b'\x00\x00\x00\x00\x01'),
+        ("another_header", b"another_value"),
+        ("__value_schema_id", b'\x00\x00\x00\x00\x03'),
+        ("__value_schema_id", b'\x00\x00\x00\x00\x05'),  
+    ]
+    
+    ctx = SerializationContext(
+        topic="test_topic",
+        field=MessageField.VALUE,
+        headers=headers_list
+    )
+   
+    payload = b'{"test": "data"}'
+    
+    result = dual_schema_id_deserializer(payload, ctx, schema_id)
+    
+    assert isinstance(result, io.BytesIO)
+    assert result.read() == payload
+    
+    assert schema_id.id == 5
