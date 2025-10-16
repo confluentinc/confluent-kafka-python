@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from typing import Dict, Any, Optional
 
 import tink
 from tink import KmsClient
@@ -26,13 +27,13 @@ _SECRET = "secret"
 
 
 class LocalKmsDriver(KmsDriver):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def get_key_url_prefix(self) -> str:
         return _PREFIX
 
-    def new_kms_client(self, conf: dict, key_url: str) -> KmsClient:
+    def new_kms_client(self, conf: Dict[str, Any], key_url: Optional[str]) -> KmsClient:
         secret = conf.get(_SECRET)
         if secret is None:
             secret = os.getenv("LOCAL_SECRET")
@@ -41,5 +42,5 @@ class LocalKmsDriver(KmsDriver):
         return LocalKmsClient(secret)
 
     @classmethod
-    def register(cls):
+    def register(cls) -> None:
         register_kms_driver(LocalKmsDriver())
