@@ -63,10 +63,10 @@ class ProducerBatchExecutor:
         Args:
             topic: Target topic for the batch
             batch_messages: List of prepared messages with callbacks assigned
-            partition: Target partition (-1 = RD_KAFKA_PARTITION_UA)
+            partition: Target partition for the batch (-1 = RD_KAFKA_PARTITION_UA)
 
         Returns:
-            Result from producer.poll() indicating # of delivery reports processed
+            Result from producer.poll() indicating number of delivery reports processed
 
         Raises:
             Exception: Any exception from the batch operation is propagated
@@ -75,9 +75,9 @@ class ProducerBatchExecutor:
             """Helper function to run in thread pool
 
             This function encapsulates all the blocking Kafka operations:
-            - Call produce_batch with specific partition & individual callbacks
+            - Call produce_batch with specific partition and individual message callbacks
             - Handle partial batch failures for messages that fail immediately
-            - Poll for delivery reports to trigger callbacks for successful msgs
+            - Poll for delivery reports to trigger callbacks for successful messages
             """
             # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
@@ -88,8 +88,7 @@ class ProducerBatchExecutor:
             )
 
             # Use the provided partition for the entire batch
-            # This enables proper partition control while working around
-            # librdkafka limitations
+            # This enables proper partition control while working around librdkafka limitations
             self._producer.produce_batch(topic, messages_list, partition=partition)
 
             # Handle partial batch failures: Check for messages that failed
@@ -98,7 +97,7 @@ class ProducerBatchExecutor:
             # so we need to manually invoke their callbacks
             self._handle_partial_failures(messages_list)
 
-            # Immediately poll to process delivery callbacks for successful msgs
+            # Immediately poll to process delivery callbacks for successful messages
             poll_result = self._producer.poll(0)
 
             return poll_result
@@ -120,7 +119,7 @@ class ProducerBatchExecutor:
         manually invoke the simple future-resolving callbacks.
 
         Args:
-            batch_messages: List of message dicts passed to produce_batch
+            batch_messages: List of message dictionaries that were passed to produce_batch
         """
         for msg_dict in batch_messages:
             if '_error' in msg_dict:
@@ -131,7 +130,7 @@ class ProducerBatchExecutor:
                     # Extract the error from the message dict (set by Producer.c)
                     error = msg_dict['_error']
                     # Manually invoke the callback with the error
-                    # Note: msg is None since message failed before being queued
+                    # Note: msg is None since the message failed before being queued
                     try:
                         callback(error, None)
                     except Exception:
