@@ -16,7 +16,7 @@ export CIBW_MANYLINUX_AARCH64_IMAGE="manylinux_2_28"
 
 librdkafka_version=$1
 wheeldir=$2
-cibuildwheel_version=${3:-"3.2.1}
+cibuildwheel_version=${3:-"3.2.1"}
 
 if [[ -z $wheeldir ]]; then
     echo "Usage: $0 <librdkafka-nuget-version> <wheeldir>"
