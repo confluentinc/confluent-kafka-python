@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, List
+
 
 class ClusterMetadata(object):
     """
@@ -89,7 +91,7 @@ class TopicMetadata(object):
             return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
 
     def __str__(self) -> str:
-        return self.topic
+        return str(self.topic)
 
 
 class PartitionMetadata(object):
@@ -177,4 +179,4 @@ class GroupMetadata(object):
             return "GroupMetadata({})".format(self.id)
 
     def __str__(self) -> str:
-        return self.id
+        return str(self.id)
