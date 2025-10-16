@@ -16,7 +16,7 @@ from typing import Any, List
 from ..cimpl import KafkaError
 
 try:
-    string_type = basestring
+    string_type = basestring  # type: ignore[name-defined]
 except NameError:
     string_type = str
 

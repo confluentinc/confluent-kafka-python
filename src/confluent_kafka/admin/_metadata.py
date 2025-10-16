@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Dict, List
+
 
 class ClusterMetadata(object):
     """
@@ -26,9 +28,9 @@ class ClusterMetadata(object):
         """Cluster id string, if supported by the broker, else None."""
         self.controller_id = -1
         """Current controller broker id, or -1."""
-        self.brokers = {}
+        self.brokers: Dict[int, 'BrokerMetadata'] = {}
         """Map of brokers indexed by the broker id (int). Value is a BrokerMetadata object."""
-        self.topics = {}
+        self.topics: Dict[str, 'TopicMetadata'] = {}
         """Map of topics indexed by the topic name. Value is a TopicMetadata object."""
         self.orig_broker_id = -1
         """The broker this metadata originated from."""
@@ -77,7 +79,7 @@ class TopicMetadata(object):
     def __init__(self) -> None:
         self.topic = None
         """Topic name"""
-        self.partitions = {}
+        self.partitions: Dict[int, 'PartitionMetadata'] = {}
         """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
         self.error = None
         """Topic error, or None. Value is a KafkaError object."""
@@ -89,7 +91,7 @@ class TopicMetadata(object):
             return "TopicMetadata({}, {} partitions)".format(self.topic, len(self.partitions))
 
     def __str__(self) -> str:
-        return self.topic
+        return str(self.topic)
 
 
 class PartitionMetadata(object):
@@ -109,9 +111,9 @@ class PartitionMetadata(object):
         """Partition id."""
         self.leader = -1
         """Current leader broker for this partition, or -1."""
-        self.replicas = []
+        self.replicas: List[int] = []
         """List of replica broker ids for this partition."""
-        self.isrs = []
+        self.isrs: List[int] = []
         """List of in-sync-replica broker ids for this partition."""
         self.error = None
         """Partition error, or None. Value is a KafkaError object."""
@@ -167,7 +169,7 @@ class GroupMetadata(object):
         """Group protocol type."""
         self.protocol = None
         """Group protocol."""
-        self.members = []
+        self.members: List[GroupMember] = []
         """Group members."""
 
     def __repr__(self) -> str:
@@ -177,4 +179,4 @@ class GroupMetadata(object):
             return "GroupMetadata({})".format(self.id)
 
     def __str__(self) -> str:
-        return self.id
+        return str(self.id)

@@ -13,6 +13,7 @@
 # limitations under the License.
 from typing import Dict, Any, Optional
 
+from azure.core.credentials import TokenCredential
 from azure.identity import DefaultAzureCredential, ClientSecretCredential
 
 from tink import KmsClient
@@ -43,6 +44,7 @@ class AzureKmsDriver(KmsDriver):
         client_id = conf.get(_CLIENT_ID)
         client_secret = conf.get(_CLIENT_SECRET)
 
+        creds: TokenCredential
         if tenant_id is None or client_id is None or client_secret is None:
             creds = DefaultAzureCredential()
         else:

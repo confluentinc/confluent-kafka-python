@@ -255,7 +255,7 @@ class ProducerBatchManager:
                     }
                 }
         """
-        topic_partition_groups = {}
+        topic_partition_groups: Dict[Tuple[str, int], Dict[str, Any]] = {}
 
         # Iterate through buffer once - O(n) complexity
         for i, msg_data in enumerate(self._message_buffer):

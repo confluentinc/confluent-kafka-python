@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from abc import ABC, abstractmethod
 
 from .. import cimpl
@@ -24,6 +24,9 @@ class OffsetSpec(ABC):
     of the partition being queried.
     """
     _values: Dict[int, 'OffsetSpec'] = {}
+    _max_timestamp: Optional['MaxTimestampSpec'] = None
+    _earliest: Optional['EarliestSpec'] = None
+    _latest: Optional['LatestSpec'] = None
 
     @property
     @abstractmethod
@@ -156,6 +159,4 @@ class ListOffsetsResultInfo:
     def __init__(self, offset: int, timestamp: int, leader_epoch: int) -> None:
         self.offset = offset
         self.timestamp = timestamp
-        self.leader_epoch = leader_epoch
-        if self.leader_epoch < 0:
-            self.leader_epoch = None
+        self.leader_epoch: Optional[int] = leader_epoch if leader_epoch >= 0 else None

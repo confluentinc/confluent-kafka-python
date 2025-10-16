@@ -190,7 +190,9 @@ class ConfigResource(object):
             return True
         return self.name.__lt__(other.name)
 
-    def __eq__(self, other: 'ConfigResource') -> bool:
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ConfigResource):
+            return NotImplemented
         return self.restype == other.restype and self.name == other.name
 
     def __len__(self) -> int:

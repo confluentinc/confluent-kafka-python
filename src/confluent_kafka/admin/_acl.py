@@ -21,7 +21,7 @@ from ._resource import ResourceType, ResourcePatternType
 from .._util import ValidationUtil, ConversionUtil
 
 try:
-    string_type = basestring
+    string_type = basestring  # type: ignore[name-defined]
 except NameError:
     string_type = str
 
@@ -104,19 +104,19 @@ class AclBinding(object):
         self.permission_type = permission_type
         self._convert_args()
         # for the C code
-        self.restype_int = int(self.restype.value)
-        self.resource_pattern_type_int = int(self.resource_pattern_type.value)
-        self.operation_int = int(self.operation.value)
-        self.permission_type_int = int(self.permission_type.value)
+        self.restype_int = int(self.restype.value)  # type: ignore[union-attr]
+        self.resource_pattern_type_int = int(self.resource_pattern_type.value)  # type: ignore[union-attr]
+        self.operation_int = int(self.operation.value)  # type: ignore[union-attr]
+        self.permission_type_int = int(self.permission_type.value)  # type: ignore[union-attr]
 
     def _convert_enums(self) -> None:
-        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)
+        self.restype = ConversionUtil.convert_to_enum(self.restype, ResourceType)  # type: ignore[assignment]
         self.resource_pattern_type = ConversionUtil.convert_to_enum(
-            self.resource_pattern_type, ResourcePatternType)
+            self.resource_pattern_type, ResourcePatternType)  # type: ignore[assignment]
         self.operation = ConversionUtil.convert_to_enum(
-            self.operation, AclOperation)
+            self.operation, AclOperation)  # type: ignore[assignment]
         self.permission_type = ConversionUtil.convert_to_enum(
-            self.permission_type, AclPermissionType)
+            self.permission_type, AclPermissionType)  # type: ignore[assignment]
 
     def _check_forbidden_enums(self, forbidden_enums: Dict[str, List[Enum]]) -> None:
         for k, v in forbidden_enums.items():
@@ -154,7 +154,7 @@ class AclBinding(object):
         return "%s(%s,%s,%s,%s,%s,%s,%s)" % ((type_name,) + self._to_tuple())
 
     def _to_tuple(self) -> Tuple[ResourceType, str, ResourcePatternType, str, str, AclOperation, AclPermissionType]:
-        return (self.restype, self.name, self.resource_pattern_type,
+        return (self.restype, self.name, self.resource_pattern_type,  # type: ignore[return-value]
                 self.principal, self.host, self.operation,
                 self.permission_type)
 
@@ -166,8 +166,8 @@ class AclBinding(object):
             return NotImplemented
         return self._to_tuple() < other._to_tuple()
 
-    def __eq__(self, other: 'AclBinding') -> Any:
-        if self.__class__ != other.__class__:
+    def __eq__(self, other: object) -> Any:
+        if not isinstance(other, AclBinding):
             return NotImplemented
         return self._to_tuple() == other._to_tuple()
 
