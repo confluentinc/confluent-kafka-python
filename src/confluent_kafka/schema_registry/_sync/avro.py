@@ -407,6 +407,7 @@ class AvroDeserializer(BaseDeserializer):
     | ``schema.id.deserializer``  | callable | Defines how the schema id/guid is deserialized.  |
     |                             |          | Defaults to dual_schema_id_deserializer.         |
     +-----------------------------+----------+--------------------------------------------------+
+
     Note:
         By default, Avro complex types are returned as dicts. This behavior can
         be overridden by registering a callable ``from_dict`` with the deserializer to
