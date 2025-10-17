@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import os
+from typing import Dict, Any, Optional
 
 from tink import KmsClient
 
@@ -28,13 +29,13 @@ _APPROLE_SECRET_ID = "approle.secret.id"
 
 
 class HcVaultKmsDriver(KmsDriver):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def get_key_url_prefix(self) -> str:
         return _PREFIX
 
-    def new_kms_client(self, conf: dict, key_url: str) -> KmsClient:
+    def new_kms_client(self, conf: Dict[str, Any], key_url: Optional[str]) -> KmsClient:
         uri_prefix = _PREFIX
         if key_url is not None:
             uri_prefix = key_url
@@ -53,5 +54,5 @@ class HcVaultKmsDriver(KmsDriver):
         return HcVaultKmsClient(uri_prefix, token, namespace, role_id, secret_id)
 
     @classmethod
-    def register(cls):
+    def register(cls) -> None:
         register_kms_driver(HcVaultKmsDriver())

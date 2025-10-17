@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import NamedTuple, Sequence, Any, Optional
+from typing import Dict, NamedTuple, Sequence, Any, Optional
 import asyncio
 
 
@@ -24,8 +24,8 @@ class MessageBatch(NamedTuple):
     along with their associated futures for delivery confirmation.
     """
     topic: str                                    # Target topic for this batch
-    messages: Sequence[dict]                      # Prepared message dictionaries
-    futures: Sequence[asyncio.Future]             # Futures to resolve on delivery
+    messages: Sequence[Dict[str, Any]]            # Prepared message dictionaries
+    futures: Sequence[asyncio.Future[Any]]        # Futures to resolve on delivery
     partition: int = -1                           # Target partition for this batch (-1 = RD_KAFKA_PARTITION_UA)
 
     @property
@@ -39,11 +39,13 @@ class MessageBatch(NamedTuple):
         return f"MessageBatch(topic='{self.topic}', partition={self.partition}, size={len(self.messages)})"
 
 
-def create_message_batch(topic: str,
-                         messages: Sequence[dict],
-                         futures: Sequence[asyncio.Future],
-                         callbacks: Optional[Any] = None,
-                         partition: int = -1) -> MessageBatch:
+def create_message_batch(
+    topic: str,
+    messages: Sequence[Dict[str, Any]],
+    futures: Sequence[asyncio.Future[Any]],
+    callbacks: Optional[Any] = None,
+    partition: int = -1
+) -> MessageBatch:
     """Create an immutable MessageBatch from sequences
 
     This factory function converts mutable sequences into an immutable MessageBatch object.

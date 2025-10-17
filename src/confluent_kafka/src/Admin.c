@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * ⚠️  WARNING: UPDATE TYPE STUBS WHEN MODIFYING INTERFACES ⚠️
+ *
+ * This file defines the _AdminClientImpl class and its methods.
+ * When changing method signatures, parameters, or defaults, you MUST
+ * also update the corresponding type definitions in:
+ *   src/confluent_kafka/cimpl.pyi
+ *
+ * Failure to keep both in sync will result in incorrect type hints.
+ */
+
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
@@ -3011,7 +3022,7 @@ const char Admin_list_offsets_doc[] = PyDoc_STR(
 
 
 /**
- * @brief Delete records 
+ * @brief Delete records
  */
 PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         PyObject *topic_partition_offsets = NULL, *future;
@@ -3054,7 +3065,7 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         if(!c_topic_partition_offsets) {
                 goto err; /* Exception raised by py_to_c_parts() */
         }
-        
+
         c_obj = malloc(sizeof(rd_kafka_DeleteRecords_t *) * del_record_cnt);
         c_obj[0] = rd_kafka_DeleteRecords_new(c_topic_partition_offsets);
 
@@ -3078,11 +3089,11 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
         rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
         free(c_obj);
 
-        rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);     
+        rd_kafka_topic_partition_list_destroy(c_topic_partition_offsets);
         Py_XDECREF(topic_partition_offsets);
-        
+
         Py_RETURN_NONE;
-err: 
+err:
         if (c_obj) {
                 rd_kafka_DeleteRecords_destroy_array(c_obj, del_record_cnt);
                 free(c_obj);
@@ -3155,7 +3166,7 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
         }
 
         c_elect_leaders = rd_kafka_ElectLeaders_new(c_election_type, c_partitions);
-        
+
         if(c_partitions) {
                 rd_kafka_topic_partition_list_destroy(c_partitions);
         }
@@ -3365,12 +3376,12 @@ static PyMethodDef Admin_methods[] = {
         { "list_offsets", (PyCFunction)Admin_list_offsets, METH_VARARGS|METH_KEYWORDS,
            Admin_list_offsets_doc
         },
-        
+
         { "delete_records", (PyCFunction)Admin_delete_records, METH_VARARGS|METH_KEYWORDS,
            Admin_delete_records_doc
         },
 
-        { "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS | METH_KEYWORDS, 
+        { "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS | METH_KEYWORDS,
            Admin_elect_leaders_doc
         },
 
@@ -4644,7 +4655,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
 
         int i;
 
-        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin", 
+        DeletedRecords_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "DeletedRecords");
         if(!DeletedRecords_type)
                 goto raise;  /* Exception raised by lookup() */
@@ -4653,7 +4664,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
         for(i=0; i<c_topic_partitions->cnt; i++){
                 PyObject *key = NULL;
                 PyObject *value = NULL;
-        
+
                 rd_kafka_topic_partition_t *c_topic_partition = &c_topic_partitions->elems[i];
                 key = c_part_to_py(c_topic_partition);
 
@@ -4674,7 +4685,7 @@ static PyObject *Admin_c_DeletedRecords_to_py (const rd_kafka_topic_partition_li
                                 goto raise;
                         }
                 }
-                
+
                 PyDict_SetItem(result, key, value);
                 Py_DECREF(key);
                 Py_DECREF(value);
@@ -5036,12 +5047,12 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         {
                 const rd_kafka_DeleteRecords_result_t *c_delete_records_res = rd_kafka_event_DeleteRecords_result(rkev);
                 const rd_kafka_topic_partition_list_t *c_delete_records_res_list = rd_kafka_DeleteRecords_result_offsets(c_delete_records_res);
-                
+
                 result = Admin_c_DeletedRecords_to_py(c_delete_records_res_list);
                 break;
         }
 
-        case RD_KAFKA_EVENT_ELECTLEADERS_RESULT: 
+        case RD_KAFKA_EVENT_ELECTLEADERS_RESULT:
         {
                 size_t c_result_cnt;
 

@@ -17,8 +17,10 @@
 #
 import struct as _struct
 from enum import Enum
+from typing import Any, Optional
 
 from confluent_kafka.error import KafkaException
+from confluent_kafka._types import HeadersType
 
 __all__ = ['Deserializer',
            'IntegerDeserializer',
@@ -65,7 +67,7 @@ class SerializationContext(object):
         headers (list): List of message header tuples. Defaults to None.
     """
 
-    def __init__(self, topic, field, headers=None):
+    def __init__(self, topic: str, field: MessageField, headers: Optional[HeadersType] = None) -> None:
         self.topic = topic
         self.field = field
         self.headers = headers
@@ -114,7 +116,7 @@ class Serializer(object):
 
     __slots__ = []
 
-    def __call__(self, obj, ctx=None):
+    def __call__(self, obj: Any, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Converts obj to bytes.
 
@@ -171,7 +173,7 @@ class Deserializer(object):
 
     __slots__ = []
 
-    def __call__(self, value, ctx=None):
+    def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Any:
         """
         Convert bytes to object
 
@@ -200,7 +202,7 @@ class DoubleSerializer(Serializer):
 
     """  # noqa: E501
 
-    def __call__(self, obj, ctx=None):
+    def __call__(self, obj: Optional[float], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Args:
             obj (object): object to be serialized
@@ -235,7 +237,7 @@ class DoubleDeserializer(Deserializer):
         `DoubleDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/DoubleDeserializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, value, ctx=None):
+    def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[float]:
         """
         Deserializes float from IEEE 764 binary64 bytes.
 
@@ -269,7 +271,7 @@ class IntegerSerializer(Serializer):
         `IntegerSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerSerializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, obj, ctx=None):
+    def __call__(self, obj: Optional[int], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes int as int32 bytes.
 
@@ -306,7 +308,7 @@ class IntegerDeserializer(Deserializer):
         `IntegerDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/IntegerDeserializer.html>`_
     """  # noqa: E501
 
-    def __call__(self, value, ctx=None):
+    def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[int]:
         """
         Deserializes int from int32 bytes.
 
@@ -348,10 +350,10 @@ class StringSerializer(Serializer):
         `StringSerializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringSerializer.html>`_
     """  # noqa: E501
 
-    def __init__(self, codec='utf_8'):
+    def __init__(self, codec: str = 'utf_8') -> None:
         self.codec = codec
 
-    def __call__(self, obj, ctx=None):
+    def __call__(self, obj: Optional[str], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Serializes a str(py2:unicode) to bytes.
 
@@ -394,10 +396,10 @@ class StringDeserializer(Deserializer):
         `StringDeserializer Javadoc <https://docs.confluent.io/current/clients/javadocs/org/apache/kafka/common/serialization/StringDeserializer.html>`_
     """  # noqa: E501
 
-    def __init__(self, codec='utf_8'):
+    def __init__(self, codec: str = 'utf_8') -> None:
         self.codec = codec
 
-    def __call__(self, value, ctx=None):
+    def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[str]:
         """
         Serializes unicode to bytes per the configured codec. Defaults to ``utf_8``.
 

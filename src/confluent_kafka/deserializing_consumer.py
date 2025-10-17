@@ -16,12 +16,15 @@
 # limitations under the License.
 #
 
-from confluent_kafka.cimpl import Consumer as _ConsumerImpl
+from typing import Any, Dict, List, Optional
+
+from confluent_kafka.cimpl import Consumer as _ConsumerImpl, Message
 from .error import (ConsumeError,
                     KeyDeserializationError,
                     ValueDeserializationError)
 from .serialization import (SerializationContext,
                             MessageField)
+from ._types import Deserializer
 
 
 class DeserializingConsumer(_ConsumerImpl):
@@ -70,14 +73,14 @@ class DeserializingConsumer(_ConsumerImpl):
         ValueError: if configuration validation fails
     """  # noqa: E501
 
-    def __init__(self, conf):
+    def __init__(self, conf: Dict[str, Any]) -> None:
         conf_copy = conf.copy()
         self._key_deserializer = conf_copy.pop('key.deserializer', None)
         self._value_deserializer = conf_copy.pop('value.deserializer', None)
 
         super(DeserializingConsumer, self).__init__(conf_copy)
 
-    def poll(self, timeout=-1):
+    def poll(self, timeout: float = -1) -> Optional[Message]:
         """
         Consume messages and calls callbacks.
 
@@ -100,8 +103,9 @@ class DeserializingConsumer(_ConsumerImpl):
         if msg is None:
             return None
 
-        if msg.error() is not None:
-            raise ConsumeError(msg.error(), kafka_message=msg)
+        error = msg.error()
+        if error is not None:
+            raise ConsumeError(error, kafka_message=msg)
 
         ctx = SerializationContext(msg.topic(), MessageField.VALUE, msg.headers())
         value = msg.value()
@@ -119,11 +123,11 @@ class DeserializingConsumer(_ConsumerImpl):
             except Exception as se:
                 raise KeyDeserializationError(exception=se, kafka_message=msg)
 
-        msg.set_key(key)
-        msg.set_value(value)
+        msg.set_key(key)  # type: ignore[arg-type]
+        msg.set_value(value)  # type: ignore[arg-type]
         return msg
 
-    def consume(self, num_messages=1, timeout=-1):
+    def consume(self, num_messages: int = 1, timeout: float = -1) -> List[Message]:
         """
         :py:func:`Consumer.consume` not implemented, use
         :py:func:`DeserializingConsumer.poll` instead

@@ -13,7 +13,11 @@
 # limitations under the License.
 
 import asyncio
+import concurrent.futures
 import logging
+from typing import Any, Dict, List, Sequence
+
+import confluent_kafka
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +33,11 @@ class ProducerBatchExecutor:
     - Supporting partition-specific batch operations
     """
 
-    def __init__(self, producer, executor):
+    def __init__(
+        self,
+        producer: confluent_kafka.Producer,
+        executor: concurrent.futures.Executor
+    ) -> None:
         """Initialize the Kafka batch executor
 
         Args:
@@ -39,7 +47,12 @@ class ProducerBatchExecutor:
         self._producer = producer
         self._executor = executor
 
-    async def execute_batch(self, topic, batch_messages, partition=-1):
+    async def execute_batch(
+        self,
+        topic: str,
+        batch_messages: Sequence[Dict[str, Any]],
+        partition: int = -1
+    ) -> int:
         """Execute a batch operation via thread pool
 
         This method handles the complete batch execution workflow:
@@ -58,7 +71,7 @@ class ProducerBatchExecutor:
         Raises:
             Exception: Any exception from the batch operation is propagated
         """
-        def _produce_batch_and_poll():
+        def _produce_batch_and_poll() -> int:
             """Helper function to run in thread pool
 
             This function encapsulates all the blocking Kafka operations:
@@ -68,15 +81,20 @@ class ProducerBatchExecutor:
             """
             # Call produce_batch with specific partition and individual callbacks
             # Convert tuple to list since produce_batch expects a list
-            messages_list = list(batch_messages) if isinstance(batch_messages, tuple) else batch_messages
+            messages_list: List[Dict[str, Any]] = (
+                list(batch_messages)
+                if isinstance(batch_messages, tuple)
+                else batch_messages  # type: ignore
+            )
 
             # Use the provided partition for the entire batch
             # This enables proper partition control while working around librdkafka limitations
             self._producer.produce_batch(topic, messages_list, partition=partition)
 
-            # Handle partial batch failures: Check for messages that failed during produce_batch
-            # These messages have their msgstates destroyed in Producer.c and won't get callbacks
-            # from librdkafka, so we need to manually invoke their callbacks
+            # Handle partial batch failures: Check for messages that failed
+            # during produce_batch. These messages have their msgstates
+            # destroyed in Producer.c and won't get callbacks from librdkafka,
+            # so we need to manually invoke their callbacks
             self._handle_partial_failures(messages_list)
 
             # Immediately poll to process delivery callbacks for successful messages
@@ -88,20 +106,25 @@ class ProducerBatchExecutor:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, _produce_batch_and_poll)
 
-    def _handle_partial_failures(self, batch_messages):
+    def _handle_partial_failures(
+        self,
+        batch_messages: List[Dict[str, Any]]
+    ) -> None:
         """Handle messages that failed during produce_batch
 
-        When produce_batch encounters messages that fail immediately (e.g., message too large,
-        invalid topic, etc.), librdkafka destroys their msgstates and won't call their callbacks.
-        We detect these failures by checking for '_error' in the message dict (set by Producer.c)
-        and manually invoke the simple future-resolving callbacks.
+        When produce_batch encounters messages that fail immediately (e.g.,
+        message too large, invalid topic, etc.), librdkafka destroys their
+        msgstates and won't call their callbacks. We detect these failures by
+        checking for '_error' in the message dict (set by Producer.c) and
+        manually invoke the simple future-resolving callbacks.
 
         Args:
             batch_messages: List of message dictionaries that were passed to produce_batch
         """
         for msg_dict in batch_messages:
             if '_error' in msg_dict:
-                # This message failed during produce_batch - its callback won't be called by librdkafka
+                # This message failed during produce_batch - its callback
+                # won't be called by librdkafka
                 callback = msg_dict.get('callback')
                 if callback:
                     # Extract the error from the message dict (set by Producer.c)
@@ -111,5 +134,8 @@ class ProducerBatchExecutor:
                     try:
                         callback(error, None)
                     except Exception:
-                        logger.warning("Exception in callback during partial failure handling", exc_info=True)
+                        logger.warning(
+                            "Exception in callback during partial failure handling",
+                            exc_info=True
+                        )
                         raise

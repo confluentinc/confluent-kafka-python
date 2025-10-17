@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+from typing import Optional
+
 try:
     from fastavro.schema import SchemaParseException, UnknownType
 except ImportError:
@@ -41,15 +43,15 @@ class SchemaRegistryError(Exception):
     """  # noqa: E501
     UNKNOWN = -1
 
-    def __init__(self, http_status_code: int, error_code: int, error_message: str):
+    def __init__(self, http_status_code: int, error_code: int, error_message: str) -> None:
         self.http_status_code = http_status_code
         self.error_code = error_code
         self.error_message = error_message
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return str(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return "{} (HTTP status code {}, SR code {})".format(self.error_message,
                                                              self.http_status_code,
                                                              self.error_code)
@@ -58,7 +60,8 @@ class SchemaRegistryError(Exception):
 class OAuthTokenError(Exception):
     """Raised when an OAuth token cannot be retrieved."""
 
-    def __init__(self, message, status_code=None, response_text=None):
+    def __init__(self, message: str, status_code: Optional[int] = None,
+                 response_text: Optional[str] = None) -> None:
         self.message = message
         self.status_code = status_code
         self.response_text = response_text
