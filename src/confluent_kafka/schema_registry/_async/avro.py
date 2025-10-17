@@ -16,7 +16,7 @@
 # limitations under the License.
 import io
 import json
-from typing import Dict, Union, Optional, Callable
+from typing import Any, Coroutine, Dict, Union, Optional, Callable, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 from confluent_kafka.schema_registry.common import asyncinit
@@ -206,7 +206,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
         self._registry = schema_registry_client
         self._schema_id = None
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
-        self._known_subjects = set()
+        self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
 
         if to_dict is not None and not callable(to_dict):
@@ -243,11 +243,17 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        self._schema_id_serializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], bytes],
+            conf_copy.pop('schema.id.serializer')
+        )
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
@@ -286,7 +292,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(obj, ctx)
 
     async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -485,11 +491,17 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        self._schema_id_deserializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO],
+            conf_copy.pop('schema.id.deserializer')
+        )
         if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
@@ -517,11 +529,11 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Union[dict, object, None]]:
         return self.__deserialize(data, ctx)
 
     async def __deserialize(
-            self, data: bytes, ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+            self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
         """
         Deserialize Avro binary encoded data with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict, if specified.
