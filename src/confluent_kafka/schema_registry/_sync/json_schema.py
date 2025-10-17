@@ -16,7 +16,7 @@
 # limitations under the License.
 import io
 import orjson
-from typing import Union, Optional, Tuple, Callable
+from typing import Any, Coroutine, Union, Optional, Tuple, Callable, cast
 
 from cachetools import LRUCache
 from jsonschema import ValidationError
@@ -226,7 +226,7 @@ class JSONSerializer(BaseSerializer):
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
         )
         self._schema_id = None
-        self._known_subjects = set()
+        self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators = LRUCache(1000)
 
@@ -264,11 +264,17 @@ class JSONSerializer(BaseSerializer):
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        self._schema_id_serializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], bytes],
+            conf_copy.pop('schema.id.serializer')
+        )
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
@@ -296,7 +302,7 @@ class JSONSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -525,12 +531,18 @@ class JSONDeserializer(BaseDeserializer):
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
-        if not callable(self._subject_name_func):
+        self._schema_id_deserializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO],
+            conf_copy.pop('schema.id.deserializer')
+        )
+        if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
         self._validate = conf_copy.pop('validate')
@@ -558,10 +570,10 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__deserialize(data, ctx)
 
-    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
