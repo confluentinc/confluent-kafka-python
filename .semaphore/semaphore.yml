@@ -380,8 +380,8 @@ blocks:
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies:
       - "Wheels: OSX x64 - Python 3.8-3.12"
       - "Wheels: OSX x64 - Python 3.13-3.14"
