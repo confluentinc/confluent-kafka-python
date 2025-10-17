@@ -47,8 +47,8 @@ class AsyncBaseSerde(object):
     async def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = await self._registry.get_schema(self._use_schema_id, subject, fmt)
-            return await self._registry.lookup_schema(subject, schema,
-                normalize_schemas=False, deleted=True)
+            return await self._registry.lookup_schema(
+                subject, schema, normalize_schemas=False, deleted=True)
         if self._use_latest_with_metadata is not None:
             return await self._registry.get_latest_with_metadata(
                 subject, self._use_latest_with_metadata, deleted=True, fmt=fmt)
@@ -239,8 +239,8 @@ class AsyncBaseDeserializer(AsyncBaseSerde, Deserializer):
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = await self._registry.lookup_schema(subject, source_info,
-            normalize_schemas=False, deleted=True)
+        source = await self._registry.lookup_schema(
+            subject, source_info, normalize_schemas=False, deleted=True)
         migrations = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE

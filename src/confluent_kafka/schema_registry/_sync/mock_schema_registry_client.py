@@ -155,8 +155,8 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> int:
-        registered_schema = self.register_schema_full_response(subject_name, schema,
-            normalize_schemas=normalize_schemas)
+        registered_schema = self.register_schema_full_response(
+            subject_name, schema, normalize_schemas=normalize_schemas)
         return registered_schema.schema_id
 
     def register_schema_full_response(

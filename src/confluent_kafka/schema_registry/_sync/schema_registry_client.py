@@ -637,8 +637,8 @@ class SchemaRegistryClient(object):
             `POST Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = self.register_schema_full_response(subject_name, schema,
-            normalize_schemas=normalize_schemas)
+        registered_schema = self.register_schema_full_response(
+            subject_name, schema, normalize_schemas=normalize_schemas)
         return registered_schema.schema_id
 
     def register_schema_full_response(
