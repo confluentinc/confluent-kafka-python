@@ -1,7 +1,7 @@
 # Install (if necessary) and set up msys2.
 
 
-$url="https://github.com/msys2/msys2-installer/releases/download/2022-10-28/msys2-base-x86_64-20221028.sfx.exe"
+$url="https://github.com/msys2/msys2-installer/releases/download/2025-08-30/msys2-base-x86_64-20250830.sfx.exe"
 $sha256="e365b79b4b30b6f4baf34bd93f3d2a41c0a92801c7a96d79cddbfca1090a0554"
 
 
