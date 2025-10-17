@@ -142,7 +142,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - pyenv global 3.11
+            - sem-version python 3.11
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -172,7 +172,7 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
-            - sem-version python 3.11
+            - pyenv global 3.11
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
