@@ -14,7 +14,7 @@ global_job_config:
       - checkout
       - mkdir artifacts
 blocks:
-  - name: "Wheels: OSX x64 - Python 3.7-3.12"
+  - name: "Wheels: OSX x64 - Python 3.8-3.12"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -34,7 +34,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX x64 - Python 3.13"
+  - name: "Wheels: OSX x64 - Python 3.13-3.14"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -54,10 +54,10 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.11
+            - sem-version python 3.13
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
+            - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
     run:
       when: "tag =~ '.*'"
@@ -80,7 +80,7 @@ blocks:
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse 2.16.2
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
-  - name: "Wheels: OSX arm64 - Python 3.13"
+  - name: "Wheels: OSX arm64 - Python 3.13-3.14"
     run:
       when: "tag =~ '.*'"
     dependencies: []
@@ -102,10 +102,10 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.11
+            - sem-version python 3.13
             - PIP_INSTALL_OPTIONS="--user" tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
-            - tar -czf wheelhouse-macOS-${ARCH}-py313.tgz wheelhouse
-            - artifact push workflow wheelhouse-macOS-${ARCH}-py313.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313.tgz/
+            - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
+            - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
     run:
       when: "tag =~ '.*'"
@@ -122,6 +122,7 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - sem-version python 3.13
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -141,6 +142,7 @@ blocks:
       jobs:
         - name: Build
           commands:
+            - sem-version python 3.11
             - ./tools/wheels/build-wheels.sh "${LIBRDKAFKA_VERSION#v}" wheelhouse
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
@@ -170,6 +172,8 @@ blocks:
             - name: MSYSTEM
               value: UCRT64
           commands:
+            - pyenv install 3.11.9
+            - pyenv global 3.11.9
             - bash tools/mingw-w64/semaphore_commands.sh
             - bash tools/wheels/install-librdkafka.sh $env:LIBRDKAFKA_VERSION.TrimStart("v") dest
             - tools/wheels/build-wheels.bat x64 win_amd64 dest wheelhouse
@@ -376,13 +380,13 @@ blocks:
             # Cleanup
             - cd "${PROJECT_ROOT}/tests/docker" && docker-compose -f docker-compose.ducktape.yml down -v || true
   - name: "Packaging"
-    run:
-      when: "tag =~ '.*'"
+    # run:
+    #   when: "tag =~ '.*'"
     dependencies:
-      - "Wheels: OSX x64 - Python 3.7-3.12"
-      - "Wheels: OSX x64 - Python 3.13"
+      - "Wheels: OSX x64 - Python 3.8-3.12"
+      - "Wheels: OSX x64 - Python 3.13-3.14"
       - "Wheels: OSX arm64 - Python 3.8-3.12"
-      - "Wheels: OSX arm64 - Python 3.13"
+      - "Wheels: OSX arm64 - Python 3.13-3.14"
       - "Wheels: Linux arm64"
       - "Wheels: Linux x64"
       - "Wheels: Windows"
