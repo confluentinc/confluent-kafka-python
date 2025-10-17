@@ -52,7 +52,7 @@ case "$(uname -s)" in
 esac
 
 if ! which cibuildwheel 2>/dev/null ; then
-    pip install cibuildwheel==0.4.1
+    pip install -r tools/requirements-manylinux.txt
 fi
 
 cibuildwheel $_CIBW_ARGS --output-dir "$OUT_DIR"
