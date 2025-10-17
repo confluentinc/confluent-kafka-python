@@ -15,8 +15,8 @@ global_job_config:
       - mkdir artifacts
 blocks:
   - name: "Wheels: OSX x64 - Python 3.8-3.12"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -35,8 +35,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX x64 - Python 3.13-3.14"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -59,8 +59,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: OSX arm64 - Python 3.8-3.12"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -81,8 +81,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: OSX arm64 - Python 3.13-3.14"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -107,8 +107,8 @@ blocks:
             - tar -czf wheelhouse-macOS-${ARCH}-py313-plus.tgz wheelhouse
             - artifact push workflow wheelhouse-macOS-${ARCH}-py313-plus.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}-py313-plus.tgz/
   - name: "Wheels: Linux arm64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -127,8 +127,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Linux x64"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
@@ -147,8 +147,8 @@ blocks:
             - tar -czf wheelhouse-linux-${ARCH}.tgz wheelhouse
             - artifact push workflow wheelhouse-linux-${ARCH}.tgz --destination artifacts/wheels-${OS_NAME}-${ARCH}.tgz/
   - name: "Wheels: Windows"
-    # run:
-    #   when: "tag =~ '.*'"
+    run:
+      when: "tag =~ '.*'"
     dependencies: []
     task:
       agent:
