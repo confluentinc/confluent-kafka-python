@@ -79,8 +79,8 @@ async def test_api_register_normalized_schema(kafka_cluster, load_file):
     subject = _subject_name(avsc)
     schema = Schema(load_file(avsc), schema_type='AVRO')
 
-    schema_id = await sr.register_schema(subject, schema, True)
-    registered_schema = await sr.lookup_schema(subject, schema, True)
+    schema_id = await sr.register_schema(subject, schema, normalize_schemas=True)
+    registered_schema = await sr.lookup_schema(subject, schema, normalize_schemas=True)
 
     assert registered_schema.schema_id == schema_id
     assert registered_schema.subject == subject
