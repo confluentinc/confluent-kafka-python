@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import io
-from typing import Set, List, Union, Optional, Tuple
+from typing import Any, Coroutine, Set, List, Union, Optional, Tuple, Callable, cast
 
 from google.protobuf import json_format, descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
@@ -271,7 +271,7 @@ class ProtobufSerializer(BaseSerializer):
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._schema_id = None
-        self._known_subjects = set()
+        self._known_subjects: set[str] = set()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
 
@@ -359,7 +359,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(message, ctx)
 
     def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -534,11 +534,17 @@ class ProtobufDeserializer(BaseDeserializer):
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        self._schema_id_deserializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO],
+            conf_copy.pop('schema.id.deserializer')
+        )
         if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
@@ -557,10 +563,10 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__deserialize(data, ctx)
 
-    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
