@@ -10,8 +10,8 @@ set
 rem Download and install librdkafka from NuGet.
 call tools\windows-install-librdkafka.bat %LIBRDKAFKA_NUGET_VERSION% dest || exit /b 1
 
-pip install -r requirements\requirements-tests-install.txt
-pip install cibuildwheel==0.12.0 || exit /b 1
+pip install -r requirements\requirements-tests-install.txt || exit /b 1
+pip install cibuildwheel==3.2.1 || exit /b 1
 
 rem Build wheels (without tests)
 cibuildwheel --platform windows --output-dir wheelhouse || exit /b 1

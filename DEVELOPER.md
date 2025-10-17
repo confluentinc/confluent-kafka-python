@@ -6,7 +6,7 @@ This document provides information useful to developers working on confluent-kaf
 
 ### Prerequisites
 
-- Python 3.7 or higher
+- Python 3.8 or higher
 - Git
 - librdkafka (for Kafka functionality)
 
