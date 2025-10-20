@@ -284,10 +284,10 @@ class TestBufferTimeoutManager(unittest.TestCase):
 
             # Stop the manager first to ensure clean shutdown
             manager.stop_timeout_monitoring()
-            
+
             # Wait a bit for the cancellation to take effect
             await asyncio.sleep(0.8)
-            
+
             # Verify the task stopped when we explicitly stopped monitoring
             self.assertTrue(task.done())
 
