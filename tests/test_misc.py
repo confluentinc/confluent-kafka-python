@@ -18,7 +18,7 @@ def test_version():
     assert len(confluent_kafka.version()) > 0
 
     print('Using librdkafka version %s' % confluent_kafka.libversion())
-    assert len(confluent_kafka.libversion()) > 0
+    assert len(confluent_kafka.libversion()[0]) > 0
 
 
 def test_error_cb():
