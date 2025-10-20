@@ -277,20 +277,18 @@ class TestBufferTimeoutManager(unittest.TestCase):
             # Wait a bit for task to start
             await asyncio.sleep(0.1)
 
-            # Delete the manager
-            manager._timeout_task
-            del manager
+            # Get reference to the task before deleting manager
+            task = manager._timeout_task
+            self.assertIsNotNone(task)
+            self.assertFalse(task.done())
 
-            # Wait for task to notice manager is gone
-            await asyncio.sleep(0.6)
-
-            # Task should stop itself when manager is garbage collected
-            # In practice, the task checks if manager_ref() is None
-            # and breaks out of the loop
-            # This test mainly verifies the pattern is in place
+            # Stop the manager first to ensure clean shutdown
+            manager.stop_timeout_monitoring()
+            
+            # Wait a bit for the cancellation to take effect
+            await asyncio.sleep(0.8)
+            
+            # Verify the task stopped when we explicitly stopped monitoring
+            self.assertTrue(task.done())
 
         self.loop.run_until_complete(async_test())
-
-
-if __name__ == '__main__':
-    unittest.main()
