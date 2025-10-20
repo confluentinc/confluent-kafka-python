@@ -332,11 +332,11 @@ class JSONSerializer(BaseSerializer):
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
                 registered_schema = self._registry.register_schema_full_response(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = self._registry.lookup_schema(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
