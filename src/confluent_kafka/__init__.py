@@ -55,6 +55,7 @@ __all__ = [
     "KafkaException",
     "kafkatest",
     "libversion",
+    "version",
     "Message",
     "OFFSET_BEGINNING",
     "OFFSET_END",
