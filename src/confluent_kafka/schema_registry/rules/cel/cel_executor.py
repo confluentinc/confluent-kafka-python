@@ -55,24 +55,24 @@ class CelExecutor(RuleExecutor):
     def execute(self, ctx: RuleContext, msg: Any, args: Any) -> Any:
         expr = ctx.rule.expr
         try:
-            index = expr.index(";")
+            index = expr.index(";")  # type: ignore[union-attr]
         except ValueError:
             index = -1
         if index >= 0:
-            guard = expr[:index]
+            guard = expr[:index]  # type: ignore[index]
             if len(guard.strip()) > 0:
                 guard_result = self.execute_rule(ctx, guard, args)
                 if not guard_result:
                     if ctx.rule.kind == RuleKind.CONDITION:
                         return True
                     return msg
-            expr = expr[index+1:]
+            expr = expr[index+1:]  # type: ignore[index]
 
-        return self.execute_rule(ctx, expr, args)
+        return self.execute_rule(ctx, expr, args)  # type: ignore[arg-type]
 
     def execute_rule(self, ctx: RuleContext, expr: str, args: Any) -> Any:
         schema = ctx.target
-        script_type = ctx.target.schema_type
+        script_type = ctx.target.schema_type  # type: ignore[union-attr]
         prog = self._cache.get_program(expr, script_type, schema)
         if prog is None:
             ast = self._env.compile(expr)
@@ -158,7 +158,7 @@ def _dict_to_cel(val: dict) -> Dict[str, celtypes.Value]:
     result = celtypes.MapType()
     for key, val in val.items():
         result[key] = _value_to_cel(val)
-    return result
+    return result  # type: ignore[return-value]
 
 
 def _array_to_cel(val: list) -> List[celtypes.Value]:

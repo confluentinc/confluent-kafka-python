@@ -61,15 +61,15 @@ def _resolve_named_schema(
     """
     if ref_registry is None:
         # Retrieve external schemas for backward compatibility
-        ref_registry = Registry(retrieve=_retrieve_via_httpx)
+        ref_registry = Registry(retrieve=_retrieve_via_httpx)  # type: ignore[call-arg]
     if schema.references is not None:
         for ref in schema.references:
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
-            ref_registry = _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
-            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)  # type: ignore[arg-type]
+            ref_registry = _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)  # type: ignore[arg-type]
+            referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)  # type: ignore[union-attr,arg-type]
             resource = Resource.from_contents(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
-            ref_registry = ref_registry.with_resource(ref.name, resource)
+            ref_registry = ref_registry.with_resource(ref.name, resource)  # type: ignore[arg-type]
     return ref_registry
 
 
@@ -214,6 +214,7 @@ class JSONSerializer(BaseSerializer):
         json_encode: Optional[Callable] = None,
     ):
         super().__init__()
+        self._schema: Optional[Schema]
         if isinstance(schema_str, str):
             self._schema = Schema(schema_str, schema_type="JSON")
         elif isinstance(schema_str, Schema):
@@ -226,10 +227,10 @@ class JSONSerializer(BaseSerializer):
         self._rule_registry = (
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
         )
-        self._schema_id = None
+        self._schema_id: Optional[SchemaId] = None
         self._known_subjects: set[str] = set()
         self._parsed_schemas = ParsedSchemaCache()
-        self._validators = LRUCache(1000)
+        self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
 
         if to_dict is not None and not callable(to_dict):
             raise ValueError("to_dict must be callable with the signature "
@@ -241,26 +242,26 @@ class JSONSerializer(BaseSerializer):
         if conf is not None:
             conf_copy.update(conf)
 
-        self._auto_register = conf_copy.pop('auto.register.schemas')
+        self._auto_register = cast(bool, conf_copy.pop('auto.register.schemas'))
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
 
-        self._normalize_schemas = conf_copy.pop('normalize.schemas')
+        self._normalize_schemas = cast(bool, conf_copy.pop('normalize.schemas'))
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
 
-        self._use_schema_id = conf_copy.pop('use.schema.id')
+        self._use_schema_id = cast(Optional[int], conf_copy.pop('use.schema.id'))
         if (self._use_schema_id is not None and
                 not isinstance(self._use_schema_id, int)):
             raise ValueError("use.schema.id must be an int value")
 
-        self._use_latest_version = conf_copy.pop('use.latest.version')
+        self._use_latest_version = cast(bool, conf_copy.pop('use.latest.version'))
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
         if self._use_latest_version and self._auto_register:
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
-        self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
+        self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
         if (self._use_latest_with_metadata is not None and
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
@@ -279,7 +280,7 @@ class JSONSerializer(BaseSerializer):
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
-        self._validate = conf_copy.pop('validate')
+        self._validate = cast(bool, conf_copy.pop('validate'))
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
 
@@ -287,8 +288,8 @@ class JSONSerializer(BaseSerializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        schema_dict, ref_registry = self._get_parsed_schema(self._schema)
-        if schema_dict:
+        schema_dict, ref_registry = self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
+        if schema_dict and isinstance(schema_dict, dict):
             schema_name = schema_dict.get('title', None)
         else:
             schema_name = None
@@ -303,7 +304,7 @@ class JSONSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -329,10 +330,10 @@ class JSONSerializer(BaseSerializer):
             return None
 
         subject = self._subject_name_func(ctx, self._schema_name)
-        latest_schema = self._get_reader_schema(subject)
+        latest_schema = self._get_reader_schema(subject) if subject else None  # type: ignore[arg-type]
         if latest_schema is not None:
             self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
-        elif subject not in self._known_subjects:
+        elif subject is not None and subject not in self._known_subjects:
             # Check to ensure this schema has been registered under subject_name.
             if self._auto_register:
                 # The schema name will always be the same. We can't however register
@@ -349,26 +350,27 @@ class JSONSerializer(BaseSerializer):
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
-            value = self._to_dict(obj, ctx)
+            value = self._to_dict(obj, ctx)  # type: ignore[arg-type]
         else:
-            value = obj
+            value = obj  # type: ignore[assignment]
 
         if latest_schema is not None:
             schema = latest_schema.schema
-            parsed_schema, ref_registry = self._get_parsed_schema(latest_schema.schema)
-            root_resource = Resource.from_contents(
-                parsed_schema, default_specification=DEFAULT_SPEC)
-            ref_resolver = ref_registry.resolver_with_root(root_resource)
-            def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
-                transform(rule_ctx, parsed_schema, ref_registry, ref_resolver, "$", msg, field_transform))
-            value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
-                                        latest_schema.schema, value, None,
-                                        field_transformer)
+            parsed_schema, ref_registry = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
+            if ref_registry is not None:
+                root_resource = Resource.from_contents(
+                    parsed_schema, default_specification=DEFAULT_SPEC)
+                ref_resolver = ref_registry.resolver_with_root(root_resource)
+                def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
+                    transform(rule_ctx, parsed_schema, ref_registry, ref_resolver, "$", msg, field_transform))
+                value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,  # type: ignore[arg-type]
+                                            latest_schema.schema, value, None,
+                                            field_transformer)
         else:
             schema = self._schema
             parsed_schema, ref_registry = self._parsed_schema, self._ref_registry
 
-        if self._validate:
+        if self._validate and schema is not None and parsed_schema is not None and ref_registry is not None:
             try:
                 validator = self._get_validator(schema, parsed_schema, ref_registry)
                 validator.validate(value)
@@ -384,7 +386,7 @@ class JSONSerializer(BaseSerializer):
             fo.write(encoded_value)
             buffer = fo.getvalue()
 
-            if latest_schema is not None:
+            if latest_schema is not None and ctx is not None and subject is not None:
                 buffer = self._execute_rules_with_phase(
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
                     None, latest_schema.schema, buffer, None, None)
@@ -400,6 +402,8 @@ class JSONSerializer(BaseSerializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
+        if schema.schema_str is None:
+            raise ValueError("Schema string cannot be None")
         parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
@@ -495,6 +499,7 @@ class JSONDeserializer(BaseDeserializer):
         json_decode: Optional[Callable] = None,
     ):
         super().__init__()
+        schema: Optional[Schema]
         if isinstance(schema_str, str):
             schema = Schema(schema_str, schema_type="JSON")
         elif isinstance(schema_str, Schema):
@@ -511,11 +516,11 @@ class JSONDeserializer(BaseDeserializer):
         else:
             raise TypeError('You must pass either str or Schema')
 
-        self._schema = schema
+        self._schema: Optional[Schema] = schema
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
         self._parsed_schemas = ParsedSchemaCache()
-        self._validators = LRUCache(1000)
+        self._validators: LRUCache[Schema, Validator] = LRUCache(1000)
         self._json_decode = json_decode or orjson.loads
         self._use_schema_id = None
 
@@ -523,11 +528,11 @@ class JSONDeserializer(BaseDeserializer):
         if conf is not None:
             conf_copy.update(conf)
 
-        self._use_latest_version = conf_copy.pop('use.latest.version')
+        self._use_latest_version = cast(bool, conf_copy.pop('use.latest.version'))
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
 
-        self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
+        self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
         if (self._use_latest_with_metadata is not None and
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
@@ -546,7 +551,7 @@ class JSONDeserializer(BaseDeserializer):
         if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
-        self._validate = conf_copy.pop('validate')
+        self._validate = cast(bool, conf_copy.pop('validate'))
         if not isinstance(self._validate, bool):
             raise ValueError("validate must be a boolean value")
 
@@ -555,7 +560,7 @@ class JSONDeserializer(BaseDeserializer):
                              .format(", ".join(conf_copy.keys())))
 
         if schema:
-            self._reader_schema, self._ref_registry = self._get_parsed_schema(self._schema)
+            self._reader_schema, self._ref_registry = self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
         else:
             self._reader_schema, self._ref_registry = None, None
 
@@ -571,7 +576,7 @@ class JSONDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -605,8 +610,8 @@ class JSONDeserializer(BaseDeserializer):
 
         if self._registry is not None:
             writer_schema_raw = self._get_writer_schema(schema_id, subject)
-            writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)
-            if subject is None:
+            writer_schema, writer_ref_registry = self._get_parsed_schema(writer_schema_raw)  # type: ignore[arg-type]
+            if subject is None and isinstance(writer_schema, dict):
                 subject = self._subject_name_func(ctx, writer_schema.get("title"))
                 if subject is not None:
                     latest_schema = self._get_reader_schema(subject)
@@ -614,19 +619,20 @@ class JSONDeserializer(BaseDeserializer):
             writer_schema_raw = None
             writer_schema, writer_ref_registry = None, None
 
-        payload = self._execute_rules_with_phase(
-            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
-            None, writer_schema_raw, payload, None, None)
+        if ctx is not None and subject is not None:
+            payload = self._execute_rules_with_phase(
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+                None, writer_schema_raw, payload, None, None)
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
         # JSON documents are self-describing; no need to query schema
         obj_dict = self._json_decode(payload.read())
 
-        if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+        if latest_schema is not None and subject is not None:
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)  # type: ignore[arg-type]
             reader_schema_raw = latest_schema.schema
-            reader_schema, reader_ref_registry = self._get_parsed_schema(latest_schema.schema)
+            reader_schema, reader_ref_registry = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
         elif self._schema is not None:
             migrations = None
             reader_schema_raw = self._schema
@@ -636,21 +642,23 @@ class JSONDeserializer(BaseDeserializer):
             reader_schema_raw = writer_schema_raw
             reader_schema, reader_ref_registry = writer_schema, writer_ref_registry
 
-        if migrations:
+        if migrations and ctx is not None and subject is not None:
             obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
 
-        reader_root_resource = Resource.from_contents(
-            reader_schema, default_specification=DEFAULT_SPEC)
-        reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
+        if reader_ref_registry is not None:
+            reader_root_resource = Resource.from_contents(
+                reader_schema, default_specification=DEFAULT_SPEC)
+            reader_ref_resolver = reader_ref_registry.resolver_with_root(reader_root_resource)
 
-        def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
-            transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
-                      "$", message, field_transform))
-        obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                       reader_schema_raw, obj_dict, None,
-                                       field_transformer)
+            def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
+                transform(rule_ctx, reader_schema, reader_ref_registry, reader_ref_resolver,
+                          "$", message, field_transform))
+            if ctx is not None and subject is not None:
+                obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
+                                               reader_schema_raw, obj_dict, None,
+                                               field_transformer)  # type: ignore[arg-type]
 
-        if self._validate:
+        if self._validate and reader_schema_raw is not None and reader_schema is not None and reader_ref_registry is not None:
             try:
                 validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
                 validator.validate(obj_dict)
@@ -658,7 +666,7 @@ class JSONDeserializer(BaseDeserializer):
                 raise SerializationError(ve.message)
 
         if self._from_dict is not None:
-            return self._from_dict(obj_dict, ctx)
+            return self._from_dict(obj_dict, ctx)  # type: ignore[arg-type,return-value]
 
         return obj_dict
 
@@ -671,6 +679,8 @@ class JSONDeserializer(BaseDeserializer):
             return result
 
         ref_registry = _resolve_named_schema(schema, self._registry)
+        if schema.schema_str is None:
+            raise ValueError("Schema string cannot be None")
         parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
