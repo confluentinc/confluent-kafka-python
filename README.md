@@ -106,7 +106,7 @@ p = Producer({'bootstrap.servers': 'mybroker1,mybroker2'})
 
 def delivery_report(err, msg):
     """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
+        Triggered by poll() or flush()."""
     if err is not None:
         print('Message delivery failed: {}'.format(err))
     else:

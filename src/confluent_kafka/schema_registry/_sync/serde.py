@@ -47,10 +47,11 @@ class BaseSerde(object):
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
-            return self._registry.lookup_schema(subject, schema, False, True)
+            return self._registry.lookup_schema(
+                subject, schema, normalize_schemas=False, deleted=True)
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(
-                subject, self._use_latest_with_metadata, True, fmt)
+                subject, self._use_latest_with_metadata, deleted=True, fmt=fmt)
         if self._use_latest_version:
             return self._registry.get_latest_version(subject, fmt)
         return None
@@ -238,7 +239,8 @@ class BaseDeserializer(BaseSerde, Deserializer):
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = self._registry.lookup_schema(subject, source_info, False, True)
+        source = self._registry.lookup_schema(
+            subject, source_info, normalize_schemas=False, deleted=True)
         migrations = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE
