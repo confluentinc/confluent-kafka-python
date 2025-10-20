@@ -30,30 +30,27 @@ class AzureKmsClient(tink.KmsClient):
     """Basic Azure client for AEAD."""
 
     def __init__(
-        self, key_uri: Optional[str], credentials: TokenCredential
+        self, key_uri: str, credentials: TokenCredential
     ) -> None:
         """Creates a new AzureKmsClient that is bound to the key specified in 'key_uri'.
 
         Uses the specified credentials when communicating with the KMS.
 
         Args:
-          key_uri: The URI of the key the client should be bound to. If it is None
-              or empty, then the client is not bound to any particular key.
+          key_uri: The URI of the key the client should be bound to.
           credentials: The token credentials.
 
         Raises:
           TinkError: If the key uri is not valid.
         """
 
-        if not key_uri:
-            self._key_uri = None
-            self._client = None  # type: ignore[assignment]
-        elif key_uri.startswith(AZURE_KEYURI_PREFIX):
+        if key_uri.startswith(AZURE_KEYURI_PREFIX):
             self._key_uri = key_uri
-            key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
-            self._client = CryptographyClient(key_id, credentials)
         else:
             raise tink.TinkError('Invalid key_uri.')
+            
+        key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
+        self._client = CryptographyClient(key_id, credentials)
 
     def does_support(self, key_uri: str) -> bool:
         """Returns true iff this client supports KMS key specified in 'key_uri'.
