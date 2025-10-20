@@ -42,7 +42,7 @@ JsonMessage = Union[
 
 JsonSchema = Union[bool, dict]
 
-DEFAULT_SPEC = referencing.jsonschema.DRAFT7
+DEFAULT_SPEC = referencing.jsonschema.DRAFT7  # type: ignore[attr-defined]
 
 
 class _ContextStringIO(BytesIO):
@@ -133,14 +133,14 @@ def _transform_field(
             get_type(prop_schema),
             get_inline_tags(prop_schema)
         )
-        value = message.get(prop_name)
+        value = message.get(prop_name)  # type: ignore[union-attr]
         if value is not None:
             new_value = transform(ctx, prop_schema, ref_registry, ref_resolver, full_name, value, field_transform)
             if ctx.rule.kind == RuleKind.CONDITION:
                 if new_value is False:
                     raise RuleConditionError(ctx.rule)
             else:
-                message[prop_name] = new_value
+                message[prop_name] = new_value  # type: ignore[index,call-overload]
     finally:
         ctx.exit_field()
 
@@ -148,11 +148,11 @@ def _transform_field(
 def _validate_subtypes(
     schema: JsonSchema, message: JsonMessage, registry: Registry
 ) -> Optional[JsonSchema]:
-    schema_type = schema.get("type")
+    schema_type = schema.get("type")  # type: ignore[union-attr]
     if not isinstance(schema_type, list) or len(schema_type) == 0:
         return None
     for typ in schema_type:
-        schema["type"] = typ
+        schema["type"] = typ  # type: ignore[index]
         try:
             validate(instance=message, schema=schema, registry=registry)
             return schema
@@ -166,10 +166,10 @@ def _validate_subschemas(
     message: JsonMessage,
     registry: Registry,
     resolver: Resolver,
-) -> Optional[JsonSchema]:
+)-> Optional[JsonSchema]:
     for subschema in subschemas:
         try:
-            ref = subschema.get("$ref")
+            ref = subschema.get("$ref")  # type: ignore[union-attr]
             if ref is not None:
                 # resolve $ref before validating
                 subschema = resolver.lookup(ref).contents
@@ -189,10 +189,10 @@ def get_type(schema: JsonSchema) -> FieldType:
         # string schemas; this could be either a named schema or a primitive type
         schema_type = schema
 
-    if schema.get("const") is not None or schema.get("enum") is not None:
+    if schema.get("const") is not None or schema.get("enum") is not None:  # type: ignore[union-attr]
         return FieldType.ENUM
     if schema_type == "object":
-        props = schema.get("properties")
+        props = schema.get("properties")  # type: ignore[union-attr]
         if not props:
             return FieldType.MAP
         return FieldType.RECORD
@@ -209,7 +209,7 @@ def get_type(schema: JsonSchema) -> FieldType:
     if schema_type == "null":
         return FieldType.NULL
 
-    props = schema.get("properties")
+    props = schema.get("properties")  # type: ignore[union-attr]
     if props is not None:
         return FieldType.RECORD
 
@@ -224,7 +224,7 @@ def _disjoint(tags1: Set[str], tags2: Set[str]) -> bool:
 
 
 def get_inline_tags(schema: JsonSchema) -> Set[str]:
-    tags = schema.get("confluent:tags")
+    tags = schema.get("confluent:tags")  # type: ignore[union-attr]
     if tags is None:
         return set()
     else:

@@ -65,10 +65,10 @@ __all__ = [
 # six: https://pypi.org/project/six/
 # compat file : https://github.com/psf/requests/blob/master/requests/compat.py
 try:
-    string_type = basestring  # noqa
+    string_type = basestring  # type: ignore[name-defined]  # noqa
 
     def _urlencode(value: str) -> str:
-        return urllib.quote(value, safe='')
+        return urllib.quote(value, safe='')  # type: ignore[attr-defined]
 except NameError:
     string_type = str
 
@@ -83,8 +83,8 @@ class _CustomOAuthClient(_BearerFieldProvider):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
-    def get_bearer_fields(self) -> dict:
-        return self.custom_function(self.custom_config)
+    def get_bearer_fields(self) -> dict:  # type: ignore[override]
+        return self.custom_function(self.custom_config)  # type: ignore[misc]
 
 
 class _OAuthClient(_BearerFieldProvider):
@@ -100,7 +100,7 @@ class _OAuthClient(_BearerFieldProvider):
         self.retries_max_wait_ms = retries_max_wait_ms
         self.token_expiry_threshold = 0.8
 
-    def get_bearer_fields(self) -> dict:
+    def get_bearer_fields(self) -> dict:  # type: ignore[override]
         return {
             'bearer.auth.token': self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
@@ -108,15 +108,15 @@ class _OAuthClient(_BearerFieldProvider):
         }
 
     def token_expired(self) -> bool:
-        expiry_window = self.token['expires_in'] * self.token_expiry_threshold
+        expiry_window = self.token['expires_in'] * self.token_expiry_threshold  # type: ignore[index]
 
-        return self.token['expires_at'] < time.time() + expiry_window
+        return self.token['expires_at'] < time.time() + expiry_window  # type: ignore[index]
 
     def get_access_token(self) -> str:
         if not self.token or self.token_expired():
             self.generate_access_token()
 
-        return self.token['access_token']
+        return self.token['access_token']  # type: ignore[index]
 
     def generate_access_token(self) -> None:
         for i in range(self.max_retries + 1):
@@ -227,7 +227,7 @@ class _BaseRestClient(object):
         if cache_capacity is not None:
             if not isinstance(cache_capacity, (int, float)):
                 raise TypeError("cache.capacity must be a number, not " + str(type(cache_capacity)))
-            self.cache_capacity = cache_capacity
+            self.cache_capacity = int(cache_capacity)
 
         self.cache_latest_ttl_sec = None
         cache_latest_ttl_sec = conf_copy.pop('cache.latest.ttl.sec', None)
@@ -241,7 +241,7 @@ class _BaseRestClient(object):
         if max_retries is not None:
             if not isinstance(max_retries, (int, float)):
                 raise TypeError("max.retries must be a number, not " + str(type(max_retries)))
-            self.max_retries = max_retries
+            self.max_retries = int(max_retries)
 
         self.retries_wait_ms = 1000
         retries_wait_ms = conf_copy.pop('retries.wait.ms', None)
@@ -249,7 +249,7 @@ class _BaseRestClient(object):
             if not isinstance(retries_wait_ms, (int, float)):
                 raise TypeError("retries.wait.ms must be a number, not "
                                 + str(type(retries_wait_ms)))
-            self.retries_wait_ms = retries_wait_ms
+            self.retries_wait_ms = int(retries_wait_ms)
 
         self.retries_max_wait_ms = 20000
         retries_max_wait_ms = conf_copy.pop('retries.max.wait.ms', None)
@@ -257,7 +257,7 @@ class _BaseRestClient(object):
             if not isinstance(retries_max_wait_ms, (int, float)):
                 raise TypeError("retries.max.wait.ms must be a number, not "
                                 + str(type(retries_max_wait_ms)))
-            self.retries_max_wait_ms = retries_max_wait_ms
+            self.retries_max_wait_ms = int(retries_max_wait_ms)
 
         self.bearer_field_provider = None
         logical_cluster = None
@@ -308,14 +308,14 @@ class _BaseRestClient(object):
 
                 self.bearer_field_provider = _OAuthClient(
                     self.client_id, self.client_secret, self.scope,
-                    self.token_endpoint, logical_cluster, identity_pool,
+                    self.token_endpoint, logical_cluster, identity_pool,  # type: ignore[arg-type]
                     self.max_retries, self.retries_wait_ms,
                     self.retries_max_wait_ms)
             elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
                 if 'bearer.auth.token' not in conf_copy:
                     raise ValueError("Missing bearer.auth.token")
                 static_token = conf_copy.pop('bearer.auth.token')
-                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
+                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)  # type: ignore[assignment,arg-type]
                 if not isinstance(static_token, string_type):
                     raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
             elif self.bearer_auth_credentials_source == 'CUSTOM':
@@ -336,7 +336,7 @@ class _BaseRestClient(object):
                     raise TypeError("bearer.auth.custom.provider.config must be a dict, not "
                                     + str(type(custom_config)))
 
-                self.bearer_field_provider = _CustomOAuthClient(custom_function, custom_config)
+                self.bearer_field_provider = _CustomOAuthClient(custom_function, custom_config)  # type: ignore[assignment]
             else:
                 raise ValueError('Unrecognized bearer.auth.credentials.source')
 
@@ -379,7 +379,7 @@ class _RestClient(_BaseRestClient):
         )
 
     def handle_bearer_auth(self, headers: dict) -> None:
-        bearer_fields = self.bearer_field_provider.get_bearer_fields()
+        bearer_fields = self.bearer_field_provider.get_bearer_fields()  # type: ignore[union-attr]
         required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
 
         missing_fields = []
@@ -437,9 +437,10 @@ class _RestClient(_BaseRestClient):
                              " application/vnd.schemaregistry+json,"
                              " application/json"}
 
+        body_str: Optional[str] = None
         if body is not None:
-            body = json.dumps(body)
-            headers = {'Content-Length': str(len(body)),
+            body_str = json.dumps(body)  # type: ignore[assignment]
+            headers = {'Content-Length': str(len(body_str)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
         if self.bearer_auth_credentials_source:
@@ -449,7 +450,7 @@ class _RestClient(_BaseRestClient):
         for i, base_url in enumerate(self.base_urls):
             try:
                 response = self.send_http_request(
-                    base_url, url, method, headers, body, query)
+                    base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
                     return response.json()
@@ -462,15 +463,15 @@ class _RestClient(_BaseRestClient):
                     raise e
 
         try:
-            raise SchemaRegistryError(response.status_code,
-                                      response.json().get('error_code'),
-                                      response.json().get('message'))
+            raise SchemaRegistryError(response.status_code,  # type: ignore[union-attr]
+                                      response.json().get('error_code'),  # type: ignore[union-attr]
+                                      response.json().get('message'))  # type: ignore[union-attr]
         # Schema Registry may return malformed output when it hits unexpected errors
         except (ValueError, KeyError, AttributeError):
-            raise SchemaRegistryError(response.status_code,
+            raise SchemaRegistryError(response.status_code,  # type: ignore[union-attr]
                                       -1,
                                       "Unknown Schema Registry Error: "
-                                      + str(response.content))
+                                      + str(response.content))  # type: ignore[union-attr]
 
     def send_http_request(
         self, base_url: str, url: str, method: str, headers: Optional[dict],
@@ -514,7 +515,7 @@ class _RestClient(_BaseRestClient):
                 return response
 
             time.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
-        return response
+        return response  # type: ignore[return-value]
 
 
 class SchemaRegistryClient(object):
@@ -598,11 +599,11 @@ class SchemaRegistryClient(object):
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
         if cache_ttl is not None:
-            self._latest_version_cache = TTLCache(cache_capacity, cache_ttl)
-            self._latest_with_metadata_cache = TTLCache(cache_capacity, cache_ttl)
+            self._latest_version_cache: TTLCache[Any, Any] = TTLCache(cache_capacity, cache_ttl)
+            self._latest_with_metadata_cache: TTLCache[Any, Any] = TTLCache(cache_capacity, cache_ttl)
         else:
-            self._latest_version_cache = LRUCache(cache_capacity)
-            self._latest_with_metadata_cache = LRUCache(cache_capacity)
+            self._latest_version_cache = LRUCache[Any, Any](cache_capacity)  # type: ignore[assignment]
+            self._latest_with_metadata_cache = LRUCache[Any, Any](cache_capacity)  # type: ignore[assignment]
 
     def __enter__(self):
         return self
@@ -638,7 +639,7 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
-        return registered_schema.schema_id
+        return registered_schema.schema_id  # type: ignore[return-value]
 
     def register_schema_full_response(
         self, subject_name: str, schema: 'Schema',
@@ -667,7 +668,7 @@ class SchemaRegistryClient(object):
         if schema_id is not None:
             result = self._cache.get_schema_by_id(subject_name, schema_id)
             if result is not None:
-                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
+                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)  # type: ignore[arg-type]
 
         request = schema.to_dict()
 
@@ -675,20 +676,20 @@ class SchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        result = RegisteredSchema.from_dict(response)
+        result = RegisteredSchema.from_dict(response)  # type: ignore[assignment]
 
         registered_schema = RegisteredSchema(
-            schema_id=result.schema_id,
-            guid=result.guid,
-            subject=result.subject or subject_name,
-            version=result.version,
-            schema=result.schema,
+            schema_id=result.schema_id,  # type: ignore[union-attr]
+            guid=result.guid,  # type: ignore[union-attr]
+            subject=result.subject or subject_name,  # type: ignore[union-attr]
+            version=result.version,  # type: ignore[union-attr]
+            schema=result.schema,  # type: ignore[union-attr]
         )
 
         # The registered schema may not be fully populated
-        s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema
+        s = registered_schema.schema if registered_schema.schema.schema_str is not None else schema  # type: ignore[union-attr]
         self._cache.set_schema(subject_name, registered_schema.schema_id,
-                               registered_schema.guid, s)
+                               registered_schema.guid, s)  # type: ignore[arg-type]
 
         return registered_schema
 
@@ -717,7 +718,7 @@ class SchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        result = self._cache.get_schema_by_id(subject_name, schema_id)
+        result = self._cache.get_schema_by_id(subject_name, schema_id)  # type: ignore[arg-type]
         if result is not None:
             return result[1]
 
@@ -733,9 +734,9 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(subject_name, schema_id,
-                               registered_schema.guid, registered_schema.schema)
+                               registered_schema.guid, registered_schema.schema)  # type: ignore[arg-type]
 
-        return registered_schema.schema
+        return registered_schema.schema  # type: ignore[return-value]
 
     def get_schema_by_guid(
         self, guid: str, fmt: Optional[str] = None
@@ -771,9 +772,9 @@ class SchemaRegistryClient(object):
         registered_schema = RegisteredSchema.from_dict(response)
 
         self._cache.set_schema(None, registered_schema.schema_id,
-                               registered_schema.guid, registered_schema.schema)
+                               registered_schema.guid, registered_schema.schema)  # type: ignore[arg-type]
 
-        return registered_schema.schema
+        return registered_schema.schema  # type: ignore[return-value]
 
     def get_schema_types(self) -> List[str]:
         """
@@ -813,7 +814,7 @@ class SchemaRegistryClient(object):
         """
         query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
-            query['subject'] = subject_name
+            query['subject'] = subject_name  # type: ignore[assignment]
         if deleted:
             query['deleted'] = deleted
         return self._rest_client.get('schemas/ids/{}/subjects'.format(schema_id), query)
@@ -846,7 +847,7 @@ class SchemaRegistryClient(object):
 
         query = {'offset': offset, 'limit': limit}
         if subject_name is not None:
-            query['subject'] = subject_name
+            query['subject'] = subject_name  # type: ignore[assignment]
         if deleted:
             query['deleted'] = deleted
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
@@ -887,7 +888,7 @@ class SchemaRegistryClient(object):
             'deleted': deleted
         }
         if fmt is not None:
-            query_params['format'] = fmt
+            query_params['format'] = fmt  # type: ignore[assignment]
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
@@ -937,7 +938,7 @@ class SchemaRegistryClient(object):
 
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         if subject_prefix is not None:
-            query['subject'] = subject_prefix
+            query['subject'] = subject_prefix  # type: ignore[assignment]
         return self._rest_client.get('subjects', query)
 
     def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
@@ -1034,11 +1035,11 @@ class SchemaRegistryClient(object):
 
         query = {'deleted': deleted}
         if fmt is not None:
-            query['format'] = fmt
+            query['format'] = fmt  # type: ignore[assignment]
         keys = metadata.keys()
         if keys:
-            query['key'] = [_urlencode(key) for key in keys]
-            query['value'] = [_urlencode(metadata[key]) for key in keys]
+            query['key'] = [_urlencode(key) for key in keys]  # type: ignore[assignment]
+            query['value'] = [_urlencode(metadata[key]) for key in keys]  # type: ignore[assignment]
 
         response = self._rest_client.get(
             'subjects/{}/metadata'.format(_urlencode(subject_name)), query
@@ -1073,7 +1074,7 @@ class SchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
+        registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)  # type: ignore[arg-type]
         if registered_schema is not None:
             return registered_schema
 
@@ -1084,7 +1085,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = RegisteredSchema.from_dict(response)
 
-        self._cache.set_registered_schema(registered_schema.schema, registered_schema)
+        self._cache.set_registered_schema(registered_schema.schema, registered_schema)  # type: ignore[arg-type]
 
         return registered_schema
 
@@ -1509,6 +1510,6 @@ class SchemaRegistryClient(object):
     def new_client(conf: dict) -> 'SchemaRegistryClient':
         from .mock_schema_registry_client import MockSchemaRegistryClient
         url = conf.get("url")
-        if url.startswith("mock://"):
+        if url.startswith("mock://"):  # type: ignore[union-attr]
             return MockSchemaRegistryClient(conf)
         return SchemaRegistryClient(conf)

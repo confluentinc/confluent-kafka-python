@@ -347,7 +347,7 @@ class RuleParams:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
         d = src_dict.copy()
 
-        rule_params = cls(params=d)
+        rule_params = cls(params=d)  # type: ignore[call-arg]
 
         return rule_params
 
@@ -459,7 +459,7 @@ class Rule:
 
         disabled = d.pop("disabled", None)
 
-        rule = cls(
+        rule = cls(  # type: ignore[call-arg]
             name=name,
             doc=doc,
             kind=kind,
@@ -536,7 +536,7 @@ class RuleSet:
             encoding_rules_item = Rule.from_dict(encoding_rules_item_data)
             encoding_rules.append(encoding_rules_item)
 
-        rule_set = cls(
+        rule_set = cls(  # type: ignore[call-arg]
             migration_rules=migration_rules,
             domain_rules=domain_rules,
             encoding_rules=encoding_rules,
@@ -571,7 +571,7 @@ class MetadataTags:
 
             tags[prop_name] = tag
 
-        metadata_tags = cls(tags=tags)
+        metadata_tags = cls(tags=tags)  # type: ignore[call-arg]
 
         return metadata_tags
 
@@ -593,7 +593,7 @@ class MetadataProperties:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
         d = src_dict.copy()
 
-        metadata_properties = cls(properties=d)
+        metadata_properties = cls(properties=d)  # type: ignore[call-arg]
 
         return metadata_properties
 
@@ -650,7 +650,7 @@ class Metadata:
         for sensitive_item in _sensitive or []:
             sensitive.append(sensitive_item)
 
-        metadata = cls(
+        metadata = cls(  # type: ignore[call-arg]
             tags=tags,
             properties=properties,
             sensitive=sensitive,
@@ -666,7 +666,7 @@ class SchemaVersion:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))
+        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))  # type: ignore[call-arg]
 
 
 @_attrs_define(frozen=True)
@@ -694,7 +694,7 @@ class SchemaReference:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        return cls(
+        return cls(  # type: ignore[call-arg]
             name=src_dict.get('name'),
             subject=src_dict.get('subject'),
             version=src_dict.get('version'),
@@ -832,7 +832,7 @@ class ServerConfig:
 
         override_rule_set = _parse_override_rule_set(d.pop("overrideRuleSet", None))
 
-        config = cls(
+        config = cls(  # type: ignore[call-arg]
             compatibility=compatibility,
             compatibility_level=compatibility_level,
             compatibility_group=compatibility_group,
@@ -865,7 +865,7 @@ class Schema:
         if self.references is not None:
             for references_item_data in self.references:
                 references_item = references_item_data.to_dict()
-                _references.append(references_item)
+                _references.append(references_item)  # type: ignore[union-attr]
 
         _metadata: Optional[Dict[str, Any]] = None
         if isinstance(self.metadata, Metadata):
@@ -922,7 +922,7 @@ class Schema:
 
         rule_set = _parse_rule_set(d.pop("ruleSet", None))
 
-        schema = cls(
+        schema = cls(  # type: ignore[call-arg]
             schema_str=schema,
             schema_type=schema_type,
             references=references,
@@ -984,7 +984,7 @@ class RegisteredSchema:
 
         version = d.pop("version", None)
 
-        schema = cls(
+        schema = cls(  # type: ignore[call-arg,assignment]
             schema_id=schema_id,
             guid=guid,
             schema=schema,
@@ -992,4 +992,4 @@ class RegisteredSchema:
             version=version,
         )
 
-        return schema
+        return schema  # type: ignore[return-value]

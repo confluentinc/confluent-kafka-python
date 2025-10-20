@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import io
-from typing import Set, List, Union, Optional, Tuple
+from typing import Any, Coroutine, Set, List, Union, Optional, Tuple, Callable, cast
 
 from google.protobuf import json_format, descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
@@ -66,12 +66,13 @@ def _resolve_named_schema(
         visited = set()
     if schema.references is not None:
         for ref in schema.references:
-            if _is_builtin(ref.name) or ref.name in visited:
+            # References in registered schemas are validated by server to be complete
+            if _is_builtin(ref.name) or ref.name in visited:  # type: ignore[arg-type]
                 continue
-            visited.add(ref.name)
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
-            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
-            file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
+            visited.add(ref.name)  # type: ignore[arg-type]
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')  # type: ignore[arg-type]
+            _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)  # type: ignore[arg-type]
+            file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)  # type: ignore[arg-type,union-attr]
             pool.Add(file_descriptor_proto)
 
 
@@ -217,50 +218,58 @@ class ProtobufSerializer(BaseSerializer):
         if conf is not None:
             conf_copy.update(conf)
 
-        self._auto_register = conf_copy.pop('auto.register.schemas')
+        self._auto_register = cast(bool, conf_copy.pop('auto.register.schemas'))
         if not isinstance(self._auto_register, bool):
             raise ValueError("auto.register.schemas must be a boolean value")
 
-        self._normalize_schemas = conf_copy.pop('normalize.schemas')
+        self._normalize_schemas = cast(bool, conf_copy.pop('normalize.schemas'))
         if not isinstance(self._normalize_schemas, bool):
             raise ValueError("normalize.schemas must be a boolean value")
 
-        self._use_schema_id = conf_copy.pop('use.schema.id')
+        self._use_schema_id = cast(Optional[int], conf_copy.pop('use.schema.id'))
         if (self._use_schema_id is not None and
                 not isinstance(self._use_schema_id, int)):
             raise ValueError("use.schema.id must be an int value")
 
-        self._use_latest_version = conf_copy.pop('use.latest.version')
+        self._use_latest_version = cast(bool, conf_copy.pop('use.latest.version'))
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
         if self._use_latest_version and self._auto_register:
             raise ValueError("cannot enable both use.latest.version and auto.register.schemas")
 
-        self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
+        self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
         if (self._use_latest_with_metadata is not None and
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._skip_known_types = conf_copy.pop('skip.known.types')
+        self._skip_known_types = cast(bool, conf_copy.pop('skip.known.types'))
         if not isinstance(self._skip_known_types, bool):
             raise ValueError("skip.known.types must be a boolean value")
 
-        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        self._use_deprecated_format = cast(bool, conf_copy.pop('use.deprecated.format'))
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
             raise ValueError("use.deprecated.format is no longer supported")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._ref_reference_subject_func = conf_copy.pop(
-            'reference.subject.name.strategy')
+        self._ref_reference_subject_func = cast(
+            Callable[[Optional[SerializationContext], Any], Optional[str]],
+            conf_copy.pop('reference.subject.name.strategy')
+        )
         if not callable(self._ref_reference_subject_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_serializer = conf_copy.pop('schema.id.serializer')
+        self._schema_id_serializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], bytes],
+            conf_copy.pop('schema.id.serializer')
+        )
         if not callable(self._schema_id_serializer):
             raise ValueError("schema.id.serializer must be callable")
 
@@ -270,8 +279,8 @@ class ProtobufSerializer(BaseSerializer):
 
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
-        self._schema_id = None
-        self._known_subjects = set()
+        self._schema_id: Optional[SchemaId] = None
+        self._known_subjects: set[str] = set()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
 
@@ -359,7 +368,7 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
         return self.__serialize(message, ctx)
 
     def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -396,7 +405,7 @@ class ProtobufSerializer(BaseSerializer):
         if latest_schema is not None:
             self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
 
-        elif subject not in self._known_subjects and ctx is not None:
+        elif subject is not None and subject not in self._known_subjects and ctx is not None:
             references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
             self._schema = Schema(
                 self._schema.schema_str,
@@ -416,21 +425,23 @@ class ProtobufSerializer(BaseSerializer):
             self._known_subjects.add(subject)
 
         if latest_schema is not None:
-            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
             def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, desc, msg, field_transform))
-            message = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
-                                          latest_schema.schema, message, None,
-                                          field_transformer)
+            if ctx is not None and subject is not None:
+                message = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
+                                              latest_schema.schema, message, None,
+                                              field_transformer)
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            self._schema_id.message_indexes = self._index_array
+            if self._schema_id is not None:
+                self._schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
-            if latest_schema is not None:
+            if latest_schema is not None and ctx is not None and subject is not None:
                 buffer = self._execute_rules_with_phase(
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
                     None, latest_schema.schema, buffer, None, None)
@@ -445,6 +456,8 @@ class ProtobufSerializer(BaseSerializer):
         pool = DescriptorPool()
         _init_pool(pool)
         _resolve_named_schema(schema, self._registry, pool)
+        if schema.schema_str is None:
+            raise ValueError("Schema string cannot be None")
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))
@@ -525,24 +538,30 @@ class ProtobufDeserializer(BaseDeserializer):
         if conf is not None:
             conf_copy.update(conf)
 
-        self._use_latest_version = conf_copy.pop('use.latest.version')
+        self._use_latest_version = cast(bool, conf_copy.pop('use.latest.version'))
         if not isinstance(self._use_latest_version, bool):
             raise ValueError("use.latest.version must be a boolean value")
 
-        self._use_latest_with_metadata = conf_copy.pop('use.latest.with.metadata')
+        self._use_latest_with_metadata = cast(Optional[dict], conf_copy.pop('use.latest.with.metadata'))
         if (self._use_latest_with_metadata is not None and
                 not isinstance(self._use_latest_with_metadata, dict)):
             raise ValueError("use.latest.with.metadata must be a dict value")
 
-        self._subject_name_func = conf_copy.pop('subject.name.strategy')
+        self._subject_name_func = cast(
+            Callable[[Optional[SerializationContext], Optional[str]], Optional[str]],
+            conf_copy.pop('subject.name.strategy')
+        )
         if not callable(self._subject_name_func):
             raise ValueError("subject.name.strategy must be callable")
 
-        self._schema_id_deserializer = conf_copy.pop('schema.id.deserializer')
+        self._schema_id_deserializer = cast(
+            Callable[[bytes, Optional[SerializationContext], Any], io.BytesIO],
+            conf_copy.pop('schema.id.deserializer')
+        )
         if not callable(self._schema_id_deserializer):
             raise ValueError("schema.id.deserializer must be callable")
 
-        self._use_deprecated_format = conf_copy.pop('use.deprecated.format')
+        self._use_deprecated_format = cast(bool, conf_copy.pop('use.deprecated.format'))
         if not isinstance(self._use_deprecated_format, bool):
             raise ValueError("use.deprecated.format must be a boolean value")
         if self._use_deprecated_format:
@@ -557,10 +576,10 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[object, None]:
         return self.__deserialize(data, ctx)
 
-    def __deserialize(self, data: bytes, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[object, None]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.
@@ -594,9 +613,9 @@ class ProtobufDeserializer(BaseDeserializer):
 
         if self._registry is not None:
             writer_schema_raw = self._get_writer_schema(schema_id, subject, fmt='serialized')
-            fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
+            fd_proto, pool = self._get_parsed_schema(writer_schema_raw)  # type: ignore[arg-type]
             writer_schema = pool.FindFileByName(fd_proto.name)
-            writer_desc = self._get_message_desc(pool, writer_schema, msg_index)
+            writer_desc = self._get_message_desc(pool, writer_schema, msg_index)  # type: ignore[arg-type]
             if subject is None:
                 subject = self._subject_name_func(ctx, writer_desc.full_name)
                 if subject is not None:
@@ -605,16 +624,17 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_schema_raw = None
             writer_schema = None
 
-        payload = self._execute_rules_with_phase(
-            ctx, subject, RulePhase.ENCODING, RuleMode.READ,
-            None, writer_schema_raw, payload, None, None)
+        if ctx is not None and subject is not None:
+            payload = self._execute_rules_with_phase(
+                ctx, subject, RulePhase.ENCODING, RuleMode.READ,
+                None, writer_schema_raw, payload, None, None)
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
-        if latest_schema is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
+        if latest_schema is not None and subject is not None:
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)  # type: ignore[arg-type]
             reader_schema_raw = latest_schema.schema
-            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)
+            fd_proto, pool = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
             reader_schema = pool.FindFileByName(fd_proto.name)
         else:
             migrations = None
@@ -627,7 +647,7 @@ class ProtobufDeserializer(BaseDeserializer):
             # Attempt to find a reader desc with the same name as the writer
             reader_desc = reader_schema.message_types_by_name.get(writer_desc.name, reader_desc)
 
-        if migrations:
+        if migrations and ctx is not None and subject is not None:
             msg = GetMessageClass(writer_desc)()
             try:
                 msg.ParseFromString(payload.read())
@@ -648,9 +668,10 @@ class ProtobufDeserializer(BaseDeserializer):
 
         def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_desc, message, field_transform))
-        msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                  reader_schema_raw, msg, None,
-                                  field_transformer)
+        if ctx is not None and subject is not None:
+            msg = self._execute_rules(ctx, subject, RuleMode.READ, None,  # type: ignore[arg-type]
+                                      reader_schema_raw, msg, None,
+                                      field_transformer)
         return msg
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
@@ -661,6 +682,8 @@ class ProtobufDeserializer(BaseDeserializer):
         pool = DescriptorPool()
         _init_pool(pool)
         _resolve_named_schema(schema, self._registry, pool)
+        if schema.schema_str is None:
+            raise ValueError("Schema string cannot be None")
         fd_proto = _str_to_proto("default", schema.schema_str)
         pool.Add(fd_proto)
         self._parsed_schemas.set(schema, (fd_proto, pool))

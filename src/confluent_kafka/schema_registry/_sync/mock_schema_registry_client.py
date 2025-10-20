@@ -18,7 +18,7 @@
 import uuid
 from collections import defaultdict
 from threading import Lock
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 
 from .schema_registry_client import SchemaRegistryClient
 from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
@@ -156,7 +156,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         normalize_schemas: bool = False
     ) -> int:
         registered_schema = self.register_schema_full_response(subject_name, schema, normalize_schemas)
-        return registered_schema.schema_id
+        return registered_schema.schema_id  # type: ignore[return-value]
 
     def register_schema_full_response(
         self, subject_name: str, schema: 'Schema',
@@ -167,7 +167,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
             return registered_schema
 
         latest_schema = self._store.get_latest_version(subject_name)
-        latest_version = 1 if latest_schema is None else latest_schema.version + 1
+        latest_version = 1 if latest_schema is None or latest_schema.version is None else latest_schema.version + 1
 
         registered_schema = RegisteredSchema(
             schema_id=1,
@@ -183,7 +183,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def get_schema(
         self, schema_id: int, subject_name: Optional[str] = None,
-        fmt: Optional[str] = None
+        fmt: Optional[str] = None, reference_format: Optional[str] = None
     ) -> 'Schema':
         schema = self._store.get_schema(schema_id)
         if schema is not None:
@@ -202,7 +202,7 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
     def lookup_schema(
         self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False
+        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
     ) -> 'RegisteredSchema':
 
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)
@@ -211,7 +211,10 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_subjects(self) -> List[str]:
+    def get_subjects(
+        self, subject_prefix: Optional[str] = None, deleted: bool = False,
+        deleted_only: bool = False, offset: int = 0, limit: int = -1
+    ) -> List[str]:
         return self._store.get_subjects()
 
     def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
@@ -235,30 +238,36 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_version(
-        self, subject_name: str, version: int,
+        self, subject_name: str, version: Union[int, str] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
-        registered_schema = self._store.get_version(subject_name, version)
+        if version == "latest":
+            registered_schema = self._store.get_latest_version(subject_name)
+        else:
+            registered_schema = self._store.get_version(subject_name, version)  # type: ignore[arg-type]
         if registered_schema is not None:
             return registered_schema
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
-    def get_versions(self, subject_name: str) -> List[int]:
+    def get_versions(
+        self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
+        offset: int = 0, limit: int = -1
+    ) -> List[int]:
         return self._store.get_versions(subject_name)
 
     def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             self._store.remove_by_schema(registered_schema)
-            return registered_schema.schema_id
+            return registered_schema.schema_id  # type: ignore[return-value]
 
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def set_config(
-        self, subject_name: Optional[str] = None, config: 'ServerConfig' = None  # noqa F821
+        self, subject_name: Optional[str] = None, config: Optional['ServerConfig'] = None  # noqa F821
     ) -> 'ServerConfig':  # noqa F821
-        return None
+        return None  # type: ignore[return-value]
 
     def get_config(self, subject_name: Optional[str] = None) -> 'ServerConfig':  # noqa F821
-        return None
+        return None  # type: ignore[return-value]

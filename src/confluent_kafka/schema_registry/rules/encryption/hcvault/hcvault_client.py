@@ -48,19 +48,20 @@ class HcVaultKmsClient(tink.KmsClient):
 
         if not key_uri:
             self._key_uri = None
+            self._client = None  # type: ignore[assignment]
         elif key_uri.startswith(VAULT_KEYURI_PREFIX):
             self._key_uri = key_uri
+            parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX):])
+            vault_url = parsed.scheme + '://' + parsed.netloc
+            self._client = hvac.Client(
+                url=vault_url,
+                token=token,
+                namespace=ns,
+                verify=False
+            )
         else:
             raise tink.TinkError('Invalid key_uri.')
-        parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX):])
-        vault_url = parsed.scheme + '://' + parsed.netloc
-        self._client = hvac.Client(
-            url=vault_url,
-            token=token,
-            namespace=ns,
-            verify=False
-        )
-        if role_id and secret_id:
+        if role_id and secret_id and self._client is not None:
             self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 
     def does_support(self, key_uri: str) -> bool:
