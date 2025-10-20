@@ -2935,7 +2935,9 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
 
 
 static PyObject *libversion (PyObject *self, PyObject *args) {
-	return Py_BuildValue("s", rd_kafka_version_str());
+	return Py_BuildValue("si",
+                rd_kafka_version_str(),
+                rd_kafka_version());
 }
 
 /**
@@ -2954,7 +2956,7 @@ static PyMethodDef cimpl_methods[] = {
 	 "\n"
 	},
 	{"version", version, METH_NOARGS,
-	 "  Retrieve module version string and integer\n"
+	 "  Retrieve module version string\n"
 	 "\n"
 	 "  :returns: version_string\n"
 	 "  :rtype: str\n"
