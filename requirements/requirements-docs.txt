@@ -1,4 +1,4 @@
 sphinx
 sphinx-rtd-theme
-tomli; python_version < "3.13"
+tomli; python_version < "3.11"
 pandoc
