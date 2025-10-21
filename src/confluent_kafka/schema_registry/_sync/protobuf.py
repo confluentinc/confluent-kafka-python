@@ -57,6 +57,7 @@ def _resolve_named_schema(
 ):
     """
     Resolves named schemas referenced by the provided schema recursively.
+
     :param schema: Schema to resolve named schemas for.
     :param schema_registry_client: SchemaRegistryClient to use for retrieval.
     :param pool: DescriptorPool to add resolved schemas to.
@@ -104,7 +105,7 @@ class ProtobufSerializer(BaseSerializer):
     |                                     |          | Whether to use the given schema ID for               |
     | ``use.schema.id``                   | int      | serialization.                                       |
     |                                     |          |                                                      |
-    +-----------------------------------------+----------+--------------------------------------------------+
+    +-------------------------------------+----------+------------------------------------------------------+
     |                                     |          | Whether to use the latest subject version for        |
     | ``use.latest.version``              | bool     | serialization.                                       |
     |                                     |          |                                                      |
@@ -406,11 +407,11 @@ class ProtobufSerializer(BaseSerializer):
 
             if self._auto_register:
                 registered_schema = self._registry.register_schema_full_response(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = self._registry.lookup_schema(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)

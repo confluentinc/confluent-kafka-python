@@ -27,6 +27,7 @@ from ._model import (
     TopicCollection,
     TopicPartitionInfo,
     IsolationLevel,
+    ElectionType
 )
 import os
 from .cimpl import (
@@ -54,6 +55,7 @@ __all__ = [
     "KafkaException",
     "kafkatest",
     "libversion",
+    "version",
     "Message",
     "OFFSET_BEGINNING",
     "OFFSET_END",
@@ -74,6 +76,7 @@ __all__ = [
     "IsolationLevel",
     "TopicCollection",
     "TopicPartitionInfo",
+    "ElectionType"
 ]
 
 

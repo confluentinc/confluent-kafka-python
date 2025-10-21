@@ -94,8 +94,8 @@ class _SchemaStore(object):
             return None
 
     def get_latest_with_metadata(
-        self, subject_name: str,
-        metadata: Dict[str, str]
+        self, subject_name: str, metadata: Dict[str, str],
+        deleted: bool = False, fmt: Optional[str] = None
     ) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
@@ -155,7 +155,8 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         self, subject_name: str, schema: 'Schema',
         normalize_schemas: bool = False
     ) -> int:
-        registered_schema = await self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        registered_schema = await self.register_schema_full_response(
+            subject_name, schema, normalize_schemas=normalize_schemas)
         return registered_schema.schema_id
 
     async def register_schema_full_response(
@@ -202,7 +203,7 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
 
     async def lookup_schema(
         self, subject_name: str, schema: 'Schema',
-        normalize_schemas: bool = False, deleted: bool = False
+        normalize_schemas: bool = False, fmt: Optional[str] = None, deleted: bool = False
     ) -> 'RegisteredSchema':
 
         registered_schema = self._store.get_registered_schema_by_schema(subject_name, schema)

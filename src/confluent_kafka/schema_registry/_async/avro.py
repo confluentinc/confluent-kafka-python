@@ -323,11 +323,11 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 # a schema without a subject so we set the schema_id here to handle
                 # the initial registration.
                 registered_schema = await self._registry.register_schema_full_response(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = await self._registry.lookup_schema(
-                    subject, self._schema, self._normalize_schemas)
+                    subject, self._schema, normalize_schemas=self._normalize_schemas)
                 self._schema_id = SchemaId(AVRO_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
@@ -407,6 +407,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
     | ``schema.id.deserializer``  | callable | Defines how the schema id/guid is deserialized.  |
     |                             |          | Defaults to dual_schema_id_deserializer.         |
     +-----------------------------+----------+--------------------------------------------------+
+
     Note:
         By default, Avro complex types are returned as dicts. This behavior can
         be overridden by registering a callable ``from_dict`` with the deserializer to

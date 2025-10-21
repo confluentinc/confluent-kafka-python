@@ -87,6 +87,17 @@ async def test_register_schema(mock_schema_registry, load_avsc):
     assert result == SCHEMA_ID
 
 
+async def test_register_schema_full_response_recall(mock_schema_registry, load_avsc):
+    conf = {'url': TEST_URL}
+    sr = AsyncSchemaRegistryClient(conf)
+    schema = Schema(load_avsc('basic_schema.avsc'), schema_type='AVRO')
+
+    await sr.register_schema('test-key', schema)
+
+    result = await sr.register_schema_full_response('test-key', schema)
+    assert result.schema_id == SCHEMA_ID
+
+
 async def test_register_schema_incompatible(mock_schema_registry, load_avsc):
     conf = {'url': TEST_URL}
     sr = AsyncSchemaRegistryClient(conf)

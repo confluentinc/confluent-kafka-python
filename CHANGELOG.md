@@ -1,5 +1,12 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.12.1 - release candidate
+
+v2.12.1 is a maintenance release with the following fixes:
+
+- restored macOS binaries compatibility with macOS 13
+
+
 ## v2.12.0 - 2025-10-09
 
 v2.12.0 is a feature release with the following enhancements:

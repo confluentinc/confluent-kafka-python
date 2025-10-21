@@ -634,10 +634,11 @@ class AsyncSchemaRegistryClient(object):
                 Compatibility policy or is otherwise invalid.
 
         See Also:
-            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `POST Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        registered_schema = await self.register_schema_full_response(subject_name, schema, normalize_schemas)
+        registered_schema = await self.register_schema_full_response(
+            subject_name, schema, normalize_schemas=normalize_schemas)
         return registered_schema.schema_id
 
     async def register_schema_full_response(
@@ -660,14 +661,20 @@ class AsyncSchemaRegistryClient(object):
                 Compatibility policy or is otherwise invalid.
 
         See Also:
-            `POST Subject API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `POST Subject Version API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
         schema_id = self._cache.get_id_by_schema(subject_name, schema)
         if schema_id is not None:
             result = self._cache.get_schema_by_id(subject_name, schema_id)
             if result is not None:
-                return RegisteredSchema(schema_id, result[0], result[1], subject_name, None)
+                return RegisteredSchema(
+                    schema_id=schema_id,
+                    guid=result[0],
+                    subject=subject_name,
+                    version=None,
+                    schema=result[1]
+                )
 
         request = schema.to_dict()
 
@@ -682,7 +689,7 @@ class AsyncSchemaRegistryClient(object):
             guid=result.guid,
             subject=result.subject or subject_name,
             version=result.version,
-            schema=result.schema,
+            schema=result.schema
         )
 
         # The registered schema may not be fully populated
@@ -1108,7 +1115,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: if the schema version can't be found or referenced schemas can't be retrieved
 
         See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
+            `GET Subject Versions (ReferenceBy) API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
         """  # noqa: E501
 
         query = {'offset': offset, 'limit': limit}
@@ -1136,7 +1143,7 @@ class AsyncSchemaRegistryClient(object):
             SchemaRegistryError: If subject can't be found
 
         See Also:
-            `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#post--subjects-(string-%20subject)-versions>`_
+            `GET Subject All Versions API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
         query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
