@@ -159,4 +159,6 @@ class ListOffsetsResultInfo:
     def __init__(self, offset: int, timestamp: int, leader_epoch: int) -> None:
         self.offset = offset
         self.timestamp = timestamp
-        self.leader_epoch: Optional[int] = leader_epoch if leader_epoch >= 0 else None
+        self.leader_epoch: Optional[int] = leader_epoch
+        if leader_epoch < 0:
+            self.leader_epoch = None
