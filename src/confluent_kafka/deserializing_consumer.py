@@ -24,7 +24,6 @@ from .error import (ConsumeError,
                     ValueDeserializationError)
 from .serialization import (SerializationContext,
                             MessageField)
-from ._types import Deserializer
 
 
 class DeserializingConsumer(_ConsumerImpl):
