@@ -185,7 +185,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_consumer_groups_result(f: concurrent.futures.Future,
-                                      futmap: Dict[str, concurrent.futures.Future]) -> None:
+                                     futmap: Dict[str, concurrent.futures.Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         """
@@ -211,7 +211,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_consumer_group_offsets_result(f: concurrent.futures.Future,
-                                             futmap: Dict[str, concurrent.futures.Future]) -> None:
+                                            futmap: Dict[str, concurrent.futures.Future]) -> None:
         """
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
@@ -264,7 +264,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_futmap_result_from_list(f: concurrent.futures.Future,
-                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
+                                      futmap: Dict[Any, concurrent.futures.Future]) -> None:
         try:
 
             results = f.result()
@@ -317,7 +317,7 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _make_futures(futmap_keys: List[Any], class_check: Optional[type],
                       make_result_fn: Any) -> Tuple[concurrent.futures.Future,
-                                                     Dict[Any, concurrent.futures.Future]]:
+                                                    Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -341,7 +341,7 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _make_futures_v2(futmap_keys: Union[List[Any], Set[Any]], class_check: Optional[type],
                          make_result_fn: Any) -> Tuple[concurrent.futures.Future,
-                                                        Dict[Any, concurrent.futures.Future]]:
+                                                       Dict[Any, concurrent.futures.Future]]:
         """
         Create futures and a futuremap for the keys in futmap_keys,
         and create a request-level future to be bassed to the C API.
@@ -524,7 +524,7 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _check_list_offsets_request(topic_partition_offsets: Dict[_TopicPartition, OffsetSpec],
-                                     kwargs: Dict[str, Any]) -> None:
+                                    kwargs: Dict[str, Any]) -> None:
         if not isinstance(topic_partition_offsets, dict):
             raise TypeError("Expected topic_partition_offsets to be " +
                             "dict of [TopicPartitions,OffsetSpec] for list offsets request")
