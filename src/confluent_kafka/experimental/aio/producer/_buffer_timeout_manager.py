@@ -16,6 +16,12 @@ import asyncio
 import logging
 import time
 import weakref
+from typing import Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Import only for type checking to avoid circular dependency
+    from ._producer_batch_processor import ProducerBatchManager
+    from ._kafka_batch_executor import ProducerBatchExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +36,12 @@ class BufferTimeoutManager:
     - Coordinating between batch processor and executor for timeout flushes
     """
 
-    def __init__(self, batch_processor, kafka_executor, timeout):
+    def __init__(
+        self,
+        batch_processor: "ProducerBatchManager",
+        kafka_executor: "ProducerBatchExecutor",
+        timeout: float
+    ) -> None:
         """Initialize the buffer timeout manager
 
         Args:
@@ -41,19 +52,20 @@ class BufferTimeoutManager:
         self._batch_processor = batch_processor
         self._kafka_executor = kafka_executor
         self._timeout = timeout
-        self._last_activity = time.time()
-        self._timeout_task = None
-        self._running = False
+        self._last_activity: float = time.time()
+        self._timeout_task: Optional[asyncio.Task[None]] = None
+        self._running: bool = False
 
-    def start_timeout_monitoring(self):
+    def start_timeout_monitoring(self) -> None:
         """Start the background task that monitors buffer inactivity
 
         Creates an async task that runs in the background and periodically checks
-        if messages have been sitting in the buffer for too long without being flushed.
+        if messages have been sitting in the buffer for too long without being
+        flushed.
 
         Key design decisions:
-        1. **Weak Reference**: Uses weakref.ref(self) to prevent circular references
-        2. **Self-Canceling**: The task stops itself if the manager is garbage collected
+        1. **Weak Reference**: Uses weakref.ref(self) to prevent circular refs
+        2. **Self-Canceling**: The task stops itself if manager is GC'd
         3. **Adaptive Check Interval**: Uses timeout to determine check frequency
         """
         if not self._timeout or self._timeout <= 0:
@@ -62,14 +74,14 @@ class BufferTimeoutManager:
         self._running = True
         self._timeout_task = asyncio.create_task(self._monitor_timeout())
 
-    def stop_timeout_monitoring(self):
+    def stop_timeout_monitoring(self) -> None:
         """Stop and cleanup the buffer timeout monitoring task"""
         self._running = False
         if self._timeout_task and not self._timeout_task.done():
             self._timeout_task.cancel()
             self._timeout_task = None
 
-    def mark_activity(self):
+    def mark_activity(self) -> None:
         """Update the timestamp of the last buffer activity
 
         This method should be called whenever:
@@ -79,11 +91,11 @@ class BufferTimeoutManager:
         """
         self._last_activity = time.time()
 
-    async def _monitor_timeout(self):
+    async def _monitor_timeout(self) -> None:
         """Monitor buffer timeout in background task
 
-        This method runs continuously in the background, checking for buffer inactivity
-        and triggering flushes when the timeout threshold is exceeded.
+        This method runs continuously in the background, checking for buffer
+        inactivity and triggering flushes when the timeout threshold is exceeded.
         """
         # Use weak reference to avoid circular reference and allow garbage collection
         manager_ref = weakref.ref(self)
@@ -119,8 +131,8 @@ class BufferTimeoutManager:
                     # Re-raise all exceptions - don't swallow any errors
                     raise
 
-    async def _flush_buffer_due_to_timeout(self):
-        """Flush buffer due to timeout by coordinating batch processor and executor
+    async def _flush_buffer_due_to_timeout(self) -> None:
+        """Flush buffer due to timeout by coordinating batch processor/executor
 
         This method handles the complete timeout flush workflow:
         1. Create batches from the batch processor

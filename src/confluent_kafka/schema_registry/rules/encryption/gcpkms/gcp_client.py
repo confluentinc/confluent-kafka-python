@@ -31,7 +31,7 @@ class _GcpKmsClient(GcpKmsClient):
     """Basic GCP client for AEAD."""
 
     def __init__(
-        self, key_uri: Optional[str], credentials: service_account.Credentials
+        self, key_uri: Optional[str], credentials: Optional[service_account.Credentials]
     ) -> None:
         """Creates a new GcpKmsClient that is bound to the key specified in 'key_uri'.
 
