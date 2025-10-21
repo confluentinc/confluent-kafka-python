@@ -47,12 +47,13 @@ class AzureKmsClient(tink.KmsClient):
 
         if not key_uri:
             self._key_uri = None
+            self._client = None  # type: ignore[assignment]
         elif key_uri.startswith(AZURE_KEYURI_PREFIX):
             self._key_uri = key_uri
+            key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
+            self._client = CryptographyClient(key_id, credentials)
         else:
             raise tink.TinkError('Invalid key_uri.')
-        key_id = key_uri[len(AZURE_KEYURI_PREFIX):]
-        self._client = CryptographyClient(key_id, credentials)
 
     def does_support(self, key_uri: str) -> bool:
         """Returns true iff this client supports KMS key specified in 'key_uri'.
@@ -83,4 +84,4 @@ class AzureKmsClient(tink.KmsClient):
             )
         if not key_uri.startswith(AZURE_KEYURI_PREFIX):
             raise tink.TinkError('Invalid key_uri.')
-        return AzureKmsAead(self._client, EncryptionAlgorithm.rsa_oaep_256)
+        return AzureKmsAead(self._client, EncryptionAlgorithm.rsa_oaep_256)  # type: ignore[arg-type]
