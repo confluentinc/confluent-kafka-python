@@ -1,6 +1,6 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.12.1 - release candidate
+## v2.12.1 - 2025-10-21
 
 v2.12.1 is a maintenance release with the following fixes:
 
