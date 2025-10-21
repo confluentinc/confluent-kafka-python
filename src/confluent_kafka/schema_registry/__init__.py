@@ -205,7 +205,7 @@ def dual_schema_id_deserializer(payload: bytes, ctx: Optional[SerializationConte
 
     # Parse schema ID from determined source and return appropriate payload
     if header_value is not None:
-        schema_id.from_bytes(io.BytesIO(header_value))
+        schema_id.from_bytes(io.BytesIO(header_value))  # type: ignore[arg-type]
         return io.BytesIO(payload)  # Return full payload when schema ID is in header
     else:
         return schema_id.from_bytes(io.BytesIO(payload))  # Parse from payload, return remainder
