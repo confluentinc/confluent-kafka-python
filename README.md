@@ -276,7 +276,7 @@ pip install confluent-kafka
 
 # With Schema Registry support
 pip install "confluent-kafka[avro,schemaregistry]"     # Avro
-pip install "confluent-kafka[json,schemaregistry]"     # JSON Schema  
+pip install "confluent-kafka[json,schemaregistry]"     # JSON Schema
 pip install "confluent-kafka[protobuf,schemaregistry]" # Protobuf
 
 # With Data Contract rules (includes CSFLE support)
