@@ -123,8 +123,8 @@ class DeserializingConsumer(_ConsumerImpl):
             except Exception as se:
                 raise KeyDeserializationError(exception=se, kafka_message=msg)
 
-        msg.set_key(key)  # type: ignore[arg-type]
-        msg.set_value(value)  # type: ignore[arg-type]
+        msg.set_key(key)
+        msg.set_value(value)
         return msg
 
     def consume(self, num_messages: int = 1, timeout: float = -1) -> List[Message]:

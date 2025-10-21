@@ -1000,7 +1000,7 @@ class AdminClient (_AdminClientImpl):
         f, futmap = AdminClient._make_futures(group_ids, None,
                                               AdminClient._make_consumer_groups_result)
 
-        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)  # type: ignore[arg-type]
+        super(AdminClient, self).describe_consumer_groups(group_ids, f, **kwargs)
 
         return futmap
 
