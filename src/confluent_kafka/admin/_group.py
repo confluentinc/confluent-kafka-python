@@ -13,8 +13,12 @@
 # limitations under the License.
 
 
+from typing import List, Optional, Union
+
+from confluent_kafka.cimpl import TopicPartition
+
 from .._util import ConversionUtil
-from .._model import ConsumerGroupState, ConsumerGroupType
+from .._model import ConsumerGroupState, ConsumerGroupType, Node
 from ._acl import AclOperation
 
 
@@ -35,7 +39,9 @@ class ConsumerGroupListing:
         Type of the consumer group.
     """
 
-    def __init__(self, group_id, is_simple_consumer_group, state=None, type=None):
+    def __init__(self, group_id: str, is_simple_consumer_group: bool,
+                 state: Optional[Union[ConsumerGroupState, str, int]] = None,
+                 type: Optional[Union[ConsumerGroupType, str, int]] = None) -> None:
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         if state is not None:
@@ -57,7 +63,8 @@ class ListConsumerGroupsResult:
         List of errors encountered during the operation, if any.
     """
 
-    def __init__(self, valid=None, errors=None):
+    def __init__(self, valid: Optional[List[ConsumerGroupListing]] = None,
+                 errors: Optional[List[Exception]] = None) -> None:
         self.valid = valid
         self.errors = errors
 
@@ -73,10 +80,8 @@ class MemberAssignment:
         The topic partitions assigned to a group member.
     """
 
-    def __init__(self, topic_partitions=[]):
-        self.topic_partitions = topic_partitions
-        if self.topic_partitions is None:
-            self.topic_partitions = []
+    def __init__(self, topic_partitions: Optional[List[TopicPartition]] = None) -> None:
+        self.topic_partitions = topic_partitions or []
 
 
 class MemberDescription:
@@ -100,7 +105,9 @@ class MemberDescription:
         The instance id of the group member.
     """
 
-    def __init__(self, member_id, client_id, host, assignment, group_instance_id=None, target_assignment=None):
+    def __init__(self, member_id: str, client_id: str, host: str, assignment: MemberAssignment,
+                 group_instance_id: Optional[str] = None,
+                 target_assignment: Optional[MemberAssignment] = None) -> None:
         self.member_id = member_id
         self.client_id = client_id
         self.host = host
@@ -134,8 +141,11 @@ class ConsumerGroupDescription:
         AclOperations allowed for the consumer group.
     """
 
-    def __init__(self, group_id, is_simple_consumer_group, members, partition_assignor, state,
-                 coordinator, authorized_operations=None, type=ConsumerGroupType.UNKNOWN):
+    def __init__(self, group_id: str, is_simple_consumer_group: bool, members: List[MemberDescription],
+                 partition_assignor: str, state: Optional[Union[ConsumerGroupState, str, int]],
+                 coordinator: Node,
+                 authorized_operations: Optional[List[Union[AclOperation, str, int]]] = None,
+                 type: Union[ConsumerGroupType, str, int] = ConsumerGroupType.UNKNOWN) -> None:
         self.group_id = group_id
         self.is_simple_consumer_group = is_simple_consumer_group
         self.members = members
