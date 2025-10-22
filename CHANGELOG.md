@@ -1,10 +1,17 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
-## v2.12.1 - release candidate
+## v2.12.1 - 2025-10-21
 
 v2.12.1 is a maintenance release with the following fixes:
 
-- restored macOS binaries compatibility with macOS 13
+- Restored macOS binaries compatibility with macOS 13
+- `libversion()` now returns the string/integer tuple for varients on version -- use `version()` for string only response
+- Added Python 3.14 support and dropped 3.7 support -- Free-threaded capabilities not fully supported yet
+- Fixed use.schema.id in `sr.lookup_schema()`
+- Removed tomli dependency from standard (non-documentation) requirements
+- Fixed experimental asyncio example files to correctly use new capabilities
+- Fixed invalid argument error on schema lookups on repeat requests
+- Fixed documentation generation and added error checks for builds to prevent future breaks
 
 
 ## v2.12.0 - 2025-10-09
