@@ -17,6 +17,7 @@
 
 import argparse
 import time
+from typing import Optional
 from confluent_kafka import Producer, KafkaException
 from verifiable_client import VerifiableClient
 
@@ -112,6 +113,7 @@ if __name__ == '__main__':
 
             t_end = time.time() + delay
             while vp.run:
+                key: Optional[str]
                 if repeating_keys != 0:
                     key = '%d' % key_counter
                     key_counter = (key_counter + 1) % repeating_keys
