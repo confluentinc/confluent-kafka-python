@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * ⚠️  WARNING: UPDATE TYPE STUBS WHEN MODIFYING INTERFACES ⚠️
+ *
+ * This file defines the Consumer class and its methods.
+ * When changing method signatures, parameters, or defaults, you MUST
+ * also update the corresponding type definitions in:
+ *   src/confluent_kafka/cimpl.pyi
+ *
+ * Failure to keep both in sync will result in incorrect type hints.
+ */
+
 #include "confluent_kafka.h"
 
 
@@ -496,7 +507,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		}
 
 		m = (Message *)msg;
-                
+
                 if (m->error != Py_None) {
                         PyObject *error = Message_error(m, NULL);
                         PyObject *errstr = PyObject_CallMethod(error, "str", NULL);
