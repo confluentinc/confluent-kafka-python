@@ -224,7 +224,7 @@ class AIOProducer:
             # Update buffer activity since we just flushed
             self._buffer_timeout_manager.mark_activity()
 
-        # Then flush underlying producer and wait for delivery confirmation
+        # Then flush the underlying producer and wait for delivery confirmation
         return await self._call(self._producer.flush, *args, **kwargs)
 
     async def purge(self, *args: Any, **kwargs: Any) -> Any:

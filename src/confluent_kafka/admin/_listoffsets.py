@@ -68,7 +68,7 @@ class OffsetSpec(ABC):
         else:
             return cls.for_timestamp(index)
 
-    def __lt__(self, other) -> Any:
+    def __lt__(self, other: object) -> bool:
         if not isinstance(other, OffsetSpec):
             return NotImplemented
         return self._value < other._value

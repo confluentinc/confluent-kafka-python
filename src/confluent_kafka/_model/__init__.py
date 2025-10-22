@@ -91,8 +91,8 @@ class ConsumerGroupState(Enum):
     #: Consumer Group is empty.
     EMPTY = cimpl.CONSUMER_GROUP_STATE_EMPTY
 
-    def __lt__(self, other) -> Any:
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ConsumerGroupState):
             return NotImplemented
         return self.value < other.value
 
@@ -111,8 +111,8 @@ class ConsumerGroupType(Enum):
     #: Classic Type
     CLASSIC = cimpl.CONSUMER_GROUP_TYPE_CLASSIC
 
-    def __lt__(self, other) -> Any:
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ConsumerGroupType):
             return NotImplemented
         return self.value < other.value
 
@@ -167,8 +167,8 @@ class IsolationLevel(Enum):
     READ_UNCOMMITTED = cimpl.ISOLATION_LEVEL_READ_UNCOMMITTED  #: Receive all the offsets.
     READ_COMMITTED = cimpl.ISOLATION_LEVEL_READ_COMMITTED  #: Skip offsets belonging to an aborted transaction.
 
-    def __lt__(self, other) -> Any:
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, IsolationLevel):
             return NotImplemented
         return self.value < other.value
 
@@ -186,7 +186,7 @@ class ElectionType(Enum):
     #: Unclean election
     UNCLEAN = cimpl.ELECTION_TYPE_UNCLEAN
 
-    def __lt__(self, other) -> Any:
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ElectionType):
             return NotImplemented
         return self.value < other.value

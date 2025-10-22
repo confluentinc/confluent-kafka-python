@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from confluent_kafka.cimpl import KafkaError
 
 
 class ClusterMetadata(object):
@@ -77,11 +79,11 @@ class TopicMetadata(object):
     # on other classes which raises a warning/error.
 
     def __init__(self) -> None:
-        self.topic = None
+        self.topic: Optional[str] = None
         """Topic name"""
         self.partitions: Dict[int, 'PartitionMetadata'] = {}
         """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""
-        self.error = None
+        self.error: Optional[KafkaError] = None
         """Topic error, or None. Value is a KafkaError object."""
 
     def __repr__(self) -> str:
@@ -115,7 +117,7 @@ class PartitionMetadata(object):
         """List of replica broker ids for this partition."""
         self.isrs: List[int] = []
         """List of in-sync-replica broker ids for this partition."""
-        self.error = None
+        self.error: Optional[KafkaError] = None
         """Partition error, or None. Value is a KafkaError object."""
 
     def __repr__(self) -> str:

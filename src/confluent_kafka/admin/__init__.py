@@ -652,7 +652,7 @@ class AdminClient (_AdminClientImpl):
 
         return super(AdminClient, self).list_topics(*args, **kwargs)
 
-    def list_groups(self, *args: Any, **kwargs: Any) -> GroupMetadata:
+    def list_groups(self, *args: Any, **kwargs: Any) -> List[GroupMetadata]:
 
         return super(AdminClient, self).list_groups(*args, **kwargs)
 

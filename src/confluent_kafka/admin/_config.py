@@ -185,7 +185,9 @@ class ConfigResource(object):
     def __hash__(self) -> int:
         return hash((self.restype, self.name))
 
-    def __lt__(self, other: 'ConfigResource') -> bool:
+    def __lt__(self, other: object) -> bool:
+        if not isinstance(other, ConfigResource):
+            return NotImplemented
         if self.restype < other.restype:
             return True
         return self.name.__lt__(other.name)
