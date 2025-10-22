@@ -80,7 +80,7 @@ class MemberAssignment:
         The topic partitions assigned to a group member.
     """
 
-    def __init__(self, topic_partitions: List[TopicPartition] = []) -> None:
+    def __init__(self, topic_partitions: Optional[List[TopicPartition]] = None) -> None:
         self.topic_partitions = topic_partitions or []
 
 
