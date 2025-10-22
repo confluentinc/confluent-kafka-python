@@ -268,11 +268,12 @@ class _SchemaCache(object):
 
         with self.lock:
             if subject in self.rs_id_index:
-                for schema_id, registered_schema in self.rs_id_index[subject].items():
+                for schema_id, registered_schema in list(self.rs_id_index[subject].items()):
                     if registered_schema.version == version:
-                        del self.rs_schema_index[subject][schema_id]
+                        del self.rs_id_index[subject][schema_id]
+
             if subject in self.rs_schema_index:
-                for schema, registered_schema in self.rs_schema_index[subject].items():
+                for schema, registered_schema in list(self.rs_schema_index[subject].items()):
                     if registered_schema.version == version:
                         del self.rs_schema_index[subject][schema]
             rs = None
@@ -284,6 +285,7 @@ class _SchemaCache(object):
                 if subject in self.schema_id_index:
                     if rs.schema_id in self.schema_id_index[subject]:
                         del self.schema_id_index[subject][rs.schema_id]
+                if subject in self.schema_index:
                     if rs.schema in self.schema_index[subject]:
                         del self.schema_index[subject][rs.schema]
 

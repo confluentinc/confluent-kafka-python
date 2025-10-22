@@ -422,6 +422,34 @@ def test_api_delete_subject_version(kafka_cluster, load_file):
     assert subject not in sr.get_subjects()
 
 
+def test_api_delete_version_soft_then_hard(kafka_cluster, load_file):
+    """
+    Performs a soft delete followed by a hard delete with cache populated and cleared correctly.
+    """
+    sr = kafka_cluster.schema_registry()
+
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = str(uuid1())
+
+    # Register schema and trigger cache population
+    sr.register_schema(subject, schema)
+    registered = sr.lookup_schema(subject, schema)
+    version = registered.version
+    assert sr._cache.get_registered_by_subject_version(subject, version) is not None
+
+    # Verify soft delete clears cache
+    deleted_version = sr.delete_version(subject, version, permanent=False)
+    assert deleted_version == version
+    assert sr._cache.get_registered_by_subject_version(subject, version) is None
+
+    # Verify hard delete proceeds without error
+    deleted_version = sr.delete_version(subject, version, permanent=True)
+    assert deleted_version == version
+
+    # Verify subject is fully deleted
+    assert subject not in sr.get_subjects()
+
+
 def test_api_subject_config_update(kafka_cluster, load_file):
     """
     Updates a subjects compatibility policy then ensures the same policy
