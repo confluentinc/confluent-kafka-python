@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Any
 from enum import Enum
 from .. import cimpl as _cimpl
 
@@ -27,8 +28,8 @@ class ResourceType(Enum):
     BROKER = _cimpl.RESOURCE_BROKER  #: Broker resource. Resource name is broker id.
     TRANSACTIONAL_ID = _cimpl.RESOURCE_TRANSACTIONAL_ID  #: Transactional ID resource.
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> Any:
+        if not isinstance(other, ResourceType):
             return NotImplemented
         return self.value < other.value
 
@@ -43,7 +44,7 @@ class ResourcePatternType(Enum):
     LITERAL = _cimpl.RESOURCE_PATTERN_LITERAL  #: Literal: A literal resource name
     PREFIXED = _cimpl.RESOURCE_PATTERN_PREFIXED  #: Prefixed: A prefixed resource name
 
-    def __lt__(self, other):
-        if self.__class__ != other.__class__:
+    def __lt__(self, other: object) -> Any:
+        if not isinstance(other, ResourcePatternType):
             return NotImplemented
         return self.value < other.value
