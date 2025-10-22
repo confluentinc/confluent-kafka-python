@@ -93,8 +93,8 @@ class ProducerBatchExecutor:
     async def flush_librdkafka_queue(self, timeout=-1):
         """Flush the librdkafka queue and wait for all messages to be delivered
 
-        This method blocks until all outstanding produce requests are completed
-        or the timeout is reached.
+        This method awaits until all outstanding produce requests are completed
+        or the timeout is reached, unless the timeout is set to 0 (non-blocking).
 
         Args:
             timeout: Maximum time to wait in seconds:
