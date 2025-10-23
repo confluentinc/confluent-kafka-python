@@ -38,6 +38,8 @@ from typing import Any, Optional, Callable, List, Tuple, Dict, Union, overload
 from typing_extensions import Self, Literal
 import builtins
 
+from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
+
 from ._types import HeadersType
 
 # Callback types with proper class references (defined locally to avoid circular imports)
@@ -199,6 +201,11 @@ class Consumer:
         message: Optional['Message'] = None,
         offsets: Optional[List[TopicPartition]] = None
     ) -> None: ...
+    def committed(
+        self,
+        partitions: List[TopicPartition],
+        timeout: float = -1
+    ) -> List[TopicPartition]: ...
     def close(self) -> None: ...
     def list_topics(self, topic: Optional[str] = None, timeout: float = -1) -> Any: ...
     def offsets_for_times(
@@ -255,12 +262,12 @@ class _AdminClientImpl:
         self,
         topic: Optional[str] = None,
         timeout: float = -1
-    ) -> Any: ...
+    ) -> ClusterMetadata: ...
     def list_groups(
         self,
         group: Optional[str] = None,
         timeout: float = -1
-    ) -> Any: ...
+    ) -> List[GroupMetadata]: ...
     def describe_consumer_groups(
         self,
         group_ids: List[str],

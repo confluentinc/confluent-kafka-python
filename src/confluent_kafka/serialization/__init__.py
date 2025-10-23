@@ -17,7 +17,7 @@
 #
 import struct as _struct
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 from confluent_kafka.error import KafkaException
 from confluent_kafka._types import HeadersType
@@ -114,7 +114,7 @@ class Serializer(object):
           - unicode(encoding)
     """
 
-    __slots__ = []
+    __slots__: List[str] = []
 
     def __call__(self, obj: Any, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """

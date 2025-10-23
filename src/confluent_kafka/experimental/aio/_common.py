@@ -32,7 +32,7 @@ class AsyncLogger:
         self.logger = logger
 
     def log(self, *args: Any, **kwargs: Any) -> None:
-        self.loop.call_soon_threadsafe(self.logger.log, *args, **kwargs)
+        self.loop.call_soon_threadsafe(lambda: self.logger.log(*args, **kwargs))
 
 
 def wrap_callback(
