@@ -171,7 +171,7 @@ class Deserializer(object):
           - unicode(encoding)
     """
 
-    __slots__: List[str] = []
+    __slots__ = []
 
     def __call__(self, value: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Any:
         """

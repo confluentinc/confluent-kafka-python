@@ -44,8 +44,8 @@ class AclOperation(Enum):
     ALTER_CONFIGS = _cimpl.ACL_OPERATION_ALTER_CONFIGS  #: ALTER_CONFIGS operation
     IDEMPOTENT_WRITE = _cimpl.ACL_OPERATION_IDEMPOTENT_WRITE  #: IDEMPOTENT_WRITE operation
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclOperation):
+    def __lt__(self, other: 'AclOperation') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -59,8 +59,8 @@ class AclPermissionType(Enum):
     DENY = _cimpl.ACL_PERMISSION_TYPE_DENY  #: Disallows access
     ALLOW = _cimpl.ACL_PERMISSION_TYPE_ALLOW  #: Grants access
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclPermissionType):
+    def __lt__(self, other: 'AclPermissionType') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self.value < other.value
 
@@ -161,8 +161,8 @@ class AclBinding(object):
     def __hash__(self) -> int:
         return hash(self._to_tuple())
 
-    def __lt__(self, other: object) -> bool:
-        if not isinstance(other, AclBinding):
+    def __lt__(self, other: 'AclBinding') -> Any:
+        if self.__class__ != other.__class__:
             return NotImplemented
         return self._to_tuple() < other._to_tuple()
 

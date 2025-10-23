@@ -114,10 +114,10 @@ def transform(
         schema_type = schema.get("type")
         if schema_type == 'array':
             return [transform(ctx, schema["items"], item, field_transform)
-                    for item in message]
+                    for item in message]  # type: ignore[union-attr]
         elif schema_type == 'map':
             return {key: transform(ctx, schema["values"], value, field_transform)
-                    for key, value in message.items()}
+                    for key, value in message.items()}  # type: ignore[union-attr]
         elif schema_type == 'record':
             fields = schema["fields"]
             for field in fields:
@@ -137,7 +137,7 @@ def _transform_field(
 ):
     field_type = field["type"]
     name = field["name"]
-    full_name = schema["name"] + "." + name
+    full_name = schema["name"] + "." + name  # type: ignore[call-overload,index]
     try:
         ctx.enter_field(
             message,
@@ -146,13 +146,13 @@ def _transform_field(
             get_type(field_type),
             None
         )
-        value = message[name]
+        value = message[name]  # type: ignore[index]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
-            message[name] = new_value
+            message[name] = new_value  # type: ignore[index]
     finally:
         ctx.exit_field()
 
@@ -216,7 +216,7 @@ def _resolve_union(schema: AvroSchema, message: AvroMessage) -> Optional[AvroSch
 
 
 def get_inline_tags(schema: AvroSchema) -> Dict[str, Set[str]]:
-    inline_tags = defaultdict(set)
+    inline_tags: Dict[str, Set[str]] = defaultdict(set)
     _get_inline_tags_recursively('', '', schema, inline_tags)
     return inline_tags
 
@@ -246,7 +246,7 @@ def _get_inline_tags_recursively(
                 record_ns = _implied_namespace(name)
             if record_ns is None:
                 record_ns = ns
-            if record_ns != '' and not record_name.startswith(record_ns):
+            if record_ns != '' and not record_name.startswith(record_ns):  # type: ignore[union-attr]
                 record_name = f"{record_ns}.{record_name}"
             fields = schema["fields"]
             for field in fields:
@@ -254,9 +254,9 @@ def _get_inline_tags_recursively(
                 field_name = field.get("name")
                 field_type = field.get("type")
                 if field_tags is not None and field_name is not None:
-                    tags[record_name + '.' + field_name].update(field_tags)
+                    tags[record_name + '.' + field_name].update(field_tags)  # type: ignore[operator]
                 if field_type is not None:
-                    _get_inline_tags_recursively(record_ns, record_name, field_type, tags)
+                    _get_inline_tags_recursively(record_ns, record_name, field_type, tags)  # type: ignore[arg-type]
 
 
 def _implied_namespace(name: str) -> Optional[str]:
