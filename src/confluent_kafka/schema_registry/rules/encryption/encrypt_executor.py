@@ -58,8 +58,8 @@ class Clock(object):
 class EncryptionExecutor(RuleExecutor):
 
     def __init__(self, clock: Clock = Clock()):
-        self.client = None
-        self.config = None
+        self.client: Optional[DekRegistryClient] = None
+        self.config: Optional[dict] = None
         self.clock = clock
 
     def configure(self, client_conf: dict, rule_conf: dict):
@@ -203,7 +203,7 @@ class EncryptionExecutorTransform(object):
         self._executor = executor
         self._cryptor = cryptor
         self._kek_name = kek_name
-        self._kek = None
+        self._kek: Optional[Kek] = None
         self._dek_expiry_days = dek_expiry_days
 
     def _is_dek_rotated(self):
@@ -212,7 +212,7 @@ class EncryptionExecutorTransform(object):
     def _get_kek(self, ctx: RuleContext) -> Kek:
         if self._kek is None:
             self._kek = self._get_or_create_kek(ctx)
-        return self._kek
+        return self._kek  # type: ignore[return-value]
 
     def _get_or_create_kek(self, ctx: RuleContext) -> Kek:
         is_read = ctx.rule_mode == RuleMode.READ
@@ -243,7 +243,7 @@ class EncryptionExecutorTransform(object):
 
     def _retrieve_kek_from_registry(self, kek_id: KekId) -> Optional[Kek]:
         try:
-            return self._executor.client.get_kek(kek_id.name, kek_id.deleted)
+            return self._executor.client.get_kek(kek_id.name, kek_id.deleted)  # type: ignore[union-attr]
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 404:
                 return None
@@ -254,7 +254,7 @@ class EncryptionExecutorTransform(object):
         kms_key_id: str, shared: bool
     ) -> Optional[Kek]:
         try:
-            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared)
+            return self._executor.client.register_kek(kek_id.name, kms_type, kms_key_id, shared)  # type: ignore[union-attr]
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 409:
                 return None
@@ -266,7 +266,7 @@ class EncryptionExecutorTransform(object):
         if version is None or version == 0:
             version = 1
         dek_id = DekId(
-            kek.name,
+            kek.name,  # type: ignore[arg-type]
             ctx.subject,
             version,
             self._cryptor.dek_format,
@@ -280,10 +280,10 @@ class EncryptionExecutorTransform(object):
                 raise RuleError(f"no dek found for {dek_id.kek_name} during consume")
             encrypted_dek = None
             if not kek.shared:
-                primitive = AeadWrapper(self._executor.config, self._kek)
+                primitive = AeadWrapper(self._executor.config, self._kek)  # type: ignore[arg-type]
                 raw_dek = self._cryptor.generate_key()
                 encrypted_dek = primitive.encrypt(raw_dek, self._cryptor.EMPTY_AAD)
-            new_version = dek.version + 1 if is_expired else 1
+            new_version = dek.version + 1 if is_expired else 1  # type: ignore[union-attr,operator]
             try:
                 dek = self._create_dek(dek_id, new_version, encrypted_dek)
             except RuleError as e:
@@ -294,9 +294,9 @@ class EncryptionExecutorTransform(object):
         key_bytes = dek.get_key_material_bytes()
         if key_bytes is None:
             if primitive is None:
-                primitive = AeadWrapper(self._executor.config, self._kek)
+                primitive = AeadWrapper(self._executor.config, self._kek)  # type: ignore[arg-type]
             encrypted_dek = dek.get_encrypted_key_material_bytes()
-            raw_dek = primitive.decrypt(encrypted_dek, self._cryptor.EMPTY_AAD)
+            raw_dek = primitive.decrypt(encrypted_dek, self._cryptor.EMPTY_AAD)  # type: ignore[arg-type]
             dek.set_key_material(raw_dek)
         return dek
 
@@ -304,7 +304,7 @@ class EncryptionExecutorTransform(object):
         new_dek_id = DekId(
             dek_id.kek_name,
             dek_id.subject,
-            new_version,
+            new_version,  # type: ignore[arg-type]
             dek_id.algorithm,
             dek_id.deleted,
         )
@@ -321,7 +321,7 @@ class EncryptionExecutorTransform(object):
             version = key.version
             if not version:
                 version = 1
-            dek = self._executor.client.get_dek(
+            dek = self._executor.client.get_dek(  # type: ignore[union-attr]
                 key.kek_name, key.subject, key.algorithm, version, key.deleted)
             return dek if dek and dek.encrypted_key_material else None
         except Exception as e:
@@ -332,8 +332,8 @@ class EncryptionExecutorTransform(object):
     def _store_dek_to_registry(self, key: DekId, encrypted_dek: Optional[bytes]) -> Optional[Dek]:
         try:
             encrypted_dek_str = base64.b64encode(encrypted_dek).decode("utf-8") if encrypted_dek else None
-            dek = self._executor.client.register_dek(
-                key.kek_name, key.subject, encrypted_dek_str, key.algorithm, key.version)
+            dek = self._executor.client.register_dek(  # type: ignore[union-attr]
+                key.kek_name, key.subject, encrypted_dek_str, key.algorithm, key.version)  # type: ignore[arg-type]
             return dek
         except Exception as e:
             if isinstance(e, SchemaRegistryError) and e.http_status_code == 409:
@@ -345,7 +345,7 @@ class EncryptionExecutorTransform(object):
         return (ctx.rule_mode != RuleMode.READ
                 and self._dek_expiry_days > 0
                 and dek is not None
-                and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days)
+                and (now - dek.ts) / MILLIS_IN_DAY > self._dek_expiry_days)  # type: ignore[operator]
 
     def transform(self, ctx: RuleContext, field_type: FieldType, field_value: Any) -> Any:
         if field_value is None:
@@ -359,9 +359,9 @@ class EncryptionExecutorTransform(object):
                 version = -1
             dek = self._get_or_create_dek(ctx, version)
             key_material_bytes = dek.get_key_material_bytes()
-            ciphertext = self._cryptor.encrypt(key_material_bytes, plaintext, Cryptor.EMPTY_AAD)
+            ciphertext = self._cryptor.encrypt(key_material_bytes, plaintext, Cryptor.EMPTY_AAD)  # type: ignore[arg-type]
             if self._is_dek_rotated():
-                ciphertext = self._prefix_version(dek.version, ciphertext)
+                ciphertext = self._prefix_version(dek.version, ciphertext)  # type: ignore[arg-type]
             if field_type == FieldType.STRING:
                 return base64.b64encode(ciphertext).decode("utf-8")
             else:
@@ -370,7 +370,7 @@ class EncryptionExecutorTransform(object):
             if field_type == FieldType.STRING:
                 ciphertext = base64.b64decode(field_value)
             else:
-                ciphertext = self._to_bytes(field_type, field_value)
+                ciphertext = self._to_bytes(field_type, field_value)  # type: ignore[assignment]
             if ciphertext is None:
                 return field_value
 
@@ -381,7 +381,7 @@ class EncryptionExecutorTransform(object):
                     raise RuleError("no version found in ciphertext")
             dek = self._get_or_create_dek(ctx, version)
             key_material_bytes = dek.get_key_material_bytes()
-            plaintext = self._cryptor.decrypt(key_material_bytes, ciphertext, Cryptor.EMPTY_AAD)
+            plaintext = self._cryptor.decrypt(key_material_bytes, ciphertext, Cryptor.EMPTY_AAD)  # type: ignore[arg-type]
             return self._to_object(field_type, plaintext)
         else:
             raise RuleError(f"unsupported rule mode {ctx.rule_mode}")
@@ -421,7 +421,7 @@ class AeadWrapper(aead.Aead):
     def encrypt(self, plaintext: bytes, associated_data: bytes) -> bytes:
         for index, kms_key_id in enumerate(self._kms_key_ids):
             try:
-                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
+                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)  # type: ignore[arg-type]
                 return aead.encrypt(plaintext, associated_data)
             except Exception as e:
                 log.warning("failed to encrypt with kek %s and kms key id %s",
@@ -433,7 +433,7 @@ class AeadWrapper(aead.Aead):
     def decrypt(self, ciphertext: bytes, associated_data: bytes) -> bytes:
         for index, kms_key_id in enumerate(self._kms_key_ids):
             try:
-                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)
+                aead = self._get_aead(self._config, self._kek.kms_type, kms_key_id)  # type: ignore[arg-type]
                 return aead.decrypt(ciphertext, associated_data)
             except Exception as e:
                 log.warning("failed to decrypt with kek %s and kms key id %s",
@@ -443,7 +443,7 @@ class AeadWrapper(aead.Aead):
         raise RuleError("No KEK found for decryption")
 
     def _get_kms_key_ids(self) -> List[str]:
-        kms_key_ids = [self._kek.kms_key_id]
+        kms_key_ids = [self._kek.kms_key_id]  # type: ignore[list-item]
         alternate_kms_key_ids = None
         if self._kek.kms_props is not None:
             alternate_kms_key_ids = self._kek.kms_props.properties.get(ENCRYPT_ALTERNATE_KMS_KEY_IDS)
@@ -452,7 +452,7 @@ class AeadWrapper(aead.Aead):
         if alternate_kms_key_ids is not None:
             # Split the comma-separated list of alternate KMS key IDs and append to kms_key_ids
             kms_key_ids.extend([id.strip() for id in alternate_kms_key_ids.split(',') if id.strip()])
-        return kms_key_ids
+        return kms_key_ids  # type: ignore[return-value]
 
     def _get_aead(self, config: dict, kms_type: str, kms_key_id: str) -> aead.Aead:
         kek_url = kms_type + "://" + kms_key_id
