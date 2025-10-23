@@ -47,11 +47,11 @@ try:
         from avro.errors import SchemaParseException
     except ImportError:
         # avro < 1.11.0
-        from avro.schema import SchemaParseException
+        from avro.schema import SchemaParseException  # type: ignore[attr-defined,no-redef]
 
-    schema.RecordSchema.__hash__ = _hash_func
-    schema.PrimitiveSchema.__hash__ = _hash_func
-    schema.UnionSchema.__hash__ = _hash_func
+    schema.RecordSchema.__hash__ = _hash_func  # type: ignore[method-assign]
+    schema.PrimitiveSchema.__hash__ = _hash_func  # type: ignore[method-assign]
+    schema.UnionSchema.__hash__ = _hash_func  # type: ignore[method-assign]
 
 except ImportError:
-    schema = None
+    schema = None # type: ignore[assignment]
