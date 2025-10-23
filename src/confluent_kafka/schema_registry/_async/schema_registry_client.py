@@ -28,7 +28,7 @@ from urllib.parse import unquote, urlparse
 import httpx
 from typing import List, Dict, Optional, Union, Any, Callable, Literal
 
-from cachetools import TTLCache, LRUCache
+from cachetools import Cache, TTLCache, LRUCache
 from httpx import Response
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -40,11 +40,11 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     ServerConfig,
     is_success,
     is_retriable,
-    _BearerFieldProvider,
+    _AsyncBearerFieldProvider,
     full_jitter,
     _SchemaCache,
     Schema,
-    _StaticFieldProvider,
+    _AsyncStaticFieldProvider,
 )
 
 __all__ = [
@@ -78,16 +78,16 @@ except NameError:
 log = logging.getLogger(__name__)
 
 
-class _AsyncCustomOAuthClient(_BearerFieldProvider):
+class _AsyncCustomOAuthClient(_AsyncBearerFieldProvider):
     def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
-    async def get_bearer_fields(self) -> dict:  # type: ignore[override]
+    async def get_bearer_fields(self) -> dict:
         return await self.custom_function(self.custom_config)  # type: ignore[misc]
 
 
-class _AsyncOAuthClient(_BearerFieldProvider):
+class _AsyncOAuthClient(_AsyncBearerFieldProvider):
     def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
                  identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self.token = None
@@ -100,7 +100,7 @@ class _AsyncOAuthClient(_BearerFieldProvider):
         self.retries_max_wait_ms = retries_max_wait_ms
         self.token_expiry_threshold = 0.8
 
-    async def get_bearer_fields(self) -> dict:  # type: ignore[override]
+    async def get_bearer_fields(self) -> dict:
         return {
             'bearer.auth.token': await self.get_access_token(),
             'bearer.auth.logical.cluster': self.logical_cluster,
@@ -108,15 +108,19 @@ class _AsyncOAuthClient(_BearerFieldProvider):
         }
 
     def token_expired(self) -> bool:
-        expiry_window = self.token['expires_in'] * self.token_expiry_threshold  # type: ignore[index]
+        if self.token is None:
+            raise ValueError("Token is not set")
 
-        return self.token['expires_at'] < time.time() + expiry_window  # type: ignore[index]
+        expiry_window = self.token['expires_in'] * self.token_expiry_threshold
+
+        return self.token['expires_at'] < time.time() + expiry_window
 
     async def get_access_token(self) -> str:
-        if not self.token or self.token_expired():
+        if self.token is None or self.token_expired():
             await self.generate_access_token()
-
-        return self.token['access_token']  # type: ignore[index]
+        if self.token is None:
+            raise ValueError("Token is not set")
+        return self.token['access_token']
 
     async def generate_access_token(self) -> None:
         for i in range(self.max_retries + 1):
@@ -259,9 +263,9 @@ class _AsyncBaseRestClient(object):
                                 + str(type(retries_max_wait_ms)))
             self.retries_max_wait_ms = int(retries_max_wait_ms)
 
-        self.bearer_field_provider = None
         logical_cluster = None
         identity_pool = None
+        self.bearer_field_provider: Optional[_AsyncBearerFieldProvider] = None
         self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source', None)
         if self.bearer_auth_credentials_source is not None:
             self.auth = None
@@ -281,43 +285,43 @@ class _AsyncBaseRestClient(object):
                 if not isinstance(identity_pool, str):
                     raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
 
-            if self.bearer_auth_credentials_source == 'OAUTHBEARER':
-                properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
-                                   'bearer.auth.issuer.endpoint.url']
-                missing_properties = [prop for prop in properties_list if prop not in conf_copy]
-                if missing_properties:
-                    raise ValueError("Missing required OAuth configuration properties: {}".
-                                     format(", ".join(missing_properties)))
+                if self.bearer_auth_credentials_source == 'OAUTHBEARER':
+                    properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
+                                    'bearer.auth.issuer.endpoint.url']
+                    missing_properties = [prop for prop in properties_list if prop not in conf_copy]
+                    if missing_properties:
+                        raise ValueError("Missing required OAuth configuration properties: {}".
+                                        format(", ".join(missing_properties)))
 
-                self.client_id = conf_copy.pop('bearer.auth.client.id')
-                if not isinstance(self.client_id, string_type):
-                    raise TypeError("bearer.auth.client.id must be a str, not " + str(type(self.client_id)))
+                    self.client_id = conf_copy.pop('bearer.auth.client.id')
+                    if not isinstance(self.client_id, string_type):
+                        raise TypeError("bearer.auth.client.id must be a str, not " + str(type(self.client_id)))
 
-                self.client_secret = conf_copy.pop('bearer.auth.client.secret')
-                if not isinstance(self.client_secret, string_type):
-                    raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
+                    self.client_secret = conf_copy.pop('bearer.auth.client.secret')
+                    if not isinstance(self.client_secret, string_type):
+                        raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
 
-                self.scope = conf_copy.pop('bearer.auth.scope')
-                if not isinstance(self.scope, string_type):
-                    raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
+                    self.scope = conf_copy.pop('bearer.auth.scope')
+                    if not isinstance(self.scope, string_type):
+                        raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
 
-                self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
-                if not isinstance(self.token_endpoint, string_type):
-                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
-                                    + str(type(self.token_endpoint)))
+                    self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
+                    if not isinstance(self.token_endpoint, string_type):
+                        raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
+                                        + str(type(self.token_endpoint)))
 
-                self.bearer_field_provider = _AsyncOAuthClient(
-                    self.client_id, self.client_secret, self.scope,
-                    self.token_endpoint, logical_cluster, identity_pool,  # type: ignore[arg-type]
-                    self.max_retries, self.retries_wait_ms,
-                    self.retries_max_wait_ms)
-            elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
-                if 'bearer.auth.token' not in conf_copy:
-                    raise ValueError("Missing bearer.auth.token")
-                static_token = conf_copy.pop('bearer.auth.token')
-                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)  # type: ignore[assignment,arg-type]
-                if not isinstance(static_token, string_type):
-                    raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
+                    self.bearer_field_provider = _AsyncOAuthClient(
+                        self.client_id, self.client_secret, self.scope,
+                        self.token_endpoint, logical_cluster, identity_pool,
+                        self.max_retries, self.retries_wait_ms,
+                        self.retries_max_wait_ms)
+                else: # STATIC_TOKEN
+                    if 'bearer.auth.token' not in conf_copy:
+                        raise ValueError("Missing bearer.auth.token")
+                    static_token = conf_copy.pop('bearer.auth.token')
+                    self.bearer_field_provider = _AsyncStaticFieldProvider(static_token, logical_cluster, identity_pool)
+                    if not isinstance(static_token, string_type):
+                        raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
             elif self.bearer_auth_credentials_source == 'CUSTOM':
                 custom_bearer_properties = ['bearer.auth.custom.provider.function',
                                             'bearer.auth.custom.provider.config']
@@ -336,7 +340,7 @@ class _AsyncBaseRestClient(object):
                     raise TypeError("bearer.auth.custom.provider.config must be a dict, not "
                                     + str(type(custom_config)))
 
-                self.bearer_field_provider = _AsyncCustomOAuthClient(custom_function, custom_config)  # type: ignore[assignment]
+                self.bearer_field_provider = _AsyncCustomOAuthClient(custom_function, custom_config)
             else:
                 raise ValueError('Unrecognized bearer.auth.credentials.source')
 
@@ -379,7 +383,9 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         )
 
     async def handle_bearer_auth(self, headers: dict) -> None:
-        bearer_fields = await self.bearer_field_provider.get_bearer_fields()  # type: ignore[union-attr]
+        if self.bearer_field_provider is None:
+            raise ValueError("Bearer field provider is not set")
+        bearer_fields = await self.bearer_field_provider.get_bearer_fields()
         required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
 
         missing_fields = []
@@ -439,7 +445,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
 
         body_str: Optional[str] = None
         if body is not None:
-            body_str = json.dumps(body)  # type: ignore[assignment]
+            body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json"}
 
@@ -462,16 +468,19 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                     # Raise the exception since we have no more urls to try
                     raise e
 
-        try:
-            raise SchemaRegistryError(response.status_code,  # type: ignore[union-attr]
-                                      response.json().get('error_code'),  # type: ignore[union-attr]
-                                      response.json().get('message'))  # type: ignore[union-attr]
-        # Schema Registry may return malformed output when it hits unexpected errors
-        except (ValueError, KeyError, AttributeError):
-            raise SchemaRegistryError(response.status_code,  # type: ignore[union-attr]
-                                      -1,
-                                      "Unknown Schema Registry Error: "
-                                      + str(response.content))  # type: ignore[union-attr]
+        if isinstance(response, Response):
+            try:
+                raise SchemaRegistryError(response.status_code,
+                                        response.json().get('error_code'),
+                                        response.json().get('message'))
+            # Schema Registry may return malformed output when it hits unexpected errors
+            except (ValueError, KeyError, AttributeError):
+                raise SchemaRegistryError(response.status_code,
+                                        -1,
+                                        "Unknown Schema Registry Error: "
+                                        + str(response.content))
+        else:
+            raise TypeError("Unexpected response of unsupported type: " + str(type(response)))
 
     async def send_http_request(
         self, base_url: str, url: str, method: str, headers: Optional[dict],
@@ -598,12 +607,14 @@ class AsyncSchemaRegistryClient(object):
         self._cache = _SchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
+        self._latest_version_cache: Cache[Any, Any]
+        self._latest_with_metadata_cache: Cache[Any, Any]
         if cache_ttl is not None:
-            self._latest_version_cache: TTLCache[Any, Any] = TTLCache(cache_capacity, cache_ttl)
-            self._latest_with_metadata_cache: TTLCache[Any, Any] = TTLCache(cache_capacity, cache_ttl)
+            self._latest_version_cache = TTLCache(cache_capacity, cache_ttl)
+            self._latest_with_metadata_cache = TTLCache(cache_capacity, cache_ttl)
         else:
-            self._latest_version_cache = LRUCache[Any, Any](cache_capacity)  # type: ignore[assignment]
-            self._latest_with_metadata_cache = LRUCache[Any, Any](cache_capacity)  # type: ignore[assignment]
+            self._latest_version_cache = LRUCache(cache_capacity)
+            self._latest_with_metadata_cache = LRUCache(cache_capacity)
 
     async def __aenter__(self):
         return self
