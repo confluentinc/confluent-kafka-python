@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Sequence
 
 import confluent_kafka
 
+from .. import _common
+
 logger = logging.getLogger(__name__)
 
 
@@ -105,6 +107,20 @@ class ProducerBatchExecutor:
         # Execute in thread pool to avoid blocking event loop
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(self._executor, _produce_batch_and_poll)
+
+    async def flush_librdkafka_queue(self, timeout=-1):
+        """Flush the librdkafka queue and wait for all messages to be delivered
+        This method awaits until all outstanding produce requests are completed
+        or the timeout is reached, unless the timeout is set to 0 (non-blocking).
+        Args:
+            timeout: Maximum time to wait in seconds:
+                    - -1 = wait indefinitely (default)
+                    - 0 = non-blocking, return immediately
+                    - >0 = wait up to timeout seconds
+        Returns:
+            Number of messages still in queue after flush attempt
+        """
+        return await _common.async_call(self._executor, self._producer.flush, timeout)
 
     def _handle_partial_failures(
         self,
