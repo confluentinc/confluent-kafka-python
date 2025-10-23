@@ -49,7 +49,7 @@ class BaseSerde(object):
     _use_latest_with_metadata: Optional[Dict[str, str]]
     _registry: Any  # SchemaRegistryClient
     _rule_registry: Any  # RuleRegistry
-    _subject_name_func: Callable[[Any, Optional[str]], Optional[str]]
+    _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
     _field_transformer: Optional[FieldTransformer]
 
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:

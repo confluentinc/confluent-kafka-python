@@ -67,13 +67,20 @@ async def _resolve_named_schema(
         visited = set()
     if schema.references is not None:
         for ref in schema.references:
-            # References in registered schemas are validated by server to be complete
-            if _is_builtin(ref.name) or ref.name in visited:  # type: ignore[arg-type]
+            if ref.name is None:
+                raise ValueError("Name cannot be None")
+
+            if _is_builtin(ref.name) or ref.name in visited:
                 continue
-            visited.add(ref.name)  # type: ignore[arg-type]
-            referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')  # type: ignore[arg-type]
-            await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)  # type: ignore[arg-type]
-            file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)  # type: ignore[arg-type,union-attr]
+            visited.add(ref.name)
+
+            if ref.subject is None or ref.version is None:
+                raise ValueError("Subject or version cannot be None")
+            referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True, 'serialized')
+            if referenced_schema.schema.schema_str is None:
+                raise ValueError("Schema string cannot be None")
+            await _resolve_named_schema(referenced_schema.schema, schema_registry_client, pool, visited)
+            file_descriptor_proto = _str_to_proto(ref.name, referenced_schema.schema.schema_str)
             pool.Add(file_descriptor_proto)
 
 
@@ -426,7 +433,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             self._known_subjects.add(subject)
 
         if latest_schema is not None:
-            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             fd = pool.FindFileByName(fd_proto.name)
             desc = fd.message_types_by_name[message.DESCRIPTOR.name]
             def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
@@ -614,7 +621,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
 
         if self._registry is not None:
             writer_schema_raw = await self._get_writer_schema(schema_id, subject, fmt='serialized')
-            fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)  # type: ignore[arg-type]
+            fd_proto, pool = await self._get_parsed_schema(writer_schema_raw)
             writer_schema = pool.FindFileByName(fd_proto.name)
             writer_desc = self._get_message_desc(pool, writer_schema, msg_index)  # type: ignore[arg-type]
             if subject is None:
@@ -632,10 +639,11 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
-        if latest_schema is not None and subject is not None:
-            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)  # type: ignore[arg-type]
+        reader_schema_raw: Optional[Schema] = None
+        if latest_schema is not None and subject is not None and writer_schema_raw is not None:
+            migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
-            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
+            fd_proto, pool = await self._get_parsed_schema(latest_schema.schema)
             reader_schema = pool.FindFileByName(fd_proto.name)
         else:
             migrations = None
@@ -670,7 +678,7 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
         def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_desc, message, field_transform))
         if ctx is not None and subject is not None:
-            msg = self._execute_rules(ctx, subject, RuleMode.READ, None,  # type: ignore[arg-type]
+            msg = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                       reader_schema_raw, msg, None,
                                       field_transformer)
         return msg

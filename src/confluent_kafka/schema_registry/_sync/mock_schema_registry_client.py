@@ -18,7 +18,7 @@
 import uuid
 from collections import defaultdict
 from threading import Lock
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Literal
 
 from .schema_registry_client import SchemaRegistryClient
 from ..common.schema_registry_client import RegisteredSchema, Schema, ServerConfig
@@ -73,7 +73,7 @@ class _SchemaStore(object):
                         return rs
             return None
 
-    def get_version(self, subject_name: str, version: int) -> Optional[RegisteredSchema]:
+    def get_version(self, subject_name: str, version: Union[int, str]) -> Optional[RegisteredSchema]:
         with self.lock:
             if subject_name in self.subject_schemas:
                 for rs in self.subject_schemas[subject_name]:
@@ -239,13 +239,13 @@ class MockSchemaRegistryClient(SchemaRegistryClient):
         raise SchemaRegistryError(404, 40400, "Schema Not Found")
 
     def get_version(
-        self, subject_name: str, version: Union[int, str] = "latest",
+        self, subject_name: str, version: Union[int, Literal["latest"]] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         if version == "latest":
             registered_schema = self._store.get_latest_version(subject_name)
         else:
-            registered_schema = self._store.get_version(subject_name, version)  # type: ignore[arg-type]
+            registered_schema = self._store.get_version(subject_name, version)
         if registered_schema is not None:
             return registered_schema
 

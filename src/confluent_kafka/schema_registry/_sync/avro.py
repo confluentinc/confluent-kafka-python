@@ -57,13 +57,19 @@ def _resolve_named_schema(
     named_schemas = {}
     if schema.references is not None:
         for ref in schema.references:
-            # References in registered schemas are validated by server to be complete
-            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)  # type: ignore[arg-type]
-            ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)  # type: ignore[arg-type]
+            if ref.subject is None or ref.version is None:
+                raise ValueError("Subject or version cannot be None")
+            referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
+            ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
+            if referenced_schema.schema.schema_str is None:
+                raise ValueError("Schema string cannot be None")
+
             parsed_schema = parse_schema_with_repo(
-                referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)  # type: ignore[union-attr,arg-type]
+                referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
-            named_schemas[ref.name] = parsed_schema  # type: ignore[index]
+            if ref.name is None:
+                raise ValueError("Name cannot be None")
+            named_schemas[ref.name] = parsed_schema
     return named_schemas
 
 
@@ -296,7 +302,7 @@ class AvroSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -323,7 +329,7 @@ class AvroSerializer(BaseSerializer):
             return None
 
         subject = self._subject_name_func(ctx, self._schema_name)
-        latest_schema = self._get_reader_schema(subject) if subject else None  # type: ignore[arg-type]
+        latest_schema = self._get_reader_schema(subject) if subject else None
         if latest_schema is not None:
             self._schema_id = SchemaId(AVRO_TYPE, latest_schema.schema_id, latest_schema.guid)
         elif subject is not None and subject not in self._known_subjects:
@@ -343,15 +349,17 @@ class AvroSerializer(BaseSerializer):
             self._known_subjects.add(subject)
 
         if self._to_dict is not None:
-            value = self._to_dict(obj, ctx)  # type: ignore[arg-type]
+            if ctx is None:
+                raise ValueError("SerializationContext cannot be None")
+            value = self._to_dict(obj, ctx)
         else:
             value = obj  # type: ignore[assignment]
 
-        if latest_schema is not None:
-            parsed_schema = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
+        if latest_schema is not None and ctx is not None and subject is not None:
+            parsed_schema = self._get_parsed_schema(latest_schema.schema)
             def field_transformer(rule_ctx, field_transform, msg): return (  # noqa: E731
                 transform(rule_ctx, parsed_schema, msg, field_transform))
-            value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,  # type: ignore[arg-type]
+            value = self._execute_rules(ctx, subject, RuleMode.WRITE, None,
                                         latest_schema.schema, value, get_inline_tags(parsed_schema),
                                         field_transformer)
         else:
@@ -521,7 +529,7 @@ class AvroDeserializer(BaseDeserializer):
         if schema:
             self._reader_schema = self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
         else:
-            self._reader_schema = None  # type: ignore[assignment]
+            self._reader_schema = None # type: ignore[assignment]
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature "
@@ -579,8 +587,7 @@ class AvroDeserializer(BaseDeserializer):
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
         writer_schema_raw = self._get_writer_schema(schema_id, subject)
-        writer_schema = self._get_parsed_schema(writer_schema_raw)  # type: ignore[arg-type]
-
+        writer_schema = self._get_parsed_schema(writer_schema_raw)
         if subject is None:
             subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
             if subject is not None:
@@ -594,9 +601,9 @@ class AvroDeserializer(BaseDeserializer):
             payload = io.BytesIO(payload)
 
         if latest_schema is not None and subject is not None:
-            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)  # type: ignore[arg-type]
+            migrations = self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
-            reader_schema = self._get_parsed_schema(latest_schema.schema)  # type: ignore[arg-type]
+            reader_schema = self._get_parsed_schema(latest_schema.schema)
         elif self._schema is not None:
             migrations = None
             reader_schema_raw = self._schema
@@ -621,12 +628,14 @@ class AvroDeserializer(BaseDeserializer):
         def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, message, field_transform))
         if ctx is not None and subject is not None:
-            obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,  # type: ignore[arg-type]
+            obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            reader_schema_raw, obj_dict, get_inline_tags(reader_schema),
                                            field_transformer)
 
         if self._from_dict is not None:
-            return self._from_dict(obj_dict, ctx)  # type: ignore[arg-type]
+            if ctx is None:
+                raise ValueError("SerializationContext cannot be None")
+            return self._from_dict(obj_dict, ctx)
 
         return obj_dict
 
