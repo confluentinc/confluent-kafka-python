@@ -890,12 +890,12 @@ class SchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        query_params = {
+        query_params: dict[str, Any] = {
             'normalize': normalize_schemas,
             'deleted': deleted
         }
         if fmt is not None:
-            query_params['format'] = fmt  # type: ignore[assignment]
+            query_params['format'] = fmt
 
         query_string = '&'.join(f"{key}={value}" for key, value in query_params.items())
 
