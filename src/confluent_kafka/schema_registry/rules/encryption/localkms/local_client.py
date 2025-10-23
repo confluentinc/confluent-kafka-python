@@ -23,7 +23,7 @@ from tink.proto import tink_pb2, aes_gcm_pb2
 
 class LocalKmsClient(KmsClient):
     def __init__(self, secret: Optional[str] = None):
-        self._aead = self._get_primitive(secret)
+        self._aead = self._get_primitive(secret)  # type: ignore[arg-type]
 
     def _get_primitive(self, secret: str) -> aead.Aead:
         key = self._get_key(secret)

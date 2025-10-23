@@ -27,7 +27,7 @@ class CompilationError(Exception):
 
 
 def make_key_path(field_name: str, key: celtypes.Value) -> str:
-    return f"{field_name}[{string_format.format_value(key)}]"
+    return f"{field_name}[{string_format.format_value(key)}]"  # type: ignore[str-bytes-safe]
 
 
 def make_duration(msg: message.Message) -> celtypes.DurationType:
@@ -38,7 +38,7 @@ def make_duration(msg: message.Message) -> celtypes.DurationType:
 
 
 def make_timestamp(msg: message.Message) -> celtypes.TimestampType:
-    return make_duration(msg) + celtypes.TimestampType(1970, 1, 1)
+    return make_duration(msg) + celtypes.TimestampType(1970, 1, 1)  # type: ignore[return-value]
 
 
 def unwrap(msg: message.Message) -> celtypes.Value:
@@ -87,8 +87,8 @@ class MessageType(celtypes.MapType):
 def _msg_to_cel(msg: message.Message) -> typing.Dict[str, celtypes.Value]:
     ctor = _MSG_TYPE_URL_TO_CTOR.get(msg.DESCRIPTOR.full_name)
     if ctor is not None:
-        return ctor(msg)
-    return MessageType(msg)
+        return ctor(msg)  # type: ignore[return-value]
+    return MessageType(msg)  # type: ignore[return-value]
 
 
 _TYPE_TO_CTOR = {
@@ -132,7 +132,7 @@ def _scalar_field_value_to_cel(val: typing.Any, field: descriptor.FieldDescripto
     if ctor is None:
         msg = "unknown field type"
         raise CompilationError(msg)
-    return ctor(val)
+    return ctor(val)  # type: ignore[operator]
 
 
 def _field_value_to_cel(val: typing.Any, field: descriptor.FieldDescriptor) -> celtypes.Value:
