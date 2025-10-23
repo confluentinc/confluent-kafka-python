@@ -22,7 +22,7 @@ from attrs import field as _attrs_field
 from collections import defaultdict
 from enum import Enum
 from threading import Lock
-from typing import List, Dict, Type, TypeVar, \
+from typing import List, Dict, Type, TypeVar, Union, \
     cast, Optional, Any, Tuple
 
 __all__ = [
@@ -945,7 +945,7 @@ class RegisteredSchema:
     version: Optional[int]
     schema_id: Optional[int]
     guid: Optional[str]
-    schema: Optional[Schema]
+    schema: Schema
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema

@@ -143,14 +143,14 @@ def is_email(string: celtypes.Value) -> celpy.Result:
 
 
 def is_uri(string: celtypes.Value) -> celpy.Result:
-    url = urlparse.urlparse(string)
+    url = urlparse.urlparse(string)  # type: ignore[arg-type]
     if not all([url.scheme, url.netloc, url.path]):
         return celtypes.BoolType(False)
     return celtypes.BoolType(True)
 
 
 def is_uri_ref(string: celtypes.Value) -> celpy.Result:
-    url = urlparse.urlparse(string)
+    url = urlparse.urlparse(string)  # type: ignore[arg-type]
     if not all([url.scheme, url.path]) and url.fragment:
         return celtypes.BoolType(False)
     return celtypes.BoolType(True)
