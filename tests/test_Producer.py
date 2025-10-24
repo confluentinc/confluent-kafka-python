@@ -973,3 +973,181 @@ def test_produce_batch_api_compatibility():
     except ImportError:
         # AvroProducer not available - skip this part
         pytest.skip("AvroProducer not available")
+
+
+def test_callback_exception_no_system_error():
+    delivery_reports = []
+
+    def delivery_cb_that_raises(err, msg):
+        """Delivery report callback that raises an exception"""
+        delivery_reports.append((err, msg))
+        raise RuntimeError("Test exception from delivery_cb")
+
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',  # Will cause delivery failures
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,  # Very short timeout to trigger delivery failure quickly
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    # Produce a message - this will trigger delivery report callback when it fails
+    producer.produce('test-topic', value='test-message')
+
+    # Flush to ensure delivery reports are processed
+    # Before fix: Would get RuntimeError + SystemError (Issue #865)
+    # After fix: Should only get RuntimeError (no SystemError)
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.flush(timeout=2.0)  # Longer timeout to ensure delivery callback fires
+
+    # Verify we got an exception from our callback
+    assert "Test exception from delivery_cb" in str(exc_info.value)
+
+    # Verify the delivery callback was actually called
+    assert len(delivery_reports) > 0
+
+
+def test_core_callbacks_exception_different_types():
+    """Test error_cb, throttle_cb, and stats_cb exception handling with different exception types"""
+
+    # Test error_cb with different exception types
+    def error_cb_kafka_exception(error):
+        raise KafkaException(KafkaError._FAIL, "KafkaException from error_cb")
+
+    def error_cb_value_error(error):
+        raise ValueError("ValueError from error_cb")
+
+    def error_cb_runtime_error(error):
+        raise RuntimeError("RuntimeError from error_cb")
+
+    # Test error_cb exceptions - these should be triggered by connection failure
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_kafka_exception
+    })
+
+    with pytest.raises(KafkaException) as exc_info:
+        producer.produce('test-topic', value='test-message')
+        producer.flush(timeout=2.0)
+    assert "KafkaException from error_cb" in str(exc_info.value)
+
+    # Test error_cb with ValueError
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_value_error
+    })
+
+    with pytest.raises(ValueError) as exc_info:
+        producer.produce('test-topic', value='test-message')
+        producer.flush(timeout=2.0)
+    assert "ValueError from error_cb" in str(exc_info.value)
+
+    # Test error_cb with RuntimeError
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_runtime_error
+    })
+
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.produce('test-topic', value='test-message')
+        producer.flush(timeout=2.0)
+    assert "RuntimeError from error_cb" in str(exc_info.value)
+
+
+def test_multiple_callbacks_exception_no_system_error():
+    """Test multiple callbacks raising exceptions simultaneously"""
+
+    callbacks_called = []
+
+    def error_cb_that_raises(error):
+        callbacks_called.append('error_cb')
+        raise RuntimeError("Test exception from error_cb")
+
+    def throttle_cb_that_raises(throttle_event):
+        callbacks_called.append('throttle_cb')
+        raise RuntimeError("Test exception from throttle_cb")
+
+    def stats_cb_that_raises(stats_json):
+        callbacks_called.append('stats_cb')
+        raise RuntimeError("Test exception from stats_cb")
+
+    def delivery_cb_that_raises(err, msg):
+        callbacks_called.append('delivery_cb')
+        raise RuntimeError("Test exception from delivery_cb")
+
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'statistics.interval.ms': 100,
+        'error_cb': error_cb_that_raises,
+        'throttle_cb': throttle_cb_that_raises,
+        'stats_cb': stats_cb_that_raises,
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    # This should trigger multiple callbacks
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.produce('test-topic', value='test-message')
+        producer.flush(timeout=2.0)
+
+    # Should get one of the exceptions (not SystemError)
+    assert "Test exception from" in str(exc_info.value)
+    assert len(callbacks_called) > 0
+
+
+def test_delivery_callback_exception_different_message_types():
+    """Test delivery callback exception with different message types"""
+
+    def delivery_cb_that_raises(err, msg):
+        raise RuntimeError("Test exception from delivery_cb")
+
+    # Test with string message
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.produce('test-topic', value='string-message')
+        producer.flush(timeout=2.0)
+
+    assert "Test exception from delivery_cb" in str(exc_info.value)
+
+    # Test with bytes message
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.produce('test-topic', value=b'bytes-message')
+        producer.flush(timeout=2.0)
+
+    assert "Test exception from delivery_cb" in str(exc_info.value)
+
+
+def test_callback_exception_with_producer_methods():
+    """Test callback exception with different producer methods"""
+
+    def delivery_cb_that_raises(err, msg):
+        raise RuntimeError("Test exception from delivery_cb")
+
+    producer = Producer({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'message.timeout.ms': 10,
+        'on_delivery': delivery_cb_that_raises
+    })
+
+    # Test with flush method - this should trigger the callback
+    with pytest.raises(RuntimeError) as exc_info:
+        producer.produce('test-topic', value='test-message')
+        producer.flush(timeout=2.0)
+
+    assert "Test exception from delivery_cb" in str(exc_info.value)
