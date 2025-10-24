@@ -658,20 +658,20 @@ def test_describe_topics_api():
 
         # Wrong argument type
         for args in [
-                        [topic_names],
-                        ["test-topic-1"],
-                        [TopicCollection([3])],
-                        [TopicCollection(["correct", 3])],
-                        [TopicCollection([None])]
-                    ]:
+            [topic_names],
+            ["test-topic-1"],
+            [TopicCollection([3])],
+            [TopicCollection(["correct", 3])],
+            [TopicCollection([None])]
+        ]:
             with pytest.raises(TypeError):
                 a.describe_topics(*args, **kwargs)
 
         # Wrong argument value
         for args in [
-                        [TopicCollection([""])],
-                        [TopicCollection(["correct", ""])]
-                    ]:
+            [TopicCollection([""])],
+            [TopicCollection(["correct", ""])]
+        ]:
             with pytest.raises(ValueError):
                 a.describe_topics(*args, **kwargs)
 
@@ -1053,13 +1053,13 @@ def test_list_offsets_api():
 
     # Wrong option types
     for kwargs in [
-                        {
-                            "isolation_level": 10
-                        },
-                        {
-                            "request_timeout": "test"
-                        }
-                    ]:
+        {
+            "isolation_level": 10
+        },
+        {
+            "request_timeout": "test"
+        }
+    ]:
         requests = {
             TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
         }
@@ -1068,10 +1068,10 @@ def test_list_offsets_api():
 
     # Wrong option values
     for kwargs in [
-                    {
-                        "request_timeout": -1
-                    }
-                  ]:
+        {
+            "request_timeout": -1
+        }
+    ]:
         requests = {
             TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
         }
@@ -1095,13 +1095,13 @@ def test_list_offsets_api():
 
         # Invalid TopicPartition
         for requests in [
-                            {
-                                TopicPartition("", 0, 10): OffsetSpec.earliest()
-                            },
-                            {
-                                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
-                            }
-                        ]:
+            {
+                TopicPartition("", 0, 10): OffsetSpec.earliest()
+            },
+            {
+                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
+            }
+        ]:
             with pytest.raises(ValueError):
                 a.list_offsets(requests, **kwargs)
 
@@ -1131,33 +1131,33 @@ def test_list_offsets_api():
 
         # Key isn't a TopicPartition
         for requests in [
-                            {
-                                "not-topic-partition": OffsetSpec.latest()
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                                "not-topic-partition": OffsetSpec.latest()
-                            },
-                            {
-                                None: OffsetSpec.latest()
-                            }
-                        ]:
+            {
+                "not-topic-partition": OffsetSpec.latest()
+            },
+            {
+                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                "not-topic-partition": OffsetSpec.latest()
+            },
+            {
+                None: OffsetSpec.latest()
+            }
+        ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
 
         # Value isn't a OffsetSpec
         for requests in [
-                            {
-                                TopicPartition("topic1", 0, 10): "test"
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                                TopicPartition("topic1", 0, 10): "test"
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): None
-                            }
-                        ]:
+            {
+                TopicPartition("topic1", 0, 10): "test"
+            },
+            {
+                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                TopicPartition("topic1", 0, 10): "test"
+            },
+            {
+                TopicPartition("topic1", 0, 10): None
+            }
+        ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
 
@@ -1226,8 +1226,6 @@ def test_elect_leaders():
             .result(timeout=1)
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_admin_callback_exception_no_system_error():
     """Test AdminClient callbacks exception handling with different exception types"""
 
@@ -1275,10 +1273,9 @@ def test_admin_callback_exception_no_system_error():
     assert "RuntimeError from error_cb" in str(exc_info.value)
 
 
-@pytest.mark.skipif(libversion()[1] < 0x000b0500,
-                    reason="AdminAPI requires librdkafka >= v0.11.5")
 def test_admin_multiple_callbacks_different_error_types():
-    """Test AdminClient with multiple callbacks configured with different error types to see which one gets triggered"""
+    """Test AdminClient with multiple callbacks configured with different error types
+to see which one gets triggered"""
 
     callbacks_called = []
 
@@ -1304,7 +1301,7 @@ def test_admin_multiple_callbacks_different_error_types():
     })
 
     # Test that error_cb callback raises an exception (it's triggered by connection failures)
-    with pytest.raises(RuntimeError) as exc_info:
+    with pytest.raises(RuntimeError):
         admin.poll(timeout=0.2)
 
     # Verify that error_cb was called
