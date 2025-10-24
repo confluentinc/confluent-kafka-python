@@ -2583,6 +2583,9 @@ void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
 	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
+	cs->err_type = NULL;
+	cs->err_value = NULL;
+	cs->err_traceback = NULL;
 #ifdef WITH_PY_TSS
         PyThread_tss_set(&h->tlskey, cs);
 #else
@@ -2603,8 +2606,15 @@ int CallState_end (Handle *h, CallState *cs) {
 
 	PyEval_RestoreThread(cs->thread_state);
 
-	if (PyErr_CheckSignals() == -1 || cs->crashed)
+	if (PyErr_CheckSignals() == -1 || cs->crashed) {
+		if (cs->err_type) { /* Restore any stored error */
+			PyErr_Restore(cs->err_type, cs->err_value, cs->err_traceback);
+			cs->err_type = NULL;
+			cs->err_value = NULL;
+			cs->err_traceback = NULL;
+		}
 		return 0;
+	}
 
 	return 1;
 }
@@ -2640,6 +2650,22 @@ void CallState_resume (CallState *cs) {
  */
 void CallState_crash (CallState *cs) {
 	cs->crashed++;
+	/* Obtain and clear the current error state */
+	PyObject *err_type, *err_value, *err_traceback;
+	PyErr_Fetch(&err_type, &err_value, &err_traceback);
+	if (err_type) {
+		/* If there was a previously stored error, discard it */
+		if (cs->err_type)
+			Py_DECREF(cs->err_type);
+		if (cs->err_value)
+			Py_DECREF(cs->err_value);
+		if (cs->err_traceback)
+			Py_DECREF(cs->err_traceback);
+		/* Save the new error */
+		cs->err_type = err_type;
+		cs->err_value = err_value;
+		cs->err_traceback = err_traceback;
+	}
 }
 
 
