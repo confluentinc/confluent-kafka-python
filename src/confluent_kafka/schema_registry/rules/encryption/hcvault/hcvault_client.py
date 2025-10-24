@@ -29,7 +29,7 @@ class HcVaultKmsClient(tink.KmsClient):
     """Basic HashiCorp Vault client for AEAD."""
 
     def __init__(
-        self, key_uri: Optional[str], token: Optional[str], ns: Optional[str] = None,
+        self, key_uri: str, token: Optional[str], ns: Optional[str] = None,
         role_id: Optional[str] = None, secret_id: Optional[str] = None
     ) -> None:
         """Creates a new HcVaultKmsClient that is bound to the key specified in 'key_uri'.
@@ -37,8 +37,7 @@ class HcVaultKmsClient(tink.KmsClient):
         Uses the specified credentials when communicating with the KMS.
 
         Args:
-          key_uri: The URI of the key the client should be bound to. If it is None
-              or empty, then the client is not bound to any particular key.
+          key_uri: The URI of the key the client should be bound to.
           token: The Vault token.
           ns: The Vault namespace.
 
@@ -46,12 +45,11 @@ class HcVaultKmsClient(tink.KmsClient):
           TinkError: If the key uri is not valid.
         """
 
-        if not key_uri:
-            self._key_uri = None
-        elif key_uri.startswith(VAULT_KEYURI_PREFIX):
+        if key_uri.startswith(VAULT_KEYURI_PREFIX):
             self._key_uri = key_uri
         else:
             raise tink.TinkError('Invalid key_uri.')
+
         parsed = urlparse(key_uri[len(VAULT_KEYURI_PREFIX):])
         vault_url = parsed.scheme + '://' + parsed.netloc
         self._client = hvac.Client(
@@ -60,7 +58,7 @@ class HcVaultKmsClient(tink.KmsClient):
             namespace=ns,
             verify=False
         )
-        if role_id and secret_id:
+        if role_id and secret_id and self._client is not None:
             self._client.auth.approle.login(role_id=role_id, secret_id=secret_id)
 
     def does_support(self, key_uri: str) -> bool:

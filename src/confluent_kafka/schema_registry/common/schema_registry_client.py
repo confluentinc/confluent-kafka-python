@@ -22,16 +22,18 @@ from attrs import field as _attrs_field
 from collections import defaultdict
 from enum import Enum
 from threading import Lock
-from typing import List, Dict, Type, TypeVar, \
+from typing import List, Dict, Type, TypeVar, Union, \
     cast, Optional, Any, Tuple
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',
     '_BearerFieldProvider',
+    '_AsyncBearerFieldProvider',
     'is_success',
     'is_retriable',
     'full_jitter',
     '_StaticFieldProvider',
+    '_AsyncStaticFieldProvider',
     '_SchemaCache',
     'RuleKind',
     'RuleMode',
@@ -52,9 +54,40 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
+    """Base class for synchronous bearer field providers."""
     @abc.abstractmethod
     def get_bearer_fields(self) -> dict:
         raise NotImplementedError
+
+
+class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
+    """Base class for asynchronous bearer field providers."""
+    @abc.abstractmethod
+    async def get_bearer_fields(self) -> dict:
+        raise NotImplementedError
+
+class _StaticFieldProvider(_BearerFieldProvider):
+    """Synchronous static token bearer field provider."""
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
+
+
+class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
+    """Asynchronous static token bearer field provider."""
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    async def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 def is_success(status_code: int) -> bool:
@@ -68,17 +101,6 @@ def is_retriable(status_code: int) -> bool:
 def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
-
-
-class _StaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    def get_bearer_fields(self) -> dict:
-        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
-                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _SchemaCache(object):
@@ -945,7 +967,7 @@ class RegisteredSchema:
     version: Optional[int]
     schema_id: Optional[int]
     guid: Optional[str]
-    schema: Optional[Schema]
+    schema: Schema
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema
