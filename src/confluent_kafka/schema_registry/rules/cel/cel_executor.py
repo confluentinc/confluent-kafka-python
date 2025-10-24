@@ -81,7 +81,9 @@ class CelExecutor(RuleExecutor):
         schema = ctx.target
         if schema is None:
            raise ValueError("Target schema is None") # TODO: check whether we should raise or return fallback
-        script_type = ctx.target.schema_type
+        script_type = schema.schema_type
+        if script_type is None:
+            raise ValueError("Target schema type is None") # TODO: check whether we should raise or return fallback
         prog = self._cache.get_program(expr, script_type, schema)
         if prog is None:
             ast = self._env.compile(expr)

@@ -1,4 +1,5 @@
 import decimal
+import logging
 import re
 from collections import defaultdict
 from copy import deepcopy
@@ -43,6 +44,8 @@ AvroMessage = Union[
     dict,  # 'map' and 'record'
 ]
 AvroSchema = Union[str, list, dict]
+
+log = logging.getLogger(__name__)
 
 
 class _ContextStringIO(BytesIO):
@@ -113,12 +116,21 @@ def transform(
     elif isinstance(schema, dict):
         schema_type = schema.get("type")
         if schema_type == 'array':
+            if not isinstance(message, list):
+                log.warning("Incompatible message type for array schema")
+                return message
             return [transform(ctx, schema["items"], item, field_transform)
-                    for item in message]  # type: ignore[union-attr]
+                    for item in message]
         elif schema_type == 'map':
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for map schema")
+                return message
             return {key: transform(ctx, schema["values"], value, field_transform)
-                    for key, value in message.items()}  # type: ignore[union-attr]
+                    for key, value in message.items()}
         elif schema_type == 'record':
+            if not isinstance(message, dict):
+                log.warning("Incompatible message type for record schema")
+                return message
             fields = schema["fields"]
             for field in fields:
                 _transform_field(ctx, schema, field, message, field_transform)
@@ -132,12 +144,12 @@ def transform(
 
 
 def _transform_field(
-    ctx: RuleContext, schema: AvroSchema, field: dict,
-    message: AvroMessage, field_transform: FieldTransform
+    ctx: RuleContext, schema: dict, field: dict,
+    message: dict, field_transform: FieldTransform
 ):
     field_type = field["type"]
     name = field["name"]
-    full_name = schema["name"] + "." + name  # type: ignore[call-overload,index]
+    full_name = schema["name"] + "." + name
     try:
         ctx.enter_field(
             message,
@@ -146,13 +158,13 @@ def _transform_field(
             get_type(field_type),
             None
         )
-        value = message[name]  # type: ignore[index]
+        value = message[name]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
             if new_value is False:
                 raise RuleConditionError(ctx.rule)
         else:
-            message[name] = new_value  # type: ignore[index]
+            message[name] = new_value
     finally:
         ctx.exit_field()
 

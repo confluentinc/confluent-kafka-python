@@ -49,7 +49,7 @@ class StringFormat:
         # printf style formatting
         i = 0
         j = 0
-        result = ""
+        result: str = ""
         while i < len(fmt):
             if fmt[i] != "%":
                 result += fmt[i]
@@ -76,25 +76,41 @@ class StringFormat:
                     i += 1
             if i >= len(fmt):
                 return celpy.CELEvalError("format() incomplete format specifier")
+
+            # Format the argument and handle errors
+            formatted: celpy.Result
             if fmt[i] == "f":
-                result += self.format_float(arg, precision)  # type: ignore[operator,assignment]
-            if fmt[i] == "e":
-                result += self.format_exponential(arg, precision)  # type: ignore[operator,assignment]
+                formatted = self.format_float(arg, precision)
+            elif fmt[i] == "e":
+                formatted = self.format_exponential(arg, precision)
             elif fmt[i] == "d":
-                result += self.format_int(arg)  # type: ignore[operator,assignment]
+                formatted = self.format_int(arg)
             elif fmt[i] == "s":
-                result += self.format_string(arg)  # type: ignore[operator,assignment]
+                formatted = self.format_string(arg)
             elif fmt[i] == "x":
-                result += self.format_hex(arg)  # type: ignore[operator,assignment]
+                formatted = self.format_hex(arg)
             elif fmt[i] == "X":
-                result += self.format_hex(arg).upper()  # type: ignore[operator,assignment,union-attr,call-arg]
+                formatted = self.format_hex(arg)
+                if isinstance(formatted, celpy.CELEvalError):
+                    return formatted
+                result += str(formatted).upper()
+                i += 1
+                continue
             elif fmt[i] == "o":
-                result += self.format_oct(arg)  # type: ignore[operator,assignment]
+                formatted = self.format_oct(arg)
             elif fmt[i] == "b":
-                result += self.format_bin(arg)  # type: ignore[operator,assignment]
+                formatted = self.format_bin(arg)
             else:
                 return celpy.CELEvalError("format() unknown format specifier: " + fmt[i])
+
+            # Check if formatting returned an error
+            if isinstance(formatted, celpy.CELEvalError):
+                return formatted
+
+            # Append the formatted string
+            result += str(formatted)
             i += 1
+
         if j < len(args):
             return celpy.CELEvalError("format() too many arguments for format string")
         return celtypes.StringType(result)
@@ -109,6 +125,7 @@ class StringFormat:
             return celtypes.StringType(f"{arg:.{precision}e}")
         return self.format_int(arg)
 
+    # TODO: check if celtypes.StringType() supports int conversion
     def format_int(self, arg: celtypes.Value) -> celpy.Result:
         if isinstance(arg, celtypes.IntType):
             return celtypes.StringType(arg)  # type: ignore[arg-type]
@@ -160,11 +177,14 @@ class StringFormat:
         return self.format_string(arg)
 
     def format_list(self, arg: celtypes.ListType) -> celpy.Result:
-        result = "["
+        result: str = "["
         for i in range(len(arg)):
             if i > 0:
                 result += ", "
-            result += self.format_value(arg[i])  # type: ignore[operator,assignment]
+            formatted = self.format_value(arg[i])
+            if isinstance(formatted, celpy.CELEvalError):
+                return formatted
+            result += str(formatted)
         result += "]"
         return celtypes.StringType(result)
 

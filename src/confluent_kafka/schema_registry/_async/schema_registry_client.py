@@ -116,10 +116,10 @@ class _AsyncOAuthClient(_AsyncBearerFieldProvider):
         return self.token['expires_at'] < time.time() + expiry_window
 
     async def get_access_token(self) -> str:
-        if self.token is None or self.token_expired():
+        if not self.token or self.token_expired():
             await self.generate_access_token()
         if self.token is None:
-            raise ValueError("Token is not set")
+            raise ValueError("Token is not set after the at")
         return self.token['access_token']
 
     async def generate_access_token(self) -> None:

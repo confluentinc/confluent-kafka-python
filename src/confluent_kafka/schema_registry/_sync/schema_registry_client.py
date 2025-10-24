@@ -119,7 +119,7 @@ class _OAuthClient(_BearerFieldProvider):
         if not self.token or self.token_expired():
             self.generate_access_token()
         if self.token is None:
-            raise ValueError("Token is not set")
+            raise ValueError("Token is not set after the attempt to generate it")
         return self.token['access_token']
 
     def generate_access_token(self) -> None:
