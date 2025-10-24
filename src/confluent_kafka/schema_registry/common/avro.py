@@ -258,17 +258,19 @@ def _get_inline_tags_recursively(
                 record_ns = _implied_namespace(name)
             if record_ns is None:
                 record_ns = ns
-            if record_ns != '' and not record_name.startswith(record_ns):  # type: ignore[union-attr]
+            # Ensure record_name is not None and doesn't already have namespace prefix
+            if record_name is not None and record_ns != '' and not record_name.startswith(record_ns):
                 record_name = f"{record_ns}.{record_name}"
             fields = schema["fields"]
             for field in fields:
                 field_tags = field.get("confluent:tags")
                 field_name = field.get("name")
                 field_type = field.get("type")
-                if field_tags is not None and field_name is not None:
-                    tags[record_name + '.' + field_name].update(field_tags)  # type: ignore[operator]
-                if field_type is not None:
-                    _get_inline_tags_recursively(record_ns, record_name, field_type, tags)  # type: ignore[arg-type]
+                # Ensure all required fields are present before building tag key
+                if field_tags is not None and field_name is not None and record_name is not None:
+                    tags[record_name + '.' + field_name].update(field_tags)
+                if field_type is not None and record_name is not None:
+                    _get_inline_tags_recursively(record_ns, record_name, field_type, tags)
 
 
 def _implied_namespace(name: str) -> Optional[str]:
