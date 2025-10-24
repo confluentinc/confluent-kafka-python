@@ -637,7 +637,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
                                            reader_schema_raw, obj_dict,
-                                           inline_tags,field_transformer)
+                                           inline_tags, field_transformer)
 
         if self._from_dict is not None:
             if ctx is None:

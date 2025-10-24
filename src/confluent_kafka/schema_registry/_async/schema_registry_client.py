@@ -119,7 +119,7 @@ class _AsyncOAuthClient(_AsyncBearerFieldProvider):
         if not self.token or self.token_expired():
             await self.generate_access_token()
         if self.token is None:
-            raise ValueError("Token is not set after the at")
+            raise ValueError("Token is not set after the attempt to generate it")
         return self.token['access_token']
 
     async def generate_access_token(self) -> None:
@@ -865,7 +865,8 @@ class AsyncSchemaRegistryClient(object):
         """  # noqa: E501
 
         query: dict[str, Any] = {'offset': offset, 'limit': limit}
-        if subject_name is not None:            query['subject'] = subject_name
+        if subject_name is not None:
+            query['subject'] = subject_name
         if deleted:
             query['deleted'] = deleted
         response = await self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)

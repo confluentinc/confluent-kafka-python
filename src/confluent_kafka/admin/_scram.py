@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Optional, Any
+from typing import List, Optional
 from enum import Enum
 
 from .. import cimpl

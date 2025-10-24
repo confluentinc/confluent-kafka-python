@@ -79,7 +79,7 @@ class TopicMetadata(object):
     # on other classes which raises a warning/error.
 
     def __init__(self) -> None:
-        self.topic = None
+        self.topic: Optional[str] = None
         """Topic name"""
         self.partitions: Dict[int, 'PartitionMetadata'] = {}
         """Map of partitions indexed by partition id. Value is a PartitionMetadata object."""

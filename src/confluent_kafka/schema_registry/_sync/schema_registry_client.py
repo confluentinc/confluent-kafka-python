@@ -864,7 +864,8 @@ class SchemaRegistryClient(object):
         """  # noqa: E501
 
         query: dict[str, Any] = {'offset': offset, 'limit': limit}
-        if subject_name is not None:            query['subject'] = subject_name
+        if subject_name is not None:
+            query['subject'] = subject_name
         if deleted:
             query['deleted'] = deleted
         response = self._rest_client.get('schemas/ids/{}/versions'.format(schema_id), query)
