@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import logging
 import uuid
 
 import celpy
@@ -32,6 +33,9 @@ from confluent_kafka.schema_registry.serde import RuleExecutor, RuleContext, \
     FieldContext
 
 from google.protobuf import message
+
+
+log = logging.getLogger(__name__)
 
 # A date logical type annotates an Avro int, where the int stores the number
 # of days from the unix epoch, 1 January 1970 (ISO calendar).
@@ -54,25 +58,30 @@ class CelExecutor(RuleExecutor):
 
     def execute(self, ctx: RuleContext, msg: Any, args: Any) -> Any:
         expr = ctx.rule.expr
+        if expr is None:
+            log.warning("Expression from rule %s is None", ctx.rule.name)
+            return msg
         try:
-            index = expr.index(";")  # type: ignore[union-attr]
+            index = expr.index(";")
         except ValueError:
             index = -1
         if index >= 0:
-            guard = expr[:index]  # type: ignore[index]
+            guard = expr[:index]
             if len(guard.strip()) > 0:
                 guard_result = self.execute_rule(ctx, guard, args)
                 if not guard_result:
                     if ctx.rule.kind == RuleKind.CONDITION:
                         return True
                     return msg
-            expr = expr[index+1:]  # type: ignore[index]
+            expr = expr[index+1:]
 
-        return self.execute_rule(ctx, expr, args)  # type: ignore[arg-type]
+        return self.execute_rule(ctx, expr, args)
 
     def execute_rule(self, ctx: RuleContext, expr: str, args: Any) -> Any:
         schema = ctx.target
-        script_type = ctx.target.schema_type  # type: ignore[union-attr]
+        if schema is None:
+           raise ValueError("Target schema is None") # TODO: check whether we should raise or return fallback
+        script_type = ctx.target.schema_type
         prog = self._cache.get_program(expr, script_type, schema)
         if prog is None:
             ast = self._env.compile(expr)
