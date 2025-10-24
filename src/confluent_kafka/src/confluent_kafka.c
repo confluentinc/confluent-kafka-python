@@ -1766,8 +1766,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result)
 		Py_DECREF(result);
 	else {
-        
-        CallState_fetch_exception(cs);
+		CallState_fetch_exception(cs);
         crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
@@ -2589,9 +2588,7 @@ void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
 	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
-	cs->exception_type = NULL;
 	cs->exception_value = NULL;
-	cs->exception_traceback = NULL;
 #ifdef WITH_PY_TSS
         PyThread_tss_set(&h->tlskey, cs);
 #else
@@ -2617,7 +2614,7 @@ int CallState_end (Handle *h, CallState *cs) {
 
 	if (cs->crashed) {
 		/* Restore the saved exception if we have one */
-		if (cs->exception_type) {
+		if (cs->exception_value) {
 			CallState_restore_exception(cs);
 		}
 		return 0;

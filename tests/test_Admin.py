@@ -1224,3 +1224,89 @@ def test_elect_leaders():
     with pytest.raises(KafkaException):
         a.elect_leaders(correct_election_type, [correct_partitions])\
             .result(timeout=1)
+
+
+@pytest.mark.skipif(libversion()[1] < 0x000b0500,
+                    reason="AdminAPI requires librdkafka >= v0.11.5")
+def test_admin_callback_exception_no_system_error():
+    """Test AdminClient callbacks exception handling with different exception types"""
+
+    # Test error_cb with different exception types
+    def error_cb_kafka_exception(error):
+        raise KafkaException(KafkaError._FAIL, "KafkaException from error_cb")
+
+    def error_cb_value_error(error):
+        raise ValueError("ValueError from error_cb")
+
+    def error_cb_runtime_error(error):
+        raise RuntimeError("RuntimeError from error_cb")
+
+    # Test error_cb with KafkaException
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_kafka_exception
+    })
+
+    with pytest.raises(KafkaException) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "KafkaException from error_cb" in str(exc_info.value)
+
+    # Test error_cb with ValueError
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_value_error
+    })
+
+    with pytest.raises(ValueError) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "ValueError from error_cb" in str(exc_info.value)
+
+    # Test error_cb with RuntimeError
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_runtime_error
+    })
+
+    with pytest.raises(RuntimeError) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "RuntimeError from error_cb" in str(exc_info.value)
+
+
+@pytest.mark.skipif(libversion()[1] < 0x000b0500,
+                    reason="AdminAPI requires librdkafka >= v0.11.5")
+def test_admin_multiple_callbacks_different_error_types():
+    """Test AdminClient with multiple callbacks configured with different error types to see which one gets triggered"""
+
+    callbacks_called = []
+
+    def error_cb_that_raises_runtime(error):
+        callbacks_called.append('error_cb_runtime')
+        raise RuntimeError("RuntimeError from error_cb")
+
+    def stats_cb_that_raises_value(stats_json):
+        callbacks_called.append('stats_cb_value')
+        raise ValueError("ValueError from stats_cb")
+
+    def throttle_cb_that_raises_kafka(throttle_event):
+        callbacks_called.append('throttle_cb_kafka')
+        raise KafkaException(KafkaError._FAIL, "KafkaException from throttle_cb")
+
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'statistics.interval.ms': 100,  # Enable stats callback
+        'error_cb': error_cb_that_raises_runtime,
+        'stats_cb': stats_cb_that_raises_value,
+        'throttle_cb': throttle_cb_that_raises_kafka
+    })
+
+    # Test that error_cb callback raises an exception (it's triggered by connection failures)
+    with pytest.raises(RuntimeError) as exc_info:
+        admin.poll(timeout=0.2)
+
+    # Verify that error_cb was called
+    assert len(callbacks_called) > 0
+    assert 'error_cb_runtime' in callbacks_called

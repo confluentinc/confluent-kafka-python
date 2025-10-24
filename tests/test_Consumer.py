@@ -317,35 +317,156 @@ def test_consumer_without_groupid():
 
 
 def test_callback_exception_no_system_error():
+    """Test all consumer callbacks exception handling with separate assertions for each callback"""
 
-    exception_raised = []
-
+    # Test error_cb callback
+    error_called = []
+    
     def error_cb_that_raises(error):
         """Error callback that raises an exception"""
-        exception_raised.append(error)
+        error_called.append(error)
         raise RuntimeError("Test exception from error_cb")
 
-    # Create consumer with error callback that raises exception
-    consumer = TestConsumer({
-        'group.id': 'test-callback-systemerror-fix',
-        'bootstrap.servers': 'nonexistent-broker:9092',  # Will trigger error
+    consumer1 = TestConsumer({
+        'group.id': 'test-error-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
         'socket.timeout.ms': 100,
         'session.timeout.ms': 1000,
         'error_cb': error_cb_that_raises
     })
 
-    consumer.subscribe(['test-topic'])
+    consumer1.subscribe(['test-topic'])
 
-    # This should trigger the error callback due to connection failure
-    # Before fix: Would get RuntimeError + SystemError (Issue #865)
-    # After fix: Should only get RuntimeError (no SystemError)
+    # Test error_cb callback
     with pytest.raises(RuntimeError) as exc_info:
-        consumer.consume(timeout=0.1)
+        consumer1.consume(timeout=0.1)
 
-    # Verify we got the expected exception message
+    # Verify error_cb was called and raised the expected exception
     assert "Test exception from error_cb" in str(exc_info.value)
+    assert len(error_called) > 0
+    consumer1.close()
 
-    # Verify the error callback was actually called
-    assert len(exception_raised) > 0
+    # Test stats_cb callback
+    stats_called = []
+    
+    def stats_cb_that_raises(stats_json):
+        """Stats callback that raises an exception"""
+        stats_called.append(stats_json)
+        raise RuntimeError("Test exception from stats_cb")
 
-    consumer.close()
+    consumer2 = TestConsumer({
+        'group.id': 'test-stats-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'statistics.interval.ms': 100,  # Enable stats callback
+        'stats_cb': stats_cb_that_raises
+    })
+
+    consumer2.subscribe(['test-topic'])
+
+    # Test stats_cb callback
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer2.consume(timeout=0.2)  # Longer timeout to allow stats callback
+
+    # Verify stats_cb was called and raised the expected exception
+    assert "Test exception from stats_cb" in str(exc_info.value)
+    assert len(stats_called) > 0
+    consumer2.close()
+
+    # Test throttle_cb callback (may not be triggered in this scenario)
+    throttle_called = []
+    
+    def throttle_cb_that_raises(throttle_event):
+        """Throttle callback that raises an exception"""
+        throttle_called.append(throttle_event)
+        raise RuntimeError("Test exception from throttle_cb")
+
+    consumer3 = TestConsumer({
+        'group.id': 'test-throttle-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'throttle_cb': throttle_cb_that_raises
+    })
+
+    consumer3.subscribe(['test-topic'])
+
+    # Test throttle_cb callback - may not be triggered, so we'll just verify it doesn't crash
+    try:
+        consumer3.consume(timeout=0.1)
+        # If no exception is raised, that's also fine - throttle_cb may not be triggered
+        print("Throttle callback not triggered in this scenario")
+    except RuntimeError as exc_info:
+        # If throttle_cb was triggered and raised an exception, verify it
+        if "Test exception from throttle_cb" in str(exc_info.value):
+            assert len(throttle_called) > 0
+            print("Throttle callback was triggered and raised exception")
+    
+    consumer3.close()
+
+
+def test_error_callback_exception_different_error_types():
+    """Test error callback with different exception types"""
+    
+    def error_cb_kafka_exception(error):
+        """Error callback that raises KafkaException"""
+        raise KafkaException(error)
+    
+    def error_cb_value_error(error):
+        """Error callback that raises ValueError"""
+        raise ValueError(f"Custom error: {error}")
+    
+    def error_cb_runtime_error(error):
+        """Error callback that raises RuntimeError"""
+        raise RuntimeError(f"Runtime error: {error}")
+    
+    # Test with KafkaException
+    consumer1 = TestConsumer({
+        'group.id': 'test-kafka-exception',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_kafka_exception
+    })
+    consumer1.subscribe(['test-topic'])
+    
+    with pytest.raises(KafkaException):
+        consumer1.consume(timeout=0.1)
+    consumer1.close()
+    
+    # Test with ValueError
+    consumer2 = TestConsumer({
+        'group.id': 'test-value-error',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_value_error
+    })
+    consumer2.subscribe(['test-topic'])
+    
+    with pytest.raises(ValueError) as exc_info:
+        consumer2.consume(timeout=0.1)
+    assert "Custom error:" in str(exc_info.value)
+    consumer2.close()
+    
+    # Test with RuntimeError
+    consumer3 = TestConsumer({
+        'group.id': 'test-runtime-error',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_runtime_error
+    })
+    consumer3.subscribe(['test-topic'])
+    
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer3.consume(timeout=0.1)
+    assert "Runtime error:" in str(exc_info.value)
+    consumer3.close()
+
+
+
+
+
+
