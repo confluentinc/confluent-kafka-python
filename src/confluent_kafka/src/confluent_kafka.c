@@ -1766,6 +1766,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result)
 		Py_DECREF(result);
 	else {
+		CallState_fetch_exception(cs);
         crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
@@ -1819,6 +1820,8 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                 /* throttle_cb executed successfully */
                 Py_DECREF(result);
                 goto done;
+        } else {
+                CallState_fetch_exception(cs);
         }
 
         /**
@@ -1850,6 +1853,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	if (result)
 		Py_DECREF(result);
 	else {
+		CallState_fetch_exception(cs);
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1885,6 +1889,7 @@ static void log_cb (const rd_kafka_t *rk, int level,
         if (result)
                 Py_DECREF(result);
         else {
+                CallState_fetch_exception(cs);
                 CallState_crash(cs);
                 rd_kafka_yield(h->rk);
         }
@@ -2583,6 +2588,7 @@ void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
 	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
+	cs->exception_value = NULL;
 #ifdef WITH_PY_TSS
         PyThread_tss_set(&h->tlskey, cs);
 #else
@@ -2603,8 +2609,16 @@ int CallState_end (Handle *h, CallState *cs) {
 
 	PyEval_RestoreThread(cs->thread_state);
 
-	if (PyErr_CheckSignals() == -1 || cs->crashed)
+	if (PyErr_CheckSignals() == -1)
 		return 0;
+
+	if (cs->crashed) {
+		/* Restore the saved exception if we have one */
+		if (cs->exception_value) {
+			CallState_restore_exception(cs);
+		}
+		return 0;
+	}
 
 	return 1;
 }

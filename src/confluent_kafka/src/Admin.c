@@ -4717,7 +4717,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         PyGILState_STATE gstate;
         PyObject *error, *method, *ret;
         PyObject *result = NULL;
-        PyObject *exctype = NULL, *exc = NULL, *excargs = NULL;
+        PyObject *exc = NULL, *excargs = NULL;
 
         /* Acquire GIL */
         gstate = PyGILState_Ensure();
@@ -5093,7 +5093,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         PyObject *trace = NULL;
 
                         /* Fetch (and clear) currently raised exception */
-                        PyErr_Fetch(&exctype, &error, &trace);
+                        cfl_exception_fetch(&exc);
                         Py_XDECREF(trace);
                 }
 
@@ -5124,22 +5124,17 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
          * Pass an exception to future.set_exception().
          */
 
-        if (!exctype) {
+        if (!exc) {
                 /* No previous exception raised, use KafkaException */
-                exctype = KafkaException;
-                Py_INCREF(exctype);
+                excargs = PyTuple_New(1);
+                Py_INCREF(error); /* tuple's reference */
+                PyTuple_SET_ITEM(excargs, 0, error);
+                exc = ((PyTypeObject *)KafkaException)->tp_new(
+                        (PyTypeObject *)KafkaException, NULL, NULL);
+                exc->ob_type->tp_init(exc, excargs, NULL);
+                Py_DECREF(excargs);
+                Py_XDECREF(error); /* from error source above */
         }
-
-        /* Create a new exception based on exception type and error. */
-        excargs = PyTuple_New(1);
-        Py_INCREF(error); /* tuple's reference */
-        PyTuple_SET_ITEM(excargs, 0, error);
-        exc = ((PyTypeObject *)exctype)->tp_new(
-                (PyTypeObject *)exctype, NULL, NULL);
-        exc->ob_type->tp_init(exc, excargs, NULL);
-        Py_DECREF(excargs);
-        Py_XDECREF(exctype);
-        Py_XDECREF(error); /* from error source above */
 
         /*
          * Call future.set_exception(exc)

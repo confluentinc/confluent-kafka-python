@@ -270,7 +270,54 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
 typedef struct {
 	PyThreadState *thread_state;
 	int crashed;   /* Callback crashed */
+	PyObject *exception_value;   /* Stored exception value */
 } CallState;
+
+/**
+ * @brief Compatibility layer for Python exception handling API changes.
+ * PyErr_Fetch/PyErr_Restore were deprecated in Python 3.12 in favor of 
+ * PyErr_GetRaisedException/PyErr_SetRaisedException.
+ */
+
+static inline void
+cfl_exception_fetch(PyObject **exc_value) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    *exc_value = PyErr_GetRaisedException();
+#else
+    /* Python < 3.12 - use legacy API */
+    PyObject *exc_type, *exc_traceback;
+    PyErr_Fetch(&exc_type, exc_value, &exc_traceback);
+    Py_XDECREF(exc_type);
+    Py_XDECREF(exc_traceback);
+#endif
+}
+
+static inline void
+cfl_exception_restore(PyObject *exc_value) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    if (exc_value) {
+        PyErr_SetRaisedException(exc_value);
+    }
+#else
+    /* Python < 3.12 - use legacy API */
+    PyErr_SetObject(PyExceptionInstance_Class(exc_value), exc_value);
+#endif
+}
+
+static inline void
+CallState_fetch_exception(CallState *cs) {
+    cfl_exception_fetch(&cs->exception_value);
+}
+
+static inline void
+CallState_restore_exception(CallState *cs) {
+    if (cs->exception_value) {
+        cfl_exception_restore(cs->exception_value);
+        cs->exception_value = NULL;
+    }
+}
 
 /**
  * @brief Initialiase a CallState and unlock the GIL prior to a
