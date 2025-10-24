@@ -58,17 +58,17 @@ async def _resolve_named_schema(
     if schema.references is not None:
         for ref in schema.references:
             if ref.subject is None or ref.version is None:
-                raise ValueError("Subject or version cannot be None")
+                raise TypeError("Subject or version cannot be None")
             referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_named_schemas = await _resolve_named_schema(referenced_schema.schema, schema_registry_client)
             if referenced_schema.schema.schema_str is None:
-                raise ValueError("Schema string cannot be None")
+                raise TypeError("Schema string cannot be None")
 
             parsed_schema = parse_schema_with_repo(
                 referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
             if ref.name is None:
-                raise ValueError("Name cannot be None")
+                raise TypeError("Name cannot be None")
             named_schemas[ref.name] = parsed_schema
     return named_schemas
 
@@ -278,16 +278,18 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                 # and union types should use topic_subject_name_strategy, which
                 # just discards the schema name anyway
                 schema_name = None
-            else:
+            elif isinstance(parsed_schema, dict):
                 # The Avro spec states primitives have a name equal to their type
                 # i.e. {"type": "string"} has a name of string.
                 # This function does not comply.
                 # https://github.com/fastavro/fastavro/issues/415
                 if schema.schema_str is not None:
                     schema_dict = json.loads(schema.schema_str)
-                    schema_name = parsed_schema.get("name", schema_dict.get("type"))  # type: ignore[union-attr]
+                    schema_name = parsed_schema.get("name", schema_dict.get("type"))
                 else:
                     schema_name = None
+            else:
+                schema_name = None
         else:
             schema_name = None
             parsed_schema = None
@@ -348,12 +350,14 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
             self._known_subjects.add(subject)
 
+        value: Any
+        parsed_schema: Any
         if self._to_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
-            value = obj  # type: ignore[assignment]
+            value = obj
 
         if latest_schema is not None and ctx is not None and subject is not None:
             parsed_schema = await self._get_parsed_schema(latest_schema.schema)
@@ -363,7 +367,7 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
                                         latest_schema.schema, value, get_inline_tags(parsed_schema),
                                         field_transformer)
         else:
-            parsed_schema = self._parsed_schema  # type: ignore[assignment]
+            parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
             # write the record to the rest of the buffer
@@ -384,10 +388,10 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
         named_schemas = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
-            raise ValueError("Prepared schema string cannot be None")
+            raise TypeError("Prepared schema string cannot be None")
         parsed_schema = parse_schema_with_repo(
             prepared_schema.schema_str, named_schemas=named_schemas)
 
@@ -526,10 +530,11 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        if schema:
-            self._reader_schema = await self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
+        self._reader_schema: Optional[AvroSchema]
+        if schema and self._schema is not None:
+            self._reader_schema = await self._get_parsed_schema(self._schema)
         else:
-            self._reader_schema = None # type: ignore[assignment]
+            self._reader_schema = None
 
         if from_dict is not None and not callable(from_dict):
             raise ValueError("from_dict must be callable with the signature "
@@ -600,6 +605,7 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         if isinstance(payload, bytes):
             payload = io.BytesIO(payload)
 
+        reader_schema: Optional[AvroSchema]
         if latest_schema is not None and subject is not None:
             migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
@@ -628,13 +634,14 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, message, field_transform))
         if ctx is not None and subject is not None:
+            inline_tags = get_inline_tags(reader_schema) if reader_schema is not None else None
             obj_dict = self._execute_rules(ctx, subject, RuleMode.READ, None,
-                                           reader_schema_raw, obj_dict, get_inline_tags(reader_schema),
-                                           field_transformer)
+                                           reader_schema_raw, obj_dict,
+                                           inline_tags,field_transformer)
 
         if self._from_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx)
 
         return obj_dict
@@ -646,10 +653,10 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
         named_schemas = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
-            raise ValueError("Prepared schema string cannot be None")
+            raise TypeError("Prepared schema string cannot be None")
         parsed_schema = parse_schema_with_repo(
             prepared_schema.schema_str, named_schemas=named_schemas)
 

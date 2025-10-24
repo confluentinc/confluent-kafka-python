@@ -623,7 +623,7 @@ class ProtobufDeserializer(BaseDeserializer):
             writer_schema_raw = self._get_writer_schema(schema_id, subject, fmt='serialized')
             fd_proto, pool = self._get_parsed_schema(writer_schema_raw)
             writer_schema = pool.FindFileByName(fd_proto.name)
-            writer_desc = self._get_message_desc(pool, writer_schema, msg_index)  # type: ignore[arg-type]
+            writer_desc = self._get_message_desc(pool, writer_schema, msg_index if msg_index is not None else [])
             if subject is None:
                 subject = self._subject_name_func(ctx, writer_desc.full_name)
                 if subject is not None:

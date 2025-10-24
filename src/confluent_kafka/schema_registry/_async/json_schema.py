@@ -65,17 +65,17 @@ async def _resolve_named_schema(
     if schema.references is not None:
         for ref in schema.references:
             if ref.subject is None or ref.version is None:
-                raise ValueError("Subject or version cannot be None")
+                raise TypeError("Subject or version cannot be None")
             referenced_schema = await schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_registry = await _resolve_named_schema(referenced_schema.schema, schema_registry_client, ref_registry)
             if referenced_schema.schema.schema_str is None:
-                raise ValueError("Schema string cannot be None")
+                raise TypeError("Schema string cannot be None")
 
             referenced_schema_dict = orjson.loads(referenced_schema.schema.schema_str)
             resource = Resource.from_contents(
                 referenced_schema_dict, default_specification=DEFAULT_SPEC)
             if ref.name is None:
-                raise ValueError("Name cannot be None")
+                raise TypeError("Name cannot be None")
             ref_registry = ref_registry.with_resource(ref.name, resource)
     return ref_registry
 
@@ -293,11 +293,14 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
-
-        schema_dict, ref_registry = await self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
-        if schema_dict and isinstance(schema_dict, dict):
-            schema_name = schema_dict.get('title', None)
+        if self._schema:
+            schema_dict, ref_registry = await self._get_parsed_schema(self._schema)
+            if schema_dict and isinstance(schema_dict, dict):
+                schema_name = schema_dict.get('title', None)
+            else:
+                schema_name = None
         else:
+            schema_dict = None
             schema_name = None
 
         self._schema_name = schema_name
@@ -355,12 +358,13 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
             self._known_subjects.add(subject)
 
+        value: Any
         if self._to_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
-            value = obj  # type: ignore[assignment]
+            value = obj
 
         schema: Optional[Schema] = None
         if latest_schema is not None:
@@ -413,7 +417,7 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
         ref_registry = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
@@ -569,8 +573,8 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
 
-        if schema:
-            self._reader_schema, self._ref_registry = await self._get_parsed_schema(self._schema)  # type: ignore[arg-type]
+        if schema and self._schema is not None:
+            self._reader_schema, self._ref_registry = await self._get_parsed_schema(self._schema)
         else:
             self._reader_schema, self._ref_registry = None, None
 
@@ -678,7 +682,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         if self._from_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx) # type: ignore[return-value]
 
         return obj_dict
@@ -693,7 +697,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
         ref_registry = await _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         parsed_schema = orjson.loads(schema.schema_str)
 
         self._parsed_schemas.set(schema, (parsed_schema, ref_registry))
