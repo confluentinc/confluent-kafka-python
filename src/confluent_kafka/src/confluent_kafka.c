@@ -751,7 +751,7 @@ PyTypeObject MessageType = {
         "\n"
 	"This class is not user-instantiable.\n"
 	"\n"
-	".. py:function:: len()\n"
+	".. py:function:: __len__()\n"
 	"\n"
 	"  :returns: Message value (payload) size in bytes\n"
 	"  :rtype: int\n"
