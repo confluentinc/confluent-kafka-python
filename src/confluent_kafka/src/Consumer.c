@@ -1171,6 +1171,45 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         return obj; /* Possibly NULL */
 }
 
+static PyObject *
+Consumer_io_event_enable(Handle *self, PyObject *args, PyObject *kwargs)
+{
+        int fd = 0;
+        const char* data = NULL;
+        Py_ssize_t data_size = 0;
+        static char *kws[] = {"fd", "payload", NULL};
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
+                return NULL;
+        }
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "iy#", kws, &fd,
+                                         &data, &data_size)) {
+                return NULL;
+        }
+
+        if (fd < 0) {
+                return PyErr_Format(PyExc_ValueError,
+                                    "fd outside range: %i", fd);
+        }
+
+        if (data_size <= 0) {
+                return PyErr_Format(PyExc_ValueError,
+                                    "payload cannot be empty");
+        }
+
+        if (self->u.Consumer.rkqu == NULL) {
+                PyErr_SetString(PyExc_RuntimeError,
+                                "Consumer Queue not available");
+                return NULL;
+        }
+
+        rd_kafka_queue_io_event_enable(self->u.Consumer.rkqu,
+                                       fd, data, data_size);
+
+        Py_RETURN_NONE;
+}
 
 static PyMethodDef Consumer_methods[] = {
 	{ "subscribe", (PyCFunction)Consumer_subscribe,
@@ -1527,7 +1566,20 @@ static PyMethodDef Consumer_methods[] = {
         { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
            set_sasl_credentials_doc
         },
-
+        { "io_event_enable",
+          (PyCFunction) Consumer_io_event_enable,
+          METH_VARARGS | METH_KEYWORDS,
+          ".. py:function:: io_event_enable(fd, payload)\n"
+          "\n"
+          "Enable IO event triggering.\n"
+          "To ease integration with IO based polling loops this API\n"
+          "allows an application to create a separate file-descriptor\n"
+          "that the consumer will write ``payload`` to whenever a new\n"
+          "element is enqueued on a previously empty queue.\n"
+          " :param int fd: The filedescriptor the consumer writes to.\n"
+          " :param bytes payload: The payload the consumer writes to fd.\n"
+          " :returns: ``None``\n"
+        },
 
 	{ NULL }
 };
