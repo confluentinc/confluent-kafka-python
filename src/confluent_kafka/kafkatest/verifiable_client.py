@@ -59,7 +59,7 @@ class VerifiableClient(object):
             sys.exit(1)
 
     def send(self, d):
-        """ Send dict as JSON to stdout for consumtion by kafkatest handler """
+        """ Send dict as JSON to stdout for consumption by kafkatest handler. """
         d['_time'] = str(datetime.datetime.now())
         self.dbg('SEND: %s' % json.dumps(d))
         sys.stdout.write('%s\n' % json.dumps(d))
