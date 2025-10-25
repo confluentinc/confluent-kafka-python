@@ -46,7 +46,7 @@ class KekKmsProps:
         d = src_dict.copy()
         kek_kms_props = cls()
 
-        kek_kms_props.properties = d
+        kek_kms_props.properties = d  # type: ignore[attr-defined]
         return kek_kms_props
 
 
@@ -124,7 +124,7 @@ class Kek:
 
         deleted = d.pop("deleted", None)
 
-        kek = cls(
+        kek = cls(  # type: ignore[call-arg]
             name=name,
             kms_type=kms_type,
             kms_key_id=kms_key_id,
@@ -198,7 +198,7 @@ class CreateKekRequest:
 
         shared = d.pop("shared", None)
 
-        create_kek_request = cls(
+        create_kek_request = cls(  # type: ignore[call-arg]
             name=name,
             kms_type=kms_type,
             kms_key_id=kms_key_id,
@@ -321,7 +321,7 @@ class Dek:
 
         deleted = d.pop("deleted", None)
 
-        dek = cls(
+        dek = cls(  # type: ignore[call-arg]
             kek_name=kek_name,
             subject=subject,
             version=version,
@@ -381,7 +381,7 @@ class CreateDekRequest:
 
         encrypted_key_material = d.pop("encryptedKeyMaterial", None)
 
-        create_dek_request = cls(
+        create_dek_request = cls(  # type: ignore[call-arg]
             subject=subject,
             version=version,
             algorithm=algorithm,

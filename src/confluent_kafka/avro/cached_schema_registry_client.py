@@ -32,7 +32,7 @@ from . import loads
 
 # Python 2 considers int an instance of str
 try:
-    string_type = basestring  # noqa
+    string_type = basestring  # type: ignore[name-defined]  # noqa
 except NameError:
     string_type = str
 

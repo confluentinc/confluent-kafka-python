@@ -16,7 +16,7 @@
 import threading
 from typing import Any
 
-import celpy  # type: ignore
+import celpy
 
 _has_state = threading.local()
 

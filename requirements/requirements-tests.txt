@@ -1,6 +1,8 @@
 # core test requirements
 urllib3<3
 flake8
+mypy
+types-cachetools
 orjson
 pytest
 pytest-timeout

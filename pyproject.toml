@@ -27,6 +27,21 @@ Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 [tool.mypy]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.avro",
+    "confluent_kafka.schema_registry.json_schema",
+    "confluent_kafka.schema_registry.protobuf",
+]
+disable_error_code = ["assignment", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.confluent.meta_pb2",
+    "confluent_kafka.schema_registry.confluent.types.decimal_pb2",
+]
+ignore_errors = true
+
 [tool.setuptools]
 include-package-data = false
 
