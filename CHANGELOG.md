@@ -526,6 +526,15 @@ in a future version and the setting will then default to `False` (new format).
 
 
 
+## v1.8.0
+
+v1.8.0 is a maintenance release with the following fixes and enhancements:
+
+### Enhancements
+
+- Support creating topics with default partitions and replication factor (#1173).
+
+
 ## v1.7.0
 
 v1.7.0 is a maintenance release with the following fixes and enhancements:
