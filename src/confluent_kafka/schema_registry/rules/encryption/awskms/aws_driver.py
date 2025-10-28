@@ -55,6 +55,7 @@ class AwsKmsDriver(KmsDriver):
         role_external_id = conf.get(_ROLE_EXTERNAL_ID)
         if role_external_id is None:
             role_external_id = os.getenv("AWS_ROLE_EXTERNAL_ID")
+        role_web_identity_token_file = os.getenv("AWS_WEB_IDENTITY_TOKEN_FILE")
         key = conf.get(_ACCESS_KEY_ID)
         secret = conf.get(_SECRET_ACCESS_KEY)
         profile = conf.get(_PROFILE)
@@ -74,7 +75,8 @@ class AwsKmsDriver(KmsDriver):
             )
         else:
             session = boto3.Session(region_name=region)
-        if role_arn is not None:
+        # If role_web_identity_token_file is set, use the DefaultCredentialsProvider
+        if role_arn is not None and role_web_identity_token_file is None:
             sts_client = session.client('sts')
             params = {
                 'RoleArn': role_arn,
