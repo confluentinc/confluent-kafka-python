@@ -305,6 +305,11 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 	if (!dr_cb || dr_cb == Py_None)
 		dr_cb = self->u.Producer.default_dr_cb;
 
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		return NULL;
+	}
+
 	/* Create msgstate if necessary, may return NULL if no callbacks
 	 * are wanted. */
 	msgstate = Producer_msgstate_new(self, dr_cb);
@@ -375,6 +380,11 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
 
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		return NULL;
+	}
+
 	r = Producer_poll0(self, cfl_timeout_ms(tmout));
 	if (r == -1)
 		return NULL;
@@ -393,6 +403,11 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
                 return NULL;
+
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		return NULL;
+	}
 
         CallState_begin(self, &cs);
         err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
@@ -838,7 +853,47 @@ static void *Producer_purge (Handle *self, PyObject *args,
                 return NULL;
         }
 
-        Py_RETURN_NONE;
+	Py_RETURN_NONE;
+}
+
+static PyObject *Producer_enter (Handle *self) {
+	Py_INCREF(self);
+	return (PyObject *)self;
+}
+
+static PyObject *Producer_exit (Handle *self, PyObject *args) {
+	PyObject *exc_type, *exc_value, *exc_traceback;
+	rd_kafka_resp_err_t err;
+	CallState cs;
+
+	if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+			      &exc_type, &exc_value, &exc_traceback))
+		return NULL;
+
+	/* Cleanup: flush pending messages and destroy producer */
+	if (self->rk) {
+		CallState_begin(self, &cs);
+
+		/* Flush any pending messages (wait indefinitely to ensure delivery) */
+		err = rd_kafka_flush(self->rk, -1);
+
+		/* Destroy the producer (even if flush had issues) */
+		rd_kafka_destroy(self->rk);
+		self->rk = NULL;
+
+		if (!CallState_end(self, &cs))
+			return NULL;
+
+		/* If flush failed, warn but don't suppress original exception */
+		if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+			PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+					"Producer flush failed during context exit: %s",
+					rd_kafka_err2str(err));
+		}
+	}
+
+	/* Return None to propagate any exceptions from the with block */
+	Py_RETURN_NONE;
 }
 
 
@@ -1141,11 +1196,17 @@ static PyMethodDef Producer_methods[] = {
         { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
            set_sasl_credentials_doc
         },
+        { "__enter__", (PyCFunction)Producer_enter, METH_NOARGS,
+          "Context manager entry." },
+        { "__exit__", (PyCFunction)Producer_exit, METH_VARARGS,
+          "Context manager exit. Automatically flushes and destroys the producer." },
         { NULL }
 };
 
 
 static Py_ssize_t Producer__len__ (Handle *self) {
+	if (!self->rk)
+		return 0;
 	return rd_kafka_outq_len(self->rk);
 }
 
