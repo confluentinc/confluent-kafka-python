@@ -464,3 +464,154 @@ def test_error_callback_exception_different_error_types():
         consumer3.consume(timeout=0.1)
     assert "Runtime error:" in str(exc_info.value)
     consumer3.close()
+
+
+def test_consumer_context_manager_basic():
+    """Test basic Consumer context manager usage and return value"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test __enter__ returns self
+    consumer = Consumer(config)
+    entered = consumer.__enter__()
+    assert entered is consumer
+    consumer.__exit__(None, None, None)  # Clean up
+
+    # Test basic context manager usage
+    with Consumer(config) as consumer:
+        assert consumer is not None
+        consumer.subscribe(['mytopic'])
+        consumer.unsubscribe()
+
+    # Consumer should be closed after exiting context
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_exception_propagation():
+    """Test exceptions propagate and consumer is cleaned up"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test exception propagation
+    exception_caught = False
+    try:
+        with Consumer(config) as consumer:
+            consumer.subscribe(['mytopic'])
+            raise ValueError("Test exception")
+    except ValueError as e:
+        assert str(e) == "Test exception"
+        exception_caught = True
+
+    assert exception_caught, "Exception should have propagated"
+
+    # Consumer should be closed even after exception
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_exit_with_exceptions():
+    """Test __exit__ properly handles exception arguments"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    consumer = Consumer(config)
+    consumer.subscribe(['mytopic'])
+
+    # Simulate exception in with block
+    exc_type = ValueError
+    exc_value = ValueError("Test error")
+    exc_traceback = None
+
+    # __exit__ should cleanup and return None (propagate exception)
+    result = consumer.__exit__(exc_type, exc_value, exc_traceback)
+    assert result is None  # None means propagate exception
+
+    # Consumer should be closed
+    with pytest.raises(RuntimeError):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_after_exit():
+    """Test Consumer behavior after context manager exit"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Normal exit
+    with Consumer(config) as consumer:
+        consumer.subscribe(['mytopic'])
+        consumer.unsubscribe()
+
+    # All methods should fail after context exit
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.poll()
+
+    # close() is idempotent - calling it on already-closed consumer should not raise
+    consumer.close()  # Should succeed silently
+
+    # Test already-closed consumer edge case
+    # Using __enter__ and __exit__ directly on already-closed consumer
+    entered = consumer.__enter__()
+    assert entered is consumer
+
+    # Operations should still fail
+    with pytest.raises(RuntimeError):
+        consumer.subscribe(['mytopic'])
+
+    # __exit__ should handle already-closed gracefully
+    result = consumer.__exit__(None, None, None)
+    assert result is None
+
+
+def test_consumer_context_manager_multiple_instances():
+    """Test Consumer context manager with multiple instances"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test multiple sequential instances
+    with Consumer(config) as consumer1:
+        consumer1.subscribe(['mytopic'])
+
+    with Consumer(config) as consumer2:
+        consumer2.subscribe(['mytopic'])
+        # Both should be independent
+        assert consumer1 is not consumer2
+
+    # Both should be closed
+    with pytest.raises(RuntimeError):
+        consumer1.subscribe(['mytopic'])
+    with pytest.raises(RuntimeError):
+        consumer2.subscribe(['mytopic'])
+
+    # Test nested context managers
+    with Consumer(config) as consumer1:
+        with Consumer(config) as consumer2:
+            assert consumer1 is not consumer2
+            consumer1.subscribe(['mytopic'])
+            consumer2.subscribe(['mytopic2'])
+        # consumer2 should be closed, consumer1 still open
+        consumer1.unsubscribe()
+
+    # Both should be closed now
+    with pytest.raises(RuntimeError):
+        consumer1.subscribe(['mytopic'])
+    with pytest.raises(RuntimeError):
+        consumer2.subscribe(['mytopic2'])

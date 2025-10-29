@@ -1147,6 +1147,29 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Consumer_enter (Handle *self) {
+	Py_INCREF(self);
+	return (PyObject *)self;
+}
+
+static PyObject *Consumer_exit (Handle *self, PyObject *args) {
+	PyObject *exc_type, *exc_value, *exc_traceback;
+
+	if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+			      &exc_type, &exc_value, &exc_traceback))
+		return NULL;
+
+	/* Cleanup: call close() */
+	if (self->rk) {
+		PyObject *result = Consumer_close(self, NULL);
+		if (!result)
+			return NULL;
+		Py_DECREF(result);
+	}
+
+	Py_RETURN_NONE;
+}
+
 static PyObject *
 Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
@@ -1527,8 +1550,10 @@ static PyMethodDef Consumer_methods[] = {
         { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
            set_sasl_credentials_doc
         },
-
-
+        { "__enter__", (PyCFunction)Consumer_enter, METH_NOARGS,
+          "Context manager entry." },
+        { "__exit__", (PyCFunction)Consumer_exit, METH_VARARGS,
+          "Context manager exit. Automatically closes the consumer." },
 	{ NULL }
 };
 
