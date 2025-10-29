@@ -370,6 +370,11 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
                                          &topic, &tmout))
                 return NULL;
 
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "Handle has been closed");
+                return NULL;
+        }
+
         if (topic != NULL) {
                 if (!(only_rkt = rd_kafka_topic_new(self->rk,
                                                     topic, NULL))) {
@@ -604,6 +609,11 @@ list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|zd", kws,
                                          &group, &tmout))
                 return NULL;
+
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "Handle has been closed");
+                return NULL;
+        }
 
         CallState_begin(self, &cs);
 
