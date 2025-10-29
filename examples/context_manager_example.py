@@ -37,12 +37,12 @@ def main():
     # Automatically destroys the admin client when exiting the 'with' block
     print("=== AdminClient Context Manager Example ===")
     admin_conf = {'bootstrap.servers': broker}
-    
+
     with AdminClient(admin_conf) as admin:
         # Create a topic using AdminClient
         topic_obj = NewTopic(topic, num_partitions=1, replication_factor=1)
         futures = admin.create_topics([topic_obj])
-        
+
         # Wait for the operation to complete
         for topic_name, future in futures.items():
             try:
@@ -50,23 +50,23 @@ def main():
                 print(f"Topic '{topic_name}' created successfully")
             except Exception as e:
                 print(f"Failed to create topic '{topic_name}': {e}")
-        
+
         # Poll to ensure callbacks are processed
         admin.poll(timeout=1.0)
-    
+
     # AdminClient is automatically destroyed here, no need for manual cleanup
 
     # Example 2: Producer with context manager
     # Automatically flushes pending messages and destroys the producer
     print("\n=== Producer Context Manager Example ===")
     producer_conf = {'bootstrap.servers': broker}
-    
+
     def delivery_callback(err, msg):
         if err:
             print(f'Message failed delivery: {err}')
         else:
             print(f'Message delivered to {msg.topic()} [{msg.partition()}] @ offset {msg.offset()}')
-    
+
     with Producer(producer_conf) as producer:
         # Produce some messages
         for i in range(5):
@@ -79,9 +79,9 @@ def main():
             )
             # Poll for delivery callbacks
             producer.poll(0)
-        
+
         print(f"Produced 5 messages to topic '{topic}'")
-    
+
     # Producer automatically flushes all pending messages and destroys here
     # No need to call producer.flush() or manually clean up
 
@@ -93,11 +93,11 @@ def main():
         'group.id': 'context-manager-example-group',
         'auto.offset.reset': 'earliest'
     }
-    
+
     with Consumer(consumer_conf) as consumer:
         # Subscribe to the topic
         consumer.subscribe([topic])
-        
+
         # Consume messages
         msg_count = 0
         try:
@@ -105,7 +105,7 @@ def main():
                 msg = consumer.poll(timeout=1.0)
                 if msg is None:
                     continue
-                
+
                 if msg.error():
                     if msg.error().code() == KafkaError._PARTITION_EOF:
                         # End of partition, try next message
@@ -113,14 +113,14 @@ def main():
                     else:
                         print(f'Consumer error: {msg.error()}')
                         break
-                
+
                 print(f'Consumed message: key={msg.key().decode("utf-8")}, '
                       f'value={msg.value().decode("utf-8")}, '
                       f'partition={msg.partition()}, offset={msg.offset()}')
                 msg_count += 1
         except KeyboardInterrupt:
             print('Consumer interrupted by user')
-    
+
     # Consumer automatically calls close() here (leaves group, commits offsets)
     # No need to manually call consumer.close()
 
@@ -129,4 +129,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

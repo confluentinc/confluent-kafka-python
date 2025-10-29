@@ -114,7 +114,7 @@ def main(args):
     # If Confluent Cloud SR credentials are provided, add to config
     if args.sr_api_key and args.sr_api_secret:
         schema_registry_conf['basic.auth.user.info'] = f"{args.sr_api_key}:{args.sr_api_secret}"
-    
+
     # Use context manager for SchemaRegistryClient to ensure proper cleanup
     with SchemaRegistryClient(schema_registry_conf) as schema_registry_client:
         avro_serializer = AvroSerializer(schema_registry_client,

@@ -1160,19 +1160,19 @@ def test_producer_context_manager_basic():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     # Test __enter__ returns self
     producer = Producer(config)
     entered = producer.__enter__()
     assert entered is producer
     producer.__exit__(None, None, None)  # Clean up
-    
+
     # Test basic context manager usage
     with Producer(config) as producer:
         assert producer is not None
         producer.produce('mytopic', value=b'test message')
         producer.poll(0)
-    
+
     # Producer should be closed after exiting context
     with pytest.raises(RuntimeError, match="Producer has been closed"):
         producer.produce('mytopic', value=b'test message')
@@ -1185,7 +1185,7 @@ def test_producer_context_manager_exception_propagation():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     # Test exception propagation
     exception_caught = False
     try:
@@ -1195,9 +1195,9 @@ def test_producer_context_manager_exception_propagation():
     except ValueError as e:
         assert str(e) == "Test exception"
         exception_caught = True
-    
+
     assert exception_caught, "Exception should have propagated"
-    
+
     # Producer should be closed even after exception
     with pytest.raises(RuntimeError, match="Producer has been closed"):
         producer.produce('mytopic', value=b'test')
@@ -1210,19 +1210,19 @@ def test_producer_context_manager_exit_with_exceptions():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     producer = Producer(config)
     producer.produce('mytopic', value=b'test')
-    
+
     # Simulate exception in with block
     exc_type = ValueError
     exc_value = ValueError("Test error")
     exc_traceback = None
-    
+
     # __exit__ should cleanup and return None (propagate exception)
     result = producer.__exit__(exc_type, exc_value, exc_traceback)
     assert result is None  # None means propagate exception
-    
+
     # Producer should be closed
     with pytest.raises(RuntimeError):
         producer.produce('mytopic', value=b'test')
@@ -1235,33 +1235,33 @@ def test_producer_context_manager_after_exit():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     # Normal exit
     with Producer(config) as producer:
         producer.produce('mytopic', value=b'test')
-    
+
     # All methods should fail after context exit
     with pytest.raises(RuntimeError, match="Producer has been closed"):
         producer.produce('mytopic', value=b'test')
-    
+
     with pytest.raises(RuntimeError, match="Producer has been closed"):
         producer.flush()
-    
+
     with pytest.raises(RuntimeError, match="Producer has been closed"):
         producer.poll(0)
-    
+
     # __len__ should return 0 for closed producer
     assert len(producer) == 0
-    
+
     # Test already-closed producer edge case
     # Using __enter__ and __exit__ directly on already-closed producer
     entered = producer.__enter__()
     assert entered is producer
-    
+
     # Operations should still fail
     with pytest.raises(RuntimeError):
         producer.produce('mytopic', value=b'test')
-    
+
     # __exit__ should handle already-closed gracefully
     result = producer.__exit__(None, None, None)
     assert result is None
@@ -1274,22 +1274,22 @@ def test_producer_context_manager_multiple_instances():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     # Test multiple sequential instances
     with Producer(config) as producer1:
         producer1.produce('mytopic', value=b'message 1')
-    
+
     with Producer(config) as producer2:
         producer2.produce('mytopic', value=b'message 2')
         # Both should be independent
         assert producer1 is not producer2
-    
+
     # Both should be closed
     with pytest.raises(RuntimeError):
         producer1.produce('mytopic', value=b'test')
     with pytest.raises(RuntimeError):
         producer2.produce('mytopic', value=b'test')
-    
+
     # Test nested context managers
     with Producer(config) as producer1:
         with Producer(config) as producer2:
@@ -1298,7 +1298,7 @@ def test_producer_context_manager_multiple_instances():
             producer2.produce('mytopic', value=b'message 2')
         # producer2 should be closed, producer1 still open
         producer1.produce('mytopic', value=b'message 3')
-    
+
     # Both should be closed now
     with pytest.raises(RuntimeError):
         producer1.produce('mytopic', value=b'test')
@@ -1314,32 +1314,32 @@ def test_producer_context_manager_with_callbacks():
         'error_cb': error_cb,
         'message.timeout.ms': 10
     }
-    
+
     delivered = []
-    
+
     def on_delivery(err, msg):
         delivered.append((err, msg))
-    
+
     with Producer(config) as producer:
-        producer.produce('mytopic', 
-                       value=b'test message',
-                       callback=on_delivery)
+        producer.produce('mytopic',
+                         value=b'test message',
+                         callback=on_delivery)
         producer.poll(0)
         # Context manager should flush, triggering callbacks
-    
+
     # Callbacks should be invoked when context manager flushes
     # if broker available, message may succeed (err=None)
     # If broker unavailable, message will timeout (err with timeout/transport error)
     assert len(delivered) > 0, "Delivery callback should have been called"
     err, msg = delivered[0]
     assert msg is not None
-    
+
     # Handle both cases: broker available (err=None success) or unavailable (timeout/transport error)
     if err is None:
         # Success case - broker is available and message was delivered
         pass  # Message delivered successfully
     else:
         # Error case - broker unavailable or connection failed
-        assert err.code() in (KafkaError._MSG_TIMED_OUT, KafkaError._TRANSPORT, 
-                             KafkaError._TIMED_OUT), \
+        assert err.code() in (KafkaError._MSG_TIMED_OUT, KafkaError._TRANSPORT,
+                              KafkaError._TIMED_OUT), \
             f"Expected success (err=None) or timeout/transport error, got {err.code()}"
