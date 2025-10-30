@@ -1530,6 +1530,6 @@ class AsyncSchemaRegistryClient(object):
     def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
         from .mock_schema_registry_client import AsyncMockSchemaRegistryClient
         url = conf.get("url")
-        if url.startswith("mock://"):  # type: ignore[union-attr]
+        if url and isinstance(url, str) and url.startswith("mock://"):
             return AsyncMockSchemaRegistryClient(conf)
         return AsyncSchemaRegistryClient(conf)

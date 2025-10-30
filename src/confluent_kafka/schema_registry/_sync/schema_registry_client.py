@@ -1529,6 +1529,6 @@ class SchemaRegistryClient(object):
     def new_client(conf: dict) -> 'SchemaRegistryClient':
         from .mock_schema_registry_client import MockSchemaRegistryClient
         url = conf.get("url")
-        if url.startswith("mock://"):  # type: ignore[union-attr]
+        if url and isinstance(url, str) and url.startswith("mock://"):
             return MockSchemaRegistryClient(conf)
         return SchemaRegistryClient(conf)
