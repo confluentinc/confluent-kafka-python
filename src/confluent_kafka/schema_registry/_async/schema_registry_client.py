@@ -84,7 +84,7 @@ class _AsyncCustomOAuthClient(_AsyncBearerFieldProvider):
         self.custom_config = custom_config
 
     async def get_bearer_fields(self) -> dict:
-        return await self.custom_function(self.custom_config)  # type: ignore[misc]
+        return await self.custom_function(self.custom_config)
 
 
 class _AsyncOAuthClient(_AsyncBearerFieldProvider):
@@ -471,14 +471,13 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         if isinstance(response, Response):
             try:
                 raise SchemaRegistryError(response.status_code,
-                                        response.json().get('error_code'),
-                                        response.json().get('message'))
-            # Schema Registry may return malformed output when it hits unexpected errors
+                                          response.json().get('error_code'),
+                                          response.json().get('message'))
             except (ValueError, KeyError, AttributeError):
                 raise SchemaRegistryError(response.status_code,
-                                        -1,
-                                        "Unknown Schema Registry Error: "
-                                        + str(response.content))
+                                          -1,
+                                          "Unknown Schema Registry Error: "
+                                          + str(response.content))
         else:
             raise TypeError("Unexpected response of unsupported type: " + str(type(response)))
 

@@ -16,6 +16,18 @@ ASYNC_TO_SYNC = [
     ("tests/schema_registry/_async", "tests/schema_registry/_sync"),
 ]
 
+# Type hint patterns that should NOT have word boundaries (they contain brackets)
+TYPE_HINT_SUBS = [
+    (r'Coroutine\[Any, Any, ([^\]]+)\]', r'\1'),
+    (r'Coroutine\[None, None, ([^\]]+)\]', r'\1'),
+    (r'Awaitable\[([^\]]+)\]', r'\1'),
+    (r'AsyncIterator\[([^\]]+)\]', r'Iterator[\1]'),
+    (r'AsyncIterable\[([^\]]+)\]', r'Iterable[\1]'),
+    (r'AsyncGenerator\[([^,]+), ([^\]]+)\]', r'Generator[\1, \2, None]'),
+    (r'AsyncContextManager\[([^\]]+)\]', r'ContextManager[\1]'),
+]
+
+# Regular substitutions that need word boundaries
 SUBS = [
     ('from confluent_kafka.schema_registry.common import asyncinit', ''),
     ('@asyncinit', ''),
@@ -36,6 +48,13 @@ SUBS = [
     (r'asyncio.run\((.*)\)', r'\2'),
 ]
 
+# Compile type hint patterns without word boundaries
+COMPILED_TYPE_HINT_SUBS = [
+    (re.compile(regex), repl)
+    for regex, repl in TYPE_HINT_SUBS
+]
+
+# Compile regular patterns with word boundaries
 COMPILED_SUBS = [
     (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)
     for regex, repl in SUBS
@@ -45,6 +64,11 @@ USED_SUBS = set()
 
 
 def unasync_line(line):
+    # First apply type hint transformations (without word boundaries)
+    for regex, repl in COMPILED_TYPE_HINT_SUBS:
+        line = re.sub(regex, repl, line)
+
+    # Then apply regular transformations (with word boundaries)
     for index, (regex, repl) in enumerate(COMPILED_SUBS):
         old_line = line
         line = re.sub(regex, repl, line)

@@ -58,17 +58,17 @@ def _resolve_named_schema(
     if schema.references is not None:
         for ref in schema.references:
             if ref.subject is None or ref.version is None:
-                raise ValueError("Subject or version cannot be None")
+                raise TypeError("Subject or version cannot be None")
             referenced_schema = schema_registry_client.get_version(ref.subject, ref.version, True)
             ref_named_schemas = _resolve_named_schema(referenced_schema.schema, schema_registry_client)
             if referenced_schema.schema.schema_str is None:
-                raise ValueError("Schema string cannot be None")
+                raise TypeError("Schema string cannot be None")
 
             parsed_schema = parse_schema_with_repo(
                 referenced_schema.schema.schema_str, named_schemas=ref_named_schemas)
             named_schemas.update(ref_named_schemas)
             if ref.name is None:
-                raise ValueError("Name cannot be None")
+                raise TypeError("Name cannot be None")
             named_schemas[ref.name] = parsed_schema
     return named_schemas
 
@@ -304,7 +304,7 @@ class AvroSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -354,10 +354,10 @@ class AvroSerializer(BaseSerializer):
         parsed_schema: Any
         if self._to_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             value = self._to_dict(obj, ctx)
         else:
-            value = obj  # type: ignore[assignment]
+            value = obj
 
         if latest_schema is not None and ctx is not None and subject is not None:
             parsed_schema = self._get_parsed_schema(latest_schema.schema)
@@ -367,7 +367,7 @@ class AvroSerializer(BaseSerializer):
                                         latest_schema.schema, value, get_inline_tags(parsed_schema),
                                         field_transformer)
         else:
-            parsed_schema = self._parsed_schema  # type: ignore[assignment]
+            parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
             # write the record to the rest of the buffer
@@ -388,10 +388,10 @@ class AvroSerializer(BaseSerializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
-            raise ValueError("Prepared schema string cannot be None")
+            raise TypeError("Prepared schema string cannot be None")
         parsed_schema = parse_schema_with_repo(
             prepared_schema.schema_str, named_schemas=named_schemas)
 
@@ -641,7 +641,7 @@ class AvroDeserializer(BaseDeserializer):
 
         if self._from_dict is not None:
             if ctx is None:
-                raise ValueError("SerializationContext cannot be None")
+                raise TypeError("SerializationContext cannot be None")
             return self._from_dict(obj_dict, ctx)
 
         return obj_dict
@@ -653,10 +653,10 @@ class AvroDeserializer(BaseDeserializer):
 
         named_schemas = _resolve_named_schema(schema, self._registry)
         if schema.schema_str is None:
-            raise ValueError("Schema string cannot be None")
+            raise TypeError("Schema string cannot be None")
         prepared_schema = _schema_loads(schema.schema_str)
         if prepared_schema.schema_str is None:
-            raise ValueError("Prepared schema string cannot be None")
+            raise TypeError("Prepared schema string cannot be None")
         parsed_schema = parse_schema_with_repo(
             prepared_schema.schema_str, named_schemas=named_schemas)
 

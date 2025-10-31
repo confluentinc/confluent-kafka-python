@@ -293,7 +293,6 @@ class JSONSerializer(BaseSerializer):
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
-
         if self._schema:
             schema_dict, ref_registry = self._get_parsed_schema(self._schema)
             if schema_dict and isinstance(schema_dict, dict):
@@ -314,7 +313,7 @@ class JSONSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
