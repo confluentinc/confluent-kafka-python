@@ -1,12 +1,19 @@
 # FIPS Compliance
 
-We tested FIPS compliance for the client using OpenSSL 3.0. To use the client in FIPS-compliant mode, use OpenSSL 3.0. Older versions of OpenSSL have not been verified (although they may work).
+## FIPS 140-2 vs FIPS 140-3
+
+This client supports both FIPS 140-2 and FIPS 140-3 compliance:
+
+- **FIPS 140-2**: Use OpenSSL 3.0.x (CMVP #4282)
+- **FIPS 140-3**: Use OpenSSL 3.1.2+ (CMVP #4985)
+
+For new deployments, we recommend **FIPS 140-3** as FIPS 140-2 certificates issued after September 21, 2026 will no longer be accepted for federal procurement.
 
 ## Communication between client and Kafka cluster
 
 ### Installing client using OpenSSL and librdkafka bundled in wheels
 
-If you install this client through prebuilt wheels using `pip install confluent_kafka`, OpenSSL 3.0 is already statically linked with the librdkafka shared library. To enable this client to communicate with the Kafka cluster using the OpenSSL FIPS provider and FIPS-approved algorithms, you must enable the FIPS provider. You can find steps to enable the FIPS provider in section [Enabling FIPS provider](#enabling-fips-provider).
+If you install this client through prebuilt wheels using `pip install confluent_kafka`, OpenSSL 3.x is already statically linked with the librdkafka shared library. To enable this client to communicate with the Kafka cluster using the OpenSSL FIPS provider and FIPS-approved algorithms, you must enable the FIPS provider. You can find steps to enable the FIPS provider in section [Enabling FIPS provider](#enabling-fips-provider).
 
 You should follow the same above steps if you install this client from the source using `pip install confluent_kafka --no-binary :all:` with prebuilt librdkafka in which OpenSSL is statically linked
 
@@ -26,12 +33,12 @@ You configure OpenSSL to use the FIPS provider using the FIPS configuration in O
 
 #### Steps to build FIPS provider module
 
-You can find steps to generate the FIPS provider module in the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
+You can find steps to generate the FIPS provider module in the [README-FIPS doc](https://github.com/openssl/openssl/blob/openssl-3.1.2/README-FIPS.md)
 
 In short, you need to perform the following steps:
 
 1) Clone OpenSSL from [OpenSSL Github Repo](https://github.com/openssl/openssl)
-2) Checkout the correct version. (v3.0.8 is the current FIPS compliant version for OpenSSL 3.0 at the time of writing this doc.)
+2) Checkout the correct version. (v3.1.2 is the current FIPS 140-3 compliant version for OpenSSL 3.0 at the time of writing this doc.)
 3) Run `./Configure enable-fips`
 4) Run `make install_fips`
 
@@ -65,6 +72,10 @@ alg_section = algorithm_sect
 
 [provider_sect]
 fips = fips_sect
+base = base_sect
+
+[base_sect]
+activate = 1
 
 [algorithm_sect]
 default_properties = fips=yes
@@ -82,9 +93,9 @@ To make client (consumer, producer or admin client) FIPS compliant, you must ena
 
 ## Communication between client and Schema Registry
 
-The communication between client and Schema Registry is also FIPS compliant if the underlying python is using FIPS compliant OpenSSL. This depends on the system level OpenSSL if the python is installed in default way. To know more on how to use FIPS provider with OpenSSL, check [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html) and [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md) links. The steps are briefly described above as well.
+The communication between client and Schema Registry is also FIPS compliant if the underlying python is using FIPS compliant OpenSSL. This depends on the system level OpenSSL if the python is installed in default way. To know more on how to use FIPS provider with OpenSSL, check [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html) and [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.1.2/README-FIPS.md) links. The steps are briefly described above as well.
 
 ## References
-* [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.0.8/README-FIPS.md)
+* [Generating FIPS module and config file](https://github.com/openssl/openssl/blob/openssl-3.1.2/README-FIPS.md)
 * [How to use FIPS Module](https://www.openssl.org/docs/man3.0/man7/fips_module.html)
 * [librdkafka SSL Information](https://github.com/confluentinc/librdkafka/blob/master/INTRODUCTION.md#ssl)
