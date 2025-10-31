@@ -3,7 +3,7 @@ import sys
 import base64
 from collections import deque
 from decimal import Context, Decimal, MAX_PREC
-from typing import Set, List, Any
+from typing import Set, List, Any, Deque
 
 from google.protobuf import descriptor_pb2, any_pb2, api_pb2, empty_pb2, \
     duration_pb2, field_mask_pb2, source_context_pb2, struct_pb2, timestamp_pb2, \
@@ -57,7 +57,7 @@ if sys.version > '3':
         """
         return bytes((v,))
 else:
-    def _bytes(v: int) -> str:
+    def _bytes(v: int) -> str:  # type: ignore[misc]
         """
         Convert int to bytes
 
@@ -97,7 +97,7 @@ def _create_index_array(msg_desc: Descriptor) -> List[int]:
         ValueError: If the message descriptor is malformed.
     """
 
-    msg_idx = deque()
+    msg_idx: Deque[int] = deque()
 
     # Walk the nested MessageDescriptor tree up to the root.
     current = msg_desc
@@ -310,7 +310,7 @@ def is_map_field(fd: FieldDescriptor):
 
 
 def get_inline_tags(fd: FieldDescriptor) -> Set[str]:
-    meta = fd.GetOptions().Extensions[meta_pb2.field_meta]
+    meta = fd.GetOptions().Extensions[meta_pb2.field_meta]  # type: ignore[attr-defined]
     if meta is None:
         return set()
     else:
@@ -330,7 +330,7 @@ def _is_builtin(name: str) -> bool:
         name.startswith('google/type/')
 
 
-def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
+def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:  # type: ignore[name-defined]
     """
     Converts a Decimal to a Protobuf value.
 
@@ -343,7 +343,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
     """
     sign, digits, exp = value.as_tuple()
 
-    delta = exp + scale
+    delta = exp + scale  # type: ignore[operator]
 
     if delta < 0:
         raise ValueError(
@@ -362,7 +362,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 
     bytes = unscaled_datum.to_bytes(bytes_req, byteorder="big", signed=True)
 
-    result = decimal_pb2.Decimal()
+    result = decimal_pb2.Decimal()  # type: ignore[attr-defined]
     result.value = bytes
     result.precision = 0
     result.scale = scale
@@ -372,7 +372,7 @@ def decimal_to_protobuf(value: Decimal, scale: int) -> decimal_pb2.Decimal:
 decimal_context = Context()
 
 
-def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:
+def protobuf_to_decimal(value: decimal_pb2.Decimal) -> Decimal:  # type: ignore[name-defined]
     """
     Converts a Protobuf value to Decimal.
 
