@@ -2972,6 +2972,81 @@ static PyObject *version (PyObject *self, PyObject *args) {
 	return Py_BuildValue("s", CFL_VERSION_STR);
 }
 
+
+/****************************************************************************
+ *
+ *
+ * Partitioner functions
+ *
+ *
+ ****************************************************************************/
+
+/**
+ * @brief Type definition for librdkafka partitioner functions.
+ */
+typedef int32_t (*partitioner_func_t)(const rd_kafka_topic_t *rkt,
+                                      const void *key,
+                                      size_t keylen,
+                                      int32_t partition_cnt,
+                                      void *rkt_opaque,
+                                      void *msg_opaque);
+
+/**
+ * @brief Helper function for partitioner wrappers.
+ *
+ * Handles common argument parsing, validation, and calling of
+ * librdkafka partitioner functions.
+ *
+ * @param args Python arguments (key: bytes, partition_count: int)
+ * @param partitioner_func librdkafka partitioner function to call
+ *
+ * @returns PyObject* - Partition ID as Python int, or NULL on error
+ */
+static PyObject *partitioner_helper(PyObject *args,
+                                     partitioner_func_t partitioner_func) {
+	const char *key;
+	Py_ssize_t keylen;
+	int partition_count;
+	int32_t partition;
+
+	if (!PyArg_ParseTuple(args, "y#i", &key, &keylen, &partition_count))
+		return NULL;
+
+	if (partition_count <= 0) {
+		PyErr_Format(PyExc_ValueError,
+		             "partition_count must be > 0, got %d",
+		             partition_count);
+		return NULL;
+	}
+
+	partition = partitioner_func(NULL, key, (size_t)keylen,
+	                             partition_count, NULL, NULL);
+
+	return cfl_PyInt_FromInt(partition);
+}
+
+/**
+ * @brief Calculate partition using Murmur2 hash (Java-compatible). Deterministic.
+ */
+static PyObject *murmur2(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
+}
+
+/**
+ * @brief Calculate partition using consistent hash (CRC32). Deterministic.
+ */
+static PyObject *consistent(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
+}
+
+/**
+ * @brief Calculate partition using FNV-1a hash. Deterministic.
+ */
+static PyObject *fnv1a(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
+}
+
+
 static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
@@ -2985,6 +3060,50 @@ static PyMethodDef cimpl_methods[] = {
 	 "\n"
 	 "  :returns: version_string\n"
 	 "  :rtype: str\n"
+	 "\n"
+	},
+	{"murmur2", murmur2, METH_VARARGS,
+	 "  Calculate partition using Murmur2 hash (Java-compatible).\n"
+	 "\n"
+	 "  Deterministic function using Murmur2 hashing algorithm.\n"
+	 "  assigned to.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+	 "\n"
+	 "  Example::\n"
+	 "\n"
+	 "    partition = murmur2(b\"user_12345\", 10)\n"
+	 "\n"
+	},
+	{"consistent", consistent, METH_VARARGS,
+	 "  Calculate partition using CRC32-based consistent hash.\n"
+	 "\n"
+	 "  Deterministic function using CRC32 hashing algorithm.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+	 "\n"
+	},
+	{"fnv1a", fnv1a, METH_VARARGS,
+	 "  Calculate partition using FNV-1a hash.\n"
+	 "\n"
+	 "  Deterministic function using FNV-1a hashing algorithm.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
 	 "\n"
 	},
 	{ NULL }
