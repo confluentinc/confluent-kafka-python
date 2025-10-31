@@ -38,7 +38,7 @@ You can find steps to generate the FIPS provider module in the [README-FIPS doc]
 In short, you need to perform the following steps:
 
 1) Clone OpenSSL from [OpenSSL Github Repo](https://github.com/openssl/openssl)
-2) Checkout the correct version. (v3.1.2 is the current FIPS 140-3 compliant version for OpenSSL 3.0 at the time of writing this doc.)
+2) Checkout the correct version. (v3.1.2 is the current FIPS 140-3 compliant version for OpenSSL 3.x at the time of writing this doc.)
 3) Run `./Configure enable-fips`
 4) Run `make install_fips`
 
