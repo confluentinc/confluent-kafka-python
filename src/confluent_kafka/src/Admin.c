@@ -4536,7 +4536,16 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
+        /* Safely handle potential NULL group name from librdkafka */
+        const char *group_name = rd_kafka_group_result_name(c_group_result_response);
+        if (!group_name) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__INVALID_ARG,
+                                "Received NULL group name from librdkafka");
+                Py_DECREF(kwargs);
+                Py_DECREF(GroupResult_type);
+                return NULL;
+        }
+        cfl_PyDict_SetString(kwargs, "group_id", group_name);
 
         c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
         if(c_topic_partition_offset_list) {
