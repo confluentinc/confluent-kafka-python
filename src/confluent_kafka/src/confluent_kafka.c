@@ -3028,21 +3028,21 @@ static PyObject *partitioner_helper(PyObject *args,
 /**
  * @brief Calculate partition using Murmur2 hash (Java-compatible). Deterministic.
  */
-static PyObject *murmur2(PyObject *self, PyObject *args) {
+static PyObject *murmur2(PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
 }
 
 /**
  * @brief Calculate partition using consistent hash (CRC32). Deterministic.
  */
-static PyObject *consistent(PyObject *self, PyObject *args) {
+static PyObject *consistent(PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
 }
 
 /**
  * @brief Calculate partition using FNV-1a hash. Deterministic.
  */
-static PyObject *fnv1a(PyObject *self, PyObject *args) {
+static PyObject *fnv1a(PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
 }
 
@@ -3066,7 +3066,6 @@ static PyMethodDef cimpl_methods[] = {
 	 "  Calculate partition using Murmur2 hash (Java-compatible).\n"
 	 "\n"
 	 "  Deterministic function using Murmur2 hashing algorithm.\n"
-	 "  assigned to.\n"
 	 "\n"
 	 "  :param bytes key: The message key\n"
 	 "  :param int partition_count: Number of partitions (must be > 0)\n"
