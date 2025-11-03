@@ -408,11 +408,13 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             if self._auto_register:
                 registered_schema = await self._registry.register_schema_full_response(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
             else:
                 registered_schema = await self._registry.lookup_schema(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
 
             self._known_subjects.add(subject)
 
@@ -428,7 +430,6 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            self._schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None:
