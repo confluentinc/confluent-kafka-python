@@ -348,9 +348,16 @@ class AvroSerializer(BaseSerializer):
             parsed_schema = self._parsed_schema
 
         with _ContextStringIO() as fo:
-            # write the record to the rest of the buffer
-            schemaless_writer(fo, parsed_schema, value)
-            buffer = fo.getvalue()
+            # Check if it's a simple bytes type
+            is_bytes = (parsed_schema == "bytes" or
+                        (isinstance(parsed_schema, dict) and parsed_schema.get("type") == "bytes"))
+            if is_bytes:
+                # For simple bytes type, write value directly
+                buffer = value if isinstance(value, bytes) else value.encode()
+            else:
+                # write the record to the rest of the buffer
+                schemaless_writer(fo, parsed_schema, value)
+                buffer = fo.getvalue()
 
             if latest_schema is not None:
                 buffer = self._execute_rules_with_phase(
@@ -585,17 +592,29 @@ class AvroDeserializer(BaseDeserializer):
             reader_schema_raw = writer_schema_raw
             reader_schema = writer_schema
 
+        # Check if it's a simple bytes type
+        is_bytes = (writer_schema == "bytes" or
+                    (isinstance(writer_schema, dict) and writer_schema.get("type") == "bytes"))
+
         if migrations:
-            obj_dict = schemaless_reader(payload,
-                                         writer_schema,
-                                         None,
-                                         self._return_record_name)
+            if is_bytes:
+                # For simple bytes type, read payload directly
+                obj_dict = payload.read()
+            else:
+                obj_dict = schemaless_reader(payload,
+                                             writer_schema,
+                                             None,
+                                             self._return_record_name)
             obj_dict = self._execute_migrations(ctx, subject, migrations, obj_dict)
         else:
-            obj_dict = schemaless_reader(payload,
-                                         writer_schema,
-                                         reader_schema,
-                                         self._return_record_name)
+            if is_bytes:
+                # For simple bytes type, read payload directly
+                obj_dict = payload.read()
+            else:
+                obj_dict = schemaless_reader(payload,
+                                             writer_schema,
+                                             reader_schema,
+                                             self._return_record_name)
 
         def field_transformer(rule_ctx, field_transform, message): return (  # noqa: E731
             transform(rule_ctx, reader_schema, message, field_transform))
