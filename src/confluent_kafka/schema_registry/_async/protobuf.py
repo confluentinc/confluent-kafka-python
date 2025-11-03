@@ -271,7 +271,6 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
 
         self._registry = schema_registry_client
         self._rule_registry = rule_registry if rule_registry else RuleRegistry.get_global_instance()
-        self._schema_id = None
         self._known_subjects = set()
         self._msg_class = msg_type
         self._parsed_schemas = ParsedSchemaCache()
@@ -395,7 +394,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
+            schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
 
         elif subject not in self._known_subjects and ctx is not None:
             references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
@@ -408,11 +407,11 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             if self._auto_register:
                 registered_schema = await self._registry.register_schema_full_response(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = await self._registry.lookup_schema(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
@@ -428,7 +427,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            self._schema_id.message_indexes = self._index_array
+            schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None:
@@ -436,7 +435,7 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
                     None, latest_schema.schema, buffer, None, None)
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     async def _get_parsed_schema(self, schema: Schema) -> Tuple[descriptor_pb2.FileDescriptorProto, DescriptorPool]:
         result = self._parsed_schemas.get_parsed_schema(schema)

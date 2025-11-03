@@ -225,7 +225,6 @@ class JSONSerializer(BaseSerializer):
         self._rule_registry = (
             rule_registry if rule_registry else RuleRegistry.get_global_instance()
         )
-        self._schema_id = None
         self._known_subjects = set()
         self._parsed_schemas = ParsedSchemaCache()
         self._validators = LRUCache(1000)
@@ -324,7 +323,7 @@ class JSONSerializer(BaseSerializer):
         subject = self._subject_name_func(ctx, self._schema_name)
         latest_schema = self._get_reader_schema(subject)
         if latest_schema is not None:
-            self._schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
+            schema_id = SchemaId(JSON_TYPE, latest_schema.schema_id, latest_schema.guid)
         elif subject not in self._known_subjects:
             # Check to ensure this schema has been registered under subject_name.
             if self._auto_register:
@@ -333,11 +332,11 @@ class JSONSerializer(BaseSerializer):
                 # the initial registration.
                 registered_schema = self._registry.register_schema_full_response(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
+                schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
             else:
                 registered_schema = self._registry.lookup_schema(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
+                schema_id = SchemaId(JSON_TYPE, registered_schema.schema_id, registered_schema.guid)
 
             self._known_subjects.add(subject)
 
@@ -382,7 +381,7 @@ class JSONSerializer(BaseSerializer):
                     ctx, subject, RulePhase.ENCODING, RuleMode.WRITE,
                     None, latest_schema.schema, buffer, None, None)
 
-            return self._schema_id_serializer(buffer, ctx, self._schema_id)
+            return self._schema_id_serializer(buffer, ctx, schema_id)
 
     def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
