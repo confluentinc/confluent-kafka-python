@@ -395,7 +395,8 @@ class ProtobufSerializer(BaseSerializer):
             latest_schema = self._get_reader_schema(subject, fmt='serialized')
 
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
+            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id,
+                                       latest_schema.guid, self._index_array)
 
         elif subject not in self._known_subjects and ctx is not None:
             references = self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
@@ -408,11 +409,13 @@ class ProtobufSerializer(BaseSerializer):
             if self._auto_register:
                 registered_schema = self._registry.register_schema_full_response(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
             else:
                 registered_schema = self._registry.lookup_schema(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
 
             self._known_subjects.add(subject)
 
@@ -428,7 +431,6 @@ class ProtobufSerializer(BaseSerializer):
 
         with _ContextStringIO() as fo:
             fo.write(message.SerializeToString())
-            self._schema_id.message_indexes = self._index_array
             buffer = fo.getvalue()
 
             if latest_schema is not None:
