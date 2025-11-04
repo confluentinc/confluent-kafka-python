@@ -447,7 +447,8 @@ class _RestClient(_BaseRestClient):
         if body is not None:
             body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
-                       'Content-Type': "application/vnd.schemaregistry.v1+json"}
+                       'Content-Type': "application/vnd.schemaregistry.v1+json",
+                       'Accept-Version': "8.0"}
 
         if self.bearer_auth_credentials_source:
             self.handle_bearer_auth(headers)
@@ -1187,11 +1188,13 @@ class SchemaRegistryClient(object):
             response = self._rest_client.delete(
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
-            self._cache.remove_by_subject_version(subject_name, version)
         else:
             response = self._rest_client.delete(
                 'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
             )
+
+        # Clear cache for both soft and hard deletes to maintain consistency
+        self._cache.remove_by_subject_version(subject_name, version)
 
         return response
 

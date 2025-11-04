@@ -314,3 +314,304 @@ def test_consumer_without_groupid():
     with pytest.raises(ValueError) as ex:
         TestConsumer({'bootstrap.servers': "mybroker:9092"})
     assert ex.match('group.id must be set')
+
+
+def test_callback_exception_no_system_error():
+    """Test all consumer callbacks exception handling with separate assertions for each callback"""
+
+    # Test error_cb callback
+    error_called = []
+
+    def error_cb_that_raises(error):
+        """Error callback that raises an exception"""
+        error_called.append(error)
+        raise RuntimeError("Test exception from error_cb")
+
+    consumer1 = TestConsumer({
+        'group.id': 'test-error-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_that_raises
+    })
+
+    consumer1.subscribe(['test-topic'])
+
+    # Test error_cb callback
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer1.consume(timeout=0.1)
+
+    # Verify error_cb was called and raised the expected exception
+    assert "Test exception from error_cb" in str(exc_info.value)
+    assert len(error_called) > 0
+    consumer1.close()
+
+    # Test stats_cb callback
+    stats_called = []
+
+    def stats_cb_that_raises(stats_json):
+        """Stats callback that raises an exception"""
+        stats_called.append(stats_json)
+        raise RuntimeError("Test exception from stats_cb")
+
+    consumer2 = TestConsumer({
+        'group.id': 'test-stats-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'statistics.interval.ms': 100,  # Enable stats callback
+        'stats_cb': stats_cb_that_raises
+    })
+
+    consumer2.subscribe(['test-topic'])
+
+    # Test stats_cb callback
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer2.consume(timeout=0.2)  # Longer timeout to allow stats callback
+
+    # Verify stats_cb was called and raised the expected exception
+    assert "Test exception from stats_cb" in str(exc_info.value)
+    assert len(stats_called) > 0
+    consumer2.close()
+
+    # Test throttle_cb callback (may not be triggered in this scenario)
+    throttle_called = []
+
+    def throttle_cb_that_raises(throttle_event):
+        """Throttle callback that raises an exception"""
+        throttle_called.append(throttle_event)
+        raise RuntimeError("Test exception from throttle_cb")
+
+    consumer3 = TestConsumer({
+        'group.id': 'test-throttle-callback',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'throttle_cb': throttle_cb_that_raises
+    })
+
+    consumer3.subscribe(['test-topic'])
+
+    # Test throttle_cb callback - may not be triggered, so we'll just verify it doesn't crash
+    try:
+        consumer3.consume(timeout=0.1)
+        # If no exception is raised, that's also fine - throttle_cb may not be triggered
+        print("Throttle callback not triggered in this scenario")
+    except RuntimeError as exc_info:
+        # If throttle_cb was triggered and raised an exception, verify it
+        if "Test exception from throttle_cb" in str(exc_info.value):
+            assert len(throttle_called) > 0
+            print("Throttle callback was triggered and raised exception")
+
+    consumer3.close()
+
+
+def test_error_callback_exception_different_error_types():
+    """Test error callback with different exception types"""
+
+    def error_cb_kafka_exception(error):
+        """Error callback that raises KafkaException"""
+        raise KafkaException(error)
+
+    def error_cb_value_error(error):
+        """Error callback that raises ValueError"""
+        raise ValueError(f"Custom error: {error}")
+
+    def error_cb_runtime_error(error):
+        """Error callback that raises RuntimeError"""
+        raise RuntimeError(f"Runtime error: {error}")
+
+    # Test with KafkaException
+    consumer1 = TestConsumer({
+        'group.id': 'test-kafka-exception',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_kafka_exception
+    })
+    consumer1.subscribe(['test-topic'])
+
+    with pytest.raises(KafkaException):
+        consumer1.consume(timeout=0.1)
+    consumer1.close()
+
+    # Test with ValueError
+    consumer2 = TestConsumer({
+        'group.id': 'test-value-error',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_value_error
+    })
+    consumer2.subscribe(['test-topic'])
+
+    with pytest.raises(ValueError) as exc_info:
+        consumer2.consume(timeout=0.1)
+    assert "Custom error:" in str(exc_info.value)
+    consumer2.close()
+
+    # Test with RuntimeError
+    consumer3 = TestConsumer({
+        'group.id': 'test-runtime-error',
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'session.timeout.ms': 1000,
+        'error_cb': error_cb_runtime_error
+    })
+    consumer3.subscribe(['test-topic'])
+
+    with pytest.raises(RuntimeError) as exc_info:
+        consumer3.consume(timeout=0.1)
+    assert "Runtime error:" in str(exc_info.value)
+    consumer3.close()
+
+
+def test_consumer_context_manager_basic():
+    """Test basic Consumer context manager usage and return value"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test __enter__ returns self
+    consumer = Consumer(config)
+    entered = consumer.__enter__()
+    assert entered is consumer
+    consumer.__exit__(None, None, None)  # Clean up
+
+    # Test basic context manager usage
+    with Consumer(config) as consumer:
+        assert consumer is not None
+        consumer.subscribe(['mytopic'])
+        consumer.unsubscribe()
+
+    # Consumer should be closed after exiting context
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_exception_propagation():
+    """Test exceptions propagate and consumer is cleaned up"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test exception propagation
+    exception_caught = False
+    try:
+        with Consumer(config) as consumer:
+            consumer.subscribe(['mytopic'])
+            raise ValueError("Test exception")
+    except ValueError as e:
+        assert str(e) == "Test exception"
+        exception_caught = True
+
+    assert exception_caught, "Exception should have propagated"
+
+    # Consumer should be closed even after exception
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_exit_with_exceptions():
+    """Test __exit__ properly handles exception arguments"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    consumer = Consumer(config)
+    consumer.subscribe(['mytopic'])
+
+    # Simulate exception in with block
+    exc_type = ValueError
+    exc_value = ValueError("Test error")
+    exc_traceback = None
+
+    # __exit__ should cleanup and return None (propagate exception)
+    result = consumer.__exit__(exc_type, exc_value, exc_traceback)
+    assert result is None  # None means propagate exception
+
+    # Consumer should be closed
+    with pytest.raises(RuntimeError):
+        consumer.subscribe(['mytopic'])
+
+
+def test_consumer_context_manager_after_exit():
+    """Test Consumer behavior after context manager exit"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Normal exit
+    with Consumer(config) as consumer:
+        consumer.subscribe(['mytopic'])
+        consumer.unsubscribe()
+
+    # All methods should fail after context exit
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['mytopic'])
+
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.poll()
+
+    # close() is idempotent - calling it on already-closed consumer should not raise
+    consumer.close()  # Should succeed silently
+
+    # Test already-closed consumer edge case
+    # Using __enter__ and __exit__ directly on already-closed consumer
+    entered = consumer.__enter__()
+    assert entered is consumer
+
+    # Operations should still fail
+    with pytest.raises(RuntimeError):
+        consumer.subscribe(['mytopic'])
+
+    # __exit__ should handle already-closed gracefully
+    result = consumer.__exit__(None, None, None)
+    assert result is None
+
+
+def test_consumer_context_manager_multiple_instances():
+    """Test Consumer context manager with multiple instances"""
+    config = {
+        'group.id': 'test',
+        'socket.timeout.ms': 10,
+        'session.timeout.ms': 100
+    }
+
+    # Test multiple sequential instances
+    with Consumer(config) as consumer1:
+        consumer1.subscribe(['mytopic'])
+
+    with Consumer(config) as consumer2:
+        consumer2.subscribe(['mytopic'])
+        # Both should be independent
+        assert consumer1 is not consumer2
+
+    # Both should be closed
+    with pytest.raises(RuntimeError):
+        consumer1.subscribe(['mytopic'])
+    with pytest.raises(RuntimeError):
+        consumer2.subscribe(['mytopic'])
+
+    # Test nested context managers
+    with Consumer(config) as consumer1:
+        with Consumer(config) as consumer2:
+            assert consumer1 is not consumer2
+            consumer1.subscribe(['mytopic'])
+            consumer2.subscribe(['mytopic2'])
+        # consumer2 should be closed, consumer1 still open
+        consumer1.unsubscribe()
+
+    # Both should be closed now
+    with pytest.raises(RuntimeError):
+        consumer1.subscribe(['mytopic'])
+    with pytest.raises(RuntimeError):
+        consumer2.subscribe(['mytopic2'])

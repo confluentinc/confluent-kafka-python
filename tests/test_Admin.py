@@ -658,20 +658,20 @@ def test_describe_topics_api():
 
         # Wrong argument type
         for args in [
-                        [topic_names],
-                        ["test-topic-1"],
-                        [TopicCollection([3])],
-                        [TopicCollection(["correct", 3])],
-                        [TopicCollection([None])]
-                    ]:
+            [topic_names],
+            ["test-topic-1"],
+            [TopicCollection([3])],
+            [TopicCollection(["correct", 3])],
+            [TopicCollection([None])]
+        ]:
             with pytest.raises(TypeError):
                 a.describe_topics(*args, **kwargs)
 
         # Wrong argument value
         for args in [
-                        [TopicCollection([""])],
-                        [TopicCollection(["correct", ""])]
-                    ]:
+            [TopicCollection([""])],
+            [TopicCollection(["correct", ""])]
+        ]:
             with pytest.raises(ValueError):
                 a.describe_topics(*args, **kwargs)
 
@@ -1053,13 +1053,13 @@ def test_list_offsets_api():
 
     # Wrong option types
     for kwargs in [
-                        {
-                            "isolation_level": 10
-                        },
-                        {
-                            "request_timeout": "test"
-                        }
-                    ]:
+        {
+            "isolation_level": 10
+        },
+        {
+            "request_timeout": "test"
+        }
+    ]:
         requests = {
             TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
         }
@@ -1068,10 +1068,10 @@ def test_list_offsets_api():
 
     # Wrong option values
     for kwargs in [
-                    {
-                        "request_timeout": -1
-                    }
-                  ]:
+        {
+            "request_timeout": -1
+        }
+    ]:
         requests = {
             TopicPartition("topic1", 0, 10): OffsetSpec.earliest()
         }
@@ -1095,13 +1095,13 @@ def test_list_offsets_api():
 
         # Invalid TopicPartition
         for requests in [
-                            {
-                                TopicPartition("", 0, 10): OffsetSpec.earliest()
-                            },
-                            {
-                                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
-                            }
-                        ]:
+            {
+                TopicPartition("", 0, 10): OffsetSpec.earliest()
+            },
+            {
+                TopicPartition("correct", -1, 10): OffsetSpec.earliest()
+            }
+        ]:
             with pytest.raises(ValueError):
                 a.list_offsets(requests, **kwargs)
 
@@ -1131,33 +1131,33 @@ def test_list_offsets_api():
 
         # Key isn't a TopicPartition
         for requests in [
-                            {
-                                "not-topic-partition": OffsetSpec.latest()
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                                "not-topic-partition": OffsetSpec.latest()
-                            },
-                            {
-                                None: OffsetSpec.latest()
-                            }
-                        ]:
+            {
+                "not-topic-partition": OffsetSpec.latest()
+            },
+            {
+                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                "not-topic-partition": OffsetSpec.latest()
+            },
+            {
+                None: OffsetSpec.latest()
+            }
+        ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
 
         # Value isn't a OffsetSpec
         for requests in [
-                            {
-                                TopicPartition("topic1", 0, 10): "test"
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
-                                TopicPartition("topic1", 0, 10): "test"
-                            },
-                            {
-                                TopicPartition("topic1", 0, 10): None
-                            }
-                        ]:
+            {
+                TopicPartition("topic1", 0, 10): "test"
+            },
+            {
+                TopicPartition("topic1", 0, 10): OffsetSpec.latest(),
+                TopicPartition("topic1", 0, 10): "test"
+            },
+            {
+                TopicPartition("topic1", 0, 10): None
+            }
+        ]:
             with pytest.raises(TypeError):
                 a.list_offsets(requests, **kwargs)
 
@@ -1224,3 +1224,299 @@ def test_elect_leaders():
     with pytest.raises(KafkaException):
         a.elect_leaders(correct_election_type, [correct_partitions])\
             .result(timeout=1)
+
+
+def test_admin_callback_exception_no_system_error():
+    """Test AdminClient callbacks exception handling with different exception types"""
+
+    # Test error_cb with different exception types
+    def error_cb_kafka_exception(error):
+        raise KafkaException(KafkaError._FAIL, "KafkaException from error_cb")
+
+    def error_cb_value_error(error):
+        raise ValueError("ValueError from error_cb")
+
+    def error_cb_runtime_error(error):
+        raise RuntimeError("RuntimeError from error_cb")
+
+    # Test error_cb with KafkaException
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_kafka_exception
+    })
+
+    with pytest.raises(KafkaException) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "KafkaException from error_cb" in str(exc_info.value)
+
+    # Test error_cb with ValueError
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_value_error
+    })
+
+    with pytest.raises(ValueError) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "ValueError from error_cb" in str(exc_info.value)
+
+    # Test error_cb with RuntimeError
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'error_cb': error_cb_runtime_error
+    })
+
+    with pytest.raises(RuntimeError) as exc_info:
+        admin.poll(timeout=0.2)
+    assert "RuntimeError from error_cb" in str(exc_info.value)
+
+
+def test_admin_multiple_callbacks_different_error_types():
+    """Test AdminClient with multiple callbacks configured with different error types
+to see which one gets triggered"""
+
+    callbacks_called = []
+
+    def error_cb_that_raises_runtime(error):
+        callbacks_called.append('error_cb_runtime')
+        raise RuntimeError("RuntimeError from error_cb")
+
+    def stats_cb_that_raises_value(stats_json):
+        callbacks_called.append('stats_cb_value')
+        raise ValueError("ValueError from stats_cb")
+
+    def throttle_cb_that_raises_kafka(throttle_event):
+        callbacks_called.append('throttle_cb_kafka')
+        raise KafkaException(KafkaError._FAIL, "KafkaException from throttle_cb")
+
+    admin = AdminClient({
+        'bootstrap.servers': 'nonexistent-broker:9092',
+        'socket.timeout.ms': 100,
+        'statistics.interval.ms': 100,  # Enable stats callback
+        'error_cb': error_cb_that_raises_runtime,
+        'stats_cb': stats_cb_that_raises_value,
+        'throttle_cb': throttle_cb_that_raises_kafka
+    })
+
+    # Test that error_cb callback raises an exception (it's triggered by connection failures)
+    with pytest.raises(RuntimeError):
+        admin.poll(timeout=0.2)
+
+    # Verify that error_cb was called
+    assert len(callbacks_called) > 0
+    assert 'error_cb_runtime' in callbacks_called
+
+
+def test_admin_context_manager_basic():
+    """Test basic AdminClient context manager usage and return value"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    # Test __enter__ returns self
+    admin = AdminClient(config)
+    entered = admin.__enter__()
+    assert entered is admin
+    admin.__exit__(None, None, None)  # Clean up
+
+    # Test basic context manager usage
+    with AdminClient(config) as admin:
+        assert admin is not None
+        admin.poll(0.001)
+
+    # AdminClient should be closed after exiting context
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.poll(0.001)
+
+
+def test_admin_context_manager_exception_propagation():
+    """Test exceptions propagate and admin client is cleaned up"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    # Test exception propagation
+    exception_caught = False
+    try:
+        with AdminClient(config) as admin:
+            admin.poll(0.001)
+            raise ValueError("Test exception")
+    except ValueError as e:
+        assert str(e) == "Test exception"
+        exception_caught = True
+
+    assert exception_caught, "Exception should have propagated"
+
+    # AdminClient should be closed even after exception
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.poll(0.001)
+
+
+def test_admin_context_manager_exit_with_exceptions():
+    """Test __exit__ properly handles exception arguments"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    admin = AdminClient(config)
+    admin.poll(0.001)
+
+    # Simulate exception in with block
+    exc_type = ValueError
+    exc_value = ValueError("Test error")
+    exc_traceback = None
+
+    # __exit__ should cleanup and return None (propagate exception)
+    result = admin.__exit__(exc_type, exc_value, exc_traceback)
+    assert result is None  # None means propagate exception
+
+    # AdminClient should be closed
+    with pytest.raises(RuntimeError):
+        admin.poll(0.001)
+
+
+def test_admin_context_manager_after_exit():
+    """Test AdminClient behavior after context manager exit"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    # Normal exit
+    with AdminClient(config) as admin:
+        admin.poll(0.001)
+
+    # All methods should fail after context exit
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.poll(0.001)
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_topics([NewTopic("test", 1, 1)])
+
+    with pytest.raises(RuntimeError, match="Handle has been closed"):
+        admin.list_topics()
+
+    # __len__ should return 0 for closed admin client
+    assert len(admin) == 0
+
+    # Test already-closed admin client edge case
+    # Using __enter__ and __exit__ directly on already-closed admin
+    entered = admin.__enter__()
+    assert entered is admin
+
+    # Operations should still fail
+    with pytest.raises(RuntimeError):
+        admin.poll(0.001)
+
+    # __exit__ should handle already-closed gracefully
+    result = admin.__exit__(None, None, None)
+    assert result is None
+
+
+def test_admin_context_manager_multiple_instances():
+    """Test AdminClient context manager with multiple instances"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    # Test multiple sequential instances
+    with AdminClient(config) as admin1:
+        admin1.poll(0.001)
+
+    with AdminClient(config) as admin2:
+        admin2.poll(0.001)
+        # Both should be independent
+        assert admin1 is not admin2
+
+    # Both should be closed
+    with pytest.raises(RuntimeError):
+        admin1.poll(0.001)
+    with pytest.raises(RuntimeError):
+        admin2.poll(0.001)
+
+    # Test nested context managers
+    with AdminClient(config) as admin1:
+        with AdminClient(config) as admin2:
+            assert admin1 is not admin2
+            admin1.poll(0.001)
+            admin2.poll(0.001)
+        # admin2 should be closed, admin1 still open
+        admin1.poll(0.001)
+
+    # Both should be closed now
+    with pytest.raises(RuntimeError):
+        admin1.poll(0.001)
+    with pytest.raises(RuntimeError):
+        admin2.poll(0.001)
+
+
+def test_admin_context_manager_with_admin_apis():
+    """Test AdminClient context manager with various Admin APIs"""
+    config = {
+        'socket.timeout.ms': 10
+    }
+
+    acl_binding = AclBinding(
+        ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
+        "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW
+    )
+
+    with AdminClient(config) as admin:
+        # Test 1: create_topics API
+        fs1 = admin.create_topics([NewTopic("test_topic", 1, 1)])
+        assert fs1 is not None
+        assert "test_topic" in fs1
+
+        # Test 2: delete_topics API
+        fs2 = admin.delete_topics(["test_topic"])
+        assert fs2 is not None
+        assert "test_topic" in fs2
+
+        # Test 3: describe_configs API
+        fs3 = admin.describe_configs([ConfigResource(ResourceType.TOPIC, "test_topic")])
+        assert fs3 is not None
+
+        # Test 4: list_topics API
+        try:
+            metadata = admin.list_topics(timeout=0.2)
+            assert metadata is not None
+        except KafkaException:
+            # Expected when broker is not available
+            pass
+
+        # Test 5: list_groups API
+        try:
+            groups = admin.list_groups(timeout=0.2)
+            assert groups is not None
+        except KafkaException:
+            # Expected when broker is not available
+            pass
+
+        # Test 6: create_acls API
+        fs4 = admin.create_acls([acl_binding])
+        assert fs4 is not None
+
+        # Test 7: describe_consumer_groups API
+        fs5 = admin.describe_consumer_groups(["test-group-1"])
+        assert fs5 is not None
+        assert "test-group-1" in fs5
+
+        # Poll to process callbacks
+        admin.poll(0.001)
+
+    # Test 8: All operations should fail after context exit
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_topics([NewTopic("another_topic", 1, 1)])
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_topics(["another_topic"])
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_configs([ConfigResource(ResourceType.TOPIC, "test_topic")])
+    with pytest.raises(RuntimeError, match="Handle has been closed"):
+        admin.list_topics(timeout=0.1)
+    with pytest.raises(RuntimeError, match="Handle has been closed"):
+        admin.list_groups(timeout=0.1)
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_acls([acl_binding])
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_consumer_groups(["test-group-2"])

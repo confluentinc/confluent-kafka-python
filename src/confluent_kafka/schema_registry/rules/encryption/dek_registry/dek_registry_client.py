@@ -587,10 +587,7 @@ class DekRegistryClient(object):
             encrypted_key_material=encrypted_key_material
         )
 
-        response = self._rest_client.post('/dek-registry/v1/keks/{}/deks'
-                                          .format(urllib.parse.quote(kek_name)),
-                                          request.to_dict())
-        dek = Dek.from_dict(response)
+        dek = self._create_dek(kek_name, request)
 
         self._dek_cache.set(cache_key, dek)
         # Ensure latest dek is invalidated, such as in case of conflict (409)
@@ -610,6 +607,29 @@ class DekRegistryClient(object):
         ))
 
         return dek
+
+    def _create_dek(
+        self, kek_name: str, request: CreateDekRequest
+    ) -> Dek:
+        from confluent_kafka.schema_registry.error import SchemaRegistryError
+        if request.subject is None:
+            raise TypeError("Subject cannot be None")
+        try:
+            # Try newer API with subject in the path
+            path = '/dek-registry/v1/keks/{}/deks/{}'.format(
+                urllib.parse.quote(kek_name),
+                urllib.parse.quote(request.subject, safe='')
+            )
+            response = self._rest_client.post(path, request.to_dict())
+            return Dek.from_dict(response)
+        except SchemaRegistryError as e:
+            if e.http_status_code == 405:
+                # Try fallback to older API that does not have subject in the path
+                path = '/dek-registry/v1/keks/{}/deks'.format(urllib.parse.quote(kek_name))
+                response = self._rest_client.post(path, request.to_dict())
+                return Dek.from_dict(response)
+            else:
+                raise
 
     def get_dek(
         self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,

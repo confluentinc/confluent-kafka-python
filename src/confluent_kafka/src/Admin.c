@@ -137,6 +137,11 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         rd_kafka_error_t *err_obj = NULL;
         char errstr[512];
 
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "AdminClient has been closed");
+                return NULL;
+        }
+
         c_options = rd_kafka_AdminOptions_new(self->rk, for_api);
         if (!c_options) {
                 PyErr_Format(PyExc_RuntimeError,
@@ -3245,6 +3250,11 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "d", kws, &tmout))
                 return NULL;
 
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, "AdminClient has been closed");
+                return NULL;
+        }
+
         r = Admin_poll0(self, (int)(tmout * 1000));
         if (r == -1)
                 return NULL;
@@ -3252,6 +3262,36 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
         return cfl_PyInt_FromInt(r);
 }
 
+
+static PyObject *Admin_enter (Handle *self) {
+        Py_INCREF(self);
+        return (PyObject *)self;
+}
+
+static PyObject *Admin_exit (Handle *self, PyObject *args) {
+        PyObject *exc_type, *exc_value, *exc_traceback;
+        CallState cs;
+
+        /* __exit__ always receives 3 arguments: exception type, exception value, and traceback.
+         * All three will be None if the with block completed without an exception.
+         * We unpack them here but don't need to use them - we just clean up regardless. */
+        if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+                              &exc_type, &exc_value, &exc_traceback))
+                return NULL;
+
+        /* Cleanup: destroy admin client */
+        if (self->rk) {
+                CallState_begin(self, &cs);
+
+                rd_kafka_destroy(self->rk);
+                self->rk = NULL;
+
+                if (!CallState_end(self, &cs))
+                        return NULL;
+        }
+
+        Py_RETURN_NONE;
+}
 
 
 static PyMethodDef Admin_methods[] = {
@@ -3384,12 +3424,18 @@ static PyMethodDef Admin_methods[] = {
         { "elect_leaders", (PyCFunction)Admin_elect_leaders, METH_VARARGS | METH_KEYWORDS,
            Admin_elect_leaders_doc
         },
+        { "__enter__", (PyCFunction)Admin_enter, METH_NOARGS,
+          "Context manager entry." },
+        { "__exit__", (PyCFunction)Admin_exit, METH_VARARGS,
+          "Context manager exit. Automatically destroys the admin client." },
 
         { NULL }
 };
 
 
 static Py_ssize_t Admin__len__ (Handle *self) {
+        if (!self->rk)
+                return 0;
         return rd_kafka_outq_len(self->rk);
 }
 
@@ -4536,7 +4582,16 @@ static PyObject * Admin_c_SingleGroupResult_to_py(const rd_kafka_group_result_t 
 
         kwargs = PyDict_New();
 
-        cfl_PyDict_SetString(kwargs, "group_id", rd_kafka_group_result_name(c_group_result_response));
+        /* Safely handle potential NULL group name from librdkafka */
+        const char *group_name = rd_kafka_group_result_name(c_group_result_response);
+        if (!group_name) {
+                cfl_PyErr_Format(RD_KAFKA_RESP_ERR__FAIL,
+                                "Received NULL group name from librdkafka");
+                Py_DECREF(kwargs);
+                Py_DECREF(GroupResult_type);
+                return NULL;
+        }
+        cfl_PyDict_SetString(kwargs, "group_id", group_name);
 
         c_topic_partition_offset_list = rd_kafka_group_result_partitions(c_group_result_response);
         if(c_topic_partition_offset_list) {
@@ -4717,7 +4772,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
         PyGILState_STATE gstate;
         PyObject *error, *method, *ret;
         PyObject *result = NULL;
-        PyObject *exctype = NULL, *exc = NULL, *excargs = NULL;
+        PyObject *exc = NULL, *excargs = NULL;
 
         /* Acquire GIL */
         gstate = PyGILState_Ensure();
@@ -5093,7 +5148,7 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
                         PyObject *trace = NULL;
 
                         /* Fetch (and clear) currently raised exception */
-                        PyErr_Fetch(&exctype, &error, &trace);
+                        cfl_exception_fetch(&exc);
                         Py_XDECREF(trace);
                 }
 
@@ -5124,22 +5179,17 @@ static void Admin_background_event_cb (rd_kafka_t *rk, rd_kafka_event_t *rkev,
          * Pass an exception to future.set_exception().
          */
 
-        if (!exctype) {
+        if (!exc) {
                 /* No previous exception raised, use KafkaException */
-                exctype = KafkaException;
-                Py_INCREF(exctype);
+                excargs = PyTuple_New(1);
+                Py_INCREF(error); /* tuple's reference */
+                PyTuple_SET_ITEM(excargs, 0, error);
+                exc = ((PyTypeObject *)KafkaException)->tp_new(
+                        (PyTypeObject *)KafkaException, NULL, NULL);
+                exc->ob_type->tp_init(exc, excargs, NULL);
+                Py_DECREF(excargs);
+                Py_XDECREF(error); /* from error source above */
         }
-
-        /* Create a new exception based on exception type and error. */
-        excargs = PyTuple_New(1);
-        Py_INCREF(error); /* tuple's reference */
-        PyTuple_SET_ITEM(excargs, 0, error);
-        exc = ((PyTypeObject *)exctype)->tp_new(
-                (PyTypeObject *)exctype, NULL, NULL);
-        exc->ob_type->tp_init(exc, excargs, NULL);
-        Py_DECREF(excargs);
-        Py_XDECREF(exctype);
-        Py_XDECREF(error); /* from error source above */
 
         /*
          * Call future.set_exception(exc)

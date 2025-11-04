@@ -411,7 +411,8 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             latest_schema = await self._get_reader_schema(subject, fmt='serialized')
 
         if latest_schema is not None:
-            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id, latest_schema.guid)
+            self._schema_id = SchemaId(PROTOBUF_TYPE, latest_schema.schema_id,
+                                       latest_schema.guid, self._index_array)
 
         elif subject is not None and subject not in self._known_subjects and ctx is not None:
             references = await self._resolve_dependencies(ctx, message.DESCRIPTOR.file)
@@ -424,11 +425,13 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
             if self._auto_register:
                 registered_schema = await self._registry.register_schema_full_response(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
             else:
                 registered_schema = await self._registry.lookup_schema(
                     subject, self._schema, normalize_schemas=self._normalize_schemas)
-                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id, registered_schema.guid)
+                self._schema_id = SchemaId(PROTOBUF_TYPE, registered_schema.schema_id,
+                                           registered_schema.guid, self._index_array)
 
             self._known_subjects.add(subject)
 

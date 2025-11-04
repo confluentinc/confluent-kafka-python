@@ -26,7 +26,7 @@ import urllib
 from urllib.parse import unquote, urlparse
 
 import httpx
-from typing import List, Dict, Optional, Union, Any, Callable, Literal
+from typing import List, Dict, Optional, Union, Any, Callable, Literal, Awaitable
 
 from cachetools import Cache, TTLCache, LRUCache
 from httpx import Response
@@ -79,7 +79,7 @@ log = logging.getLogger(__name__)
 
 
 class _AsyncCustomOAuthClient(_AsyncBearerFieldProvider):
-    def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
+    def __init__(self, custom_function: Callable[[Dict], Awaitable[Dict]], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
@@ -447,7 +447,8 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         if body is not None:
             body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
-                       'Content-Type': "application/vnd.schemaregistry.v1+json"}
+                       'Content-Type': "application/vnd.schemaregistry.v1+json",
+                       'Accept-Version': "8.0"}
 
         if self.bearer_auth_credentials_source:
             await self.handle_bearer_auth(headers)
@@ -1187,11 +1188,13 @@ class AsyncSchemaRegistryClient(object):
             response = await self._rest_client.delete(
                 'subjects/{}/versions/{}?permanent=true'.format(_urlencode(subject_name), version)
             )
-            self._cache.remove_by_subject_version(subject_name, version)
         else:
             response = await self._rest_client.delete(
                 'subjects/{}/versions/{}'.format(_urlencode(subject_name), version)
             )
+
+        # Clear cache for both soft and hard deletes to maintain consistency
+        self._cache.remove_by_subject_version(subject_name, version)
 
         return response
 

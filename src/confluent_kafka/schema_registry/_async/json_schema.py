@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import io
+import logging
 import orjson
 from typing import Any, Coroutine, Union, Optional, Tuple, Callable, cast
 
@@ -46,6 +47,8 @@ __all__ = [
     'AsyncJSONSerializer',
     'AsyncJSONDeserializer'
 ]
+
+log = logging.getLogger(__name__)
 
 
 async def _resolve_named_schema(
@@ -622,6 +625,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         schema_id = SchemaId(JSON_TYPE)
         payload = self._schema_id_deserializer(data, ctx, schema_id)
 
+        # Get the writer schema: the schema that was used to serialize the date
         if self._registry is not None:
             writer_schema_raw = await self._get_writer_schema(schema_id, subject)
             writer_schema, writer_ref_registry = await self._get_parsed_schema(writer_schema_raw)
@@ -643,15 +647,19 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         # JSON documents are self-describing; no need to query schema
         obj_dict = self._json_decode(payload.read())
 
+        # Get the reader schema: the schema we now want to use to deserialize the data
         reader_schema_raw: Optional[Schema] = None
+        # Use the latest schema from schema registry if available
         if latest_schema is not None and subject is not None and writer_schema_raw is not None:
             migrations = await self._get_migrations(subject, writer_schema_raw, latest_schema, None)
             reader_schema_raw = latest_schema.schema
             reader_schema, reader_ref_registry = await self._get_parsed_schema(latest_schema.schema)
+        # Else use the schema provided to the constructor
         elif self._schema is not None:
             migrations = None
             reader_schema_raw = self._schema
             reader_schema, reader_ref_registry = self._reader_schema, self._ref_registry
+        # Else fall back to the writer schema
         else:
             migrations = None
             reader_schema_raw = writer_schema_raw
@@ -673,12 +681,22 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
                                                reader_schema_raw, obj_dict, None,
                                                field_transformer)
 
-        if self._validate and reader_schema_raw is not None and reader_schema is not None and reader_ref_registry is not None:
-            try:
-                validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
-                validator.validate(obj_dict)
-            except ValidationError as ve:
-                raise SerializationError(ve.message)
+        if self._validate:
+            if reader_schema_raw is not None and reader_schema is not None and reader_ref_registry is not None:
+                try:
+                    validator = self._get_validator(reader_schema_raw, reader_schema, reader_ref_registry)
+                    validator.validate(obj_dict)
+                except ValidationError as ve:
+                    raise SerializationError(ve.message)
+            else:
+                log.warning(
+                    "Validation was enabled but skipped due to missing schema information. "
+                    "This may indicate a schema parsing issue or misconfiguration. "
+                    "reader_schema_raw=%s, reader_schema=%s, reader_ref_registry=%s",
+                    reader_schema_raw is not None,
+                    reader_schema is not None,
+                    reader_ref_registry is not None
+                )
 
         if self._from_dict is not None:
             if ctx is None:

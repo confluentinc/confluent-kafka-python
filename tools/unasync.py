@@ -48,6 +48,19 @@ SUBS = [
     (r'asyncio.run\((.*)\)', r'\2'),
 ]
 
+# Import cleanup patterns - these need special handling to remove items from comma-separated lists
+IMPORT_CLEANUP_SUBS = [
+    # Remove Awaitable from import lists (with trailing comma and space)
+    (r'Awaitable,\s*', ''),
+    # Remove Awaitable from import lists (with leading comma and space)
+    (r',\s*Awaitable', ''),
+]
+
+COMPILED_IMPORT_CLEANUP_SUBS = [
+    (re.compile(regex), repl)
+    for regex, repl in IMPORT_CLEANUP_SUBS
+]
+
 # Compile type hint patterns without word boundaries
 COMPILED_TYPE_HINT_SUBS = [
     (re.compile(regex), repl)
@@ -74,6 +87,11 @@ def unasync_line(line):
         line = re.sub(regex, repl, line)
         if old_line != line:
             USED_SUBS.add(index)
+
+    # Finally apply import cleanup (to remove unused async-related imports)
+    for regex, repl in COMPILED_IMPORT_CLEANUP_SUBS:
+        line = re.sub(regex, repl, line)
+
     return line
 
 

@@ -216,7 +216,23 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         self, subject_prefix: Optional[str] = None, deleted: bool = False,
         deleted_only: bool = False, offset: int = 0, limit: int = -1
     ) -> List[str]:
-        return self._store.get_subjects()
+        """
+        Note: Mock implementation does not support deleted/deleted_only parameters
+        as the mock does not track deletion state.
+        """
+        subjects = self._store.get_subjects()
+
+        # Filter by prefix if provided
+        if subject_prefix is not None:
+            subjects = [s for s in subjects if s.startswith(subject_prefix)]
+
+        # Apply pagination
+        if offset > 0:
+            subjects = subjects[offset:]
+        if limit >= 0:
+            subjects = subjects[:limit]
+
+        return subjects
 
     async def delete_subject(self, subject_name: str, permanent: bool = False) -> List[int]:
         return self._store.remove_by_subject(subject_name)
@@ -255,7 +271,19 @@ class AsyncMockSchemaRegistryClient(AsyncSchemaRegistryClient):
         self, subject_name: str, deleted: bool = False, deleted_only: bool = False,
         offset: int = 0, limit: int = -1
     ) -> List[int]:
-        return self._store.get_versions(subject_name)
+        """
+        Note: Mock implementation does not support deleted/deleted_only parameters
+        as the mock does not track deletion state.
+        """
+        versions = self._store.get_versions(subject_name)
+
+        # Apply pagination
+        if offset > 0:
+            versions = versions[offset:]
+        if limit >= 0:
+            versions = versions[:limit]
+
+        return versions
 
     async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
         registered_schema = self._store.get_version(subject_name, version)
