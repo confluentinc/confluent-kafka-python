@@ -198,6 +198,22 @@ def test_avro_serialize_use_schema_id():
     assert obj == obj2
 
 
+def test_avro_serialize_bytes():
+    conf = {'url': _BASE_URL}
+    client = SchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    obj = b'\x02\x03\x04'
+    schema = 'bytes'
+    ser = AvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = ser(obj, ser_ctx)
+    assert b'\x00\x00\x00\x00\x01\x02\x03\x04' == obj_bytes
+
+    deser = AvroDeserializer(client)
+    obj2 = deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 def test_avro_serialize_nested():
     conf = {'url': _BASE_URL}
     client = SchemaRegistryClient.new_client(conf)

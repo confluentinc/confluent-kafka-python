@@ -440,7 +440,8 @@ class _RestClient(_BaseRestClient):
         if body is not None:
             body = json.dumps(body)
             headers = {'Content-Length': str(len(body)),
-                       'Content-Type': "application/vnd.schemaregistry.v1+json"}
+                       'Content-Type': "application/vnd.schemaregistry.v1+json",
+                       'Accept-Version': "8.0"}
 
         if self.bearer_auth_credentials_source:
             self.handle_bearer_auth(headers)
