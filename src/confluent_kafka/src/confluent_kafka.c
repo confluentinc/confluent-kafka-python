@@ -3028,21 +3028,21 @@ static PyObject *partitioner_helper(PyObject *args,
 /**
  * @brief Calculate partition using Murmur2 hash (Java-compatible). Deterministic.
  */
-static PyObject *murmur2(PyObject *args) {
+static PyObject *murmur2(PyObject *self, PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
 }
 
 /**
  * @brief Calculate partition using consistent hash (CRC32). Deterministic.
  */
-static PyObject *consistent(PyObject *args) {
+static PyObject *consistent(PyObject *self, PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
 }
 
 /**
  * @brief Calculate partition using FNV-1a hash. Deterministic.
  */
-static PyObject *fnv1a(PyObject *args) {
+static PyObject *fnv1a(PyObject *self, PyObject *args) {
 	return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
 }
 
