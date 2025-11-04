@@ -286,12 +286,16 @@ class _BaseRestClient(object):
                     raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
 
                 if self.bearer_auth_credentials_source == 'OAUTHBEARER':
-                    properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
-                                    'bearer.auth.issuer.endpoint.url']
-                    missing_properties = [prop for prop in properties_list if prop not in conf_copy]
+                    properties_list = ['bearer.auth.client.id',
+                                       'bearer.auth.client.secret',
+                                       'bearer.auth.scope',
+                                       'bearer.auth.issuer.endpoint.url']
+                    missing_properties = [prop for prop in properties_list
+                                          if prop not in conf_copy]
                     if missing_properties:
-                        raise ValueError("Missing required OAuth configuration properties: {}".
-                                        format(", ".join(missing_properties)))
+                        raise ValueError(
+                            "Missing required OAuth configuration properties: {}".
+                            format(", ".join(missing_properties)))
 
                     self.client_id = conf_copy.pop('bearer.auth.client.id')
                     if not isinstance(self.client_id, string_type):
@@ -299,7 +303,9 @@ class _BaseRestClient(object):
 
                     self.client_secret = conf_copy.pop('bearer.auth.client.secret')
                     if not isinstance(self.client_secret, string_type):
-                        raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
+                        raise TypeError(
+                            "bearer.auth.client.secret must be a str, not " +
+                            str(type(self.client_secret)))
 
                     self.scope = conf_copy.pop('bearer.auth.scope')
                     if not isinstance(self.scope, string_type):
@@ -315,13 +321,16 @@ class _BaseRestClient(object):
                         self.token_endpoint, logical_cluster, identity_pool,
                         self.max_retries, self.retries_wait_ms,
                         self.retries_max_wait_ms)
-                else: # STATIC_TOKEN
+                else:  # STATIC_TOKEN
                     if 'bearer.auth.token' not in conf_copy:
                         raise ValueError("Missing bearer.auth.token")
                     static_token = conf_copy.pop('bearer.auth.token')
-                    self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
+                    self.bearer_field_provider = _StaticFieldProvider(
+                        static_token, logical_cluster, identity_pool)
                     if not isinstance(static_token, string_type):
-                        raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
+                        raise TypeError(
+                            "bearer.auth.token must be a str, not " +
+                            str(type(static_token)))
             elif self.bearer_auth_credentials_source == 'CUSTOM':
                 custom_bearer_properties = ['bearer.auth.custom.provider.function',
                                             'bearer.auth.custom.provider.config']
@@ -651,7 +660,7 @@ class SchemaRegistryClient(object):
 
         registered_schema = self.register_schema_full_response(
             subject_name, schema, normalize_schemas=normalize_schemas)
-        return registered_schema.schema_id # type: ignore[return-value]
+        return registered_schema.schema_id  # type: ignore[return-value]
 
     def register_schema_full_response(
         self, subject_name: str, schema: 'Schema',

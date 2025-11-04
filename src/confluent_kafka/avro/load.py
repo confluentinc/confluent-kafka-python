@@ -54,4 +54,4 @@ try:
     schema.UnionSchema.__hash__ = _hash_func  # type: ignore[method-assign]
 
 except ImportError:
-    schema = None # type: ignore[assignment]
+    schema = None  # type: ignore[assignment]

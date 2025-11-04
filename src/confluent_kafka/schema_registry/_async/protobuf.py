@@ -376,7 +376,10 @@ class AsyncProtobufSerializer(AsyncBaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:  # type: ignore[override]
+    def __call__(  # type: ignore[override]
+        self, message: Message,
+        ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(message, ctx)
 
     async def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -587,10 +590,15 @@ class AsyncProtobufDeserializer(AsyncBaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
+    def __call__(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__deserialize(data, ctx)
 
-    async def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __deserialize(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.

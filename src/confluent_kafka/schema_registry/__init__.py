@@ -94,7 +94,9 @@ def topic_subject_name_strategy(ctx: Optional[SerializationContext], record_name
     return ctx.topic + "-" + ctx.field
 
 
-def topic_record_subject_name_strategy(ctx: Optional[SerializationContext], record_name: Optional[str]) -> Optional[str]:
+def topic_record_subject_name_strategy(
+        ctx: Optional[SerializationContext],
+        record_name: Optional[str]) -> Optional[str]:
     """
     Constructs a subject name in the form of {topic}-{record_name}.
 

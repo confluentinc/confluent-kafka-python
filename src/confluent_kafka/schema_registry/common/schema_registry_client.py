@@ -22,8 +22,7 @@ from attrs import field as _attrs_field
 from collections import defaultdict
 from enum import Enum
 from threading import Lock
-from typing import List, Dict, Type, TypeVar, Union, \
-    cast, Optional, Any, Tuple
+from typing import List, Dict, Type, TypeVar, cast, Optional, Any, Tuple
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',
@@ -65,6 +64,7 @@ class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     async def get_bearer_fields(self) -> dict:
         raise NotImplementedError
+
 
 class _StaticFieldProvider(_BearerFieldProvider):
     """Synchronous static token bearer field provider."""

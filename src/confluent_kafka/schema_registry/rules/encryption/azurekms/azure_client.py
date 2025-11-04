@@ -13,8 +13,6 @@
 # limitations under the License.
 """A client for Google Cloud KMS."""
 
-from typing import Optional
-
 import tink
 from azure.core.credentials import TokenCredential
 from azure.keyvault.keys.crypto import CryptographyClient, EncryptionAlgorithm

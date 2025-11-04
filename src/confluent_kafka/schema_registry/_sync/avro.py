@@ -16,7 +16,7 @@
 # limitations under the License.
 import io
 import json
-from typing import Any, Coroutine, Dict, Union, Optional, Callable, cast
+from typing import Any, Dict, Union, Optional, Callable, cast
 
 from fastavro import schemaless_reader, schemaless_writer
 
@@ -304,7 +304,10 @@ class AvroSerializer(BaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
+    def __call__(  # type: ignore[override]
+        self, obj: object,
+        ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__serialize(obj, ctx)
 
     def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -558,7 +561,10 @@ class AvroDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Union[dict, object, None]:
+    def __call__(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None
+    ) -> Union[dict, object, None]:
         return self.__deserialize(data, ctx)
 
     def __deserialize(
@@ -601,7 +607,8 @@ class AvroDeserializer(BaseDeserializer):
         writer_schema_raw = self._get_writer_schema(schema_id, subject)
         writer_schema = self._get_parsed_schema(writer_schema_raw)
         if subject is None:
-            subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
+            subject = (self._subject_name_func(ctx, writer_schema.get("name"))  # type: ignore[union-attr]
+                       if ctx else None)
             if subject is not None:
                 latest_schema = self._get_reader_schema(subject)
 

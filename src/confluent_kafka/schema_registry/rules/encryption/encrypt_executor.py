@@ -352,7 +352,7 @@ class EncryptionExecutorTransform(object):
             dek = self._executor.client.register_dek(
                 key.kek_name,
                 key.subject,
-                encrypted_dek_str, # type: ignore[arg-type]
+                encrypted_dek_str,  # type: ignore[arg-type]
                 key.algorithm,
                 key.version)
             return dek

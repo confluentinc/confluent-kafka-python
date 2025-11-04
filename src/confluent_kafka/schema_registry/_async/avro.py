@@ -304,7 +304,10 @@ class AsyncAvroSerializer(AsyncBaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:  # type: ignore[override]
+    def __call__(  # type: ignore[override]
+        self, obj: object,
+        ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(obj, ctx)
 
     async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -558,7 +561,10 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Union[dict, object, None]]:
+    def __call__(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Union[dict, object, None]]:
         return self.__deserialize(data, ctx)
 
     async def __deserialize(
@@ -601,7 +607,8 @@ class AsyncAvroDeserializer(AsyncBaseDeserializer):
         writer_schema_raw = await self._get_writer_schema(schema_id, subject)
         writer_schema = await self._get_parsed_schema(writer_schema_raw)
         if subject is None:
-            subject = self._subject_name_func(ctx, writer_schema.get("name")) if ctx else None  # type: ignore[union-attr]
+            subject = (self._subject_name_func(ctx, writer_schema.get("name"))  # type: ignore[union-attr]
+                       if ctx else None)
             if subject is not None:
                 latest_schema = await self._get_reader_schema(subject)
 

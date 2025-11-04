@@ -16,7 +16,7 @@
 # limitations under the License.
 
 import io
-from typing import Any, Coroutine, Set, List, Union, Optional, Tuple, Callable, cast
+from typing import Any, Set, List, Union, Optional, Tuple, Callable, cast
 
 from google.protobuf import json_format, descriptor_pb2
 from google.protobuf.descriptor_pool import DescriptorPool
@@ -376,7 +376,10 @@ class ProtobufSerializer(BaseSerializer):
                                                reference.version))
         return schema_refs
 
-    def __call__(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:  # type: ignore[override]
+    def __call__(  # type: ignore[override]
+        self, message: Message,
+        ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__serialize(message, ctx)
 
     def __serialize(self, message: Message, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -587,10 +590,15 @@ class ProtobufDeserializer(BaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __call__(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None
+    ) -> Optional[bytes]:
         return self.__deserialize(data, ctx)
 
-    def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    def __deserialize(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a serialized protobuf message with Confluent Schema Registry
         framing.

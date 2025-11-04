@@ -316,7 +316,10 @@ class AsyncJSONSerializer(AsyncBaseSerializer):
 
     __init__ = __init_impl
 
-    def __call__(self, obj: object, ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:  # type: ignore[override]
+    def __call__(  # type: ignore[override]
+        self, obj: object,
+        ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__serialize(obj, ctx)
 
     async def __serialize(self, obj: object, ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
@@ -593,10 +596,15 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
 
     __init__ = __init_impl
 
-    def __call__(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Coroutine[Any, Any, Optional[bytes]]:
+    def __call__(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None
+    ) -> Coroutine[Any, Any, Optional[bytes]]:
         return self.__deserialize(data, ctx)
 
-    async def __deserialize(self, data: Optional[bytes], ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
+    async def __deserialize(
+            self, data: Optional[bytes],
+            ctx: Optional[SerializationContext] = None) -> Optional[bytes]:
         """
         Deserialize a JSON encoded record with Confluent Schema Registry framing to
         a dict, or object instance according to from_dict if from_dict is specified.
@@ -701,7 +709,7 @@ class AsyncJSONDeserializer(AsyncBaseDeserializer):
         if self._from_dict is not None:
             if ctx is None:
                 raise TypeError("SerializationContext cannot be None")
-            return self._from_dict(obj_dict, ctx) # type: ignore[return-value]
+            return self._from_dict(obj_dict, ctx)  # type: ignore[return-value]
 
         return obj_dict
 

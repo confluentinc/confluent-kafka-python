@@ -47,6 +47,7 @@ DEFAULT_SPEC = referencing.jsonschema.DRAFT7  # type: ignore[attr-defined]
 
 log = logging.getLogger(__name__)
 
+
 class _ContextStringIO(BytesIO):
     """
     Wrapper to allow use of StringIO via 'with' constructs.
@@ -118,8 +119,9 @@ def transform(
         if props is not None:
             for prop_name, prop_schema in props.items():
                 if isinstance(prop_schema, dict):
-                    _transform_field(ctx, path, prop_name, message,
-                                    prop_schema, ref_registry, ref_resolver, field_transform)
+                    _transform_field(
+                        ctx, path, prop_name, message,
+                        prop_schema, ref_registry, ref_resolver, field_transform)
         return message
     if schema_type in (FieldType.ENUM, FieldType.STRING, FieldType.INT, FieldType.DOUBLE, FieldType.BOOLEAN):
         if field_ctx is not None:
@@ -184,7 +186,7 @@ def _validate_subschemas(
     message: JsonMessage,
     registry: Registry,
     resolver: Resolver,
-)-> Optional[JsonSchema]:
+) -> Optional[JsonSchema]:
     """
     Validate the message against the subschemas.
     Args:

@@ -54,6 +54,10 @@ IMPORT_CLEANUP_SUBS = [
     (r'Awaitable,\s*', ''),
     # Remove Awaitable from import lists (with leading comma and space)
     (r',\s*Awaitable', ''),
+    # Remove Coroutine from import lists (with trailing comma and space)
+    (r'Coroutine,\s*', ''),
+    # Remove Coroutine from import lists (with leading comma and space)
+    (r',\s*Coroutine', ''),
 ]
 
 COMPILED_IMPORT_CLEANUP_SUBS = [
