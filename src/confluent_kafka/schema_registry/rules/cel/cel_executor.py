@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import datetime
+import logging
 import uuid
 
 import celpy
@@ -32,6 +33,9 @@ from confluent_kafka.schema_registry.serde import RuleExecutor, RuleContext, \
     FieldContext
 
 from google.protobuf import message
+
+
+log = logging.getLogger(__name__)
 
 # A date logical type annotates an Avro int, where the int stores the number
 # of days from the unix epoch, 1 January 1970 (ISO calendar).
@@ -54,6 +58,9 @@ class CelExecutor(RuleExecutor):
 
     def execute(self, ctx: RuleContext, msg: Any, args: Any) -> Any:
         expr = ctx.rule.expr
+        if expr is None:
+            log.warning("Expression from rule %s is None", ctx.rule.name)
+            return msg
         try:
             index = expr.index(";")
         except ValueError:
@@ -72,7 +79,13 @@ class CelExecutor(RuleExecutor):
 
     def execute_rule(self, ctx: RuleContext, expr: str, args: Any) -> Any:
         schema = ctx.target
-        script_type = ctx.target.schema_type
+        if schema is None:
+            # TODO: check whether we should raise or return fallback
+            raise ValueError("Target schema is None")
+        script_type = schema.schema_type
+        if script_type is None:
+            # TODO: check whether we should raise or return fallback
+            raise ValueError("Target schema type is None")
         prog = self._cache.get_program(expr, script_type, schema)
         if prog is None:
             ast = self._env.compile(expr)
@@ -158,7 +171,7 @@ def _dict_to_cel(val: dict) -> Dict[str, celtypes.Value]:
     result = celtypes.MapType()
     for key, val in val.items():
         result[key] = _value_to_cel(val)
-    return result
+    return result  # type: ignore[return-value]
 
 
 def _array_to_cel(val: list) -> List[celtypes.Value]:
