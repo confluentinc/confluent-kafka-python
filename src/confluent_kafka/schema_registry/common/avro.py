@@ -158,6 +158,8 @@ def _transform_field(
             get_type(field_type),
             None
         )
+        if not name in message:
+            return
         value = message[name]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
