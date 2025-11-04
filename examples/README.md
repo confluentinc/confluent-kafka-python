@@ -8,6 +8,7 @@ The scripts in this directory provide various examples of using the Confluent Py
 
 - [producer.py](producer.py): Read lines from stdin and send them to a Kafka topic.
 - [consumer.py](consumer.py): Read messages from a Kafka topic.
+- [context_manager_example.py](context_manager_example.py): **Demonstrates context manager (`with` statement) usage for Producer, Consumer, and AdminClient** - shows automatic resource cleanup when exiting the `with` block.
 
 ## AsyncIO Examples
 
