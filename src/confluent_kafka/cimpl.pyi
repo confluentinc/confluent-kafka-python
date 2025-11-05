@@ -34,14 +34,13 @@ TODO: Consider migrating to Cython in the future to eliminate this dual
 maintenance burden and get type hints directly from the implementation.
 """
 
-from typing import Any, Optional, Callable, List, Tuple, Dict, Union, overload, TYPE_CHECKING
+from typing import Any, Optional, Callable, List, Tuple, Dict, Union, overload
 from typing_extensions import Self, Literal
 import builtins
 
-from ._types import HeadersType
+from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
 
-if TYPE_CHECKING:
-    from confluent_kafka.admin._metadata import ClusterMetadata, GroupMetadata
+from ._types import HeadersType
 
 # Callback types with proper class references (defined locally to avoid circular imports)
 DeliveryCallback = Callable[[Optional['KafkaError'], 'Message'], None]
