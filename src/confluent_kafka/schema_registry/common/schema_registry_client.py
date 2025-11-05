@@ -164,7 +164,7 @@ class _SchemaCache(object):
             self.rs_version_index[subject][version] = registered_schema
             self.rs_schema_index[subject][schema] = registered_schema
 
-    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional[Tuple[str, 'Schema']]:
+    def get_schema_by_id(self, subject: Optional[str], schema_id: int) -> Optional[Tuple[str, 'Schema']]:
         """
         Get the schema instance associated with schema id from the cache.
 
