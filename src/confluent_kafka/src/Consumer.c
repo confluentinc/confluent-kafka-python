@@ -120,8 +120,8 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -221,8 +221,8 @@ static PyObject *Consumer_unsubscribe (Handle *self,
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -243,8 +243,8 @@ static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -272,8 +272,8 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -302,8 +302,8 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -327,8 +327,8 @@ static PyObject *Consumer_incremental_unassign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -358,8 +358,8 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -472,8 +472,8 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         PyThreadState *thread_state;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -610,8 +610,8 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	static char *kws[] = { "message", "offsets", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -697,8 +697,8 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -739,8 +739,8 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -830,7 +830,7 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -889,8 +889,8 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
         PyObject *rtup;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -952,8 +952,8 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -994,8 +994,8 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         CallState cs;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1032,8 +1032,8 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
         char *memberid;
         PyObject *memberidobj;
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1066,8 +1066,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         Py_ssize_t i, n;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1176,8 +1176,8 @@ Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         PyObject *obj;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
