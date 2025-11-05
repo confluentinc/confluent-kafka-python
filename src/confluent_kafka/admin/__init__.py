@@ -649,11 +649,9 @@ class AdminClient (_AdminClientImpl):
         return futmap
 
     def list_topics(self, *args: Any, **kwargs: Any) -> ClusterMetadata:
-
         return super(AdminClient, self).list_topics(*args, **kwargs)
 
     def list_groups(self, *args: Any, **kwargs: Any) -> List[GroupMetadata]:
-
         return super(AdminClient, self).list_groups(*args, **kwargs)
 
     def create_partitions(  # type: ignore[override]

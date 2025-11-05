@@ -16,6 +16,18 @@ ASYNC_TO_SYNC = [
     ("tests/schema_registry/_async", "tests/schema_registry/_sync"),
 ]
 
+# Type hint patterns that should NOT have word boundaries (they contain brackets)
+TYPE_HINT_SUBS = [
+    (r'Coroutine\[Any, Any, ([^\]]+)\]', r'\1'),
+    (r'Coroutine\[None, None, ([^\]]+)\]', r'\1'),
+    (r'Awaitable\[([^\]]+)\]', r'\1'),
+    (r'AsyncIterator\[([^\]]+)\]', r'Iterator[\1]'),
+    (r'AsyncIterable\[([^\]]+)\]', r'Iterable[\1]'),
+    (r'AsyncGenerator\[([^,]+), ([^\]]+)\]', r'Generator[\1, \2, None]'),
+    (r'AsyncContextManager\[([^\]]+)\]', r'ContextManager[\1]'),
+]
+
+# Regular substitutions that need word boundaries
 SUBS = [
     ('from confluent_kafka.schema_registry.common import asyncinit', ''),
     ('@asyncinit', ''),
@@ -36,6 +48,30 @@ SUBS = [
     (r'asyncio.run\((.*)\)', r'\2'),
 ]
 
+# Import cleanup patterns - these need special handling to remove items from comma-separated lists
+IMPORT_CLEANUP_SUBS = [
+    # Remove Awaitable from import lists (with trailing comma and space)
+    (r'Awaitable,\s*', ''),
+    # Remove Awaitable from import lists (with leading comma and space)
+    (r',\s*Awaitable', ''),
+    # Remove Coroutine from import lists (with trailing comma and space)
+    (r'Coroutine,\s*', ''),
+    # Remove Coroutine from import lists (with leading comma and space)
+    (r',\s*Coroutine', ''),
+]
+
+COMPILED_IMPORT_CLEANUP_SUBS = [
+    (re.compile(regex), repl)
+    for regex, repl in IMPORT_CLEANUP_SUBS
+]
+
+# Compile type hint patterns without word boundaries
+COMPILED_TYPE_HINT_SUBS = [
+    (re.compile(regex), repl)
+    for regex, repl in TYPE_HINT_SUBS
+]
+
+# Compile regular patterns with word boundaries
 COMPILED_SUBS = [
     (re.compile(r'(^|\b)' + regex + r'($|\b)'), repl)
     for regex, repl in SUBS
@@ -45,11 +81,21 @@ USED_SUBS = set()
 
 
 def unasync_line(line):
+    # First apply type hint transformations (without word boundaries)
+    for regex, repl in COMPILED_TYPE_HINT_SUBS:
+        line = re.sub(regex, repl, line)
+
+    # Then apply regular transformations (with word boundaries)
     for index, (regex, repl) in enumerate(COMPILED_SUBS):
         old_line = line
         line = re.sub(regex, repl, line)
         if old_line != line:
             USED_SUBS.add(index)
+
+    # Finally apply import cleanup (to remove unused async-related imports)
+    for regex, repl in COMPILED_IMPORT_CLEANUP_SUBS:
+        line = re.sub(regex, repl, line)
+
     return line
 
 
@@ -189,5 +235,37 @@ if __name__ == '__main__':
         '--check',
         action='store_true',
         help='Exit with non-zero status if sync directory has any differences')
+    parser.add_argument(
+        '--file',
+        type=str,
+        help='Convert a single file instead of all directories')
     args = parser.parse_args()
-    unasync(check=args.check)
+
+    if args.file:
+        # Single file mode
+        async_file = args.file
+        if not os.path.exists(async_file):
+            print(f"Error: File {async_file} does not exist")
+            sys.exit(1)
+
+        # Determine the sync file path
+        sync_file = None
+        for async_dir, sync_dir in ASYNC_TO_SYNC:
+            if async_file.startswith(async_dir):
+                sync_file = async_file.replace(async_dir, sync_dir, 1)
+                break
+
+        if not sync_file:
+            print(f"Error: File {async_file} is not in a known async directory")
+            print(f"Known async directories: {[d[0] for d in ASYNC_TO_SYNC]}")
+            sys.exit(1)
+
+        # Create the output directory if needed
+        os.makedirs(os.path.dirname(sync_file), exist_ok=True)
+
+        print(f"Converting: {async_file} -> {sync_file}")
+        unasync_file(async_file, sync_file)
+        print("✅ Done!")
+    else:
+        # Directory mode (original behavior)
+        unasync(check=args.check)

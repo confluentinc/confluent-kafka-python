@@ -26,9 +26,9 @@ import urllib
 from urllib.parse import unquote, urlparse
 
 import httpx
-from typing import List, Dict, Optional, Union, Any, Callable
+from typing import List, Dict, Optional, Union, Any, Callable, Literal, Awaitable
 
-from cachetools import TTLCache, LRUCache
+from cachetools import Cache, TTLCache, LRUCache
 from httpx import Response
 
 from authlib.integrations.httpx_client import AsyncOAuth2Client
@@ -40,11 +40,11 @@ from confluent_kafka.schema_registry.common.schema_registry_client import (
     ServerConfig,
     is_success,
     is_retriable,
-    _BearerFieldProvider,
+    _AsyncBearerFieldProvider,
     full_jitter,
     _SchemaCache,
     Schema,
-    _StaticFieldProvider,
+    _AsyncStaticFieldProvider,
 )
 
 __all__ = [
@@ -65,10 +65,10 @@ __all__ = [
 # six: https://pypi.org/project/six/
 # compat file : https://github.com/psf/requests/blob/master/requests/compat.py
 try:
-    string_type = basestring  # noqa
+    string_type = basestring  # type: ignore[name-defined]  # noqa
 
     def _urlencode(value: str) -> str:
-        return urllib.quote(value, safe='')
+        return urllib.quote(value, safe='')  # type: ignore[attr-defined]
 except NameError:
     string_type = str
 
@@ -78,8 +78,8 @@ except NameError:
 log = logging.getLogger(__name__)
 
 
-class _AsyncCustomOAuthClient(_BearerFieldProvider):
-    def __init__(self, custom_function: Callable[[Dict], Dict], custom_config: dict):
+class _AsyncCustomOAuthClient(_AsyncBearerFieldProvider):
+    def __init__(self, custom_function: Callable[[Dict], Awaitable[Dict]], custom_config: dict):
         self.custom_function = custom_function
         self.custom_config = custom_config
 
@@ -87,7 +87,7 @@ class _AsyncCustomOAuthClient(_BearerFieldProvider):
         return await self.custom_function(self.custom_config)
 
 
-class _AsyncOAuthClient(_BearerFieldProvider):
+class _AsyncOAuthClient(_AsyncBearerFieldProvider):
     def __init__(self, client_id: str, client_secret: str, scope: str, token_endpoint: str, logical_cluster: str,
                  identity_pool: str, max_retries: int, retries_wait_ms: int, retries_max_wait_ms: int):
         self.token = None
@@ -108,6 +108,9 @@ class _AsyncOAuthClient(_BearerFieldProvider):
         }
 
     def token_expired(self) -> bool:
+        if self.token is None:
+            raise ValueError("Token is not set")
+
         expiry_window = self.token['expires_in'] * self.token_expiry_threshold
 
         return self.token['expires_at'] < time.time() + expiry_window
@@ -115,7 +118,8 @@ class _AsyncOAuthClient(_BearerFieldProvider):
     async def get_access_token(self) -> str:
         if not self.token or self.token_expired():
             await self.generate_access_token()
-
+        if self.token is None:
+            raise ValueError("Token is not set after the attempt to generate it")
         return self.token['access_token']
 
     async def generate_access_token(self) -> None:
@@ -227,7 +231,7 @@ class _AsyncBaseRestClient(object):
         if cache_capacity is not None:
             if not isinstance(cache_capacity, (int, float)):
                 raise TypeError("cache.capacity must be a number, not " + str(type(cache_capacity)))
-            self.cache_capacity = cache_capacity
+            self.cache_capacity = int(cache_capacity)
 
         self.cache_latest_ttl_sec = None
         cache_latest_ttl_sec = conf_copy.pop('cache.latest.ttl.sec', None)
@@ -241,7 +245,7 @@ class _AsyncBaseRestClient(object):
         if max_retries is not None:
             if not isinstance(max_retries, (int, float)):
                 raise TypeError("max.retries must be a number, not " + str(type(max_retries)))
-            self.max_retries = max_retries
+            self.max_retries = int(max_retries)
 
         self.retries_wait_ms = 1000
         retries_wait_ms = conf_copy.pop('retries.wait.ms', None)
@@ -249,7 +253,7 @@ class _AsyncBaseRestClient(object):
             if not isinstance(retries_wait_ms, (int, float)):
                 raise TypeError("retries.wait.ms must be a number, not "
                                 + str(type(retries_wait_ms)))
-            self.retries_wait_ms = retries_wait_ms
+            self.retries_wait_ms = int(retries_wait_ms)
 
         self.retries_max_wait_ms = 20000
         retries_max_wait_ms = conf_copy.pop('retries.max.wait.ms', None)
@@ -257,11 +261,11 @@ class _AsyncBaseRestClient(object):
             if not isinstance(retries_max_wait_ms, (int, float)):
                 raise TypeError("retries.max.wait.ms must be a number, not "
                                 + str(type(retries_max_wait_ms)))
-            self.retries_max_wait_ms = retries_max_wait_ms
+            self.retries_max_wait_ms = int(retries_max_wait_ms)
 
-        self.bearer_field_provider = None
         logical_cluster = None
         identity_pool = None
+        self.bearer_field_provider: Optional[_AsyncBearerFieldProvider] = None
         self.bearer_auth_credentials_source = conf_copy.pop('bearer.auth.credentials.source', None)
         if self.bearer_auth_credentials_source is not None:
             self.auth = None
@@ -281,43 +285,52 @@ class _AsyncBaseRestClient(object):
                 if not isinstance(identity_pool, str):
                     raise TypeError("identity pool id must be a str, not " + str(type(identity_pool)))
 
-            if self.bearer_auth_credentials_source == 'OAUTHBEARER':
-                properties_list = ['bearer.auth.client.id', 'bearer.auth.client.secret', 'bearer.auth.scope',
-                                   'bearer.auth.issuer.endpoint.url']
-                missing_properties = [prop for prop in properties_list if prop not in conf_copy]
-                if missing_properties:
-                    raise ValueError("Missing required OAuth configuration properties: {}".
-                                     format(", ".join(missing_properties)))
+                if self.bearer_auth_credentials_source == 'OAUTHBEARER':
+                    properties_list = ['bearer.auth.client.id',
+                                       'bearer.auth.client.secret',
+                                       'bearer.auth.scope',
+                                       'bearer.auth.issuer.endpoint.url']
+                    missing_properties = [prop for prop in properties_list
+                                          if prop not in conf_copy]
+                    if missing_properties:
+                        raise ValueError(
+                            "Missing required OAuth configuration properties: {}".
+                            format(", ".join(missing_properties)))
 
-                self.client_id = conf_copy.pop('bearer.auth.client.id')
-                if not isinstance(self.client_id, string_type):
-                    raise TypeError("bearer.auth.client.id must be a str, not " + str(type(self.client_id)))
+                    self.client_id = conf_copy.pop('bearer.auth.client.id')
+                    if not isinstance(self.client_id, string_type):
+                        raise TypeError("bearer.auth.client.id must be a str, not " + str(type(self.client_id)))
 
-                self.client_secret = conf_copy.pop('bearer.auth.client.secret')
-                if not isinstance(self.client_secret, string_type):
-                    raise TypeError("bearer.auth.client.secret must be a str, not " + str(type(self.client_secret)))
+                    self.client_secret = conf_copy.pop('bearer.auth.client.secret')
+                    if not isinstance(self.client_secret, string_type):
+                        raise TypeError(
+                            "bearer.auth.client.secret must be a str, not " +
+                            str(type(self.client_secret)))
 
-                self.scope = conf_copy.pop('bearer.auth.scope')
-                if not isinstance(self.scope, string_type):
-                    raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
+                    self.scope = conf_copy.pop('bearer.auth.scope')
+                    if not isinstance(self.scope, string_type):
+                        raise TypeError("bearer.auth.scope must be a str, not " + str(type(self.scope)))
 
-                self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
-                if not isinstance(self.token_endpoint, string_type):
-                    raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
-                                    + str(type(self.token_endpoint)))
+                    self.token_endpoint = conf_copy.pop('bearer.auth.issuer.endpoint.url')
+                    if not isinstance(self.token_endpoint, string_type):
+                        raise TypeError("bearer.auth.issuer.endpoint.url must be a str, not "
+                                        + str(type(self.token_endpoint)))
 
-                self.bearer_field_provider = _AsyncOAuthClient(
-                    self.client_id, self.client_secret, self.scope,
-                    self.token_endpoint, logical_cluster, identity_pool,
-                    self.max_retries, self.retries_wait_ms,
-                    self.retries_max_wait_ms)
-            elif self.bearer_auth_credentials_source == 'STATIC_TOKEN':
-                if 'bearer.auth.token' not in conf_copy:
-                    raise ValueError("Missing bearer.auth.token")
-                static_token = conf_copy.pop('bearer.auth.token')
-                self.bearer_field_provider = _StaticFieldProvider(static_token, logical_cluster, identity_pool)
-                if not isinstance(static_token, string_type):
-                    raise TypeError("bearer.auth.token must be a str, not " + str(type(static_token)))
+                    self.bearer_field_provider = _AsyncOAuthClient(
+                        self.client_id, self.client_secret, self.scope,
+                        self.token_endpoint, logical_cluster, identity_pool,
+                        self.max_retries, self.retries_wait_ms,
+                        self.retries_max_wait_ms)
+                else:  # STATIC_TOKEN
+                    if 'bearer.auth.token' not in conf_copy:
+                        raise ValueError("Missing bearer.auth.token")
+                    static_token = conf_copy.pop('bearer.auth.token')
+                    self.bearer_field_provider = _AsyncStaticFieldProvider(
+                        static_token, logical_cluster, identity_pool)
+                    if not isinstance(static_token, string_type):
+                        raise TypeError(
+                            "bearer.auth.token must be a str, not " +
+                            str(type(static_token)))
             elif self.bearer_auth_credentials_source == 'CUSTOM':
                 custom_bearer_properties = ['bearer.auth.custom.provider.function',
                                             'bearer.auth.custom.provider.config']
@@ -379,6 +392,8 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         )
 
     async def handle_bearer_auth(self, headers: dict) -> None:
+        if self.bearer_field_provider is None:
+            raise ValueError("Bearer field provider is not set")
         bearer_fields = await self.bearer_field_provider.get_bearer_fields()
         required_fields = ['bearer.auth.token', 'bearer.auth.identity.pool.id', 'bearer.auth.logical.cluster']
 
@@ -437,9 +452,10 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                              " application/vnd.schemaregistry+json,"
                              " application/json"}
 
+        body_str: Optional[str] = None
         if body is not None:
-            body = json.dumps(body)
-            headers = {'Content-Length': str(len(body)),
+            body_str = json.dumps(body)
+            headers = {'Content-Length': str(len(body_str)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json",
                        'Accept-Version': "8.0"}
 
@@ -450,7 +466,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         for i, base_url in enumerate(self.base_urls):
             try:
                 response = await self.send_http_request(
-                    base_url, url, method, headers, body, query)
+                    base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
                     return response.json()
@@ -462,16 +478,18 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                     # Raise the exception since we have no more urls to try
                     raise e
 
-        try:
-            raise SchemaRegistryError(response.status_code,
-                                      response.json().get('error_code'),
-                                      response.json().get('message'))
-        # Schema Registry may return malformed output when it hits unexpected errors
-        except (ValueError, KeyError, AttributeError):
-            raise SchemaRegistryError(response.status_code,
-                                      -1,
-                                      "Unknown Schema Registry Error: "
-                                      + str(response.content))
+        if isinstance(response, Response):
+            try:
+                raise SchemaRegistryError(response.status_code,
+                                          response.json().get('error_code'),
+                                          response.json().get('message'))
+            except (ValueError, KeyError, AttributeError):
+                raise SchemaRegistryError(response.status_code,
+                                          -1,
+                                          "Unknown Schema Registry Error: "
+                                          + str(response.content))
+        else:
+            raise TypeError("Unexpected response of unsupported type: " + str(type(response)))
 
     async def send_http_request(
         self, base_url: str, url: str, method: str, headers: Optional[dict],
@@ -515,7 +533,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                 return response
 
             await asyncio.sleep(full_jitter(self.retries_wait_ms, self.retries_max_wait_ms, i) / 1000)
-        return response
+        return response  # type: ignore[return-value]
 
 
 class AsyncSchemaRegistryClient(object):
@@ -598,6 +616,8 @@ class AsyncSchemaRegistryClient(object):
         self._cache = _SchemaCache()
         cache_capacity = self._rest_client.cache_capacity
         cache_ttl = self._rest_client.cache_latest_ttl_sec
+        self._latest_version_cache: Cache[Any, Any]
+        self._latest_with_metadata_cache: Cache[Any, Any]
         if cache_ttl is not None:
             self._latest_version_cache = TTLCache(cache_capacity, cache_ttl)
             self._latest_with_metadata_cache = TTLCache(cache_capacity, cache_ttl)
@@ -640,7 +660,7 @@ class AsyncSchemaRegistryClient(object):
 
         registered_schema = await self.register_schema_full_response(
             subject_name, schema, normalize_schemas=normalize_schemas)
-        return registered_schema.schema_id
+        return registered_schema.schema_id  # type: ignore[return-value]
 
     async def register_schema_full_response(
         self, subject_name: str, schema: 'Schema',
@@ -683,14 +703,14 @@ class AsyncSchemaRegistryClient(object):
             'subjects/{}/versions?normalize={}'.format(_urlencode(subject_name), normalize_schemas),
             body=request)
 
-        result = RegisteredSchema.from_dict(response)
+        response_schema = RegisteredSchema.from_dict(response)
 
         registered_schema = RegisteredSchema(
-            schema_id=result.schema_id,
-            guid=result.guid,
-            subject=result.subject or subject_name,
-            version=result.version,
-            schema=result.schema
+            schema_id=response_schema.schema_id,
+            guid=response_schema.guid,
+            subject=response_schema.subject or subject_name,
+            version=response_schema.version,
+            schema=response_schema.schema,
         )
 
         # The registered schema may not be fully populated
@@ -819,7 +839,7 @@ class AsyncSchemaRegistryClient(object):
         Raises:
             SchemaRegistryError: if subjects can't be found
         """
-        query = {'offset': offset, 'limit': limit}
+        query: dict[str, Any] = {'offset': offset, 'limit': limit}
         if subject_name is not None:
             query['subject'] = subject_name
         if deleted:
@@ -852,7 +872,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id-versions>`_
         """  # noqa: E501
 
-        query = {'offset': offset, 'limit': limit}
+        query: dict[str, Any] = {'offset': offset, 'limit': limit}
         if subject_name is not None:
             query['subject'] = subject_name
         if deleted:
@@ -890,7 +910,7 @@ class AsyncSchemaRegistryClient(object):
 
         request = schema.to_dict()
 
-        query_params = {
+        query_params: dict[str, Any] = {
             'normalize': normalize_schemas,
             'deleted': deleted
         }
@@ -943,7 +963,7 @@ class AsyncSchemaRegistryClient(object):
             `GET subjects API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects>`_
         """  # noqa: E501
 
-        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+        query: dict[str, Any] = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         if subject_prefix is not None:
             query['subject'] = subject_prefix
         return await self._rest_client.get('subjects', query)
@@ -1040,7 +1060,7 @@ class AsyncSchemaRegistryClient(object):
         if registered_schema is not None:
             return registered_schema
 
-        query = {'deleted': deleted}
+        query: dict[str, Any] = {'deleted': deleted}
         if fmt is not None:
             query['format'] = fmt
         keys = metadata.keys()
@@ -1059,7 +1079,7 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_version(
-        self, subject_name: str, version: Union[int, str] = "latest",
+        self, subject_name: str, version: Union[int, Literal["latest"]] = "latest",
         deleted: bool = False, fmt: Optional[str] = None
     ) -> 'RegisteredSchema':
         """
@@ -1067,7 +1087,7 @@ class AsyncSchemaRegistryClient(object):
 
         Args:
             subject_name (str): Subject name.
-            version (Union[int, str]): Version of the schema or string "latest". Defaults to latest version.
+            version (Union[int, Literal["latest"]]): Version of the schema or string "latest". Defaults to latest version.
             deleted (bool): Whether to include deleted schemas.
             fmt (str): Format of the schema.
 
@@ -1081,11 +1101,12 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
-        if registered_schema is not None:
-            return registered_schema
+        if version != "latest": # Skip cache lookup for reading the latest version
+            registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
+            if registered_schema is not None:
+                return registered_schema
 
-        query = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
+        query: dict[str, Any] = {'deleted': deleted, 'format': fmt} if fmt is not None else {'deleted': deleted}
         response = await self._rest_client.get(
             'subjects/{}/versions/{}'.format(_urlencode(subject_name), version), query
         )
@@ -1097,7 +1118,7 @@ class AsyncSchemaRegistryClient(object):
         return registered_schema
 
     async def get_referenced_by(
-        self, subject_name: str, version: Union[int, str] = "latest",
+        self, subject_name: str, version: Union[int, Literal["latest"]] = "latest",
         offset: int = 0, limit: int = -1
     ) -> List[int]:
         """
@@ -1105,7 +1126,7 @@ class AsyncSchemaRegistryClient(object):
 
         Args:
             subject_name (str): Subject name
-            version (int or str): Version number or "latest"
+            version (Union[int, Literal["latest"]]): Version number or "latest"
             offset (int): Pagination offset for results.
             limit (int): Pagination size for results. Ignored if negative.
 
@@ -1119,7 +1140,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Versions (ReferenceBy) API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-versionId-%20version-referencedby>`_
         """  # noqa: E501
 
-        query = {'offset': offset, 'limit': limit}
+        query: dict[str, Any] = {'offset': offset, 'limit': limit}
         return await self._rest_client.get('subjects/{}/versions/{}/referencedby'.format(
             _urlencode(subject_name), version), query)
 
@@ -1147,7 +1168,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject All Versions API Reference <https://docs.confluent.io/platform/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions>`_
         """  # noqa: E501
 
-        query = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
+        query: dict[str, Any] = {'deleted': deleted, 'deleted_only': deleted_only, 'offset': offset, 'limit': limit}
         return await self._rest_client.get('subjects/{}/versions'.format(_urlencode(subject_name)), query)
 
     async def delete_version(self, subject_name: str, version: int, permanent: bool = False) -> int:
@@ -1519,6 +1540,6 @@ class AsyncSchemaRegistryClient(object):
     def new_client(conf: dict) -> 'AsyncSchemaRegistryClient':
         from .mock_schema_registry_client import AsyncMockSchemaRegistryClient
         url = conf.get("url")
-        if url.startswith("mock://"):
+        if url and isinstance(url, str) and url.startswith("mock://"):
             return AsyncMockSchemaRegistryClient(conf)
         return AsyncSchemaRegistryClient(conf)
