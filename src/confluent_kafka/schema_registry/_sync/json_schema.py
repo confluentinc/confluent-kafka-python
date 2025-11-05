@@ -296,14 +296,11 @@ class JSONSerializer(BaseSerializer):
         if len(conf_copy) > 0:
             raise ValueError("Unrecognized properties: {}"
                              .format(", ".join(conf_copy.keys())))
-        if self._schema:
-            schema_dict, ref_registry = self._get_parsed_schema(self._schema)
-            if schema_dict and isinstance(schema_dict, dict):
-                schema_name = schema_dict.get('title', None)
-            else:
-                schema_name = None
+
+        schema_dict, ref_registry = self._get_parsed_schema(self._schema)
+        if schema_dict and isinstance(schema_dict, dict):
+            schema_name = schema_dict.get('title', None)
         else:
-            schema_dict = None
             schema_name = None
 
         self._schema_name = schema_name
@@ -413,7 +410,7 @@ class JSONSerializer(BaseSerializer):
 
             return self._schema_id_serializer(buffer, ctx, self._schema_id)
 
-    def _get_parsed_schema(self, schema: Schema) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
+    def _get_parsed_schema(self, schema: Optional[Schema]) -> Tuple[Optional[JsonSchema], Optional[Registry]]:
         if schema is None:
             return None, None
 

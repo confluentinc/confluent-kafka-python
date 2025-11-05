@@ -745,6 +745,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
+        result = None
         if subject_name is not None:
             result = self._cache.get_schema_by_id(subject_name, schema_id)
         if result is not None:
