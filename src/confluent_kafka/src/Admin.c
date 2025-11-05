@@ -138,7 +138,7 @@ Admin_options_to_c (Handle *self, rd_kafka_admin_op_t for_api,
         char errstr[512];
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "AdminClient has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -578,6 +578,11 @@ static PyObject *Admin_create_topics (Handle *self, PyObject *args,
                             &options.validate_only))
                 return NULL;
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                return NULL;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATETOPICS,
                                        &options, future);
         if (!c_options)
@@ -721,6 +726,11 @@ static PyObject *Admin_delete_topics (Handle *self, PyObject *args,
                 return NULL;
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                return NULL;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DELETETOPICS,
                                        &options, future);
         if (!c_options)
@@ -830,6 +840,11 @@ static PyObject *Admin_create_partitions (Handle *self, PyObject *args,
             !cfl_PyBool_get(validate_only_obj, "validate_only",
                             &options.validate_only))
                 return NULL;
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                return NULL;
+        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEPARTITIONS,
                                        &options, future);
@@ -949,6 +964,11 @@ static PyObject *Admin_describe_configs (Handle *self, PyObject *args,
                 PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of ConfigResource "
                                 "objects");
+                return NULL;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -1085,6 +1105,12 @@ static PyObject *Admin_incremental_alter_configs(Handle *self,PyObject *args,PyO
             !cfl_PyBool_get(validate_only_obj, "validate_only",
                             &options.validate_only))
                 return NULL;
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                return NULL;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_INCREMENTALALTERCONFIGS,
                                        &options, future);
         if (!c_options)
@@ -1252,6 +1278,11 @@ static PyObject *Admin_alter_configs (Handle *self, PyObject *args,
                             &options.validate_only))
                 return NULL;
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                return NULL;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONFIGS,
                                        &options, future);
         if (!c_options)
@@ -1409,6 +1440,11 @@ static PyObject *Admin_create_acls (Handle *self, PyObject *args, PyObject *kwar
                 goto err;
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEACLS,
                                        &options, future);
         if (!c_options)
@@ -1528,6 +1564,11 @@ static PyObject *Admin_describe_acls (Handle *self, PyObject *args, PyObject *kw
                 goto err;
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_CREATEACLS,
                                        &options, future);
         if (!c_options)
@@ -1637,6 +1678,11 @@ static PyObject *Admin_delete_acls (Handle *self, PyObject *args, PyObject *kwar
         AclBindingFilter_type = cfl_PyObject_lookup("confluent_kafka.admin",
                                                   "AclBindingFilter");
         if (!AclBindingFilter_type) {
+                goto err;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -1804,6 +1850,11 @@ PyObject *Admin_list_consumer_groups (Handle *self, PyObject *args, PyObject *kw
                 }
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPS,
                                        &options, future);
         if (!c_options)  {
@@ -1887,6 +1938,11 @@ static PyObject *Admin_describe_user_scram_credentials(Handle *self, PyObject *a
                 PyErr_SetString(PyExc_ValueError,
                                 "Expected non-empty list of string "
                                 "objects in 'users' parameter");
+                return NULL;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 
@@ -2052,6 +2108,11 @@ static PyObject *Admin_alter_user_scram_credentials(Handle *self, PyObject *args
                         PyErr_SetString(PyExc_ImportError,
                                 "Not able to load ScramMechanism type");
                         goto err;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
         }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERUSERSCRAMCREDENTIALS,
@@ -2303,6 +2364,11 @@ PyObject *Admin_describe_consumer_groups (Handle *self, PyObject *args, PyObject
                 Py_XDECREF(uogroup);
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECONSUMERGROUPS,
                                        &options, future);
         if (!c_options)  {
@@ -2426,6 +2492,11 @@ PyObject *Admin_describe_topics (Handle *self, PyObject *args, PyObject *kwargs)
                 }
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_topic_collection = rd_kafka_TopicCollection_of_topic_names(c_topics, topics_cnt);
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBETOPICS,
                                        &options, future);
@@ -2514,6 +2585,11 @@ PyObject *Admin_describe_cluster (Handle *self, PyObject *args, PyObject *kwargs
                             &options.include_authorized_operations))
                 goto err;
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_DESCRIBECLUSTER,
                                        &options, future);
         if (!c_options)  {
@@ -2583,6 +2659,11 @@ PyObject *Admin_delete_consumer_groups (Handle *self, PyObject *args, PyObject *
                                          &group_ids,
                                          &future,
                                          &options.request_timeout)) {
+                goto err;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -2701,6 +2782,11 @@ PyObject *Admin_list_consumer_group_offsets (Handle *self, PyObject *args, PyObj
             !cfl_PyBool_get(require_stable_obj, "require_stable",
                             &options.require_stable_offsets))
                 return NULL;
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
 
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTCONSUMERGROUPOFFSETS,
                                        &options, future);
@@ -2841,6 +2927,11 @@ PyObject *Admin_alter_consumer_group_offsets (Handle *self, PyObject *args, PyOb
                 goto err;
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_ALTERCONSUMERGROUPOFFSETS,
                                        &options, future);
         if (!c_options)  {
@@ -2972,6 +3063,11 @@ PyObject *Admin_list_offsets (Handle *self,PyObject *args, PyObject *kwargs) {
                 goto err;
         }
 
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
+                goto err;
+        }
+
         c_options = Admin_options_to_c(self, RD_KAFKA_ADMIN_OP_LISTOFFSETS,
                                        &options, future);
         if (!c_options)  {
@@ -3051,6 +3147,11 @@ PyObject* Admin_delete_records (Handle *self,PyObject *args,PyObject *kwargs){
                                          &future,
                                          &options.request_timeout,
                                          &options.operation_timeout)) {
+                goto err;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3145,6 +3246,11 @@ PyObject *Admin_elect_leaders(Handle *self, PyObject *args, PyObject *kwargs) {
                                          &election_type, &partitions, &future,
                                          &options.request_timeout,
                                          &options.operation_timeout)) {
+                goto err;
+        }
+
+        if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 goto err;
         }
 
@@ -3251,7 +3357,7 @@ static PyObject *Admin_poll (Handle *self, PyObject *args,
                 return NULL;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "AdminClient has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_ADMIN_CLIENT_CLOSED);
                 return NULL;
         }
 

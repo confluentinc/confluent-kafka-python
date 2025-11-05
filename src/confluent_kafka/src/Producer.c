@@ -306,7 +306,7 @@ static PyObject *Producer_produce (Handle *self, PyObject *args,
 		dr_cb = self->u.Producer.default_dr_cb;
 
 	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
 		return NULL;
 	}
 
@@ -381,7 +381,7 @@ static PyObject *Producer_poll (Handle *self, PyObject *args,
                 return NULL;
 
 	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
 		return NULL;
 	}
 
@@ -405,7 +405,7 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
                 return NULL;
 
 	if (!self->rk) {
-		PyErr_SetString(PyExc_RuntimeError, "Producer has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
 		return NULL;
 	}
 
@@ -652,6 +652,11 @@ static PyObject *Producer_produce_batch (Handle *self, PyObject *args,
                 return cfl_PyInt_FromInt(0);
         }
 
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
+
         /* Allocate arrays for librdkafka messages and msgstates */
         rkmessages = calloc(message_cnt, sizeof(*rkmessages));
         msgstates = calloc(message_cnt, sizeof(*msgstates));
@@ -699,6 +704,11 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
+
         CallState_begin(self, &cs);
 
         error = rd_kafka_init_transactions(self->rk, cfl_timeout_ms(tmout));
@@ -719,6 +729,11 @@ static PyObject *Producer_init_transactions (Handle *self, PyObject *args) {
 
 static PyObject *Producer_begin_transaction (Handle *self) {
         rd_kafka_error_t *error;
+
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
 
         error = rd_kafka_begin_transaction(self->rk);
 
@@ -749,6 +764,13 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
                 rd_kafka_topic_partition_list_destroy(c_offsets);
                 return NULL;
         }
+
+	if (!self->rk) {
+		rd_kafka_consumer_group_metadata_destroy(cgmd);
+		rd_kafka_topic_partition_list_destroy(c_offsets);
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
 
         CallState_begin(self, &cs);
 
@@ -781,6 +803,11 @@ static PyObject *Producer_commit_transaction(Handle *self, PyObject *args) {
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
 
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
+
         CallState_begin(self, &cs);
 
         error = rd_kafka_commit_transaction(self->rk, cfl_timeout_ms(tmout));
@@ -806,6 +833,11 @@ static PyObject *Producer_abort_transaction(Handle *self, PyObject *args) {
 
         if (!PyArg_ParseTuple(args, "|d", &tmout))
                 return NULL;
+
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
 
         CallState_begin(self, &cs);
 
@@ -838,6 +870,12 @@ static void *Producer_purge (Handle *self, PyObject *args,
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|bbb", kws,
                                          &in_queue, &in_flight, &blocking))
                 return NULL;
+
+	if (!self->rk) {
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+		return NULL;
+	}
+
         if (in_queue)
                 purge_strategy = RD_KAFKA_PURGE_F_QUEUE;
         if (in_flight)
