@@ -457,7 +457,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
             body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
                        'Content-Type': "application/vnd.schemaregistry.v1+json",
-                       'Accept-Version': "8.0"}
+                       'Confluent-Accept-Unknown-Properties': "true"}
 
         if self.bearer_auth_credentials_source:
             await self.handle_bearer_auth(headers)
