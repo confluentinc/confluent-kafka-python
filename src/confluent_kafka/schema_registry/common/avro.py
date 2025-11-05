@@ -133,6 +133,8 @@ def transform(
                 return message
             fields = schema["fields"]
             for field in fields:
+                if field["name"] not in message:
+                    continue
                 _transform_field(ctx, schema, field, message, field_transform)
             return message
 
@@ -158,8 +160,6 @@ def _transform_field(
             get_type(field_type),
             None
         )
-        if name not in message:
-            return
         value = message[name]
         new_value = transform(ctx, field_type, value, field_transform)
         if ctx.rule.kind == RuleKind.CONDITION:
