@@ -745,9 +745,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Schema API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--schemas-ids-int-%20id>`_
         """  # noqa: E501
 
-        result = None
-        if subject_name is not None:
-            result = self._cache.get_schema_by_id(subject_name, schema_id)
+        result = self._cache.get_schema_by_id(subject_name, schema_id)
         if result is not None:
             return result[1]
 
@@ -1103,7 +1101,7 @@ class AsyncSchemaRegistryClient(object):
             `GET Subject Versions API Reference <https://docs.confluent.io/current/schema-registry/develop/api.html#get--subjects-(string-%20subject)-versions-(versionId-%20version)>`_
         """  # noqa: E501
 
-        if version != "latest":
+        if version != "latest": # Skip cache lookup for reading the latest version
             registered_schema = self._cache.get_registered_by_subject_version(subject_name, version)
             if registered_schema is not None:
                 return registered_schema
