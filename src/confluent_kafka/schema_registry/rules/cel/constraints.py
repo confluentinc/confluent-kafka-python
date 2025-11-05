@@ -15,7 +15,7 @@
 
 import typing
 
-from celpy import celtypes  # type: ignore
+from celpy import celtypes
 from google.protobuf import descriptor, message, message_factory
 
 from confluent_kafka.schema_registry.rules.cel import string_format
@@ -27,18 +27,18 @@ class CompilationError(Exception):
 
 
 def make_key_path(field_name: str, key: celtypes.Value) -> str:
-    return f"{field_name}[{string_format.format_value(key)}]"
+    return f"{field_name}[{string_format.format_value(key)}]"  # type: ignore[str-bytes-safe]
 
 
 def make_duration(msg: message.Message) -> celtypes.DurationType:
     return celtypes.DurationType(
-        seconds=msg.seconds,  # type: ignore
-        nanos=msg.nanos,  # type: ignore
+        seconds=msg.seconds,
+        nanos=msg.nanos,
     )
 
 
 def make_timestamp(msg: message.Message) -> celtypes.TimestampType:
-    return make_duration(msg) + celtypes.TimestampType(1970, 1, 1)
+    return make_duration(msg) + celtypes.TimestampType(1970, 1, 1)  # type: ignore[return-value]
 
 
 def unwrap(msg: message.Message) -> celtypes.Value:
@@ -87,8 +87,8 @@ class MessageType(celtypes.MapType):
 def _msg_to_cel(msg: message.Message) -> typing.Dict[str, celtypes.Value]:
     ctor = _MSG_TYPE_URL_TO_CTOR.get(msg.DESCRIPTOR.full_name)
     if ctor is not None:
-        return ctor(msg)
-    return MessageType(msg)
+        return ctor(msg)  # type: ignore[return-value]
+    return MessageType(msg)  # type: ignore[return-value]
 
 
 _TYPE_TO_CTOR = {
@@ -115,14 +115,14 @@ _TYPE_TO_CTOR = {
 
 def _proto_message_has_field(msg: message.Message, field: descriptor.FieldDescriptor) -> typing.Any:
     if field.is_extension:
-        return msg.HasExtension(field)  # type: ignore
+        return msg.HasExtension(field)
     else:
         return msg.HasField(field.name)
 
 
 def _proto_message_get_field(msg: message.Message, field: descriptor.FieldDescriptor) -> typing.Any:
     if field.is_extension:
-        return msg.Extensions[field]  # type: ignore
+        return msg.Extensions[field]
     else:
         return getattr(msg, field.name)
 
@@ -132,7 +132,7 @@ def _scalar_field_value_to_cel(val: typing.Any, field: descriptor.FieldDescripto
     if ctor is None:
         msg = "unknown field type"
         raise CompilationError(msg)
-    return ctor(val)
+    return ctor(val)  # type: ignore[operator]
 
 
 def _field_value_to_cel(val: typing.Any, field: descriptor.FieldDescriptor) -> celtypes.Value:
@@ -144,7 +144,7 @@ def _field_value_to_cel(val: typing.Any, field: descriptor.FieldDescriptor) -> c
 
 
 def _is_empty_field(msg: message.Message, field: descriptor.FieldDescriptor) -> bool:
-    if field.has_presence:  # type: ignore[attr-defined]
+    if field.has_presence:
         return not _proto_message_has_field(msg, field)
     if field.label == descriptor.FieldDescriptor.LABEL_REPEATED:
         return len(_proto_message_get_field(msg, field)) == 0
