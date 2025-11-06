@@ -121,6 +121,8 @@ def transform(
         elif schema_type == 'record':
             fields = schema["fields"]
             for field in fields:
+                if field["name"] not in message:
+                    continue
                 _transform_field(ctx, schema, field, message, field_transform)
             return message
 
