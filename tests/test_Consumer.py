@@ -615,3 +615,65 @@ def test_consumer_context_manager_multiple_instances():
         consumer1.subscribe(['mytopic'])
     with pytest.raises(RuntimeError):
         consumer2.subscribe(['mytopic2'])
+
+
+def test_uninitialized_consumer_methods():
+    """Test that all Consumer methods raise RuntimeError when called on uninitialized instance.
+    """
+    class UninitializedConsumer(Consumer):
+        def __init__(self, config):
+            # Don't call super().__init__() - leaves self->rk as NULL
+            pass
+    
+    consumer = UninitializedConsumer({'group.id': 'test'})
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.subscribe(['topic'])
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.unsubscribe()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.poll()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.consume()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.assign([TopicPartition('topic', 0)])
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.unassign()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.assignment()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.commit()
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.committed([TopicPartition('topic', 0)])
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.position([TopicPartition('topic', 0)])
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.seek(TopicPartition('topic', 0, 0))
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.get_watermark_offsets(TopicPartition('topic', 0))
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.store_offsets([TopicPartition('topic', 0, 42)])
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.offsets_for_times([TopicPartition('topic', 0)])
+    
+    with pytest.raises(RuntimeError, match="Handle has been closed"):
+        consumer.list_topics()
+    
+
+    consumer.close()  # Should succeed
+    
+    with pytest.raises(RuntimeError, match="Consumer closed"):
+        consumer.consumer_group_metadata()

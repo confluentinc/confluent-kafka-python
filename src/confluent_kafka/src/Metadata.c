@@ -371,7 +371,7 @@ list_topics (Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "Handle has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
                 return NULL;
         }
 
@@ -611,7 +611,7 @@ list_groups (Handle *self, PyObject *args, PyObject *kwargs) {
                 return NULL;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "Handle has been closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_HANDLE_CLOSED);
                 return NULL;
         }
 
