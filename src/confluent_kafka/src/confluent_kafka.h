@@ -415,6 +415,15 @@ extern PyTypeObject TopicPartitionType;
  *
  *
  ****************************************************************************/
+
+/**
+ * Error messages for uninitialized/closed Handle objects
+ */
+#define ERR_MSG_PRODUCER_CLOSED      "Producer has been closed"
+#define ERR_MSG_ADMIN_CLIENT_CLOSED  "AdminClient has been closed"
+#define ERR_MSG_CONSUMER_CLOSED      "Consumer closed"
+#define ERR_MSG_HANDLE_CLOSED        "Handle has been closed"
+
 #define PY_RD_KAFKA_ADMIN  100 /* There is no Admin client type in librdkafka,
                                 * so we use the producer type for now,
                                 * but we need to differentiate between a

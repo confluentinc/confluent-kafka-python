@@ -1520,3 +1520,95 @@ def test_admin_context_manager_with_admin_apis():
         admin.create_acls([acl_binding])
     with pytest.raises(RuntimeError, match="AdminClient has been closed"):
         admin.describe_consumer_groups(["test-group-2"])
+
+
+def test_uninitialized_admin_client_methods():
+    """Test that all AdminClient methods raise RuntimeError when called on uninitialized instance.
+    """
+
+    class UninitializedAdmin(AdminClient):
+        def __init__(self, config):
+            # Don't call super().__init__() - leaves self->rk as NULL
+            pass
+
+    admin = UninitializedAdmin({})
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_topics([NewTopic("test", 1, 1)])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_topics(["test"])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_partitions([NewPartitions("test", 2)])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_configs([ConfigResource(ResourceType.TOPIC, "test")])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.incremental_alter_configs([ConfigResource(ResourceType.TOPIC, "test")])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.alter_configs([ConfigResource(ResourceType.TOPIC, "test")])
+
+    acl_binding = AclBinding(
+        ResourceType.TOPIC, "topic1", ResourcePatternType.LITERAL,
+        "User:u1", "*", AclOperation.WRITE, AclPermissionType.ALLOW
+    )
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.create_acls([acl_binding])
+
+    acl_filter = AclBindingFilter(ResourceType.ANY, None, ResourcePatternType.ANY,
+                                  None, None, AclOperation.ANY, AclPermissionType.ANY)
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_acls([acl_filter])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_acls(acl_filter)
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.list_consumer_groups()
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_user_scram_credentials(["user"])
+
+    scram_info = ScramCredentialInfo(ScramMechanism.SCRAM_SHA_256, 10000)
+    upsertion = UserScramCredentialUpsertion("user", scram_info, b"password")
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.alter_user_scram_credentials([upsertion])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_consumer_groups(["group"])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_topics(TopicCollection(["topic"]))
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.describe_cluster()
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_consumer_groups(["group"])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.list_consumer_group_offsets([ConsumerGroupTopicPartitions("group")])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.alter_consumer_group_offsets([ConsumerGroupTopicPartitions("group", [TopicPartition("topic", 0, 5)])])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.list_offsets({TopicPartition("topic", 0, 10): OffsetSpec.earliest()})
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.delete_records([TopicPartition("topic", 0, 10)])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.elect_leaders(ElectionType.PREFERRED, [TopicPartition("topic", 0)])
+
+    with pytest.raises(RuntimeError, match="AdminClient has been closed"):
+        admin.poll(0.001)
+
+    # Test __len__() - should return 0 for closed admin (safe, no crash)
+    assert len(admin) == 0
