@@ -757,6 +757,11 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
         if (!PyArg_ParseTuple(args, "OO|d", &offsets, &metadata, &tmout))
                 return NULL;
 
+        if (!self->rk) {
+                PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
+                return NULL;
+        }
+
         if (!(c_offsets = py_to_c_parts(offsets)))
                 return NULL;
 
@@ -764,13 +769,6 @@ static PyObject *Producer_send_offsets_to_transaction(Handle *self,
                 rd_kafka_topic_partition_list_destroy(c_offsets);
                 return NULL;
         }
-
-	if (!self->rk) {
-		rd_kafka_consumer_group_metadata_destroy(cgmd);
-		rd_kafka_topic_partition_list_destroy(c_offsets);
-		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_PRODUCER_CLOSED);
-		return NULL;
-	}
 
         CallState_begin(self, &cs);
 
