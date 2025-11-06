@@ -6,7 +6,7 @@ import threading
 import time
 from struct import pack
 
-from confluent_kafka import Producer, KafkaError, KafkaException, \
+from confluent_kafka import Producer, Consumer, KafkaError, KafkaException, \
     TopicPartition
 
 from tests.common import TestConsumer
@@ -1343,3 +1343,55 @@ def test_producer_context_manager_with_callbacks():
         assert err.code() in (KafkaError._MSG_TIMED_OUT, KafkaError._TRANSPORT,
                               KafkaError._TIMED_OUT), \
             f"Expected success (err=None) or timeout/transport error, got {err.code()}"
+
+
+def test_uninitialized_producer_methods():
+    """Test that all Producer methods raise RuntimeError when called on uninitialized instance.
+
+    This test verifies issue #1590 fix - prevents SEGV when subclassing Producer
+    without calling super().__init__().
+    """
+    class UninitializedProducer(Producer):
+        def __init__(self, config):
+            # Don't call super().__init__() - leaves self->rk as NULL
+            pass
+
+    producer = UninitializedProducer({})
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.produce('topic', value=b'test')
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.poll()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.flush()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.purge()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.produce_batch('topic', [{'value': b'test'}])
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.init_transactions()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.begin_transaction()
+
+    # send_offsets_to_transaction - NULL check happens after argument parsing
+    consumer = Consumer({'group.id': 'test', 'socket.timeout.ms': 10})
+    metadata = consumer.consumer_group_metadata()
+    consumer.close()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.send_offsets_to_transaction([TopicPartition('topic', 0)], metadata)
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.commit_transaction()
+
+    with pytest.raises(RuntimeError, match="Producer has been closed"):
+        producer.abort_transaction()
+
+    # Test __len__() - should return 0 for closed producer (safe, no crash)
+    assert len(producer) == 0
