@@ -437,7 +437,7 @@ class _RestClient(_BaseRestClient):
                              " application/vnd.schemaregistry+json,"
                              " application/json"}
 
-        body_str = None
+        body_str: Optional[str] = None
         if body is not None:
             body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
