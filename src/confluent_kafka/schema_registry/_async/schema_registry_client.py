@@ -437,6 +437,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
                              " application/vnd.schemaregistry+json,"
                              " application/json"}
 
+        body_str = None
         if body is not None:
             body_str = json.dumps(body)
             headers = {'Content-Length': str(len(body_str)),
@@ -450,7 +451,7 @@ class _AsyncRestClient(_AsyncBaseRestClient):
         for i, base_url in enumerate(self.base_urls):
             try:
                 response = await self.send_http_request(
-                    base_url, url, method, headers, body, query)
+                    base_url, url, method, headers, body_str, query)
 
                 if is_success(response.status_code):
                     return response.json()
