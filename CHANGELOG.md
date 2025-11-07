@@ -1,5 +1,12 @@
 # Confluent Python Client for Apache Kafka - CHANGELOG
 
+## v2.12.2 - 2025-11-06
+v2.12.2 is a maintenance release with the following change:
+
+### Schema Registry Client
+- Handled evolution during field transformation
+- Changed `Accept-Version` to `Confluent-Accept-Unknown-Properties` in request header
+
 ## v2.12.1 - 2025-10-21
 
 v2.12.1 is a maintenance release with the following fixes:
