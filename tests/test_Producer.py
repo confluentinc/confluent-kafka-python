@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import gc
-import json
 import pytest
 import threading
 import time
@@ -1403,6 +1402,7 @@ def test_uninitialized_producer_methods():
     # Test __len__() - should return 0 for closed producer (safe, no crash)
     assert len(producer) == 0
 
+
 def test_producer_close():
     """
     Ensures the producer close can be requested on demand
@@ -1414,9 +1414,11 @@ def test_producer_close():
         'message.timeout.ms': 10
     }
     producer = Producer(conf)
-    msg = {"test": "test"}
-    producer.produce(json.dumps(msg))
+    producer.produce('mytopic', value='somedata', key='a key')
     assert producer.close(), "The producer could not be closed on demand"
+    # Ensure no messages remain in the flush buffer after close
+    assert len(producer) == 0
+
 
 def test_producer_close_with_timeout():
     """
@@ -1429,6 +1431,7 @@ def test_producer_close_with_timeout():
         'message.timeout.ms': 10
     }
     producer = Producer(conf)
-    msg = {"test": "test"}
-    producer.produce(json.dumps(msg))
+    producer.produce('mytopic', value='somedata', key='a key')
     assert producer.close(0.1), "The producer could not be closed on demand with timeout"
+    # Ensure no messages remain in the flush buffer after close
+    assert len(producer) == 0

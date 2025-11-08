@@ -438,6 +438,11 @@ static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) 
 
         // Flush any remaining messages before closing if possible
         err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
+        if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+            PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+                             "Producer flush failed during close: %s",
+                             rd_kafka_err2str(err));
+        }
         rd_kafka_destroy(self->rk);
         rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Producer destroy requested");
 
