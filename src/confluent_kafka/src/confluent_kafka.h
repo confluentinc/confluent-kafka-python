@@ -91,16 +91,6 @@
 #endif
 
 
-#define CK_LOG_EMERG   0
-#define CK_LOG_ALERT   1
-#define CK_LOG_CRIT    2
-#define CK_LOG_ERR     3
-#define CK_LOG_WARNING 4
-#define CK_LOG_NOTICE  5
-#define CK_LOG_INFO    6
-#define CK_LOG_DEBUG   7
-
-
 
 /****************************************************************************
  *

@@ -56,7 +56,6 @@ C_INCLUDE_PATH=/path/to/include LIBRARY_PATH=/path/to/lib python -m build
    ```bash
    python3 -c "import confluent_kafka; print('Setup successful!')"
 
-
 #### Local Setup with UV
 
 Alternative setup instructions tested with python 3.11
