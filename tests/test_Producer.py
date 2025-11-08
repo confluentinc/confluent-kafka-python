@@ -1417,3 +1417,18 @@ def test_producer_close():
     msg = {"test": "test"}
     producer.produce(json.dumps(msg))
     assert producer.close(), "The producer could not be closed on demand"
+
+def test_producer_close_with_timeout():
+    """
+    Ensures the producer close can be requested on demand
+    """
+    conf = {
+        'debug': 'all',
+        'socket.timeout.ms': 10,
+        'error_cb': error_cb,
+        'message.timeout.ms': 10
+    }
+    producer = Producer(conf)
+    msg = {"test": "test"}
+    producer.produce(json.dumps(msg))
+    assert producer.close(0.1), "The producer could not be closed on demand with timeout"

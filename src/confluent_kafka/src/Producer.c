@@ -423,26 +423,21 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 
 static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
 
+        double tmout = 1; // Default timeout is 1 second for close to clear rather than indefinitely
+        static char *kws[] = { "timeout", NULL };
+        rd_kafka_resp_err_t err;
         CallState cs;
+
+        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
+            return NULL;
 
         if (!self->rk)
             Py_RETURN_TRUE;
 
         CallState_begin(self, &cs);
 
-        /* Warn if there are pending messages */
-        int outq_len = rd_kafka_outq_len(self->rk);
-        if (outq_len > 0) {
-            const char msg[150];
-            sprintf(msg, "There are %d message(s) still in producer queue! "
-                    "Use flush() or wait for delivery.", outq_len);
-            rd_kafka_log_print(
-                self->rk,
-                CK_LOG_WARNING,
-                "CLOSWARN",
-                msg
-            );
-        }
+        // Flush any remaining messages before closing if possible
+        err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
         rd_kafka_destroy(self->rk);
         rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Producer destroy requested");
 
@@ -1020,10 +1015,11 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: close()\n"
+          ".. py:function:: close([timeout])\n"
           "\n"
-	  "   Request to close the producer on demand.\n"
+	  "   Request to close the producer on demand with an optional timeout.\n"
 	  "\n"
+      "  :param: float timeout: Maximum time to block (default 1 second). (Seconds)\n"
       "  :rtype: bool\n"
       "  :returns: True if producer close requested successfully, False otherwise\n"
       "\n"
