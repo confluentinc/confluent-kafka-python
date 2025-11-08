@@ -422,37 +422,32 @@ static PyObject *Producer_flush (Handle *self, PyObject *args,
 
 
 static PyObject *Producer_close(Handle *self, PyObject *args, PyObject *kwargs) {
-
-        double tmout = 1; // Default timeout is 1 second for close to clear rather than indefinitely
-        static char *kws[] = { "timeout", NULL };
         rd_kafka_resp_err_t err;
         CallState cs;
-
-        if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|d", kws, &tmout))
-            return NULL;
 
         if (!self->rk)
             Py_RETURN_TRUE;
 
         CallState_begin(self, &cs);
 
-        // Flush any remaining messages before closing if possible
-        err = rd_kafka_flush(self->rk, cfl_timeout_ms(tmout));
-        if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-            PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
-                             "Producer flush failed during close: %s",
-                             rd_kafka_err2str(err));
-        }
-        rd_kafka_destroy(self->rk);
-        rd_kafka_log_print(self->rk, CK_LOG_INFO, "CLOSEINF", "Producer destroy requested");
+		/* Flush any pending messages (wait indefinitely to ensure delivery) */
+		err = rd_kafka_flush(self->rk, -1);
 
-        self->rk = NULL;
+		/* Destroy the producer (even if flush had issues) */
+		rd_kafka_destroy(self->rk);
+		self->rk = NULL;
 
-        if (!CallState_end(self, &cs))
-            return NULL;
+		if (!CallState_end(self, &cs))
+			return NULL;
+
+		/* If flush failed, warn but don't suppress original exception */
+		if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
+			PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
+					"Producer flush failed during close: %s",
+					rd_kafka_err2str(err));
+		}
 
         Py_RETURN_TRUE;
-
 }
 
 
@@ -942,27 +937,7 @@ static PyObject *Producer_exit (Handle *self, PyObject *args) {
 			      &exc_type, &exc_value, &exc_traceback))
 		return NULL;
 
-	/* Cleanup: flush pending messages and destroy producer */
-	if (self->rk) {
-		CallState_begin(self, &cs);
-
-		/* Flush any pending messages (wait indefinitely to ensure delivery) */
-		err = rd_kafka_flush(self->rk, -1);
-
-		/* Destroy the producer (even if flush had issues) */
-		rd_kafka_destroy(self->rk);
-		self->rk = NULL;
-
-		if (!CallState_end(self, &cs))
-			return NULL;
-
-		/* If flush failed, warn but don't suppress original exception */
-		if (err != RD_KAFKA_RESP_ERR_NO_ERROR) {
-			PyErr_WarnFormat(PyExc_RuntimeWarning, 1,
-					"Producer flush failed during context exit: %s",
-					rd_kafka_err2str(err));
-		}
-	}
+    Producer_close(self, (PyObject *)NULL, (PyObject *)NULL);
 
 	/* Return None to propagate any exceptions from the with block */
 	Py_RETURN_NONE;
@@ -1020,11 +995,10 @@ static PyMethodDef Producer_methods[] = {
 	  "\n"
 	},
 	{ "close", (PyCFunction)Producer_close, METH_VARARGS|METH_KEYWORDS,
-          ".. py:function:: close([timeout])\n"
+          ".. py:function:: close()\n"
           "\n"
-	  "   Request to close the producer on demand with an optional timeout.\n"
+	  "   Request to close the producer on demand.\n"
 	  "\n"
-      "  :param: float timeout: Maximum time to block (default 1 second). (Seconds)\n"
       "  :rtype: bool\n"
       "  :returns: True if producer close requested successfully, False otherwise\n"
       "\n"

@@ -1414,24 +1414,9 @@ def test_producer_close():
         'message.timeout.ms': 10
     }
     producer = Producer(conf)
-    producer.produce('mytopic', value='somedata', key='a key')
+    cb_detector = {"on_delivery_called": False}
+    def on_delivery(err, msg):
+        cb_detector["on_delivery_called"] = True
+    producer.produce('mytopic', value='somedata', key='a key', callback=on_delivery)
     assert producer.close(), "The producer could not be closed on demand"
-    # Ensure no messages remain in the flush buffer after close
-    assert len(producer) == 0
-
-
-def test_producer_close_with_timeout():
-    """
-    Ensures the producer close can be requested on demand
-    """
-    conf = {
-        'debug': 'all',
-        'socket.timeout.ms': 10,
-        'error_cb': error_cb,
-        'message.timeout.ms': 10
-    }
-    producer = Producer(conf)
-    producer.produce('mytopic', value='somedata', key='a key')
-    assert producer.close(0.1), "The producer could not be closed on demand with timeout"
-    # Ensure no messages remain in the flush buffer after close
-    assert len(producer) == 0
+    assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"

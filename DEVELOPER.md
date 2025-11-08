@@ -178,26 +178,6 @@ Integration tests (may require local/CI Kafka cluster; see tests/README.md):
 pytest -q tests/integration
 ```
 
-## Local Setup with UV
-
-Tested with python 3.11
-
-```bash
-# Modify pyproject.toml to require python version >=3.11
-# This fixes the cel-python dependency conflict
-uv venv --python 3.11
-source .venv/bin/activate
-
-uv sync --extra dev --extra tests
-uv pip install trivup setuptools
-pytest tests/
-
-# When making changes, change project.version in pyproject.toml before re-running:
-uv sync --extra dev --extra tests
-
-```
-
-
 ## Tests
 
 See [tests/README.md](tests/README.md) for instructions on how to run tests.
