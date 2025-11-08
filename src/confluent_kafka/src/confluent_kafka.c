@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * ⚠️  WARNING: UPDATE TYPE STUBS WHEN MODIFYING INTERFACES ⚠️
+ *
+ * This file defines core classes: KafkaError, Message, TopicPartition, Uuid.
+ * When changing method signatures, parameters, or defaults, you MUST
+ * also update the corresponding type definitions in:
+ *   src/confluent_kafka/cimpl.pyi
+ *
+ * Failure to keep both in sync will result in incorrect type hints.
+ */
+
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
@@ -854,7 +865,7 @@ static PyObject *Uuid_str0 (Uuid *self) {
 }
 
 static long Uuid_hash (Uuid *self) {
-        
+
         return rd_kafka_Uuid_most_significant_bits(self->cUuid) ^ rd_kafka_Uuid_least_significant_bits(self->cUuid);
 }
 
@@ -876,7 +887,7 @@ static int Uuid_init (PyObject *self0, PyObject *args,
         int64_t least_significant_bits;
 
         if (!PyArg_ParseTupleAndKeywords(args, kwargs, "LL", kws,
-                                         &most_significant_bits, 
+                                         &most_significant_bits,
                                          &least_significant_bits))
                 return -1;
 
@@ -925,7 +936,7 @@ PyTypeObject UuidType = {
         PyObject_GenericGetAttr,                /* tp_getattro */
         0,                                      /* tp_setattro */
         0,                                      /* tp_as_buffer */
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | 
+        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE |
 	Py_TPFLAGS_HAVE_GC,                     /* tp_flags */
         "Generic Uuid. Being used in various identifiers including topic_id.\n"
         "\n"
@@ -1355,7 +1366,7 @@ rd_kafka_topic_partition_list_t *py_to_c_parts (PyObject *plist) {
 
 /**
  * @brief Convert C rd_kafka_topic_partition_result_t to Python dict(TopicPartition, KafkaException).
- * 
+ *
  * @returns The new Python dict object.
  */
 PyObject *c_topic_partition_result_to_py_dict(
@@ -1379,7 +1390,7 @@ PyObject *c_topic_partition_result_to_py_dict(
                 value = KafkaError_new_or_None(rd_kafka_error_code(c_error),
                                                rd_kafka_error_string(c_error));
                 key = c_part_to_py(c_topic_partition);
-               
+
                 PyDict_SetItem(result, key, value);
 
                 Py_DECREF(key);
@@ -1681,7 +1692,7 @@ PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
         PyObject *Uuid_type = NULL;
         PyObject *args = NULL;
         PyObject *kwargs = NULL;
-        
+
         if(!c_uuid)
                 Py_RETURN_NONE;
 
@@ -1691,7 +1702,7 @@ PyObject *c_Uuid_to_py(const rd_kafka_Uuid_t *c_uuid) {
                 goto err;
         }
 
-        
+
         kwargs = PyDict_New();
 
         cfl_PyDict_SetLong(kwargs, "most_significant_bits", rd_kafka_Uuid_most_significant_bits(c_uuid));
@@ -1755,6 +1766,7 @@ static void error_cb (rd_kafka_t *rk, int err, const char *reason, void *opaque)
 	if (result)
 		Py_DECREF(result);
 	else {
+		CallState_fetch_exception(cs);
         crash:
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
@@ -1808,6 +1820,8 @@ static void throttle_cb (rd_kafka_t *rk, const char *broker_name, int32_t broker
                 /* throttle_cb executed successfully */
                 Py_DECREF(result);
                 goto done;
+        } else {
+                CallState_fetch_exception(cs);
         }
 
         /**
@@ -1839,6 +1853,7 @@ static int stats_cb(rd_kafka_t *rk, char *json, size_t json_len, void *opaque) {
 	if (result)
 		Py_DECREF(result);
 	else {
+		CallState_fetch_exception(cs);
 		CallState_crash(cs);
 		rd_kafka_yield(h->rk);
 	}
@@ -1874,6 +1889,7 @@ static void log_cb (const rd_kafka_t *rk, int level,
         if (result)
                 Py_DECREF(result);
         else {
+                CallState_fetch_exception(cs);
                 CallState_crash(cs);
                 rd_kafka_yield(h->rk);
         }
@@ -2572,6 +2588,7 @@ void CallState_begin (Handle *h, CallState *cs) {
 	cs->thread_state = PyEval_SaveThread();
 	assert(cs->thread_state != NULL);
 	cs->crashed = 0;
+	cs->exception_value = NULL;
 #ifdef WITH_PY_TSS
         PyThread_tss_set(&h->tlskey, cs);
 #else
@@ -2592,8 +2609,16 @@ int CallState_end (Handle *h, CallState *cs) {
 
 	PyEval_RestoreThread(cs->thread_state);
 
-	if (PyErr_CheckSignals() == -1 || cs->crashed)
+	if (PyErr_CheckSignals() == -1)
 		return 0;
+
+	if (cs->crashed) {
+		/* Restore the saved exception if we have one */
+		if (cs->exception_value) {
+			CallState_restore_exception(cs);
+		}
+		return 0;
+	}
 
 	return 1;
 }
@@ -2936,30 +2961,148 @@ PyObject *set_sasl_credentials(Handle *self, PyObject *args, PyObject *kwargs) {
 
 static PyObject *libversion (PyObject *self, PyObject *args) {
 	return Py_BuildValue("si",
-			     rd_kafka_version_str(),
-			     rd_kafka_version());
+                rd_kafka_version_str(),
+                rd_kafka_version());
 }
 
 /**
  * @brief confluent-kafka-python version.
  */
 static PyObject *version (PyObject *self, PyObject *args) {
-	return Py_BuildValue("si", CFL_VERSION_STR, CFL_VERSION);
+	return Py_BuildValue("s", CFL_VERSION_STR);
 }
+
+
+/****************************************************************************
+ *
+ *
+ * Partitioner functions
+ *
+ *
+ ****************************************************************************/
+
+/**
+ * @brief Type definition for librdkafka partitioner functions.
+ */
+typedef int32_t (*partitioner_func_t)(const rd_kafka_topic_t *rkt,
+                                      const void *key,
+                                      size_t keylen,
+                                      int32_t partition_cnt,
+                                      void *rkt_opaque,
+                                      void *msg_opaque);
+
+/**
+ * @brief Helper function for partitioner wrappers.
+ *
+ * Handles common argument parsing, validation, and calling of
+ * librdkafka partitioner functions.
+ *
+ * @param args Python arguments (key: bytes, partition_count: int)
+ * @param partitioner_func librdkafka partitioner function to call
+ *
+ * @returns PyObject* - Partition ID as Python int, or NULL on error
+ */
+static PyObject *partitioner_helper(PyObject *args,
+                                     partitioner_func_t partitioner_func) {
+	const char *key;
+	Py_ssize_t keylen;
+	int partition_count;
+	int32_t partition;
+
+	if (!PyArg_ParseTuple(args, "y#i", &key, &keylen, &partition_count))
+		return NULL;
+
+	if (partition_count <= 0) {
+		PyErr_Format(PyExc_ValueError,
+		             "partition_count must be > 0, got %d",
+		             partition_count);
+		return NULL;
+	}
+
+	partition = partitioner_func(NULL, key, (size_t)keylen,
+	                             partition_count, NULL, NULL);
+
+	return cfl_PyInt_FromInt(partition);
+}
+
+/**
+ * @brief Calculate partition using Murmur2 hash (Java-compatible). Deterministic.
+ */
+static PyObject *murmur2(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_murmur2);
+}
+
+/**
+ * @brief Calculate partition using consistent hash (CRC32). Deterministic.
+ */
+static PyObject *consistent(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_consistent);
+}
+
+/**
+ * @brief Calculate partition using FNV-1a hash. Deterministic.
+ */
+static PyObject *fnv1a(PyObject *self, PyObject *args) {
+	return partitioner_helper(args, rd_kafka_msg_partitioner_fnv1a);
+}
+
 
 static PyMethodDef cimpl_methods[] = {
 	{"libversion", libversion, METH_NOARGS,
 	 "  Retrieve librdkafka version string and integer\n"
 	 "\n"
-	 "  :returns: (version_string, version_int) tuple\n"
-	 "  :rtype: tuple(str,int)\n"
+	 "  :returns: version_string\n"
+	 "  :rtype: str\n"
 	 "\n"
 	},
 	{"version", version, METH_NOARGS,
-	 "  Retrieve module version string and integer\n"
+	 "  Retrieve module version string\n"
 	 "\n"
-	 "  :returns: (version_string, version_int) tuple\n"
-	 "  :rtype: tuple(str,int)\n"
+	 "  :returns: version_string\n"
+	 "  :rtype: str\n"
+	 "\n"
+	},
+	{"murmur2", murmur2, METH_VARARGS,
+	 "  Calculate partition using Murmur2 hash (Java-compatible).\n"
+	 "\n"
+	 "  Deterministic function using Murmur2 hashing algorithm.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+	 "\n"
+	 "  Example::\n"
+	 "\n"
+	 "    partition = murmur2(b\"user_12345\", 10)\n"
+	 "\n"
+	},
+	{"consistent", consistent, METH_VARARGS,
+	 "  Calculate partition using CRC32-based consistent hash.\n"
+	 "\n"
+	 "  Deterministic function using CRC32 hashing algorithm.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
+	 "\n"
+	},
+	{"fnv1a", fnv1a, METH_VARARGS,
+	 "  Calculate partition using FNV-1a hash.\n"
+	 "\n"
+	 "  Deterministic function using FNV-1a hashing algorithm.\n"
+	 "\n"
+	 "  :param bytes key: The message key\n"
+	 "  :param int partition_count: Number of partitions (must be > 0)\n"
+	 "  :returns: Partition ID (0 to partition_count-1)\n"
+	 "  :rtype: int\n"
+	 "  :raises ValueError: If partition_count <= 0\n"
+	 "  :raises TypeError: If key is not bytes or partition_count is not int\n"
 	 "\n"
 	},
 	{ NULL }

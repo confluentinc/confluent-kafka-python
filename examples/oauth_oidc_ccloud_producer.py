@@ -19,9 +19,7 @@
 # This uses OAuth client credentials grant:
 # https://www.oauth.com/oauth2-servers/access-tokens/client-credentials/
 # where client_id and client_secret are passed as HTTP Authorization header
-# with the OIDC method and doesn't need to set a `oauth_cb` to obtain the token,
-# but, given it's using cURL for http requests, when using bundled librdkafka on non RHEL based distros,
-# currently it needs to provide CA bundle at a specific path, that is `/etc/pki/tls/certs/ca-bundle.crt`.
+# with the OIDC method and doesn't need to set a `oauth_cb` to obtain the token.
 
 import logging
 import argparse
@@ -56,7 +54,7 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
 
         msg (Message): The message that was produced or failed.
 

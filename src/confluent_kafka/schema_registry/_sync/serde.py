@@ -17,7 +17,7 @@
 #
 
 import logging
-from typing import List, Optional, Set, Dict, Any
+from typing import List, Optional, Set, Dict, Any, Callable
 
 from confluent_kafka.schema_registry import RegisteredSchema
 from confluent_kafka.schema_registry.common.schema_registry_client import \
@@ -44,13 +44,22 @@ class BaseSerde(object):
                  '_registry', '_rule_registry', '_subject_name_func',
                  '_field_transformer']
 
+    _use_schema_id: Optional[int]
+    _use_latest_version: bool
+    _use_latest_with_metadata: Optional[Dict[str, str]]
+    _registry: Any  # SchemaRegistryClient
+    _rule_registry: Any  # RuleRegistry
+    _subject_name_func: Callable[[Optional['SerializationContext'], Optional[str]], Optional[str]]
+    _field_transformer: Optional[FieldTransformer]
+
     def _get_reader_schema(self, subject: str, fmt: Optional[str] = None) -> Optional[RegisteredSchema]:
         if self._use_schema_id is not None:
             schema = self._registry.get_schema(self._use_schema_id, subject, fmt)
-            return self._registry.lookup_schema(subject, schema, False, True)
+            return self._registry.lookup_schema(
+                subject, schema, normalize_schemas=False, deleted=True)
         if self._use_latest_with_metadata is not None:
             return self._registry.get_latest_with_metadata(
-                subject, self._use_latest_with_metadata, True, fmt)
+                subject, self._use_latest_with_metadata, deleted=True, fmt=fmt)
         if self._use_latest_version:
             return self._registry.get_latest_version(subject, fmt)
         return None
@@ -113,6 +122,11 @@ class BaseSerde(object):
 
             ctx = RuleContext(ser_ctx, source, target, subject, rule_mode, rule,
                               index, rules, inline_tags, field_transformer)
+            if rule.type is None:
+                self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message,
+                                 RuleError(f"Rule type is None for rule {rule.name}"),
+                                 'ERROR')
+                return message
             rule_executor = self._rule_registry.get_executor(rule.type.upper())
             if rule_executor is None:
                 self._run_action(ctx, rule_mode, rule, self._get_on_failure(rule), message,
@@ -139,18 +153,24 @@ class BaseSerde(object):
         return message
 
     def _get_on_success(self, rule: Rule) -> Optional[str]:
+        if rule.type is None:
+            return rule.on_success
         override = self._rule_registry.get_override(rule.type)
         if override is not None and override.on_success is not None:
             return override.on_success
         return rule.on_success
 
     def _get_on_failure(self, rule: Rule) -> Optional[str]:
+        if rule.type is None:
+            return rule.on_failure
         override = self._rule_registry.get_override(rule.type)
         if override is not None and override.on_failure is not None:
             return override.on_failure
         return rule.on_failure
 
     def _is_disabled(self, rule: Rule) -> Optional[bool]:
+        if rule.type is None:
+            return rule.disabled
         override = self._rule_registry.get_override(rule.type)
         if override is not None and override.disabled is not None:
             return override.disabled
@@ -199,9 +219,15 @@ class BaseSerde(object):
 class BaseSerializer(BaseSerde, Serializer):
     __slots__ = ['_auto_register', '_normalize_schemas', '_schema_id_serializer']
 
+    _auto_register: bool
+    _normalize_schemas: bool
+    _schema_id_serializer: Callable[[bytes, Any, Any], bytes]
+
 
 class BaseDeserializer(BaseSerde, Deserializer):
     __slots__ = ['_schema_id_deserializer']
+
+    _schema_id_deserializer: Callable[[bytes, Any, Any], Any]
 
     def _get_writer_schema(
             self, schema_id: SchemaId, subject: Optional[str] = None,
@@ -238,8 +264,9 @@ class BaseDeserializer(BaseSerde, Deserializer):
         self, subject: str, source_info: Schema,
         target: RegisteredSchema, fmt: Optional[str]
     ) -> List[Migration]:
-        source = self._registry.lookup_schema(subject, source_info, False, True)
-        migrations = []
+        source = self._registry.lookup_schema(
+            subject, source_info, normalize_schemas=False, deleted=True)
+        migrations: List[Migration] = []
         if source.version < target.version:
             migration_mode = RuleMode.UPGRADE
             first = source
@@ -257,13 +284,14 @@ class BaseDeserializer(BaseSerde, Deserializer):
             if i == 0:
                 previous = version
                 continue
-            if version.schema.rule_set is not None and self._has_rules(
+            if version.schema is not None and version.schema.rule_set is not None and self._has_rules(
                   version.schema.rule_set, RulePhase.MIGRATION, migration_mode):
-                if migration_mode == RuleMode.UPGRADE:
-                    migration = Migration(migration_mode, previous, version)
-                else:
-                    migration = Migration(migration_mode, version, previous)
-                migrations.append(migration)
+                if previous is not None:  # previous is always set after first iteration
+                    if migration_mode == RuleMode.UPGRADE:
+                        migration = Migration(migration_mode, previous, version)
+                    else:
+                        migration = Migration(migration_mode, version, previous)
+                    migrations.append(migration)
             previous = version
         if migration_mode == RuleMode.DOWNGRADE:
             migrations.reverse()
@@ -273,6 +301,8 @@ class BaseDeserializer(BaseSerde, Deserializer):
         self, subject: str, first: RegisteredSchema,
         last: RegisteredSchema, fmt: Optional[str] = None
     ) -> List[RegisteredSchema]:
+        if first.version is None or last.version is None:
+            return [first, last]
         if last.version - first.version <= 1:
             return [first, last]
         version1 = first.version
@@ -288,8 +318,9 @@ class BaseDeserializer(BaseSerde, Deserializer):
         migrations: List[Migration], message: Any
     ) -> Any:
         for migration in migrations:
-            message = self._execute_rules_with_phase(
-                ser_ctx, subject, RulePhase.MIGRATION, migration.rule_mode,
-                migration.source.schema, migration.target.schema,
-                message, None, None)
+            if migration.source is not None and migration.target is not None:
+                message = self._execute_rules_with_phase(
+                    ser_ctx, subject, RulePhase.MIGRATION, migration.rule_mode,
+                    migration.source.schema, migration.target.schema,
+                    message, None, None)
         return message

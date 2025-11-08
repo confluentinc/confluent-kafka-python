@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "confluent-kafka"
-version = "2.11.1"
+version = "2.12.1"
 description = "Confluent's Python client for Apache Kafka"
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -14,7 +14,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules"]
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dynamic = ["dependencies", "optional-dependencies"]
 
 [[project.authors]]
@@ -26,6 +26,21 @@ Homepage = "https://github.com/confluentinc/confluent-kafka-python"
 
 [tool.mypy]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.avro",
+    "confluent_kafka.schema_registry.json_schema",
+    "confluent_kafka.schema_registry.protobuf",
+]
+disable_error_code = ["assignment", "no-redef"]
+
+[[tool.mypy.overrides]]
+module = [
+    "confluent_kafka.schema_registry.confluent.meta_pb2",
+    "confluent_kafka.schema_registry.confluent.types.decimal_pb2",
+]
+ignore_errors = true
 
 [tool.setuptools]
 include-package-data = false

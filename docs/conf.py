@@ -12,7 +12,32 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
-import sphinx_rtd_theme
+import os
+try:
+    import tomllib
+except ImportError:
+    # For Python 3.12 and earlier
+    import tomli as tomllib
+
+
+def _read_version_from_pyproject(pyproject_path=None):
+    """Reads the project version from pyproject.toml using tomllib."""
+
+    if not pyproject_path:
+        pyproject_path = os.path.join(os.path.dirname(__file__), '..', 'pyproject.toml')
+
+    if not os.path.isfile(pyproject_path):
+        return None
+
+    with open(pyproject_path, "rb") as f:
+        data = tomllib.load(f)
+
+    # Check for 'project.version' first (PEP 621)
+    if "project" in data and "version" in data["project"]:
+        return data["project"]["version"]
+    # Fallback to 'tool.poetry.version' for Poetry projects
+    elif "tool" in data and "poetry" in data["tool"] and "version" in data["tool"]["poetry"]:
+        return data["tool"]["poetry"]["version"]
 
 # -- General configuration ------------------------------------------------
 
@@ -27,7 +52,7 @@ copyright = u'2016-2025, Confluent Inc.'
 # built documents.
 #
 # The short X.Y version.
-version = '2.11.1'
+version = _read_version_from_pyproject()
 # The full version, including alpha/beta/rc tags.
 release = version
 ######################################################################
@@ -107,7 +132,6 @@ html_theme = 'sphinx_rtd_theme'
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []

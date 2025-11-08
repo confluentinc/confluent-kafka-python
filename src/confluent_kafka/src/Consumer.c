@@ -14,6 +14,17 @@
  * limitations under the License.
  */
 
+/**
+ * ⚠️  WARNING: UPDATE TYPE STUBS WHEN MODIFYING INTERFACES ⚠️
+ *
+ * This file defines the Consumer class and its methods.
+ * When changing method signatures, parameters, or defaults, you MUST
+ * also update the corresponding type definitions in:
+ *   src/confluent_kafka/cimpl.pyi
+ *
+ * Failure to keep both in sync will result in incorrect type hints.
+ */
+
 #include "confluent_kafka.h"
 
 
@@ -109,8 +120,8 @@ static PyObject *Consumer_subscribe (Handle *self, PyObject *args,
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -210,8 +221,8 @@ static PyObject *Consumer_unsubscribe (Handle *self,
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -232,8 +243,8 @@ static PyObject *Consumer_incremental_assign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -261,8 +272,8 @@ static PyObject *Consumer_assign (Handle *self, PyObject *tlist) {
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -291,8 +302,8 @@ static PyObject *Consumer_unassign (Handle *self, PyObject *ignore) {
 	rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -316,8 +327,8 @@ static PyObject *Consumer_incremental_unassign (Handle *self, PyObject *tlist) {
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -347,8 +358,8 @@ static PyObject *Consumer_assignment (Handle *self, PyObject *args,
         rd_kafka_resp_err_t err;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -413,6 +424,7 @@ static void Consumer_offset_commit_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
         if (result)
                 Py_DECREF(result);
         else {
+                CallState_fetch_exception(cs);
                 CallState_crash(cs);
                 rd_kafka_yield(rk);
         }
@@ -460,8 +472,8 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
         PyThreadState *thread_state;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -496,7 +508,7 @@ static PyObject *Consumer_commit (Handle *self, PyObject *args,
 		}
 
 		m = (Message *)msg;
-                
+
                 if (m->error != Py_None) {
                         PyObject *error = Message_error(m, NULL);
                         PyObject *errstr = PyObject_CallMethod(error, "str", NULL);
@@ -598,8 +610,8 @@ static PyObject *Consumer_store_offsets (Handle *self, PyObject *args,
 	static char *kws[] = { "message", "offsets", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -685,8 +697,8 @@ static PyObject *Consumer_committed (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -727,8 +739,8 @@ static PyObject *Consumer_position (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -818,7 +830,7 @@ static PyObject *Consumer_seek (Handle *self, PyObject *args, PyObject *kwargs) 
         rd_kafka_error_t *error;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError, "Consumer closed");
+		PyErr_SetString(PyExc_RuntimeError, ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -877,8 +889,8 @@ static PyObject *Consumer_get_watermark_offsets (Handle *self, PyObject *args,
         PyObject *rtup;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -940,8 +952,8 @@ static PyObject *Consumer_offsets_for_times (Handle *self, PyObject *args,
 	static char *kws[] = { "partitions", "timeout", NULL };
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -982,8 +994,8 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
         CallState cs;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1020,8 +1032,8 @@ static PyObject *Consumer_memberid (Handle *self, PyObject *args,
         char *memberid;
         PyObject *memberidobj;
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1054,8 +1066,8 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
         Py_ssize_t i, n;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1135,14 +1147,37 @@ static PyObject *Consumer_close (Handle *self, PyObject *ignore) {
         Py_RETURN_NONE;
 }
 
+static PyObject *Consumer_enter (Handle *self) {
+	Py_INCREF(self);
+	return (PyObject *)self;
+}
+
+static PyObject *Consumer_exit (Handle *self, PyObject *args) {
+	PyObject *exc_type, *exc_value, *exc_traceback;
+
+	if (!PyArg_UnpackTuple(args, "__exit__", 3, 3,
+			      &exc_type, &exc_value, &exc_traceback))
+		return NULL;
+
+	/* Cleanup: call close() */
+	if (self->rk) {
+		PyObject *result = Consumer_close(self, NULL);
+		if (!result)
+			return NULL;
+		Py_DECREF(result);
+	}
+
+	Py_RETURN_NONE;
+}
+
 static PyObject *
 Consumer_consumer_group_metadata (Handle *self, PyObject *ignore) {
         rd_kafka_consumer_group_metadata_t *cgmd;
         PyObject *obj;
 
         if (!self->rk) {
-                PyErr_SetString(PyExc_RuntimeError,
-                                "Consumer closed");
+				PyErr_SetString(PyExc_RuntimeError,
+					ERR_MSG_CONSUMER_CLOSED);
                 return NULL;
         }
 
@@ -1515,8 +1550,10 @@ static PyMethodDef Consumer_methods[] = {
         { "set_sasl_credentials", (PyCFunction)set_sasl_credentials, METH_VARARGS|METH_KEYWORDS,
            set_sasl_credentials_doc
         },
-
-
+        { "__enter__", (PyCFunction)Consumer_enter, METH_NOARGS,
+          "Context manager entry." },
+        { "__exit__", (PyCFunction)Consumer_exit, METH_VARARGS,
+          "Context manager exit. Automatically closes the consumer." },
 	{ NULL }
 };
 
@@ -1575,6 +1612,7 @@ static void Consumer_rebalance_cb (rd_kafka_t *rk, rd_kafka_resp_err_t err,
 		if (result)
 			Py_DECREF(result);
 		else {
+			CallState_fetch_exception(cs);
 			CallState_crash(cs);
 			rd_kafka_yield(rk);
 		}

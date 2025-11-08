@@ -198,6 +198,22 @@ async def test_avro_serialize_use_schema_id():
     assert obj == obj2
 
 
+async def test_avro_serialize_bytes():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': True}
+    obj = b'\x02\x03\x04'
+    schema = 'bytes'
+    ser = await AsyncAvroSerializer(client, schema_str=json.dumps(schema), conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+    assert b'\x00\x00\x00\x00\x01\x02\x03\x04' == obj_bytes
+
+    deser = await AsyncAvroDeserializer(client)
+    obj2 = await deser(obj_bytes, ser_ctx)
+    assert obj == obj2
+
+
 async def test_avro_serialize_nested():
     conf = {'url': _BASE_URL}
     client = AsyncSchemaRegistryClient.new_client(conf)
@@ -715,6 +731,68 @@ async def test_avro_cel_field_transform():
         'stringField': 'hi-suffix',
         'booleanField': True,
         'bytesField': b'foobar',
+    }
+    deser = await AsyncAvroDeserializer(client)
+    newobj = await deser(obj_bytes, ser_ctx)
+    assert obj2 == newobj
+
+
+async def test_avro_cel_field_transform_missing_prop():
+    conf = {'url': _BASE_URL}
+    client = AsyncSchemaRegistryClient.new_client(conf)
+    ser_conf = {'auto.register.schemas': False, 'use.latest.version': True}
+    schema = {
+        'type': 'record',
+        'name': 'test',
+        'fields': [
+            {'name': 'intField', 'type': 'int'},
+            {'name': 'doubleField', 'type': 'double'},
+            {'name': 'stringField', 'type': 'string'},
+            {'name': 'booleanField', 'type': 'boolean'},
+            {'name': 'bytesField', 'type': 'bytes'},
+            {'name': 'missing', 'type': ['null', 'string'], 'default': None},
+        ]
+    }
+
+    rule = Rule(
+        "test-cel",
+        "",
+        RuleKind.TRANSFORM,
+        RuleMode.WRITEREAD,
+        "CEL_FIELD",
+        None,
+        None,
+        "name == 'stringField' ; value + '-suffix'",
+        None,
+        None,
+        False
+    )
+    await client.register_schema(_SUBJECT, Schema(
+        json.dumps(schema),
+        "AVRO",
+        [],
+        None,
+        RuleSet(None, [rule])
+    ))
+
+    obj = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi',
+        'booleanField': True,
+        'bytesField': b'foobar',
+    }
+    ser = await AsyncAvroSerializer(client, schema_str=None, conf=ser_conf)
+    ser_ctx = SerializationContext(_TOPIC, MessageField.VALUE)
+    obj_bytes = await ser(obj, ser_ctx)
+
+    obj2 = {
+        'intField': 123,
+        'doubleField': 45.67,
+        'stringField': 'hi-suffix-suffix',
+        'booleanField': True,
+        'bytesField': b'foobar',
+        'missing': None,
     }
     deser = await AsyncAvroDeserializer(client)
     newobj = await deser(obj_bytes, ser_ctx)

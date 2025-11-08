@@ -46,7 +46,7 @@ def delivery_report(err, msg):
     Reports the failure or success of a message delivery.
 
     Args:
-        err (KafkaError): The error that occurred on None on success.
+        err (KafkaError): The error that occurred, or None on success.
         msg (Message): The message that was produced or failed.
     """
 
@@ -61,9 +61,12 @@ def main(args):
     topic = args.topic
 
     schema_registry_conf = {'url': args.schema_registry}
+    # If Confluent Cloud SR credentials are provided, add to config
+    if args.sr_api_key and args.sr_api_secret:
+        schema_registry_conf['basic.auth.user.info'] = f"{args.sr_api_key}:{args.sr_api_secret}"
     schema_registry_client = SchemaRegistryClient(schema_registry_conf)
 
-    string_serializer = StringSerializer('utf8')
+    string_serializer = StringSerializer('utf_8')
     protobuf_serializer = ProtobufSerializer(user_pb2.User,
                                              schema_registry_client,
                                              {'use.deprecated.format': False})
@@ -103,6 +106,10 @@ if __name__ == '__main__':
                         help="Bootstrap broker(s) (host[:port])")
     parser.add_argument('-s', dest="schema_registry", required=True,
                         help="Schema Registry (http(s)://host[:port]")
+    parser.add_argument('--sr-api-key', dest="sr_api_key", default=None,
+                        help="Confluent Cloud Schema Registry API key (optional)")
+    parser.add_argument('--sr-api-secret', dest="sr_api_secret", default=None,
+                        help="Confluent Cloud Schema Registry API secret (optional)")
     parser.add_argument('-t', dest="topic", default="example_serde_protobuf",
                         help="Topic name")
 

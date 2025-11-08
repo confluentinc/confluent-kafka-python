@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Dict, Any, Optional
 
 import tink
 from google.oauth2 import service_account
@@ -32,13 +33,13 @@ _TOKEN_URI = "token.uri"
 
 
 class GcpKmsDriver(KmsDriver):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def get_key_url_prefix(self) -> str:
         return _PREFIX
 
-    def new_kms_client(self, conf: dict, key_url: str) -> KmsClient:
+    def new_kms_client(self, conf: Dict[str, Any], key_url: Optional[str]) -> KmsClient:
         uri_prefix = _PREFIX
         if key_url is not None:
             uri_prefix = key_url
@@ -70,7 +71,7 @@ class GcpKmsDriver(KmsDriver):
         return _GcpKmsClient(uri_prefix, creds)
 
     @classmethod
-    def register(cls):
+    def register(cls) -> None:
         register_kms_driver(GcpKmsDriver())
 
 

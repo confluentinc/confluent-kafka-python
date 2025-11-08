@@ -22,16 +22,17 @@ from attrs import field as _attrs_field
 from collections import defaultdict
 from enum import Enum
 from threading import Lock
-from typing import List, Dict, Type, TypeVar, \
-    cast, Optional, Any, Tuple
+from typing import List, Dict, Type, TypeVar, cast, Optional, Any, Tuple
 
 __all__ = [
     'VALID_AUTH_PROVIDERS',
     '_BearerFieldProvider',
+    '_AsyncBearerFieldProvider',
     'is_success',
     'is_retriable',
     'full_jitter',
     '_StaticFieldProvider',
+    '_AsyncStaticFieldProvider',
     '_SchemaCache',
     'RuleKind',
     'RuleMode',
@@ -52,9 +53,41 @@ VALID_AUTH_PROVIDERS = ['URL', 'USER_INFO']
 
 
 class _BearerFieldProvider(metaclass=abc.ABCMeta):
+    """Base class for synchronous bearer field providers."""
     @abc.abstractmethod
     def get_bearer_fields(self) -> dict:
         raise NotImplementedError
+
+
+class _AsyncBearerFieldProvider(metaclass=abc.ABCMeta):
+    """Base class for asynchronous bearer field providers."""
+    @abc.abstractmethod
+    async def get_bearer_fields(self) -> dict:
+        raise NotImplementedError
+
+
+class _StaticFieldProvider(_BearerFieldProvider):
+    """Synchronous static token bearer field provider."""
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
+
+
+class _AsyncStaticFieldProvider(_AsyncBearerFieldProvider):
+    """Asynchronous static token bearer field provider."""
+    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
+        self.token = token
+        self.logical_cluster = logical_cluster
+        self.identity_pool = identity_pool
+
+    async def get_bearer_fields(self) -> dict:
+        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
+                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 def is_success(status_code: int) -> bool:
@@ -68,17 +101,6 @@ def is_retriable(status_code: int) -> bool:
 def full_jitter(base_delay_ms: int, max_delay_ms: int, retries_attempted: int) -> float:
     no_jitter_delay = base_delay_ms * (2.0 ** retries_attempted)
     return random.random() * min(no_jitter_delay, max_delay_ms)
-
-
-class _StaticFieldProvider(_BearerFieldProvider):
-    def __init__(self, token: str, logical_cluster: str, identity_pool: str):
-        self.token = token
-        self.logical_cluster = logical_cluster
-        self.identity_pool = identity_pool
-
-    def get_bearer_fields(self) -> dict:
-        return {'bearer.auth.token': self.token, 'bearer.auth.logical.cluster': self.logical_cluster,
-                'bearer.auth.identity.pool.id': self.identity_pool}
 
 
 class _SchemaCache(object):
@@ -142,7 +164,7 @@ class _SchemaCache(object):
             self.rs_version_index[subject][version] = registered_schema
             self.rs_schema_index[subject][schema] = registered_schema
 
-    def get_schema_by_id(self, subject: str, schema_id: int) -> Optional[Tuple[str, 'Schema']]:
+    def get_schema_by_id(self, subject: Optional[str], schema_id: int) -> Optional[Tuple[str, 'Schema']]:
         """
         Get the schema instance associated with schema id from the cache.
 
@@ -268,11 +290,12 @@ class _SchemaCache(object):
 
         with self.lock:
             if subject in self.rs_id_index:
-                for schema_id, registered_schema in self.rs_id_index[subject].items():
+                for schema_id, registered_schema in list(self.rs_id_index[subject].items()):
                     if registered_schema.version == version:
-                        del self.rs_schema_index[subject][schema_id]
+                        del self.rs_id_index[subject][schema_id]
+
             if subject in self.rs_schema_index:
-                for schema, registered_schema in self.rs_schema_index[subject].items():
+                for schema, registered_schema in list(self.rs_schema_index[subject].items()):
                     if registered_schema.version == version:
                         del self.rs_schema_index[subject][schema]
             rs = None
@@ -284,6 +307,7 @@ class _SchemaCache(object):
                 if subject in self.schema_id_index:
                     if rs.schema_id in self.schema_id_index[subject]:
                         del self.schema_id_index[subject][rs.schema_id]
+                if subject in self.schema_index:
                     if rs.schema in self.schema_index[subject]:
                         del self.schema_index[subject][rs.schema]
 
@@ -347,7 +371,7 @@ class RuleParams:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
         d = src_dict.copy()
 
-        rule_params = cls(params=d)
+        rule_params = cls(params=d)  # type: ignore[call-arg]
 
         return rule_params
 
@@ -459,7 +483,7 @@ class Rule:
 
         disabled = d.pop("disabled", None)
 
-        rule = cls(
+        rule = cls(  # type: ignore[call-arg]
             name=name,
             doc=doc,
             kind=kind,
@@ -536,7 +560,7 @@ class RuleSet:
             encoding_rules_item = Rule.from_dict(encoding_rules_item_data)
             encoding_rules.append(encoding_rules_item)
 
-        rule_set = cls(
+        rule_set = cls(  # type: ignore[call-arg]
             migration_rules=migration_rules,
             domain_rules=domain_rules,
             encoding_rules=encoding_rules,
@@ -571,7 +595,7 @@ class MetadataTags:
 
             tags[prop_name] = tag
 
-        metadata_tags = cls(tags=tags)
+        metadata_tags = cls(tags=tags)  # type: ignore[call-arg]
 
         return metadata_tags
 
@@ -593,7 +617,7 @@ class MetadataProperties:
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
         d = src_dict.copy()
 
-        metadata_properties = cls(properties=d)
+        metadata_properties = cls(properties=d)  # type: ignore[call-arg]
 
         return metadata_properties
 
@@ -650,7 +674,7 @@ class Metadata:
         for sensitive_item in _sensitive or []:
             sensitive.append(sensitive_item)
 
-        metadata = cls(
+        metadata = cls(  # type: ignore[call-arg]
             tags=tags,
             properties=properties,
             sensitive=sensitive,
@@ -666,7 +690,7 @@ class SchemaVersion:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))
+        return cls(subject=src_dict.get('subject'), version=src_dict.get('version'))  # type: ignore[call-arg]
 
 
 @_attrs_define(frozen=True)
@@ -694,7 +718,7 @@ class SchemaReference:
 
     @classmethod
     def from_dict(cls: Type[T], src_dict: Dict[str, Any]) -> T:
-        return cls(
+        return cls(  # type: ignore[call-arg]
             name=src_dict.get('name'),
             subject=src_dict.get('subject'),
             version=src_dict.get('version'),
@@ -832,7 +856,7 @@ class ServerConfig:
 
         override_rule_set = _parse_override_rule_set(d.pop("overrideRuleSet", None))
 
-        config = cls(
+        config = cls(  # type: ignore[call-arg]
             compatibility=compatibility,
             compatibility_level=compatibility_level,
             compatibility_group=compatibility_group,
@@ -865,7 +889,7 @@ class Schema:
         if self.references is not None:
             for references_item_data in self.references:
                 references_item = references_item_data.to_dict()
-                _references.append(references_item)
+                _references.append(references_item)  # type: ignore[union-attr]
 
         _metadata: Optional[Dict[str, Any]] = None
         if isinstance(self.metadata, Metadata):
@@ -922,7 +946,7 @@ class Schema:
 
         rule_set = _parse_rule_set(d.pop("ruleSet", None))
 
-        schema = cls(
+        schema = cls(  # type: ignore[call-arg]
             schema_str=schema,
             schema_type=schema_type,
             references=references,
@@ -943,7 +967,7 @@ class RegisteredSchema:
     version: Optional[int]
     schema_id: Optional[int]
     guid: Optional[str]
-    schema: Optional[Schema]
+    schema: Schema
 
     def to_dict(self) -> Dict[str, Any]:
         schema = self.schema
@@ -984,7 +1008,7 @@ class RegisteredSchema:
 
         version = d.pop("version", None)
 
-        schema = cls(
+        schema = cls(  # type: ignore[call-arg,assignment]
             schema_id=schema_id,
             guid=guid,
             schema=schema,
@@ -992,4 +1016,4 @@ class RegisteredSchema:
             version=version,
         )
 
-        return schema
+        return schema  # type: ignore[return-value]

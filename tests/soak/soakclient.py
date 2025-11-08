@@ -26,12 +26,11 @@
 #
 
 from confluent_kafka import KafkaError, KafkaException, version
-from confluent_kafka import Producer
+from confluent_kafka import Producer, Consumer
 from confluent_kafka.admin import AdminClient, NewTopic
 from collections import defaultdict
 from builtins import int
 from opentelemetry import metrics
-from common import TestConsumer
 import argparse
 import threading
 import time
@@ -412,7 +411,7 @@ class SoakClient (object):
         if 'group.id' not in conf:
             # Generate a group.id bound to this client and python version
             conf['group.id'] = 'soakclient-{}-{}-{}'.format(
-                self.hostname, version()[0], sys.version.split(' ')[0])
+                self.hostname, version(), sys.version.split(' ')[0])
 
         conf = {k: v for k, v in conf.items()}
 
@@ -429,6 +428,7 @@ class SoakClient (object):
 
         # Create topic (might already exist)
         aconf = filter_config(conf, ["consumer.", "producer."], "admin.")
+        aconf['client.id'] = self.testid
         self.create_topic(self.topic, aconf)
 
         #
@@ -440,6 +440,7 @@ class SoakClient (object):
         # Producer
         pconf = filter_config(conf, ["consumer.", "admin."], "producer.")
         pconf['error_cb'] = self.producer_error_cb
+        pconf['client.id'] = self.testid
         self.producer = Producer(pconf)
 
         # Consumer
@@ -447,7 +448,13 @@ class SoakClient (object):
         cconf['error_cb'] = self.consumer_error_cb
         cconf['on_commit'] = self.consumer_commit_cb
         self.logger.info("consumer: using group.id {}".format(cconf['group.id']))
-        self.consumer = TestConsumer(cconf)
+        cconf['client.id'] = self.testid
+        self.consumer = Consumer(cconf)
+
+        # Initialize some counters to zero to make them appear in the metrics
+        self.incr_counter("consumer.error", 0)
+        self.incr_counter("consumer.msgdup", 0)
+        self.incr_counter("producer.errorcb", 0)
 
         # Create and start producer thread
         self.producer_thread = threading.Thread(target=self.producer_thread_main)

@@ -14,8 +14,9 @@
 # limitations under the License.
 
 import threading
+from typing import Any
 
-import celpy  # type: ignore
+import celpy
 
 _has_state = threading.local()
 
@@ -33,9 +34,9 @@ def in_has() -> bool:
 
 
 class InterpretedRunner(celpy.InterpretedRunner):
-    def evaluate(self, context):
+    def evaluate(self, context: Any) -> Any:
         class Evaluator(celpy.Evaluator):
-            def macro_has_eval(self, exprlist) -> celpy.celtypes.BoolType:
+            def macro_has_eval(self, exprlist: Any) -> celpy.celtypes.BoolType:
                 _has_state.in_has = True
                 result = super().macro_has_eval(exprlist)
                 _has_state.in_has = False

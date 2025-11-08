@@ -37,13 +37,8 @@
 
 /**
  * @brief confluent-kafka-python version, must match that of pyproject.toml.
- *
- * Hex version representation:
- *  0xMMmmRRPP
- *  MM=major, mm=minor, RR=revision, PP=patchlevel (not used)
  */
-#define CFL_VERSION     0x020b0100
-#define CFL_VERSION_STR "2.11.1"
+#define CFL_VERSION_STR "2.12.1"
 
 /**
  * Minimum required librdkafka version. This is checked both during
@@ -51,19 +46,19 @@
  * Make sure to keep the MIN_RD_KAFKA_VERSION, MIN_VER_ERRSTR and #error
  * defines and strings in sync.
  */
-#define MIN_RD_KAFKA_VERSION 0x020b01ff
+#define MIN_RD_KAFKA_VERSION 0x020c01ff
 
 #ifdef __APPLE__
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.11.1 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.12.1 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.11.1 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#define MIN_VER_ERRSTR "confluent-kafka-python requires librdkafka v2.12.1 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 
 #if RD_KAFKA_VERSION < MIN_RD_KAFKA_VERSION
 #ifdef __APPLE__
-#error "confluent-kafka-python requires librdkafka v2.11.1 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
+#error "confluent-kafka-python requires librdkafka v2.12.1 or later. Install the latest version of librdkafka from Homebrew by running `brew install librdkafka` or `brew upgrade librdkafka`"
 #else
-#error "confluent-kafka-python requires librdkafka v2.11.1 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
+#error "confluent-kafka-python requires librdkafka v2.12.1 or later. Install the latest version of librdkafka from the Confluent repositories, see http://docs.confluent.io/current/installation.html"
 #endif
 #endif
 
@@ -285,7 +280,54 @@ int  Handle_traverse (Handle *h, visitproc visit, void *arg);
 typedef struct {
 	PyThreadState *thread_state;
 	int crashed;   /* Callback crashed */
+	PyObject *exception_value;   /* Stored exception value */
 } CallState;
+
+/**
+ * @brief Compatibility layer for Python exception handling API changes.
+ * PyErr_Fetch/PyErr_Restore were deprecated in Python 3.12 in favor of 
+ * PyErr_GetRaisedException/PyErr_SetRaisedException.
+ */
+
+static inline void
+cfl_exception_fetch(PyObject **exc_value) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    *exc_value = PyErr_GetRaisedException();
+#else
+    /* Python < 3.12 - use legacy API */
+    PyObject *exc_type, *exc_traceback;
+    PyErr_Fetch(&exc_type, exc_value, &exc_traceback);
+    Py_XDECREF(exc_type);
+    Py_XDECREF(exc_traceback);
+#endif
+}
+
+static inline void
+cfl_exception_restore(PyObject *exc_value) {
+#if PY_VERSION_HEX >= 0x030c0000
+    /* Python 3.12+ - use new API */
+    if (exc_value) {
+        PyErr_SetRaisedException(exc_value);
+    }
+#else
+    /* Python < 3.12 - use legacy API */
+    PyErr_SetObject(PyExceptionInstance_Class(exc_value), exc_value);
+#endif
+}
+
+static inline void
+CallState_fetch_exception(CallState *cs) {
+    cfl_exception_fetch(&cs->exception_value);
+}
+
+static inline void
+CallState_restore_exception(CallState *cs) {
+    if (cs->exception_value) {
+        cfl_exception_restore(cs->exception_value);
+        cs->exception_value = NULL;
+    }
+}
 
 /**
  * @brief Initialiase a CallState and unlock the GIL prior to a
@@ -383,6 +425,15 @@ extern PyTypeObject TopicPartitionType;
  *
  *
  ****************************************************************************/
+
+/**
+ * Error messages for uninitialized/closed Handle objects
+ */
+#define ERR_MSG_PRODUCER_CLOSED      "Producer has been closed"
+#define ERR_MSG_ADMIN_CLIENT_CLOSED  "AdminClient has been closed"
+#define ERR_MSG_CONSUMER_CLOSED      "Consumer closed"
+#define ERR_MSG_HANDLE_CLOSED        "Handle has been closed"
+
 #define PY_RD_KAFKA_ADMIN  100 /* There is no Admin client type in librdkafka,
                                 * so we use the producer type for now,
                                 * but we need to differentiate between a

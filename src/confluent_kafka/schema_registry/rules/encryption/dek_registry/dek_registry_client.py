@@ -46,7 +46,7 @@ class KekKmsProps:
         d = src_dict.copy()
         kek_kms_props = cls()
 
-        kek_kms_props.properties = d
+        kek_kms_props.properties = d  # type: ignore[attr-defined]
         return kek_kms_props
 
 
@@ -124,7 +124,7 @@ class Kek:
 
         deleted = d.pop("deleted", None)
 
-        kek = cls(
+        kek = cls(  # type: ignore[call-arg]
             name=name,
             kms_type=kms_type,
             kms_key_id=kms_key_id,
@@ -198,7 +198,7 @@ class CreateKekRequest:
 
         shared = d.pop("shared", None)
 
-        create_kek_request = cls(
+        create_kek_request = cls(  # type: ignore[call-arg]
             name=name,
             kms_type=kms_type,
             kms_key_id=kms_key_id,
@@ -321,7 +321,7 @@ class Dek:
 
         deleted = d.pop("deleted", None)
 
-        dek = cls(
+        dek = cls(  # type: ignore[call-arg]
             kek_name=kek_name,
             subject=subject,
             version=version,
@@ -381,7 +381,7 @@ class CreateDekRequest:
 
         encrypted_key_material = d.pop("encryptedKeyMaterial", None)
 
-        create_dek_request = cls(
+        create_dek_request = cls(  # type: ignore[call-arg]
             subject=subject,
             version=version,
             algorithm=algorithm,
@@ -587,10 +587,7 @@ class DekRegistryClient(object):
             encrypted_key_material=encrypted_key_material
         )
 
-        response = self._rest_client.post('/dek-registry/v1/keks/{}/deks'
-                                          .format(urllib.parse.quote(kek_name)),
-                                          request.to_dict())
-        dek = Dek.from_dict(response)
+        dek = self._create_dek(kek_name, request)
 
         self._dek_cache.set(cache_key, dek)
         # Ensure latest dek is invalidated, such as in case of conflict (409)
@@ -610,6 +607,29 @@ class DekRegistryClient(object):
         ))
 
         return dek
+
+    def _create_dek(
+        self, kek_name: str, request: CreateDekRequest
+    ) -> Dek:
+        from confluent_kafka.schema_registry.error import SchemaRegistryError
+        if request.subject is None:
+            raise TypeError("Subject cannot be None")
+        try:
+            # Try newer API with subject in the path
+            path = '/dek-registry/v1/keks/{}/deks/{}'.format(
+                urllib.parse.quote(kek_name),
+                urllib.parse.quote(request.subject, safe='')
+            )
+            response = self._rest_client.post(path, request.to_dict())
+            return Dek.from_dict(response)
+        except SchemaRegistryError as e:
+            if e.http_status_code == 405:
+                # Try fallback to older API that does not have subject in the path
+                path = '/dek-registry/v1/keks/{}/deks'.format(urllib.parse.quote(kek_name))
+                response = self._rest_client.post(path, request.to_dict())
+                return Dek.from_dict(response)
+            else:
+                raise
 
     def get_dek(
         self, kek_name: str, subject: str, algorithm: DekAlgorithm = DekAlgorithm.AES256_GCM,

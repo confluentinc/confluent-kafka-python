@@ -79,8 +79,8 @@ async def test_api_register_normalized_schema(kafka_cluster, load_file):
     subject = _subject_name(avsc)
     schema = Schema(load_file(avsc), schema_type='AVRO')
 
-    schema_id = await sr.register_schema(subject, schema, True)
-    registered_schema = await sr.lookup_schema(subject, schema, True)
+    schema_id = await sr.register_schema(subject, schema, normalize_schemas=True)
+    registered_schema = await sr.lookup_schema(subject, schema, normalize_schemas=True)
 
     assert registered_schema.schema_id == schema_id
     assert registered_schema.subject == subject
@@ -419,6 +419,34 @@ async def test_api_delete_subject_version(kafka_cluster, load_file):
     await sr.register_schema(subject, schema)
     await sr.delete_version(subject, 1)
 
+    assert subject not in await sr.get_subjects()
+
+
+async def test_api_delete_version_soft_then_hard(kafka_cluster, load_file):
+    """
+    Performs a soft delete followed by a hard delete with cache populated and cleared correctly.
+    """
+    sr = kafka_cluster.async_schema_registry()
+
+    schema = Schema(load_file('basic_schema.avsc'), schema_type='AVRO')
+    subject = str(uuid1())
+
+    # Register schema and trigger cache population
+    await sr.register_schema(subject, schema)
+    registered = await sr.lookup_schema(subject, schema)
+    version = registered.version
+    assert sr._cache.get_registered_by_subject_version(subject, version) is not None
+
+    # Verify soft delete clears cache
+    deleted_version = await sr.delete_version(subject, version, permanent=False)
+    assert deleted_version == version
+    assert sr._cache.get_registered_by_subject_version(subject, version) is None
+
+    # Verify hard delete proceeds without error
+    deleted_version = await sr.delete_version(subject, version, permanent=True)
+    assert deleted_version == version
+
+    # Verify subject is fully deleted
     assert subject not in await sr.get_subjects()
 
 
