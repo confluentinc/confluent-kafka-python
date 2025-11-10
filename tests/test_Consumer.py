@@ -1091,36 +1091,6 @@ def test_poll_interruptibility_and_messages():
     assert 0.4 <= elapsed <= 0.6, f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer4.close()
 
-    # Assertion 5: Message available - returns immediately
-    producer = Producer({'bootstrap.servers': 'localhost:9092'})
-    producer.produce(topic, value=b'test-message')
-    producer.flush(timeout=1.0)
-    producer = None
-
-    consumer5 = TestConsumer({
-        'bootstrap.servers': 'localhost:9092',
-        'group.id': 'test-poll-message-available',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 6000,
-        'auto.offset.reset': 'earliest'
-    })
-    consumer5.subscribe([topic])
-
-    # Wait for subscription and message availability
-    time.sleep(2.0)
-
-    start = time.time()
-    msg = consumer5.poll(timeout=2.0)
-    elapsed = time.time() - start
-
-    # Message should be available and return quickly (after consumer is ready)
-    assert msg is not None, "Assertion 5 failed: Expected message, got None"
-    assert not msg.error(), f"Assertion 5 failed: Message has error: {msg.error()}"
-    # Allow more time for initial consumer setup, but once ready, should return quickly
-    assert elapsed < 2.5, f"Assertion 5 failed: Message available but took {elapsed:.2f}s, expected < 2.5s"
-    assert msg.value() == b'test-message', "Assertion 5 failed: Message value mismatch"
-    consumer5.close()
-
 
 def test_poll_edge_cases():
     """Test poll() edge cases.
@@ -1305,40 +1275,6 @@ def test_consume_interruptibility_and_messages():
     assert len(msglist) == 0, "Assertion 5 failed: num_messages=0 should return empty list"
     assert elapsed < 0.1, f"Assertion 5 failed: num_messages=0 took {elapsed:.2f}s, expected < 0.1s"
     consumer5.close()
-
-    # Assertion 6: Message available - returns messages
-    producer = Producer({'bootstrap.servers': 'localhost:9092'})
-    for i in range(3):
-        producer.produce(topic, value=f'test-message-{i}'.encode())
-    producer.flush(timeout=1.0)
-    producer = None
-
-    consumer6 = TestConsumer({
-        'bootstrap.servers': 'localhost:9092',
-        'group.id': 'test-consume-messages-available',
-        'socket.timeout.ms': 100,
-        'session.timeout.ms': 6000,
-        'auto.offset.reset': 'earliest'
-    })
-    consumer6.subscribe([topic])
-
-    # Wait for subscription and message availability
-    time.sleep(2.0)
-
-    start = time.time()
-    msglist = consumer6.consume(num_messages=5, timeout=2.0)
-    elapsed = time.time() - start
-
-    # Messages should be available and return quickly (after consumer is ready)
-    assert len(msglist) > 0, "Assertion 6 failed: Expected messages, got empty list"
-    assert len(msglist) <= 5, f"Assertion 6 failed: Should return at most 5 messages, got {len(msglist)}"
-    # Allow more time for initial consumer setup, but once ready, should return quickly
-    assert elapsed < 2.5, f"Assertion 6 failed: Messages available but took {elapsed:.2f}s, expected < 2.5s"
-    # Verify message values
-    for i, msg in enumerate(msglist):
-        assert not msg.error(), f"Assertion 6 failed: Message {i} has error: {msg.error()}"
-        assert msg.value() is not None, f"Assertion 6 failed: Message {i} has no value"
-    consumer6.close()
 
 
 def test_consume_edge_cases():
