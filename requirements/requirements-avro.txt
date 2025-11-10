@@ -1,4 +1,4 @@
 fastavro < 1.8.0; python_version == "3.7"
 fastavro < 2; python_version > "3.7"
-requests
+requests~=2.32.0
 avro>=1.11.1,<2
