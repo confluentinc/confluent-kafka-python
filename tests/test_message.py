@@ -16,8 +16,10 @@ def test_init_no_params():
     assert m.latency() is None
     assert m.leader_epoch() is None
 
+
 def test_init_all_params():
-    m = Message(topic="test", partition=1, offset=2, key=b"key", value=b"value", headers=[("h1", "v1")], error=KafkaError(0),
+    m = Message(topic="test", partition=1, offset=2, key=b"key", value=b"value", headers=[("h1", "v1")],
+                error=KafkaError(0),
                 timestamp=(1, 1762499956), latency=0.05, leader_epoch=1762499956)
     assert m.topic() == "test"
     assert m.partition() == 1
@@ -29,6 +31,7 @@ def test_init_all_params():
     assert m.timestamp() == (1, 1762499956)
     assert m.latency() == 0.05
     assert m.leader_epoch() == 1762499956
+
 
 def test_init_negative_param_values():
     m = Message(partition=-1, offset=-1, latency=-1.0, leader_epoch=-1762499956)
@@ -45,10 +48,12 @@ def test_set_headers():
     m.set_headers([("h2", "v2")])
     assert m.headers() == [("h2", "v2")]
 
+
 def test_set_key():
     m = Message()
     m.set_key(b"key")
     assert m.key() == b"key"
+
 
 def test_set_value():
     m = Message()
