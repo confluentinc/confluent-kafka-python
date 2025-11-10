@@ -3,7 +3,7 @@ urllib3<3
 flake8
 mypy
 types-cachetools
-types-requests
+types-requests~=2.32.0
 orjson
 pytest
 pytest-timeout
