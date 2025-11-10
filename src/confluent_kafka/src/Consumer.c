@@ -1101,28 +1101,36 @@ static PyObject *Consumer_poll (Handle *self, PyObject *args,
 
         CallState_begin(self, &cs);
 
-        while (1) {
-                /* Calculate timeout for this chunk */
-                chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
-                                                          CHUNK_TIMEOUT_MS);
-                if (chunk_timeout_ms == 0) {
-                        /* Timeout expired */
-                        break;
-                }
+        /* Skip wakeable poll pattern for non-blocking or very short timeouts.
+         * This avoids unnecessary GIL re-acquisition that can interfere with
+         * ThreadPool. Only use wakeable poll for
+         * blocking calls that need to be interruptible. */
+        if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
+                rkm = rd_kafka_consumer_poll(self->rk, total_timeout_ms);
+        } else {
+                while (1) {
+                        /* Calculate timeout for this chunk */
+                        chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
+                                                                  CHUNK_TIMEOUT_MS);
+                        if (chunk_timeout_ms == 0) {
+                                /* Timeout expired */
+                                break;
+                        }
 
-                /* Poll with chunk timeout */
-                rkm = rd_kafka_consumer_poll(self->rk, chunk_timeout_ms);
+                        /* Poll with chunk timeout */
+                        rkm = rd_kafka_consumer_poll(self->rk, chunk_timeout_ms);
 
-                /* If we got a message, exit the loop */
-                if (rkm) {
-                        break;
-                }
+                        /* If we got a message, exit the loop */
+                        if (rkm) {
+                                break;
+                        }
 
-                chunk_count++;
+                        chunk_count++;
 
-                /* Check for signals between chunks */
-                if (check_signals_between_chunks(self, &cs)) {
-                        return NULL;
+                        /* Check for signals between chunks */
+                        if (check_signals_between_chunks(self, &cs)) {
+                                return NULL;
+                        }
                 }
         }
 
@@ -1237,18 +1245,13 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
 
         CallState_begin(self, &cs);
 
-        while (1) {
-                /* Calculate timeout for this chunk */
-                chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
-                                                          CHUNK_TIMEOUT_MS);
-                if (chunk_timeout_ms == 0) {
-                        /* Timeout expired */
-                        break;
-                }
-
-                /* Consume with chunk timeout */
-                n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu, chunk_timeout_ms,
-                                                               rkmessages, num_messages);
+        /* Skip wakeable poll pattern for non-blocking or very short timeouts.
+         * This avoids unnecessary GIL re-acquisition that can interfere with
+         * ThreadPool. Only use wakeable poll for
+         * blocking calls that need to be interruptible. */
+        if (total_timeout_ms >= 0 && total_timeout_ms < CHUNK_TIMEOUT_MS) {
+                n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu, total_timeout_ms,
+                                                             rkmessages, num_messages);
 
                 if (n < 0) {
                         /* Error - need to restore GIL before setting error */
@@ -1258,18 +1261,41 @@ static PyObject *Consumer_consume (Handle *self, PyObject *args,
                                          "%s", rd_kafka_err2str(rd_kafka_last_error()));
                         return NULL;
                 }
+        } else {
+                while (1) {
+                        /* Calculate timeout for this chunk */
+                        chunk_timeout_ms = calculate_chunk_timeout(total_timeout_ms, chunk_count,
+                                                                  CHUNK_TIMEOUT_MS);
+                        if (chunk_timeout_ms == 0) {
+                                /* Timeout expired */
+                                break;
+                        }
 
-                /* If we got messages, exit the loop */
-                if (n > 0) {
-                        break;
-                }
+                        /* Consume with chunk timeout */
+                        n = (Py_ssize_t)rd_kafka_consume_batch_queue(rkqu, chunk_timeout_ms,
+                                                                       rkmessages, num_messages);
 
-                chunk_count++;
+                        if (n < 0) {
+                                /* Error - need to restore GIL before setting error */
+                                PyEval_RestoreThread(cs.thread_state);
+                                free(rkmessages);
+                                cfl_PyErr_Format(rd_kafka_last_error(),
+                                                 "%s", rd_kafka_err2str(rd_kafka_last_error()));
+                                return NULL;
+                        }
 
-                /* Check for signals between chunks */
-                if (check_signals_between_chunks(self, &cs)) {
-                        free(rkmessages);
-                        return NULL;
+                        /* If we got messages, exit the loop */
+                        if (n > 0) {
+                                break;
+                        }
+
+                        chunk_count++;
+
+                        /* Check for signals between chunks */
+                        if (check_signals_between_chunks(self, &cs)) {
+                                free(rkmessages);
+                                return NULL;
+                        }
                 }
         }
 
