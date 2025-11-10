@@ -291,6 +291,7 @@ def test_producer_bool_value():
     assert bool(p)
     assert p.close(), "The producer was not fully closed"
 
+
 def test_produce_batch_basic_types_and_data():
     """Test basic data types, None/empty handling, and partition functionality."""
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
@@ -1415,8 +1416,10 @@ def test_producer_close():
     }
     producer = Producer(conf)
     cb_detector = {"on_delivery_called": False}
+
     def on_delivery(err, msg):
         cb_detector["on_delivery_called"] = True
+
     producer.produce('mytopic', value='somedata', key='a key', callback=on_delivery)
     assert producer.close(), "The producer could not be closed on demand"
     assert cb_detector["on_delivery_called"], "The delivery callback should have been called by flushing during close"
