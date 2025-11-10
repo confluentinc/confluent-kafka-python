@@ -29,10 +29,7 @@ def send_sigint_after_delay(delay_seconds):
         delay_seconds: Delay in seconds before sending SIGINT
     """
     time.sleep(delay_seconds)
-    try:
-        os.kill(os.getpid(), signal.SIGINT)
-    except Exception:
-        pass
+    os.kill(os.getpid(), signal.SIGINT)
 
 
 def test_basic_api():
