@@ -761,12 +761,13 @@ static int Message_init (PyObject *self0, PyObject *args, PyObject *kwargs) {
 		self->headers = headers;
 	}
 
-	/* Set error (KafkaError) - only if provided and not None */
+	/* Set error (KafkaError) */
 	if (error && error != Py_None) {
 		Py_INCREF(error);
 		self->error = error;
 	}
 
+    /* Set timestamp (tuple of (timestamp_type, timestamp)) */
 	if (timestamp && timestamp != Py_None) {
 	    if (!PyTuple_Check(timestamp) || PyTuple_Size(timestamp) != 2) {
 	        PyErr_SetString(PyExc_TypeError,
