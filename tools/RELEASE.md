@@ -306,18 +306,26 @@ In the same virtualenv as created above:
 
 **CANDIDATE ITERATION:**
 
-    # For release-candidates specify --pre argument and version-pinning:
-    $ pip install --pre confluent_kafka==0.11.4rc1
+    # For release-candidates specify --pre argument and version-pinning.
+    
+    # Ensure you veriy installation of both pre-built wheel and building from source:
+
+    $ pip install --pre -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4rc1"
+
+    $ C_INCLUDE_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/include LIBRARY_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/lib pip install --pre --no-binary "confluent-kafka" -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4rc1" # On OSX, need to provide paths for librdkafka
 
 
 **RELEASE ITERATION:**
 
     # For final releases no --pre or version-pinning, pay
     # attention to the version being picked up, should be the
-    # final v0.11.4 release:
+    # final v0.11.4 release.
 
-    $ pip install confluent_kafka
+    # Ensure you veriy installation of both pre-built wheel and building from source:
 
+    $ pip install -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4"
+
+    $ C_INCLUDE_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/include LIBRARY_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/lib pip install --no-binary "confluent-kafka" -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4" # On OSX, need to provide paths for librdkafka
 
 Verify that the package works and prints the expected version:
 
