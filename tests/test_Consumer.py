@@ -7,15 +7,9 @@ import time
 
 import pytest
 
-from confluent_kafka import (
-    OFFSET_INVALID,
-    TIMESTAMP_NOT_AVAILABLE,
-    Consumer,
-    Producer,
-    KafkaError,
-    KafkaException,
-    TopicPartition,
-)
+from confluent_kafka import (Consumer, TopicPartition, KafkaError,
+                             KafkaException, TIMESTAMP_NOT_AVAILABLE,
+                             OFFSET_INVALID)
 from tests.common import TestConsumer
 
 
