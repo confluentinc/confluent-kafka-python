@@ -81,16 +81,6 @@ class Message:
                  headers: Optional[HeadersType] = ..., error: Optional[KafkaError] = ...,
                  timestamp: Optional[Tuple[int, int]] = ..., latency: Optional[float] = ...,
                  leader_epoch: Optional[int] = ...) -> None: ...
-    topic: Optional[str]
-    partition: Optional[int]
-    offset: Optional[int]
-    key: Optional[bytes]
-    value: Optional[bytes]
-    headers: Optional[HeadersType]
-    error: Optional[KafkaError]
-    timestamp: Tuple[int, int]
-    latency: Optional[float]
-    leader_epoch: Optional[int]
     def topic(self) -> Optional[str]: ...
     def partition(self) -> Optional[int]: ...
     def offset(self) -> Optional[int]: ...
