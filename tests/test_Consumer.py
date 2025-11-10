@@ -21,10 +21,10 @@ from tests.common import TestConsumer
 
 def send_sigint_after_delay(delay_seconds):
     """Send SIGINT to current process after delay.
-    
+
     Utility function for testing interruptible poll/consume operations.
     Used to simulate Ctrl+C in automated tests.
-    
+
     Args:
         delay_seconds: Delay in seconds before sending SIGINT
     """
@@ -736,11 +736,11 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.3))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer1.poll()  # Infinite timeout - should chunk every 200ms
@@ -749,7 +749,7 @@ def test_calculate_chunk_timeout_utility_function():
         # Should interrupt within ~0.5s (200ms chunk + overhead)
         assert elapsed < 1.0, f"Assertion 1 failed: Infinite timeout chunking took {elapsed:.2f}s"
     consumer1.close()
-    
+
     # Assertion 2: Finite timeout exact multiple (1.0s = 5 chunks of 200ms)
     consumer2 = TestConsumer({
         'group.id': 'test-chunk-exact-multiple',
@@ -758,15 +758,15 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer2.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer2.poll(timeout=1.0)  # Exactly 1000ms (5 chunks)
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 2 failed: Expected None (timeout)"
     assert 0.8 <= elapsed <= 1.2, f"Assertion 2 failed: Timeout took {elapsed:.2f}s, expected ~1.0s"
     consumer2.close()
-    
+
     # Assertion 3: Finite timeout not multiple (0.35s = 1 chunk + 150ms partial)
     consumer3 = TestConsumer({
         'group.id': 'test-chunk-not-multiple',
@@ -775,15 +775,15 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer3.poll(timeout=0.35)  # 350ms (1 full chunk + 150ms partial)
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 3 failed: Expected None (timeout)"
     assert 0.25 <= elapsed <= 0.45, f"Assertion 3 failed: Timeout took {elapsed:.2f}s, expected ~0.35s"
     consumer3.close()
-    
+
     # Assertion 4: Very short timeout (< 200ms chunk size)
     consumer4 = TestConsumer({
         'group.id': 'test-chunk-very-short',
@@ -792,15 +792,15 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer4.poll(timeout=0.05)  # 50ms (less than 200ms chunk)
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 4 failed: Expected None (timeout)"
     assert 0.03 <= elapsed <= 0.15, f"Assertion 4 failed: Timeout took {elapsed:.2f}s, expected ~0.05s (not 0.2s)"
     consumer4.close()
-    
+
     # Assertion 5: Zero timeout (non-blocking)
     consumer5 = TestConsumer({
         'group.id': 'test-chunk-zero',
@@ -809,14 +809,14 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer5.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer5.poll(timeout=0.0)  # Non-blocking
     elapsed = time.time() - start
-    
+
     assert elapsed < 0.1, f"Assertion 5 failed: Zero timeout took {elapsed:.2f}s, expected immediate return"
     consumer5.close()
-    
+
     # Assertion 6: Large finite timeout (10s = 50 chunks)
     consumer6 = TestConsumer({
         'group.id': 'test-chunk-large',
@@ -825,15 +825,15 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer6.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer6.poll(timeout=10.0)  # 10 seconds (50 chunks)
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 6 failed: Expected None (timeout)"
     assert 9.5 <= elapsed <= 10.5, f"Assertion 6 failed: Timeout took {elapsed:.2f}s, expected ~10.0s"
     consumer6.close()
-    
+
     # Assertion 7: Finite timeout with interruption (chunk calculation continues correctly)
     consumer7 = TestConsumer({
         'group.id': 'test-chunk-finite-interrupt',
@@ -842,11 +842,11 @@ def test_calculate_chunk_timeout_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer7.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.4))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer7.poll(timeout=1.0)  # 1 second, but interrupt after 0.4s
@@ -868,11 +868,11 @@ def test_check_signals_between_chunks_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.05))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer1.poll()  # Infinite timeout
@@ -881,7 +881,7 @@ def test_check_signals_between_chunks_utility_function():
         # Should interrupt within ~200ms (first chunk check)
         assert elapsed < 0.5, f"Assertion 1 failed: First chunk signal check took {elapsed:.2f}s, expected < 0.5s"
     consumer1.close()
-    
+
     # Assertion 2: Signal detected on later chunk check
     consumer2 = TestConsumer({
         'group.id': 'test-signal-later-chunk',
@@ -890,11 +890,11 @@ def test_check_signals_between_chunks_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer2.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.5))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer2.poll()  # Infinite timeout
@@ -903,7 +903,7 @@ def test_check_signals_between_chunks_utility_function():
         # Should interrupt within ~200ms of signal being sent (0.5s + 0.2s = 0.7s max)
         assert elapsed < 0.8, f"Assertion 2 failed: Later chunk signal check took {elapsed:.2f}s, expected < 0.8s"
     consumer2.close()
-    
+
     # Assertion 3: No signal - continues polling (returns 0)
     consumer3 = TestConsumer({
         'group.id': 'test-signal-no-signal',
@@ -912,15 +912,15 @@ def test_check_signals_between_chunks_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe(['test-topic'])
-    
+
     start = time.time()
     msg = consumer3.poll(timeout=0.5)  # 500ms, no signal
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 3 failed: Expected None (timeout), no signal should not interrupt"
     assert 0.4 <= elapsed <= 0.6, f"Assertion 3 failed: No signal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer3.close()
-    
+
     # Assertion 4: Signal checked every chunk (not just once)
     consumer4 = TestConsumer({
         'group.id': 'test-signal-every-chunk',
@@ -929,12 +929,12 @@ def test_check_signals_between_chunks_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe(['test-topic'])
-    
+
     # Send signal after 0.6 seconds (3 chunks should have passed)
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.6))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer4.poll()  # Infinite timeout
@@ -944,7 +944,7 @@ def test_check_signals_between_chunks_utility_function():
         # Signal sent at 0.6s, should interrupt by ~0.8s (0.6 + 0.2)
         assert 0.6 <= elapsed <= 0.9, f"Assertion 4 failed: Every chunk check took {elapsed:.2f}s, expected 0.6-0.9s"
     consumer4.close()
-    
+
     # Assertion 5: Signal check works during finite timeout
     consumer5 = TestConsumer({
         'group.id': 'test-signal-finite-timeout',
@@ -953,11 +953,11 @@ def test_check_signals_between_chunks_utility_function():
         'auto.offset.reset': 'latest'
     })
     consumer5.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.3))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer5.poll(timeout=2.0)  # 2 seconds, but interrupt after 0.3s
@@ -979,11 +979,11 @@ def test_wakeable_poll_utility_functions_interaction():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe(['test-topic'])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.4))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer1.poll(timeout=1.0)  # 1 second timeout, interrupt after 0.4s
@@ -995,7 +995,7 @@ def test_wakeable_poll_utility_functions_interaction():
         # Verify it didn't wait for full 1 second timeout
         assert elapsed < 1.0, f"Assertion 1 failed: Should interrupt before timeout, took {elapsed:.2f}s"
     consumer1.close()
-    
+
     # Assertion 2: Multiple chunks before signal - both functions work over multiple iterations
     consumer2 = TestConsumer({
         'group.id': 'test-interaction-multiple-chunks',
@@ -1004,12 +1004,12 @@ def test_wakeable_poll_utility_functions_interaction():
         'auto.offset.reset': 'latest'
     })
     consumer2.subscribe(['test-topic'])
-    
+
     # Send signal after 0.6 seconds (3 chunks should have passed: 0.2s, 0.4s, 0.6s)
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.6))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer2.poll()  # Infinite timeout
@@ -1018,17 +1018,19 @@ def test_wakeable_poll_utility_functions_interaction():
         # Chunk calculation should continue correctly (200ms each)
         # Signal check should happen every chunk
         # Should interrupt within ~0.8s (0.6s signal + 0.2s chunk)
-        assert 0.6 <= elapsed <= 0.9, f"Assertion 2 failed: Multiple chunks interaction took {elapsed:.2f}s, expected 0.6-0.9s"
+        msg = (f"Assertion 2 failed: Multiple chunks interaction took "
+               f"{elapsed:.2f}s, expected 0.6-0.9s")
+        assert 0.6 <= elapsed <= 0.9, msg
         # Verify chunking was happening (elapsed should be close to signal time + one chunk)
         assert elapsed >= 0.6, f"Assertion 2 failed: Should wait for signal at 0.6s, but interrupted at {elapsed:.2f}s"
     consumer2.close()
 
 
 def test_poll_interruptibility_and_messages():
-    """Test poll() interruptibility (main fix) and message handling.    
+    """Test poll() interruptibility (main fix) and message handling.
     """
     topic = 'test-poll-interrupt-topic'
-    
+
     # Assertion 1: Infinite timeout can be interrupted immediately
     consumer1 = TestConsumer({
         'group.id': 'test-poll-infinite-immediate',
@@ -1037,11 +1039,11 @@ def test_poll_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.1))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer1.poll()  # Infinite timeout
@@ -1051,7 +1053,7 @@ def test_poll_interruptibility_and_messages():
         # Should interrupt within first chunk (~200ms)
         assert elapsed < 0.5, f"Assertion 1 failed: Immediate interrupt took {elapsed:.2f}s, expected < 0.5s"
     consumer1.close()
-    
+
     # Assertion 2: Finite timeout can be interrupted before timeout expires
     consumer2 = TestConsumer({
         'group.id': 'test-poll-finite-interrupt',
@@ -1060,11 +1062,11 @@ def test_poll_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer2.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.3))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer2.poll(timeout=2.0)  # 2 seconds, but interrupt after 0.3s
@@ -1075,7 +1077,7 @@ def test_poll_interruptibility_and_messages():
         assert elapsed < 1.0, f"Assertion 2 failed: Finite timeout interrupt took {elapsed:.2f}s, expected < 1.0s"
         assert elapsed < 2.0, f"Assertion 2 failed: Should interrupt before timeout, took {elapsed:.2f}s"
     consumer2.close()
-    
+
     # Assertion 3: Signal sent after multiple chunks still interrupts quickly
     consumer3 = TestConsumer({
         'group.id': 'test-poll-multiple-chunks',
@@ -1084,11 +1086,11 @@ def test_poll_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.6))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer3.poll()  # Infinite timeout
@@ -1096,9 +1098,11 @@ def test_poll_interruptibility_and_messages():
     except KeyboardInterrupt:
         elapsed = time.time() - start
         # Should interrupt within one chunk period after signal (0.6s + 0.2s = 0.8s max)
-        assert 0.6 <= elapsed <= 0.9, f"Assertion 3 failed: Multiple chunks interrupt took {elapsed:.2f}s, expected 0.6-0.9s"
+        msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
+               f"{elapsed:.2f}s, expected 0.6-0.9s")
+        assert 0.6 <= elapsed <= 0.9, msg
     consumer3.close()
-    
+
     # Assertion 4: No signal - timeout works normally
     consumer4 = TestConsumer({
         'group.id': 'test-poll-timeout-normal',
@@ -1107,21 +1111,21 @@ def test_poll_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe([topic])
-    
+
     start = time.time()
     msg = consumer4.poll(timeout=0.5)  # 500ms, no signal
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 4 failed: Expected None (timeout), no signal should not interrupt"
     assert 0.4 <= elapsed <= 0.6, f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer4.close()
-    
+
     # Assertion 5: Message available - returns immediately
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     producer.produce(topic, value=b'test-message')
     producer.flush(timeout=1.0)
     producer = None
-    
+
     consumer5 = TestConsumer({
         'bootstrap.servers': 'localhost:9092',
         'group.id': 'test-poll-message-available',
@@ -1130,14 +1134,14 @@ def test_poll_interruptibility_and_messages():
         'auto.offset.reset': 'earliest'
     })
     consumer5.subscribe([topic])
-    
+
     # Wait for subscription and message availability
     time.sleep(2.0)
-    
+
     start = time.time()
     msg = consumer5.poll(timeout=2.0)
     elapsed = time.time() - start
-    
+
     # Message should be available and return quickly (after consumer is ready)
     assert msg is not None, "Assertion 5 failed: Expected message, got None"
     assert not msg.error(), f"Assertion 5 failed: Message has error: {msg.error()}"
@@ -1151,7 +1155,7 @@ def test_poll_edge_cases():
     """Test poll() edge cases.
     """
     topic = 'test-poll-edge-topic'
-    
+
     # Assertion 1: Zero timeout returns immediately (non-blocking)
     consumer1 = TestConsumer({
         'group.id': 'test-poll-zero-timeout',
@@ -1160,15 +1164,15 @@ def test_poll_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe([topic])
-    
+
     start = time.time()
     msg = consumer1.poll(timeout=0.0)  # Zero timeout
     elapsed = time.time() - start
-    
+
     assert elapsed < 0.1, f"Assertion 1 failed: Zero timeout took {elapsed:.2f}s, expected < 0.1s"
     assert msg is None, "Assertion 1 failed: Zero timeout with no messages should return None"
     consumer1.close()
-    
+
     # Assertion 2: Closed consumer raises RuntimeError
     consumer2 = TestConsumer({
         'group.id': 'test-poll-closed',
@@ -1176,11 +1180,13 @@ def test_poll_edge_cases():
         'session.timeout.ms': 1000
     })
     consumer2.close()
-    
+
     with pytest.raises(RuntimeError) as exc_info:
         consumer2.poll(timeout=0.1)
-    assert 'Consumer closed' in str(exc_info.value), f"Assertion 2 failed: Expected 'Consumer closed' error, got: {exc_info.value}"
-    
+    msg = (f"Assertion 2 failed: Expected 'Consumer closed' error, "
+           f"got: {exc_info.value}")
+    assert 'Consumer closed' in str(exc_info.value), msg
+
     # Assertion 3: Short timeout works correctly (no signal)
     consumer3 = TestConsumer({
         'group.id': 'test-poll-short-timeout',
@@ -1189,15 +1195,15 @@ def test_poll_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe([topic])
-    
+
     start = time.time()
     msg = consumer3.poll(timeout=0.1)  # 100ms timeout
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 3 failed: Short timeout with no messages should return None"
     assert 0.05 <= elapsed <= 0.2, f"Assertion 3 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
     consumer3.close()
-    
+
     # Assertion 4: Very short timeout (less than chunk size) works
     consumer4 = TestConsumer({
         'group.id': 'test-poll-very-short',
@@ -1206,21 +1212,21 @@ def test_poll_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe([topic])
-    
+
     start = time.time()
     msg = consumer4.poll(timeout=0.05)  # 50ms timeout (less than 200ms chunk)
     elapsed = time.time() - start
-    
+
     assert msg is None, "Assertion 4 failed: Very short timeout should return None"
     assert elapsed < 0.2, f"Assertion 4 failed: Very short timeout took {elapsed:.2f}s, expected < 0.2s"
     consumer4.close()
 
 
 def test_consume_interruptibility_and_messages():
-    """Test consume() interruptibility (main fix) and message handling.   
+    """Test consume() interruptibility (main fix) and message handling.
     """
     topic = 'test-consume-interrupt-topic'
-    
+
     # Assertion 1: Infinite timeout can be interrupted immediately
     consumer1 = TestConsumer({
         'group.id': 'test-consume-infinite-immediate',
@@ -1229,11 +1235,11 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.1))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer1.consume()  # Infinite timeout, default num_messages=1
@@ -1243,7 +1249,7 @@ def test_consume_interruptibility_and_messages():
         # Should interrupt within first chunk (~200ms)
         assert elapsed < 0.5, f"Assertion 1 failed: Immediate interrupt took {elapsed:.2f}s, expected < 0.5s"
     consumer1.close()
-    
+
     # Assertion 2: Finite timeout can be interrupted before timeout expires
     consumer2 = TestConsumer({
         'group.id': 'test-consume-finite-interrupt',
@@ -1252,11 +1258,11 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer2.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.3))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer2.consume(num_messages=10, timeout=2.0)  # 2 seconds, but interrupt after 0.3s
@@ -1267,7 +1273,7 @@ def test_consume_interruptibility_and_messages():
         assert elapsed < 1.0, f"Assertion 2 failed: Finite timeout interrupt took {elapsed:.2f}s, expected < 1.0s"
         assert elapsed < 2.0, f"Assertion 2 failed: Should interrupt before timeout, took {elapsed:.2f}s"
     consumer2.close()
-    
+
     # Assertion 3: Signal sent after multiple chunks still interrupts quickly
     consumer3 = TestConsumer({
         'group.id': 'test-consume-multiple-chunks',
@@ -1276,11 +1282,11 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe([topic])
-    
+
     interrupt_thread = threading.Thread(target=lambda: send_sigint_after_delay(0.6))
     interrupt_thread.daemon = True
     interrupt_thread.start()
-    
+
     start = time.time()
     try:
         consumer3.consume(num_messages=5)  # Infinite timeout
@@ -1288,9 +1294,11 @@ def test_consume_interruptibility_and_messages():
     except KeyboardInterrupt:
         elapsed = time.time() - start
         # Should interrupt within one chunk period after signal (0.6s + 0.2s = 0.8s max)
-        assert 0.6 <= elapsed <= 0.9, f"Assertion 3 failed: Multiple chunks interrupt took {elapsed:.2f}s, expected 0.6-0.9s"
+        msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
+               f"{elapsed:.2f}s, expected 0.6-0.9s")
+        assert 0.6 <= elapsed <= 0.9, msg
     consumer3.close()
-    
+
     # Assertion 4: No signal - timeout works normally, returns empty list
     consumer4 = TestConsumer({
         'group.id': 'test-consume-timeout-normal',
@@ -1299,16 +1307,16 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe([topic])
-    
+
     start = time.time()
     msglist = consumer4.consume(num_messages=10, timeout=0.5)  # 500ms, no signal
     elapsed = time.time() - start
-    
+
     assert isinstance(msglist, list), "Assertion 4 failed: consume() should return a list"
     assert len(msglist) == 0, f"Assertion 4 failed: Expected empty list (timeout), got {len(msglist)} messages"
     assert 0.4 <= elapsed <= 0.6, f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer4.close()
-    
+
     # Assertion 5: num_messages=0 returns empty list immediately
     consumer5 = TestConsumer({
         'group.id': 'test-consume-zero-messages',
@@ -1317,23 +1325,23 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'latest'
     })
     consumer5.subscribe([topic])
-    
+
     start = time.time()
     msglist = consumer5.consume(num_messages=0, timeout=1.0)
     elapsed = time.time() - start
-    
+
     assert isinstance(msglist, list), "Assertion 5 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 5 failed: num_messages=0 should return empty list"
     assert elapsed < 0.1, f"Assertion 5 failed: num_messages=0 took {elapsed:.2f}s, expected < 0.1s"
     consumer5.close()
-    
+
     # Assertion 6: Message available - returns messages
     producer = Producer({'bootstrap.servers': 'localhost:9092'})
     for i in range(3):
         producer.produce(topic, value=f'test-message-{i}'.encode())
     producer.flush(timeout=1.0)
     producer = None
-    
+
     consumer6 = TestConsumer({
         'bootstrap.servers': 'localhost:9092',
         'group.id': 'test-consume-messages-available',
@@ -1342,16 +1350,16 @@ def test_consume_interruptibility_and_messages():
         'auto.offset.reset': 'earliest'
     })
     consumer6.subscribe([topic])
-    
+
     # Wait for subscription and message availability
     time.sleep(2.0)
-    
+
     start = time.time()
     msglist = consumer6.consume(num_messages=5, timeout=2.0)
     elapsed = time.time() - start
-    
+
     # Messages should be available and return quickly (after consumer is ready)
-    assert len(msglist) > 0, f"Assertion 6 failed: Expected messages, got empty list"
+    assert len(msglist) > 0, "Assertion 6 failed: Expected messages, got empty list"
     assert len(msglist) <= 5, f"Assertion 6 failed: Should return at most 5 messages, got {len(msglist)}"
     # Allow more time for initial consumer setup, but once ready, should return quickly
     assert elapsed < 2.5, f"Assertion 6 failed: Messages available but took {elapsed:.2f}s, expected < 2.5s"
@@ -1366,7 +1374,7 @@ def test_consume_edge_cases():
     """Test consume() edge cases.
     """
     topic = 'test-consume-edge-topic'
-    
+
     # Assertion 1: Zero timeout returns immediately (non-blocking)
     consumer1 = TestConsumer({
         'group.id': 'test-consume-zero-timeout',
@@ -1375,16 +1383,16 @@ def test_consume_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer1.subscribe([topic])
-    
+
     start = time.time()
     msglist = consumer1.consume(num_messages=10, timeout=0.0)  # Zero timeout
     elapsed = time.time() - start
-    
+
     assert elapsed < 0.1, f"Assertion 1 failed: Zero timeout took {elapsed:.2f}s, expected < 0.1s"
     assert isinstance(msglist, list), "Assertion 1 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 1 failed: Zero timeout with no messages should return empty list"
     consumer1.close()
-    
+
     # Assertion 2: Closed consumer raises RuntimeError
     consumer2 = TestConsumer({
         'group.id': 'test-consume-closed',
@@ -1392,11 +1400,13 @@ def test_consume_edge_cases():
         'session.timeout.ms': 1000
     })
     consumer2.close()
-    
+
     with pytest.raises(RuntimeError) as exc_info:
         consumer2.consume(num_messages=10, timeout=0.1)
-    assert 'Consumer closed' in str(exc_info.value), f"Assertion 2 failed: Expected 'Consumer closed' error, got: {exc_info.value}"
-    
+    msg = (f"Assertion 2 failed: Expected 'Consumer closed' error, "
+           f"got: {exc_info.value}")
+    assert 'Consumer closed' in str(exc_info.value), msg
+
     # Assertion 3: Invalid num_messages (negative) raises ValueError
     consumer3 = TestConsumer({
         'group.id': 'test-consume-invalid-negative',
@@ -1405,12 +1415,14 @@ def test_consume_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer3.subscribe([topic])
-    
+
     with pytest.raises(ValueError) as exc_info:
         consumer3.consume(num_messages=-1, timeout=0.1)
-    assert 'num_messages must be between 0 and 1000000' in str(exc_info.value), f"Assertion 3 failed: Expected num_messages range error, got: {exc_info.value}"
+    msg = (f"Assertion 3 failed: Expected num_messages range error, "
+           f"got: {exc_info.value}")
+    assert 'num_messages must be between 0 and 1000000' in str(exc_info.value), msg
     consumer3.close()
-    
+
     # Assertion 4: Invalid num_messages (too large) raises ValueError
     consumer4 = TestConsumer({
         'group.id': 'test-consume-invalid-large',
@@ -1419,12 +1431,14 @@ def test_consume_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer4.subscribe([topic])
-    
+
     with pytest.raises(ValueError) as exc_info:
         consumer4.consume(num_messages=1000001, timeout=0.1)
-    assert 'num_messages must be between 0 and 1000000' in str(exc_info.value), f"Assertion 4 failed: Expected num_messages range error, got: {exc_info.value}"
+    msg = (f"Assertion 4 failed: Expected num_messages range error, "
+           f"got: {exc_info.value}")
+    assert 'num_messages must be between 0 and 1000000' in str(exc_info.value), msg
     consumer4.close()
-    
+
     # Assertion 5: Short timeout works correctly (no signal)
     consumer5 = TestConsumer({
         'group.id': 'test-consume-short-timeout',
@@ -1433,16 +1447,16 @@ def test_consume_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer5.subscribe([topic])
-    
+
     start = time.time()
     msglist = consumer5.consume(num_messages=10, timeout=0.1)  # 100ms timeout
     elapsed = time.time() - start
-    
+
     assert isinstance(msglist, list), "Assertion 5 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 5 failed: Short timeout with no messages should return empty list"
     assert 0.05 <= elapsed <= 0.2, f"Assertion 5 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
     consumer5.close()
-    
+
     # Assertion 6: Very short timeout (less than chunk size) works
     consumer6 = TestConsumer({
         'group.id': 'test-consume-very-short',
@@ -1451,11 +1465,11 @@ def test_consume_edge_cases():
         'auto.offset.reset': 'latest'
     })
     consumer6.subscribe([topic])
-    
+
     start = time.time()
     msglist = consumer6.consume(num_messages=5, timeout=0.05)  # 50ms timeout (less than 200ms chunk)
     elapsed = time.time() - start
-    
+
     assert isinstance(msglist, list), "Assertion 6 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 6 failed: Very short timeout should return empty list"
     assert elapsed < 0.2, f"Assertion 6 failed: Very short timeout took {elapsed:.2f}s, expected < 0.2s"
