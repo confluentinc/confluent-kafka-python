@@ -1,6 +1,6 @@
-azure-identity
+azure-identity>=1.25.1
 azure-keyvault-keys
-boto3>=1.35
+boto3>=1.40.69
 cel-python>=0.4.0
 # Pin google-re2 to last version with Python 3.9 wheels (see https://pypi.org/project/google-re2/1.1.20251105/#files)
 google-re2<1.1.20251105
