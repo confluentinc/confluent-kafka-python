@@ -1,4 +1,4 @@
-azure-identity
+azure-identity>=1.25.1
 azure-keyvault-keys
 boto3>=1.40.69
 cel-python>=0.4.0
