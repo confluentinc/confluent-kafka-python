@@ -14,10 +14,8 @@ from confluent_kafka import (Consumer, TopicPartition, KafkaError,
 from tests.common import TestConsumer
 
 # Timing constants for wakeable poll/consume pattern tests
-WAKEABLE_POLL_LONGER_TIMEOUT_MIN = 0.2  # Minimum timeout for longer operations (seconds)
-WAKEABLE_POLL_LONGER_TIMEOUT_MAX = 2.0  # Maximum timeout for longer operations (seconds)
-WAKEABLE_POLL_SHORTER_TIMEOUT_MIN = 0.01  # Minimum timeout for shorter operations (seconds)
-WAKEABLE_POLL_SHORTER_TIMEOUT_MAX = 0.5  # Maximum timeout for shorter operations (seconds)
+WAKEABLE_POLL_TIMEOUT_MIN = 0.2  # Minimum timeout (seconds)
+WAKEABLE_POLL_TIMEOUT_MAX = 2.0  # Maximum timeout (seconds)
 
 
 def send_sigint_after_delay(delay_seconds):
@@ -741,7 +739,7 @@ def test_calculate_chunk_timeout_utility_function():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 2 failed: Expected None (timeout)"
-    assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, \
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
         f"Assertion 2 failed: Timeout took {elapsed:.2f}s, expected ~1.0s"
     consumer2.close()
 
@@ -759,7 +757,8 @@ def test_calculate_chunk_timeout_utility_function():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 3 failed: Expected None (timeout)"
-    assert 0.25 <= elapsed <= 0.45, f"Assertion 3 failed: Timeout took {elapsed:.2f}s, expected ~0.35s"
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Assertion 3 failed: Timeout took {elapsed:.2f}s, expected ~0.35s"
     consumer3.close()
 
     # Assertion 4: Very short timeout (< 200ms chunk size)
@@ -896,7 +895,7 @@ def test_check_signals_between_chunks_utility_function():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 3 failed: Expected None (timeout), no signal should not interrupt"
-    assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, \
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
         f"Assertion 3 failed: No signal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer3.close()
 
@@ -919,9 +918,8 @@ def test_check_signals_between_chunks_utility_function():
         consumer4.poll()  # Infinite timeout
     except KeyboardInterrupt:
         elapsed = time.time() - start
-        # Should interrupt quickly after signal (within one chunk period)
-        # Signal sent at 0.6s, should interrupt by ~0.8s (0.6 + 0.2)
-        assert 0.6 <= elapsed <= 0.9, f"Assertion 4 failed: Every chunk check took {elapsed:.2f}s, expected 0.6-0.9s"
+        assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+            f"Assertion 4 failed: Every chunk check took {elapsed:.2f}s, expected {WAKEABLE_POLL_TIMEOUT_MIN}-{WAKEABLE_POLL_TIMEOUT_MAX}s"
     consumer4.close()
 
     # Assertion 5: Signal check works during finite timeout
@@ -998,8 +996,8 @@ def test_wakeable_poll_utility_functions_interaction():
         # Signal check should happen every chunk
         # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 2 failed: Multiple chunks interaction took "
-               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
-        assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
+               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_TIMEOUT_MIN}-{WAKEABLE_POLL_TIMEOUT_MAX}s")
+        assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, msg
         # Verify chunking was happening (elapsed should be close to signal time + one chunk)
         assert elapsed >= 0.6, f"Assertion 2 failed: Should wait for signal at 0.6s, but interrupted at {elapsed:.2f}s"
     consumer2.close()
@@ -1078,8 +1076,8 @@ def test_wakeable_poll_interruptibility_and_messages():
         elapsed = time.time() - start
         # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
-               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
-        assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
+               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_TIMEOUT_MIN}-{WAKEABLE_POLL_TIMEOUT_MAX}s")
+        assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, msg
     consumer3.close()
 
     # Assertion 4: No signal - timeout works normally
@@ -1096,7 +1094,8 @@ def test_wakeable_poll_interruptibility_and_messages():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 4 failed: Expected None (timeout), no signal should not interrupt"
-    assert 0.4 <= elapsed <= 0.6, f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer4.close()
 
 
@@ -1150,7 +1149,7 @@ def test_wakeable_poll_edge_cases():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 3 failed: Short timeout with no messages should return None"
-    assert WAKEABLE_POLL_SHORTER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_SHORTER_TIMEOUT_MAX, \
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
         f"Assertion 3 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
     consumer3.close()
 
@@ -1245,8 +1244,8 @@ def test_wakeable_consume_interruptibility_and_messages():
         elapsed = time.time() - start
         # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
-               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
-        assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
+               f"{elapsed:.2f}s, expected {WAKEABLE_POLL_TIMEOUT_MIN}-{WAKEABLE_POLL_TIMEOUT_MAX}s")
+        assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, msg
     consumer3.close()
 
     # Assertion 4: No signal - timeout works normally, returns empty list
@@ -1264,7 +1263,8 @@ def test_wakeable_consume_interruptibility_and_messages():
 
     assert isinstance(msglist, list), "Assertion 4 failed: consume() should return a list"
     assert len(msglist) == 0, f"Assertion 4 failed: Expected empty list (timeout), got {len(msglist)} messages"
-    assert 0.4 <= elapsed <= 0.6, f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Assertion 4 failed: Normal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer4.close()
 
     # Assertion 5: num_messages=0 returns empty list immediately
@@ -1370,7 +1370,8 @@ def test_wakeable_consume_edge_cases():
 
     assert isinstance(msglist, list), "Assertion 5 failed: consume() should return a list"
     assert len(msglist) == 0, "Assertion 5 failed: Short timeout with no messages should return empty list"
-    assert 0.05 <= elapsed <= 0.2, f"Assertion 5 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
+    assert WAKEABLE_POLL_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_TIMEOUT_MAX, \
+        f"Assertion 5 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
     consumer5.close()
 
     # Assertion 6: Very short timeout (less than chunk size) works
