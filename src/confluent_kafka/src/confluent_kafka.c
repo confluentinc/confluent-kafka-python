@@ -689,11 +689,112 @@ static int Message_clear (Message *self) {
 	return 0;
 }
 
-
 static void Message_dealloc (Message *self) {
 	Message_clear(self);
 	PyObject_GC_UnTrack(self);
 	Py_TYPE(self)->tp_free((PyObject *)self);
+}
+
+static int Message_init (PyObject *self0, PyObject *args, PyObject *kwargs) {
+    Message *self = (Message *)self0;
+    PyObject *topic = NULL;
+    int32_t partition = RD_KAFKA_PARTITION_UA;
+    int64_t offset = RD_KAFKA_OFFSET_INVALID;
+    PyObject *key = NULL;
+    PyObject *value = NULL;
+	PyObject *headers = NULL;
+	PyObject *error = NULL;
+	PyObject *timestamp = NULL;
+	double latency = -1;
+	int32_t leader_epoch = -1;
+
+	static char *kws[] = { "topic",
+			       "partition",
+			       "offset",
+			       "key",
+                   "value",
+                   "headers",
+                   "error",
+                   "timestamp",
+                   "latency",
+                   "leader_epoch",
+			       NULL };
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|OiLOOOOOdi", kws,
+					 &topic, &partition, &offset,
+					 &key, &value, &headers, &error,
+					 &timestamp, &latency, &leader_epoch)) {
+		return -1;
+	}
+
+	/* Initialize all PyObject fields to NULL first */
+	self->topic = NULL;
+	self->value = NULL;
+	self->key = NULL;
+	self->headers = NULL;
+#ifdef RD_KAFKA_V_HEADERS
+	self->c_headers = NULL;
+#endif
+	self->error = NULL;
+
+    /* Set topic (string) */
+	if (topic && topic != Py_None) {
+		Py_INCREF(topic);
+		self->topic = topic;
+	}
+
+	/* Set key (bytes) */
+	if (key && key != Py_None) {
+		Py_INCREF(key);
+		self->key = key;
+	}
+
+	/* Set value (bytes) */
+	if (value && value != Py_None) {
+		Py_INCREF(value);
+		self->value = value;
+	}
+
+	/* Set headers (list of tuples) */
+	if (headers && headers != Py_None) {
+		Py_INCREF(headers);
+		self->headers = headers;
+	}
+
+	/* Set error (KafkaError) */
+	if (error && error != Py_None) {
+		Py_INCREF(error);
+		self->error = error;
+	}
+
+    /* Set timestamp (tuple of (timestamp_type, timestamp)) */
+	if (timestamp && timestamp != Py_None) {
+	    if (!PyTuple_Check(timestamp) || PyTuple_Size(timestamp) != 2) {
+	        PyErr_SetString(PyExc_TypeError,
+	                        "timestamp must be a tuple of (int, int)");
+	        return -1;
+	    }
+	    self->tstype = (rd_kafka_timestamp_type_t)cfl_PyInt_AsInt(PyTuple_GET_ITEM(timestamp, 0));
+	    self->timestamp = PyLong_AsLongLong(PyTuple_GET_ITEM(timestamp, 1));
+	}
+	else {
+	    self->tstype = RD_KAFKA_TIMESTAMP_NOT_AVAILABLE;
+	    self->timestamp = 0;
+	}
+
+    self->partition = partition < 0 ? RD_KAFKA_PARTITION_UA: partition;
+	self->offset = offset < 0 ? RD_KAFKA_OFFSET_INVALID: offset;
+	self->leader_epoch = leader_epoch < 0 ? -1: leader_epoch;
+	self->latency = (int64_t)(latency < 0 ? -1: latency * 1000000.0);
+
+    return 0;
+}
+
+
+
+static PyObject *Message_new (PyTypeObject *type, PyObject *args,
+                               PyObject *kwargs) {
+        return type->tp_alloc(type, 0);
 }
 
 
@@ -749,8 +850,6 @@ PyTypeObject MessageType = {
 	"object is a proper message (error() returns None) or an "
 	"error/event.\n"
         "\n"
-	"This class is not user-instantiable.\n"
-	"\n"
 	".. py:function:: len()\n"
 	"\n"
 	"  :returns: Message value (payload) size in bytes\n"
@@ -770,8 +869,9 @@ PyTypeObject MessageType = {
 	0,                         /* tp_descr_get */
 	0,                         /* tp_descr_set */
 	0,                         /* tp_dictoffset */
-	0,                         /* tp_init */
-	0                          /* tp_alloc */
+	Message_init,                         /* tp_init */
+	0,                         /* tp_alloc */
+	Message_new                          /* tp_new */
 };
 
 /**
