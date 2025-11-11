@@ -12,8 +12,7 @@ from confluent_kafka import (Consumer, TopicPartition, KafkaError,
                              OFFSET_INVALID)
 from tests.common import TestConsumer
 
-# Timing constants for wakeable poll pattern tests
-# These are lenient ranges to accommodate CI environment variability (especially macOS)
+# Timing constants for wakeable poll/consume pattern tests
 WAKEABLE_POLL_LONGER_TIMEOUT_MIN = 0.2  # Minimum timeout for longer operations (seconds)
 WAKEABLE_POLL_LONGER_TIMEOUT_MAX = 2.0  # Maximum timeout for longer operations (seconds)
 WAKEABLE_POLL_SHORTER_TIMEOUT_MIN = 0.01  # Minimum timeout for shorter operations (seconds)
@@ -765,7 +764,6 @@ def test_calculate_chunk_timeout_utility_function():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 2 failed: Expected None (timeout)"
-    # More lenient for CI environments (macOS can be slower)
     assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, \
         f"Assertion 2 failed: Timeout took {elapsed:.2f}s, expected ~1.0s"
     consumer2.close()
@@ -921,7 +919,6 @@ def test_check_signals_between_chunks_utility_function():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 3 failed: Expected None (timeout), no signal should not interrupt"
-    # More lenient for CI environments (macOS can be slower)
     assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, \
         f"Assertion 3 failed: No signal timeout took {elapsed:.2f}s, expected ~0.5s"
     consumer3.close()
@@ -1022,8 +1019,7 @@ def test_wakeable_poll_utility_functions_interaction():
         elapsed = time.time() - start
         # Chunk calculation should continue correctly (200ms each)
         # Signal check should happen every chunk
-        # Should interrupt within ~0.8s (0.6s signal + 0.2s chunk)
-        # More lenient for CI environments (macOS can be slower)
+        # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 2 failed: Multiple chunks interaction took "
                f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
         assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
@@ -1103,8 +1099,7 @@ def test_wakeable_poll_interruptibility_and_messages():
         assert False, "Assertion 3 failed: Should have raised KeyboardInterrupt"
     except KeyboardInterrupt:
         elapsed = time.time() - start
-        # Should interrupt within one chunk period after signal (0.6s + 0.2s = 0.8s max)
-        # More lenient for CI environments (macOS can be slower)
+        # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
                f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
         assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
@@ -1178,7 +1173,6 @@ def test_wakeable_poll_edge_cases():
     elapsed = time.time() - start
 
     assert msg is None, "Assertion 3 failed: Short timeout with no messages should return None"
-    # More lenient for CI environments (macOS can be slower)
     assert WAKEABLE_POLL_SHORTER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_SHORTER_TIMEOUT_MAX, \
         f"Assertion 3 failed: Short timeout took {elapsed:.2f}s, expected ~0.1s"
     consumer3.close()
@@ -1272,8 +1266,7 @@ def test_wakeable_consume_interruptibility_and_messages():
         assert False, "Assertion 3 failed: Should have raised KeyboardInterrupt"
     except KeyboardInterrupt:
         elapsed = time.time() - start
-        # Should interrupt within one chunk period after signal (0.6s + 0.2s = 0.8s max)
-        # More lenient for CI environments (macOS can be slower)
+        # Signal sent at 0.6s, should interrupt after that
         msg = (f"Assertion 3 failed: Multiple chunks interrupt took "
                f"{elapsed:.2f}s, expected {WAKEABLE_POLL_LONGER_TIMEOUT_MIN}-{WAKEABLE_POLL_LONGER_TIMEOUT_MAX}s")
         assert WAKEABLE_POLL_LONGER_TIMEOUT_MIN <= elapsed <= WAKEABLE_POLL_LONGER_TIMEOUT_MAX, msg
