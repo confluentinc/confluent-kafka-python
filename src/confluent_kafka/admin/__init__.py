@@ -16,6 +16,10 @@
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
 import gc
+# Importing GC to disable it during callback to prevent AdminClient destruction from
+# librdkafka thread: if Python's garbage collection triggers during callback, it will
+# try to destroy AdminClient objects from librdkafka's background thread, which librdkafka
+# explicitly forbids and would send ABORT signal to fail the test.
 import warnings
 import concurrent.futures
 from typing import Any, Dict, List, Optional, Union, Tuple, Set
@@ -137,7 +141,7 @@ class AdminClient (_AdminClientImpl):
         The result value of each (successful) future is None.
         """
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             result = f.result()
             for topic, error in result.items():
@@ -167,7 +171,7 @@ class AdminClient (_AdminClientImpl):
         The result value of each (successful) future is a ConfigResource.
         """
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             result = f.result()
             for resource, configs in result.items():
@@ -201,7 +205,7 @@ class AdminClient (_AdminClientImpl):
         Map per-group results to per-group futures in futmap.
         """
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -231,11 +235,8 @@ class AdminClient (_AdminClientImpl):
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
         """
-        # Disable GC during callback to prevent AdminClient destruction from librdkafka thread.
-        # This callback runs in librdkafka's background thread, and if GC runs here, it may
-        # try to destroy AdminClient objects, which librdkafka forbids from its own threads.
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
 
         try:
             results = f.result()
@@ -268,7 +269,7 @@ class AdminClient (_AdminClientImpl):
         For delete_acls the result value of each (successful) future is the list of deleted AclBindings.
         """
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -295,7 +296,7 @@ class AdminClient (_AdminClientImpl):
     def _make_futmap_result_from_list(f: concurrent.futures.Future,
                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -321,7 +322,7 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _make_futmap_result(f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]) -> None:
         gc_was_enabled = gc.isenabled()
-        gc.disable()
+        gc.disable()  # See gc import comment for preventing librdkafka thread segfault
         try:
             results = f.result()
             len_results = len(results)
