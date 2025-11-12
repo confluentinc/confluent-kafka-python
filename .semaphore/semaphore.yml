@@ -196,14 +196,14 @@ blocks:
       jobs:
         - name: Build and Tests with 'classic' group protocol
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
             - tools/source-package-verification.sh
         - name: Build and Tests with 'consumer' group protocol
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             - sem-version java 17
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
@@ -212,7 +212,7 @@ blocks:
             - tools/source-package-verification.sh
         - name: Build, Test, and Report coverage
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -236,7 +236,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -255,7 +255,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -274,7 +274,7 @@ blocks:
       jobs:
         - name: Build
           commands:
-            - sem-version python 3.9
+            - sem-version python 3.11
             # use a virtualenv
             - python3 -m venv _venv && source _venv/bin/activate
             - chmod u+r+x tools/source-package-verification.sh
@@ -301,7 +301,7 @@ blocks:
         - name: Build and Tests
           commands:
             # Setup Python environment
-            - sem-version python 3.9
+            - sem-version python 3.11
             - python3 -m venv _venv && source _venv/bin/activate
 
             # Install ducktape framework and additional dependencies
