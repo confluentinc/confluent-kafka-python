@@ -135,6 +135,9 @@ class AdminClient (_AdminClientImpl):
         Map per-topic results to per-topic futures in futmap.
         The result value of each (successful) future is None.
         """
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
             result = f.result()
             for topic, error in result.items():
@@ -152,6 +155,9 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all topics
             for topic, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_resource_result(f: concurrent.futures.Future,
@@ -160,6 +166,9 @@ class AdminClient (_AdminClientImpl):
         Map per-resource results to per-resource futures in futmap.
         The result value of each (successful) future is a ConfigResource.
         """
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
             result = f.result()
             for resource, configs in result.items():
@@ -178,6 +187,9 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all resources
             for resource, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_list_consumer_groups_result(f: concurrent.futures.Future, futmap: Any) -> None:
@@ -189,8 +201,10 @@ class AdminClient (_AdminClientImpl):
         """
         Map per-group results to per-group futures in futmap.
         """
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
-
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -208,6 +222,9 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all groups
             for _, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_consumer_group_offsets_result(f: concurrent.futures.Future,
@@ -216,8 +233,15 @@ class AdminClient (_AdminClientImpl):
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
         """
-        try:
+        import gc
 
+        # Disable GC during callback to prevent AdminClient destruction from librdkafka thread.
+        # This callback runs in librdkafka's background thread, and if GC runs here, it may
+        # try to destroy AdminClient objects, which librdkafka forbids from its own threads.
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
+
+        try:
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -235,6 +259,10 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all groups
             for _, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            # Re-enable GC if it was enabled before
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_acls_result(f: concurrent.futures.Future, futmap: Dict[Any, concurrent.futures.Future]) -> None:
@@ -243,6 +271,9 @@ class AdminClient (_AdminClientImpl):
         For create_acls the result value of each (successful) future is None.
         For delete_acls the result value of each (successful) future is the list of deleted AclBindings.
         """
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
             results = f.result()
             futmap_values = list(futmap.values())
@@ -261,12 +292,17 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all the AclBindings or AclBindingFilters
             for resource, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_futmap_result_from_list(f: concurrent.futures.Future,
                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
-
             results = f.result()
             futmap_values = list(futmap.values())
             len_results = len(results)
@@ -284,9 +320,15 @@ class AdminClient (_AdminClientImpl):
             # Request-level exception, raise the same for all topics
             for _, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _make_futmap_result(f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]) -> None:
+        import gc
+        gc_was_enabled = gc.isenabled()
+        gc.disable()
         try:
             results = f.result()
             len_results = len(results)
@@ -306,6 +348,9 @@ class AdminClient (_AdminClientImpl):
         except Exception as e:
             for _, fut in futmap.items():
                 fut.set_exception(e)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
 
     @staticmethod
     def _create_future() -> concurrent.futures.Future:
@@ -1126,7 +1171,6 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-
         AdminClient._check_list_consumer_group_offsets_request(list_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures(
@@ -1163,7 +1207,6 @@ class AdminClient (_AdminClientImpl):
         :raises TypeException: Invalid input.
         :raises ValueException: Invalid input.
         """
-
         AdminClient._check_alter_consumer_group_offsets_request(alter_consumer_group_offsets_request)
 
         f, futmap = AdminClient._make_futures([request.group_id for request in alter_consumer_group_offsets_request],
