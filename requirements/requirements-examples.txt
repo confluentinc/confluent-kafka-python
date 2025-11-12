@@ -7,11 +7,12 @@ six
 attrs
 cachetools
 httpx>=0.26
-authlib>=1.0.0
+httpcore>=1.0.9
+authlib>=1.6.5
 
 fastavro < 1.8.0; python_version == "3.7"
 fastavro < 2; python_version > "3.7"
-requests
+requests~=2.32.0
 avro>=1.11.1,<2
 
 pyrsistent
@@ -21,7 +22,7 @@ orjson >= 3.10
 googleapis-common-protos
 protobuf
 
-azure-identity
+azure-identity>=1.25.1
 azure-keyvault-keys
 boto3
 cel-python>=0.4.0
