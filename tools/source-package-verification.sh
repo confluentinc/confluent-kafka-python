@@ -54,7 +54,7 @@ if [[ $OS_NAME == linux && $ARCH == x64 ]]; then
         flake8 --exclude ./_venv,*_pb2.py,./build
 
         echo "Running mypy type checking ..."
-        mypy src/confluent_kafka
+        python3.11 -m mypy src/confluent_kafka
 
         pip install -r requirements/requirements-docs.txt
         make docs

@@ -1,5 +1,5 @@
 # core test requirements
-urllib3>=2,<3,!=2.2.0
+urllib3<3
 flake8
 mypy
 types-cachetools
@@ -12,4 +12,4 @@ respx
 pytest_cov
 pluggy<1.6.0
 pytest-asyncio
-async-timeout>=5.0.1
+async-timeout

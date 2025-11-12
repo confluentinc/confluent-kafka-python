@@ -22,8 +22,8 @@ orjson >= 3.10
 googleapis-common-protos
 protobuf
 
-azure-identity>=1.25.1
 azure-keyvault-keys
+azure-identity
 boto3
 cel-python>=0.4.0
 google-auth
