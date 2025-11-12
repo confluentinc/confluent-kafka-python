@@ -110,7 +110,7 @@ class DeserializingConsumer(_ConsumerImpl):
         if topic is None:
             raise TypeError("Message topic is None")
         ctx = SerializationContext(topic, MessageField.VALUE, msg.headers())
-        
+
         value = msg.value()
         if self._value_deserializer is not None:
             try:
