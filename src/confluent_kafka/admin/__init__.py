@@ -15,6 +15,7 @@
 """
 Kafka admin client: create, view, alter, and delete topics and resources.
 """
+import gc
 import warnings
 import concurrent.futures
 from typing import Any, Dict, List, Optional, Union, Tuple, Set
@@ -135,7 +136,6 @@ class AdminClient (_AdminClientImpl):
         Map per-topic results to per-topic futures in futmap.
         The result value of each (successful) future is None.
         """
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
@@ -166,7 +166,6 @@ class AdminClient (_AdminClientImpl):
         Map per-resource results to per-resource futures in futmap.
         The result value of each (successful) future is a ConfigResource.
         """
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
@@ -201,7 +200,6 @@ class AdminClient (_AdminClientImpl):
         """
         Map per-group results to per-group futures in futmap.
         """
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
@@ -233,8 +231,6 @@ class AdminClient (_AdminClientImpl):
         Map per-group results to per-group futures in futmap.
         The result value of each (successful) future is ConsumerGroupTopicPartitions.
         """
-        import gc
-
         # Disable GC during callback to prevent AdminClient destruction from librdkafka thread.
         # This callback runs in librdkafka's background thread, and if GC runs here, it may
         # try to destroy AdminClient objects, which librdkafka forbids from its own threads.
@@ -271,7 +267,6 @@ class AdminClient (_AdminClientImpl):
         For create_acls the result value of each (successful) future is None.
         For delete_acls the result value of each (successful) future is the list of deleted AclBindings.
         """
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
@@ -299,7 +294,6 @@ class AdminClient (_AdminClientImpl):
     @staticmethod
     def _make_futmap_result_from_list(f: concurrent.futures.Future,
                                       futmap: Dict[Any, concurrent.futures.Future]) -> None:
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
@@ -326,7 +320,6 @@ class AdminClient (_AdminClientImpl):
 
     @staticmethod
     def _make_futmap_result(f: concurrent.futures.Future, futmap: Dict[str, concurrent.futures.Future]) -> None:
-        import gc
         gc_was_enabled = gc.isenabled()
         gc.disable()
         try:
