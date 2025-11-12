@@ -5,6 +5,7 @@
 #
 set -e
 
+pip install --upgrade pip
 pip install -r requirements/requirements-tests-install.txt
 pip install -U build
 
