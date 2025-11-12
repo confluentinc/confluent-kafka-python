@@ -166,7 +166,13 @@ reviewed by team mates, perform one or more CANDIDATE ITERATION, and then do a
 final RELEASE ITERATION.
 
 
-### 5.1. Create a tag
+### 5.1. Push the RC branch
+
+Push your branch:
+    $ git push origin v0.11.4rc
+
+
+### 5.2. Create a tag
 
 Packaging is fragile and is only triggered when a tag is pushed. To avoid
 finding out about packaging problems on the RC tag, it is strongly recommended
@@ -179,49 +185,17 @@ be removed after the build passes.
           That is to say that while the librdkafka RC is named `v0.11.4-RC3`
           a Python client RC with the same version is named `v0.11.4rc3`.
 
-**TEST ITERATION**:
-
-    # Repeat with new tags until all build issues are solved.
-    $ git tag v0.11.4rc1-dev2
-
-    # Delete any previous test tag you've created.
-    $ git tag tag -d v0.11.4rc1-dev1
-
-
-**CANDIDATE ITERATION**:
-
-    $ git tag v0.11.4rc1
-
-
-**RELEASE ITERATION**:
-
-    $ git tag v0.11.4
-
-
-
-### 5.2. Push tag and commits
-
-Perform a dry-run push first to make sure the correct branch and only our tag
-is pushed.
-
-    $ git push --dry-run --tags origin v0.11.4rc  # tags and branch
-
-An alternative is to push branch and tags separately:
-
-    $ git push --dry-run origin v0.11.4rc  # the branch
-    $ git push --dry-run origin v0.11.4rc1  # the tag
-
-
-Verify that the output corresponds to what you actually wanted to push;
-the correct branch and tag, etc.
-
-Remove `--dry-run` when you're happy with the results.
+Use the [Semaphore CI tag-release task](https://semaphore.ci.confluent.io/projects/clients-releases/schedulers/30e1eb9a-91de-43a4-a8de-be4f3de5a3b6) to create tags. Set the parameter accordingly:
+- **PROJECT**: confluent-kafka-python
+- **GIT_REF**: name of your RC branch (`v0.11.4rc` in this tutorial)
+- **TAG_NAME**: name of the new tag (`v0.11.4rc1-dev1`, for example)
+- You can do a test run (set **dry_run** to true) to verify the output before proceeding with the actual tag creation (set **dry_run** to true).
 
 
 ### 5.3. Wait for CI builds to complete
 
 Monitor Semaphore CI builds by looking at the *tag* build at
-[Semaphore CI](https://confluentinc.semaphoreci.com/projects/confluent-kafka-python)
+[Semaphore CI](https://semaphore.ci.confluent.io/projects/confluent-kafka-python)
 
 CI jobs are flaky and may fail temporarily. If you see a temporary build error,
 e.g., a timeout, restart the specific job.
@@ -232,11 +206,11 @@ and push a new test tag. Don't forget to delete your previous test tag.
 
 ### 5.4. Download build artifacts
 
-When all CI builds are successful it is time to download the resulting
-artifacts from build's Artifact directory located in another tab in the build:
+When all CI builds are successful it is time to download all the resulting
+artifacts (wheels) from build's `artifacts` directory (located in the `Artifacts` tab in the build).
 
-**Note:** The artifacts should be extracted in the folder `tools\dl-<tag>` for
-subsequent steps to work properly.
+Create a new folder `tools\dl-<tag>` under the repository root, and unzip all artifacts from the downloaded .tgz files there. You should have many artifacts (with .whl suffix) under `tools\dl-<tag>` as we support different operating systems and Python versions.
+
 
 ### 5.5. Verify packages
 
@@ -251,7 +225,6 @@ locally (this should be run on OSX with Docker installed):
 When all things are looking good it is time to clean up
 the git history to look tidy, remove any test tags, and then go back to
 5.1 and perform the CANDIDATE ITERATION.
-
 
 
 ### 5.5.2. Create PR
@@ -333,18 +306,26 @@ In the same virtualenv as created above:
 
 **CANDIDATE ITERATION:**
 
-    # For release-candidates specify --pre argument and version-pinning:
-    $ pip install --pre confluent_kafka==0.11.4rc1
+    # For release-candidates specify --pre argument and version-pinning.
+    
+    # Ensure you veriy installation of both pre-built wheel and building from source:
+
+    $ pip install --pre -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4rc1"
+
+    $ C_INCLUDE_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/include LIBRARY_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/lib pip install --pre --no-binary "confluent-kafka" -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4rc1" # On OSX, need to provide paths for librdkafka
 
 
 **RELEASE ITERATION:**
 
     # For final releases no --pre or version-pinning, pay
     # attention to the version being picked up, should be the
-    # final v0.11.4 release:
+    # final v0.11.4 release.
 
-    $ pip install confluent_kafka
+    # Ensure you veriy installation of both pre-built wheel and building from source:
 
+    $ pip install -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4"
+
+    $ C_INCLUDE_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/include LIBRARY_PATH=/opt/homebrew/Cellar/librdkafka/0.11.4/lib pip install --no-binary "confluent-kafka" -i https://test.pypi.org/simple/ "confluent-kafka==0.11.4" # On OSX, need to provide paths for librdkafka
 
 Verify that the package works and prints the expected version:
 
@@ -365,27 +346,12 @@ Use Preview to check that links work as expected.
 
 Create the release.
 
-### 6.1. Announcement
-
-Write a tweet to announce the new release, something like:
-
-    #Apache #Kafka #Python client confluent-kafka-python v0.11.4 released!
-    Adds support for <mainline feature> or something about maintenance release.
-    <link-to-release-notes-on-github>
-
-
 ### 6.2. Update docs.confluent.io API docs
 
 Create a PR to update the confluent-kafka-python version tag for the
 Python API docs on docs.confluent.io.
 
-    # Update the Python API docs to the latest version: includes
-      https://github.com/confluentinc/docs and
-      https://github.com/confluentinc/docs-platform.
-
-    # Update docs.confluent.io: cut the docs release branch of
-      https://github.com/confluentinc/docs-clients-confluent-kafka-python,
-      refers to https://confluentinc.atlassian.net/wiki/spaces/TOOLS/pages/2044330444/Create+a+new+version+of+a+documentation+repo#Create-new-release-branches.
+    # Update the Python API docs to the latest version: https://github.com/confluentinc/docs-platform.
 
 
 ### 6.3. Done!
