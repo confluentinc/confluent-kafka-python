@@ -28,7 +28,6 @@
 #include "confluent_kafka.h"
 
 #include <stdarg.h>
-#include <unistd.h>
 
 
 /****************************************************************************
